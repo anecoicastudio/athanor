@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(15);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -18,6 +18,11 @@ select has_table('public', 'dreams', 'dreams table exists');
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.dreams'::regclass),
   'RLS enabled on dreams'
+);
+select policies_are(
+  'public', 'dreams',
+  array['dreams_select_authenticated', 'dreams_insert_own', 'dreams_update_own'],
+  'exactly the expected policies on dreams'
 );
 
 -- anon: no access at all
@@ -79,6 +84,19 @@ select results_eq(
   $$ select count(*)::int from public.dreams where status = 'archived' $$,
   $$ values (1) $$,
   'archive persisted'
+);
+
+-- archiving frees the one-active slot
+select lives_ok(
+  $$ insert into public.dreams (profile_id, text)
+     values ('11111111-1111-1111-1111-111111111111', 'Nuovo sogno attivo') $$,
+  'new active dream allowed after archive'
+);
+
+select throws_ok(
+  $$ update public.dreams set text = '   '
+     where profile_id = '11111111-1111-1111-1111-111111111111' and status = 'active' $$,
+  '23514', null, 'blank dream text rejected'
 );
 reset role;
 
