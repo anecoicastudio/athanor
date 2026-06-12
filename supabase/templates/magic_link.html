@@ -1,0 +1,8 @@
+<h2>Ti abbiamo aperto un varco</h2>
+<p>Entra in Kaira con questo link:</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink"
+    >Entra in Kaira</a
+  >
+</p>
+<p>In alternativa, inserisci il codice: {{ .Token }}</p>
