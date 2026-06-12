@@ -1,0 +1,24 @@
+{
+  "name": "kaira",
+  "private": true,
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "gen:types": "supabase gen types typescript --local > packages/api/src/database.types.ts"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.0"
+  },
+  "pnpm": {
+    "overrides": {}
+  }
+}

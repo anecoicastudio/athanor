@@ -1,0 +1,25 @@
+# deps
+node_modules/
+
+# builds
+.next/
+.expo/
+dist/
+.turbo/
+
+# env — examples only
+.env
+.env.*
+!.env.example
+
+# supabase local
+supabase/.temp/
+supabase/.branches/
+
+# misc
+.DS_Store
+*.log
+coverage/
+
+# claude local
+.claude/settings.local.json
