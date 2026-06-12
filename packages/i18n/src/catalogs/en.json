@@ -9,6 +9,7 @@
   "moment.new": "You have a Moment",
   "auth.welcome.title": "The right moment, the right people.",
   "auth.email.label": "Your email",
+  "auth.email.placeholder": "name@example.com",
   "auth.email.cta": "Begin your Kairos",
   "auth.sent.title": "Check your email",
   "auth.sent.body": "We opened a gate for you. Find it in your inbox.",

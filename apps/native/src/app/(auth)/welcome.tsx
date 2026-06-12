@@ -44,7 +44,7 @@ export default function WelcomeScreen() {
           autoCapitalize="none"
           autoComplete="email"
           inputMode="email"
-          placeholder="nome@esempio.it"
+          placeholder={t('auth.email.placeholder', 'it')}
           value={email}
           onChangeText={setEmail}
         />

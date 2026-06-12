@@ -9,6 +9,7 @@
   "moment.new": "Hai un Momento",
   "auth.welcome.title": "Il momento giusto, le persone giuste.",
   "auth.email.label": "La tua email",
+  "auth.email.placeholder": "nome@esempio.it",
   "auth.email.cta": "Inizia il tuo Kairos",
   "auth.sent.title": "Controlla la tua email",
   "auth.sent.body": "Ti abbiamo aperto un varco. Trovalo nella tua casella di posta.",
