@@ -84,12 +84,20 @@ export default function OnboardingScreen() {
       return;
     }
     queueMicrotask(() => setHandleStatus('checking'));
+    let cancelled = false;
     const id = setTimeout(() => {
       isHandleAvailable(supabase, handle)
-        .then((free) => setHandleStatus(free ? 'free' : 'taken'))
-        .catch(() => setHandleStatus('idle'));
+        .then((free) => {
+          if (!cancelled) setHandleStatus(free ? 'free' : 'taken');
+        })
+        .catch(() => {
+          if (!cancelled) setHandleStatus('idle');
+        });
     }, 400);
-    return () => clearTimeout(id);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
   }, [handle]);
 
   const toggle = (list: string[], set: (v: string[]) => void, tag: string) =>
@@ -135,8 +143,22 @@ export default function OnboardingScreen() {
     <ScrollView
       className="flex-1 bg-background"
       contentContainerClassName="grow justify-center gap-8 px-5 py-16"
+      keyboardShouldPersistTaps="handled"
     >
-      <Dots step={step} />
+      <View className="flex-row items-center justify-between">
+        <Dots step={step} />
+        {step > 0 ? (
+          <Pressable
+            onPress={() => setStep((s) => s - 1)}
+            accessibilityRole="button"
+            accessibilityLabel={t('onboarding.back', locale)}
+            hitSlop={12}
+            disabled={submitting}
+          >
+            <Text className="text-muted-foreground">←</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {step === 0 ? (
         <View className="gap-4">
