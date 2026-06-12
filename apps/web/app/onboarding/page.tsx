@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -70,8 +68,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // createClient() called inside Promise resolution — never runs during SSR prerender
-    const client = createClient() as unknown as KairaClient;
+    const client = createClient();
     client.auth.getUser().then(({ data }) => {
       setSupabase(client);
       setUserId(data.user?.id ?? null);
