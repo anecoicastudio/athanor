@@ -26,3 +26,4 @@ coverage/
 .claude/scheduled_tasks.lock
 *.types.ts.tmp
 .gstack/
+docs/screenshot-design/

@@ -21,17 +21,20 @@
     --color-muted-foreground: #c9c4b8;
     --color-moment: #c9a227;
     --color-line: #2a3b5c;
-  }
-}
+    --color-band-alt: #efeae0;
+    --color-ink-on-light: #16243d;
+    --color-ink-muted-on-light: #5c6470;
+    --color-success: #3e7c59;
+    --color-error: #b3492d;
 
-@media android {
-  :root {
-    --font-sans: normal;
-  }
-}
-
-@media ios {
-  :root {
-    --font-sans: system-ui;
+    /*
+     * RN selects fonts by exact loaded family name (one file = one family),
+     * so semibold is its own family, not font-weight 600.
+     * --font-dream (Instrument Serif italic) is the dream register only
+     * (DESIGN.md §4): dream quotes + ritual captions, never UI.
+     */
+    --font-sans: 'HankenGrotesk_400Regular';
+    --font-sans-semibold: 'HankenGrotesk_600SemiBold';
+    --font-dream: 'InstrumentSerif_400Regular_Italic';
   }
 }

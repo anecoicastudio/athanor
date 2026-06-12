@@ -21,6 +21,11 @@ export const semantic = {
   foregroundMuted: '#C9C4B8', // avorio dimmed — secondary text
   moment: colors.oro, // ONLY for moments that matter
   border: '#2A3B5C',
+  bandAlt: '#EFEAE0', // sand band — alternating sections on avorio web pages
+  inkOnLight: colors.bluNotte, // text on avorio = blu notte (one ink)
+  inkMutedOnLight: '#5C6470', // secondary text on avorio (AA on #FAF7F0)
+  success: '#3E7C59', // confirmations, check-in OK (deep green, calm)
+  error: '#B3492D', // input error ring, destructive (terracotta)
 } as const;
 
 export const spacing = {
@@ -39,10 +44,17 @@ export const radius = {
   full: 9999,
 } as const;
 
-/** Refined humanist sans, two weights only (per brand identity). */
+/**
+ * Warm grotesque, two weights only (per brand identity, DESIGN.md §4).
+ * serifFamily (Instrument Serif italic) is the dream register: ONLY for
+ * dream quotes and ritual captions — never UI, never headings.
+ */
 export const typography = {
-  fontFamily: 'Inter',
+  fontFamily: 'Hanken Grotesk',
+  serifFamily: 'Instrument Serif',
   weights: { regular: 400, semibold: 600 },
+  /** Display wordmark (esoteric Λ glyph). Plain "Kaira" in body text and SEO. */
+  wordmark: 'K Λ I R Λ',
 } as const;
 
 export type Colors = typeof colors;

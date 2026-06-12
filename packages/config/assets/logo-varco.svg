@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" fill="none">
+  <!-- Kaira — il varco. The gate slightly ajar, the Kairos spark in the opening. -->
+  <!-- For moments of invitation: onboarding, «Hai un Momento», event tickets. -->
+  <path d="M80 12 L82.6 22.4 L92 25 L82.6 27.6 L80 38 L77.4 27.6 L68 25 L77.4 22.4 Z" fill="#C9A227"/>
+  <!-- Mandorla with the apex open -->
+  <path d="M90.8 36 A60 60 0 0 1 80 132 A60 60 0 0 1 69.2 36" stroke="#C9A227" stroke-width="2" stroke-linecap="round"/>
+  <!-- The dream inside -->
+  <circle cx="80" cy="78" r="3.5" fill="#C9A227"/>
+</svg>

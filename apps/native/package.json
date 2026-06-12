@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo-google-fonts/hanken-grotesk": "^0.4.3",
+    "@expo-google-fonts/instrument-serif": "^0.4.1",
     "@expo/ui": "~56.0.17",
     "@kaira/config": "workspace:*",
     "@kaira/i18n": "workspace:*",
