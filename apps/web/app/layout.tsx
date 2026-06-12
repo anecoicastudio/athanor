@@ -1,12 +1,20 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Hanken_Grotesk, Instrument_Serif } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 
-const inter = Inter({
+const hankenGrotesk = Hanken_Grotesk({
   variable: '--font-sans',
   subsets: ['latin'],
   weight: ['400', '600'],
+});
+
+// Dream register only (DESIGN.md §4): dream quotes + ritual captions, never UI.
+const instrumentSerif = Instrument_Serif({
+  variable: '--font-serif',
+  subsets: ['latin'],
+  weight: '400',
+  style: 'italic',
 });
 
 export const metadata: Metadata = {
@@ -20,7 +28,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="it" className={cn('h-full antialiased font-sans', inter.variable)}>
+    <html
+      lang="it"
+      className={cn(
+        'h-full antialiased font-sans',
+        hankenGrotesk.variable,
+        instrumentSerif.variable,
+      )}
+    >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
