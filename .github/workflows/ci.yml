@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node:
+    name: lint · typecheck · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo lint typecheck test
+
+  db:
+    name: migrations · pgTAP · types in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+      - run: supabase test db
+      - name: generated types are committed
+        run: |
+          supabase gen types typescript --local > /tmp/database.types.ts
+          diff /tmp/database.types.ts packages/api/src/database.types.ts \
+            || { echo '::error::database.types.ts is stale — run pnpm gen:types and commit'; exit 1; }
