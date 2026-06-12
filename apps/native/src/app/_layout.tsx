@@ -34,6 +34,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [loading, session, profile, segments, router]);
 
+  if (loading) {
+    return null;
+  }
   return <>{children}</>;
 }
 

@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { getOwnProfile } from '@kaira/api';
 import type { Profile } from '@kaira/schemas';
@@ -47,34 +47,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [linkError, setLinkError] = useState(false);
   const incomingUrl = Linking.useURL();
+  const sessionRef = useRef<Session | null>(null);
+  const handledUrlRef = useRef<string | null>(null);
 
   const refreshProfile = useCallback(async () => {
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    setProfile(userId ? await getOwnProfile(supabase, userId) : null);
+    const userId = sessionRef.current?.user.id ?? null;
+    if (!userId) {
+      setProfile(null);
+      return;
+    }
+    try {
+      setProfile(await getOwnProfile(supabase, userId));
+    } catch {
+      // keep prior profile; next session change or manual refresh retries
+    }
   }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
+      sessionRef.current = data.session;
       setSession(data.session);
       setLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      sessionRef.current = next;
       setSession(next);
       if (next) setLinkError(false);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Deep-link handler: guard against replayed URLs (fast refresh re-fires
+  // useURL with a consumed code → spurious linkError).
   useEffect(() => {
-    if (incomingUrl?.includes('auth/callback')) {
-      createSessionFromUrl(incomingUrl).catch(() => setLinkError(true));
-    }
+    if (!incomingUrl?.includes('auth/callback')) return;
+    if (handledUrlRef.current === incomingUrl) return;
+    handledUrlRef.current = incomingUrl;
+    createSessionFromUrl(incomingUrl).catch(() => setLinkError(true));
   }, [incomingUrl]);
 
+  // Profile hydration keyed on user id (not session object — token refresh
+  // churns identity). Cancellable so a sign-out during an in-flight fetch
+  // can't resurrect the profile.
+  const userId = session?.user.id ?? null;
   useEffect(() => {
-    if (session) void refreshProfile();
-    else setProfile(null);
-  }, [session, refreshProfile]);
+    if (!userId) {
+      setProfile(null);
+      return;
+    }
+    let cancelled = false;
+    getOwnProfile(supabase, userId)
+      .then((p) => {
+        if (!cancelled) setProfile(p);
+      })
+      .catch(() => {
+        // profile stays as-is; guard waits, next auth event retries
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   return (
     <AuthContext.Provider value={{ session, profile, loading, linkError, refreshProfile }}>
