@@ -1,16 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { t } from '@kaira/i18n';
 import { createClient } from '@/utils/supabase/client';
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const expired = searchParams.get('error') === 'invalid_link';
   const [email, setEmail] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-  // /auth/confirm redirects here with ?error=invalid_link on expired/bad links
-  const [expired] = useState(
-    () => typeof window !== 'undefined' && window.location.search.includes('error=invalid_link'),
-  );
 
   const sendLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +43,7 @@ export default function LoginPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="nome@esempio.it"
+            placeholder={t('auth.email.placeholder', 'it')}
             className="mt-2 w-full rounded-full border border-border bg-card px-5 py-3 text-avorio placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-avorio"
           />
         </label>
@@ -60,5 +59,13 @@ export default function LoginPage() {
         </button>
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

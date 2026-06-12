@@ -1,10 +1,12 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isProfileComplete } from '@kaira/core';
+import type { Database } from '@kaira/api';
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -31,28 +33,29 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = path === '/' || path.startsWith('/login') || path.startsWith('/auth');
 
+  const redirectWithCookies = (url: URL) => {
+    const redirectRes = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => redirectRes.cookies.set(cookie));
+    return redirectRes;
+  };
+
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url);
   }
 
-  // onboarding gate for authed users (inline check: Next forbids shared modules in proxy;
-  // @kaira/core isProfileComplete stays the source for app code)
+  // onboarding gate for authed users — uses @kaira/core isProfileComplete (proxy runs on Node)
   if (user && !path.startsWith('/onboarding') && !isPublic) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('handle, identity_tags, seeking')
       .eq('id', user.id)
       .maybeSingle();
-    const complete =
-      Boolean(profile?.handle) &&
-      (profile?.identity_tags?.length ?? 0) > 0 &&
-      (profile?.seeking?.length ?? 0) > 0;
-    if (!complete) {
+    if (!profile || !isProfileComplete(profile)) {
       const url = request.nextUrl.clone();
       url.pathname = '/onboarding';
-      return NextResponse.redirect(url);
+      return redirectWithCookies(url);
     }
   }
 
