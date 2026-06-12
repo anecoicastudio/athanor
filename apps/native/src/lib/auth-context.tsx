@@ -57,18 +57,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      setProfile(await getOwnProfile(supabase, userId));
+      const fresh = await getOwnProfile(supabase, userId);
+      if (sessionRef.current?.user.id === userId) {
+        setProfile(fresh);
+      }
     } catch {
       // keep prior profile; next session change or manual refresh retries
     }
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      sessionRef.current = data.session;
-      setSession(data.session);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        sessionRef.current = data.session;
+        setSession(data.session);
+      })
+      .finally(() => setLoading(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       sessionRef.current = next;
       setSession(next);

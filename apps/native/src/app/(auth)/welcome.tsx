@@ -51,7 +51,11 @@ export default function WelcomeScreen() {
         {error ? <Text className="text-sm text-error">{error}</Text> : null}
       </View>
       <Pressable
-        className="h-[52px] items-center justify-center rounded-full bg-avorio"
+        className={
+          sending || !email.includes('@')
+            ? 'h-[52px] items-center justify-center rounded-full bg-avorio opacity-40'
+            : 'h-[52px] items-center justify-center rounded-full bg-avorio'
+        }
         disabled={sending || !email.includes('@')}
         onPress={sendLink}
         accessibilityRole="button"
