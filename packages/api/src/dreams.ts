@@ -1,4 +1,4 @@
-import type { DreamInsert } from '@kaira/schemas';
+import { dreamInsertSchema, type DreamInsert } from '@kaira/schemas';
 import type { KairaClient } from './client';
 
 export const dreamKeys = {
@@ -7,6 +7,7 @@ export const dreamKeys = {
 };
 
 export async function createDream(client: KairaClient, insert: DreamInsert): Promise<void> {
-  const { error } = await client.from('dreams').insert(insert);
+  const payload = dreamInsertSchema.parse(insert);
+  const { error } = await client.from('dreams').insert(payload);
   if (error) throw error;
 }

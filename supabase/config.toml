@@ -239,8 +239,7 @@ otp_expiry = 3600
 # content_path = "./supabase/templates/invite.html"
 
 # Magic link lands on /auth/confirm with token_hash (verifyOtp flow, @supabase/ssr docs pattern).
-# The default {{ .ConfirmationURL }} goes through GoTrue /verify and arrives as ?code=, which the
-# app route does not handle.
+# The app route handles both ?token_hash= and ?code= flows.
 [auth.email.template.magic_link]
 subject = "Il tuo varco per Kaira"
 content_path = "./supabase/templates/magic_link.html"
