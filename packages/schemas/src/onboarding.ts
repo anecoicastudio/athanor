@@ -9,8 +9,8 @@ import { handleSchema, localeSchema } from './profile';
 export const onboardingAnswersSchema = z.object({
   handle: handleSchema,
   locale: localeSchema,
-  identity_tags: z.array(z.string()).min(1).max(10),
-  seeking: z.array(z.string()).min(1).max(10),
+  identity_tags: z.array(z.string().min(1)).min(1).max(10),
+  seeking: z.array(z.string().min(1)).min(1).max(10),
 });
 
 export type OnboardingAnswers = z.infer<typeof onboardingAnswersSchema>;
