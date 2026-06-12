@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { t } from '@kaira/i18n';
 import { createClient } from '@/utils/supabase/client';
@@ -10,6 +10,14 @@ function LoginForm() {
   const expired = searchParams.get('error') === 'invalid_link';
   const [email, setEmail] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [wait, setWait] = useState(60);
+  const [resendError, setResendError] = useState(false);
+
+  useEffect(() => {
+    if (state !== 'sent' || wait <= 0) return;
+    const id = setInterval(() => setWait((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [state, wait]);
 
   const sendLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +27,22 @@ function LoginForm() {
       email: email.trim(),
       options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
     });
+    if (!error) setWait(60);
     setState(error ? 'error' : 'sent');
+  };
+
+  const resend = async () => {
+    setResendError(false);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+    });
+    if (error) {
+      setResendError(true);
+      return;
+    }
+    setWait(60);
   };
 
   if (state === 'sent') {
@@ -27,6 +50,17 @@ function LoginForm() {
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-blu-notte px-6">
         <h1 className="text-3xl text-avorio">{t('auth.sent.title', 'it')}</h1>
         <p className="text-muted-foreground">{t('auth.sent.body', 'it')}</p>
+        <button
+          type="button"
+          disabled={wait > 0}
+          onClick={resend}
+          className="text-muted-foreground underline-offset-4 hover:underline disabled:opacity-60"
+        >
+          {wait > 0
+            ? t('auth.sent.wait', 'it').replace('{seconds}', String(wait))
+            : t('auth.sent.resend', 'it')}
+        </button>
+        {resendError ? <p className="text-sm text-error">{t('auth.error.generic', 'it')}</p> : null}
       </main>
     );
   }

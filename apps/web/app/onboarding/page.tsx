@@ -58,7 +58,9 @@ export default function OnboardingPage() {
     if (!handle) return 'idle';
     if (!handleFormatOk) return 'invalid';
     // async result is fresh only when it was resolved for the current handle
-    if (resolvedHandle !== handle || handleAvailability === 'unknown') return 'checking';
+    if (resolvedHandle !== handle) return 'checking';
+    // fetch error: resolvedHandle matches but availability unknown → idle (retryable, Avanti disabled)
+    if (handleAvailability === 'unknown') return 'idle';
     return handleAvailability === 'free' ? 'free' : 'taken';
   }, [handle, handleFormatOk, resolvedHandle, handleAvailability]);
   const [identity, setIdentity] = useState<string[]>([]);

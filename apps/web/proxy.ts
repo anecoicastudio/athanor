@@ -46,8 +46,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // onboarding gate for authed users — uses @kaira/core isProfileComplete (proxy runs on Node)
-  // /onboarding is intentionally NOT in isPublic: unauthed users hitting it go to /login above.
-  if (user && (!isPublic || path.startsWith('/onboarding'))) {
+  // /auth routes are never gated: token exchange must pass through.
+  const onAuthRoutes = path.startsWith('/auth');
+  if (user && !onAuthRoutes) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('handle, identity_tags, seeking')
@@ -55,12 +56,14 @@ export async function proxy(request: NextRequest) {
       .maybeSingle();
     const complete = profile != null && isProfileComplete(profile);
     const onOnboarding = path.startsWith('/onboarding');
+    // incomplete profile anywhere outside /onboarding → send to /onboarding
     if (!complete && !onOnboarding) {
       const url = request.nextUrl.clone();
       url.pathname = '/onboarding';
       return redirectWithCookies(url);
     }
-    if (complete && onOnboarding) {
+    // complete profile on /onboarding or /login → send to /
+    if (complete && (onOnboarding || path.startsWith('/login'))) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return redirectWithCookies(url);
