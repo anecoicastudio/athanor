@@ -27,5 +27,15 @@ export async function GET(request: NextRequest) {
       redirect('/onboarding');
     }
   }
+
+  const code = searchParams.get('code');
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      redirect('/onboarding');
+    }
+  }
+
   redirect('/login?error=invalid_link');
 }
