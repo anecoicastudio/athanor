@@ -56,6 +56,13 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Privileges: profiles are members-only — anon gets no table access at all.
+-- Explicit grants make behavior identical across Supabase CLI versions
+-- (newer versions stopped auto-granting to anon).
+revoke all on table public.profiles from anon;
+grant select, insert, update on table public.profiles to authenticated;
+grant all on table public.profiles to service_role;
+
 -- RLS: deny by default, owner-only writes, members-wide reads (field-level
 -- visibility enforcement lands at M1 with the public profile pages).
 alter table public.profiles enable row level security;

@@ -38,17 +38,19 @@ select is(
   'locale propagated from signup metadata'
 );
 
--- anon: no read, no write
+-- anon: no table access at all (privileges revoked, not just RLS-filtered)
 set local role anon;
 set local request.jwt.claims = '';
-select is(
-  (select count(*) from public.profiles), 0::bigint,
+select throws_ok(
+  $$ select count(*) from public.profiles $$,
+  '42501',
+  'permission denied for table profiles',
   'anon cannot read profiles'
 );
 select throws_ok(
   $$ insert into public.profiles (id) values (gen_random_uuid()) $$,
   '42501',
-  'new row violates row-level security policy for table "profiles"',
+  'permission denied for table profiles',
   'anon cannot insert profiles'
 );
 reset role;
