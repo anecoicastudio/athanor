@@ -1,0 +1,28 @@
+import { z } from 'zod';
+
+/** Mirrors supabase/migrations init_profiles. Update both together. */
+export const localeSchema = z.enum(['it', 'en']);
+
+export const handleSchema = z
+  .string()
+  .min(3)
+  .max(30)
+  .regex(/^[a-z0-9_]+$/, 'lowercase letters, numbers and underscore only');
+
+export const profileSchema = z.object({
+  id: z.string().uuid(),
+  handle: handleSchema,
+  bio: z.string().max(500).nullable(),
+  locale: localeSchema,
+  visibility: z.record(z.enum(['public', 'members', 'private'])),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const profileUpdateSchema = profileSchema
+  .pick({ handle: true, bio: true, locale: true, visibility: true })
+  .partial();
+
+export type Locale = z.infer<typeof localeSchema>;
+export type Profile = z.infer<typeof profileSchema>;
+export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;

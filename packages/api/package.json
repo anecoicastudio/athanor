@@ -1,0 +1,28 @@
+{
+  "name": "@kaira/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kaira/schemas": "workspace:*",
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.71.0",
+    "react": "*"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": { "optional": true },
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "@kaira/config": "workspace:*",
+    "typescript": "^5.8.3"
+  }
+}
