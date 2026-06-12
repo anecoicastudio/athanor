@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionRef.current = next;
       setSession(next);
       if (next) setLinkError(false);
+      else setProfile(null); // sign-out clears profile here (event handler, not effect)
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -92,8 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const userId = session?.user.id ?? null;
   useEffect(() => {
     if (!userId) {
-      setProfile(null);
-      return;
+      return; // profile cleared by the sign-out branch in onAuthStateChange
     }
     let cancelled = false;
     getOwnProfile(supabase, userId)
