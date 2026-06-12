@@ -10,9 +10,9 @@ export const profileKeys = {
 
 /**
  * Maps a DB row to the Profile schema type.
- * Adaptations needed (DB row vs Zod Profile):
- *   - handle: DB is `string | null`; Profile expects non-nullable string.
- *     Returns null for the whole profile when handle is null (profile not yet fully set up).
+ * Adaptations:
+ *   - handle: DB is `string | null`; Profile mirrors this (nullable). A null handle means the
+ *     row exists but onboarding is incomplete — callers must NOT treat this as "no profile".
  *   - visibility: DB is `Json`; Profile expects `Record<string, 'public'|'members'|'private'>`.
  *     Cast is safe because the DB check constraint and onboarding write enforce valid values.
  */
@@ -26,8 +26,7 @@ function rowToProfile(row: {
   seeking: string[];
   created_at: string;
   updated_at: string;
-}): Profile | null {
-  if (row.handle === null) return null;
+}): Profile {
   return {
     id: row.id,
     handle: row.handle,

@@ -11,7 +11,7 @@ export const handleSchema = z
 
 export const profileSchema = z.object({
   id: z.string().uuid(),
-  handle: handleSchema,
+  handle: handleSchema.nullable(),
   bio: z.string().max(500).nullable(),
   locale: localeSchema,
   visibility: z.record(z.enum(['public', 'members', 'private'])),
