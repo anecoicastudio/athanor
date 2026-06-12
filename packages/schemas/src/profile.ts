@@ -15,6 +15,8 @@ export const profileSchema = z.object({
   bio: z.string().max(500).nullable(),
   locale: localeSchema,
   visibility: z.record(z.enum(['public', 'members', 'private'])),
+  identity_tags: z.array(z.string()),
+  seeking: z.array(z.string()),
   created_at: z.string(),
   updated_at: z.string(),
 });
