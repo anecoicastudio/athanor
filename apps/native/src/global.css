@@ -1,0 +1,37 @@
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+
+/*
+ * Kaira brand tokens — values mirror packages/config/src/tokens.ts.
+ * Update both together.
+ * Gold (oro / moment) is reserved for moments that matter:
+ * a new Momento, a dream helped, a star lit. Never decorative.
+ */
+@layer theme {
+  @theme {
+    --color-blu-notte: #16243d;
+    --color-avorio: #faf7f0;
+    --color-oro: #c9a227;
+
+    --color-background: #16243d;
+    --color-surface: #1e2f4f;
+    --color-surface-muted: #0f1a2e;
+    --color-foreground: #faf7f0;
+    --color-muted-foreground: #c9c4b8;
+    --color-moment: #c9a227;
+    --color-line: #2a3b5c;
+  }
+}
+
+@media android {
+  :root {
+    --font-sans: normal;
+  }
+}
+
+@media ios {
+  :root {
+    --font-sans: system-ui;
+  }
+}
