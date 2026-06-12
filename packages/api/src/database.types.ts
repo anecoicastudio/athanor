@@ -34,13 +34,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      dreams: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          profile_id: string
+          status: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          profile_id: string
+          status?: string
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          profile_id?: string
+          status?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dreams_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           bio: string | null
           created_at: string
           handle: string | null
           id: string
+          identity_tags: string[]
           locale: string
+          seeking: string[]
           updated_at: string
           visibility: Json
         }
@@ -49,7 +89,9 @@ export type Database = {
           created_at?: string
           handle?: string | null
           id: string
+          identity_tags?: string[]
           locale?: string
+          seeking?: string[]
           updated_at?: string
           visibility?: Json
         }
@@ -58,7 +100,9 @@ export type Database = {
           created_at?: string
           handle?: string | null
           id?: string
+          identity_tags?: string[]
           locale?: string
+          seeking?: string[]
           updated_at?: string
           visibility?: Json
         }
