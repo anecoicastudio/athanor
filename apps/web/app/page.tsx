@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { t } from '@kaira/i18n';
 import { createClient } from '@/utils/supabase/server';
+import { MandorlaMark } from '@/components/mandorla-mark';
 
 export default async function Home() {
   const supabase = await createClient();
@@ -34,6 +35,7 @@ export default async function Home() {
 
       {/* Hero */}
       <section className="flex flex-1 flex-col items-center justify-center gap-8 px-6 text-center">
+        <MandorlaMark />
         <h1 className="max-w-xl text-5xl font-semibold text-avorio">{t('app.tagline', 'it')}</h1>
         <Link
           href="/login"
