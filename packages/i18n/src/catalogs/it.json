@@ -25,6 +25,8 @@
   "onboarding.handle.taken": "Questo nome è già di qualcuno",
   "onboarding.handle.invalid": "Solo lettere minuscole, numeri e _ (3–30)",
   "onboarding.locale.label": "Lingua",
+  "lang.it": "Italiano",
+  "lang.en": "English",
   "onboarding.identity.title": "Chi sei?",
   "onboarding.seeking.title": "Cosa cerchi?",
   "onboarding.dream.title": "Qual è il tuo sogno?",

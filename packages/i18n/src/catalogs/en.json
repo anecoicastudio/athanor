@@ -25,6 +25,8 @@
   "onboarding.handle.taken": "This name already belongs to someone",
   "onboarding.handle.invalid": "Lowercase letters, numbers and _ only (3–30)",
   "onboarding.locale.label": "Language",
+  "lang.it": "Italiano",
+  "lang.en": "English",
   "onboarding.identity.title": "Who are you?",
   "onboarding.seeking.title": "What do you seek?",
   "onboarding.dream.title": "What is your dream?",
