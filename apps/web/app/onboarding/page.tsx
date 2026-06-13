@@ -29,8 +29,8 @@ function Chip({
       aria-pressed={selected}
       className={
         selected
-          ? 'rounded-full bg-avorio px-5 py-2.5 font-semibold text-blu-notte'
-          : 'rounded-full border border-border bg-card px-5 py-2.5 text-avorio'
+          ? 'rounded-full bg-luce px-5 py-2.5 font-semibold text-notte'
+          : 'rounded-full border border-border bg-card px-5 py-2.5 text-luce'
       }
     >
       {label}
@@ -151,13 +151,13 @@ export default function OnboardingPage() {
   ];
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-blu-notte px-6">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-notte px-6">
       <div className="flex w-full max-w-md items-center justify-between">
         <div className="flex gap-2" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <span
               key={i}
-              className={`h-2 w-2 rounded-full ${i <= step ? 'bg-avorio' : 'bg-border'}`}
+              className={`h-2 w-2 rounded-full ${i <= step ? 'bg-luce' : 'bg-border'}`}
             />
           ))}
         </div>
@@ -173,7 +173,7 @@ export default function OnboardingPage() {
           </button>
         ) : null}
       </div>
-      <h1 className="text-4xl text-avorio">{t(titles[step]!, locale)}</h1>
+      <h1 className="text-4xl text-luce">{t(titles[step]!, locale)}</h1>
 
       <div className="flex w-full max-w-md flex-col gap-4">
         {step === 0 ? (
@@ -184,7 +184,7 @@ export default function OnboardingPage() {
               value={handle}
               onChange={(e) => setHandle(e.target.value.toLowerCase())}
               placeholder={t('onboarding.handle.placeholder', locale)}
-              className="w-full rounded-full border border-border bg-card px-5 py-3 text-avorio placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-avorio"
+              className="w-full rounded-full border border-border bg-card px-5 py-3 text-luce placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-luce"
             />
             {handleStatus === 'taken' ? (
               <p className="text-sm text-error">{t('onboarding.handle.taken', locale)}</p>
@@ -235,7 +235,7 @@ export default function OnboardingPage() {
             value={dream}
             onChange={(e) => setDream(e.target.value)}
             placeholder={t('onboarding.dream.placeholder', locale)}
-            className="w-full rounded-3xl border border-border bg-card px-5 py-4 text-avorio placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-avorio"
+            className="w-full rounded-3xl border border-border bg-card px-5 py-4 text-luce placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-luce"
           />
         ) : null}
 
@@ -246,7 +246,7 @@ export default function OnboardingPage() {
             type="button"
             disabled={!canNext}
             onClick={() => setStep((s) => s + 1)}
-            className="h-12 rounded-full bg-avorio font-semibold tracking-widest text-blu-notte disabled:opacity-40"
+            className="h-12 rounded-full bg-luce font-semibold tracking-widest text-notte disabled:opacity-40"
           >
             {t('onboarding.next', locale)}
           </button>
@@ -256,7 +256,7 @@ export default function OnboardingPage() {
               type="button"
               disabled={submitting || !dream.trim()}
               onClick={() => finish(true)}
-              className="h-12 w-full rounded-full bg-oro font-semibold tracking-widest text-blu-notte disabled:opacity-40"
+              className="h-12 w-full rounded-full bg-stella font-semibold tracking-widest text-notte disabled:opacity-40"
             >
               ✦ {t('onboarding.dream.submit', locale)}
             </button>

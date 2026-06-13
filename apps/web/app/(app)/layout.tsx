@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <header className="flex items-center justify-between border-b border-border px-6 py-4">
           <Link
             href="/profilo"
-            className="text-sm font-semibold tracking-[0.3em] text-avorio"
+            className="text-sm font-semibold tracking-[0.3em] text-luce"
             aria-label={typography.wordmark}
           >
             {typography.wordmark}

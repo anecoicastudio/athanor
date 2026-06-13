@@ -4,8 +4,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * Kaira button (DESIGN.md §8). Pill, letterspaced, two-weight type.
- * - primary: avorio on blu notte — the default action. Gold is NOT primary.
- * - moment: oro — ONLY moment actions (accept Momento, help dream, contribute). Add a ✦ child.
+ * - primary: luce on notte — the default action. Stella is NOT primary.
+ * - moment: stella — ONLY moment actions (accept Momento, help dream, contribute). Add a ✦ child.
  * - ghost: muted, underline on hover.
  */
 const buttonVariants = cva(
@@ -13,8 +13,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'h-12 px-6 bg-avorio text-blu-notte hover:opacity-90',
-        moment: 'h-12 px-6 bg-oro text-blu-notte hover:opacity-90',
+        primary: 'h-12 px-6 bg-luce text-notte hover:opacity-90',
+        moment: 'h-12 px-6 bg-stella text-notte hover:opacity-90',
         ghost: 'text-muted-foreground underline-offset-4 hover:underline',
       },
     },
