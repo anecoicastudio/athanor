@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
-import { getActiveDream, getOwnProfile } from '@kaira/api';
+import { getActiveDream, getOwnProfile } from '@auria/api';
 import { createClient } from '@/utils/supabase/server';
+import { getUserSafe } from '@/utils/supabase/get-user';
 import { ProfileView } from './profile-view';
 
 /**
@@ -8,11 +9,9 @@ import { ProfileView } from './profile-view';
  * Server-fetches profile + active dream, hands them to the client edit shell.
  * The public @handle SSR page is a separate M2 deliverable.
  */
-export default async function ProfiloPage() {
+export default async function ProfilePage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUserSafe(supabase);
   if (!user) redirect('/login');
 
   const [profile, dream] = await Promise.all([

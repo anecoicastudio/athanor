@@ -1,6 +1,6 @@
 'use client';
 
-import { type Locale, type MessageKey, t as translate } from '@kaira/i18n';
+import { type Locale, type MessageKey, t as translate } from '@auria/i18n';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 
 type Vars = Record<string, string | number>;

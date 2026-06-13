@@ -1,7 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { isProfileComplete } from '@kaira/core';
-import type { Database } from '@kaira/api';
+import { isProfileComplete } from '@auria/core';
+import type { Database } from '@auria/api';
+import { getUserSafe } from '@/utils/supabase/get-user';
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -25,10 +26,9 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // rule 8: getUser(), never getSession()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // rule 8: getUser(), never getSession(). getUserSafe degrades to null when
+  // Supabase is unreachable (e.g. local stack down) instead of throwing.
+  const user = await getUserSafe(supabase);
 
   const path = request.nextUrl.pathname;
   const isPublic = path === '/' || path.startsWith('/login') || path.startsWith('/auth');
@@ -45,7 +45,7 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(url);
   }
 
-  // onboarding gate for authed users — uses @kaira/core isProfileComplete (proxy runs on Node)
+  // onboarding gate for authed users — uses @auria/core isProfileComplete (proxy runs on Node)
   // /auth routes are never gated: token exchange must pass through.
   const onAuthRoutes = path.startsWith('/auth');
   if (user && !onAuthRoutes) {

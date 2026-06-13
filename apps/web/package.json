@@ -11,11 +11,11 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@kaira/api": "workspace:*",
-    "@kaira/config": "workspace:*",
-    "@kaira/core": "workspace:*",
-    "@kaira/i18n": "workspace:*",
-    "@kaira/schemas": "workspace:*",
+    "@auria/api": "workspace:*",
+    "@auria/config": "workspace:*",
+    "@auria/core": "workspace:*",
+    "@auria/i18n": "workspace:*",
+    "@auria/schemas": "workspace:*",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-query": "^5.71.0",

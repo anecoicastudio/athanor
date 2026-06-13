@@ -3,9 +3,9 @@ import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Kaira button (DESIGN.md §8). Pill, letterspaced, two-weight type.
- * - primary: luce on notte — the default action. Stella is NOT primary.
- * - moment: stella — ONLY moment actions (accept Momento, help dream, contribute). Add a ✦ child.
+ * Auria button (DESIGN.md §8). Pill, letterspaced, two-weight type.
+ * - primary: foreground on background — the default action. Aura is NOT primary.
+ * - moment: aura — ONLY moment actions (accept Momento, help dream, contribute). Add a ✦ child.
  * - ghost: muted, underline on hover.
  */
 const buttonVariants = cva(
@@ -13,8 +13,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'h-12 px-6 bg-luce text-notte hover:opacity-90',
-        moment: 'h-12 px-6 bg-stella text-notte hover:opacity-90',
+        primary: 'h-12 px-6 bg-foreground text-background hover:opacity-90',
+        moment: 'h-12 px-6 bg-aura text-background hover:opacity-90',
         ghost: 'text-muted-foreground underline-offset-4 hover:underline',
       },
     },
