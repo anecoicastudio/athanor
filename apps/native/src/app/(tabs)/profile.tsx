@@ -163,7 +163,9 @@ function ProfileEditor({
               accessibilityRole="button"
               accessibilityLabel={t('profile.share.toast', locale)}
               hitSlop={8}
-              onPress={() => {}}
+              onPress={() => {
+                /* TODO(M2): open native share sheet */
+              }}
             >
               <Text className="text-xl text-aura">✦</Text>
             </Pressable>

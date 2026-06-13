@@ -18,7 +18,14 @@ export type StarKey = z.infer<typeof starKeySchema>;
  *  the M6 score-engine fills real values — the shape never changes. */
 export const auraSnapshotSchema = z.object({
   score: z.number().int().min(0),
-  stars: z.record(starKeySchema, z.boolean()),
+  stars: z.object({
+    visionario: z.boolean(),
+    mentor: z.boolean(),
+    collaboratore: z.boolean(),
+    creatore: z.boolean(),
+    innovatore: z.boolean(),
+    ambasciatore: z.boolean(),
+  }),
 });
 export type AuraSnapshot = z.infer<typeof auraSnapshotSchema>;
 

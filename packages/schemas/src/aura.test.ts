@@ -26,4 +26,15 @@ describe('aura snapshot', () => {
   it('rejects a negative score', () => {
     expect(auraSnapshotSchema.safeParse({ ...ZERO_AURA_SNAPSHOT, score: -1 }).success).toBe(false);
   });
+
+  it('rejects a snapshot missing a star key', () => {
+    const partialStars = {
+      visionario: false,
+      mentor: false,
+      collaboratore: false,
+      creatore: false,
+      innovatore: false,
+    };
+    expect(auraSnapshotSchema.safeParse({ score: 0, stars: partialStars }).success).toBe(false);
+  });
 });
