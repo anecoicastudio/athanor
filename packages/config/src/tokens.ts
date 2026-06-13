@@ -3,29 +3,38 @@
  * (web Tailwind 4 @theme, mobile NativeWind config). Never use literal hex
  * in app code; import from here.
  *
- * Brand rule: oro (Kairos gold) is reserved for moments that matter —
- * a new Momento, a dream helped, a star lit. Never decorative.
+ * Brand rule: stella (the cyan star) is reserved for moments that matter —
+ * a new Momento, a dream helped, a star lit. Never decorative. The aurora
+ * gradient (rose → magenta-violet → indigo → blue) is the logo/hero ring only.
  */
 
 export const colors = {
-  bluNotte: '#16243D',
-  avorio: '#FAF7F0',
-  oro: '#C9A227',
+  notte: '#000206', // near-black canvas (the night)
+  luce: '#ECEEF6', // cool near-white — text on dark
+  stella: '#2BD0D2', // glowing cyan — the moment that matters
+} as const;
+
+/** Aurora gradient — logo + hero ring ONLY. Not a UI accent. */
+export const aurora = {
+  rose: '#7D236E',
+  magenta: '#672088',
+  violet: '#212088',
+  blu: '#223D86',
 } as const;
 
 export const semantic = {
-  background: colors.bluNotte,
-  surface: '#1E2F4F', // blu notte lightened one step — cards, sheets
-  surfaceMuted: '#0F1A2E', // blu notte darkened — recessed areas
-  foreground: colors.avorio,
-  foregroundMuted: '#C9C4B8', // avorio dimmed — secondary text
-  moment: colors.oro, // ONLY for moments that matter
-  border: '#2A3B5C',
-  bandAlt: '#EFEAE0', // sand band — alternating sections on avorio web pages
-  inkOnLight: colors.bluNotte, // text on avorio = blu notte (one ink)
-  inkMutedOnLight: '#5C6470', // secondary text on avorio (AA on #FAF7F0)
-  success: '#3E7C59', // confirmations, check-in OK (deep green, calm)
-  error: '#B3492D', // input error ring, destructive (terracotta)
+  background: colors.notte,
+  surface: '#100A1C', // notte lifted one step, violet-tinted — cards, sheets
+  surfaceMuted: '#04030A', // notte recessed — tab bar, scrims
+  foreground: colors.luce,
+  foregroundMuted: '#9A9DB5', // luce dimmed — secondary text
+  moment: colors.stella, // ONLY for moments that matter
+  border: '#241B3A', // violet hairline
+  bandAlt: '#0A0814', // alternate dark band — section striping
+  inkOnLight: colors.notte, // text on rare light chips/print (light world retired)
+  inkMutedOnLight: '#5C6478', // secondary on light chips/print
+  success: '#36B37E', // confirmations, check-in OK (emerald — distinct from stella)
+  error: '#E0476B', // input error ring, destructive (raspberry — rose family)
 } as const;
 
 export const spacing = {
@@ -58,4 +67,5 @@ export const typography = {
 } as const;
 
 export type Colors = typeof colors;
+export type Aurora = typeof aurora;
 export type Semantic = typeof semantic;

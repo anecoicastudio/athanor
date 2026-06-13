@@ -5,27 +5,32 @@
 /*
  * Kaira brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
- * Gold (oro / moment) is reserved for moments that matter:
- * a new Momento, a dream helped, a star lit. Never decorative.
+ * Stella (the cyan star, --color-stella / moment) is reserved for moments
+ * that matter: a new Momento, a dream helped, a star lit. Never decorative.
+ * The aurora gradient (--color-aurora-*) is the logo/hero ring only.
  */
 @layer theme {
   @theme {
-    --color-blu-notte: #16243d;
-    --color-avorio: #faf7f0;
-    --color-oro: #c9a227;
+    --color-notte: #000206;
+    --color-luce: #eceef6;
+    --color-stella: #2bd0d2;
+    --color-aurora-rose: #7d236e;
+    --color-aurora-magenta: #672088;
+    --color-aurora-violet: #212088;
+    --color-aurora-blu: #223d86;
 
-    --color-background: #16243d;
-    --color-surface: #1e2f4f;
-    --color-surface-muted: #0f1a2e;
-    --color-foreground: #faf7f0;
-    --color-muted-foreground: #c9c4b8;
-    --color-moment: #c9a227;
-    --color-line: #2a3b5c;
-    --color-band-alt: #efeae0;
-    --color-ink-on-light: #16243d;
-    --color-ink-muted-on-light: #5c6470;
-    --color-success: #3e7c59;
-    --color-error: #b3492d;
+    --color-background: #000206;
+    --color-surface: #100a1c;
+    --color-surface-muted: #04030a;
+    --color-foreground: #eceef6;
+    --color-muted-foreground: #9a9db5;
+    --color-moment: #2bd0d2;
+    --color-line: #241b3a;
+    --color-band-alt: #0a0814;
+    --color-ink-on-light: #000206;
+    --color-ink-muted-on-light: #5c6478;
+    --color-success: #36b37e;
+    --color-error: #e0476b;
 
     /*
      * RN selects fonts by exact loaded family name (one file = one family),
