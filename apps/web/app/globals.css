@@ -151,3 +151,119 @@
     @apply font-sans;
   }
 }
+
+/*
+ * Mandorla mark — la Mandorla animation (hero centerpiece, see
+ * components/mandorla-mark.tsx). Entrance (draw-in + spark fade) settles into a
+ * calm continuous loop (DESIGN.md §10). The only glow on the canvas is the apex
+ * bloom (user-approved bend of §5's "never add glow").
+ * Declarative CSS only — entrance one-shot `forwards`, loop delayed to begin
+ * exactly when the entrance ends, so there are no JS timers and no hydration cost.
+ */
+@keyframes mandorla-draw {
+  from {
+    stroke-dashoffset: 346; /* circumference 2π·55 ≈ 346 */
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes mandorla-spark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes mandorla-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+}
+@keyframes mandorla-spark-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+@keyframes mandorla-bloom {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.34;
+  }
+}
+@keyframes mandorla-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mandorla-ring {
+  /* Dash state lives here (not just the keyframe) so the SSR'd rings start
+     hidden — no flash of fully-drawn rings before the animation runs. */
+  stroke-dasharray: 346;
+  stroke-dashoffset: 346;
+  animation: mandorla-draw 1.3s ease-out 0.1s forwards;
+}
+/* fill-box + center pivot every scale on the element's own box; SVG defaults to
+   view-box, which would pivot on the (0,0) corner and slide the mark. Required. */
+.mandorla-rings {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mandorla-breathe 7s ease-in-out 2s infinite;
+}
+.mandorla-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation:
+    mandorla-spark-in 0.6s ease-out 1.4s forwards,
+    mandorla-spark-pulse 5s ease-in-out 2.2s infinite;
+}
+.mandorla-bloom {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation:
+    mandorla-spark-in 0.8s ease-out 1.4s forwards,
+    mandorla-bloom 5s ease-in-out 2.2s infinite;
+}
+
+/* prefers-reduced-motion → static final state, opacity-only (DESIGN.md §10). */
+@media (prefers-reduced-motion: reduce) {
+  .mandorla-ring {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .mandorla-rings,
+  .mandorla-spark,
+  .mandorla-bloom {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .mandorla-bloom {
+    opacity: 0.26;
+  }
+  .mandorla-mark {
+    animation: mandorla-fade-in 0.4s ease-out both;
+  }
+}
