@@ -183,7 +183,7 @@ export default function SettingsScreen() {
         <SettingsRow
           title={t('settings.export.title', locale)}
           description={t('settings.export.desc', locale)}
-          onPress={() => showToast(t('settings.export.toast', locale))}
+          onPress={() => showToast(t('settings.soon', locale))}
         />
       </SettingsGroup>
 
