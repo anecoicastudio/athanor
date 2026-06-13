@@ -53,8 +53,8 @@ export default function WelcomeScreen() {
       <Pressable
         className={
           sending || !email.includes('@')
-            ? 'h-[52px] items-center justify-center rounded-full bg-avorio opacity-40'
-            : 'h-[52px] items-center justify-center rounded-full bg-avorio'
+            ? 'h-[52px] items-center justify-center rounded-full bg-luce opacity-40'
+            : 'h-[52px] items-center justify-center rounded-full bg-luce'
         }
         disabled={sending || !email.includes('@')}
         onPress={sendLink}
@@ -63,7 +63,7 @@ export default function WelcomeScreen() {
         {sending ? (
           <ActivityIndicator />
         ) : (
-          <Text className="font-semibold tracking-widest text-blu-notte">
+          <Text className="font-semibold tracking-widest text-notte">
             {t('auth.email.cta', 'it')}
           </Text>
         )}

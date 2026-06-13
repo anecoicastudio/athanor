@@ -7,13 +7,13 @@
     "icon": "./assets/images/icon.png",
     "scheme": "kaira",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#16243D",
+    "backgroundColor": "#000206",
     "ios": {
       "icon": "./assets/expo.icon"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#16243D",
+        "backgroundColor": "#000206",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -29,7 +29,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#16243D",
+          "backgroundColor": "#000206",
           "android": {
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76
