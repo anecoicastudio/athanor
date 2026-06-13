@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { getActiveDream, updateProfile } from '@kaira/api';
-import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@kaira/core';
-import { t, type MessageKey } from '@kaira/i18n';
-import type { Locale, Profile } from '@kaira/schemas';
+import { getActiveDream, updateProfile } from '@auria/api';
+import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@auria/core';
+import { t, type MessageKey } from '@auria/i18n';
+import type { Locale, Profile } from '@auria/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -30,11 +30,11 @@ const VISIBILITY_OPTIONS: Visibility[] = ['public', 'members', 'private'];
 
 /**
  * Profilo Evolutivo — own authenticated view (PRD §4.2, M1). Mobile parity with
- * apps/web/app/(app)/profilo/profile-view.tsx: view + inline edit of bio /
+ * apps/web/app/(app)/profile/profile-view.tsx: view + inline edit of bio /
  * identity / seeking / locale + per-field visibility, dream read-only (editor is
  * M2), Six Stars outlines. The public @handle SSR page is a separate M2 deliverable.
  */
-export default function ProfiloScreen() {
+export default function ProfileScreen() {
   const { profile, session, refreshProfile } = useAuth();
 
   if (!profile || !session) {

@@ -2,7 +2,7 @@ import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { t } from '@kaira/i18n';
+import { t } from '@auria/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -53,8 +53,8 @@ export default function WelcomeScreen() {
       <Pressable
         className={
           sending || !email.includes('@')
-            ? 'h-[52px] items-center justify-center rounded-full bg-luce opacity-40'
-            : 'h-[52px] items-center justify-center rounded-full bg-luce'
+            ? 'h-[52px] items-center justify-center rounded-full bg-foreground opacity-40'
+            : 'h-[52px] items-center justify-center rounded-full bg-foreground'
         }
         disabled={sending || !email.includes('@')}
         onPress={sendLink}
@@ -63,7 +63,7 @@ export default function WelcomeScreen() {
         {sending ? (
           <ActivityIndicator />
         ) : (
-          <Text className="font-semibold tracking-widest text-notte">
+          <Text className="font-semibold tracking-widest text-background">
             {t('auth.email.cta', 'it')}
           </Text>
         )}

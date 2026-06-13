@@ -3,28 +3,23 @@
 @import 'tailwindcss/utilities.css';
 
 /*
- * Kaira brand tokens — values mirror packages/config/src/tokens.ts.
+ * Auria brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
- * Stella (the cyan star, --color-stella / moment) is reserved for moments
- * that matter: a new Momento, a dream helped, a star lit. Never decorative.
- * The aurora gradient (--color-aurora-*) is the logo/hero ring only.
+ * aura (the cyan light, --color-aura) is reserved for moments that matter:
+ * a new Momento, a dream helped, a star lit. Never decorative.
+ * The mandala gradient (--color-gradient-*) is the logo/hero ring only.
  */
 @layer theme {
   @theme {
-    --color-notte: #000206;
-    --color-luce: #eceef6;
-    --color-stella: #2bd0d2;
-    --color-aurora-rose: #7d236e;
-    --color-aurora-magenta: #672088;
-    --color-aurora-violet: #212088;
-    --color-aurora-blu: #223d86;
-
     --color-background: #000206;
     --color-surface: #100a1c;
     --color-surface-muted: #04030a;
     --color-foreground: #eceef6;
     --color-muted-foreground: #9a9db5;
-    --color-moment: #2bd0d2;
+    --color-aura: #2bd0d2;
+    --color-gradient-1: #7d236e;
+    --color-gradient-2: #672088;
+    --color-gradient-3: #223d86;
     --color-line: #241b3a;
     --color-band-alt: #0a0814;
     --color-ink-on-light: #000206;

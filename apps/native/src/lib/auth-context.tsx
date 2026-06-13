@@ -1,8 +1,8 @@
 import * as Linking from 'expo-linking';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { getOwnProfile } from '@kaira/api';
-import type { Profile } from '@kaira/schemas';
+import { getOwnProfile } from '@auria/api';
+import type { Profile } from '@auria/schemas';
 import { supabase } from './supabase';
 
 type AuthState = {

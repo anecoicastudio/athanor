@@ -1,4 +1,4 @@
-import { t } from '@kaira/i18n';
+import { t } from '@auria/i18n';
 import { Text, View } from '@/tw';
 
 export default function HomeScreen() {

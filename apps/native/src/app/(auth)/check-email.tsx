@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { t } from '@kaira/i18n';
+import { t } from '@auria/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { supabase } from '@/lib/supabase';
 

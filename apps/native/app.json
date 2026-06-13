@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Kaira",
-    "slug": "kaira",
+    "name": "Auria",
+    "slug": "auria",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "kaira",
+    "scheme": "auria",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#000206",
     "ios": {
@@ -21,7 +21,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

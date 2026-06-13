@@ -4,8 +4,8 @@ import {
   type ProfileUpdate,
   profileSchema,
   profileUpdateSchema,
-} from '@kaira/schemas';
-import type { KairaClient } from './client';
+} from '@auria/schemas';
+import type { AuriaClient } from './client';
 
 /** TanStack Query key factory (rule: per-entity factories). */
 export const profileKeys = {
@@ -14,7 +14,7 @@ export const profileKeys = {
   handleAvailable: (handle: string) => ['profiles', 'handle-available', handle] as const,
 };
 
-export async function getOwnProfile(client: KairaClient, userId: string) {
+export async function getOwnProfile(client: AuriaClient, userId: string) {
   const { data, error } = await client.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) throw error;
   if (!data) return null;
@@ -23,7 +23,7 @@ export async function getOwnProfile(client: KairaClient, userId: string) {
 }
 
 /** UX pre-check only; the DB unique constraint is the real guard — writers must handle 23505. */
-export async function isHandleAvailable(client: KairaClient, handle: string): Promise<boolean> {
+export async function isHandleAvailable(client: AuriaClient, handle: string): Promise<boolean> {
   const { count, error } = await client
     .from('profiles')
     .select('id', { count: 'exact', head: true })
@@ -33,7 +33,7 @@ export async function isHandleAvailable(client: KairaClient, handle: string): Pr
 }
 
 export async function updateOnboardingProfile(
-  client: KairaClient,
+  client: AuriaClient,
   userId: string,
   answers: OnboardingAnswers,
 ): Promise<void> {
@@ -45,7 +45,7 @@ export async function updateOnboardingProfile(
 
 /** Partial profile edit (Profilo Evolutivo). RLS enforces owner-only; schema strips unknown keys. */
 export async function updateProfile(
-  client: KairaClient,
+  client: AuriaClient,
   userId: string,
   patch: ProfileUpdate,
 ): Promise<void> {

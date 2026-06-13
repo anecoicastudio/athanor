@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" fill="none">
-  <!-- Kaira — la Mandorla. Vesica piscis: two r=60 circles, centers (50,80) and (110,80). -->
+  <!-- Auria — la Mandorla. Vesica piscis: two r=60 circles, centers (50,80) and (110,80). -->
   <defs>
-    <linearGradient id="aurora" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="mandala" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#7D236E"/>
       <stop offset="35%" stop-color="#672088"/>
       <stop offset="70%" stop-color="#212088"/>
       <stop offset="100%" stop-color="#223D86"/>
     </linearGradient>
   </defs>
-  <!-- Four-point Kairos spark at the apex — stella cyan -->
+  <!-- Four-point Kairos spark at the apex — aura cyan -->
   <path d="M80 4 L82.6 14.4 L92 17 L82.6 19.6 L80 30 L77.4 19.6 L68 17 L77.4 14.4 Z" fill="#2BD0D2"/>
-  <!-- Mandorla outline — aurora gradient -->
-  <path d="M80 28 A60 60 0 0 1 80 132 A60 60 0 0 1 80 28 Z" stroke="url(#aurora)" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Mandorla outline — mandala gradient -->
+  <path d="M80 28 A60 60 0 0 1 80 132 A60 60 0 0 1 80 28 Z" stroke="url(#mandala)" stroke-width="2" stroke-linejoin="round"/>
   <!-- Three ascending dots: who you arrive as · the dream (ringed) · the passage -->
   <circle cx="80" cy="58" r="3" fill="#2BD0D2"/>
   <circle cx="80" cy="80" r="4" fill="#2BD0D2"/>
