@@ -23,6 +23,14 @@ export const semantic = {
   inkMutedOnLight: '#5C6478', // secondary on light chips/print
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
   error: '#E0476B', // input error ring, destructive (raspberry — rose family)
+  ink2: '#C9C3DE', // body copy on dark — softer than foreground
+  faint: '#615A7E', // tertiary / quiet eyebrow labels
+  raise: 'rgba(255,255,255,0.04)', // a lifted surface (card/list)
+  raise2: 'rgba(255,255,255,0.065)', // higher surface (chips, quiet buttons)
+  hair: 'rgba(176,158,222,0.10)', // translucent violet hairline
+  auraSoft: 'rgba(43,208,210,0.10)', // moment fill / active accent chip
+  auraLine: 'rgba(43,208,210,0.40)', // moment / accent 1px inset border
+  onAura: '#04222a', // text inverted on a cyan fill
 } as const;
 
 /** Mandala gradient — logo + hero ring ONLY. Not a UI accent. */
@@ -46,6 +54,9 @@ export const radius = {
   md: 12,
   lg: 20,
   full: 9999,
+  ctl: 14, // buttons / inputs
+  card: 20, // cards (== existing lg; kept named for the prototype scale)
+  hero: 26, // hero blocks, media, sheet tops
 } as const;
 
 /**
