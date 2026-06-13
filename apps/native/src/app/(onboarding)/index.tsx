@@ -7,50 +7,15 @@ import { onboardingAnswersSchema, type Locale } from '@auria/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
+import { StepDots } from '@/components/StepDots';
 
 const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 'it').startsWith(
   'en',
 )
   ? 'en'
   : 'it';
-
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      className={
-        selected
-          ? 'rounded-full bg-foreground px-5 py-3'
-          : 'rounded-full border border-line bg-surface px-5 py-3'
-      }
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-    >
-      <Text className={selected ? 'font-semibold text-background' : 'text-foreground'}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function Dots({ step }: { step: number }) {
-  return (
-    <View className="flex-row gap-2">
-      {[0, 1, 2, 3].map((i) => (
-        <View
-          key={i}
-          className={i <= step ? 'h-2 w-2 rounded-full bg-foreground' : 'h-2 w-2 rounded-full bg-line'}
-        />
-      ))}
-    </View>
-  );
-}
 
 export default function OnboardingScreen() {
   const { session, refreshProfile } = useAuth();
@@ -146,7 +111,7 @@ export default function OnboardingScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View className="flex-row items-center justify-between">
-        <Dots step={step} />
+        <StepDots count={4} current={step} />
         {step > 0 ? (
           <Pressable
             onPress={() => setStep((s) => s - 1)}
@@ -162,9 +127,11 @@ export default function OnboardingScreen() {
 
       {step === 0 ? (
         <View className="gap-4">
-          <Text className="text-3xl text-foreground">{t('onboarding.handle.title', locale)}</Text>
+          <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+            {t('onboarding.handle.title', locale)}
+          </Text>
           <TextInput
-            className="rounded-full border border-line bg-surface px-5 py-4 text-foreground"
+            className="rounded-ctl border border-hair bg-raise px-5 py-4 text-foreground"
             autoCapitalize="none"
             autoCorrect={false}
             placeholder={t('onboarding.handle.placeholder', locale)}
@@ -189,7 +156,13 @@ export default function OnboardingScreen() {
 
       {step === 1 ? (
         <View className="gap-4">
-          <Text className="text-3xl text-foreground">{t('onboarding.identity.title', locale)}</Text>
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            {t('onboarding.identity.eyebrow', locale)}
+          </Text>
+          <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+            {t('onboarding.identity.title', locale)}
+          </Text>
+          <Text className="text-muted-foreground">{t('onboarding.identity.sub', locale)}</Text>
           <View className="flex-row flex-wrap gap-3">
             {IDENTITY_TAGS.map((tag) => (
               <Chip
@@ -205,7 +178,13 @@ export default function OnboardingScreen() {
 
       {step === 2 ? (
         <View className="gap-4">
-          <Text className="text-3xl text-foreground">{t('onboarding.seeking.title', locale)}</Text>
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            {t('onboarding.seeking.eyebrow', locale)}
+          </Text>
+          <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+            {t('onboarding.seeking.title', locale)}
+          </Text>
+          <Text className="text-muted-foreground">{t('onboarding.seeking.sub', locale)}</Text>
           <View className="flex-row flex-wrap gap-3">
             {SEEKING_TAGS.map((tag) => (
               <Chip
@@ -221,9 +200,15 @@ export default function OnboardingScreen() {
 
       {step === 3 ? (
         <View className="gap-4">
-          <Text className="text-3xl text-foreground">{t('onboarding.dream.title', locale)}</Text>
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+            {t('onboarding.dream.eyebrow', locale)}
+          </Text>
+          <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+            {t('onboarding.dream.title', locale)}
+          </Text>
+          <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
           <TextInput
-            className="min-h-32 rounded-3xl border border-line bg-surface px-5 py-4 text-foreground"
+            className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
             multiline
             maxLength={500}
             placeholder={t('onboarding.dream.placeholder', locale)}
@@ -236,38 +221,22 @@ export default function OnboardingScreen() {
       {error ? <Text className="text-sm text-error">{error}</Text> : null}
 
       {step < 3 ? (
-        <Pressable
-          className={
-            canNext
-              ? 'h-[52px] items-center justify-center rounded-full bg-foreground'
-              : 'h-[52px] items-center justify-center rounded-full bg-foreground opacity-40'
-          }
+        <Button
+          variant="primary"
+          label={t('onboarding.next', locale)}
           disabled={!canNext}
           onPress={() => setStep((s) => s + 1)}
-          accessibilityRole="button"
-        >
-          <Text className="font-semibold tracking-widest text-background">
-            {t('onboarding.next', locale)}
-          </Text>
-        </Pressable>
+        />
       ) : (
         <View className="items-center gap-4">
-          <Pressable
-            className={
-              submitting || !dream.trim()
-                ? 'h-[52px] w-full items-center justify-center rounded-full bg-aura opacity-40'
-                : 'h-[52px] w-full items-center justify-center rounded-full bg-aura'
-            }
+          <Button
+            variant="light"
+            label={`✦ ${t('onboarding.dream.submit', locale)}`}
             disabled={submitting || !dream.trim()}
             onPress={() => finish(true)}
-            accessibilityRole="button"
-          >
-            <Text className="font-semibold tracking-widest text-background">
-              ✦ {t('onboarding.dream.submit', locale)}
-            </Text>
-          </Pressable>
+          />
           <Pressable disabled={submitting} onPress={() => finish(false)} accessibilityRole="button">
-            <Text className="tracking-widest text-muted-foreground">
+            <Text className="tracking-widest text-faint">
               {t('onboarding.dream.later', locale)}
             </Text>
           </Pressable>
