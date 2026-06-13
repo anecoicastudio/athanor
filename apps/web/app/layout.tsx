@@ -8,7 +8,7 @@ import { semantic } from '@auria/config';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { SITE_URL } from '@/lib/site';
-import { Splash } from '@/components/splash';
+import { RouteSplash } from '@/components/route-splash';
 import { SmoothScroll } from '@/components/smooth-scroll';
 import { PageReveal } from '@/components/page-reveal';
 import { LocaleProvider } from '@/components/locale-provider';
@@ -86,7 +86,7 @@ export default async function RootLayout({
           {t('a11y.skip', locale)}
         </a>
         <LocaleProvider initialLocale={locale}>
-          <Splash tagline={t('app.tagline', locale)} />
+          <RouteSplash tagline={t('app.tagline', locale)} />
           <PageReveal>
             <SmoothScroll>{children}</SmoothScroll>
           </PageReveal>
