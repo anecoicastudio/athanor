@@ -26,6 +26,17 @@
     --color-ink-muted-on-light: #5c6478;
     --color-success: #36b37e;
     --color-error: #e0476b;
+    --color-ink-2: #c9c3de;
+    --color-faint: #615a7e;
+    --color-raise: rgba(255, 255, 255, 0.04);
+    --color-raise-2: rgba(255, 255, 255, 0.065);
+    --color-hair: rgba(176, 158, 222, 0.1);
+    --color-aura-soft: rgba(43, 208, 210, 0.1);
+    --color-aura-line: rgba(43, 208, 210, 0.4);
+    --color-on-aura: #04222a;
+    --radius-ctl: 14px;
+    --radius-card: 20px;
+    --radius-hero: 26px;
 
     /*
      * RN selects fonts by exact loaded family name (one file = one family),
