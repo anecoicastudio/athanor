@@ -22,7 +22,14 @@ export const profileSchema = z.object({
 });
 
 export const profileUpdateSchema = profileSchema
-  .pick({ handle: true, bio: true, locale: true, visibility: true })
+  .pick({
+    handle: true,
+    bio: true,
+    locale: true,
+    visibility: true,
+    identity_tags: true,
+    seeking: true,
+  })
   .partial();
 
 export type Locale = z.infer<typeof localeSchema>;
