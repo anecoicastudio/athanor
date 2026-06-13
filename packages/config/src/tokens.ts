@@ -11,15 +11,15 @@
  */
 
 export const semantic = {
-  background: '#000206', // the deep cosmic canvas
+  background: '#0A0A1A', // the deep cosmic canvas
   surface: '#100A1C', // background lifted one step, violet-tinted — cards, sheets
   surfaceMuted: '#04030A', // background recessed — tab bar, scrims
-  foreground: '#ECEEF6', // cool near-white — text on dark
+  foreground: '#F0EDF7', // cool near-white — text on dark
   foregroundMuted: '#9A9DB5', // foreground dimmed — secondary text
   aura: '#2BD0D2', // glowing cyan — the light; action + meaning, glow = moments
   border: '#241B3A', // violet hairline
   bandAlt: '#241B3A', // alternate band — muted violet, section striping
-  inkOnLight: '#000206', // text on rare light chips/print
+  inkOnLight: '#0A0A1A', // text on rare light chips/print
   inkMutedOnLight: '#5C6478', // secondary on light chips/print
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
   error: '#E0476B', // input error ring, destructive (raspberry — rose family)
@@ -49,14 +49,14 @@ export const radius = {
 } as const;
 
 /**
- * Warm grotesque, weights 300–800 (M0.5: prototype set, was 400/600 only).
- * Dream register = Hanken italic (weight 400 italic); the Instrument Serif plan
- * is dropped (DESIGN.md §4). The font-load + `--font-dream` code swap is Part B
- * of the M0.5 gate — serifFamily stays here until that lands.
+ * Warm grotesque, weights 300–800 (prototype set). Dream register = Hanken
+ * italic (weight 400 italic) — one family, no second face; Instrument Serif is
+ * dropped (DESIGN.md §4). (The web landing uses EB Garamond for its display +
+ * dream register — a separate, user-directed landing decision.)
  */
 export const typography = {
   fontFamily: 'Hanken Grotesk',
-  serifFamily: 'Instrument Serif', // M0.5 Part B: replace with Hanken italic dream register
+  dreamRegister: 'Hanken Grotesk italic',
   weights: { light: 300, regular: 400, medium: 500, semibold: 600, bold: 700, heavy: 800 },
   /** Display wordmark (letter-spaced). Plain "Auria" in body text and SEO. */
   wordmark: 'A U R I A',

@@ -2,9 +2,9 @@ import '../global.css';
 
 import {
   HankenGrotesk_400Regular,
+  HankenGrotesk_400Regular_Italic,
   HankenGrotesk_600SemiBold,
 } from '@expo-google-fonts/hanken-grotesk';
-import { InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -45,7 +45,7 @@ export default function RootLayout() {
     HankenGrotesk_400Regular,
     HankenGrotesk_600SemiBold,
     // Dream register only (DESIGN.md §4): dream quotes + ritual captions, never UI.
-    InstrumentSerif_400Regular_Italic,
+    HankenGrotesk_400Regular_Italic,
   });
 
   useEffect(() => {

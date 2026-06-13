@@ -5,16 +5,16 @@
 /*
  * Auria brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
- * aura (the cyan light, --color-aura) is reserved for moments that matter:
- * a new Momento, a dream helped, a star lit. Never decorative.
+ * aura (the cyan light, --color-aura) is the action + meaning color; reserve
+ * the glow for moment-grade events (Momento, lit star, dream helped, match).
  * The mandala gradient (--color-gradient-*) is the logo/hero ring only.
  */
 @layer theme {
   @theme {
-    --color-background: #000206;
+    --color-background: #0a0a1a;
     --color-surface: #100a1c;
     --color-surface-muted: #04030a;
-    --color-foreground: #eceef6;
+    --color-foreground: #f0edf7;
     --color-muted-foreground: #9a9db5;
     --color-aura: #2bd0d2;
     --color-gradient-1: #7d236e;
@@ -22,7 +22,7 @@
     --color-gradient-3: #223d86;
     --color-line: #241b3a;
     --color-band-alt: #241b3a;
-    --color-ink-on-light: #000206;
+    --color-ink-on-light: #0a0a1a;
     --color-ink-muted-on-light: #5c6478;
     --color-success: #36b37e;
     --color-error: #e0476b;
@@ -30,11 +30,11 @@
     /*
      * RN selects fonts by exact loaded family name (one file = one family),
      * so semibold is its own family, not font-weight 600.
-     * --font-dream (Instrument Serif italic) is the dream register only
+     * --font-dream (Hanken italic) is the dream register only
      * (DESIGN.md §4): dream quotes + ritual captions, never UI.
      */
     --font-sans: 'HankenGrotesk_400Regular';
     --font-sans-semibold: 'HankenGrotesk_600SemiBold';
-    --font-dream: 'InstrumentSerif_400Regular_Italic';
+    --font-dream: 'HankenGrotesk_400Regular_Italic';
   }
 }

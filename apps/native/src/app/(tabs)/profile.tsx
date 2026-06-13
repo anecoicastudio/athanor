@@ -235,7 +235,7 @@ function ProfileEditor({
         </View>
       </Section>
 
-      {/* Il Sogno — dream register (Instrument Serif italic). Read-only in M1; editor is M2. */}
+      {/* Il Sogno — dream register (Hanken italic). Read-only in M1; editor is M2. */}
       <Section
         label={t('profile.dream.label', locale)}
         field="dream"
