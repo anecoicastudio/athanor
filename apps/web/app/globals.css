@@ -7,9 +7,9 @@
 /*
  * Auria brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
- * aura (--color-aura, the cyan light) is reserved for moments that matter:
- * a new Momento, a dream helped, a star lit. Never decorative. The mandala
- * gradient (--color-gradient-*) is the logo/hero ring only.
+ * aura (--color-aura, the cyan light) is the action + meaning color; reserve
+ * the glow for moment-grade events (Momento, lit star, dream helped, match).
+ * The mandala gradient (--color-gradient-*) is the logo/hero ring only.
  * background / foreground are unified with the shadcn role vars below.
  */
 @theme {
@@ -19,7 +19,7 @@
   --color-gradient-3: #223d86;
   --color-surface-muted: #04030a;
   --color-band-alt: #241b3a;
-  --color-ink-on-light: #000206;
+  --color-ink-on-light: #0a0a1a;
   --color-ink-muted-on-light: #5c6478;
   --color-success: #36b37e;
   --color-error: #e0476b;
@@ -81,20 +81,20 @@
  * :root and .dark are intentionally identical (single dark world).
  */
 :root {
-  --background: #000206; /* background */
-  --foreground: #eceef6; /* foreground */
+  --background: #0a0a1a; /* background */
+  --foreground: #f0edf7; /* foreground */
   --card: #100a1c; /* surface */
-  --card-foreground: #eceef6;
+  --card-foreground: #f0edf7;
   --popover: #100a1c;
-  --popover-foreground: #eceef6;
-  --primary: #eceef6; /* foreground on background — aura is NOT primary */
-  --primary-foreground: #000206;
+  --popover-foreground: #f0edf7;
+  --primary: #f0edf7; /* foreground on background — aura is NOT primary */
+  --primary-foreground: #0a0a1a;
   --secondary: #241b3a;
-  --secondary-foreground: #eceef6;
+  --secondary-foreground: #f0edf7;
   --muted: #04030a;
   --muted-foreground: #9a9db5;
   --accent: #241b3a;
-  --accent-foreground: #eceef6;
+  --accent-foreground: #f0edf7;
   --destructive: #e0476b;
   --border: #241b3a;
   --input: #241b3a;
@@ -103,33 +103,33 @@
   --chart-2: #9a9db5;
   --chart-3: #241b3a;
   --chart-4: #100a1c;
-  --chart-5: #eceef6;
+  --chart-5: #f0edf7;
   --radius: 0.625rem;
   --sidebar: #04030a;
-  --sidebar-foreground: #eceef6;
-  --sidebar-primary: #eceef6;
-  --sidebar-primary-foreground: #000206;
+  --sidebar-foreground: #f0edf7;
+  --sidebar-primary: #f0edf7;
+  --sidebar-primary-foreground: #0a0a1a;
   --sidebar-accent: #241b3a;
-  --sidebar-accent-foreground: #eceef6;
+  --sidebar-accent-foreground: #f0edf7;
   --sidebar-border: #241b3a;
   --sidebar-ring: #2bd0d2;
 }
 
 .dark {
-  --background: #000206;
-  --foreground: #eceef6;
+  --background: #0a0a1a;
+  --foreground: #f0edf7;
   --card: #100a1c;
-  --card-foreground: #eceef6;
+  --card-foreground: #f0edf7;
   --popover: #100a1c;
-  --popover-foreground: #eceef6;
-  --primary: #eceef6;
-  --primary-foreground: #000206;
+  --popover-foreground: #f0edf7;
+  --primary: #f0edf7;
+  --primary-foreground: #0a0a1a;
   --secondary: #241b3a;
-  --secondary-foreground: #eceef6;
+  --secondary-foreground: #f0edf7;
   --muted: #04030a;
   --muted-foreground: #9a9db5;
   --accent: #241b3a;
-  --accent-foreground: #eceef6;
+  --accent-foreground: #f0edf7;
   --destructive: #e0476b;
   --border: #241b3a;
   --input: #241b3a;
@@ -138,13 +138,13 @@
   --chart-2: #9a9db5;
   --chart-3: #241b3a;
   --chart-4: #100a1c;
-  --chart-5: #eceef6;
+  --chart-5: #f0edf7;
   --sidebar: #04030a;
-  --sidebar-foreground: #eceef6;
-  --sidebar-primary: #eceef6;
-  --sidebar-primary-foreground: #000206;
+  --sidebar-foreground: #f0edf7;
+  --sidebar-primary: #f0edf7;
+  --sidebar-primary-foreground: #0a0a1a;
   --sidebar-accent: #241b3a;
-  --sidebar-accent-foreground: #eceef6;
+  --sidebar-accent-foreground: #f0edf7;
   --sidebar-border: #241b3a;
   --sidebar-ring: #2bd0d2;
 }
