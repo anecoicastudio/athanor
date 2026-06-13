@@ -8,8 +8,8 @@ import { Text, View } from '@/tw';
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
     <View className="items-center gap-2 py-4">
-      <Text className="text-2xl text-muted-foreground">✦</Text>
-      <Text className="text-center text-muted-foreground">{children}</Text>
+      <Text className="text-2xl text-faint">✦</Text>
+      <Text className="text-center text-faint">{children}</Text>
     </View>
   );
 }

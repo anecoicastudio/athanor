@@ -4,8 +4,6 @@ import { Text } from '@/tw';
 /** Small-caps muted label heading a profile section. */
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-      {children}
-    </Text>
+    <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-faint">{children}</Text>
   );
 }
