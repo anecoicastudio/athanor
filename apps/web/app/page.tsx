@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { t } from '@auria/i18n';
 import { MandorlaMark } from '@/components/mandorla-mark';
 import { KairosStar } from '@/components/icons';
@@ -121,7 +122,7 @@ export default function Home() {
   return (
     <main id="main" className="flex min-h-screen flex-col bg-background text-foreground">
       {/* NAV */}
-      <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-6 py-5 mix-blend-difference">
+      <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-border/50 bg-background/65 px-6 py-5 backdrop-blur-md">
         <AuriaWordmark className="text-sm" />
         <div className="flex items-center gap-5">
           <LangSwitch />
@@ -151,164 +152,156 @@ export default function Home() {
         </Reveal>
       </section>
 
-      {/* NARRATIVE — sticky spine + chapters on a single dark canvas */}
-      <div className="mx-auto w-full max-w-7xl px-6">
-        <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-x-16">
-          <ChapterSpine chapters={CHAPTERS} locale={L} />
+      {/* NARRATIVE — full-width editorial column + a fixed scroll-progress rail */}
+      <ChapterSpine chapters={CHAPTERS} />
+      <div className="mx-auto w-full max-w-3xl px-6">
+        {/* IL NOME */}
+        <Section id="nome" label={t('landing.nome.eyebrow', L)} center>
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <div className="flex justify-center text-foreground/70">
+              <Ripples size={30} />
+            </div>
+            <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
+              «{t('landing.nome.quote', L)}»
+            </p>
+            <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              {t('landing.nome.body', L)}
+            </p>
+          </Reveal>
+        </Section>
 
-          <div>
-            {/* IL NOME */}
-            <Section id="nome" label={t('landing.nome.eyebrow', L)} center>
-              <Reveal className="mx-auto max-w-3xl text-center">
-                <div className="flex justify-center text-foreground/70">
-                  <Ripples size={30} />
-                </div>
-                <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
-                  «{t('landing.nome.quote', L)}»
-                </p>
-                <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                  {t('landing.nome.body', L)}
-                </p>
-              </Reveal>
-            </Section>
+        {/* IL PROBLEMA */}
+        <Section id="problema" label={t('landing.problem.eyebrow', L)}>
+          <Reveal>
+            <h2 className="max-w-3xl font-display text-4xl font-medium leading-snug tracking-tight md:text-5xl">
+              {t('landing.problem.title', L)}
+            </h2>
+            <ul className="mt-10 border-t border-border">
+              {PROBLEMS.map((key) => (
+                <li
+                  key={key}
+                  className="border-b border-border py-5 text-lg leading-relaxed text-muted-foreground"
+                >
+                  {t(key, L)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-8 max-w-2xl text-lg leading-relaxed text-foreground">
+              {t('landing.problem.target', L)}
+            </p>
+          </Reveal>
+        </Section>
 
-            {/* IL PROBLEMA */}
-            <Section id="problema" label={t('landing.problem.eyebrow', L)}>
-              <Reveal>
-                <h2 className="max-w-3xl font-display text-4xl font-medium leading-snug tracking-tight md:text-5xl">
-                  {t('landing.problem.title', L)}
-                </h2>
-                <ul className="mt-10 border-t border-border">
-                  {PROBLEMS.map((key) => (
-                    <li
-                      key={key}
-                      className="border-b border-border py-5 text-lg leading-relaxed text-muted-foreground"
-                    >
-                      {t(key, L)}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-8 max-w-2xl text-lg leading-relaxed text-foreground">
-                  {t('landing.problem.target', L)}
-                </p>
-              </Reveal>
-            </Section>
+        {/* MANIFESTO */}
+        <Section id="manifesto" label={t('landing.manifesto.eyebrow', L)}>
+          <Reveal>
+            <h2 className="max-w-3xl font-display text-4xl font-medium leading-snug tracking-tight md:text-5xl">
+              {t('landing.manifesto.title', L)}
+            </h2>
+            <p className="mt-8 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+              {t('landing.manifesto.body', L)}
+            </p>
+          </Reveal>
+        </Section>
 
-            {/* MANIFESTO */}
-            <Section id="manifesto" label={t('landing.manifesto.eyebrow', L)}>
-              <Reveal>
-                <h2 className="max-w-3xl font-display text-4xl font-medium leading-snug tracking-tight md:text-5xl">
-                  {t('landing.manifesto.title', L)}
-                </h2>
-                <p className="mt-8 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-                  {t('landing.manifesto.body', L)}
-                </p>
-              </Reveal>
-            </Section>
+        {/* I PILASTRI — editorial rows */}
+        <Section id="pilastri" label={t('landing.pillars.eyebrow', L)}>
+          <Reveal>
+            <h2 className="font-display text-4xl font-medium tracking-tight md:text-5xl">
+              {t('landing.pillars.title', L)}
+            </h2>
+            <ul className="mt-12 border-t border-border">
+              {PILLARS.map((p) => {
+                const Glyph = PILLAR_GLYPHS[p.key];
+                return (
+                  <li
+                    key={p.key}
+                    className="flex items-center gap-5 border-b border-border py-7 md:gap-8"
+                  >
+                    <span className="shrink-0 text-foreground/80">
+                      <Glyph size={34} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-display text-2xl font-medium tracking-tight md:text-3xl">
+                        {t(p.name, L)}
+                      </h3>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground md:text-base">
+                        {t(p.desc, L)}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Reveal>
+        </Section>
 
-            {/* I PILASTRI — editorial rows */}
-            <Section id="pilastri" label={t('landing.pillars.eyebrow', L)}>
-              <Reveal>
-                <h2 className="font-display text-4xl font-medium tracking-tight md:text-5xl">
-                  {t('landing.pillars.title', L)}
-                </h2>
-                <ul className="mt-12 border-t border-border">
-                  {PILLARS.map((p) => {
-                    const Glyph = PILLAR_GLYPHS[p.key];
-                    return (
-                      <li
-                        key={p.key}
-                        className="flex items-center gap-5 border-b border-border py-7 md:gap-8"
-                      >
-                        <span className="shrink-0 text-foreground/80">
-                          <Glyph size={34} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-display text-2xl font-medium tracking-tight md:text-3xl">
-                            {t(p.name, L)}
-                          </h3>
-                          <p className="mt-1 text-sm leading-relaxed text-muted-foreground md:text-base">
-                            {t(p.desc, L)}
-                          </p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </Reveal>
-            </Section>
+        {/* AURA */}
+        <Section id="aura" label={t('landing.aura.eyebrow', L)} center>
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <p className="font-dream text-4xl italic leading-snug md:text-5xl">
+              «{t('landing.aura.quote', L)}»
+            </p>
+            <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              {t('landing.aura.body', L)}
+            </p>
+          </Reveal>
+        </Section>
 
-            {/* AURA */}
-            <Section id="aura" label={t('landing.aura.eyebrow', L)} center>
-              <Reveal className="mx-auto max-w-3xl text-center">
-                <p className="font-dream text-4xl italic leading-snug md:text-5xl">
-                  «{t('landing.aura.quote', L)}»
-                </p>
-                <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                  {t('landing.aura.body', L)}
-                </p>
-              </Reveal>
-            </Section>
+        {/* LE SEI STELLE */}
+        <Section id="stelle" label={t('landing.stars.eyebrow', L)}>
+          <Reveal>
+            <h2 className="max-w-3xl font-display text-4xl font-medium tracking-tight md:text-5xl">
+              {t('landing.stars.title', L)}
+            </h2>
+            <p className="mt-6 max-w-xl text-base text-muted-foreground">
+              {t('profile.stars.hint', L)}
+            </p>
+            <ul className="mt-10 grid gap-x-10 gap-y-px sm:grid-cols-2">
+              {STARS.map((s) => (
+                <li key={s.name} className="flex items-center gap-4 border-t border-border py-5">
+                  <span className="shrink-0 text-foreground/70">
+                    <KairosStar size={22} />
+                  </span>
+                  <div>
+                    <h3 className="font-display text-xl font-medium">{t(s.name, L)}</h3>
+                    <p className="text-sm text-muted-foreground">{t(s.desc, L)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </Section>
 
-            {/* LE SEI STELLE */}
-            <Section id="stelle" label={t('landing.stars.eyebrow', L)}>
-              <Reveal>
-                <h2 className="max-w-3xl font-display text-4xl font-medium tracking-tight md:text-5xl">
-                  {t('landing.stars.title', L)}
-                </h2>
-                <p className="mt-6 max-w-xl text-base text-muted-foreground">
-                  {t('profile.stars.hint', L)}
-                </p>
-                <ul className="mt-10 grid gap-x-10 gap-y-px sm:grid-cols-2">
-                  {STARS.map((s) => (
-                    <li
-                      key={s.name}
-                      className="flex items-center gap-4 border-t border-border py-5"
-                    >
-                      <span className="shrink-0 text-foreground/70">
-                        <KairosStar size={22} />
-                      </span>
-                      <div>
-                        <h3 className="font-display text-xl font-medium">{t(s.name, L)}</h3>
-                        <p className="text-sm text-muted-foreground">{t(s.desc, L)}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-            </Section>
+        {/* IL SOGNO */}
+        <Section id="sogno" label={t('landing.sogno.eyebrow', L)} center>
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <div className="flex justify-center text-foreground/70">
+              <KairosStar size={24} />
+            </div>
+            <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
+              «{t('landing.sogno.quote', L)}»
+            </p>
+            <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              {t('landing.sogno.body', L)}
+            </p>
+          </Reveal>
+        </Section>
 
-            {/* IL SOGNO */}
-            <Section id="sogno" label={t('landing.sogno.eyebrow', L)} center>
-              <Reveal className="mx-auto max-w-3xl text-center">
-                <div className="flex justify-center text-foreground/70">
-                  <KairosStar size={24} />
-                </div>
-                <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
-                  «{t('landing.sogno.quote', L)}»
-                </p>
-                <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                  {t('landing.sogno.body', L)}
-                </p>
-              </Reveal>
-            </Section>
-
-            {/* DAI VITA AL TUO SOGNO — the dream-lit moment (sanctioned aura accent) */}
-            <Section id="daivita" label={t('landing.daivita.eyebrow', L)} center accent>
-              <Reveal className="mx-auto max-w-3xl text-center">
-                <div className="flex justify-center text-aura">
-                  <KairosStar filled size={24} />
-                </div>
-                <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
-                  «{t('landing.daivita.quote', L)}»
-                </p>
-                <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                  {t('landing.daivita.body', L)}
-                </p>
-              </Reveal>
-            </Section>
-          </div>
-        </div>
+        {/* DAI VITA AL TUO SOGNO — the dream-lit moment (sanctioned aura accent) */}
+        <Section id="daivita" label={t('landing.daivita.eyebrow', L)} center accent>
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <div className="flex justify-center text-aura">
+              <KairosStar filled size={24} />
+            </div>
+            <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
+              «{t('landing.daivita.quote', L)}»
+            </p>
+            <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              {t('landing.daivita.body', L)}
+            </p>
+          </Reveal>
+        </Section>
       </div>
 
       {/* FOOTER */}
@@ -341,13 +334,13 @@ export default function Home() {
             <li>{t('landing.footer.point3', L)}</li>
           </ul>
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            <a href="/privacy" className="transition-opacity hover:opacity-80">
+            <Link href="/privacy" className="transition-opacity hover:opacity-80">
               {t('legal.privacy', L)}
-            </a>
+            </Link>
             <span aria-hidden>·</span>
-            <a href="/terms" className="transition-opacity hover:opacity-80">
+            <Link href="/terms" className="transition-opacity hover:opacity-80">
               {t('legal.terms', L)}
-            </a>
+            </Link>
           </nav>
           <div className="flex flex-col items-center gap-3 opacity-60">
             <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
