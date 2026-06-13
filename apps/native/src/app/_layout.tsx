@@ -6,13 +6,39 @@ import {
 } from '@expo-google-fonts/hanken-grotesk';
 import { InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { isProfileComplete } from '@kaira/core';
 import { colors } from '@kaira/config';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 SplashScreen.preventAutoHideAsync();
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { session, profile, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const inAuth = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === '(onboarding)';
+    if (!session && !inAuth) {
+      router.replace('/(auth)/welcome');
+    } else if (session && profile && !isProfileComplete(profile) && !inOnboarding) {
+      router.replace('/(onboarding)');
+    } else if (session && profile && isProfileComplete(profile) && (inAuth || inOnboarding)) {
+      router.replace('/');
+    }
+  }, [loading, session, profile, segments, router]);
+
+  if (loading) {
+    return null;
+  }
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -33,16 +59,20 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.bluNotte },
-        }}
-      >
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </>
+      <AuthGuard>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.bluNotte },
+          }}
+        >
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(onboarding)" />
+        </Stack>
+      </AuthGuard>
+    </AuthProvider>
   );
 }

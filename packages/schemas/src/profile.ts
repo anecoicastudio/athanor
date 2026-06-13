@@ -11,10 +11,12 @@ export const handleSchema = z
 
 export const profileSchema = z.object({
   id: z.string().uuid(),
-  handle: handleSchema,
+  handle: handleSchema.nullable(),
   bio: z.string().max(500).nullable(),
   locale: localeSchema,
   visibility: z.record(z.enum(['public', 'members', 'private'])),
+  identity_tags: z.array(z.string()).max(10),
+  seeking: z.array(z.string()).max(10),
   created_at: z.string(),
   updated_at: z.string(),
 });
