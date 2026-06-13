@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Interactive selection chip (the onboarding tag chip, promoted).
- * selected = avorio/blu (DESIGN.md §8 toggle); idle = hairline-bordered.
+ * selected = luce/notte (DESIGN.md §8 toggle); idle = hairline-bordered.
  */
 export function Chip({
   selected = false,
@@ -16,7 +16,7 @@ export function Chip({
       aria-pressed={selected}
       className={cn(
         'rounded-full px-5 py-2.5 font-semibold transition-colors duration-200',
-        selected ? 'bg-avorio text-blu-notte' : 'border border-border bg-card text-foreground',
+        selected ? 'bg-luce text-notte' : 'border border-border bg-card text-foreground',
         className,
       )}
       {...props}

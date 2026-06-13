@@ -47,8 +47,8 @@ function LoginForm() {
 
   if (state === 'sent') {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-blu-notte px-6">
-        <h1 className="text-3xl text-avorio">{t('auth.sent.title', 'it')}</h1>
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-notte px-6">
+        <h1 className="text-3xl text-luce">{t('auth.sent.title', 'it')}</h1>
         <p className="text-muted-foreground">{t('auth.sent.body', 'it')}</p>
         <button
           type="button"
@@ -66,8 +66,8 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-blu-notte px-6">
-      <h1 className="max-w-xl text-center text-5xl text-avorio">{t('auth.welcome.title', 'it')}</h1>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-notte px-6">
+      <h1 className="max-w-xl text-center text-5xl text-luce">{t('auth.welcome.title', 'it')}</h1>
       {expired ? <p className="text-sm text-error">{t('auth.error.invalidLink', 'it')}</p> : null}
       <form onSubmit={sendLink} className="flex w-full max-w-sm flex-col gap-4">
         <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -78,7 +78,7 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t('auth.email.placeholder', 'it')}
-            className="mt-2 w-full rounded-full border border-border bg-card px-5 py-3 text-avorio placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-avorio"
+            className="mt-2 w-full rounded-full border border-border bg-card px-5 py-3 text-luce placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-luce"
           />
         </label>
         {state === 'error' ? (
@@ -87,7 +87,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={state === 'sending'}
-          className="h-12 rounded-full bg-avorio font-semibold tracking-widest text-blu-notte disabled:opacity-60"
+          className="h-12 rounded-full bg-luce font-semibold tracking-widest text-notte disabled:opacity-60"
         >
           {t('auth.email.cta', 'it')}
         </button>

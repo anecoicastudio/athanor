@@ -7,20 +7,25 @@
 /*
  * Kaira brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
- * Gold (oro / --color-moment) is reserved for moments that matter:
- * a new Momento, a dream helped, a star lit. Never decorative.
+ * Stella (--color-stella / --color-moment, the cyan star) is reserved for
+ * moments that matter: a new Momento, a dream helped, a star lit. Never
+ * decorative. The aurora gradient (--color-aurora-*) is the logo/hero ring only.
  */
 @theme {
-  --color-blu-notte: #16243d;
-  --color-avorio: #faf7f0;
-  --color-oro: #c9a227;
-  --color-surface-muted: #0f1a2e;
-  --color-moment: #c9a227;
-  --color-band-alt: #efeae0;
-  --color-ink-on-light: #16243d;
-  --color-ink-muted-on-light: #5c6470;
-  --color-success: #3e7c59;
-  --color-error: #b3492d;
+  --color-notte: #000206;
+  --color-luce: #eceef6;
+  --color-stella: #2bd0d2;
+  --color-aurora-rose: #7d236e;
+  --color-aurora-magenta: #672088;
+  --color-aurora-violet: #212088;
+  --color-aurora-blu: #223d86;
+  --color-surface-muted: #04030a;
+  --color-moment: #2bd0d2;
+  --color-band-alt: #0a0814;
+  --color-ink-on-light: #000206;
+  --color-ink-muted-on-light: #5c6478;
+  --color-success: #36b37e;
+  --color-error: #e0476b;
 }
 
 @theme inline {
@@ -68,76 +73,76 @@
 }
 
 /*
- * Kaira is dark-by-default: blu notte canvas, avorio type.
- * :root and .dark are intentionally identical until a light theme exists.
+ * Kaira is dark-by-default: notte canvas, luce type.
+ * :root and .dark are intentionally identical (single dark world).
  */
 :root {
-  --background: #16243d; /* blu notte */
-  --foreground: #faf7f0; /* avorio */
-  --card: #1e2f4f; /* surface */
-  --card-foreground: #faf7f0;
-  --popover: #1e2f4f;
-  --popover-foreground: #faf7f0;
-  --primary: #faf7f0; /* avorio on blu notte — gold is NOT primary */
-  --primary-foreground: #16243d;
-  --secondary: #2a3b5c;
-  --secondary-foreground: #faf7f0;
-  --muted: #0f1a2e;
-  --muted-foreground: #c9c4b8;
-  --accent: #2a3b5c;
-  --accent-foreground: #faf7f0;
-  --destructive: #b3504b;
-  --border: #2a3b5c;
-  --input: #2a3b5c;
-  --ring: #c9a227;
-  --chart-1: #c9a227;
-  --chart-2: #c9c4b8;
-  --chart-3: #2a3b5c;
-  --chart-4: #1e2f4f;
-  --chart-5: #faf7f0;
+  --background: #000206; /* notte */
+  --foreground: #eceef6; /* luce */
+  --card: #100a1c; /* surface */
+  --card-foreground: #eceef6;
+  --popover: #100a1c;
+  --popover-foreground: #eceef6;
+  --primary: #eceef6; /* luce on notte — stella is NOT primary */
+  --primary-foreground: #000206;
+  --secondary: #241b3a;
+  --secondary-foreground: #eceef6;
+  --muted: #04030a;
+  --muted-foreground: #9a9db5;
+  --accent: #241b3a;
+  --accent-foreground: #eceef6;
+  --destructive: #e0476b;
+  --border: #241b3a;
+  --input: #241b3a;
+  --ring: #2bd0d2;
+  --chart-1: #2bd0d2;
+  --chart-2: #9a9db5;
+  --chart-3: #241b3a;
+  --chart-4: #100a1c;
+  --chart-5: #eceef6;
   --radius: 0.625rem;
-  --sidebar: #0f1a2e;
-  --sidebar-foreground: #faf7f0;
-  --sidebar-primary: #faf7f0;
-  --sidebar-primary-foreground: #16243d;
-  --sidebar-accent: #2a3b5c;
-  --sidebar-accent-foreground: #faf7f0;
-  --sidebar-border: #2a3b5c;
-  --sidebar-ring: #c9a227;
+  --sidebar: #04030a;
+  --sidebar-foreground: #eceef6;
+  --sidebar-primary: #eceef6;
+  --sidebar-primary-foreground: #000206;
+  --sidebar-accent: #241b3a;
+  --sidebar-accent-foreground: #eceef6;
+  --sidebar-border: #241b3a;
+  --sidebar-ring: #2bd0d2;
 }
 
 .dark {
-  --background: #16243d;
-  --foreground: #faf7f0;
-  --card: #1e2f4f;
-  --card-foreground: #faf7f0;
-  --popover: #1e2f4f;
-  --popover-foreground: #faf7f0;
-  --primary: #faf7f0;
-  --primary-foreground: #16243d;
-  --secondary: #2a3b5c;
-  --secondary-foreground: #faf7f0;
-  --muted: #0f1a2e;
-  --muted-foreground: #c9c4b8;
-  --accent: #2a3b5c;
-  --accent-foreground: #faf7f0;
-  --destructive: #b3504b;
-  --border: #2a3b5c;
-  --input: #2a3b5c;
-  --ring: #c9a227;
-  --chart-1: #c9a227;
-  --chart-2: #c9c4b8;
-  --chart-3: #2a3b5c;
-  --chart-4: #1e2f4f;
-  --chart-5: #faf7f0;
-  --sidebar: #0f1a2e;
-  --sidebar-foreground: #faf7f0;
-  --sidebar-primary: #faf7f0;
-  --sidebar-primary-foreground: #16243d;
-  --sidebar-accent: #2a3b5c;
-  --sidebar-accent-foreground: #faf7f0;
-  --sidebar-border: #2a3b5c;
-  --sidebar-ring: #c9a227;
+  --background: #000206;
+  --foreground: #eceef6;
+  --card: #100a1c;
+  --card-foreground: #eceef6;
+  --popover: #100a1c;
+  --popover-foreground: #eceef6;
+  --primary: #eceef6;
+  --primary-foreground: #000206;
+  --secondary: #241b3a;
+  --secondary-foreground: #eceef6;
+  --muted: #04030a;
+  --muted-foreground: #9a9db5;
+  --accent: #241b3a;
+  --accent-foreground: #eceef6;
+  --destructive: #e0476b;
+  --border: #241b3a;
+  --input: #241b3a;
+  --ring: #2bd0d2;
+  --chart-1: #2bd0d2;
+  --chart-2: #9a9db5;
+  --chart-3: #241b3a;
+  --chart-4: #100a1c;
+  --chart-5: #eceef6;
+  --sidebar: #04030a;
+  --sidebar-foreground: #eceef6;
+  --sidebar-primary: #eceef6;
+  --sidebar-primary-foreground: #000206;
+  --sidebar-accent: #241b3a;
+  --sidebar-accent-foreground: #eceef6;
+  --sidebar-border: #241b3a;
+  --sidebar-ring: #2bd0d2;
 }
 
 @layer base {
@@ -155,14 +160,14 @@
 /*
  * Mandorla mark — la Mandorla animation (hero centerpiece, see
  * components/mandorla-mark.tsx). Entrance (draw-in + spark fade) settles into a
- * calm continuous loop (DESIGN.md §10). The only glow on the canvas is the apex
- * bloom (user-approved bend of §5's "never add glow").
+ * calm continuous loop (DESIGN.md §10). The rings use the aurora gradient; the
+ * only glow on the canvas is the apex bloom around the stella star.
  * Declarative CSS only — entrance one-shot `forwards`, loop delayed to begin
  * exactly when the entrance ends, so there are no JS timers and no hydration cost.
  */
 @keyframes mandorla-draw {
   from {
-    stroke-dashoffset: 346; /* circumference 2π·55 ≈ 346 */
+    stroke-dashoffset: 173; /* one semicircle: π·55 ≈ 173 */
   }
   to {
     stroke-dashoffset: 0;
@@ -216,11 +221,13 @@
   }
 }
 
-.mandorla-ring {
-  /* Dash state lives here (not just the keyframe) so the SSR'd rings start
-     hidden — no flash of fully-drawn rings before the animation runs. */
-  stroke-dasharray: 346;
-  stroke-dashoffset: 346;
+.mandorla-arc {
+  /* Dash state lives here (not just the keyframe) so the SSR'd arcs start
+     hidden — no flash before the animation runs. Each arc reveals from the
+     apex (its M point), so the rings draw from the apex and close at the
+     bottom. The full circles draw FIRST, then the star ignites. */
+  stroke-dasharray: 173;
+  stroke-dashoffset: 173;
   animation: mandorla-draw 1.3s ease-out 0.1s forwards;
 }
 /* fill-box + center pivot every scale on the element's own box; SVG defaults to
@@ -228,28 +235,29 @@
 .mandorla-rings {
   transform-box: fill-box;
   transform-origin: center;
-  animation: mandorla-breathe 7s ease-in-out 2s infinite;
+  animation: mandorla-breathe 7s ease-in-out 2.4s infinite;
 }
 .mandorla-spark {
   transform-box: fill-box;
   transform-origin: center;
   opacity: 0;
+  /* Appears after the circles have closed ("then create the star"). */
   animation:
-    mandorla-spark-in 0.6s ease-out 1.4s forwards,
-    mandorla-spark-pulse 5s ease-in-out 2.2s infinite;
+    mandorla-spark-in 0.6s ease-out 1.5s forwards,
+    mandorla-spark-pulse 5s ease-in-out 2.3s infinite;
 }
 .mandorla-bloom {
   transform-box: fill-box;
   transform-origin: center;
   opacity: 0;
   animation:
-    mandorla-spark-in 0.8s ease-out 1.4s forwards,
-    mandorla-bloom 5s ease-in-out 2.2s infinite;
+    mandorla-spark-in 0.8s ease-out 1.5s forwards,
+    mandorla-bloom 5s ease-in-out 2.4s infinite;
 }
 
 /* prefers-reduced-motion → static final state, opacity-only (DESIGN.md §10). */
 @media (prefers-reduced-motion: reduce) {
-  .mandorla-ring {
+  .mandorla-arc {
     stroke-dashoffset: 0;
     animation: none;
   }
