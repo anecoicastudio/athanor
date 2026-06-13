@@ -1,0 +1,90 @@
+/*
+ * Angled 3D device mockup — presents the AURIA app screen (already a framed
+ * front-on phone image) as a floating, tilted device: perspective rotation, a
+ * soft floor shadow, a glass glare, and hairline side buttons. No second bezel
+ * (the screen image carries its own), so this only adds depth + light.
+ * Black/white scrims via rgba (not brand hex); transition only — no looping
+ * motion, so prefers-reduced-motion has nothing to calm here.
+ */
+.stage {
+  perspective: 1600px;
+  display: flex;
+  justify-content: center;
+  padding: 4% 6% 8%;
+}
+
+.device {
+  position: relative;
+  width: 100%;
+  border-radius: 2.4rem;
+  transform: rotateX(6deg) rotateY(-18deg) rotateZ(1.5deg);
+  transform-style: preserve-3d;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 2px 1px rgba(255, 255, 255, 0.08) inset,
+    0 45px 80px -24px rgba(0, 0, 0, 0.75);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.device:hover {
+  transform: rotateX(3deg) rotateY(-10deg) rotateZ(0.5deg);
+}
+
+.screen {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 2.3rem;
+}
+
+/* glass reflection sweeping across the front face */
+.glare {
+  position: absolute;
+  inset: 0;
+  border-radius: 2.3rem;
+  pointer-events: none;
+  background: linear-gradient(
+    122deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0) 42%
+  );
+  mix-blend-mode: screen;
+}
+
+/* soft elliptical floor shadow under the floating device */
+.shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -7%;
+  width: 64%;
+  height: 11%;
+  transform: translateX(-50%) translateZ(-40px);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  filter: blur(26px);
+}
+
+/* hairline side buttons for realism */
+.btn {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+.power {
+  right: -2px;
+  top: 30%;
+  width: 3px;
+  height: 9%;
+}
+.vol {
+  left: -2px;
+  top: 23%;
+  width: 3px;
+  height: 7%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .device {
+    transition: none;
+  }
+}

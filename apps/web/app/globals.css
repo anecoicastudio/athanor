@@ -18,7 +18,7 @@
   --color-gradient-2: #672088;
   --color-gradient-3: #223d86;
   --color-surface-muted: #04030a;
-  --color-band-alt: #0a0814;
+  --color-band-alt: #241b3a;
   --color-ink-on-light: #000206;
   --color-ink-muted-on-light: #5c6478;
   --color-success: #36b37e;
@@ -26,9 +26,16 @@
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  /* Dream register only (DESIGN.md §4): dream quotes + ritual captions. */
-  --font-dream: var(--font-serif);
+  /*
+   * Display face — EB Garamond (DESIGN.md §11, 2026-06-13: was Hanken headings +
+   * Instrument Serif; briefly Cormorant). Upright for headlines (`font-display`);
+   * italic for the dream quotes (`font-dream italic`). Body / labels / UI — and
+   * the AURIA wordmark (2026-06-13, matching the vertical section labels) — stay
+   * --font-sans (Hanken).
+   */
+  --font-display: var(--font-eb-garamond);
+  --font-heading: var(--font-eb-garamond);
+  --font-dream: var(--font-eb-garamond);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -155,28 +162,45 @@
 }
 
 /*
- * Mandorla mark — la Mandorla animation (hero centerpiece, see
- * components/mandorla-mark.tsx). Entrance: the circles (arcs) draw first, THEN
- * the star ignites at the apex; settles into a calm loop — rings breathe, star
- * pulses (the sanctioned "moment flash", slowed). DESIGN.md §10.
+ * Mandorla mark — la Mandorla animation (DESIGN.md §5/§10), shared by the splash
+ * intro and the hero (components/mandorla.tsx). Entrance: the circles + lens
+ * draw in from empty (stroke-dash), the glow fades, the dots rise, then the star
+ * pops at the apex. The `--loop` variants then settle into a calm loop — rings
+ * breathe, star pulses (the sanctioned "moment flash", slowed).
  * Declarative CSS only — no JS timers, no hydration cost.
  */
 @keyframes mandorla-draw {
-  from {
-    stroke-dashoffset: 173; /* one semicircle: π·55 ≈ 173 */
-  }
   to {
     stroke-dashoffset: 0;
   }
 }
-@keyframes mandorla-spark-in {
+@keyframes mandorla-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes mandorla-fade-up {
   from {
     opacity: 0;
-    transform: scale(0.6);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
+  }
+}
+@keyframes mandorla-fade {
+  to {
+    opacity: 1;
   }
 }
 @keyframes mandorla-breathe {
@@ -194,101 +218,229 @@
     transform: scale(1);
     opacity: 0.85;
   }
-  50% {
-    transform: scale(1.15);
-    opacity: 1;
+  40% {
+    transform: scale(1.12);
+    opacity: 1; /* flares as a dot fades into the center (aligned to the halo bloom) */
   }
-}
-@keyframes mandorla-bloom {
-  0%,
-  100% {
-    opacity: 0.18;
-  }
-  50% {
-    opacity: 0.34;
-  }
-}
-@keyframes mandorla-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
+  80% {
+    transform: scale(1.12);
     opacity: 1;
   }
 }
 
-.mandorla-arc {
-  /* Dash state lives here (not just the keyframe) so the SSR'd arcs start
-     hidden — no flash. Each arc reveals from the apex; the circles draw FIRST,
-     then the star ignites. */
-  stroke-dasharray: 173;
-  stroke-dashoffset: 173;
-  animation: mandorla-draw 1.3s ease-out 0.1s forwards;
+/* The empty start: dash hidden, then draws in (no flash of a finished mark).
+   Dash state lives here (not just the keyframe) so the SSR'd mark starts hidden. */
+.mandorla-draw-stroke {
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+  animation: mandorla-draw 1.6s ease forwards;
 }
-/* fill-box + center pivot every scale on the element's own box; SVG defaults to
-   view-box, which would pivot on the (0,0) corner and slide the mark. */
-.mandorla-rings {
+/* the lens draws after the circles */
+.mandorla-lens {
+  animation-delay: 0.5s;
+}
+.mandorla-glow {
+  opacity: 0;
+  animation: mandorla-fade 0.8s ease 1.2s forwards;
+}
+/* three dots — an upward STREAM. Each dot rises the full column (cy 62 → the star
+   at cy 24 = translateY -38), fading in at the bottom (a new dot arriving) and
+   dissolving at the top as it lights the star. The three share one keyframe but are
+   offset by NEGATIVE delays (0 / -1.667 / -3.333s = cycle ÷ 3) so the stream is
+   already populated — one near the star, one mid, one low — and the eye always reads
+   three. Linear timing keeps the flow even. The wrapping `.mandorla-dots` group fades
+   the whole stream in once, AFTER the rings have drawn (load order circles → dots). */
+.mandorla-dots {
+  opacity: 0;
+  animation: mandorla-fade 0.6s ease 1.7s forwards;
+}
+@keyframes mandorla-dot-stream {
+  0% {
+    opacity: 0;
+    transform: translateY(0); /* fade in at slot C (cy 66) — the new dot from the bottom */
+  }
+  5% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(0); /* PAUSE at C */
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-12px); /* slot B (cy 54) */
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-12px); /* PAUSE at B */
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-24px); /* slot A (cy 42) */
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-24px); /* PAUSE at A */
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(-42px); /* reached the star CENTER (cy 24) */
+  }
+  95% {
+    opacity: 0;
+    transform: translateY(-42px); /* PAUSE at the center — fades out as the star glows */
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0); /* recycles invisibly to slot C */
+  }
+}
+.mandorla-dot {
+  opacity: 0;
+  animation: mandorla-dot-stream 5s linear infinite;
+}
+/* ¼-cycle apart (5s ÷ 4 = 1.25s) → the visible dots step + pause in unison, one fresh
+   on the star each pause, while the 4th recycles invisibly. */
+.mandorla-dot--1 {
+  animation-delay: 0s;
+}
+.mandorla-dot--2 {
+  animation-delay: -1.25s;
+}
+.mandorla-dot--3 {
+  animation-delay: -2.5s;
+}
+.mandorla-dot--4 {
+  animation-delay: -3.75s;
+}
+/* star halo — blooms as a dot fades into the star center (the glow), dims during the
+   glide. A dot reaches the center every cycle ÷ 4 = 1.25s, so the halo runs a 1.25s
+   period. Kept modest (DESIGN §rule 4 — cyan signals a moment, never decoration). */
+@keyframes mandorla-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.05;
+    transform: scale(0.85); /* dim while the stream glides up */
+  }
+  40% {
+    opacity: 0.5;
+    transform: scale(1.2); /* a dot fades into the center → the star glows */
+  }
+  80% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+.mandorla-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  /* delay 2.5s (= 2×period) keeps the bloom phase-locked to a dot reaching the center
+     while staying dark until the star has popped (no glow at the empty apex on load). */
+  animation: mandorla-halo-pulse 1.25s ease-in-out 2.5s infinite;
+}
+/* fill-box + center pivot keep every scale on the element's own box; SVG
+   defaults to view-box, which would pivot on the (0,0) corner and slide. */
+.mandorla-spark,
+.mandorla-spark--loop {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+/* the star pops LAST — after the rings draw and the dots have appeared (load order
+   circles → dots → star) — then flares each time a dot fades into its center, on the
+   same 1.25s rhythm as the halo. Both variants flare so the splash star glows too. */
+.mandorla-spark,
+.mandorla-spark--loop {
+  animation:
+    mandorla-pop 0.6s ease 2.8s forwards,
+    mandorla-spark-pulse 1.25s ease-in-out 3.75s infinite; /* 3×period → flare phase-locked to the center-glow */
+}
+.mandorla-rings--loop {
   transform-box: fill-box;
   transform-origin: center;
   animation: mandorla-breathe 7s ease-in-out 2.4s infinite;
 }
-.mandorla-spark {
-  transform-box: fill-box;
-  transform-origin: center;
-  opacity: 0;
-  animation:
-    mandorla-spark-in 0.6s ease-out 1.5s forwards,
-    mandorla-spark-pulse 5s ease-in-out 2.3s infinite;
-}
-.mandorla-bloom {
-  transform-box: fill-box;
-  transform-origin: center;
-  opacity: 0;
-  animation:
-    mandorla-spark-in 0.8s ease-out 1.5s forwards,
-    mandorla-bloom 5s ease-in-out 2.4s infinite;
-}
 
 /* prefers-reduced-motion → static final state, opacity-only (DESIGN.md §10). */
 @media (prefers-reduced-motion: reduce) {
-  .mandorla-arc {
-    stroke-dashoffset: 0;
-    animation: none;
-  }
-  .mandorla-rings,
+  .mandorla-draw-stroke,
+  .mandorla-glow,
+  .mandorla-dots,
+  .mandorla-dot,
   .mandorla-spark,
-  .mandorla-bloom {
+  .mandorla-spark--loop,
+  .mandorla-rings--loop {
     animation: none;
     opacity: 1;
+    stroke-dashoffset: 0;
     transform: none;
   }
-  .mandorla-bloom {
-    opacity: 0.26;
+  /* dots all share cy 62 (they separate by the stream translate, not position);
+     without motion they would stack into one — distribute into a resting column,
+     clear of the star at cy 24. */
+  .mandorla-dot--2 {
+    transform: translateY(-9px);
   }
-  .mandorla-mark {
-    animation: mandorla-fade-in 0.4s ease-out both;
+  .mandorla-dot--3 {
+    transform: translateY(-18px);
+  }
+  .mandorla-dot--4 {
+    transform: translateY(-27px);
+  }
+  /* the star halo reads as motion — hide it entirely when reduced */
+  .mandorla-halo {
+    animation: none;
+    opacity: 0;
   }
 }
 
 /*
- * Brand marquee ribbon (landing). A slow, calm, linear loop of oversized light
- * type — the connective tissue between bands. The track holds two identical
- * halves and translates -50% so the loop is seamless. Frozen under
- * prefers-reduced-motion (the ribbon then reads as a static oversized word).
+ * Lenis smooth scroll (components/smooth-scroll.tsx). Lenis toggles these
+ * classes on <html> while active; under prefers-reduced-motion it never
+ * initialises, so native scroll is untouched.
  */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
+html.lenis,
+html.lenis body {
+  height: auto;
 }
-.marquee-track {
-  animation: marquee 42s linear infinite;
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
 }
-@media (prefers-reduced-motion: reduce) {
-  .marquee-track {
-    animation: none;
-  }
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/*
+ * Accessibility — a visible keyboard focus ring (uses --ring, the same token as
+ * the base outline-ring) and a skip-to-content link that appears only on focus.
+ */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-160%);
+  background: var(--foreground);
+  color: var(--background);
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: transform 0.2s ease;
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
 }

@@ -1,14 +1,14 @@
-import { t } from '@auria/i18n';
+import { t, type Locale } from '@auria/i18n';
 
 /**
  * Download CTAs — App Store + Google Play, in the standard two-line badge
  * layout (small lead line + store name + brand glyph). Monochrome on a dark
  * hairline pill to stay on-brand («calma ma potente», DESIGN.md §6 thin-line) —
- * no aura cyan, no colored marketing art. Placeholder links (href="#") until
- * the app is published; swap the hrefs here in one place.
+ * no aura cyan, no colored marketing art. The app isn't published yet, so the
+ * badges are non-interactive "coming soon" marks (no dead links); swap them to
+ * <a href> store URLs here in one place at launch. `locale` is threaded from the
+ * page so the badges follow the in-page IT/EN toggle.
  */
-const L = 'it' as const;
-
 function AppleGlyph() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -31,50 +31,53 @@ function PlayGlyph() {
 }
 
 function Badge({
-  href,
   ariaLabel,
   glyph,
   small,
   name,
 }: {
-  href: string;
   ariaLabel: string;
   glyph: React.ReactNode;
   small: string;
   name: string;
 }) {
+  // The app isn't published yet — render a non-interactive "coming soon" badge
+  // (no dead href). Swap to an <a href> with the store URL at launch.
   return (
-    <a
-      href={href}
+    <div
+      role="img"
       aria-label={ariaLabel}
-      className="inline-flex items-center gap-3 rounded-2xl border border-border bg-card/40 px-5 py-2.5 text-foreground transition-opacity hover:opacity-80"
+      className="inline-flex cursor-default items-center gap-3 rounded-2xl border border-border bg-card/40 px-5 py-2.5 text-foreground opacity-70"
     >
       {glyph}
       <span className="flex flex-col text-left leading-tight">
         <span className="text-[10px] tracking-wide text-muted-foreground">{small}</span>
         <span className="text-base font-semibold tracking-tight">{name}</span>
       </span>
-    </a>
+    </div>
   );
 }
 
-export function StoreBadges({ className }: { className?: string }) {
+export function StoreBadges({ className, locale = 'it' }: { className?: string; locale?: Locale }) {
   return (
-    <div className={`flex flex-wrap items-center justify-center gap-4 ${className ?? ''}`}>
-      <Badge
-        href="#"
-        ariaLabel={t('landing.download.appStore', L)}
-        glyph={<AppleGlyph />}
-        small={t('landing.download.appStoreSmall', L)}
-        name={t('landing.download.appStoreName', L)}
-      />
-      <Badge
-        href="#"
-        ariaLabel={t('landing.download.googlePlay', L)}
-        glyph={<PlayGlyph />}
-        small={t('landing.download.googlePlaySmall', L)}
-        name={t('landing.download.googlePlayName', L)}
-      />
+    <div className={`flex flex-col items-center gap-3 ${className ?? ''}`}>
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <Badge
+          ariaLabel={t('landing.download.appStore', locale)}
+          glyph={<AppleGlyph />}
+          small={t('landing.download.appStoreSmall', locale)}
+          name={t('landing.download.appStoreName', locale)}
+        />
+        <Badge
+          ariaLabel={t('landing.download.googlePlay', locale)}
+          glyph={<PlayGlyph />}
+          small={t('landing.download.googlePlaySmall', locale)}
+          name={t('landing.download.googlePlayName', locale)}
+        />
+      </div>
+      <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+        {t('landing.download.comingSoon', locale)}
+      </span>
     </div>
   );
 }
