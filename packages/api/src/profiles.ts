@@ -1,4 +1,10 @@
-import { type OnboardingAnswers, onboardingAnswersSchema, profileSchema } from '@kaira/schemas';
+import {
+  type OnboardingAnswers,
+  onboardingAnswersSchema,
+  type ProfileUpdate,
+  profileSchema,
+  profileUpdateSchema,
+} from '@kaira/schemas';
 import type { KairaClient } from './client';
 
 /** TanStack Query key factory (rule: per-entity factories). */
@@ -33,6 +39,17 @@ export async function updateOnboardingProfile(
 ): Promise<void> {
   // parse strips unknown keys that TS structural typing would otherwise pass through.
   const payload = onboardingAnswersSchema.parse(answers);
+  const { error } = await client.from('profiles').update(payload).eq('id', userId);
+  if (error) throw error;
+}
+
+/** Partial profile edit (Profilo Evolutivo). RLS enforces owner-only; schema strips unknown keys. */
+export async function updateProfile(
+  client: KairaClient,
+  userId: string,
+  patch: ProfileUpdate,
+): Promise<void> {
+  const payload = profileUpdateSchema.parse(patch);
   const { error } = await client.from('profiles').update(payload).eq('id', userId);
   if (error) throw error;
 }
