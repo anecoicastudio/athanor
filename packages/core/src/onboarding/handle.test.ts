@@ -23,6 +23,6 @@ describe('suggestHandle', () => {
   });
 
   test('falls back for empty local part', () => {
-    expect(suggestHandle('@example.com')).toBe('stella');
+    expect(suggestHandle('@example.com')).toBe('aura');
   });
 });

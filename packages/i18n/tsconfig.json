@@ -1,4 +1,4 @@
 {
-  "extends": "@kaira/config/tsconfig/library.json",
+  "extends": "@auria/config/tsconfig/library.json",
   "include": ["src"]
 }

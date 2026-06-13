@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { createDream, isHandleAvailable, updateOnboardingProfile } from '@kaira/api';
-import { IDENTITY_TAGS, SEEKING_TAGS, suggestHandle, validateOnboardingAnswers } from '@kaira/core';
-import { t, type MessageKey } from '@kaira/i18n';
-import { onboardingAnswersSchema, type Locale } from '@kaira/schemas';
+import { createDream, isHandleAvailable, updateOnboardingProfile } from '@auria/api';
+import { IDENTITY_TAGS, SEEKING_TAGS, suggestHandle, validateOnboardingAnswers } from '@auria/core';
+import { t, type MessageKey } from '@auria/i18n';
+import { onboardingAnswersSchema, type Locale } from '@auria/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -27,14 +27,14 @@ function Chip({
     <Pressable
       className={
         selected
-          ? 'rounded-full bg-luce px-5 py-3'
+          ? 'rounded-full bg-foreground px-5 py-3'
           : 'rounded-full border border-line bg-surface px-5 py-3'
       }
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
     >
-      <Text className={selected ? 'font-semibold text-notte' : 'text-foreground'}>{label}</Text>
+      <Text className={selected ? 'font-semibold text-background' : 'text-foreground'}>{label}</Text>
     </Pressable>
   );
 }
@@ -45,7 +45,7 @@ function Dots({ step }: { step: number }) {
       {[0, 1, 2, 3].map((i) => (
         <View
           key={i}
-          className={i <= step ? 'h-2 w-2 rounded-full bg-luce' : 'h-2 w-2 rounded-full bg-line'}
+          className={i <= step ? 'h-2 w-2 rounded-full bg-foreground' : 'h-2 w-2 rounded-full bg-line'}
         />
       ))}
     </View>
@@ -239,14 +239,14 @@ export default function OnboardingScreen() {
         <Pressable
           className={
             canNext
-              ? 'h-[52px] items-center justify-center rounded-full bg-luce'
-              : 'h-[52px] items-center justify-center rounded-full bg-luce opacity-40'
+              ? 'h-[52px] items-center justify-center rounded-full bg-foreground'
+              : 'h-[52px] items-center justify-center rounded-full bg-foreground opacity-40'
           }
           disabled={!canNext}
           onPress={() => setStep((s) => s + 1)}
           accessibilityRole="button"
         >
-          <Text className="font-semibold tracking-widest text-notte">
+          <Text className="font-semibold tracking-widest text-background">
             {t('onboarding.next', locale)}
           </Text>
         </Pressable>
@@ -255,14 +255,14 @@ export default function OnboardingScreen() {
           <Pressable
             className={
               submitting || !dream.trim()
-                ? 'h-[52px] w-full items-center justify-center rounded-full bg-stella opacity-40'
-                : 'h-[52px] w-full items-center justify-center rounded-full bg-stella'
+                ? 'h-[52px] w-full items-center justify-center rounded-full bg-aura opacity-40'
+                : 'h-[52px] w-full items-center justify-center rounded-full bg-aura'
             }
             disabled={submitting || !dream.trim()}
             onPress={() => finish(true)}
             accessibilityRole="button"
           >
-            <Text className="font-semibold tracking-widest text-notte">
+            <Text className="font-semibold tracking-widest text-background">
               ✦ {t('onboarding.dream.submit', locale)}
             </Text>
           </Pressable>

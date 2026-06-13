@@ -1,5 +1,5 @@
 {
-  "name": "@kaira/api",
+  "name": "@auria/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@kaira/schemas": "workspace:*",
+    "@auria/schemas": "workspace:*",
     "@supabase/supabase-js": "^2.49.4"
   },
   "peerDependencies": {
@@ -22,7 +22,7 @@
     "react": { "optional": true }
   },
   "devDependencies": {
-    "@kaira/config": "workspace:*",
+    "@auria/config": "workspace:*",
     "typescript": "^5.8.3"
   }
 }

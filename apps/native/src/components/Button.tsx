@@ -1,8 +1,8 @@
 import { Pressable, Text } from '@/tw';
 
 /**
- * Primary (luce) / ghost (hairline) action button. Mirrors apps/web ui/button.tsx
- * and the onboarding primary button. Stella (the star) is a moment, never a default action.
+ * Primary (foreground) / ghost (hairline) action button. Mirrors apps/web ui/button.tsx
+ * and the onboarding primary button. Aura (the star) is a moment, never a default action.
  */
 export function Button({
   label,
@@ -20,14 +20,14 @@ export function Button({
       <Pressable
         className={
           disabled
-            ? 'h-[52px] items-center justify-center rounded-full bg-luce px-6 opacity-40'
-            : 'h-[52px] items-center justify-center rounded-full bg-luce px-6'
+            ? 'h-[52px] items-center justify-center rounded-full bg-foreground px-6 opacity-40'
+            : 'h-[52px] items-center justify-center rounded-full bg-foreground px-6'
         }
         disabled={disabled}
         onPress={onPress}
         accessibilityRole="button"
       >
-        <Text className="font-semibold tracking-widest text-notte">{label}</Text>
+        <Text className="font-semibold tracking-widest text-background">{label}</Text>
       </Pressable>
     );
   }

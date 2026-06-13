@@ -10,8 +10,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { isProfileComplete } from '@kaira/core';
-import { colors } from '@kaira/config';
+import { isProfileComplete } from '@auria/core';
+import { semantic } from '@auria/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 SplashScreen.preventAutoHideAsync();
@@ -65,7 +65,7 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: colors.notte },
+            contentStyle: { backgroundColor: semantic.background },
           }}
         >
           <Stack.Screen name="(tabs)" />

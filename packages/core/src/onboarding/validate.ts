@@ -1,4 +1,4 @@
-import type { OnboardingAnswers } from '@kaira/schemas';
+import type { OnboardingAnswers } from '@auria/schemas';
 import { IDENTITY_TAGS, SEEKING_TAGS } from './tags';
 
 export type OnboardingValidation = { ok: true } | { ok: false; field: 'identity_tags' | 'seeking' };

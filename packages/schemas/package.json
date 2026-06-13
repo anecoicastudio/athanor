@@ -1,5 +1,5 @@
 {
-  "name": "@kaira/schemas",
+  "name": "@auria/schemas",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@kaira/config": "workspace:*",
+    "@auria/config": "workspace:*",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"
   }

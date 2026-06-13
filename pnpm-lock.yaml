@@ -21,6 +21,21 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@auria/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@auria/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@auria/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@auria/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@auria/schemas':
+        specifier: workspace:*
+        version: link:../../packages/schemas
       '@expo-google-fonts/hanken-grotesk':
         specifier: ^0.4.3
         version: 0.4.3
@@ -30,21 +45,6 @@ importers:
       '@expo/ui':
         specifier: ~56.0.17
         version: 56.0.17(@babel/core@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(expo@56.0.11)(react-dom@19.2.3(react@19.2.3))(react-native-reanimated@4.3.1(react-native-worklets@0.8.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native-worklets@0.8.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
-      '@kaira/api':
-        specifier: workspace:*
-        version: link:../../packages/api
-      '@kaira/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@kaira/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@kaira/i18n':
-        specifier: workspace:*
-        version: link:../../packages/i18n
-      '@kaira/schemas':
-        specifier: workspace:*
-        version: link:../../packages/schemas
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
         version: 2.2.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))
@@ -151,19 +151,19 @@ importers:
 
   apps/web:
     dependencies:
-      '@kaira/api':
+      '@auria/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@kaira/config':
+      '@auria/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@kaira/core':
+      '@auria/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@kaira/i18n':
+      '@auria/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
-      '@kaira/schemas':
+      '@auria/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
       '@supabase/ssr':
@@ -239,7 +239,7 @@ importers:
 
   packages/api:
     dependencies:
-      '@kaira/schemas':
+      '@auria/schemas':
         specifier: workspace:*
         version: link:../schemas
       '@supabase/supabase-js':
@@ -252,7 +252,7 @@ importers:
         specifier: '*'
         version: 19.2.7
     devDependencies:
-      '@kaira/config':
+      '@auria/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -267,11 +267,11 @@ importers:
 
   packages/core:
     dependencies:
-      '@kaira/schemas':
+      '@auria/schemas':
         specifier: workspace:*
         version: link:../schemas
     devDependencies:
-      '@kaira/config':
+      '@auria/config':
         specifier: workspace:*
         version: link:../config
       '@vitest/coverage-v8':
@@ -286,7 +286,7 @@ importers:
 
   packages/i18n:
     devDependencies:
-      '@kaira/config':
+      '@auria/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -302,7 +302,7 @@ importers:
         specifier: ^3.24.2
         version: 3.25.76
     devDependencies:
-      '@kaira/config':
+      '@auria/config':
         specifier: workspace:*
         version: link:../config
       typescript:
