@@ -11,10 +11,16 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # supabase local
 supabase/.temp/
 supabase/.branches/
+
+# playwright e2e
+playwright-report/
+test-results/
+playwright/.cache/
 
 # misc
 .DS_Store
