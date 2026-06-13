@@ -132,7 +132,7 @@ export default function OnboardingPage() {
       if (plantDream && dream.trim()) {
         await createDream(supabase, { profile_id: userId, text: dream.trim() });
       }
-      router.replace('/');
+      router.replace('/profilo');
     } catch {
       setError(t('onboarding.error.submit', locale));
     } finally {
