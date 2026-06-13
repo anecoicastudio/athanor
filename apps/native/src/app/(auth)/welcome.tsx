@@ -1,25 +1,25 @@
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { t } from '@auria/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
-import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 export default function WelcomeScreen() {
   const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { linkError } = useAuth();
   const router = useRouter();
 
-  const sendLink = async () => {
+  // OTP code flow: no emailRedirectTo → Supabase sends a 6-digit code
+  // (the email template renders {{ .Token }}). The user types it on the
+  // next screen. No deep link, no web round-trip.
+  const sendCode = async () => {
     setSending(true);
     setError(null);
     const { error: err } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: Linking.createURL('auth/callback') },
+      options: { shouldCreateUser: true },
     });
     setSending(false);
     if (err) {
@@ -32,9 +32,6 @@ export default function WelcomeScreen() {
   return (
     <View className="flex-1 justify-center gap-6 bg-background px-5">
       <Text className="text-4xl text-foreground">{t('auth.welcome.title', 'it')}</Text>
-      {linkError ? (
-        <Text className="text-sm text-error">{t('auth.error.invalidLink', 'it')}</Text>
-      ) : null}
       <View className="gap-2">
         <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {t('auth.email.label', 'it')}
@@ -57,7 +54,7 @@ export default function WelcomeScreen() {
             : 'h-[52px] items-center justify-center rounded-full bg-foreground'
         }
         disabled={sending || !email.includes('@')}
-        onPress={sendLink}
+        onPress={sendCode}
         accessibilityRole="button"
       >
         {sending ? (
