@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { getActiveDream, getAuraScore, updateProfile } from '@auria/api';
 import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@auria/core';
 import { t, type MessageKey } from '@auria/i18n';
@@ -65,6 +66,7 @@ function ProfileEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const router = useRouter();
 
   // Web fetches the active dream server-side; mobile fetches it client-side.
   useEffect(() => {
@@ -168,6 +170,14 @@ function ProfileEditor({
               }}
             >
               <Text className="text-xl text-aura">✦</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.title', locale)}
+              hitSlop={8}
+              onPress={() => router.push('/(modal)/settings')}
+            >
+              <Text className="text-xl text-faint">⚙</Text>
             </Pressable>
             <Pressable onPress={() => setEditing(true)} accessibilityRole="button" hitSlop={8}>
               <Text className="font-semibold text-faint">{t('profile.edit', locale)}</Text>
