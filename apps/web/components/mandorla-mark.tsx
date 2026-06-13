@@ -21,7 +21,7 @@ export function MandorlaMark({ className }: { className?: string }) {
   return (
     <div
       className={`mandorla-mark text-aura ${className ?? ''}`}
-      style={{ width: 'clamp(220px, 42vw, 380px)', aspectRatio: '1' }}
+      style={{ width: 'clamp(300px, 60vw, 560px)', aspectRatio: '1' }}
       aria-hidden
     >
       <svg viewBox="0 0 200 200" fill="none" className="h-full w-full">

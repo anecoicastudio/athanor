@@ -25,8 +25,8 @@
 .mark {
   display: block;
   line-height: 0;
-  width: 140px;
-  height: 140px;
+  width: clamp(200px, 56vw, 320px);
+  height: clamp(200px, 56vw, 320px);
 }
 
 /* the empty start: dash hidden, then draws in (no flash of a finished mark) */
@@ -60,7 +60,7 @@
   letter-spacing: 0.5em;
   padding-left: 0.5em;
   font-weight: 300;
-  font-size: 22px;
+  font-size: 26px;
   color: var(--color-foreground);
   opacity: 0;
   animation: fadeUp 1s ease 0.7s forwards;

@@ -269,3 +269,26 @@
     animation: mandorla-fade-in 0.4s ease-out both;
   }
 }
+
+/*
+ * Brand marquee ribbon (landing). A slow, calm, linear loop of oversized light
+ * type — the connective tissue between bands. The track holds two identical
+ * halves and translates -50% so the loop is seamless. Frozen under
+ * prefers-reduced-motion (the ribbon then reads as a static oversized word).
+ */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee 42s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
