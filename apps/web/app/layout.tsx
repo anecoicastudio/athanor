@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { Hanken_Grotesk, Instrument_Serif } from 'next/font/google';
+import { t } from '@auria/i18n';
 import './globals.css';
 import { cn } from '@/lib/utils';
+import { Splash } from '@/components/splash';
 
 const hankenGrotesk = Hanken_Grotesk({
   variable: '--font-sans',
@@ -18,7 +20,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: 'Kaira — Il momento giusto, le persone giuste',
+  title: 'Auria — Dove ogni incontro si accende',
   description: 'Where the right people meet at the right moment.',
 };
 
@@ -36,7 +38,10 @@ export default function RootLayout({
         instrumentSerif.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Splash wordmark={t('app.name', 'it').toUpperCase()} tagline={t('app.tagline', 'it')} />
+        {children}
+      </body>
     </html>
   );
 }

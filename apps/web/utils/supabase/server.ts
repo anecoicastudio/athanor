@@ -1,13 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { Database, KairaClient } from '@kaira/api';
+import type { Database, AuriaClient } from '@auria/api';
 
-export async function createClient(): Promise<KairaClient> {
+export async function createClient(): Promise<AuriaClient> {
   const cookieStore = await cookies();
 
   // Cast mirrors utils/supabase/client.ts: @supabase/ssr 0.6.x builds the 3-generic
   // SupabaseClient while supabase-js ≥2.50 expects 5 — same runtime class. Centralizing
-  // it here lets server components call @kaira/api functions cast-free.
+  // it here lets server components call @auria/api functions cast-free.
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -27,5 +27,5 @@ export async function createClient(): Promise<KairaClient> {
         },
       },
     },
-  ) as unknown as KairaClient;
+  ) as unknown as AuriaClient;
 }

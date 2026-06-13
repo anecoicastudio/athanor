@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { createConfirmedUser, deleteUser, magicTokenHash } from './helpers/auth';
 
 /**
- * M1 web smoke (PRD §10): login → onboarding → /profilo → edit → save.
+ * M1 web smoke (PRD §10): login → onboarding → /profile → edit → save.
  * Runs against the local Supabase stack (`supabase start`). Auth is minted via
  * the admin API (see helpers/auth.ts) — the login form is still exercised, but
  * the actual session comes from driving /auth/confirm with a real token.
@@ -10,7 +10,7 @@ import { createConfirmedUser, deleteUser, magicTokenHash } from './helpers/auth'
 
 // Unique per run so handle + e-mail never collide with rows from earlier runs.
 const stamp = Date.now();
-const email = `e2e-${stamp}@kaira.test`;
+const email = `e2e-${stamp}@auria.test`;
 const handle = `e2e_${stamp}`.slice(0, 30);
 
 let userId: string;
@@ -23,7 +23,7 @@ test.afterAll(async () => {
   if (userId) await deleteUser(userId);
 });
 
-test('login → onboarding → profilo → edit → save', async ({ page }) => {
+test('login → onboarding → profile → edit → save', async ({ page }) => {
   // 1. Login form renders and accepts the e-mail (magic-link request UI).
   await page.goto('/login');
   await page.locator('input[type="email"]').fill(email);
@@ -50,10 +50,10 @@ test('login → onboarding → profilo → edit → save', async ({ page }) => {
   await page.locator('button[aria-pressed]').first().click();
   await next.click();
 
-  // step 3: dream → plant it → lands on /profilo.
+  // step 3: dream → plant it → lands on /profile.
   await page.getByRole('textbox').fill('Il mio sogno di prova e2e.');
   await page.getByRole('button', { name: /Pianta il sogno/ }).click();
-  await expect(page).toHaveURL(/\/profilo/);
+  await expect(page).toHaveURL(/\/profile/);
 
   // 4. Profilo renders the new identity.
   await expect(page.getByRole('heading', { name: `@${handle}` })).toBeVisible();

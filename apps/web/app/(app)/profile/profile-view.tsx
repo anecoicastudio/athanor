@@ -2,10 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { updateProfile } from '@kaira/api';
-import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@kaira/core';
-import type { MessageKey } from '@kaira/i18n';
-import type { Locale, Profile } from '@kaira/schemas';
+import { updateProfile } from '@auria/api';
+import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@auria/core';
+import type { MessageKey } from '@auria/i18n';
+import type { Locale, Profile } from '@auria/schemas';
 import { Chip, Tag } from '@/components/chip';
 import { EmptyState } from '@/components/empty-state';
 import { KairosStar } from '@/components/icons';

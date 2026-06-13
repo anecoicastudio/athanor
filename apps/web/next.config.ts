@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@kaira/api', '@kaira/config', '@kaira/core', '@kaira/i18n', '@kaira/schemas'],
+  transpilePackages: ['@auria/api', '@auria/config', '@auria/core', '@auria/i18n', '@auria/schemas'],
 };
 
 export default nextConfig;

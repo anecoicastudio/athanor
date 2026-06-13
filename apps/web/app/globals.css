@@ -5,22 +5,19 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Kaira brand tokens — values mirror packages/config/src/tokens.ts.
+ * Auria brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
- * Stella (--color-stella / --color-moment, the cyan star) is reserved for
- * moments that matter: a new Momento, a dream helped, a star lit. Never
- * decorative. The aurora gradient (--color-aurora-*) is the logo/hero ring only.
+ * aura (--color-aura, the cyan light) is reserved for moments that matter:
+ * a new Momento, a dream helped, a star lit. Never decorative. The mandala
+ * gradient (--color-gradient-*) is the logo/hero ring only.
+ * background / foreground are unified with the shadcn role vars below.
  */
 @theme {
-  --color-notte: #000206;
-  --color-luce: #eceef6;
-  --color-stella: #2bd0d2;
-  --color-aurora-rose: #7d236e;
-  --color-aurora-magenta: #672088;
-  --color-aurora-violet: #212088;
-  --color-aurora-blu: #223d86;
+  --color-aura: #2bd0d2;
+  --color-gradient-1: #7d236e;
+  --color-gradient-2: #672088;
+  --color-gradient-3: #223d86;
   --color-surface-muted: #04030a;
-  --color-moment: #2bd0d2;
   --color-band-alt: #0a0814;
   --color-ink-on-light: #000206;
   --color-ink-muted-on-light: #5c6478;
@@ -73,17 +70,17 @@
 }
 
 /*
- * Kaira is dark-by-default: notte canvas, luce type.
+ * Auria is dark-by-default: background canvas, foreground type.
  * :root and .dark are intentionally identical (single dark world).
  */
 :root {
-  --background: #000206; /* notte */
-  --foreground: #eceef6; /* luce */
+  --background: #000206; /* background */
+  --foreground: #eceef6; /* foreground */
   --card: #100a1c; /* surface */
   --card-foreground: #eceef6;
   --popover: #100a1c;
   --popover-foreground: #eceef6;
-  --primary: #eceef6; /* luce on notte — stella is NOT primary */
+  --primary: #eceef6; /* foreground on background — aura is NOT primary */
   --primary-foreground: #000206;
   --secondary: #241b3a;
   --secondary-foreground: #eceef6;
@@ -159,11 +156,10 @@
 
 /*
  * Mandorla mark — la Mandorla animation (hero centerpiece, see
- * components/mandorla-mark.tsx). Entrance (draw-in + spark fade) settles into a
- * calm continuous loop (DESIGN.md §10). The rings use the aurora gradient; the
- * only glow on the canvas is the apex bloom around the stella star.
- * Declarative CSS only — entrance one-shot `forwards`, loop delayed to begin
- * exactly when the entrance ends, so there are no JS timers and no hydration cost.
+ * components/mandorla-mark.tsx). Entrance: the circles (arcs) draw first, THEN
+ * the star ignites at the apex; settles into a calm loop — rings breathe, star
+ * pulses (the sanctioned "moment flash", slowed). DESIGN.md §10.
+ * Declarative CSS only — no JS timers, no hydration cost.
  */
 @keyframes mandorla-draw {
   from {
@@ -223,15 +219,14 @@
 
 .mandorla-arc {
   /* Dash state lives here (not just the keyframe) so the SSR'd arcs start
-     hidden — no flash before the animation runs. Each arc reveals from the
-     apex (its M point), so the rings draw from the apex and close at the
-     bottom. The full circles draw FIRST, then the star ignites. */
+     hidden — no flash. Each arc reveals from the apex; the circles draw FIRST,
+     then the star ignites. */
   stroke-dasharray: 173;
   stroke-dashoffset: 173;
   animation: mandorla-draw 1.3s ease-out 0.1s forwards;
 }
 /* fill-box + center pivot every scale on the element's own box; SVG defaults to
-   view-box, which would pivot on the (0,0) corner and slide the mark. Required. */
+   view-box, which would pivot on the (0,0) corner and slide the mark. */
 .mandorla-rings {
   transform-box: fill-box;
   transform-origin: center;
@@ -241,7 +236,6 @@
   transform-box: fill-box;
   transform-origin: center;
   opacity: 0;
-  /* Appears after the circles have closed ("then create the star"). */
   animation:
     mandorla-spark-in 0.6s ease-out 1.5s forwards,
     mandorla-spark-pulse 5s ease-in-out 2.3s infinite;

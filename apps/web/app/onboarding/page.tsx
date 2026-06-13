@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   createDream,
   isHandleAvailable,
-  type KairaClient,
+  type AuriaClient,
   updateOnboardingProfile,
-} from '@kaira/api';
-import { IDENTITY_TAGS, SEEKING_TAGS, suggestHandle, validateOnboardingAnswers } from '@kaira/core';
-import { t, type MessageKey } from '@kaira/i18n';
-import { onboardingAnswersSchema, type Locale } from '@kaira/schemas';
+} from '@auria/api';
+import { IDENTITY_TAGS, SEEKING_TAGS, suggestHandle, validateOnboardingAnswers } from '@auria/core';
+import { t, type MessageKey } from '@auria/i18n';
+import { onboardingAnswersSchema, type Locale } from '@auria/schemas';
 import { createClient } from '@/utils/supabase/client';
 
 function Chip({
@@ -29,8 +29,8 @@ function Chip({
       aria-pressed={selected}
       className={
         selected
-          ? 'rounded-full bg-luce px-5 py-2.5 font-semibold text-notte'
-          : 'rounded-full border border-border bg-card px-5 py-2.5 text-luce'
+          ? 'rounded-full bg-foreground px-5 py-2.5 font-semibold text-background'
+          : 'rounded-full border border-border bg-card px-5 py-2.5 text-foreground'
       }
     >
       {label}
@@ -42,7 +42,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   // Initialized inside a .then() callback to satisfy react-hooks/set-state-in-effect;
   // createClient() never runs during SSR prerender because useEffect is client-only.
-  const [supabase, setSupabase] = useState<KairaClient | null>(null);
+  const [supabase, setSupabase] = useState<AuriaClient | null>(null);
   const [step, setStep] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [handle, setHandle] = useState('');
@@ -71,13 +71,18 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const client = createClient();
-    client.auth.getUser().then(({ data }) => {
-      setSupabase(client);
-      setUserId(data.user?.id ?? null);
-      const email = data.user?.email;
-      if (email) setHandle((h) => h || suggestHandle(email));
-      setLocale(navigator.language.startsWith('en') ? 'en' : 'it');
-    });
+    client.auth
+      .getUser()
+      .then(({ data }) => {
+        setSupabase(client);
+        setUserId(data.user?.id ?? null);
+        const email = data.user?.email;
+        if (email) setHandle((h) => h || suggestHandle(email));
+        setLocale(navigator.language.startsWith('en') ? 'en' : 'it');
+      })
+      .catch(() => {
+        // Supabase unreachable (e.g. local stack down) — leave userId null.
+      });
   }, []);
 
   // debounced live availability check (UX pre-check; DB unique constraint is the real guard)
@@ -132,7 +137,7 @@ export default function OnboardingPage() {
       if (plantDream && dream.trim()) {
         await createDream(supabase, { profile_id: userId, text: dream.trim() });
       }
-      router.replace('/profilo');
+      router.replace('/profile');
     } catch {
       setError(t('onboarding.error.submit', locale));
     } finally {
@@ -151,13 +156,13 @@ export default function OnboardingPage() {
   ];
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-notte px-6">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-6">
       <div className="flex w-full max-w-md items-center justify-between">
         <div className="flex gap-2" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <span
               key={i}
-              className={`h-2 w-2 rounded-full ${i <= step ? 'bg-luce' : 'bg-border'}`}
+              className={`h-2 w-2 rounded-full ${i <= step ? 'bg-foreground' : 'bg-border'}`}
             />
           ))}
         </div>
@@ -173,7 +178,7 @@ export default function OnboardingPage() {
           </button>
         ) : null}
       </div>
-      <h1 className="text-4xl text-luce">{t(titles[step]!, locale)}</h1>
+      <h1 className="text-4xl text-foreground">{t(titles[step]!, locale)}</h1>
 
       <div className="flex w-full max-w-md flex-col gap-4">
         {step === 0 ? (
@@ -184,7 +189,7 @@ export default function OnboardingPage() {
               value={handle}
               onChange={(e) => setHandle(e.target.value.toLowerCase())}
               placeholder={t('onboarding.handle.placeholder', locale)}
-              className="w-full rounded-full border border-border bg-card px-5 py-3 text-luce placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-luce"
+              className="w-full rounded-full border border-border bg-card px-5 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
             />
             {handleStatus === 'taken' ? (
               <p className="text-sm text-error">{t('onboarding.handle.taken', locale)}</p>
@@ -235,7 +240,7 @@ export default function OnboardingPage() {
             value={dream}
             onChange={(e) => setDream(e.target.value)}
             placeholder={t('onboarding.dream.placeholder', locale)}
-            className="w-full rounded-3xl border border-border bg-card px-5 py-4 text-luce placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-luce"
+            className="w-full rounded-3xl border border-border bg-card px-5 py-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
           />
         ) : null}
 
@@ -246,7 +251,7 @@ export default function OnboardingPage() {
             type="button"
             disabled={!canNext}
             onClick={() => setStep((s) => s + 1)}
-            className="h-12 rounded-full bg-luce font-semibold tracking-widest text-notte disabled:opacity-40"
+            className="h-12 rounded-full bg-foreground font-semibold tracking-widest text-background disabled:opacity-40"
           >
             {t('onboarding.next', locale)}
           </button>
@@ -256,7 +261,7 @@ export default function OnboardingPage() {
               type="button"
               disabled={submitting || !dream.trim()}
               onClick={() => finish(true)}
-              className="h-12 w-full rounded-full bg-stella font-semibold tracking-widest text-notte disabled:opacity-40"
+              className="h-12 w-full rounded-full bg-aura font-semibold tracking-widest text-background disabled:opacity-40"
             >
               ✦ {t('onboarding.dream.submit', locale)}
             </button>
