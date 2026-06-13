@@ -1,25 +1,28 @@
 /*
- * Auria splash intro — the mandorla draws in from empty, the star pops, the
- * wordmark + tagline fade up, then the overlay fades out. Keyframes only — no
- * colors here (the component carries tokens via var(--color-*)). Lives as a CSS
- * module so globals.css is untouched.
+ * Auria splash intro — overlay + wordmark/tagline only. The mandorla mark and
+ * its draw/pop animation now live in the shared <Mandorla> (components/mandorla.tsx
+ * + globals.css). No colors here (the component carries tokens via var(--color-*)).
  */
 
 .overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
+  pointer-events: none;
+}
+
+/* The dark intro scene (mandorla + tagline). Carries the background so the iris
+   layer above can flood white and then open a transparent hole onto the page.
+   Unmounted once the hole opens (it is fully covered by white by then). */
+.scene {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 26px;
   background: var(--color-background);
-  transition: opacity 0.8s ease;
-}
-.out {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .mark {
@@ -29,42 +32,6 @@
   height: clamp(200px, 56vw, 320px);
 }
 
-/* the empty start: dash hidden, then draws in (no flash of a finished mark) */
-.drawStroke {
-  stroke-dasharray: 240;
-  stroke-dashoffset: 240;
-  animation: draw 1.6s ease forwards;
-}
-.lens {
-  animation-delay: 0.5s;
-}
-
-.glow {
-  opacity: 0;
-  animation: fade 0.8s ease 1.2s forwards;
-}
-
-.dotRise {
-  opacity: 0;
-  animation: fadeUp 0.6s ease forwards;
-}
-
-.sparkPop {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: pop 0.6s ease 1.5s forwards;
-}
-
-.wm {
-  letter-spacing: 0.5em;
-  padding-left: 0.5em;
-  font-weight: 300;
-  font-size: 26px;
-  color: var(--color-foreground);
-  opacity: 0;
-  animation: fadeUp 1s ease 0.7s forwards;
-}
 .ln {
   font-size: 11.5px;
   letter-spacing: 0.2em;
@@ -74,25 +41,6 @@
   animation: fadeUp 1s ease 1.1s forwards;
 }
 
-@keyframes draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.2);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.25);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
 @keyframes fadeUp {
   from {
     opacity: 0;
@@ -103,27 +51,57 @@
     transform: none;
   }
 }
-@keyframes fade {
+
+/* The finale (iris reveal). A tiny transparent circle at viewport centre whose
+   huge box-shadow floods everything outside it white — so at scale(0) the screen
+   is solid white. `[data-stage='white']` fades that white in over the dark scene
+   (no scaling). `[data-stage='iris']` then scales the circle up, opening a
+   transparent hole that grows past the viewport and reveals the page through it,
+   its rim led by an aura-cyan glow (the moment that matters). `white` is a
+   generic flood colour (not a brand token); the rim is `var(--color-aura)`. */
+.iris {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 4vmax;
+  height: 4vmax;
+  margin: -2vmax 0 0 -2vmax; /* centre via margin so transform is pure scale */
+  border-radius: 50%;
+  background: transparent;
+  box-shadow:
+    0 0 6vmax 0.4vmax var(--color-aura),
+    /* cyan leading edge of the opening */ 0 0 0 100vmax white; /* near-white flood filling everything outside the hole */
+  transform: scale(0);
+  transform-origin: center;
+  opacity: 0;
+  pointer-events: none;
+}
+.iris[data-stage='white'] {
+  opacity: 1; /* scale still 0 → solid white */
+  transition: opacity 0.45s ease;
+}
+.iris[data-stage='iris'] {
+  opacity: 1;
+  animation: iris-open 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes iris-open {
+  from {
+    transform: scale(0);
+  }
   to {
-    opacity: 1;
+    transform: scale(40); /* 4vmax * 40 = 160vmax dia → 80vmax radius clears corners */
   }
 }
 
 /* Belt-and-suspenders: JS already skips the splash under reduced motion, but if
    it ever renders, show the final state with no motion. */
 @media (prefers-reduced-motion: reduce) {
-  .drawStroke,
-  .glow,
-  .dotRise,
-  .sparkPop,
-  .wm,
   .ln {
     animation: none;
     opacity: 1;
-    stroke-dashoffset: 0;
     transform: none;
   }
-  .overlay {
-    transition: none;
+  .iris {
+    animation: none;
   }
 }
