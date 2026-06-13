@@ -229,10 +229,10 @@ export function ProfileView({
             <SectionLabel>{t('onboarding.locale.label')}</SectionLabel>
             <div className="flex gap-3">
               <Chip selected={locale === 'it'} onClick={() => setLocale('it')}>
-                Italiano
+                {t('lang.it')}
               </Chip>
               <Chip selected={locale === 'en'} onClick={() => setLocale('en')}>
-                English
+                {t('lang.en')}
               </Chip>
             </div>
           </div>
