@@ -17,7 +17,7 @@ export const semantic = {
   foregroundMuted: '#9A9DB5', // foreground dimmed — secondary text
   aura: '#2BD0D2', // glowing cyan — the light; moments that matter ONLY
   border: '#241B3A', // violet hairline
-  bandAlt: '#0A0814', // alternate dark band — section striping
+  bandAlt: '#241B3A', // alternate band — muted violet, section striping
   inkOnLight: '#000206', // text on rare light chips/print
   inkMutedOnLight: '#5C6478', // secondary on light chips/print
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
