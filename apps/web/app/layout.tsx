@@ -19,9 +19,20 @@ const instrumentSerif = Instrument_Serif({
   style: 'italic',
 });
 
+const description =
+  'Auria: reputazione reale, incontri reali, progetti reali. Non un social network — una nuova evoluzione delle community digitali.';
+
 export const metadata: Metadata = {
   title: 'Auria — Dove ogni incontro si accende',
-  description: 'Where the right people meet at the right moment.',
+  description,
+  openGraph: {
+    title: 'Auria — Dove ogni incontro si accende',
+    description,
+    type: 'website',
+    locale: 'it_IT',
+    siteName: 'Auria',
+  },
+  twitter: { card: 'summary_large_image' },
 };
 
 export default function RootLayout({

@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@auria/api', '@auria/config', '@auria/core', '@auria/i18n', '@auria/schemas'],
+  transpilePackages: ['@auria/config', '@auria/i18n'],
 };
 
 export default nextConfig;
