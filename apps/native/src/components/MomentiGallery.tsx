@@ -30,7 +30,12 @@ export function MomentiGallery({
     <View className="gap-3">
       <View className="flex-row items-center justify-between">
         <SectionLabel>{t('profile.moments.title', locale)}</SectionLabel>
-        <Pressable accessibilityRole="link" hitSlop={8} onPress={onSeeAll}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={t('common.seeAll', locale)}
+          hitSlop={8}
+          onPress={onSeeAll}
+        >
           <Text className="text-[13px] text-aura">{t('common.seeAll', locale)}</Text>
         </Pressable>
       </View>
@@ -38,7 +43,7 @@ export function MomentiGallery({
       <View className="flex-row flex-wrap">
         {moments.map((m, i) => (
           <View key={m.id} className="w-1/3 p-0.5">
-            <MomentTile moment={m} variant="gallery" onPress={() => onOpen(i)} />
+            <MomentTile moment={m} variant="gallery" locale={locale} onPress={() => onOpen(i)} />
           </View>
         ))}
         <View className="w-1/3 p-0.5">

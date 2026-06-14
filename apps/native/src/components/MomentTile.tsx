@@ -1,7 +1,9 @@
+import { t } from '@auria/i18n';
+import type { Locale } from '@auria/schemas';
 import type { Moment } from '@/types/moment';
 import { Pressable, Text, View } from '@/tw';
 
-type TileVariant = 'gallery' | 'full';
+export type TileVariant = 'gallery' | 'full';
 
 // Profilo gallery tiles = 14px radius (prototype .gallery .media);
 // full-grid tiles = ~3px radius (prototype .grid-full .media).
@@ -18,16 +20,18 @@ const RADIUS: Record<TileVariant, string> = {
 export function MomentTile({
   moment,
   variant,
+  locale,
   onPress,
 }: {
   moment: Moment;
   variant: TileVariant;
+  locale: Locale;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="imagebutton"
-      accessibilityLabel={moment.caption ?? undefined}
+      accessibilityLabel={moment.caption ?? t('lightbox.label', locale)}
       onPress={onPress}
       className={`aspect-square w-full justify-end overflow-hidden bg-raise ${RADIUS[variant]}`}
     >

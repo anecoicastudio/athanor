@@ -52,7 +52,7 @@ export default function GridScreen() {
         </Pressable>
       </View>
 
-      <Text className="mt-0.5 text-[12.5px] text-muted-foreground">
+      <Text className="mt-0.5 text-[13px] text-muted-foreground">
         {t('moment.gallery.sub', locale)}
       </Text>
 
@@ -63,7 +63,7 @@ export default function GridScreen() {
       <View className="mt-4 flex-row flex-wrap">
         {moments.map((m, i) => (
           <View key={m.id} className="w-1/3 p-0.5">
-            <MomentTile moment={m} variant="full" onPress={() => setIndex(i)} />
+            <MomentTile moment={m} variant="full" locale={locale} onPress={() => setIndex(i)} />
           </View>
         ))}
         {empty ? (
