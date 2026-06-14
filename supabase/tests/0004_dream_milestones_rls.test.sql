@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(13);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -20,11 +20,11 @@ select ok(
   (select relrowsecurity from pg_class where oid = 'public.dream_milestones'::regclass),
   'RLS enabled on dream_milestones'
 );
+-- anon public-@handle read is deferred to the public-handle-ssr slice, so only 3 policies here
 select policies_are(
   'public', 'dream_milestones',
   array[
     'dream_milestones_select_authenticated',
-    'dream_milestones_select_anon_public',
     'dream_milestones_insert_own',
     'dream_milestones_update_own'
   ],
@@ -104,29 +104,12 @@ select results_eq(
 );
 reset role;
 
--- anon: dream is members-default → anon reads 0 tappe (grant + policy → filtered, not 42501)
+-- anon has no grant/policy on dream_milestones (public-@handle read deferred) → deny (mirror dreams 0002)
 set local role anon;
 set local request.jwt.claims = '';
-select results_eq(
-  $$ select count(*)::int from public.dream_milestones $$,
-  $$ values (0) $$,
-  'anon reads no tappe while parent dream is members-default'
-);
-reset role;
-
--- owner flips dream section to public → anon now reads the tappa
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
-update public.profiles set visibility = '{"dream":"public"}'::jsonb
-  where id = '11111111-1111-1111-1111-111111111111';
-reset role;
-
-set local role anon;
-set local request.jwt.claims = '';
-select results_eq(
-  $$ select count(*)::int from public.dream_milestones $$,
-  $$ values (1) $$,
-  'anon reads tappe when parent dream is public'
+select throws_ok(
+  $$ select count(*) from public.dream_milestones $$,
+  '42501', null, 'anon cannot read dream_milestones (public @handle read deferred to public-handle-ssr)'
 );
 reset role;
 
