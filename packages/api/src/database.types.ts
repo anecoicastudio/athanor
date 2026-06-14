@@ -196,6 +196,59 @@ export type Database = {
           },
         ]
       }
+      moments: {
+        Row: {
+          caption: string | null
+          created_at: string
+          deleted_at: string | null
+          duration_s: number | null
+          height: number | null
+          id: string
+          kind: Database["public"]["Enums"]["moment_kind"]
+          media_path: string
+          owner_id: string
+          thumb_path: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_s?: number | null
+          height?: number | null
+          id?: string
+          kind: Database["public"]["Enums"]["moment_kind"]
+          media_path: string
+          owner_id: string
+          thumb_path?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_s?: number | null
+          height?: number | null
+          id?: string
+          kind?: Database["public"]["Enums"]["moment_kind"]
+          media_path?: string
+          owner_id?: string
+          thumb_path?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moments_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_comments: {
         Row: {
           author_id: string
@@ -244,6 +297,53 @@ export type Database = {
           },
           {
             foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_media: {
+        Row: {
+          created_at: string
+          duration_s: number | null
+          height: number | null
+          id: string
+          kind: Database["public"]["Enums"]["media_kind"]
+          position: number
+          post_id: string
+          storage_path: string
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          duration_s?: number | null
+          height?: number | null
+          id?: string
+          kind: Database["public"]["Enums"]["media_kind"]
+          position?: number
+          post_id: string
+          storage_path: string
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          duration_s?: number | null
+          height?: number | null
+          id?: string
+          kind?: Database["public"]["Enums"]["media_kind"]
+          position?: number
+          post_id?: string
+          storage_path?: string
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_media_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
@@ -389,7 +489,9 @@ export type Database = {
     Enums: {
       help_status: "offered" | "accepted" | "declined" | "completed"
       help_type: "skill" | "connection" | "opportunity"
+      media_kind: "image" | "video" | "audio"
       milestone_status: "open" | "in_progress" | "done"
+      moment_kind: "photo" | "video"
       post_category: "business" | "human" | "creative" | "evolution"
       post_type: "text" | "image" | "video" | "audio"
     }
@@ -524,7 +626,9 @@ export const Constants = {
     Enums: {
       help_status: ["offered", "accepted", "declined", "completed"],
       help_type: ["skill", "connection", "opportunity"],
+      media_kind: ["image", "video", "audio"],
       milestone_status: ["open", "in_progress", "done"],
+      moment_kind: ["photo", "video"],
       post_category: ["business", "human", "creative", "evolution"],
       post_type: ["text", "image", "video", "audio"],
     },
