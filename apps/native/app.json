@@ -37,7 +37,18 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Athanor accesses your photos only when you choose one to share — never your whole library.",
+          "cameraPermission": "Athanor uses the camera so you can capture a photo or video for a moment or a post.",
+          "microphonePermission": "Athanor uses the microphone when you record a video for a moment or a post."
+        }
+      ],
+      "expo-video",
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

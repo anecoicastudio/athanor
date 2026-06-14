@@ -9,4 +9,7 @@ export * from './posts';
 export * from './post-reactions';
 export * from './post-comments';
 export * from './waitlist';
+export * from './storage';
+export * from './post-media';
+export * from './moments';
 export type { Database, Json } from './database.types';

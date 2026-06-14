@@ -1,13 +1,16 @@
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   confirmHelpComplete,
   getActiveDream,
   getAuraScore,
+  getMomentsPage,
   getProfileById,
   listIncomingHelps,
   listMilestones,
+  momentKeys,
   respondToHelp,
   softDeleteMilestone,
   updateMilestoneStatus,
@@ -34,10 +37,12 @@ import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
 import { Lightbox } from '@/components/Lightbox';
+import { MediaSheet } from '@/components/MediaSheet';
 import { MomentiGallery } from '@/components/MomentiGallery';
 import { StatLine } from '@/components/StatLine';
 import { Tag } from '@/components/Tag';
-import { MY_MOMENTS } from '@/types/moment';
+import { useMomentUpload } from '@/lib/media/useMomentUpload';
+import { useSignedUrls } from '@/lib/media/useSignedUrls';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -98,15 +103,21 @@ function ProfileEditor({
   const [saved, setSaved] = useState(false);
   const router = useRouter();
 
-  const moments = MY_MOMENTS; // M1 frame-only; M3 → useQuery(momentKeys.list(userId))
+  // Live own momenti (rule #9: getMomentsPage is keyset). First page (24) is enough
+  // for MVP — infinite scroll on the full grid is deferred.
+  const momentsQuery = useQuery({
+    queryKey: momentKeys.list(userId),
+    queryFn: () => getMomentsPage(supabase, userId),
+    enabled: Boolean(userId),
+  });
+  const moments = momentsQuery.data?.moments ?? [];
+  const { urls } = useSignedUrls(
+    'moments',
+    moments.map((m) => m.media_path),
+  );
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [momentSoon, setMomentSoon] = useState(false);
-
-  const addMomentSoon = () => {
-    // Create/upload deferred to M3 — honest hint, never a fake success or Aura write (rule #1).
-    setMomentSoon(true);
-    setTimeout(() => setMomentSoon(false), 2000);
-  };
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { addMoment } = useMomentUpload(userId);
 
   // Refetch the active dream + its tappe whenever Profilo regains focus (e.g. after editing).
   useFocusEffect(
@@ -377,18 +388,16 @@ function ProfileEditor({
             <SixStarsGrid stars={aura.stars} locale={locale} />
           </View>
 
-          {/* I tuoi Momenti — identity gallery (frame-only M1; live at M3) */}
+          {/* I tuoi Momenti — live identity gallery (signed thumbs + create/upload) */}
           <View className="gap-2">
             <MomentiGallery
               moments={moments}
+              urls={urls}
               locale={locale}
               onOpen={setLightboxIndex}
               onSeeAll={() => router.push('/(modal)/grid')}
-              onAdd={addMomentSoon}
+              onAdd={() => setSheetOpen(true)}
             />
-            {momentSoon ? (
-              <Text className="text-[13px] text-faint">{t('moment.soon', locale)}</Text>
-            ) : null}
           </View>
 
           {/* Il Sogno — editable quote (dream editor) + tappe CRUD (M2) */}
@@ -555,10 +564,20 @@ function ProfileEditor({
 
       <Lightbox
         moments={moments}
+        urls={urls}
         index={lightboxIndex}
         locale={locale}
         onClose={() => setLightboxIndex(null)}
         onIndexChange={setLightboxIndex}
+      />
+
+      {/* «Aggiungi un Momento» — real create/upload (rule #1: writes only `moments`). */}
+      <MediaSheet
+        visible={sheetOpen}
+        allowVideo
+        locale={locale}
+        onClose={() => setSheetOpen(false)}
+        onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
       />
 
       {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}

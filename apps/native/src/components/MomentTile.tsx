@@ -1,3 +1,4 @@
+import { Image, StyleSheet } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
@@ -13,29 +14,40 @@ const RADIUS: Record<TileVariant, string> = {
 };
 
 /**
- * A single Momento media tile (1:1, fills its parent cell). M1 renders a quiet
- * `raise` placeholder — no media yet (see types/moment.ts); M3 swaps in the
- * real image/video. A caption overlays the bottom when present.
+ * A single Momento media tile (1:1, fills its parent cell). Renders the signed
+ * `url` (thumb or media) as a cover image when available; falls back to a quiet
+ * `raise` box while the URL loads or fails to sign. A ▶ glyph marks video; a
+ * caption overlays the bottom when present.
  */
 export function MomentTile({
   moment,
   variant,
   locale,
+  url,
   onPress,
+  onLongPress,
 }: {
   moment: Moment;
   variant: TileVariant;
   locale: Locale;
+  /** Signed URL for `moment.media_path` (or thumb). Undefined → placeholder. */
+  url?: string;
   onPress: () => void;
+  /** Owner-only soft-delete affordance (full grid). Omit elsewhere. */
+  onLongPress?: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="imagebutton"
       accessibilityLabel={moment.caption ?? t('lightbox.label', locale)}
       onPress={onPress}
+      onLongPress={onLongPress}
       className={`aspect-square w-full justify-end overflow-hidden bg-raise ${RADIUS[variant]}`}
     >
-      {moment.type === 'video' ? (
+      {url ? (
+        <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : null}
+      {moment.kind === 'video' ? (
         <View className="absolute inset-0 items-center justify-center">
           <Text className="text-2xl text-foreground">▶</Text>
         </View>
@@ -53,10 +65,9 @@ export function MomentTile({
 }
 
 /**
- * The trailing "+" tile. M1 create/upload is DEFERRED TO M3 (no `moments`
- * Storage bucket / `sheet-media` picker yet), so this is a quiet affordance —
- * pressing it surfaces an honest "in arrivo" hint via `onPress` rather than
- * faking an upload. Never calls any Aura/score mutation (rule #1).
+ * The trailing "+" tile. Create/upload is LIVE (M3): pressing it opens the
+ * `MediaSheet` so the owner can add a Momento (see `useMomentUpload`). The add
+ * writes only the `moments` table — never any Aura/score mutation (rule #1).
  */
 export function MomentAddTile({
   variant,

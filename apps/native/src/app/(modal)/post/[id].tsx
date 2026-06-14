@@ -20,6 +20,7 @@ import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { PostMedia } from '@/components/feed/PostMedia';
 import { ReactionStar } from '@/components/feed/ReactionStar';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -146,6 +147,7 @@ export default function PostDetailScreen() {
               <Text className="text-[12px] text-aura">✦ {t('feed.flag.step', locale)}</Text>
             ) : null}
             <Text className="text-[16px] leading-7 text-foreground">{post.body}</Text>
+            <PostMedia postId={post.id} postType={post.type} variant="detail" locale={locale} />
 
             <View className="flex-row items-center gap-2 border-t border-hair pt-4">
               {isAuthor ? (

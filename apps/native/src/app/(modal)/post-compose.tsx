@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createPost, postKeys } from '@athanor/api';
+import { addPostMedia, createPost, postKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
-import { AURA_WEIGHTS } from '@athanor/core';
+import { AURA_WEIGHTS, MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
-import type { PostCategory } from '@athanor/schemas';
+import type { PostCategory, PostMediaInsert } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { MediaSheet } from '@/components/MediaSheet';
 import { useAuth } from '@/lib/auth-context';
+import { type PickedMedia } from '@/lib/media/pick';
+import { postMediaPath, processAndUpload } from '@/lib/media/upload';
 import { supabase } from '@/lib/supabase';
 
 const CATEGORIES: PostCategory[] = ['business', 'human', 'creative', 'evolution'];
@@ -26,23 +29,48 @@ export default function PostComposeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const authorId = session?.user.id;
+  const [items, setItems] = useState<PickedMedia[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!authorId) throw new Error('no session');
-      // text-only this slice — no tag UI; tags default to [] (rule: schema is the source).
-      return createPost(supabase, {
+      const type = derivePostType(items.map((i) => i.kind));
+      const post = await createPost(supabase, {
         author_id: authorId,
         category,
+        type,
         body,
         is_step: isStep,
         tags: [],
       });
+      if (items.length > 0) {
+        const rows: PostMediaInsert[] = await Promise.all(
+          items.map(async (item, index) => {
+            const path = postMediaPath(authorId, post.id, index, item.kind);
+            const up = await processAndUpload(item, { bucket: 'post-media', path });
+            return {
+              post_id: post.id,
+              kind: item.kind,
+              storage_path: up.storage_path,
+              position: index,
+              width: up.width ?? null,
+              height: up.height ?? null,
+              duration_s: up.duration_s ?? null,
+            } satisfies PostMediaInsert;
+          }),
+        );
+        await addPostMedia(supabase, rows);
+      }
+      return post;
     },
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
       router.back();
+    },
+    onError: () => {
+      setError(t('media.failed', locale));
     },
   });
 
@@ -53,6 +81,14 @@ export default function PostComposeScreen() {
     }
     setError(null);
     mutation.mutate();
+  };
+
+  const onPickMedia = (m: PickedMedia) => {
+    setItems((prev) => (prev.length < MEDIA_LIMITS.MAX_POST_MEDIA ? [...prev, m] : prev));
+  };
+
+  const removeItem = (index: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -76,6 +112,74 @@ export default function PostComposeScreen() {
           textAlignVertical="top"
         />
         {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
+
+        {/* Attach affordance — flat, no glow (rule #4) */}
+        <Pressable
+          className="flex-row items-center gap-2 rounded-ctl border border-hair bg-raise px-4 py-3"
+          onPress={() => setSheetOpen(true)}
+          disabled={mutation.isPending || items.length >= MEDIA_LIMITS.MAX_POST_MEDIA}
+          accessibilityRole="button"
+        >
+          <Text
+            className={`text-[14px] ${items.length >= MEDIA_LIMITS.MAX_POST_MEDIA ? 'text-faint' : 'text-foreground'}`}
+          >
+            {t('post.compose.attach', locale)}
+          </Text>
+        </Pressable>
+
+        {/* Preview tiles */}
+        {items.length > 0 ? (
+          <View className="flex-row flex-wrap gap-2">
+            {items.map((item, index) => (
+              <View key={index} className="relative h-20 w-20">
+                <Image
+                  source={{ uri: item.uri }}
+                  style={{ width: 80, height: 80, borderRadius: 8 }}
+                  resizeMode="cover"
+                />
+                {/* Video indicator */}
+                {item.kind === 'video' ? (
+                  <View className="absolute bottom-1 left-1">
+                    <Text className="text-[12px] text-foreground">▶</Text>
+                  </View>
+                ) : null}
+                {/* Uploading dim overlay */}
+                {mutation.isPending ? (
+                  <View
+                    className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
+                    style={{ opacity: 0.6 }}
+                  />
+                ) : null}
+                {/* Remove button — hidden while uploading */}
+                {!mutation.isPending ? (
+                  <Pressable
+                    className="absolute right-[-6px] top-[-6px] h-5 w-5 items-center justify-center rounded-full bg-raise"
+                    onPress={() => removeItem(index)}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Text className="text-[11px] text-faint">✕</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {/* Uploading indicator */}
+        {mutation.isPending && items.length > 0 ? (
+          <Text className="text-[13px] text-faint">
+            {t('media.uploadingIndeterminate', locale)}
+          </Text>
+        ) : null}
+
+        <MediaSheet
+          visible={sheetOpen}
+          allowVideo
+          locale={locale}
+          onPick={onPickMedia}
+          onClose={() => setSheetOpen(false)}
+        />
 
         <View className="gap-2">
           <Text className="text-[12px] uppercase tracking-wider text-faint">

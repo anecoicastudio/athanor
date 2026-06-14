@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   getActiveDream,
   getAuraScore,
+  getMomentsPage,
   getProfileById,
   listMilestones,
   listMyHelps,
+  momentKeys,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import {
@@ -26,14 +29,11 @@ import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
 import { StatLine } from '@/components/StatLine';
-import type { Moment } from '@/types/moment';
+import { useSignedUrls } from '@/lib/media/useSignedUrls';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
-
-/** Another person's live momenti have no backend until M3 — render an honest empty gallery. */
-const NO_MOMENTS: Moment[] = [];
 
 /**
  * Person Detail — read-only third-person profile (M2, frontend `02` §3.5). Mirrors the own
@@ -64,6 +64,18 @@ export default function PersonDetailScreen() {
 
   // Self guard — never double-render the own profile; bounce to the owner tab.
   const isSelf = id != null && id === session?.user?.id;
+
+  // Read-only: the viewed person's live momenti (members-read RLS). No add/delete here.
+  const momentsQuery = useQuery({
+    queryKey: momentKeys.list(id ?? ''),
+    queryFn: () => getMomentsPage(supabase, id as string),
+    enabled: Boolean(id) && !isSelf,
+  });
+  const moments = momentsQuery.data?.moments ?? [];
+  const { urls } = useSignedUrls(
+    'moments',
+    moments.map((m) => m.media_path),
+  );
   useEffect(() => {
     if (isSelf) router.replace('/(tabs)/profile');
   }, [isSelf, router]);
@@ -198,13 +210,14 @@ export default function PersonDetailScreen() {
         <SixStarsGrid stars={aura.stars} locale={locale} />
       </View>
 
-      {/* I suoi Momenti — empty until M3 (no live source for other people's momenti), no add affordance. */}
+      {/* I suoi Momenti — live, read-only (members-read RLS); no add affordance. */}
       <MomentiGallery
-        moments={NO_MOMENTS}
+        moments={moments}
+        urls={urls}
         locale={locale}
         onOpen={setLightboxIndex}
         onSeeAll={() => {
-          /* M3: their full grid */
+          /* M3: their full grid (read-only) — deferred */
         }}
         label={t('profile.moments.theirLabel', locale)}
         emptyLabel={t('profile.moments.theirEmpty', locale)}
@@ -251,7 +264,8 @@ export default function PersonDetailScreen() {
       </View>
 
       <Lightbox
-        moments={NO_MOMENTS}
+        moments={moments}
+        urls={urls}
         index={lightboxIndex}
         locale={locale}
         onClose={() => setLightboxIndex(null)}
