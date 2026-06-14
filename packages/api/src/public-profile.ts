@@ -9,9 +9,14 @@ export const publicProfileKeys = {
 /**
  * The public @handle read-model (frontend 02 §6): assembled from anon, visibility-gated
  * reads. Returns null when no public row resolves (RLS returns 0 rows for a private/
- * members-only profile, or the handle does not exist). Bio is column-shaped here — RLS
- * returns the whole row, so a `members`/`private` bio is blanked for the public audience.
- * Plumbing only — no business logic, no Aura.
+ * members-only profile, or the handle does not exist). Plumbing only — no business
+ * logic, no Aura.
+ *
+ * `bio` is always null on this anon path: members/private columns are not granted to
+ * anon at the trust boundary (migration 20260614153620 — column-level GRANT), so public
+ * bio (when bio:public) is deferred to a future SECURITY DEFINER RPC that projects only
+ * the allowed columns server-side. Dream + tappe are whole-row-public (RLS exposes them
+ * only when dream:public), so they need no column shaping.
  */
 export async function getPublicProfileByHandle(
   client: AthanorClient,
@@ -19,14 +24,14 @@ export async function getPublicProfileByHandle(
 ): Promise<PublicProfile | null> {
   const { data: profile, error: pErr } = await client
     .from('profiles')
-    .select('id, handle, bio, visibility')
+    .select('id, handle')
     .eq('handle', handle)
     .maybeSingle();
   if (pErr) throw pErr;
   if (!profile || !profile.handle) return null;
 
-  const visibility = (profile.visibility ?? {}) as Record<string, string>;
-  const bio = visibility.bio === 'public' ? (profile.bio ?? null) : null;
+  // Public bio deferred to a SECURITY DEFINER RPC (see doc comment) — never read here.
+  const bio: string | null = null;
 
   // RLS only returns the active dream when the owner's dream section is public.
   const { data: dreamRow, error: dErr } = await client

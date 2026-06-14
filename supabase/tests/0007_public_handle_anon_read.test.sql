@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(11);
+select plan(13);
 
 -- Fixtures: A = bio+dream public (+ active dream + tappa); B = all members (default {});
 -- C = bio public, dream members (+ active dream). Profiles auto-created by handle_new_user.
@@ -69,6 +69,16 @@ select throws_ok(
 select throws_ok(
   $$ delete from public.dreams $$,
   '42501', null, 'anon cannot delete dreams'
+);
+-- column-level confidentiality (migration 20260614153620): a reachable public row
+-- must NOT leak members/private columns via a direct Data-API select.
+select throws_ok(
+  $$ select bio from public.profiles $$,
+  '42501', null, 'anon cannot read the bio column (members/private content)'
+);
+select throws_ok(
+  $$ select identity_tags from public.profiles $$,
+  '42501', null, 'anon cannot read the identity_tags column (members/private content)'
 );
 reset role;
 

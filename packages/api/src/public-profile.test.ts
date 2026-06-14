@@ -31,9 +31,10 @@ describe('public-profile api', () => {
     expect(await getPublicProfileByHandle(client, 'ghost')).toBeNull();
   });
 
-  it('blanks bio when the bio section is not public', async () => {
+  it('assembles dream + tappe and never exposes bio on the anon path', async () => {
     const client = makeClient({
-      profile: { id: 'p1', handle: 'sole', bio: 'secret', visibility: { dream: 'public' } },
+      // bio is not even selectable by anon (column GRANT); never returned/read.
+      profile: { id: 'p1', handle: 'sole' },
       dream: { id: 'd1', text: 'Aprire uno studio' },
       milestones: [{ id: 'm1', body: 'Un logo', status: 'done' }],
     });
@@ -43,14 +44,15 @@ describe('public-profile api', () => {
     expect(res?.dream?.milestones).toHaveLength(1);
   });
 
-  it('keeps bio when the bio section is public and dream is null when RLS returns no dream', async () => {
+  it('bio stays null even if a bio value leaks into the row; dream null when RLS returns no dream', async () => {
     const client = makeClient({
-      profile: { id: 'p1', handle: 'sole', bio: 'Designer', visibility: { bio: 'public' } },
+      // defense-in-depth: even if the profile row carried a bio, the read-model drops it.
+      profile: { id: 'p1', handle: 'sole', bio: 'should never surface' },
       dream: null,
       milestones: [],
     });
     const res = await getPublicProfileByHandle(client, 'sole');
-    expect(res?.bio).toBe('Designer');
+    expect(res?.bio).toBeNull();
     expect(res?.dream).toBeNull();
   });
 });
