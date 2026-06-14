@@ -1,24 +1,23 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
+import { t, type MessageKey } from '@auria/i18n';
 import { semantic } from '@auria/config';
 import { Pressable, Text, TextInput, View } from '@/tw';
+import { deviceLocale } from '@/lib/locale';
 import { supabase } from '@/lib/supabase';
 
-const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 'it').startsWith(
-  'en',
-)
-  ? 'en'
-  : 'it';
-
 export default function WelcomeScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const login = mode === 'login'; // copy-only branch: existing-user sign-in vs new-account creation
   const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const locale = deviceLocale;
+
+  const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
+    t(`${login ? 'auth.login' : 'auth.welcome'}.${suffix}` as MessageKey, locale);
 
   // OTP code flow: no emailRedirectTo → Supabase sends a 6-digit code
   // (the email template renders {{ .Token }}). The user types it on the
@@ -42,14 +41,26 @@ export default function WelcomeScreen() {
 
   return (
     <View className="flex-1 justify-center gap-8 bg-background px-7">
+      {router.canGoBack() ? (
+        <Pressable
+          className="absolute left-6 top-16"
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', locale)}
+          hitSlop={12}
+        >
+          <Text className="text-2xl text-foreground">‹</Text>
+        </Pressable>
+      ) : null}
+
       <View className="gap-2">
         <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
-          {t('auth.welcome.eyebrow', locale)}
+          {copy('eyebrow')}
         </Text>
         <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
-          {t('auth.welcome.display', locale)}
+          {copy('display')}
         </Text>
-        <Text className="text-sm text-muted-foreground">{t('auth.welcome.sub', locale)}</Text>
+        <Text className="text-sm text-muted-foreground">{copy('sub')}</Text>
       </View>
 
       <View className="gap-2">

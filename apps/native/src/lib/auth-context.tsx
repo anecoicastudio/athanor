@@ -1,13 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { getOwnProfile } from '@auria/api';
+import { isProfileComplete } from '@auria/core';
 import type { Profile } from '@auria/schemas';
 import { supabase } from './supabase';
+import { flushOnboardingDraft } from './flush-onboarding';
 
 type AuthState = {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  /** True while the pre-auth onboarding draft is being persisted post-OTP — the
+   *  AuthGuard holds position so the funnel never flashes between the two reads. */
+  flushing: boolean;
   refreshProfile: () => Promise<void>;
 };
 
@@ -15,6 +20,7 @@ const AuthContext = createContext<AuthState>({
   session: null,
   profile: null,
   loading: true,
+  flushing: false,
   refreshProfile: async () => {},
 });
 
@@ -22,6 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [flushing, setFlushing] = useState(false);
   const sessionRef = useRef<Session | null>(null);
 
   const refreshProfile = useCallback(async () => {
@@ -58,27 +65,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Profile hydration keyed on user id (not session object — token refresh
   // churns identity). Cancellable so a sign-out during an in-flight fetch
-  // can't resurrect the profile.
+  // can't resurrect the profile. When the freshly-created profile is still
+  // incomplete (new account just after OTP), flush the pre-auth onboarding
+  // draft and re-read, so the guard can route straight home.
   const userId = session?.user.id ?? null;
+  const email = session?.user.email ?? null;
   useEffect(() => {
     if (!userId) {
       return; // profile cleared by the sign-out branch in onAuthStateChange
     }
     let cancelled = false;
-    getOwnProfile(supabase, userId)
-      .then((p) => {
-        if (!cancelled) setProfile(p);
-      })
-      .catch(() => {
+    (async () => {
+      try {
+        const p = await getOwnProfile(supabase, userId);
+        if (cancelled) return;
+        if (p && email && !isProfileComplete(p)) {
+          setFlushing(true);
+          const result = await flushOnboardingDraft(userId, email);
+          if (cancelled) return;
+          if (result === 'flushed') {
+            await refreshProfile(); // re-read the now-complete profile
+          } else {
+            setProfile(p); // 'nodraft' / 'error' → stay incomplete, guard → funnel
+          }
+          if (!cancelled) setFlushing(false);
+        } else {
+          setProfile(p);
+        }
+      } catch {
         // profile stays as-is; guard waits, next auth event retries
-      });
+        if (!cancelled) setFlushing(false);
+      }
+    })();
     return () => {
       cancelled = true;
+      // Never leave the guard latched: if the user signs out (or identity
+      // changes) mid-flush, clear `flushing` so AuthGuard can route again.
+      setFlushing(false);
     };
-  }, [userId]);
+  }, [userId, email, refreshProfile]);
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, refreshProfile }}>
+    <AuthContext.Provider value={{ session, profile, loading, flushing, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

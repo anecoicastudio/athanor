@@ -1,6 +1,10 @@
 import { View } from '@/tw';
 
-/** Onboarding/candidacy progress dots. Dot i ≤ current is filled (cyan-accent). */
+/**
+ * Progress dots. Dot i ≤ current is filled (cyan-accent). Currently unused —
+ * deferred: the candidacy flow (M7) uses this dot variant; the onboarding funnel
+ * uses `StepBars`. Kept intentionally; do not delete before M7.
+ */
 export function StepDots({ count, current }: { count: number; current: number }) {
   return (
     <View

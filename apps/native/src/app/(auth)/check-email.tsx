@@ -2,16 +2,10 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
 import { semantic } from '@auria/config';
 import { Pressable, Text, TextInput, View } from '@/tw';
+import { deviceLocale } from '@/lib/locale';
 import { supabase } from '@/lib/supabase';
-
-const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 'it').startsWith(
-  'en',
-)
-  ? 'en'
-  : 'it';
 
 export default function CheckEmailScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
