@@ -26,7 +26,7 @@ export function DreamCard({
       {dream ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t('dream.editor.title', locale)}
+          accessibilityLabel={t('dream.a11y.editQuote', locale)}
           disabled={!onEdit}
           onPress={onEdit}
         >

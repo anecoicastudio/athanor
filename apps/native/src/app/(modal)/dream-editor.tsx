@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase';
  * Dream editor (M2, frontend `02` §3.2) — create-or-edit the single active dream.
  * Full-screen modal (the project's sheet convention is (modal)/* routes). Writes
  * only dreams.text via upsertActiveDream; never Aura (rule #1). Copy via @auria/i18n.
+ * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function DreamEditorScreen() {
   const router = useRouter();
@@ -107,6 +108,7 @@ export default function DreamEditorScreen() {
 
       {error ? <Text className="text-sm text-error">{t('dream.error.empty', locale)}</Text> : null}
 
+      {/* light = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
       <Button
         label={t('dream.editor.cta', locale)}
         variant="light"
