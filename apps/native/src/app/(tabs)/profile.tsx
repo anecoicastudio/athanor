@@ -2,9 +2,13 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
+  confirmHelpComplete,
   getActiveDream,
   getAuraScore,
+  getProfileById,
+  listIncomingHelps,
   listMilestones,
+  respondToHelp,
   softDeleteMilestone,
   updateMilestoneStatus,
   updateProfile,
@@ -13,6 +17,7 @@ import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@athanor/core'
 import { t, type MessageKey } from '@athanor/i18n';
 import {
   type AuraSnapshot,
+  type Help,
   type Milestone,
   ZERO_AURA_SNAPSHOT,
   type Locale,
@@ -23,6 +28,8 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { DreamCard } from '@/components/DreamCard';
+import { IncomingOfferRow } from '@/components/IncomingOfferRow';
+import { MomentFlash } from '@/components/MomentFlash';
 import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
@@ -81,6 +88,10 @@ function ProfileEditor({
   const [dreamId, setDreamId] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [mutatingMilestoneId, setMutatingMilestoneId] = useState<string | null>(null);
+  const [incoming, setIncoming] = useState<Help[]>([]);
+  const [helperNames, setHelperNames] = useState<Record<string, string>>({});
+  const [mutatingHelpId, setMutatingHelpId] = useState<string | null>(null);
+  const [flashMilestoneId, setFlashMilestoneId] = useState<string | null>(null);
   const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,9 +119,30 @@ function ProfileEditor({
           setDreamId(d?.id ?? null);
           if (d?.id) {
             const tappe = await listMilestones(supabase, d.id);
-            if (!cancelled) setMilestones(tappe);
+            if (cancelled) return;
+            setMilestones(tappe);
+            // Owner-side «Aiuti in arrivo»: offers on my tappe + their helper display names.
+            const offers = await listIncomingHelps(
+              supabase,
+              tappe.map((m) => m.id),
+            );
+            if (cancelled) return;
+            setIncoming(offers);
+            // resolve distinct helper names (best-effort; fall back to a short id)
+            const ids = [...new Set(offers.map((o) => o.helper_id))];
+            const names: Record<string, string> = {};
+            for (const hid of ids) {
+              try {
+                const p = await getProfileById(supabase, hid);
+                names[hid] = p?.handle ?? hid.slice(0, 8);
+              } catch {
+                names[hid] = hid.slice(0, 8);
+              }
+            }
+            if (!cancelled) setHelperNames(names);
           } else {
             setMilestones([]);
+            setIncoming([]);
           }
         })
         .catch(() => {
@@ -199,6 +231,21 @@ function ProfileEditor({
     }
   }, [dreamId]);
 
+  // Reconcile «Aiuti in arrivo» after a failed respond/confirm so the optimistic flip
+  // can't diverge until the next focus. Best-effort: keeps optimistic state on error.
+  const refetchIncoming = useCallback(async () => {
+    try {
+      setIncoming(
+        await listIncomingHelps(
+          supabase,
+          milestones.map((m) => m.id),
+        ),
+      );
+    } catch {
+      // keep the optimistic state; a later focus refetch reconciles
+    }
+  }, [milestones]);
+
   const handleMarkMilestoneDone = async (id: string) => {
     setMutatingMilestoneId(id);
     // optimistic ✓ (frontend §3.1 tappa-mutating)
@@ -223,6 +270,47 @@ function ProfileEditor({
       await refetchMilestones();
     } finally {
       setMutatingMilestoneId(null);
+    }
+  };
+
+  // Owner accepts/declines an incoming offer (optimistic; a later focus refetch reconciles).
+  const handleRespond = async (id: string, status: 'accepted' | 'declined') => {
+    setMutatingHelpId(id);
+    setIncoming((prev) =>
+      status === 'declined'
+        ? prev.filter((h) => h.id !== id)
+        : prev.map((h) => (h.id === id ? { ...h, status } : h)),
+    );
+    try {
+      await respondToHelp(supabase, id, status);
+    } catch {
+      await refetchIncoming(); // reconcile the optimistic flip on failure
+    } finally {
+      setMutatingHelpId(null);
+    }
+  };
+
+  // Owner confirms the help is done — the +40/+10 domain event. Writes NO aura_* (rule #1):
+  // confirmHelpComplete only touches milestone_helps + dream_milestones; the M6 engine scores.
+  const handleConfirmHelp = async (helpId: string, milestoneId: string) => {
+    setMutatingHelpId(helpId);
+    setFlashMilestoneId(milestoneId);
+    // optimistic: mark the tappa done + the offer completed
+    setMilestones((prev) =>
+      prev.map((m) => (m.id === milestoneId ? { ...m, status: 'done' as const } : m)),
+    );
+    setIncoming((prev) =>
+      prev.map((h) => (h.id === helpId ? { ...h, status: 'completed' as const } : h)),
+    );
+    try {
+      await confirmHelpComplete(supabase, helpId, milestoneId);
+      await refetchMilestones();
+    } catch {
+      await refetchMilestones();
+      await refetchIncoming(); // reconcile the optimistic completed-flip on failure
+    } finally {
+      setMutatingHelpId(null);
+      setTimeout(() => setFlashMilestoneId(null), 700);
     }
   };
 
@@ -315,6 +403,29 @@ function ProfileEditor({
             }
             onMarkMilestoneDone={handleMarkMilestoneDone}
             onDeleteMilestone={handleDeleteMilestone}
+            incomingSlot={
+              incoming.length > 0 ? (
+                <View className="mt-2 gap-3 border-t border-hair pt-4">
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+                    {t('help.owner.sectionLabel', locale)}
+                  </Text>
+                  {incoming
+                    .filter((h) => h.status === 'offered' || h.status === 'accepted')
+                    .map((h) => (
+                      <IncomingOfferRow
+                        key={h.id}
+                        help={h}
+                        helperName={helperNames[h.helper_id] ?? '—'}
+                        locale={locale}
+                        mutating={mutatingHelpId === h.id}
+                        onAccept={() => handleRespond(h.id, 'accepted')}
+                        onDecline={() => handleRespond(h.id, 'declined')}
+                        onConfirm={() => handleConfirmHelp(h.id, h.milestone_id)}
+                      />
+                    ))}
+                </View>
+              ) : null
+            }
           />
 
           {/* Chi sei — identity tags */}
@@ -449,6 +560,9 @@ function ProfileEditor({
         onClose={() => setLightboxIndex(null)}
         onIndexChange={setLightboxIndex}
       />
+
+      {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
+      <MomentFlash visible={flashMilestoneId != null} locale={locale} />
     </ScrollView>
   );
 }
