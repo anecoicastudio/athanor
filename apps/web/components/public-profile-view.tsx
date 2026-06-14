@@ -37,7 +37,7 @@ export function PublicProfileView({ profile, locale }: { profile: PublicProfile;
           {profile.dream.milestones.length > 0 ? (
             <div className="mt-2 flex flex-col gap-3">
               <span className="text-xs tracking-widest text-muted-foreground">
-                {t('milestone.sectionLabel', locale)}
+                {t('publicProfile.milestonesLabel', locale)}
               </span>
               <ul className="flex flex-col gap-2">
                 {profile.dream.milestones.map((m) => (
