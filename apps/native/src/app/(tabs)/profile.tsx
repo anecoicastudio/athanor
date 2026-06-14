@@ -1,10 +1,23 @@
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { getActiveDream, getAuraScore, updateProfile } from '@auria/api';
+import {
+  getActiveDream,
+  getAuraScore,
+  listMilestones,
+  softDeleteMilestone,
+  updateMilestoneStatus,
+  updateProfile,
+} from '@auria/api';
 import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@auria/core';
 import { t, type MessageKey } from '@auria/i18n';
-import { type AuraSnapshot, ZERO_AURA_SNAPSHOT, type Locale, type Profile } from '@auria/schemas';
+import {
+  type AuraSnapshot,
+  type Milestone,
+  ZERO_AURA_SNAPSHOT,
+  type Locale,
+  type Profile,
+} from '@auria/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -65,6 +78,9 @@ function ProfileEditor({
     profile.visibility as Record<string, Visibility>,
   );
   const [dreamText, setDreamText] = useState<string | null>(null);
+  const [dreamId, setDreamId] = useState<string | null>(null);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [mutatingMilestoneId, setMutatingMilestoneId] = useState<string | null>(null);
   const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,13 +97,21 @@ function ProfileEditor({
     setTimeout(() => setMomentSoon(false), 2000);
   };
 
-  // Refetch the active dream whenever Profilo regains focus (e.g. after editing).
+  // Refetch the active dream + its tappe whenever Profilo regains focus (e.g. after editing).
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       getActiveDream(supabase, userId)
-        .then((d) => {
-          if (!cancelled) setDreamText(d?.text ?? null);
+        .then(async (d) => {
+          if (cancelled) return;
+          setDreamText(d?.text ?? null);
+          setDreamId(d?.id ?? null);
+          if (d?.id) {
+            const tappe = await listMilestones(supabase, d.id);
+            if (!cancelled) setMilestones(tappe);
+          } else {
+            setMilestones([]);
+          }
         })
         .catch(() => {
           // leave dream unset; the empty state is the safe default
@@ -166,6 +190,42 @@ function ProfileEditor({
   const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
     t(`${prefix}.${key}` as MessageKey, locale);
 
+  const refetchMilestones = useCallback(async () => {
+    if (!dreamId) return;
+    try {
+      setMilestones(await listMilestones(supabase, dreamId));
+    } catch {
+      // keep the optimistic state; a later focus refetch reconciles
+    }
+  }, [dreamId]);
+
+  const handleMarkMilestoneDone = async (id: string) => {
+    setMutatingMilestoneId(id);
+    // optimistic ✓ (frontend §3.1 tappa-mutating)
+    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'done' as const } : m)));
+    try {
+      await updateMilestoneStatus(supabase, id, 'done');
+      await refetchMilestones();
+    } catch {
+      await refetchMilestones();
+    } finally {
+      setMutatingMilestoneId(null);
+    }
+  };
+
+  const handleDeleteMilestone = async (id: string) => {
+    setMutatingMilestoneId(id);
+    setMilestones((prev) => prev.filter((m) => m.id !== id)); // optimistic remove
+    try {
+      await softDeleteMilestone(supabase, id);
+      await refetchMilestones();
+    } catch {
+      await refetchMilestones();
+    } finally {
+      setMutatingMilestoneId(null);
+    }
+  };
+
   return (
     <ScrollView
       className="flex-1 bg-background"
@@ -243,11 +303,18 @@ function ProfileEditor({
             ) : null}
           </View>
 
-          {/* Il Sogno — editable (M2 dream editor) */}
+          {/* Il Sogno — editable quote (dream editor) + tappe CRUD (M2) */}
           <DreamCard
             dream={dreamText}
             locale={locale}
             onEdit={() => router.push('/(modal)/dream-editor')}
+            milestones={milestones}
+            mutatingMilestoneId={mutatingMilestoneId}
+            onAddMilestone={() =>
+              router.push({ pathname: '/(modal)/milestone', params: { dreamId: dreamId ?? '' } })
+            }
+            onMarkMilestoneDone={handleMarkMilestoneDone}
+            onDeleteMilestone={handleDeleteMilestone}
           />
 
           {/* Chi sei — identity tags */}
