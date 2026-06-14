@@ -1,0 +1,103 @@
+import { Alert } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  getAuthorStoryCount,
+  getPersonStory,
+  getViewerStoryReaction,
+  pinStoryStep,
+  storyKeys,
+  toggleStoryReaction,
+} from '@athanor/api';
+import { t } from '@athanor/i18n';
+import { StoriesViewer } from '@/components/StoriesViewer';
+import { useSignedUrls } from '@/lib/media/useSignedUrls';
+import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
+import { Text, View } from '@/tw';
+
+export default function StoriesScreen() {
+  const { authorId, handle } = useLocalSearchParams<{ authorId: string; handle?: string }>();
+  const { profile, session } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const locale = profile?.locale ?? 'it';
+  const myId = session?.user.id;
+  const targetId = authorId === 'me' ? (myId ?? '') : authorId;
+  const isOwn = targetId === myId;
+
+  const personQuery = useQuery({
+    queryKey: storyKeys.person(targetId),
+    queryFn: () => getPersonStory(supabase, targetId),
+    enabled: Boolean(targetId),
+  });
+  const segments = personQuery.data?.segments ?? [];
+  const [first] = segments;
+  // The viewer owns its own segment index; the host only needs the first for reaction gating.
+  const current = segments[0];
+
+  const { urls } = useSignedUrls(
+    'story-segments',
+    segments.map((s) => s.storage_path),
+  );
+
+  const name = isOwn ? t('story.viewer.youName', locale) : (handle ?? '—');
+
+  const reactionQuery = useQuery({
+    queryKey: [...storyKeys.reactions(current?.id ?? 'none'), 'viewer'],
+    queryFn: () => getViewerStoryReaction(supabase, current!.id),
+    enabled: Boolean(current) && !isOwn,
+  });
+  const countQuery = useQuery({
+    queryKey: [...storyKeys.reactions(current?.id ?? 'none'), 'count'],
+    queryFn: () => getAuthorStoryCount(supabase, current!.id),
+    enabled: Boolean(current) && isOwn,
+  });
+
+  if (personQuery.isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <Text className="text-2xl text-faint">✦</Text>
+      </View>
+    );
+  }
+  if (segments.length === 0 || !first) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background px-6">
+        <Text className="text-center text-[15px] text-faint">{t('story.expired', locale)}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <StoriesViewer
+      segments={segments}
+      urls={urls}
+      name={name}
+      isOwn={isOwn}
+      viewerReacted={Boolean(reactionQuery.data)}
+      count={countQuery.data ?? 0}
+      locale={locale}
+      onClose={() => router.back()}
+      onAdvanceEnd={() => router.back()}
+      onReact={async (seg) => {
+        if (!myId) return;
+        await toggleStoryReaction(supabase, seg.id, myId);
+        await queryClient.invalidateQueries({
+          queryKey: [...storyKeys.reactions(seg.id), 'viewer'],
+        });
+        Alert.alert(t('story.react.toast', locale));
+      }}
+      onReply={() => Alert.alert(t('story.reply.placeholder', locale, { name }))}
+      onMakeDream={() => Alert.alert(t('story.dream.toast', locale, { name }))}
+      onAddMoment={() => {
+        router.back();
+        router.push('/(tabs)/profile');
+      }}
+      onPin={async (seg) => {
+        await pinStoryStep(supabase, seg.id);
+        await queryClient.invalidateQueries({ queryKey: storyKeys.person(targetId) });
+      }}
+    />
+  );
+}
