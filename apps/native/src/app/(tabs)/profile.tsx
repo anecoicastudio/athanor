@@ -13,8 +13,11 @@ import { DreamCard } from '@/components/DreamCard';
 import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
+import { Lightbox } from '@/components/Lightbox';
+import { MomentiGallery } from '@/components/MomentiGallery';
 import { StatLine } from '@/components/StatLine';
 import { Tag } from '@/components/Tag';
+import { MY_MOMENTS } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -67,6 +70,16 @@ function ProfileEditor({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const router = useRouter();
+
+  const moments = MY_MOMENTS; // M1 frame-only; M3 → useQuery(momentKeys.list(userId))
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [momentSoon, setMomentSoon] = useState(false);
+
+  const addMomentSoon = () => {
+    // Create/upload deferred to M3 — honest hint, never a fake success or Aura write (rule #1).
+    setMomentSoon(true);
+    setTimeout(() => setMomentSoon(false), 2000);
+  };
 
   // Web fetches the active dream server-side; mobile fetches it client-side.
   useEffect(() => {
@@ -214,6 +227,20 @@ function ProfileEditor({
             <SixStarsGrid stars={aura.stars} locale={locale} />
           </View>
 
+          {/* I tuoi Momenti — identity gallery (frame-only M1; live at M3) */}
+          <View className="gap-2">
+            <MomentiGallery
+              moments={moments}
+              locale={locale}
+              onOpen={setLightboxIndex}
+              onSeeAll={() => router.push('/(modal)/grid')}
+              onAdd={addMomentSoon}
+            />
+            {momentSoon ? (
+              <Text className="text-[13px] text-faint">{t('moment.soon', locale)}</Text>
+            ) : null}
+          </View>
+
           {/* Il Sogno — read-only; editor is M2 */}
           <DreamCard dream={dreamText} locale={locale} />
 
@@ -341,6 +368,14 @@ function ProfileEditor({
       )}
 
       {saved ? <Text className="text-sm text-success">{t('profile.saved', locale)}</Text> : null}
+
+      <Lightbox
+        moments={moments}
+        index={lightboxIndex}
+        locale={locale}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+      />
     </ScrollView>
   );
 }
