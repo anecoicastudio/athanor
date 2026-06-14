@@ -108,10 +108,11 @@ export default function DreamEditorScreen() {
 
       {error ? <Text className="text-sm text-error">{t('dream.error.empty', locale)}</Text> : null}
 
-      {/* light = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
+      {/* light + glow = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
       <Button
         label={t('dream.editor.cta', locale)}
         variant="light"
+        glow
         disabled={saving || !loaded}
         onPress={save}
       />

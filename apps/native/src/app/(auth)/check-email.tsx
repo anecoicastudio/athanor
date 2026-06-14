@@ -2,8 +2,16 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { t } from '@auria/i18n';
+import type { Locale } from '@auria/schemas';
+import { semantic } from '@auria/config';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { supabase } from '@/lib/supabase';
+
+const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 'it').startsWith(
+  'en',
+)
+  ? 'en'
+  : 'it';
 
 export default function CheckEmailScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -11,6 +19,7 @@ export default function CheckEmailScreen() {
   const [wait, setWait] = useState(60);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const locale = deviceLocale;
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -31,7 +40,7 @@ export default function CheckEmailScreen() {
       type: 'email',
     });
     setVerifying(false);
-    if (err) setError(t('auth.codeInvalid', 'it'));
+    if (err) setError(t('auth.codeInvalid', locale));
   };
 
   const resend = async () => {
@@ -42,29 +51,35 @@ export default function CheckEmailScreen() {
       options: { shouldCreateUser: true },
     });
     if (err) {
-      setError(t('auth.error.generic', 'it'));
+      setError(t('auth.error.generic', locale));
       return;
     }
     setWait(60);
   };
 
+  const disabled = verifying || code.length !== 6;
+
   return (
-    <View className="flex-1 justify-center gap-4 bg-background px-5">
-      <Text className="text-3xl text-foreground">{t('auth.sent.title', 'it')}</Text>
-      <Text className="text-muted-foreground">{t('auth.codeSent', 'it')}</Text>
+    <View className="flex-1 justify-center gap-6 bg-background px-7">
+      <View className="gap-2">
+        <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+          {t('auth.sent.title', locale)}
+        </Text>
+        <Text className="text-sm text-muted-foreground">{t('auth.codeSent', locale)}</Text>
+      </View>
 
       <View className="gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {t('auth.codeLabel', 'it')}
+        <Text className="text-xs font-medium text-muted-foreground">
+          {t('auth.codeLabel', locale)}
         </Text>
         <TextInput
-          className="rounded-full border border-line bg-surface px-5 py-4 text-center text-2xl tracking-[0.4em] text-foreground"
+          className="rounded-ctl border border-hair bg-raise px-5 py-4 text-center text-2xl tracking-[0.4em] text-foreground"
           keyboardType="number-pad"
           inputMode="numeric"
           maxLength={6}
           autoComplete="one-time-code"
           textContentType="oneTimeCode"
-          placeholder={t('auth.codePlaceholder', 'it')}
+          placeholder={t('auth.codePlaceholder', locale)}
           value={code}
           onChangeText={(v) => setCode(v.replace(/\D/g, ''))}
         />
@@ -72,20 +87,17 @@ export default function CheckEmailScreen() {
       </View>
 
       <Pressable
-        className={
-          verifying || code.length !== 6
-            ? 'h-[52px] items-center justify-center rounded-full bg-foreground opacity-40'
-            : 'h-[52px] items-center justify-center rounded-full bg-foreground'
-        }
-        disabled={verifying || code.length !== 6}
+        className={`h-[52px] items-center justify-center rounded-full bg-aura ${disabled ? 'opacity-40' : ''}`}
+        disabled={disabled}
         onPress={verify}
         accessibilityRole="button"
+        accessibilityLabel={t('auth.verify', locale)}
       >
         {verifying ? (
-          <ActivityIndicator />
+          <ActivityIndicator color={semantic.onAura} />
         ) : (
-          <Text className="font-semibold tracking-widest text-background">
-            {t('auth.verify', 'it')}
+          <Text className="font-semibold tracking-widest text-on-aura">
+            {t('auth.verify', locale)}
           </Text>
         )}
       </Pressable>
@@ -93,14 +105,12 @@ export default function CheckEmailScreen() {
       <Pressable disabled={wait > 0} onPress={resend} accessibilityRole="button">
         <Text
           className={
-            wait > 0
-              ? 'text-muted-foreground underline opacity-60'
-              : 'text-muted-foreground underline'
+            wait > 0 ? 'text-muted-foreground underline opacity-60' : 'text-muted-foreground underline'
           }
         >
           {wait > 0
-            ? t('auth.sent.wait', 'it').replace('{seconds}', String(wait))
-            : t('auth.sent.resend', 'it')}
+            ? t('auth.sent.wait', locale, { seconds: wait })
+            : t('auth.sent.resend', locale)}
         </Text>
       </Pressable>
     </View>

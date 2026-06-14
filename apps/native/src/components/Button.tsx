@@ -4,29 +4,35 @@ import { auraGlow } from '@/lib/glow';
 /**
  * Primary (foreground) / ghost (hairline) / light (aura cyan) action button.
  * Mirrors apps/web ui/button.tsx and the onboarding primary button.
- * Aura (the star) is a moment, never a default action — use `light` only for
- * moment-grade CTAs.
+ * Cyan fill is fine on a `light` CTA (rule #4), but the cyan *glow* is reserved
+ * for moment-grade events — so `light` is flat by default; pass `glow` only when
+ * the press is itself a moment (e.g. a dream igniting).
  */
 export function Button({
   label,
   onPress,
   variant = 'primary',
   disabled = false,
+  glow = false,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'ghost' | 'light';
   disabled?: boolean;
+  glow?: boolean;
+  accessibilityLabel?: string;
 }) {
   const base = 'h-[52px] items-center justify-center rounded-full px-6';
   if (variant === 'light') {
     return (
       <Pressable
         className={`${base} bg-aura ${disabled ? 'opacity-40' : ''}`}
-        style={disabled ? undefined : auraGlow(1)}
+        style={glow && !disabled ? auraGlow(1) : undefined}
         disabled={disabled}
         onPress={onPress}
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
       >
         <Text className="font-semibold tracking-widest text-on-aura">{label}</Text>
       </Pressable>
@@ -39,6 +45,7 @@ export function Button({
         disabled={disabled}
         onPress={onPress}
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
       >
         <Text className="font-semibold tracking-widest text-background">{label}</Text>
       </Pressable>
@@ -50,6 +57,7 @@ export function Button({
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <Text className="tracking-widest text-foreground">{label}</Text>
     </Pressable>
