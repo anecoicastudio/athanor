@@ -9,10 +9,11 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { isProfileComplete } from '@auria/core';
 import { semantic } from '@auria/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { BrandSplash } from '@/components/BrandSplash';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,6 +48,7 @@ export default function RootLayout() {
     // Dream register only (DESIGN.md §4): dream quotes + ritual captions, never UI.
     HankenGrotesk_400Regular_Italic,
   });
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -74,6 +76,8 @@ export default function RootLayout() {
           <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
         </Stack>
       </AuthGuard>
+      {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
+      {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
     </AuthProvider>
   );
 }
