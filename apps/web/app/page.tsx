@@ -115,6 +115,7 @@ const PROBLEMS = [
   'landing.problem.scroll',
   'landing.problem.networking',
   'landing.problem.tools',
+  'landing.problem.growth',
 ] as const;
 
 export default function Home() {
@@ -310,6 +311,9 @@ export default function Home() {
         className="flex min-h-screen flex-col items-center justify-center gap-12 border-t border-border bg-background px-6 py-24 text-center"
       >
         <Reveal className="flex flex-col items-center gap-16">
+          <p className="mx-auto max-w-2xl font-dream text-3xl italic leading-snug md:text-4xl">
+            «{t('landing.close.quote', L)}»
+          </p>
           <div className="flex flex-col items-center gap-12 md:flex-row md:gap-20 md:text-left">
             <DeviceMockup
               src="/mobile-image.png"
@@ -324,6 +328,9 @@ export default function Home() {
                 {t('landing.preview.caption', L)}
               </p>
               <StoreBadges className="mt-10 md:justify-start" locale={L} />
+              <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                {t('landing.download.founders', L)}
+              </p>
             </div>
           </div>
           <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-muted-foreground">
@@ -363,6 +370,7 @@ export default function Home() {
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">{t('landing.footer.copyright', L)}</p>
         </Reveal>
       </footer>
     </main>
