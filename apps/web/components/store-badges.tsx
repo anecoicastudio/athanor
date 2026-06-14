@@ -1,4 +1,4 @@
-import { t, type Locale } from '@auria/i18n';
+import { t, type Locale } from '@athanor/i18n';
 
 /**
  * Download CTAs — App Store + Google Play, in the standard two-line badge

@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { semantic } from '@auria/config';
+import { semantic } from '@athanor/config';
 import { mandorlaDataUri } from '@/lib/mandorla-svg';
 
 // iOS home-screen icon (180×180), mandorla on the dark canvas. Auto-wired.

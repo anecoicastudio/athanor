@@ -1,6 +1,6 @@
 'use client';
 
-import { t, type Locale } from '@auria/i18n';
+import { t, type Locale } from '@athanor/i18n';
 import { useLocale } from '@/components/locale-provider';
 
 const LOCALES: readonly Locale[] = ['it', 'en'];

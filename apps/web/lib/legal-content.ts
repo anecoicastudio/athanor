@@ -1,7 +1,7 @@
-import type { Locale } from '@auria/i18n';
+import type { Locale } from '@athanor/i18n';
 
 /**
- * Long-form legal copy lives here as per-locale content (not in the @auria/i18n
+ * Long-form legal copy lives here as per-locale content (not in the @athanor/i18n
  * UI catalog, which is for short interface strings). TEMPLATE TEXT — review with
  * counsel and replace the controller name / contact email before launch.
  */
@@ -15,13 +15,13 @@ export type LegalDoc = {
 };
 
 const CONTROLLER = 'Anecoica Studio';
-const EMAIL = 'privacy@auria.app';
+const EMAIL = 'privacy@athanor.app';
 
 export const privacy: Record<Locale, LegalDoc> = {
   it: {
     title: 'Informativa sulla privacy',
     updated: 'Giugno 2026',
-    intro: `Questa pagina spiega come ${CONTROLLER} tratta i dati di chi visita il sito di presentazione di Auria. Il sito è una vetrina: non richiede registrazione e non raccoglie dati di profilazione.`,
+    intro: `Questa pagina spiega come ${CONTROLLER} tratta i dati di chi visita il sito di presentazione di Athanor. Il sito è una vetrina: non richiede registrazione e non raccoglie dati di profilazione.`,
     sections: [
       {
         heading: 'Titolare del trattamento',
@@ -39,7 +39,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Cookie',
         body: [
-          'Usiamo un solo cookie funzionale, `auria_locale`, che ricorda la lingua scelta (italiano o inglese). Non serve a profilare e non viene condiviso con terzi.',
+          'Usiamo un solo cookie funzionale, `athanor_locale`, che ricorda la lingua scelta (italiano o inglese). Non serve a profilare e non viene condiviso con terzi.',
         ],
       },
       {
@@ -63,7 +63,7 @@ export const privacy: Record<Locale, LegalDoc> = {
   en: {
     title: 'Privacy Policy',
     updated: 'June 2026',
-    intro: `This page explains how ${CONTROLLER} handles the data of visitors to the Auria presentation site. The site is a showcase: it requires no sign-up and collects no profiling data.`,
+    intro: `This page explains how ${CONTROLLER} handles the data of visitors to the Athanor presentation site. The site is a showcase: it requires no sign-up and collects no profiling data.`,
     sections: [
       {
         heading: 'Data controller',
@@ -81,7 +81,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Cookies',
         body: [
-          'We use a single functional cookie, `auria_locale`, which remembers your chosen language (Italian or English). It is not used for profiling and is not shared with third parties.',
+          'We use a single functional cookie, `athanor_locale`, which remembers your chosen language (Italian or English). It is not used for profiling and is not shared with third parties.',
         ],
       },
       {
@@ -107,12 +107,12 @@ export const terms: Record<Locale, LegalDoc> = {
   it: {
     title: 'Termini di servizio',
     updated: 'Giugno 2026',
-    intro: `Usando il sito di presentazione di Auria accetti questi termini. Il sito è offerto da ${CONTROLLER} a scopo informativo.`,
+    intro: `Usando il sito di presentazione di Athanor accetti questi termini. Il sito è offerto da ${CONTROLLER} a scopo informativo.`,
     sections: [
       {
         heading: 'Oggetto',
         body: [
-          'Il sito presenta il progetto Auria. L’app non è ancora pubblicata: i riferimenti agli store sono indicativi e potranno cambiare.',
+          'Il sito presenta il progetto Athanor. L’app non è ancora pubblicata: i riferimenti agli store sono indicativi e potranno cambiare.',
         ],
       },
       {
@@ -124,7 +124,7 @@ export const terms: Record<Locale, LegalDoc> = {
       {
         heading: 'Proprietà intellettuale',
         body: [
-          `Il marchio Auria, i testi, la grafica e il logo sono di ${CONTROLLER}. Non possono essere riprodotti senza autorizzazione.`,
+          `Il marchio Athanor, i testi, la grafica e il logo sono di ${CONTROLLER}. Non possono essere riprodotti senza autorizzazione.`,
         ],
       },
       {
@@ -143,12 +143,12 @@ export const terms: Record<Locale, LegalDoc> = {
   en: {
     title: 'Terms of Service',
     updated: 'June 2026',
-    intro: `By using the Auria presentation site you accept these terms. The site is provided by ${CONTROLLER} for informational purposes.`,
+    intro: `By using the Athanor presentation site you accept these terms. The site is provided by ${CONTROLLER} for informational purposes.`,
     sections: [
       {
         heading: 'Purpose',
         body: [
-          'The site presents the Auria project. The app is not yet published: store references are indicative and may change.',
+          'The site presents the Athanor project. The app is not yet published: store references are indicative and may change.',
         ],
       },
       {
@@ -160,7 +160,7 @@ export const terms: Record<Locale, LegalDoc> = {
       {
         heading: 'Intellectual property',
         body: [
-          `The Auria name, text, graphics and logo belong to ${CONTROLLER}. They may not be reproduced without permission.`,
+          `The Athanor name, text, graphics and logo belong to ${CONTROLLER}. They may not be reproduced without permission.`,
         ],
       },
       {

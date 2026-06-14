@@ -1,11 +1,11 @@
 import type { MetadataRoute } from 'next';
-import { t } from '@auria/i18n';
-import { semantic } from '@auria/config';
+import { t } from '@athanor/i18n';
+import { semantic } from '@athanor/config';
 
 /**
  * PWA manifest — installable, themed to the dark canvas. Icons point at the
  * `/icon` + `/apple-icon` ImageResponse routes. Copy + colors come from
- * @auria/i18n / @auria/config (no hardcoded strings or literal hex).
+ * @athanor/i18n / @athanor/config (no hardcoded strings or literal hex).
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

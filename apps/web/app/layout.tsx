@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 import { Hanken_Grotesk, EB_Garamond } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
-import { t, type Locale } from '@auria/i18n';
-import { semantic } from '@auria/config';
+import { t, type Locale } from '@athanor/i18n';
+import { semantic } from '@athanor/config';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { SITE_URL } from '@/lib/site';
@@ -23,7 +23,7 @@ const hankenGrotesk = Hanken_Grotesk({
 /*
  * Display face (DESIGN.md §11, 2026-06-13): EB Garamond — upright for headlines,
  * italic for the dream quotes. Body / UI / labels remain Hanken Grotesk above —
- * as does the plain "AURIA" wordmark (2026-06-13, switched from EB Garamond to
+ * as does the plain "ATHANOR" wordmark (2026-06-13, switched from EB Garamond to
  * match the vertical section labels). (The Greek-Λ wordmark experiment was
  * reverted to plain Latin letters on user request — the Greek subset is no longer
  * required but kept; it's harmless and EB Garamond's Greek is well-matched.)
@@ -35,9 +35,9 @@ const ebGaramond = EB_Garamond({
   style: ['normal', 'italic'],
 });
 
-/** Active landing locale from the `auria_locale` cookie (IT canonical default). */
+/** Active landing locale from the `athanor_locale` cookie (IT canonical default). */
 async function getLocale(): Promise<Locale> {
-  const value = (await cookies()).get('auria_locale')?.value;
+  const value = (await cookies()).get('athanor_locale')?.value;
   return value === 'en' ? 'en' : 'it';
 }
 
@@ -55,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     applicationName: t('app.name', locale),
-    keywords: ['Auria', 'community', 'reputazione', 'reputation', 'networking', 'Aura'],
+    keywords: ['Athanor', 'community', 'reputazione', 'reputation', 'networking', 'Aura'],
     alternates: { canonical: '/' },
     robots: { index: true, follow: true },
     openGraph: {

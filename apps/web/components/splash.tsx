@@ -6,7 +6,7 @@ import { markSplashDone } from '@/lib/splash-ready';
 import styles from './splash.module.css';
 
 /**
- * Auria splash intro (DESIGN.md §5). On every load the mandorla draws in from
+ * Athanor splash intro (DESIGN.md §5). On every load the mandorla draws in from
  * empty — two circles + the vertical lens — then the Kairos star pops at the
  * apex and the tagline fades up. After a hold the screen floods white, then a
  * circular window opens from the centre — rimmed in aura cyan — and grows outward

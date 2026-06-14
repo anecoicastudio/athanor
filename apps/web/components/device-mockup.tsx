@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import styles from './device-mockup.module.css';
 
 /**
- * Renders the AURIA app screen as a floating, angled 3D device. The `src` image
+ * Renders the ATHANOR app screen as a floating, angled 3D device. The `src` image
  * is already a front-on framed phone (its own bezel), so this wrapper only adds
  * the tilt, a glass glare and a soft floor shadow (see device-mockup.module.css)
  * — never a second bezel. Pure presentational; the entrance is handled by the
