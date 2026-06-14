@@ -1,4 +1,4 @@
-import { type Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { Post } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -16,8 +16,7 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
   return (
     <Pressable
       className="gap-3 rounded-card border border-hair bg-raise p-5"
-      // post/[id] detail modal lands in a sibling M3 slice — forward-referenced.
-      onPress={() => router.push(`/(modal)/post/${post.id}` as unknown as Href)}
+      onPress={() => router.push(`/(modal)/post/${post.id}`)}
     >
       <View className="flex-row items-center justify-between">
         <Text className="text-[12px] uppercase tracking-wider text-faint">{categoryLabel}</Text>

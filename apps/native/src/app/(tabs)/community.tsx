@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FlatList, RefreshControl } from 'react-native';
-import { type Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type FeedCursor, getFeedPage, postKeys, subscribeNewPosts } from '@athanor/api';
 import { semantic } from '@athanor/config';
@@ -13,8 +13,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
-// post-compose modal lands in a sibling M3 slice — forward-referenced.
-const COMPOSE_HREF = '/(modal)/post-compose' as unknown as Href;
+const COMPOSE_HREF = '/(modal)/post-compose' as const;
 
 export default function CommunityScreen() {
   const { profile } = useAuth();
