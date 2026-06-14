@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet } from 'react-native';
+import Svg, { Circle, Defs, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { t } from '@auria/i18n';
 import type { Locale } from '@auria/schemas';
-import { semantic } from '@auria/config';
+import { mandorla, semantic } from '@auria/config';
 import { Text } from '@/tw';
-import { Mandorla } from '@/components/Mandorla';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedG = Animated.createAnimatedComponent(G);
+
+const DASH = 240;
+const SIZE = 112;
+const LENS = 'M50 24 A30 30 0 0 1 50 76 A30 30 0 0 1 50 24 Z';
 
 const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 'it').startsWith(
   'en',
@@ -13,55 +21,91 @@ const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 
   : 'it';
 
 /**
- * Branded JS splash (prototype §9) shown after fonts load, over the routed Stack.
- * Animated mandorla + «A U R I A» wordmark + tagline, then fades out → onDone.
- * The native `expo-splash-screen` covers the pre-JS frame; this is the brand beat
- * after it. Honors reduced motion (static hold, no animation).
+ * Branded JS splash (prototype §9 / auria-prototype.html) shown after fonts
+ * load, over the routed Stack. The two-circle vesica + lens **draw** via animated
+ * strokeDashoffset (circles 0→1.6s, lens 0.5→2.1s), the spark pops (1.5s), and
+ * the «A U R I A» wordmark + tagline fade up — ~2.7s, then an 0.8s fade-out →
+ * onDone. Honors reduced motion (static finished mark, brief hold). The native
+ * `expo-splash-screen` covers the pre-JS frame; this is the brand beat after it.
  */
 export function BrandSplash({ onDone }: { onDone: () => void }) {
-  const mark = useRef(new Animated.Value(0)).current;
+  const circles = useRef(new Animated.Value(DASH)).current;
+  const lens = useRef(new Animated.Value(DASH)).current;
+  const spark = useRef(new Animated.Value(0)).current;
   const wordmark = useRef(new Animated.Value(0)).current;
   const tagline = useRef(new Animated.Value(0)).current;
   const container = useRef(new Animated.Value(1)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [reduce, setReduce] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    let holdTimer: ReturnType<typeof setTimeout>;
+    let done = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
-    const fadeOut = () =>
-      Animated.timing(container, { toValue: 0, duration: 500, useNativeDriver: true }).start(
-        ({ finished }) => {
-          if (finished && !cancelled) onDone();
-        },
-      );
+    // Idempotent exit — called by the fade-out animation AND a hard fallback
+    // timer, so onDone fires even if the animation's `finished` callback is
+    // dropped (interrupted frame, re-render). The splash can never trap the UI.
+    const finish = () => {
+      if (done || cancelled) return;
+      done = true;
+      onDone();
+    };
+
+    const fadeOut = () => {
+      Animated.timing(container, {
+        toValue: 0,
+        duration: 800,
+        easing: Easing.ease,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished) finish();
+      });
+      timers.push(setTimeout(finish, 900)); // guaranteed exit ~100ms after the fade
+    };
 
     AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
       if (cancelled) return;
       if (reduced) {
-        // Static: hold the final frame briefly, then leave.
-        setReduceMotion(true);
-        mark.setValue(1);
+        // Static finished mark, brief hold, then leave.
+        setReduce(true);
+        circles.setValue(0);
+        lens.setValue(0);
+        spark.setValue(1);
         wordmark.setValue(1);
         tagline.setValue(1);
-        holdTimer = setTimeout(fadeOut, 700);
+        timers.push(setTimeout(fadeOut, 700));
         return;
       }
-      const fade = (v: Animated.Value, delay: number, duration = 600) =>
-        Animated.timing(v, { toValue: 1, delay, duration, useNativeDriver: true });
-      Animated.parallel([fade(mark, 0, 700), fade(wordmark, 700), fade(tagline, 1000)]).start();
-      holdTimer = setTimeout(fadeOut, 2200);
+      const draw = (v: Animated.Value, delay: number) =>
+        Animated.timing(v, { toValue: 0, duration: 1600, delay, easing: Easing.ease, useNativeDriver: false });
+      const fade = (v: Animated.Value, delay: number) =>
+        Animated.timing(v, { toValue: 1, duration: 1000, delay, easing: Easing.ease, useNativeDriver: false });
+      Animated.parallel([
+        draw(circles, 0),
+        draw(lens, 500),
+        Animated.timing(spark, {
+          toValue: 1,
+          duration: 600,
+          delay: 1500,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        }),
+        fade(wordmark, 700),
+        fade(tagline, 1100),
+      ]).start();
+      timers.push(setTimeout(fadeOut, 2700));
     });
 
     return () => {
       cancelled = true;
-      clearTimeout(holdTimer);
+      timers.forEach(clearTimeout);
     };
-  }, [container, mark, wordmark, tagline, onDone]);
+  }, [circles, lens, spark, wordmark, tagline, container, onDone]);
 
-  // translateY for the fade-up of wordmark + tagline (skipped under reduced motion).
-  const rise = (v: Animated.Value) =>
-    reduceMotion ? [] : [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }];
+  // pop curve: scale .2 → 1.25 → 1 (prototype @keyframes pop).
+  const sparkScale = spark.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.2, 1.25, 1] });
+  const riseY = (v: Animated.Value) =>
+    reduce ? 0 : v.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
   return (
     <Animated.View
@@ -72,26 +116,77 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
         { backgroundColor: semantic.background, opacity: container },
       ]}
     >
-      <Animated.View
-        style={{
-          opacity: mark,
-          transform: reduceMotion
-            ? []
-            : [{ scale: mark.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
-        }}
-      >
-        <Mandorla size={104} glowLevel={0.5}>
-          <Text className="text-lg text-aura">✦</Text>
-        </Mandorla>
-      </Animated.View>
+      <Svg width={SIZE} height={SIZE} viewBox="0 0 100 100">
+        <Defs>
+          <LinearGradient id="splashLens" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={mandorla.lensTop} />
+            <Stop offset="1" stopColor={mandorla.lensBottom} />
+          </LinearGradient>
+          <RadialGradient id="splashGlow" cx="50%" cy="42%" r="60%">
+            <Stop offset="0" stopColor={semantic.aura} stopOpacity={0.24} />
+            <Stop offset="1" stopColor={semantic.aura} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
 
-      <Animated.View style={{ opacity: wordmark, transform: rise(wordmark) }}>
+        {/* two overlapping circles — stroke-draw */}
+        <AnimatedCircle
+          cx={35}
+          cy={50}
+          r={30}
+          fill="none"
+          stroke={mandorla.circle}
+          strokeOpacity={0.35}
+          strokeWidth={1.1}
+          strokeDasharray={DASH}
+          strokeDashoffset={circles}
+        />
+        <AnimatedCircle
+          cx={65}
+          cy={50}
+          r={30}
+          fill="none"
+          stroke={mandorla.circle}
+          strokeOpacity={0.35}
+          strokeWidth={1.1}
+          strokeDasharray={DASH}
+          strokeDashoffset={circles}
+        />
+
+        {/* lens: depth fill + cyan glow (static), then the stroke draws in (delayed) */}
+        <Path d={LENS} fill="url(#splashLens)" />
+        <Path d={LENS} fill="url(#splashGlow)" />
+        <AnimatedPath
+          d={LENS}
+          fill="none"
+          stroke={semantic.aura}
+          strokeOpacity={0.6}
+          strokeWidth={1.2}
+          strokeDasharray={DASH}
+          strokeDashoffset={lens}
+        />
+
+        {/* three dots on the lens spine */}
+        <Circle cx={50} cy={38} r={1.9} fill={semantic.aura} fillOpacity={0.75} />
+        <Circle cx={50} cy={50} r={1.9} fill={semantic.aura} fillOpacity={0.75} />
+        <Circle cx={50} cy={62} r={1.9} fill={semantic.aura} fillOpacity={0.75} />
+
+        {/* spark — pops at the top of the lens */}
+        <AnimatedG x={50} y={24} scale={sparkScale} opacity={spark}>
+          <Path
+            d="M0 -9 L1.6 -1.6 L9 0 L1.6 1.6 L0 9 L-1.6 1.6 L-9 0 L-1.6 -1.6 Z"
+            fill={semantic.aura}
+            fillOpacity={0.775}
+          />
+        </AnimatedG>
+      </Svg>
+
+      <Animated.View style={{ opacity: wordmark, transform: [{ translateY: riseY(wordmark) }] }}>
         <Text className="text-[22px] font-light text-foreground" style={styles.wordmark}>
           {t('app.name', deviceLocale).toUpperCase()}
         </Text>
       </Animated.View>
 
-      <Animated.View style={{ opacity: tagline, transform: rise(tagline) }}>
+      <Animated.View style={{ opacity: tagline, transform: [{ translateY: riseY(tagline) }] }}>
         <Text className="text-[11px] uppercase text-muted-foreground" style={styles.tagline}>
           {t('app.tagline', deviceLocale)}
         </Text>

@@ -40,6 +40,18 @@ export const gradient = {
   3: '#223D86', // indigo
 } as const;
 
+/**
+ * Mandorla mark colors — the animated splash glyph (the two-circle vesica + lens,
+ * prototype §9). Brand-mark only, never a UI fill. Cyan parts reuse `aura` with
+ * opacity; these are the non-cyan mark colors (the violet circle hairline + the
+ * lens depth gradient) that have no semantic role elsewhere.
+ */
+export const mandorla = {
+  circle: '#A08CD2', // the two overlapping circles' violet hairline (drawn @ ~.35)
+  lensTop: '#3A1F63', // lens fill gradient — top (violet)
+  lensBottom: '#13234D', // lens fill gradient — bottom (indigo)
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,
