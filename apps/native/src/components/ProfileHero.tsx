@@ -10,11 +10,14 @@ export function ProfileHero({
   bio,
   auraScore,
   locale,
+  auraLabel,
 }: {
   handle: string;
   bio: string | null;
   auraScore: number;
   locale: Locale;
+  /** Override the Aura heading for a third-person view (e.g. «la sua Aura»). Defaults to the owner label. */
+  auraLabel?: string;
 }) {
   return (
     <View className="items-center gap-3">
@@ -23,7 +26,7 @@ export function ProfileHero({
       </Mandorla>
       <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">@{handle}</Text>
       {bio ? <Text className="text-center text-ink-2">{bio}</Text> : null}
-      <AuraBlock score={auraScore} locale={locale} />
+      <AuraBlock score={auraScore} locale={locale} label={auraLabel} />
     </View>
   );
 }
