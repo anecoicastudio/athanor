@@ -11,6 +11,7 @@ export default function ModalLayout() {
     >
       <Stack.Screen name="settings" />
       <Stack.Screen name="grid" />
+      <Stack.Screen name="dream-editor" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

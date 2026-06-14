@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { getActiveDream, getAuraScore, updateProfile } from '@auria/api';
 import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@auria/core';
 import { t, type MessageKey } from '@auria/i18n';
@@ -81,20 +81,22 @@ function ProfileEditor({
     setTimeout(() => setMomentSoon(false), 2000);
   };
 
-  // Web fetches the active dream server-side; mobile fetches it client-side.
-  useEffect(() => {
-    let cancelled = false;
-    getActiveDream(supabase, userId)
-      .then((d) => {
-        if (!cancelled) setDreamText(d?.text ?? null);
-      })
-      .catch(() => {
-        // leave dream unset; the empty state is the safe default
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  // Refetch the active dream whenever Profilo regains focus (e.g. after editing).
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getActiveDream(supabase, userId)
+        .then((d) => {
+          if (!cancelled) setDreamText(d?.text ?? null);
+        })
+        .catch(() => {
+          // leave dream unset; the empty state is the safe default
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [userId]),
+  );
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
   useEffect(() => {
@@ -241,8 +243,12 @@ function ProfileEditor({
             ) : null}
           </View>
 
-          {/* Il Sogno — read-only; editor is M2 */}
-          <DreamCard dream={dreamText} locale={locale} />
+          {/* Il Sogno — editable (M2 dream editor) */}
+          <DreamCard
+            dream={dreamText}
+            locale={locale}
+            onEdit={() => router.push('/(modal)/dream-editor')}
+          />
 
           {/* Chi sei — identity tags */}
           {identity.length > 0 ? (
