@@ -118,6 +118,30 @@ export type Database = {
           },
         ]
       }
+      email_waitlist: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          locale: string
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          locale?: string
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          locale?: string
+          source?: string | null
+        }
+        Relationships: []
+      }
       milestone_helps: {
         Row: {
           created_at: string
