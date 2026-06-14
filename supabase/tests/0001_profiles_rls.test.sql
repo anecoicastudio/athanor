@@ -8,9 +8,9 @@ select plan(10);
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
-   'authenticated', 'authenticated', 'user_a@test.auria', '{"locale":"it"}'::jsonb, now(), now()),
+   'authenticated', 'authenticated', 'user_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
-   'authenticated', 'authenticated', 'user_b@test.auria', '{"locale":"en"}'::jsonb, now(), now());
+   'authenticated', 'authenticated', 'user_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now());
 
 -- schema
 select has_table('public', 'profiles', 'profiles table exists');

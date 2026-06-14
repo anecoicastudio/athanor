@@ -2,9 +2,9 @@
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001',
-   'authenticated', 'authenticated', 'sole@auria.local', '{"locale":"it"}'::jsonb, now(), now()),
+   'authenticated', 'authenticated', 'sole@athanor.local', '{"locale":"it"}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002',
-   'authenticated', 'authenticated', 'luna@auria.local', '{"locale":"en"}'::jsonb, now(), now())
+   'authenticated', 'authenticated', 'luna@athanor.local', '{"locale":"en"}'::jsonb, now(), now())
 on conflict (id) do nothing;
 
 update public.profiles
