@@ -20,13 +20,13 @@ select ok(
   (select relrowsecurity from pg_class where oid = 'public.dream_milestones'::regclass),
   'RLS enabled on dream_milestones'
 );
--- anon public-@handle read is deferred to the public-handle-ssr slice, so only 3 policies here
 select policies_are(
   'public', 'dream_milestones',
   array[
     'dream_milestones_select_authenticated',
     'dream_milestones_insert_own',
-    'dream_milestones_update_own'
+    'dream_milestones_update_own',
+    'dream_milestones_select_anon_public'
   ],
   'exactly the expected policies on dream_milestones'
 );
@@ -104,12 +104,13 @@ select results_eq(
 );
 reset role;
 
--- anon has no grant/policy on dream_milestones (public-@handle read deferred) → deny (mirror dreams 0002)
+-- anon: grant now exists but fixture dream is members-only → 0 public tappe
 set local role anon;
 set local request.jwt.claims = '';
-select throws_ok(
-  $$ select count(*) from public.dream_milestones $$,
-  '42501', null, 'anon cannot read dream_milestones (public @handle read deferred to public-handle-ssr)'
+select results_eq(
+  $$ select count(*)::int from public.dream_milestones $$,
+  $$ values (0) $$,
+  'anon reads only tappe of a public dream (fixture dream is members → 0)'
 );
 reset role;
 

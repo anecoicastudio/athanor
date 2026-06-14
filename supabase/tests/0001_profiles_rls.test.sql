@@ -21,7 +21,7 @@ select ok(
 select policies_are(
   'public',
   'profiles',
-  array['profiles_select_authenticated', 'profiles_insert_own', 'profiles_update_own'],
+  array['profiles_select_authenticated', 'profiles_insert_own', 'profiles_update_own', 'profiles_select_anon_public'],
   'exactly the expected policies exist'
 );
 
@@ -38,14 +38,13 @@ select is(
   'locale propagated from signup metadata'
 );
 
--- anon: no table access at all (privileges revoked, not just RLS-filtered)
+-- anon: grant now exists but fixtures are members-only → 0 public rows; inserts still denied
 set local role anon;
 set local request.jwt.claims = '';
-select throws_ok(
-  $$ select count(*) from public.profiles $$,
-  '42501',
-  'permission denied for table profiles',
-  'anon cannot read profiles'
+select results_eq(
+  $$ select count(*)::int from public.profiles $$,
+  $$ values (0) $$,
+  'anon reads only profiles with a public section (fixtures are members → 0)'
 );
 select throws_ok(
   $$ insert into public.profiles (id) values (gen_random_uuid()) $$,

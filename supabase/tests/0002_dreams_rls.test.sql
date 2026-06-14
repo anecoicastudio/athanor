@@ -21,16 +21,17 @@ select ok(
 );
 select policies_are(
   'public', 'dreams',
-  array['dreams_select_authenticated', 'dreams_insert_own', 'dreams_update_own'],
+  array['dreams_select_authenticated', 'dreams_insert_own', 'dreams_update_own', 'dreams_select_anon_public'],
   'exactly the expected policies on dreams'
 );
 
--- anon: no access at all
+-- anon: grant now exists but fixtures are members-only → 0 public rows
 set local role anon;
 set local request.jwt.claims = '';
-select throws_ok(
-  $$ select count(*) from public.dreams $$,
-  '42501', null, 'anon cannot read dreams'
+select results_eq(
+  $$ select count(*)::int from public.dreams $$,
+  $$ values (0) $$,
+  'anon reads only dreams whose owner set dream=public (fixtures are members → 0)'
 );
 reset role;
 
