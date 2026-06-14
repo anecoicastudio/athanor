@@ -34,6 +34,7 @@ export default function PostComposeScreen() {
       return createPost(supabase, {
         author_id: authorId,
         category,
+        type: 'text',
         body,
         is_step: isStep,
         tags: [],
