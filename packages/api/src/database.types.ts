@@ -118,6 +118,60 @@ export type Database = {
           },
         ]
       }
+      milestone_helps: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          helper_id: string
+          id: string
+          link: string | null
+          message: string | null
+          milestone_id: string
+          status: Database["public"]["Enums"]["help_status"]
+          type: Database["public"]["Enums"]["help_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          helper_id: string
+          id?: string
+          link?: string | null
+          message?: string | null
+          milestone_id: string
+          status?: Database["public"]["Enums"]["help_status"]
+          type: Database["public"]["Enums"]["help_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          helper_id?: string
+          id?: string
+          link?: string | null
+          message?: string | null
+          milestone_id?: string
+          status?: Database["public"]["Enums"]["help_status"]
+          type?: Database["public"]["Enums"]["help_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_helps_helper_id_fkey"
+            columns: ["helper_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "milestone_helps_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "dream_milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           bio: string | null
@@ -160,8 +214,14 @@ export type Database = {
     }
     Functions: {
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
+      owns_help_milestone: {
+        Args: { p_milestone_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      help_status: "offered" | "accepted" | "declined" | "completed"
+      help_type: "skill" | "connection" | "opportunity"
       milestone_status: "open" | "in_progress" | "done"
     }
     CompositeTypes: {
@@ -293,6 +353,8 @@ export const Constants = {
   },
   public: {
     Enums: {
+      help_status: ["offered", "accepted", "declined", "completed"],
+      help_type: ["skill", "connection", "opportunity"],
       milestone_status: ["open", "in_progress", "done"],
     },
   },
