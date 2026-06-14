@@ -13,4 +13,8 @@ describe('AURA_WEIGHTS', () => {
   test('fund contributions yield zero Aura (rule #1)', () => {
     expect(AURA_WEIGHTS.FUND_CONTRIBUTION).toBe(0);
   });
+
+  test('a posted comment is worth +2 Aura (compose-hint source, M6 award)', () => {
+    expect(AURA_WEIGHTS.COMMENT_CREATE).toBe(2);
+  });
 });
