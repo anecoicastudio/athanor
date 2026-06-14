@@ -357,5 +357,17 @@
   "post.compose.auraHint": "+{n} Aura",
   "post.compose.error": "Write something first",
   "post.toast.published": "Published ✦",
+  "post.react.label": "Light a star",
+  "post.react.lit": "You lit this step ✦",
+  "post.react.a11y": "Light a star for this step",
+  "post.react.a11yLit": "Star lit",
+  "post.author.reactions": "{n} lit a star",
+  "comment.sectionLabel": "Replies",
+  "comment.placeholder": "Add a reply…",
+  "comment.reply": "Reply",
+  "comment.count": "{n} replies",
+  "comment.empty": "No replies yet. Start the conversation.",
+  "comment.toast.posted": "Reply posted ✦",
+  "comment.error": "We couldn’t load the replies.",
   "common.publish": "Publish"
 }
