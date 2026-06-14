@@ -42,7 +42,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!profile) return; // profile still hydrating
 
     if (isProfileComplete(profile)) {
-      if (inAuth || inOnboarding) router.replace('/');
+      // Explicit group href: both (tabs)/index and (onboarding)/index resolve to '/',
+      // and onboarding wins the bare path — so a bare replace('/') lands back on the
+      // funnel (the loop). '/(tabs)' disambiguates to the Home tab.
+      if (inAuth || inOnboarding) router.replace('/(tabs)');
     } else if (!inOnboarding) {
       // Authed but incomplete with no draft to flush (e.g. login on a new device).
       router.replace('/(onboarding)');
