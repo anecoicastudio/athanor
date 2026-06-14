@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { t } from '@auria/i18n';
+import { t } from '@athanor/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -32,20 +32,20 @@ export function LambdaA({ className }: { className?: string }) {
 
 /**
  * Renders a translated string with the brand name set as the uppercase logotype
- * `ΛURIΛ` — both A's drawn as the logo's Λ peak (<LambdaA>) — so an inline
- * "Auria" in copy reads like the logo (user request 2026-06-13 — scope: the
+ * `ΛTHΛNOR` — both A's drawn as the logo's Λ peak (<LambdaA>) — so an inline
+ * "Athanor" in copy reads like the logo (user request 2026-06-13 — scope: the
  * download headline; uppercased on request).
  *
  * The brand token is derived from i18n (rule 5 — no hardcoded letters): split on
- * `app.name` ("Auria"), then render its uppercase form letter by letter, each
+ * `app.name` ("Athanor"), then render its uppercase form letter by letter, each
  * `A` → the peak (with an `mx` side-bearing so it doesn't crowd the `U`), the
  * rest as uppercase text in the inherited font. The visible glyphs are
  * `aria-hidden`; a visually-hidden copy of the plain `text` carries the real
- * words for screen readers / SEO (so AT hears "Take Auria with you.").
+ * words for screen readers / SEO (so AT hears "Take Athanor with you.").
  */
 export function BrandText({ text }: { text: string }) {
-  const brand = t('app.name', 'it'); // "Auria"
-  const upper = brand.toUpperCase(); // "AURIA"
+  const brand = t('app.name', 'it'); // "Athanor"
+  const upper = brand.toUpperCase(); // "ATHANOR"
   const parts = text.split(brand);
   return (
     <>
@@ -73,21 +73,21 @@ export function BrandText({ text }: { text: string }) {
 }
 
 /**
- * AURIA wordmark (DESIGN.md §4 wordmark rule + §11). "AURIA" in the body sans
+ * ATHANOR wordmark (DESIGN.md §4 wordmark rule + §11). "ATHANOR" in the body sans
  * (Hanken Grotesk, `font-sans`), uppercase + letterspaced — matching the vertical
  * section labels (2026-06-13) — with the A's drawn as a Λ peak (<LambdaA>, since
  * Hanken has no Greek Λ; user request 2026-06-13). The lambdas carry a small
  * `mx` to emulate the side-bearings the bare peak lacks, so they don't crowd the
  * `U`/`I`. Derived from the i18n brand name so there are no hardcoded user-facing
  * strings (rule 5): the visible glyphs are decorative (`aria-hidden`) and the
- * accessible name comes from `aria-label`, so a screen reader hears "Auria".
+ * accessible name comes from `aria-label`, so a screen reader hears "Athanor".
  *
  * Letterspaced per §4 (callers can override the tracking via className — twMerge
  * resolves the conflict). Color follows `currentColor` (foreground by default —
  * never aura cyan).
  */
-export function AuriaWordmark({ className }: { className?: string }) {
-  const name = t('app.name', 'it').toUpperCase(); // "AURIA"
+export function AthanorWordmark({ className }: { className?: string }) {
+  const name = t('app.name', 'it').toUpperCase(); // "ATHANOR"
   return (
     <span
       aria-label={t('app.name', 'it')}

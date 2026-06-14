@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@auria/config": "workspace:*",
-    "@auria/i18n": "workspace:*",
+    "@athanor/config": "workspace:*",
+    "@athanor/i18n": "workspace:*",
     "@gsap/react": "^2.1.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",

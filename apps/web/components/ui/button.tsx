@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Auria button (DESIGN.md §8). Pill, letterspaced, two-weight type.
+ * Athanor button (DESIGN.md §8). Pill, letterspaced, two-weight type.
  * - primary: foreground on background — the default action. Aura is NOT primary.
  * - moment: aura — ONLY moment actions (accept Momento, help dream, contribute). Add a ✦ child.
  * - ghost: muted, underline on hover.

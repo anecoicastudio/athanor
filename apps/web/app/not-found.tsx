@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { t } from '@auria/i18n';
+import { t } from '@athanor/i18n';
 import { getLocale } from '@/lib/get-locale';
 import { MandorlaMark } from '@/components/mandorla-mark';
 

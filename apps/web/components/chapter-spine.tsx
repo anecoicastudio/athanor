@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { MessageKey } from '@auria/i18n';
+import type { MessageKey } from '@athanor/i18n';
 
 export type Chapter = { id: string; label: MessageKey };
 

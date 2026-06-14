@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Mandorla — the single Auria mark (DESIGN.md §5), shared by the splash intro
+ * Mandorla — the single Athanor mark (DESIGN.md §5), shared by the splash intro
  * and the hero so the two are visually identical. Vesica piscis: two circles
  * whose overlap forms the vertical lens almond (two people meeting); the Kairos
  * star (✦) sits at the apex on top.

@@ -3,20 +3,20 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { t } from '@auria/i18n';
+import { t } from '@athanor/i18n';
 import { MandorlaMark } from '@/components/mandorla-mark';
 import { KairosStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
 import { StoreBadges } from '@/components/store-badges';
 import { ChapterSpine, type Chapter } from '@/components/chapter-spine';
 import { DeviceMockup } from '@/components/device-mockup';
-import { AuriaWordmark, BrandText } from '@/components/auria-wordmark';
+import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
 import { Reveal } from '@/components/reveal';
 import { LangSwitch } from '@/components/lang-switch';
 import { useLocale } from '@/components/locale-provider';
 
 /**
- * Auria landing — a single static one-pager presenting the project and linking
+ * Athanor landing — a single static one-pager presenting the project and linking
  * to the app. Minimal/elegant split-screen layout (medusmo.com-inspired, user-
  * directed 2026-06-13): a hero lockup, then the narrative as chapters on ONE dark
  * canvas (no alternating bands) beside a sticky <ChapterSpine> rail, then the
@@ -26,10 +26,10 @@ import { useLocale } from '@/components/locale-provider';
  * DESIGN.md (+ §11 overrides): one dark world (the band striping was a deviation,
  * now removed); aura cyan ONLY on the hero mandorla star + the Dai-Vita star and
  * eyebrow (a dream lit); EB Garamond italic (font-dream) on the pull-quotes, EB
- * Garamond upright (font-display) on headlines; the AURIA wordmark + eyebrows are
+ * Garamond upright (font-display) on headlines; the ATHANOR wordmark + eyebrows are
  * Hanken (font-sans); mandala gradient = logo/hero only. Locale comes from the
  * in-page IT/EN toggle (cookie-persisted, LocaleProvider); both catalogs live in
- * @auria/i18n.
+ * @athanor/i18n.
  */
 
 function Eyebrow({ children, accent = false }: { children: ReactNode; accent?: boolean }) {
@@ -123,7 +123,7 @@ export default function Home() {
     <main id="main" className="flex min-h-screen flex-col bg-background text-foreground">
       {/* NAV */}
       <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-border/50 bg-background/65 px-6 py-5 backdrop-blur-md">
-        <AuriaWordmark className="text-sm" />
+        <AthanorWordmark className="text-sm" />
         <div className="flex items-center gap-5">
           <LangSwitch />
           <a
@@ -141,7 +141,7 @@ export default function Home() {
           <MandorlaMark />
         </div>
         <Reveal className="flex flex-col items-center gap-8" delay={0.1}>
-          <AuriaWordmark className="text-3xl md:text-4xl" />
+          <AthanorWordmark className="text-3xl md:text-4xl" />
           <h1 className="max-w-2xl font-display text-5xl font-medium leading-[1.05] tracking-tight md:text-7xl">
             {t('app.tagline', L)}
           </h1>

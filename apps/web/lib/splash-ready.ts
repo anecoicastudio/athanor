@@ -9,7 +9,7 @@
  * its tween; the splash calls `markSplashDone` as it starts to lift, handing the
  * motion off seamlessly. Client-only (touches `window`).
  */
-const DONE_EVENT = 'auria:splash-done';
+const DONE_EVENT = 'athanor:splash-done';
 let splashDone = false;
 
 /** The splash is lifting — release any waiting reveals. Idempotent. */

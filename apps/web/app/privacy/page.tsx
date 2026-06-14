@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { t } from '@auria/i18n';
+import { t } from '@athanor/i18n';
 import { getLocale } from '@/lib/get-locale';
 import { LegalDocView } from '@/components/legal-doc';
 import { privacy } from '@/lib/legal-content';

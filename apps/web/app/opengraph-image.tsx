@@ -1,14 +1,14 @@
 import { ImageResponse } from 'next/og';
-import { t } from '@auria/i18n';
-import { semantic } from '@auria/config';
+import { t } from '@athanor/i18n';
+import { semantic } from '@athanor/config';
 import { mandorlaDataUri } from '@/lib/mandorla-svg';
 
 /**
- * Social share card (1200×630) — the mandorla + AURIA wordmark + tagline on the
+ * Social share card (1200×630) — the mandorla + ATHANOR wordmark + tagline on the
  * dark canvas. Auto-wired as `og:image` and the Twitter image. Built from the
- * IT canonical copy (crawlers have no locale cookie). Colors via @auria/config.
+ * IT canonical copy (crawlers have no locale cookie). Colors via @athanor/config.
  */
-export const alt = 'Auria — dove ogni incontro si accende';
+export const alt = 'Athanor — dove ogni incontro si accende';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

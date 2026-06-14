@@ -1,5 +1,5 @@
 /*
- * Auria splash intro — overlay + wordmark/tagline only. The mandorla mark and
+ * Athanor splash intro — overlay + wordmark/tagline only. The mandorla mark and
  * its draw/pop animation now live in the shared <Mandorla> (components/mandorla.tsx
  * + globals.css). No colors here (the component carries tokens via var(--color-*)).
  */

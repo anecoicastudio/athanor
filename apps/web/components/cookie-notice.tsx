@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { t } from '@auria/i18n';
+import { t } from '@athanor/i18n';
 import { useLocale } from '@/components/locale-provider';
 
-const KEY = 'auria-cookie-ack';
+const KEY = 'athanor-cookie-ack';
 
 /**
  * Minimal, non-blocking cookie/privacy notice. The landing only sets the
- * functional `auria_locale` cookie and uses cookieless analytics, so a brief
+ * functional `athanor_locale` cookie and uses cookieless analytics, so a brief
  * dismissible notice (not a consent gate) is sufficient. Renders nothing until
  * mounted, so SSR and first client paint agree (no hydration flash).
  */

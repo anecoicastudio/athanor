@@ -27,7 +27,7 @@ function svg(size: number, className: string | undefined, children: React.ReactN
   );
 }
 
-// Concentric ripples — Kairos, the moment expanding. (Auria Live, Il Nome)
+// Concentric ripples — Kairos, the moment expanding. (Athanor Live, Il Nome)
 export function Ripples({ size = 28, className }: GlyphProps) {
   return svg(
     size,
@@ -96,7 +96,7 @@ export function Diamond({ size = 28, className }: GlyphProps) {
   );
 }
 
-// Ring — belonging, the inner circle. (Auria Circle)
+// Ring — belonging, the inner circle. (Athanor Circle)
 export function Ring({ size = 28, className }: GlyphProps) {
   return svg(
     size,

@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Auria brand tokens — values mirror packages/config/src/tokens.ts.
+ * Athanor brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
  * aura (--color-aura, the cyan light) is the action + meaning color; reserve
  * the glow for moment-grade events (Momento, lit star, dream helped, match).
@@ -30,7 +30,7 @@
    * Display face — EB Garamond (DESIGN.md §11, 2026-06-13: was Hanken headings +
    * Instrument Serif; briefly Cormorant). Upright for headlines (`font-display`);
    * italic for the dream quotes (`font-dream italic`). Body / labels / UI — and
-   * the AURIA wordmark (2026-06-13, matching the vertical section labels) — stay
+   * the ATHANOR wordmark (2026-06-13, matching the vertical section labels) — stay
    * --font-sans (Hanken).
    */
   --font-display: var(--font-eb-garamond);
@@ -77,7 +77,7 @@
 }
 
 /*
- * Auria is dark-by-default: background canvas, foreground type.
+ * Athanor is dark-by-default: background canvas, foreground type.
  * :root and .dark are intentionally identical (single dark world).
  */
 :root {

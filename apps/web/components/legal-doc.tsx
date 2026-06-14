@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { t, type Locale } from '@auria/i18n';
-import { AuriaWordmark } from '@/components/auria-wordmark';
+import { t, type Locale } from '@athanor/i18n';
+import { AthanorWordmark } from '@/components/athanor-wordmark';
 import type { LegalDoc } from '@/lib/legal-content';
 
 /** Renders a long-form legal document (privacy / terms) on the dark canvas. */
@@ -11,7 +11,7 @@ export function LegalDocView({ doc, locale }: { doc: LegalDoc; locale: Locale })
       className="mx-auto flex min-h-screen max-w-2xl flex-col gap-10 px-6 py-24 text-foreground"
     >
       <Link href="/" aria-label={t('app.name', locale)} className="self-start">
-        <AuriaWordmark className="text-sm" />
+        <AthanorWordmark className="text-sm" />
       </Link>
       <header className="flex flex-col gap-2 border-b border-border pb-6">
         <h1 className="font-display text-4xl font-medium tracking-tight">{doc.title}</h1>
