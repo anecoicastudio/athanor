@@ -377,6 +377,7 @@
   "feed.audio": "Audio · {dur}",
   "media.processing": "Preparing…",
   "media.uploading": "Uploading… {pct}%",
+  "media.uploadingIndeterminate": "Uploading…",
   "media.tooLong": "Videos can be up to 60 seconds.",
   "media.tooLarge": "This file is too large.",
   "media.failed": "Upload failed.",

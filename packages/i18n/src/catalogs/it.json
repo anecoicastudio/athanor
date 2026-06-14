@@ -377,6 +377,7 @@
   "feed.audio": "Audio · {dur}",
   "media.processing": "Preparo…",
   "media.uploading": "Carico… {pct}%",
+  "media.uploadingIndeterminate": "Carico…",
   "media.tooLong": "Il video può durare al massimo 60 secondi.",
   "media.tooLarge": "Questo file è troppo pesante.",
   "media.failed": "Caricamento non riuscito.",

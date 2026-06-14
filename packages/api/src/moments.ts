@@ -45,7 +45,13 @@ export async function createMoment(client: AthanorClient, insert: MomentInsert):
   return momentSchema.parse(data);
 }
 
-/** Soft-delete an own moment (owner UPDATE policy). Idempotent. */
+/**
+ * Soft-delete an own moment (owner UPDATE policy). Idempotent. Flips `deleted_at`
+ * only — the row vanishes from every read (RLS filters `deleted_at is null`). The
+ * Storage bytes are NOT removed here; callers that own the path should best-effort
+ * `storage.from('moments').remove([media_path])` (owner delete policy allows it),
+ * and the M9 GDPR erasure job is the backstop reaper for any orphaned objects.
+ */
 export async function softDeleteMoment(client: AthanorClient, id: string): Promise<void> {
   const { error } = await client
     .from('moments')

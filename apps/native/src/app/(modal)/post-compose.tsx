@@ -169,7 +169,7 @@ export default function PostComposeScreen() {
         {/* Uploading indicator */}
         {mutation.isPending && items.length > 0 ? (
           <Text className="text-[13px] text-faint">
-            {t('media.uploading', locale).split(' {pct}')[0]}
+            {t('media.uploadingIndeterminate', locale)}
           </Text>
         ) : null}
 

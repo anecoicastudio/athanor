@@ -51,6 +51,8 @@ export default function GridScreen() {
         onPress: () => {
           softDeleteMoment(supabase, m.id)
             .then(() => {
+              // best-effort byte removal (owner storage-delete policy); M9 GDPR job is the backstop.
+              void supabase.storage.from('moments').remove([m.media_path]);
               if (uid) return queryClient.invalidateQueries({ queryKey: momentKeys.list(uid) });
             })
             .catch(() => setError(t('media.failed', locale)));
