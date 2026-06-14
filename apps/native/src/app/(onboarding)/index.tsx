@@ -63,9 +63,10 @@ export default function OnboardingScreen() {
     setStep((s) => s + 1);
   };
 
-  // Save the draft, then hand off to OTP. The profile write happens post-auth.
-  const createAccount = () => {
-    persist({ identity, seeking, dream });
+  // Persist the draft to disk BEFORE navigating, so the post-auth flush can always
+  // read it (a lost draft → incomplete profile → AuthGuard loops back here).
+  const createAccount = async () => {
+    await persist({ identity, seeking, dream });
     router.push('/(auth)/welcome');
   };
 

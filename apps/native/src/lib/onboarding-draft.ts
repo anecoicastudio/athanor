@@ -22,9 +22,10 @@ export type OnboardingDraft = {
 export async function saveDraft(draft: Omit<OnboardingDraft, 'v'>): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY, JSON.stringify({ v: VERSION, ...draft }));
-  } catch {
-    // Best-effort: a failed write just means the funnel can't be resumed; the
-    // in-memory state still carries the answers through to the flush.
+  } catch (err) {
+    // Best-effort: a failed write means the post-auth flush can't read the draft
+    // (→ incomplete profile → AuthGuard loops to the funnel). Surface it in dev.
+    if (__DEV__) console.warn('[onboarding-draft] saveDraft failed', err);
   }
 }
 
