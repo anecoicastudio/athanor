@@ -14,7 +14,16 @@ export const dreamSchema = z.object({
   deleted_at: z.string().nullable(),
 });
 
-export const dreamInsertSchema = dreamSchema.pick({ profile_id: true, text: true });
+/** Shared write-path rule for dream text: trim, then 1–500 chars. */
+const dreamTextSchema = z.string().trim().min(1, 'dream text must not be blank').max(500);
+
+export const dreamInsertSchema = dreamSchema
+  .pick({ profile_id: true })
+  .extend({ text: dreamTextSchema });
+
+/** Editing the single active dream — text only; trims then enforces 1–500 chars. */
+export const dreamUpdateSchema = z.object({ text: dreamTextSchema });
 
 export type Dream = z.infer<typeof dreamSchema>;
 export type DreamInsert = z.infer<typeof dreamInsertSchema>;
+export type DreamUpdate = z.infer<typeof dreamUpdateSchema>;
