@@ -10,4 +10,6 @@ export * from './post-reaction';
 export * from './post-comment';
 export * from './post-media';
 export * from './moment';
+export * from './story-segment';
+export * from './story-reaction';
 export * from './waitlist';
