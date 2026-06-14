@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -34,6 +39,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      dream_milestones: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          dream_id: string
+          id: string
+          position: number
+          status: Database["public"]["Enums"]["milestone_status"]
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          dream_id: string
+          id?: string
+          position?: number
+          status?: Database["public"]["Enums"]["milestone_status"]
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          dream_id?: string
+          id?: string
+          position?: number
+          status?: Database["public"]["Enums"]["milestone_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dream_milestones_dream_id_fkey"
+            columns: ["dream_id"]
+            isOneToOne: false
+            referencedRelation: "dreams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dreams: {
         Row: {
           created_at: string
@@ -113,10 +159,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      milestone_status: "open" | "in_progress" | "done"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -246,7 +292,8 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      milestone_status: ["open", "in_progress", "done"],
+    },
   },
 } as const
-
