@@ -5,7 +5,6 @@ import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { Mandorla } from '@/components/Mandorla';
 import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
@@ -106,24 +105,9 @@ export default function OnboardingScreen() {
         <StepBars count={3} current={step} />
       </View>
 
-      {/* Centre: mandorla glyph + «A T H A N O R» watermark behind the step content. */}
+      {/* Centre: the active step's question, vertically centred. */}
       <View className="grow justify-center">
-        <View className="mb-8 items-center">
-          <Mandorla size={80} glowLevel={0.5}>
-            <Text className="text-base text-aura">✦</Text>
-          </Mandorla>
-        </View>
-
         <View>
-          <View pointerEvents="none" className="absolute -top-2 left-0 right-0">
-            <Text
-              className="text-center text-5xl font-light text-faint opacity-10"
-              style={{ letterSpacing: 18 }}
-            >
-              {t('app.name', locale).toUpperCase()}
-            </Text>
-          </View>
-
           {step === 0 ? (
             <View className="gap-4">
               <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">

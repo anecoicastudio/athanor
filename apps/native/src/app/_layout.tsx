@@ -9,6 +9,7 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { isProfileComplete } from '@athanor/core';
 import { semantic } from '@athanor/config';
@@ -16,6 +17,9 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/BrandSplash';
 
 SplashScreen.preventAutoHideAsync();
+// Settles a dangling OAuth browser session on resume (required for the web target;
+// no-op on native). Must run at module load, not inside a component.
+WebBrowser.maybeCompleteAuthSession();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { session, profile, loading, flushing } = useAuth();
