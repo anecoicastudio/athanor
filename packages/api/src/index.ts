@@ -6,5 +6,7 @@ export * from './helps';
 export * from './aura';
 export * from './public-profile';
 export * from './posts';
+export * from './post-reactions';
+export * from './post-comments';
 export * from './waitlist';
 export type { Database, Json } from './database.types';

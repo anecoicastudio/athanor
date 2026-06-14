@@ -11,6 +11,8 @@ export const postKeys = {
   all: ['posts'] as const,
   feed: (category: PostCategory | 'all') => ['posts', 'feed', category] as const,
   detail: (id: string) => ['posts', 'detail', id] as const,
+  comments: (id: string) => ['posts', 'comments', id] as const,
+  reactions: (id: string) => ['posts', 'reactions', id] as const, // author-only count
 };
 
 /** Opaque keyset cursor — the last (created_at, id) the caller has seen. Never an offset. */

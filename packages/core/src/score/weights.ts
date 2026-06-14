@@ -10,6 +10,8 @@
 export const AURA_WEIGHTS = {
   /** Sharing a Community post (M3 feed). Displayed as `✦ +6 Aura` in the composer. */
   POST_CREATE: 6,
+  /** Posting a reply on a Community post (M3). Displayed as `✦ +2 Aura` in the reply input. */
+  COMMENT_CREATE: 2,
   /** Joining the Athanor Circle is never scored (rule #1). */
   CIRCLE_JOIN: 0,
   /** Contributing to Il Cuore (the fund) is never scored (rule #1). */

@@ -357,5 +357,17 @@
   "post.compose.auraHint": "+{n} Aura",
   "post.compose.error": "Scrivi qualcosa prima",
   "post.toast.published": "Pubblicato ✦",
+  "post.react.label": "Accendi una stella",
+  "post.react.lit": "Hai acceso questo passo ✦",
+  "post.react.a11y": "Accendi una stella per questo passo",
+  "post.react.a11yLit": "Stella accesa",
+  "post.author.reactions": "{n} hanno acceso una stella",
+  "comment.sectionLabel": "Risposte",
+  "comment.placeholder": "Aggiungi una risposta…",
+  "comment.reply": "Rispondi",
+  "comment.count": "{n} risposte",
+  "comment.empty": "Ancora nessuna risposta. Comincia tu.",
+  "comment.toast.posted": "Risposta pubblicata ✦",
+  "comment.error": "Non siamo riusciti a caricare le risposte.",
   "common.publish": "Pubblica"
 }
