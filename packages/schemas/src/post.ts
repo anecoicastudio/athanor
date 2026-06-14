@@ -23,8 +23,9 @@ export const postSchema = z.object({
 /** Shared write-path rule for post body: trim, then 1–5000 chars. */
 const postBodySchema = z.string().trim().min(1, 'post body must not be blank').max(5000);
 
-/** Authoring a post — text-only this slice; type defaults to 'text', tags optional. */
+/** Authoring a post — type defaults to 'text', tags optional. */
 export const postInsertSchema = postSchema.pick({ author_id: true, category: true }).extend({
+  type: postTypeSchema.default('text'),
   body: postBodySchema,
   is_step: z.boolean().default(false),
   tags: z.array(z.string()).max(8).default([]),

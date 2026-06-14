@@ -8,4 +8,6 @@ export * from './public-profile';
 export * from './post';
 export * from './post-reaction';
 export * from './post-comment';
+export * from './post-media';
+export * from './moment';
 export * from './waitlist';
