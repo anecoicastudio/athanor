@@ -63,7 +63,7 @@ export function MilestoneRow({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('milestone.a11y.kebab', locale)}
-            hitSlop={12}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
             onPress={() => setMenuOpen((v) => !v)}
           >
             <Text className="px-1 text-lg text-faint">⋯</Text>
@@ -76,7 +76,7 @@ export function MilestoneRow({
           {!done && onMarkDone ? (
             <Pressable
               accessibilityRole="button"
-              className="px-3 py-2"
+              className="min-h-[44px] justify-center px-3 py-2"
               onPress={() => {
                 setMenuOpen(false);
                 onMarkDone();
@@ -86,7 +86,11 @@ export function MilestoneRow({
             </Pressable>
           ) : null}
           {onDelete ? (
-            <Pressable accessibilityRole="button" className="px-3 py-2" onPress={confirmDelete}>
+            <Pressable
+              accessibilityRole="button"
+              className="min-h-[44px] justify-center px-3 py-2"
+              onPress={confirmDelete}
+            >
               <Text className="text-[15px] text-error">{t('milestone.delete', locale)}</Text>
             </Pressable>
           ) : null}
