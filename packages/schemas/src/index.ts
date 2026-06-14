@@ -6,4 +6,6 @@ export * from './onboarding';
 export * from './aura';
 export * from './public-profile';
 export * from './post';
+export * from './post-reaction';
+export * from './post-comment';
 export * from './waitlist';
