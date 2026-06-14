@@ -65,6 +65,9 @@ describe('milestones api', () => {
     expect(update?.arg).toHaveProperty('deleted_at');
     expect((update?.arg as { deleted_at: string }).deleted_at).toEqual(expect.any(String));
     expect(calls.some((c) => c.method === 'eq' && c.arg === 'id' && c.arg2 === MS)).toBe(true);
+    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
+      true,
+    );
   });
 
   it('listMilestones filters non-deleted and orders by the (position, created_at, id) keyset', async () => {

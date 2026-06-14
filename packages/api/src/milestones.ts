@@ -57,6 +57,7 @@ export async function softDeleteMilestone(client: AuriaClient, id: string): Prom
   const { error } = await client
     .from('dream_milestones')
     .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .is('deleted_at', null); // idempotent: double-delete is a no-op, not a re-stamp
   if (error) throw error;
 }
