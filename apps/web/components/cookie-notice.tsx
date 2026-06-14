@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { t } from '@athanor/i18n';
 import { useLocale } from '@/components/locale-provider';
 
@@ -40,9 +41,9 @@ export function CookieNotice() {
     <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-3 border-t border-border bg-background/95 px-6 py-4 text-center text-sm text-muted-foreground backdrop-blur sm:flex-row sm:justify-center">
       <p className="max-w-xl">
         {t('cookie.notice', locale)}{' '}
-        <a href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
           {t('legal.privacy', locale)}
-        </a>
+        </Link>
       </p>
       <button
         type="button"
