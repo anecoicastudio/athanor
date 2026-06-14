@@ -1,4 +1,4 @@
 {
-  "extends": "@auria/config/tsconfig/library.json",
+  "extends": "@athanor/config/tsconfig/library.json",
   "include": ["src"]
 }

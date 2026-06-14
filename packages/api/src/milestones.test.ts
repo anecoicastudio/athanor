@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AuriaClient } from './client';
+import type { AthanorClient } from './client';
 import {
   addMilestone,
   listMilestones,
@@ -31,7 +31,7 @@ function stub(rows: Array<Record<string, unknown>> = []) {
   };
   chain.then = (resolve: (v: { data: unknown; error: null }) => void) =>
     resolve({ data: rows, error: null });
-  const client = { from: () => chain } as unknown as AuriaClient;
+  const client = { from: () => chain } as unknown as AthanorClient;
   return { client, calls };
 }
 

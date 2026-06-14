@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { t } from '@auria/i18n';
+import { t } from '@athanor/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { MY_MOMENTS } from '@/types/moment';
 import { Pressable, ScrollView, Text, View } from '@/tw';

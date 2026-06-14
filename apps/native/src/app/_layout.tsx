@@ -10,8 +10,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { isProfileComplete } from '@auria/core';
-import { semantic } from '@auria/config';
+import { isProfileComplete } from '@athanor/core';
+import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/BrandSplash';
 

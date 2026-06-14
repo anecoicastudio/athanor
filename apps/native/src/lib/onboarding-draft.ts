@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Locale } from '@auria/schemas';
+import type { Locale } from '@athanor/schemas';
 
 /**
  * Pre-auth onboarding draft. The funnel (`(onboarding)/index.tsx`) now runs
@@ -8,7 +8,7 @@ import type { Locale } from '@auria/schemas';
  * here and flush to the profile after OTP (see `flush-onboarding.ts`). Survives
  * the OTP round-trip + app backgrounding because AsyncStorage is on disk.
  */
-const KEY = 'auria.onboarding.draft';
+const KEY = 'athanor.onboarding.draft';
 const VERSION = 1 as const;
 
 export type OnboardingDraft = {

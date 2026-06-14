@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from '@/tw';
-import { t } from '@auria/i18n';
-import type { Locale, Milestone } from '@auria/schemas';
+import { t } from '@athanor/i18n';
+import type { Locale, Milestone } from '@athanor/schemas';
 import { Button } from './Button';
 import { EmptyState } from './EmptyState';
 import { MilestoneRow } from './MilestoneRow';

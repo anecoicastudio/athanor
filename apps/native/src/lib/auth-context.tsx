@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { getOwnProfile } from '@auria/api';
-import { isProfileComplete } from '@auria/core';
-import type { Profile } from '@auria/schemas';
+import { getOwnProfile } from '@athanor/api';
+import { isProfileComplete } from '@athanor/core';
+import type { Profile } from '@athanor/schemas';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
 

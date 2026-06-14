@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Auria",
-    "slug": "auria",
+    "name": "Athanor",
+    "slug": "athanor",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "auria",
+    "scheme": "athanor",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0a0a1a",
     "ios": {

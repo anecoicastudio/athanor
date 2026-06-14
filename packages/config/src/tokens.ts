@@ -1,8 +1,8 @@
 /**
- * Auria design tokens — single source of truth for both Tailwind setups
+ * Athanor design tokens — single source of truth for both Tailwind setups
  * (web Tailwind 4 @theme, mobile NativeWind config). Never use literal hex
  * in app code; import from here. Semantic role names only — the palette
- * (AURIA Concept Document §18) is expressed through roles, not color names.
+ * (ATHANOR Concept Document §18) is expressed through roles, not color names.
  *
  * Brand rule (M0.5): `aura` (the cyan light, #2BD0D2) is the action + meaning
  * color — CTAs, send, the kairos ✦, live, countdown, lit stars. Reserve the
@@ -81,8 +81,8 @@ export const typography = {
   fontFamily: 'Hanken Grotesk',
   dreamRegister: 'Hanken Grotesk italic',
   weights: { light: 300, regular: 400, medium: 500, semibold: 600, bold: 700, heavy: 800 },
-  /** Display wordmark (letter-spaced). Plain "Auria" in body text and SEO. */
-  wordmark: 'A U R I A',
+  /** Display wordmark (letter-spaced). Plain "Athanor" in body text and SEO. */
+  wordmark: 'A T H A N O R',
 } as const;
 
 export type Semantic = typeof semantic;

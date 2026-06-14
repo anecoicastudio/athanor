@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { IDENTITY_TAGS, SEEKING_TAGS } from '@auria/core';
-import { t, type MessageKey } from '@auria/i18n';
+import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
+import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
@@ -106,7 +106,7 @@ export default function OnboardingScreen() {
         <StepBars count={3} current={step} />
       </View>
 
-      {/* Centre: mandorla glyph + «A U R I A» watermark behind the step content. */}
+      {/* Centre: mandorla glyph + «A T H A N O R» watermark behind the step content. */}
       <View className="grow justify-center">
         <View className="mb-8 items-center">
           <Mandorla size={80} glowLevel={0.5}>

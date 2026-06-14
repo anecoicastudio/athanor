@@ -1,8 +1,8 @@
-import { semantic } from '@auria/config';
+import { semantic } from '@athanor/config';
 
 /**
  * RN shadow for moment-grade cyan surfaces (rule #4 — glow = moments only).
- * `level` comes from @auria/core auraGlowLevel(score); 0 → no glow. Uses the
+ * `level` comes from @athanor/core auraGlowLevel(score); 0 → no glow. Uses the
  * `aura` token (not a literal hex). Foundation §3 recipe: 0 0 24px aura@.45.
  */
 export function auraGlow(level: number) {

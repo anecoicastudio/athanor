@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** The Six Stars, canonical PRD §4.10 order. Display names live in @auria/i18n
+/** The Six Stars, canonical PRD §4.10 order. Display names live in @athanor/i18n
  *  (star.*); these stable keys are the validation + storage identifiers. */
 export const STAR_KEYS = [
   'visionario',

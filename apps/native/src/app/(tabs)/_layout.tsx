@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
-import { t } from '@auria/i18n';
-import { semantic } from '@auria/config';
+import { t } from '@athanor/i18n';
+import { semantic } from '@athanor/config';
 
 export default function TabsLayout() {
   return (

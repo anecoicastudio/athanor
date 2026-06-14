@@ -1,6 +1,6 @@
-import { updateOnboardingProfileWithHandleFallback, upsertActiveDream } from '@auria/api';
-import { suggestHandle, validateOnboardingAnswers } from '@auria/core';
-import { onboardingAnswersSchema } from '@auria/schemas';
+import { updateOnboardingProfileWithHandleFallback, upsertActiveDream } from '@athanor/api';
+import { suggestHandle, validateOnboardingAnswers } from '@athanor/core';
+import { onboardingAnswersSchema } from '@athanor/schemas';
 import { supabase } from './supabase';
 import { clearDraft, hasDraftAnswers, loadDraft } from './onboarding-draft';
 

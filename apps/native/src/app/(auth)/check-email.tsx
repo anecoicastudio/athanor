@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { t } from '@auria/i18n';
-import { semantic } from '@auria/config';
+import { t } from '@athanor/i18n';
+import { semantic } from '@athanor/config';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
 import { supabase } from '@/lib/supabase';

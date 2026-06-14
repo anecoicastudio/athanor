@@ -1,5 +1,5 @@
 import Svg, { Path, Circle, Line } from 'react-native-svg';
-import { semantic } from '@auria/config';
+import { semantic } from '@athanor/config';
 
 /**
  * Minimal line-icon subset for the Home header (search / messages / notifiche).

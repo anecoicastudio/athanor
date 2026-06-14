@@ -1,5 +1,5 @@
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
+import { t } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import { View } from '@/tw';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';

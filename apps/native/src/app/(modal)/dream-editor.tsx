@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { getActiveDream, upsertActiveDream } from '@auria/api';
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
+import { getActiveDream, upsertActiveDream } from '@athanor/api';
+import { t } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 /**
  * Dream editor (M2, frontend `02` §3.2) — create-or-edit the single active dream.
  * Full-screen modal (the project's sheet convention is (modal)/* routes). Writes
- * only dreams.text via upsertActiveDream; never Aura (rule #1). Copy via @auria/i18n.
+ * only dreams.text via upsertActiveDream; never Aura (rule #1). Copy via @athanor/i18n.
  * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function DreamEditorScreen() {

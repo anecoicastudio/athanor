@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { semantic } from '@auria/config';
+import { semantic } from '@athanor/config';
 import { View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
 

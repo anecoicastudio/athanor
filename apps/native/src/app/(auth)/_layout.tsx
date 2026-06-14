@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { semantic } from '@auria/config';
+import { semantic } from '@athanor/config';
 
 export default function AuthLayout() {
   return (

@@ -2,7 +2,7 @@
  * Time-of-day greeting bucket for the Home header («Buongiorno» / «Buon
  * pomeriggio» / «Buonasera»). Pure — the caller injects the hour (app layer
  * reads the clock); core never touches `Date.now()` (core.md rule). The string
- * itself is resolved via `@auria/i18n` `home.greeting.*` at the call site.
+ * itself is resolved via `@athanor/i18n` `home.greeting.*` at the call site.
  */
 export type Greeting = 'morning' | 'afternoon' | 'evening';
 

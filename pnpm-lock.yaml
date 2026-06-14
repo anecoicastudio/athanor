@@ -21,19 +21,19 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@auria/api':
+      '@athanor/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@auria/config':
+      '@athanor/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@auria/core':
+      '@athanor/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@auria/i18n':
+      '@athanor/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
-      '@auria/schemas':
+      '@athanor/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
       '@expo-google-fonts/hanken-grotesk':
@@ -148,10 +148,10 @@ importers:
 
   apps/web:
     dependencies:
-      '@auria/config':
+      '@athanor/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@auria/i18n':
+      '@athanor/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
       '@gsap/react':
@@ -221,7 +221,7 @@ importers:
 
   packages/api:
     dependencies:
-      '@auria/schemas':
+      '@athanor/schemas':
         specifier: workspace:*
         version: link:../schemas
       '@supabase/supabase-js':
@@ -234,7 +234,7 @@ importers:
         specifier: '*'
         version: 19.2.7
     devDependencies:
-      '@auria/config':
+      '@athanor/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -252,11 +252,11 @@ importers:
 
   packages/core:
     dependencies:
-      '@auria/schemas':
+      '@athanor/schemas':
         specifier: workspace:*
         version: link:../schemas
     devDependencies:
-      '@auria/config':
+      '@athanor/config':
         specifier: workspace:*
         version: link:../config
       '@vitest/coverage-v8':
@@ -271,7 +271,7 @@ importers:
 
   packages/i18n:
     devDependencies:
-      '@auria/config':
+      '@athanor/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -287,7 +287,7 @@ importers:
         specifier: ^3.24.2
         version: 3.25.76
     devDependencies:
-      '@auria/config':
+      '@athanor/config':
         specifier: workspace:*
         version: link:../config
       typescript:
