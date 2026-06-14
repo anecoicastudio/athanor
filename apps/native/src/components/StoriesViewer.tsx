@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { type Locale, t } from '@athanor/i18n';
-import type { StorySegment } from '@athanor/schemas';
+import { t } from '@athanor/i18n';
+import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 
 const { width: SCREEN_W } = Dimensions.get('window');

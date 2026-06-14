@@ -1,4 +1,5 @@
-import { type Locale, t } from '@athanor/i18n';
+import { t } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import { Avatar } from '@/components/Avatar';
 import { Pressable, Text, View } from '@/tw';
 
