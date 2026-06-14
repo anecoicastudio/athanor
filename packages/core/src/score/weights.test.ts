@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
 import { AURA_WEIGHTS } from './weights';
 
 describe('AURA_WEIGHTS', () => {
@@ -16,5 +16,9 @@ describe('AURA_WEIGHTS', () => {
 
   test('a posted comment is worth +2 Aura (compose-hint source, M6 award)', () => {
     expect(AURA_WEIGHTS.COMMENT_CREATE).toBe(2);
+  });
+
+  it('STORY_REACT is the display-only celebration hint (4)', () => {
+    expect(AURA_WEIGHTS.STORY_REACT).toBe(4);
   });
 });
