@@ -3,6 +3,7 @@ import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { Post } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { PostMedia } from '@/components/feed/PostMedia';
 
 /**
  * One feed post (frontend §3.1). Author row + body + category + optional step flag +
@@ -26,6 +27,13 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
           <Text className="text-[12px] text-aura">✦ {t('feed.flag.step', locale)}</Text>
         ) : null}
         <Text className="text-[15px] leading-6 text-foreground">{post.body}</Text>
+        <PostMedia
+          postId={post.id}
+          postType={post.type}
+          variant="card"
+          locale={locale}
+          onPress={openDetail}
+        />
       </Pressable>
 
       {/* Meta row — ✦ affordance + open-thread cue; both open the detail. No public count. */}
