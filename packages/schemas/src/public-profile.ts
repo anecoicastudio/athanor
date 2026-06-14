@@ -14,9 +14,10 @@ export const publicMilestoneSchema = z.object({
 
 /**
  * The public-@handle read-model contract (frontend 02 §6). Assembled by
- * @athanor/api from visibility-gated anon reads; bio is null unless the bio
- * section is public; dream is null unless the dream section is public.
- * Mobile PersonDetail and the web @handle page share this shape.
+ * @athanor/api from visibility-gated anon reads; `dream` is null unless the dream
+ * section is public. `bio` is nullable and currently always null on the anon path
+ * (members/private columns aren't granted to anon — public bio is deferred to an
+ * M9 SECURITY DEFINER RPC). Mobile PersonDetail and the web @handle page share this shape.
  */
 export const publicProfileSchema = z.object({
   handle: handleSchema,
