@@ -66,6 +66,10 @@ select throws_ok(
   $$ update public.dreams set text = 'x' $$,
   '42501', null, 'anon cannot update dreams'
 );
+select throws_ok(
+  $$ delete from public.dreams $$,
+  '42501', null, 'anon cannot delete dreams'
+);
 reset role;
 
 -- ===== policies present =====
