@@ -7,7 +7,7 @@ import { t } from '@athanor/i18n';
 import { MandorlaMark } from '@/components/mandorla-mark';
 import { KairosStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
-import { StoreBadges } from '@/components/store-badges';
+import { WaitlistForm } from '@/components/waitlist-form';
 import { ChapterSpine, type Chapter } from '@/components/chapter-spine';
 import { DeviceMockup } from '@/components/device-mockup';
 import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
@@ -149,7 +149,7 @@ export default function Home() {
           <p className="max-w-md text-base text-muted-foreground md:text-lg">
             {t('landing.hero.subhead', L)}
           </p>
-          <StoreBadges className="mt-2" locale={L} />
+          <WaitlistForm className="mt-2" locale={L} source="landing-hero" />
         </Reveal>
       </section>
 
@@ -327,7 +327,7 @@ export default function Home() {
               <p className="mt-5 max-w-sm text-base leading-relaxed text-muted-foreground md:text-lg">
                 {t('landing.preview.caption', L)}
               </p>
-              <StoreBadges className="mt-10 md:justify-start" locale={L} />
+              <WaitlistForm className="mt-10" locale={L} source="landing-footer" />
               <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 {t('landing.download.founders', L)}
               </p>
