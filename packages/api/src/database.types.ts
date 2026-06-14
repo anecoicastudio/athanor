@@ -172,6 +172,53 @@ export type Database = {
           },
         ]
       }
+      posts: {
+        Row: {
+          author_id: string
+          body: string
+          category: Database["public"]["Enums"]["post_category"]
+          created_at: string
+          deleted_at: string | null
+          id: string
+          is_step: boolean
+          tags: string[]
+          type: Database["public"]["Enums"]["post_type"]
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          category: Database["public"]["Enums"]["post_category"]
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_step?: boolean
+          tags?: string[]
+          type?: Database["public"]["Enums"]["post_type"]
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          category?: Database["public"]["Enums"]["post_category"]
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_step?: boolean
+          tags?: string[]
+          type?: Database["public"]["Enums"]["post_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           bio: string | null
@@ -227,6 +274,8 @@ export type Database = {
       help_status: "offered" | "accepted" | "declined" | "completed"
       help_type: "skill" | "connection" | "opportunity"
       milestone_status: "open" | "in_progress" | "done"
+      post_category: "business" | "human" | "creative" | "evolution"
+      post_type: "text" | "image" | "video" | "audio"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -360,6 +409,8 @@ export const Constants = {
       help_status: ["offered", "accepted", "declined", "completed"],
       help_type: ["skill", "connection", "opportunity"],
       milestone_status: ["open", "in_progress", "done"],
+      post_category: ["business", "human", "creative", "evolution"],
+      post_type: ["text", "image", "video", "audio"],
     },
   },
 } as const

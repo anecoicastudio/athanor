@@ -5,3 +5,4 @@ export * from './help';
 export * from './onboarding';
 export * from './aura';
 export * from './public-profile';
+export * from './post';
