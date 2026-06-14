@@ -50,29 +50,18 @@ export async function respondToHelp(
 }
 
 /**
- * Owner confirms a help is done: help status accepted->completed, then the tappa -> done.
- * Both are owner-allowed writes; this is the +40 (helper) / +10 (owner) domain event the
- * M6 engine reads. Writes NO aura_* (rule #1).
+ * Owner confirms a help is done. Delegates to the `confirm_milestone_help` RPC, which sets
+ * the help status accepted->completed AND the parent tappa -> done in ONE transaction (atomic —
+ * the two states can never diverge). The RPC is SECURITY INVOKER, so the owner-only RLS + the
+ * legal-edge guard still apply, and it derives the tappa from the help so no mismatched
+ * milestone id is possible. This is the +40 (helper) / +10 (owner) domain event the M6 engine
+ * reads. Writes NO aura_* (rule #1).
  * TODO(M6): score-engine (backend `07`) consumes status='completed' + milestone='done'
  * and awards +40 helper / +10 owner + star progress (service-role only).
  */
-export async function confirmHelpComplete(
-  client: AthanorClient,
-  helpId: string,
-  milestoneId: string,
-): Promise<void> {
-  const { error: helpErr } = await client
-    .from('milestone_helps')
-    .update({ status: 'completed' })
-    .eq('id', helpId)
-    .is('deleted_at', null);
-  if (helpErr) throw helpErr;
-  const { error: msErr } = await client
-    .from('dream_milestones')
-    .update({ status: 'done' })
-    .eq('id', milestoneId)
-    .is('deleted_at', null);
-  if (msErr) throw msErr;
+export async function confirmHelpComplete(client: AthanorClient, helpId: string): Promise<void> {
+  const { error } = await client.rpc('confirm_milestone_help', { p_help_id: helpId });
+  if (error) throw error;
 }
 
 /** Incoming offers on my dream (owner-confirm surface). Newest first by the keyset index. */

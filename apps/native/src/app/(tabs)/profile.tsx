@@ -291,7 +291,7 @@ function ProfileEditor({
   };
 
   // Owner confirms the help is done — the +40/+10 domain event. Writes NO aura_* (rule #1):
-  // confirmHelpComplete only touches milestone_helps + dream_milestones; the M6 engine scores.
+  // the confirm_milestone_help RPC atomically flips milestone_helps + dream_milestones; M6 scores.
   const handleConfirmHelp = async (helpId: string, milestoneId: string) => {
     setMutatingHelpId(helpId);
     setFlashMilestoneId(milestoneId);
@@ -303,7 +303,7 @@ function ProfileEditor({
       prev.map((h) => (h.id === helpId ? { ...h, status: 'completed' as const } : h)),
     );
     try {
-      await confirmHelpComplete(supabase, helpId, milestoneId);
+      await confirmHelpComplete(supabase, helpId);
       await refetchMilestones();
     } catch {
       await refetchMilestones();

@@ -213,6 +213,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_milestone_help: {
+        Args: { p_help_id: string }
+        Returns: undefined
+      }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
         Args: { p_milestone_id: string }
