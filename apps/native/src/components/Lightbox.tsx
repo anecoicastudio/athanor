@@ -1,4 +1,5 @@
-import { Modal } from 'react-native';
+import { Image, Modal, StyleSheet } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
@@ -6,17 +7,20 @@ import { Pressable, Text, View } from '@/tw';
 
 /**
  * Fullscreen Momento viewer (frontend `01` §3.6). Opened from the Profilo
- * gallery or the full grid. M1 frame-only: built + typed, but a real new user
- * has no momenti so it stays closed; M3 supplies media + video playback.
+ * gallery or the full grid. Renders the live media for the current item from
+ * signed URLs (`urls`, path→url): a cover photo or a real `expo-video` player.
  */
 export function Lightbox({
   moments,
+  urls,
   index,
   locale,
   onClose,
   onIndexChange,
 }: {
   moments: Moment[];
+  /** Signed URLs by storage path (from `useSignedUrls('moments', …)`). */
+  urls: Record<string, string>;
   index: number | null;
   locale: Locale;
   onClose: () => void;
@@ -24,6 +28,7 @@ export function Lightbox({
 }) {
   const open = index !== null && index >= 0 && index < moments.length;
   const current = open ? moments[index] : null;
+  const currentUrl = current ? urls[current.media_path] : undefined;
 
   const step = () => {
     if (index === null || moments.length === 0) return;
@@ -50,10 +55,20 @@ export function Lightbox({
         {/* lb-stage — tap → next */}
         <Pressable className="flex-1 items-center justify-center px-5" onPress={step}>
           <View className="aspect-[4/5] w-full justify-end overflow-hidden rounded-card bg-raise">
-            {current?.type === 'video' ? (
-              <View className="absolute inset-0 items-center justify-center">
-                <Text className="text-4xl text-foreground">▶</Text>
-              </View>
+            {current?.kind === 'video' ? (
+              currentUrl ? (
+                <LightboxVideo key={current.id} uri={currentUrl} />
+              ) : (
+                <View className="absolute inset-0 items-center justify-center">
+                  <Text className="text-4xl text-foreground">▶</Text>
+                </View>
+              )
+            ) : currentUrl ? (
+              <Image
+                source={{ uri: currentUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
             ) : null}
           </View>
         </Pressable>
@@ -79,4 +94,18 @@ export function Lightbox({
       </View>
     </Modal>
   );
+}
+
+/**
+ * Real video playback for the current Momento. A child component so the
+ * `useVideoPlayer` hook never sits behind the photo/video conditional in
+ * `Lightbox` (hooks rules) — it mounts only when a video is shown, and a fresh
+ * instance per `uri` (keyed by the caller) owns its own player.
+ */
+function LightboxVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.play();
+  });
+  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />;
 }
