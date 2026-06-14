@@ -1,7 +1,7 @@
 /**
  * Curated onboarding vocabularies (PRD §4.1). Keys are stable identifiers
  * stored in profiles.identity_tags / profiles.seeking; display labels live
- * in @auria/i18n (tag.identity.* / tag.seeking.*). The Momenti matcher
+ * in @athanor/i18n (tag.identity.* / tag.seeking.*). The Momenti matcher
  * (PRD §4.7) compares these same keys across users — do not free-text.
  */
 export const IDENTITY_TAGS = [

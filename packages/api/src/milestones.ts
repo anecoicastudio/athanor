@@ -5,8 +5,8 @@ import {
   milestoneInsertSchema,
   milestoneSchema,
   milestoneStatusUpdateSchema,
-} from '@auria/schemas';
-import type { AuriaClient } from './client';
+} from '@athanor/schemas';
+import type { AthanorClient } from './client';
 
 export const milestoneKeys = {
   all: ['milestones'] as const,
@@ -14,7 +14,7 @@ export const milestoneKeys = {
 };
 
 /** Tappe of a dream, oldest-first by the (position, created_at, id) keyset (rule #9: never offset). */
-export async function listMilestones(client: AuriaClient, dreamId: string): Promise<Milestone[]> {
+export async function listMilestones(client: AthanorClient, dreamId: string): Promise<Milestone[]> {
   const { data, error } = await client
     .from('dream_milestones')
     .select('*')
@@ -28,7 +28,7 @@ export async function listMilestones(client: AuriaClient, dreamId: string): Prom
 }
 
 /** Owner adds a tappa (RLS enforces owns_dream; status/position default server-side). */
-export async function addMilestone(client: AuriaClient, insert: MilestoneInsert): Promise<void> {
+export async function addMilestone(client: AthanorClient, insert: MilestoneInsert): Promise<void> {
   const payload = milestoneInsertSchema.parse(insert);
   const { error } = await client.from('dream_milestones').insert(payload);
   if (error) throw error;
@@ -41,7 +41,7 @@ export async function addMilestone(client: AuriaClient, insert: MilestoneInsert)
  * transition and award the +10 + «Creatore» star progress (service-role only).
  */
 export async function updateMilestoneStatus(
-  client: AuriaClient,
+  client: AthanorClient,
   id: string,
   status: MilestoneStatus,
 ): Promise<void> {
@@ -55,7 +55,7 @@ export async function updateMilestoneStatus(
 }
 
 /** Soft-delete a tappa (owner UPDATE policy covers it; no hard delete). */
-export async function softDeleteMilestone(client: AuriaClient, id: string): Promise<void> {
+export async function softDeleteMilestone(client: AthanorClient, id: string): Promise<void> {
   const { error } = await client
     .from('dream_milestones')
     .update({ deleted_at: new Date().toISOString() })

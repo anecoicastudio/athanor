@@ -4,15 +4,15 @@ import {
   type DreamInsert,
   dreamSchema,
   dreamUpdateSchema,
-} from '@auria/schemas';
-import type { AuriaClient } from './client';
+} from '@athanor/schemas';
+import type { AthanorClient } from './client';
 
 export const dreamKeys = {
   all: ['dreams'] as const,
   byProfile: (profileId: string) => ['dreams', 'profile', profileId] as const,
 };
 
-export async function createDream(client: AuriaClient, insert: DreamInsert): Promise<void> {
+export async function createDream(client: AthanorClient, insert: DreamInsert): Promise<void> {
   const payload = dreamInsertSchema.parse(insert);
   const { error } = await client.from('dreams').insert(payload);
   if (error) throw error;
@@ -20,7 +20,7 @@ export async function createDream(client: AuriaClient, insert: DreamInsert): Pro
 
 /** The single active dream (PRD §4.3: one active per profile). Null when none planted yet. */
 export async function getActiveDream(
-  client: AuriaClient,
+  client: AthanorClient,
   profileId: string,
 ): Promise<Dream | null> {
   const { data, error } = await client
@@ -41,7 +41,7 @@ export async function getActiveDream(
  * inserts a new active dream. Never touches Aura (rule #1).
  */
 export async function upsertActiveDream(
-  client: AuriaClient,
+  client: AthanorClient,
   profileId: string,
   rawText: string,
 ): Promise<void> {

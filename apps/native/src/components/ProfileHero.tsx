@@ -1,6 +1,6 @@
 import { Text, View } from '@/tw';
-import { auraGlowLevel } from '@auria/core';
-import type { Locale } from '@auria/schemas';
+import { auraGlowLevel } from '@athanor/core';
+import type { Locale } from '@athanor/schemas';
 import { Avatar } from './Avatar';
 import { AuraBlock } from './AuraBlock';
 import { Mandorla } from './Mandorla';

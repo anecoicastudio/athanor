@@ -3,7 +3,7 @@
 @import 'tailwindcss/utilities.css';
 
 /*
- * Auria brand tokens — values mirror packages/config/src/tokens.ts.
+ * Athanor brand tokens — values mirror packages/config/src/tokens.ts.
  * Update both together.
  * aura (the cyan light, --color-aura) is the action + meaning color; reserve
  * the glow for moment-grade events (Momento, lit star, dream helped, match).

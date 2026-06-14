@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AuriaClient } from './client';
+import type { AthanorClient } from './client';
 import { dreamKeys, upsertActiveDream } from './dreams';
 
 const UUID = '00000000-0000-0000-0000-0000000000a1';
@@ -23,7 +23,7 @@ function stub(existing: Record<string, unknown> | null) {
   chain.maybeSingle = async () => ({ data: existing, error: null });
   chain.then = (resolve: (v: { error: null }) => void) => resolve({ error: null });
   // SupabaseClient is a deep generic the stub can't satisfy structurally — cast is test-only.
-  const client = { from: () => chain } as unknown as AuriaClient;
+  const client = { from: () => chain } as unknown as AthanorClient;
   return { client, calls };
 }
 

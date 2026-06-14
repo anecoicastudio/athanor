@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
-import { mandorla, semantic } from '@auria/config';
+import { t } from '@athanor/i18n';
+import { mandorla, semantic } from '@athanor/config';
 import { Text } from '@/tw';
+import { deviceLocale } from '@/lib/locale';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -14,17 +14,11 @@ const DASH = 240;
 const SIZE = 112;
 const LENS = 'M50 24 A30 30 0 0 1 50 76 A30 30 0 0 1 50 24 Z';
 
-const deviceLocale: Locale = (Intl.DateTimeFormat().resolvedOptions().locale ?? 'it').startsWith(
-  'en',
-)
-  ? 'en'
-  : 'it';
-
 /**
- * Branded JS splash (prototype §9 / auria-prototype.html) shown after fonts
+ * Branded JS splash (prototype §9 / athanor-prototype.html) shown after fonts
  * load, over the routed Stack. The two-circle vesica + lens **draw** via animated
  * strokeDashoffset (circles 0→1.6s, lens 0.5→2.1s), the spark pops (1.5s), and
- * the «A U R I A» wordmark + tagline fade up — ~2.7s, then an 0.8s fade-out →
+ * the «A T H A N O R» wordmark + tagline fade up — ~2.7s, then an 0.8s fade-out →
  * onDone. Honors reduced motion (static finished mark, brief hold). The native
  * `expo-splash-screen` covers the pre-JS frame; this is the brand beat after it.
  */

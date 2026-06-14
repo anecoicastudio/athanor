@@ -1,5 +1,5 @@
-import { ZERO_AURA_SNAPSHOT, type AuraSnapshot } from '@auria/schemas';
-import type { AuriaClient } from './client';
+import { ZERO_AURA_SNAPSHOT, type AuraSnapshot } from '@athanor/schemas';
+import type { AthanorClient } from './client';
 
 /** Query-key factory for the read-only Aura snapshot (api rule: per-entity). */
 export const auraKeys = {
@@ -16,7 +16,7 @@ export const auraKeys = {
  * client-writable (rule #1) — there is no mutation counterpart here.
  */
 export async function getAuraScore(
-  _client: AuriaClient,
+  _client: AthanorClient,
   _profileId: string,
 ): Promise<AuraSnapshot> {
   return ZERO_AURA_SNAPSHOT;

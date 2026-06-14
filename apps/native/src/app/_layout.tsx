@@ -9,31 +9,45 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { isProfileComplete } from '@auria/core';
-import { semantic } from '@auria/config';
+import { isProfileComplete } from '@athanor/core';
+import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/BrandSplash';
 
 SplashScreen.preventAutoHideAsync();
+// Settles a dangling OAuth browser session on resume (required for the web target;
+// no-op on native). Must run at module load, not inside a component.
+WebBrowser.maybeCompleteAuthSession();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, flushing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    // Hold position during the initial session read and while the pre-auth
+    // onboarding draft is being flushed (prevents a funnel flash post-OTP).
+    if (loading || flushing) return;
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
-    if (!session && !inAuth) {
-      router.replace('/(auth)/welcome');
-    } else if (session && profile && !isProfileComplete(profile) && !inOnboarding) {
-      router.replace('/(onboarding)');
-    } else if (session && profile && isProfileComplete(profile) && (inAuth || inOnboarding)) {
-      router.replace('/');
+
+    if (!session) {
+      // Unauth: start in the onboarding funnel (prototype order — questions first).
+      // The funnel's final step, and its «Accedi» link, route on to (auth)/welcome.
+      if (!inAuth && !inOnboarding) router.replace('/(onboarding)');
+      return;
     }
-  }, [loading, session, profile, segments, router]);
+    if (!profile) return; // profile still hydrating
+
+    if (isProfileComplete(profile)) {
+      if (inAuth || inOnboarding) router.replace('/');
+    } else if (!inOnboarding) {
+      // Authed but incomplete with no draft to flush (e.g. login on a new device).
+      router.replace('/(onboarding)');
+    }
+  }, [loading, flushing, session, profile, segments, router]);
 
   if (loading) {
     return null;

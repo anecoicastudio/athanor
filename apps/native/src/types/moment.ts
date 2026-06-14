@@ -6,7 +6,7 @@
  * the backend PRD suite, and the Foundation `sheet-media` picker is unbuilt).
  * See docs/MILESTONES.md → M1 `own-momenti-gallery` decision (frame-only).
  *
- * M3 replaces this module with `@auria/schemas` `Moment` +
+ * M3 replaces this module with `@athanor/schemas` `Moment` +
  * `useQuery(momentKeys.list(uid))` (cursor-paginated, never offset —
  * `.claude/rules/api.md`) and a Storage-backed create. Until then a real new
  * user has zero momenti — the gallery/grid render their empty states.

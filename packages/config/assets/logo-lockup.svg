@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 330" fill="none">
-  <!-- Auria — full lockup: mark + wordmark + tagline. For dark surfaces. -->
+  <!-- Athanor — full lockup: mark + wordmark + tagline. For dark surfaces. -->
   <defs>
     <linearGradient id="mandala" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#7D236E"/>
@@ -18,7 +18,7 @@
   </g>
   <text x="206" y="245" text-anchor="middle" fill="#ECEEF6"
         font-family="'Hanken Grotesk', Inter, 'Helvetica Neue', Arial, sans-serif" font-size="40"
-        font-weight="400" letter-spacing="14">AURIA</text>
+        font-weight="400" letter-spacing="14">ATHANOR</text>
   <text x="200" y="280" text-anchor="middle" fill="#9A9DB5"
         font-family="'Hanken Grotesk', Inter, 'Helvetica Neue', Arial, sans-serif" font-size="13"
         font-weight="400" letter-spacing="1">dove ogni incontro si accende</text>

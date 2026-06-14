@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { getAuraScore, updateProfile } from '@auria/api';
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
+import { getAuraScore, updateProfile } from '@athanor/api';
+import { t } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Chip } from '@/components/Chip';

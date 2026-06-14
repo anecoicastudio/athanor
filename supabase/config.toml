@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "auria-app"
+project_id = "athanor-app"
 
 [api]
 enabled = true
@@ -244,7 +244,7 @@ otp_expiry = 3600
 # mobile app verifies it with verifyOtp({ email, token, type: 'email' }).
 # No magic-link redirect — the web app is a static landing with no auth.
 [auth.email.template.magic_link]
-subject = "Il tuo varco per Auria"
+subject = "Il tuo varco per Athanor"
 content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize notification email template

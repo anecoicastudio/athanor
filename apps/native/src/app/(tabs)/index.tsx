@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { getAuraScore } from '@auria/api';
-import { greetingFor } from '@auria/core';
-import { t, type MessageKey } from '@auria/i18n';
-import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@auria/schemas';
+import { getAuraScore } from '@athanor/api';
+import { greetingFor } from '@athanor/core';
+import { t, type MessageKey } from '@athanor/i18n';
+import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { HomeHeader } from '@/components/home/HomeHeader';

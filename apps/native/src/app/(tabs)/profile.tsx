@@ -8,16 +8,16 @@ import {
   softDeleteMilestone,
   updateMilestoneStatus,
   updateProfile,
-} from '@auria/api';
-import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@auria/core';
-import { t, type MessageKey } from '@auria/i18n';
+} from '@athanor/api';
+import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@athanor/core';
+import { t, type MessageKey } from '@athanor/i18n';
 import {
   type AuraSnapshot,
   type Milestone,
   ZERO_AURA_SNAPSHOT,
   type Locale,
   type Profile,
-} from '@auria/schemas';
+} from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';

@@ -1,6 +1,6 @@
 import { Modal } from 'react-native';
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
+import { t } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
 import { Pressable, Text, View } from '@/tw';
 

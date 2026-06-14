@@ -1,6 +1,6 @@
 import { Text, View } from '@/tw';
-import { t, type MessageKey } from '@auria/i18n';
-import { STAR_KEYS, type AuraSnapshot, type Locale } from '@auria/schemas';
+import { t, type MessageKey } from '@athanor/i18n';
+import { STAR_KEYS, type AuraSnapshot, type Locale } from '@athanor/schemas';
 
 export function SixStarsGrid({ stars, locale }: { stars: AuraSnapshot['stars']; locale: Locale }) {
   return (

@@ -1,5 +1,5 @@
-import { t } from '@auria/i18n';
-import type { Locale } from '@auria/schemas';
+import { t } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { BellIcon, MessageIcon, SearchIcon } from './icons';
 
