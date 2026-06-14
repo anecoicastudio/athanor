@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(11);
+select plan(15);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -16,6 +16,7 @@ values
 select has_type('public', 'post_category', 'post_category enum exists');
 select has_type('public', 'post_type', 'post_type enum exists');
 select has_table('public', 'posts', 'posts table exists');
+select has_column('public', 'posts', 'body', 'posts.body exists');
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.posts'::regclass),
   'RLS enabled on posts'
@@ -46,6 +47,29 @@ select throws_ok(
      values ('11111111-1111-1111-1111-111111111111', 'human', 'Spacciato per A') $$,
   '42501', null, 'cannot insert a post as another author'
 );
+
+-- CHECK constraints (23514): blank body, over-5000-char body, over-8 tags
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select throws_ok(
+  $$ insert into public.posts (author_id, category, body)
+     values ('11111111-1111-1111-1111-111111111111', 'human', '   ') $$,
+  '23514', null, 'blank post body rejected'
+);
+select throws_ok(
+  format(
+    $$ insert into public.posts (author_id, category, body)
+       values ('11111111-1111-1111-1111-111111111111', 'human', %L) $$,
+    repeat('x', 5001)
+  ),
+  '23514', null, 'over-5000-char post body rejected'
+);
+select throws_ok(
+  $$ insert into public.posts (author_id, category, body, tags)
+     values ('11111111-1111-1111-1111-111111111111', 'human', 'Con troppi tag',
+             array['1','2','3','4','5','6','7','8','9']) $$,
+  '23514', null, 'over-8 tags rejected'
+);
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
 -- member B reads A's live post (members-wide select)
 select results_eq(
