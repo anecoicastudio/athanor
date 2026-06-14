@@ -11,10 +11,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { isProfileComplete } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/BrandSplash';
+import { asyncStoragePersister, queryClient } from '@/lib/query-client';
 
 SplashScreen.preventAutoHideAsync();
 // Settles a dangling OAuth browser session on resume (required for the web target;
@@ -79,22 +81,27 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="light" />
-      <AuthGuard>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: semantic.background },
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(onboarding)" />
-          <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
-        </Stack>
-      </AuthGuard>
-      {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
-      {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister }}
+      >
+        <StatusBar style="light" />
+        <AuthGuard>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: semantic.background },
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(onboarding)" />
+            <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
+          </Stack>
+        </AuthGuard>
+        {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
+        {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
+      </PersistQueryClientProvider>
     </AuthProvider>
   );
 }
