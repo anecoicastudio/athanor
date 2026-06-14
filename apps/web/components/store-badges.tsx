@@ -1,6 +1,10 @@
 import { t, type Locale } from '@athanor/i18n';
 
 /**
+ * NOTE: currently unused — the landing CTA is `WaitlistForm` (pre-launch capture).
+ * Retained intentionally: at launch, swap the waitlist for these badges wired to
+ * the real App Store / Play URLs (one-line change here).
+ *
  * Download CTAs — App Store + Google Play, in the standard two-line badge
  * layout (small lead line + store name + brand glyph). Monochrome on a dark
  * hairline pill to stay on-brand («calma ma potente», DESIGN.md §6 thin-line) —
