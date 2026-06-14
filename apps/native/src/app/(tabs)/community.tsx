@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -16,7 +16,7 @@ import { supabase } from '@/lib/supabase';
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
 
 export default function CommunityScreen() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [hasNew, setHasNew] = useState(false);
@@ -30,14 +30,23 @@ export default function CommunityScreen() {
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  // Realtime: surface a "Nuovi passi ›" banner when a fresh post arrives.
-  // subscribeNewPosts returns its cleanup (rule api.md) — run it on unmount.
-  useEffect(() => {
-    const unsubscribe = subscribeNewPosts(supabase, () => setHasNew(true));
-    return unsubscribe;
-  }, []);
-
   const posts = query.data?.pages.flatMap((p) => p.posts) ?? [];
+
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+  const myId = session?.user.id;
+
+  // Realtime: "Nuovi passi ›" banner — skip your own posts and posts outside the
+  // active category (deferred refinement). subscribeNewPosts returns its cleanup.
+  useEffect(() => {
+    const unsubscribe = subscribeNewPosts(supabase, (post) => {
+      if (myId && post.author_id === myId) return;
+      const active = filterRef.current;
+      if (active !== 'all' && post.category !== active) return;
+      setHasNew(true);
+    });
+    return unsubscribe;
+  }, [myId]);
 
   const onRefresh = () => {
     setHasNew(false);
