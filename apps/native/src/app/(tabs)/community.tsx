@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { type FeedCursor, getFeedPage, postKeys, subscribeNewPosts } from '@athanor/api';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import {
+  type FeedCursor,
+  getFeedPage,
+  getStoryRail,
+  postKeys,
+  storyKeys,
+  subscribeNewPosts,
+  subscribeNewStories,
+} from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
@@ -10,6 +18,7 @@ import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { EmptyState } from '@/components/EmptyState';
+import { StoryRail } from '@/components/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -47,6 +56,31 @@ export default function CommunityScreen() {
     });
     return unsubscribe;
   }, [myId]);
+
+  const railQuery = useQuery({
+    queryKey: storyKeys.rail(),
+    queryFn: () => getStoryRail(supabase),
+  });
+  const [seenIds] = useState<Set<string>>(() => new Set());
+
+  // Realtime: a new story segment → refresh the rail (skip your own insert).
+  useEffect(() => {
+    const unsubscribe = subscribeNewStories(supabase, (seg) => {
+      if (myId && seg.author_id === myId) return;
+      void railQuery.refetch();
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myId]);
+
+  const openPerson = (authorId: string) => {
+    const handle =
+      authorId === 'me'
+        ? (profile?.handle ?? '')
+        : (railQuery.data?.find((p) => p.author_id === authorId)?.handle ?? '');
+    if (authorId !== 'me') seenIds.add(authorId);
+    router.push({ pathname: '/(modal)/stories', params: { authorId, handle } });
+  };
 
   const onRefresh = () => {
     setHasNew(false);
@@ -99,6 +133,16 @@ export default function CommunityScreen() {
               </Text>
             </Pressable>
             <CategoryTabs active={filter} onChange={setFilter} locale={locale} />
+            {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
+              <StoryRail
+                you={{ handle: profile?.handle ?? null, hasStory: false }}
+                people={railQuery.data ?? []}
+                seenIds={seenIds}
+                locale={locale}
+                onOpenPerson={openPerson}
+                onAddYours={() => router.push(COMPOSE_HREF)}
+              />
+            ) : null}
             {hasNew ? (
               <Pressable
                 className="mx-5 items-center rounded-ctl bg-aura-soft py-2"
