@@ -22,6 +22,18 @@ export async function getOwnProfile(client: AthanorClient, userId: string) {
   return profileSchema.parse(data);
 }
 
+/** Read another member's profile row (authenticated members-wide RLS). Null if unreachable. */
+export async function getProfileById(client: AthanorClient, profileId: string) {
+  const { data, error } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return profileSchema.parse(data);
+}
+
 /** UX pre-check only; the DB unique constraint is the real guard — writers must handle 23505. */
 export async function isHandleAvailable(client: AthanorClient, handle: string): Promise<boolean> {
   const { count, error } = await client

@@ -18,18 +18,25 @@ export function MomentiGallery({
   onOpen,
   onSeeAll,
   onAdd,
+  label,
+  emptyLabel,
 }: {
   moments: Moment[];
   locale: Locale;
   onOpen: (index: number) => void;
   onSeeAll: () => void;
-  onAdd: () => void;
+  /** Owner add affordance. Omit on a read-only third-person view (no add tile). */
+  onAdd?: () => void;
+  /** Override the section heading (e.g. «I suoi Momenti»). Defaults to the owner label. */
+  label?: string;
+  /** Override the empty-state body (e.g. third-person «Ancora nessun Momento»). Defaults to the owner copy. */
+  emptyLabel?: string;
 }) {
   const empty = moments.length === 0;
   return (
     <View className="gap-3">
       <View className="flex-row items-center justify-between">
-        <SectionLabel>{t('profile.moments.title', locale)}</SectionLabel>
+        <SectionLabel>{label ?? t('profile.moments.title', locale)}</SectionLabel>
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={t('common.seeAll', locale)}
@@ -46,12 +53,14 @@ export function MomentiGallery({
             <MomentTile moment={m} variant="gallery" locale={locale} onPress={() => onOpen(i)} />
           </View>
         ))}
-        <View className="w-1/3 p-0.5">
-          <MomentAddTile variant="gallery" label={t('moment.add', locale)} onPress={onAdd} />
-        </View>
+        {onAdd ? (
+          <View className="w-1/3 p-0.5">
+            <MomentAddTile variant="gallery" label={t('moment.add', locale)} onPress={onAdd} />
+          </View>
+        ) : null}
       </View>
 
-      {empty ? <EmptyState>{t('profile.moments.empty', locale)}</EmptyState> : null}
+      {empty ? <EmptyState>{emptyLabel ?? t('profile.moments.empty', locale)}</EmptyState> : null}
     </View>
   );
 }

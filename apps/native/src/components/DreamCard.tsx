@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Pressable, Text, View } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Milestone } from '@athanor/schemas';
@@ -5,51 +6,71 @@ import { Button } from './Button';
 import { EmptyState } from './EmptyState';
 import { MilestoneRow } from './MilestoneRow';
 
+type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
+
 /**
- * Il Sogno — the one active dream, in the owner's words (frontend `02` §3.1).
- * Editable (M2): tap the quote (or the empty-state CTA) to open the dream editor.
- * When `milestones` is provided (own mode) the card also hosts the tappe list +
- * "+ Aggiungi una tappa" row. Read mode (no milestone props) renders quote only.
+ * Il Sogno — the one active dream (frontend `02` §3.1). Two variants:
+ *
+ * - `own` (default): the owner's editable card. Tap the quote (or the empty-state CTA)
+ *   to open the dream editor; the card hosts the tappe list + "+ Aggiungi una tappa" row,
+ *   and an optional `incomingSlot` («Aiuti in arrivo») under the tappe.
+ * - `read`: someone else's dream (person-detail). Label is `dream.theirLabel`, the quote
+ *   is read-only (no editor), each tappa shows the «Aiuta» affordance via `helpStateById`/
+ *   `onHelpMilestone`, and the add-tappa row is hidden. The empty state shows no owner CTA.
+ *
+ * Both variants render the «Fai accadere questo sogno» rally CTA (flat `light`, never the
+ * glow — rule #4) when a dream is present and `onMakeHappen` is wired. Never writes Aura.
  */
 export function DreamCard({
   dream,
   locale,
+  variant = 'own',
   onEdit,
   milestones,
   mutatingMilestoneId,
   onAddMilestone,
   onMarkMilestoneDone,
   onDeleteMilestone,
+  helpStateById,
+  onHelpMilestone,
+  incomingSlot,
+  onMakeHappen,
 }: {
   dream: string | null;
   locale: Locale;
+  variant?: 'own' | 'read';
   onEdit?: () => void;
   milestones?: Milestone[];
   mutatingMilestoneId?: string | null;
   onAddMilestone?: () => void;
   onMarkMilestoneDone?: (id: string) => void;
   onDeleteMilestone?: (id: string) => void;
+  helpStateById?: Record<string, HelpState>;
+  onHelpMilestone?: (milestoneId: string) => void;
+  incomingSlot?: ReactNode;
+  onMakeHappen?: () => void;
 }) {
+  const isRead = variant === 'read';
   const showTappe = milestones !== undefined && dream != null;
 
   return (
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
       <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
-        {t('dream.ownLabel', locale)}
+        {t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}
       </Text>
       {dream ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('dream.a11y.editQuote', locale)}
-          disabled={!onEdit}
-          onPress={onEdit}
+          disabled={isRead || !onEdit}
+          onPress={isRead ? undefined : onEdit}
         >
           <Text className="font-dream text-xl leading-relaxed text-foreground">«{dream}»</Text>
         </Pressable>
       ) : (
         <View className="gap-3">
           <EmptyState>{t('dream.empty.title', locale)}</EmptyState>
-          {onEdit ? (
+          {!isRead && onEdit ? (
             <Button label={t('dream.empty.cta', locale)} variant="primary" onPress={onEdit} />
           ) : null}
         </View>
@@ -64,20 +85,31 @@ export function DreamCard({
           {milestones.length === 0 ? (
             <Text className="text-[13px] text-faint">{t('milestone.empty.hint', locale)}</Text>
           ) : (
-            milestones.map((m) => (
-              <MilestoneRow
-                key={m.id}
-                name={m.body}
-                status={m.status}
-                locale={locale}
-                mutating={mutatingMilestoneId === m.id}
-                onMarkDone={onMarkMilestoneDone ? () => onMarkMilestoneDone(m.id) : undefined}
-                onDelete={onDeleteMilestone ? () => onDeleteMilestone(m.id) : undefined}
-              />
-            ))
+            milestones.map((m) =>
+              isRead ? (
+                <MilestoneRow
+                  key={m.id}
+                  name={m.body}
+                  status={m.status}
+                  locale={locale}
+                  helpState={helpStateById?.[m.id] ?? 'available'}
+                  onHelp={onHelpMilestone ? () => onHelpMilestone(m.id) : undefined}
+                />
+              ) : (
+                <MilestoneRow
+                  key={m.id}
+                  name={m.body}
+                  status={m.status}
+                  locale={locale}
+                  mutating={mutatingMilestoneId === m.id}
+                  onMarkDone={onMarkMilestoneDone ? () => onMarkMilestoneDone(m.id) : undefined}
+                  onDelete={onDeleteMilestone ? () => onDeleteMilestone(m.id) : undefined}
+                />
+              ),
+            )
           )}
 
-          {onAddMilestone ? (
+          {!isRead && onAddMilestone ? (
             <Pressable
               accessibilityRole="button"
               className="flex-row items-center gap-3 pt-1"
@@ -88,7 +120,13 @@ export function DreamCard({
               <Text className="text-[15px] text-faint">{t('milestone.addRow', locale)}</Text>
             </Pressable>
           ) : null}
+
+          {!isRead ? incomingSlot : null}
         </View>
+      ) : null}
+
+      {dream && onMakeHappen ? (
+        <Button label={t('dream.makeHappenCta', locale)} variant="light" onPress={onMakeHappen} />
       ) : null}
     </View>
   );

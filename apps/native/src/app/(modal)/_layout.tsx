@@ -13,6 +13,8 @@ export default function ModalLayout() {
       <Stack.Screen name="grid" />
       <Stack.Screen name="dream-editor" options={{ presentation: 'modal' }} />
       <Stack.Screen name="milestone" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="help" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="user/[id]" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

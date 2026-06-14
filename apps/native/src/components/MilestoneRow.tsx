@@ -10,10 +10,21 @@ const STATE_KEY = {
   done: 'milestone.state.done',
 } as const;
 
+const HELP_LABEL_KEY = {
+  offered: 'help.state.offered',
+  accepted: 'help.state.accepted',
+  completed: 'help.state.completed',
+} as const;
+
+type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
+
 /**
  * One tappa row (frontend `02` §3.1/§4): leading check-glyph + the need + trailing
  * state text. Owner mode (handlers present) adds a kebab → «Segna come fatta» / «Elimina».
  * Read mode (no handlers) renders glyph + name + state only. Never writes Aura (rule #1).
+ * Helper mode (someone else's dream): pass `helpState` for the trailing «Aiuta» /
+ * help-state affordance (frontend `02` §3.4C). Helper rows aren't editable — the kebab
+ * is never shown when `helpState` is set.
  */
 export function MilestoneRow({
   name,
@@ -22,6 +33,8 @@ export function MilestoneRow({
   mutating = false,
   onMarkDone,
   onDelete,
+  helpState,
+  onHelp,
 }: {
   name: string;
   status: MilestoneStatus;
@@ -29,10 +42,13 @@ export function MilestoneRow({
   mutating?: boolean;
   onMarkDone?: () => void;
   onDelete?: () => void;
+  helpState?: HelpState;
+  onHelp?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const done = status === 'done';
-  const isOwner = Boolean(onMarkDone || onDelete);
+  // Helper rows aren't editable: never show the owner kebab when in help mode.
+  const isOwner = Boolean(onMarkDone || onDelete) && !helpState;
 
   const confirmDelete = () => {
     setMenuOpen(false);
@@ -59,6 +75,19 @@ export function MilestoneRow({
           {name}
         </Text>
         <Text className="text-[12px] text-faint">{t(STATE_KEY[status], locale)}</Text>
+        {helpState === 'available' && onHelp ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('help.cta', locale)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            className="min-h-[44px] justify-center"
+            onPress={onHelp}
+          >
+            <Text className="text-[13px] font-semibold text-aura">{t('help.cta', locale)}</Text>
+          </Pressable>
+        ) : helpState && helpState !== 'available' ? (
+          <Text className="text-[12px] text-faint">{t(HELP_LABEL_KEY[helpState], locale)}</Text>
+        ) : null}
         {isOwner ? (
           <Pressable
             accessibilityRole="button"
