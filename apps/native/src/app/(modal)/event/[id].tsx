@@ -1,17 +1,21 @@
+import { useCallback, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { eventKeys, getEvent } from '@athanor/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { eventKeys, getEvent, getEventAttendees, getMyRsvp, upsertRsvp } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { AURA_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EventCover } from '@/components/live/EventCover';
 import { DmetaRow } from '@/components/live/DmetaRow';
+import { AttendeeStack } from '@/components/live/AttendeeStack';
+import { RsvpBar } from '@/components/live/RsvpBar';
 import { EmptyState } from '@/components/EmptyState';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { addEventToCalendar } from '@/lib/calendar';
 
 function formatWhen(iso: string, locale: 'it' | 'en'): string {
   const d = new Date(iso);
@@ -27,15 +31,79 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
   const router = useRouter();
+  const qc = useQueryClient();
   const locale = profile?.locale ?? 'it';
+  const uid = profile?.id ?? null;
+  const [confirmation, setConfirmation] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: eventKeys.detail(id),
     queryFn: () => getEvent(supabase, id),
     enabled: !!id,
   });
-
   const event = query.data;
+
+  const attendees = useQuery({
+    queryKey: eventKeys.attendees(id),
+    queryFn: () => getEventAttendees(supabase, id),
+    enabled: !!id,
+  });
+
+  const myRsvp = useQuery({
+    queryKey: eventKeys.rsvp(id),
+    queryFn: () => getMyRsvp(supabase, id, uid as string),
+    enabled: !!id && !!uid,
+  });
+  const going = myRsvp.data?.status === 'going';
+
+  const toggle = useMutation({
+    mutationFn: (next: boolean) => upsertRsvp(supabase, id, uid as string, next),
+    onMutate: async (next) => {
+      await qc.cancelQueries({ queryKey: eventKeys.rsvp(id) });
+      const prev = qc.getQueryData(eventKeys.rsvp(id));
+      qc.setQueryData(eventKeys.rsvp(id), {
+        id: 'optimistic',
+        user_id: uid,
+        event_id: id,
+        status: next ? 'going' : 'cancelled',
+        created_at: '',
+        updated_at: '',
+      });
+      return { prev };
+    },
+    onError: (_e, _next, ctx) => {
+      qc.setQueryData(eventKeys.rsvp(id), ctx?.prev);
+      setConfirmation(t('event.rsvp.error', locale));
+    },
+    onSuccess: (_d, next) => {
+      setConfirmation(next ? t('event.rsvp.toast', locale) : t('event.rsvp.cancelled', locale));
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: eventKeys.rsvp(id) });
+      void qc.invalidateQueries({ queryKey: eventKeys.attendees(id) });
+    },
+  });
+
+  const onAddToCalendar = useCallback(async () => {
+    if (!event) return;
+    const res = await addEventToCalendar({
+      title: event.title,
+      startISO: event.starts_at,
+      endISO: event.ends_at,
+      location: event.is_online
+        ? null
+        : [event.venue, event.city].filter(Boolean).join(' · ') || null,
+    });
+    setConfirmation(
+      res === 'added' ? t('event.rsvp.calendarToast', locale) : t('event.rsvp.error', locale),
+    );
+  }, [event, locale]);
+
+  const now = Date.now();
+  const isPast = event ? new Date(event.ends_at ?? event.starts_at).getTime() < now : false;
+  const isPaid = (event?.price_cents ?? 0) > 0;
+  const count = attendees.data?.count ?? 0;
+  const soldOut = event?.capacity != null && count >= event.capacity;
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
@@ -68,6 +136,10 @@ export default function EventDetailScreen() {
         <View className="gap-5 px-5">
           <EventCover event={event} locale={locale} />
 
+          {count > 0 ? (
+            <AttendeeStack userIds={attendees.data?.userIds ?? []} count={count} locale={locale} />
+          ) : null}
+
           <View className="gap-1">
             <Text className="text-[12px] uppercase tracking-wider text-faint">
               {t('event.organizedBy', locale)}
@@ -86,10 +158,11 @@ export default function EventDetailScreen() {
                     t('event.whereLabel', locale)
               }
             />
-            {/* Read-only Aura-worth label — n from AURA_WEIGHTS, never a literal (rule #10). Real award = M6. */}
+            {/* Attendees + read-only Aura-worth label — n from AURA_WEIGHTS, never a literal
+                (rule #1/#10). Real +15 award = M6. Attendee count is allowed (rule #3). */}
             <DmetaRow
-              glyph="✦"
-              value={t('event.auraWorth', locale, { aura: AURA_WEIGHTS.EVENT_ATTEND })}
+              glyph="◇"
+              value={t('event.attendees', locale, { n: count, aura: AURA_WEIGHTS.EVENT_ATTEND })}
             />
           </View>
 
@@ -103,8 +176,6 @@ export default function EventDetailScreen() {
             </View>
           ) : null}
 
-          {/* «Guarda in diretta» — external stream launch-out is deferred (link v1, later
-              slice). Rendered as a non-pressable styled badge for now (no empty handler). */}
           {event.is_online ? (
             <View className="rounded-full border border-aura-line bg-aura-soft px-5 py-3">
               <Text className="text-center text-[14px] text-aura">
@@ -113,12 +184,29 @@ export default function EventDetailScreen() {
             </View>
           ) : null}
 
-          {/* Action bar (RSVP free / paid ticket) is the rsvp-attendance + tickets-qr slices. */}
-          <View className="rounded-card border border-hair bg-surface-muted p-4">
-            <Text className="text-center text-[13px] text-faint">
-              {t('event.actionSoon', locale)}
-            </Text>
-          </View>
+          {/* Type-aware action bar. */}
+          {isPast ? (
+            <View className="rounded-card border border-hair bg-surface-muted p-4">
+              <Text className="text-center text-[13px] text-faint">{t('event.ended', locale)}</Text>
+            </View>
+          ) : isPaid ? (
+            // Paid ticket flow = tickets-qr slice (Stripe Checkout + QR). Keep the stub.
+            <View className="rounded-card border border-hair bg-surface-muted p-4">
+              <Text className="text-center text-[13px] text-faint">
+                {t('event.actionSoon', locale)}
+              </Text>
+            </View>
+          ) : (
+            <RsvpBar
+              going={going}
+              soldOut={soldOut}
+              pending={toggle.isPending || myRsvp.isLoading}
+              confirmation={confirmation}
+              onToggle={() => toggle.mutate(!going)}
+              onAddToCalendar={() => void onAddToCalendar()}
+              locale={locale}
+            />
+          )}
         </View>
       )}
     </ScrollView>
