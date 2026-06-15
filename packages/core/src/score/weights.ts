@@ -14,6 +14,8 @@ export const AURA_WEIGHTS = {
   COMMENT_CREATE: 2,
   /** Celebrating someone's growth step (M3 story ✦). Displayed as `✦ +4 Aura`. */
   STORY_REACT: 4,
+  /** Publishing a Costellazioni project (M3 board). Displayed as `✦ +4 Aura` in the composer. */
+  PROJECT_CREATE: 4,
   /** Joining the Athanor Circle is never scored (rule #1). */
   CIRCLE_JOIN: 0,
   /** Contributing to Il Cuore (the fund) is never scored (rule #1). */
