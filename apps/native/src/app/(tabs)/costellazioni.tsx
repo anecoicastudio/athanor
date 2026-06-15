@@ -102,6 +102,7 @@ export default function CostellazioniScreen() {
             <Pressable
               onPress={() => router.push(FAVOR_HREF)}
               accessibilityRole="button"
+              accessibilityLabel={t('costellazioni.favor.title', locale)}
               className="gap-1 rounded-card bg-surface-muted px-5 py-4"
             >
               <Text className="text-[15px] text-foreground">

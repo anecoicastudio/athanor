@@ -427,6 +427,7 @@
   "favor.sheet.title": "Passa il Favore",
   "favor.sheet.sub": "Aiuta qualcuno che cerca ciò che sai fare. Nessuna richiesta in cambio — il favore circola e accende la tua stella del Collaboratore.",
   "favor.help": "Aiuta",
+  "favor.help.error": "Non siamo riusciti a passare il favore. Riprova.",
   "favor.done.eyebrow": "Hai acceso un favore",
   "favor.done.title": "{name} ti ringrazierà ✦",
   "favor.done.sub": "Hai aiutato senza chiedere nulla. Il favore continua a circolare — e la tua stella del Collaboratore brilla di più.",

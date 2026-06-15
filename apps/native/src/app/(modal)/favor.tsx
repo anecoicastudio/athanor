@@ -6,7 +6,7 @@ import { type NeedCursor, favorKeys, listOpenNeeds, passFavor } from '@athanor/a
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed, Locale } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { FavorRow } from '@/components/costellazioni/FavorRow';
@@ -37,6 +37,7 @@ export default function FavorScreen() {
   const [helpingId, setHelpingId] = useState<string | null>(null);
   const [done, setDone] = useState<FavorNeed | null>(null);
   const [stubToast, setStubToast] = useState(false);
+  const [helpError, setHelpError] = useState(false);
 
   const query = useInfiniteQuery({
     queryKey: favorKeys.openNeeds,
@@ -49,6 +50,7 @@ export default function FavorScreen() {
 
   const help = async (need: FavorNeed) => {
     if (!session || helpingId) return;
+    setHelpError(false);
     setHelpingId(need.need_milestone_id);
     try {
       await passFavor(supabase, session.user.id, {
@@ -62,6 +64,8 @@ export default function FavorScreen() {
       if (isUniqueViolation(e)) {
         setDone(need);
         void queryClient.invalidateQueries({ queryKey: favorKeys.openNeeds });
+      } else {
+        setHelpError(true);
       }
     } finally {
       setHelpingId(null);
@@ -117,57 +121,61 @@ export default function FavorScreen() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="grow"
-      scrollEnabled={false}
-    >
-      <View className="flex-row items-start justify-between px-5 pt-12">
-        <View className="flex-1 gap-1 pr-4">
-          <Text className="text-2xl text-foreground">{t('favor.sheet.title', locale)}</Text>
-          <Text className="text-[14px] text-faint">{t('favor.sheet.sub', locale)}</Text>
-        </View>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">✕</Text>
-        </Pressable>
-      </View>
-
-      {query.isLoading ? (
-        <View className="flex-1 items-center justify-center py-24">
-          <ActivityIndicator color={semantic.aura} />
-        </View>
-      ) : needs.length === 0 ? (
-        <View className="flex-1 items-center justify-center gap-2 px-8 py-24">
-          <EmptyState>{t('favor.empty.title', locale)}</EmptyState>
-          <Text className="text-center text-[13px] text-faint">{t('favor.empty.sub', locale)}</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={needs}
-          scrollEnabled
-          keyExtractor={(item) => item.need_milestone_id}
-          renderItem={({ item }) => (
-            <View className="px-5 pb-3">
-              <FavorRow
-                need={item}
-                locale={locale}
-                onHelp={() => void help(item)}
-                busy={helpingId === item.need_milestone_id}
-              />
+    <View className="flex-1 bg-background">
+      <FlatList
+        data={needs}
+        keyExtractor={(item) => item.need_milestone_id}
+        ListHeaderComponent={
+          <View className="gap-3 px-5 pb-2 pt-12">
+            <View className="flex-row items-start justify-between">
+              <View className="flex-1 gap-1 pr-4">
+                <Text className="text-2xl text-foreground">{t('favor.sheet.title', locale)}</Text>
+                <Text className="text-[14px] text-faint">{t('favor.sheet.sub', locale)}</Text>
+              </View>
+              <Pressable
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.back', locale)}
+                hitSlop={8}
+              >
+                <Text className="text-2xl text-foreground">✕</Text>
+              </Pressable>
             </View>
-          )}
-          contentContainerClassName="pt-6 pb-12"
-          onEndReachedThreshold={0.5}
-          onEndReached={() => {
-            if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
-          }}
-        />
-      )}
-    </ScrollView>
+            {helpError ? (
+              <Text className="text-[13px] text-error">{t('favor.help.error', locale)}</Text>
+            ) : null}
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View className="px-5 pb-3">
+            <FavorRow
+              need={item}
+              locale={locale}
+              onHelp={() => void help(item)}
+              busy={helpingId === item.need_milestone_id}
+            />
+          </View>
+        )}
+        ListEmptyComponent={
+          query.isLoading ? (
+            <View className="items-center justify-center py-24">
+              <ActivityIndicator color={semantic.aura} />
+            </View>
+          ) : (
+            <View className="items-center justify-center gap-2 px-8 py-24">
+              <EmptyState>{t('favor.empty.title', locale)}</EmptyState>
+              <Text className="text-center text-[13px] text-faint">
+                {t('favor.empty.sub', locale)}
+              </Text>
+            </View>
+          )
+        }
+        contentContainerClassName="grow pb-12"
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+        }}
+      />
+    </View>
   );
 }
