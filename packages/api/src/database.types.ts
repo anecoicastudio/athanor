@@ -142,6 +142,68 @@ export type Database = {
         }
         Relationships: []
       }
+      favor_offers: {
+        Row: {
+          actor_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          need: string
+          need_milestone_id: string | null
+          target_id: string
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          need: string
+          need_milestone_id?: string | null
+          target_id: string
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          need?: string
+          need_milestone_id?: string | null
+          target_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favor_offers_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favor_offers_need_milestone_id_fkey"
+            columns: ["need_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "dream_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favor_offers_need_milestone_id_fkey"
+            columns: ["need_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "favor_needs"
+            referencedColumns: ["need_milestone_id"]
+          },
+          {
+            foreignKeyName: "favor_offers_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       milestone_helps: {
         Row: {
           created_at: string
@@ -193,6 +255,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dream_milestones"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "milestone_helps_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "favor_needs"
+            referencedColumns: ["need_milestone_id"]
           },
         ]
       }
@@ -608,7 +677,24 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      favor_needs: {
+        Row: {
+          need: string | null
+          need_created_at: string | null
+          need_milestone_id: string | null
+          target_handle: string | null
+          target_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dreams_profile_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       confirm_milestone_help: {

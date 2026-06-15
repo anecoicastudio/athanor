@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/project-compose' as const;
+const FAVOR_HREF = '/(modal)/favor' as const;
 
 export default function CostellazioniScreen() {
   const { profile } = useAuth();
@@ -94,6 +95,24 @@ export default function CostellazioniScreen() {
               </Pressable>
             </View>
           )
+        }
+        ListFooterComponent={
+          // Flat surface — navigation into the Passa il Favore sheet, NOT a moment (rule #4): no glow.
+          <View className="px-5 pb-2 pt-2">
+            <Pressable
+              onPress={() => router.push(FAVOR_HREF)}
+              accessibilityRole="button"
+              accessibilityLabel={t('costellazioni.favor.title', locale)}
+              className="gap-1 rounded-card bg-surface-muted px-5 py-4"
+            >
+              <Text className="text-[15px] text-foreground">
+                {t('costellazioni.favor.title', locale)}
+              </Text>
+              <Text className="text-[13px] text-faint">
+                {t('costellazioni.favor.desc', locale)}
+              </Text>
+            </Pressable>
+          </View>
         }
         refreshControl={
           <RefreshControl
