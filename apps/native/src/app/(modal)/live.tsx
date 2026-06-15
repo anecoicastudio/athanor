@@ -7,10 +7,12 @@ import {
   type CalendarCursor,
   type NearbyCursor,
   eventKeys,
+  getEventLiveStats,
   getEventsCalendar,
   getEventsNearby,
   getEventsOnline,
   registerAthanorDaysInterest,
+  subscribeEventLive,
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { metersToKm } from '@athanor/core';
@@ -350,6 +352,42 @@ function MapPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => 
   );
 }
 
+/** A live-now online row that subscribes to its realtime listener count (cleanup on unmount). */
+function LiveEventRow({
+  event,
+  locale,
+  onOpen,
+}: {
+  event: Event;
+  locale: Locale;
+  onOpen: (id: string) => void;
+}) {
+  const seed = useQuery({
+    queryKey: eventKeys.liveStats(event.id),
+    queryFn: () => getEventLiveStats(supabase, event.id),
+  });
+  const [count, setCount] = useState<number | null>(null);
+  const [isLive, setIsLive] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeEventLive(supabase, event.id, (stats) => {
+      setCount(stats.listener_count);
+      setIsLive(stats.is_live);
+    });
+    return unsubscribe; // cleanup on unmount (rule api.md)
+  }, [event.id]);
+
+  const listeningCount = count ?? seed.data?.listener_count ?? null;
+
+  return (
+    <EventRow
+      data={{ ...toRowData(event), live: isLive, listeningCount }}
+      locale={locale}
+      onPress={() => onOpen(event.id)}
+    />
+  );
+}
+
 /* ── Online ── */
 function OnlinePanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => void }) {
   const query = useQuery({
@@ -369,12 +407,7 @@ function OnlinePanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
           {t('live.online.section', locale)}
         </Text>
         {liveNow.map((e) => (
-          <EventRow
-            key={e.id}
-            data={{ ...toRowData(e), live: true }}
-            locale={locale}
-            onPress={() => onOpen(e.id)}
-          />
+          <LiveEventRow key={e.id} event={e} locale={locale} onOpen={onOpen} />
         ))}
         {upcoming.map((e) => (
           <EventRow key={e.id} data={toRowData(e)} locale={locale} onPress={() => onOpen(e.id)} />

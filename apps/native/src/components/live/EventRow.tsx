@@ -15,6 +15,8 @@ export type EventRowData = {
   live?: boolean;
   /** Pre-formatted "x km" sub-fragment (Vicino/Mappa); omit elsewhere. */
   distanceKm?: string | null;
+  /** Realtime live-listener count; when present on a live row → «In diretta ora · {n} in ascolto». */
+  listeningCount?: number | null;
 };
 
 /**
@@ -32,7 +34,9 @@ export function EventRow({
   onPress: () => void;
 }) {
   const parts: string[] = [];
-  if (data.is_online) {
+  if (data.live && data.listeningCount != null) {
+    parts.push(t('live.online.liveNow', locale, { n: data.listeningCount }));
+  } else if (data.is_online) {
     parts.push(t('live.online', locale));
   } else {
     if (data.city) parts.push(data.city);
