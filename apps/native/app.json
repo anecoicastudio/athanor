@@ -55,6 +55,12 @@
           "locationWhenInUsePermission": "Athanor uses your approximate location only to show events near you — never in the background."
         }
       ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Athanor adds events you're attending to your calendar — only when you choose."
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "experiments": {

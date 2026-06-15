@@ -99,3 +99,20 @@ export const athanorDaysInterestSchema = z.object({
   created_at: z.string(),
 });
 export type AthanorDaysInterest = z.infer<typeof athanorDaysInterestSchema>;
+
+/**
+ * rsvp — free-event attendance intent (mirrors public.rsvps). Toggle is going⇄cancelled;
+ * the (user_id, event_id) pair is the idempotency key. No deleted_at (intent, not content).
+ */
+export const rsvpStatusSchema = z.enum(['going', 'cancelled']);
+export type RsvpStatus = z.infer<typeof rsvpStatusSchema>;
+
+export const rsvpSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  event_id: z.string().uuid(),
+  status: rsvpStatusSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type Rsvp = z.infer<typeof rsvpSchema>;

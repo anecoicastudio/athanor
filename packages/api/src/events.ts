@@ -3,9 +3,11 @@ import {
   type EventCategory,
   type EventCreate,
   type EventNearby,
+  type Rsvp,
   eventCreateSchema,
   eventNearbySchema,
   eventSchema,
+  rsvpSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
@@ -18,6 +20,8 @@ export const eventKeys = {
   today: () => [...eventKeys.all, 'today'] as const,
   detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
   byOrganizer: (uid: string) => [...eventKeys.all, 'organizer', uid] as const,
+  rsvp: (eventId: string) => [...eventKeys.all, 'rsvp', eventId] as const,
+  attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
 };
 
 /** Columns the client reads (everything except the geography `geo` column). */
@@ -200,6 +204,73 @@ export async function registerAthanorDaysInterest(
       { onConflict: 'user_id,edition', ignoreDuplicates: true },
     );
   if (error) throw error;
+}
+
+/**
+ * Upsert the viewer's RSVP for a free event. Idempotent: the unique (user_id, event_id)
+ * conflict flips status — a second "Partecipo" tap is a no-op, a cancel sets
+ * status='cancelled' (we keep the row, never delete — backend §2.2). NEVER writes Aura
+ * (rule #1): the +15 attend award is the M6 score-engine (TODO(M6)).
+ */
+export async function upsertRsvp(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+  going: boolean,
+): Promise<void> {
+  const { error } = await client
+    .from('rsvps')
+    .upsert(
+      { user_id: userId, event_id: eventId, status: going ? 'going' : 'cancelled' },
+      { onConflict: 'user_id,event_id' },
+    );
+  if (error) throw error;
+}
+
+/** The viewer's own RSVP for an event (null if they never RSVP'd). */
+export async function getMyRsvp(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+): Promise<Rsvp | null> {
+  const { data, error } = await client
+    .from('rsvps')
+    .select('id,user_id,event_id,status,created_at,updated_at')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return rsvpSchema.parse(data);
+}
+
+/** Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest user_ids. */
+export type AttendeePreview = { count: number; userIds: string[] };
+export async function getEventAttendees(
+  client: AthanorClient,
+  eventId: string,
+  previewLimit = 4, // 4 = the avatar-stack size on the event detail
+): Promise<AttendeePreview> {
+  const { count, error: countErr } = await client
+    .from('rsvps')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .eq('status', 'going');
+  if (countErr) throw countErr;
+
+  const { data, error } = await client
+    .from('rsvps')
+    .select('user_id')
+    .eq('event_id', eventId)
+    .eq('status', 'going')
+    .order('created_at', { ascending: true })
+    .limit(previewLimit);
+  if (error) throw error;
+
+  return {
+    count: count ?? 0,
+    userIds: (data ?? []).map((r) => r.user_id),
+  };
 }
 
 export type { Event, EventCategory, EventNearby };
