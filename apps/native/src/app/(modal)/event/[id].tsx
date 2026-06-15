@@ -187,7 +187,7 @@ export default function EventDetailScreen() {
           {/* Type-aware action bar. */}
           {isPast ? (
             <View className="rounded-card border border-hair bg-surface-muted p-4">
-              <Text className="text-center text-[13px] text-faint">{t('event.ended', locale)}</Text>
+              <Text className="text-center text-[13px] text-faint">{t('event.past', locale)}</Text>
             </View>
           ) : isPaid ? (
             // Paid ticket flow = tickets-qr slice (Stripe Checkout + QR). Keep the stub.
