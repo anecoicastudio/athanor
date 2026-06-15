@@ -15,6 +15,7 @@ export const eventKeys = {
     [...eventKeys.all, 'nearby', lat, lng, radiusKm] as const,
   calendar: () => [...eventKeys.all, 'calendar'] as const,
   online: () => [...eventKeys.all, 'online'] as const,
+  today: () => [...eventKeys.all, 'today'] as const,
   detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
   byOrganizer: (uid: string) => [...eventKeys.all, 'organizer', uid] as const,
 };
