@@ -146,6 +146,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      event_live_stats: {
+        Row: {
+          event_id: string;
+          is_live: boolean;
+          listener_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          event_id: string;
+          is_live?: boolean;
+          listener_count?: number;
+          updated_at?: string;
+        };
+        Update: {
+          event_id?: string;
+          is_live?: boolean;
+          listener_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_live_stats_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: true;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       events: {
         Row: {
           capacity: number | null;
