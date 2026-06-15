@@ -41,7 +41,8 @@ export async function addEventToCalendar(opts: {
       notes: opts.notes ?? undefined,
     });
     return 'added';
-  } catch {
+  } catch (err) {
+    if (__DEV__) console.warn('[calendar] addEventToCalendar', err);
     return 'error';
   }
 }
