@@ -12,4 +12,5 @@ export * from './post-media';
 export * from './moment';
 export * from './story-segment';
 export * from './story-reaction';
+export * from './project';
 export * from './waitlist';
