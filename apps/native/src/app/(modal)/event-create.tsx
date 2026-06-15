@@ -251,7 +251,7 @@ export default function EventCreateScreen() {
             placeholder={t('event.create.capacityHint', locale)}
             placeholderTextColor={semantic.foregroundMuted}
             value={capacity}
-            onChangeText={setCapacity}
+            onChangeText={(text) => setCapacity(text.replace(/[^0-9]/g, ''))}
             keyboardType="number-pad"
           />
         </View>
