@@ -116,3 +116,12 @@ export const rsvpSchema = z.object({
   updated_at: z.string(),
 });
 export type Rsvp = z.infer<typeof rsvpSchema>;
+
+/** event_live_stats row — public read; service-role/Realtime maintained, never client-written. */
+export const eventLiveStatsSchema = z.object({
+  event_id: z.string().uuid(),
+  listener_count: z.number().int().nonnegative(),
+  is_live: z.boolean(),
+  updated_at: z.string(),
+});
+export type EventLiveStats = z.infer<typeof eventLiveStatsSchema>;

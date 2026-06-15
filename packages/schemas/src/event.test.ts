@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   eventCreateSchema,
+  eventLiveStatsSchema,
   eventNearbySchema,
   eventSchema,
   rsvpSchema,
@@ -135,5 +136,26 @@ describe('rsvpSchema', () => {
 
   it('rejects an unknown status', () => {
     expect(() => rsvpSchema.parse({ ...valid, status: 'maybe' })).toThrow();
+  });
+});
+
+describe('eventLiveStatsSchema', () => {
+  const valid = {
+    event_id: '11111111-1111-1111-1111-111111111111',
+    listener_count: 142,
+    is_live: true,
+    updated_at: '2026-06-15T10:00:00.000Z',
+  };
+
+  it('parses a valid live-stats row', () => {
+    expect(eventLiveStatsSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a negative listener_count', () => {
+    expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: -1 })).toThrow();
+  });
+
+  it('rejects a non-integer listener_count', () => {
+    expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: 1.5 })).toThrow();
   });
 });
