@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(8);
+select plan(9);
 
 -- one organizer; handle_new_user trigger auto-creates the profile
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -47,6 +47,12 @@ select throws_ok($$
   update public.event_live_stats set listener_count = 0
   where event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
 $$, '42501', null, 'authenticated client cannot update the listener count');
+
+-- authenticated client DELETE denied (no grant / no policy) → 42501
+select throws_ok($$
+  delete from public.event_live_stats
+  where event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+$$, '42501', null, 'authenticated client cannot delete live stats');
 reset role;
 
 -- anon can read (public read), still cannot write
