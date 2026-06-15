@@ -82,6 +82,7 @@ export default function ProjectComposeScreen() {
             placeholderTextColor={semantic.foregroundMuted}
             value={title}
             onChangeText={setTitle}
+            maxLength={140}
           />
         </View>
         {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
