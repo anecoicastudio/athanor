@@ -70,6 +70,23 @@ describe('eventCreateSchema', () => {
   it('accepts a valid physical event', () => {
     expect(eventCreateSchema.parse(physical).city).toBe('Berlino');
   });
+  it('applies defaults for omitted optional fields', () => {
+    const parsed = eventCreateSchema.parse({
+      title: 'Minimal',
+      category: 'arte',
+      is_online: false,
+      lat: 52.5,
+      long: 13.4,
+      starts_at: '2026-08-01T18:00:00.000Z',
+    });
+    expect(parsed.currency).toBe('eur');
+    expect(parsed.price_cents).toBe(0);
+    expect(parsed.capacity).toBeNull();
+    expect(parsed.venue).toBeNull();
+  });
+  it('rejects a blank (whitespace-only) title', () => {
+    expect(() => eventCreateSchema.parse({ ...physical, title: '   ' })).toThrow();
+  });
   it('rejects a physical event without coordinates', () => {
     expect(() => eventCreateSchema.parse({ ...physical, lat: null, long: null })).toThrow();
   });
