@@ -14,6 +14,35 @@ export type Database = {
   };
   public: {
     Tables: {
+      athanor_days_interest: {
+        Row: {
+          created_at: string;
+          edition: string | null;
+          id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          edition?: string | null;
+          id?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          edition?: string | null;
+          id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "athanor_days_interest_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       dream_milestones: {
         Row: {
           body: string;
