@@ -13,4 +13,5 @@ export * from './moment';
 export * from './story-segment';
 export * from './story-reaction';
 export * from './project';
+export * from './favor';
 export * from './waitlist';
