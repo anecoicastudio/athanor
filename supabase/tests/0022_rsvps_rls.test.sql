@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(9);
+select plan(10);
 
 -- two members; handle_new_user trigger auto-creates their profiles
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -70,6 +70,14 @@ select results_eq($$
     where user_id='22222222-2222-2222-2222-222222222222' returning 1)
   select count(*)::int from u
 $$, $$ values (0) $$, 'cross-user update of another RSVP affects zero rows');
+reset role;
+
+-- anon is denied entirely (revoke all from anon + authenticated-only policies)
+set local role anon; set local request.jwt.claims = '';
+select throws_ok($$
+  insert into public.rsvps (user_id, event_id, status)
+  values ('22222222-2222-2222-2222-222222222222','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','going')
+$$, '42501', null, 'anon cannot RSVP');
 reset role;
 
 select * from finish();
