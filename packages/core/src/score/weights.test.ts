@@ -21,4 +21,8 @@ describe('AURA_WEIGHTS', () => {
   it('STORY_REACT is the display-only celebration hint (4)', () => {
     expect(AURA_WEIGHTS.STORY_REACT).toBe(4);
   });
+
+  test('publishing a project is worth +4 Aura (compose-hint source, M6 award)', () => {
+    expect(AURA_WEIGHTS.PROJECT_CREATE).toBe(4);
+  });
 });
