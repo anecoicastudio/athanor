@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { eventCreateSchema, eventNearbySchema, eventSchema } from './event';
+import {
+  eventCreateSchema,
+  eventNearbySchema,
+  eventSchema,
+  rsvpSchema,
+  rsvpStatusSchema,
+} from './event';
 
 const baseRow = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -106,5 +112,28 @@ describe('eventCreateSchema', () => {
         long: null,
       }).is_online,
     ).toBe(true);
+  });
+});
+
+describe('rsvpSchema', () => {
+  const valid = {
+    id: '11111111-1111-1111-1111-111111111111',
+    user_id: '22222222-2222-2222-2222-222222222222',
+    event_id: '33333333-3333-3333-3333-333333333333',
+    status: 'going',
+    created_at: '2026-06-15T10:00:00Z',
+    updated_at: '2026-06-15T10:00:00Z',
+  };
+
+  it('parses a valid rsvp row', () => {
+    expect(rsvpSchema.parse(valid).status).toBe('going');
+  });
+
+  it('accepts the cancelled status', () => {
+    expect(rsvpStatusSchema.parse('cancelled')).toBe('cancelled');
+  });
+
+  it('rejects an unknown status', () => {
+    expect(() => rsvpSchema.parse({ ...valid, status: 'maybe' })).toThrow();
   });
 });
