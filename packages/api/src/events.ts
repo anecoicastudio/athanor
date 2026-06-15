@@ -2,9 +2,11 @@ import {
   type Event,
   type EventCategory,
   type EventCreate,
+  type EventLiveStats,
   type EventNearby,
   type Rsvp,
   eventCreateSchema,
+  eventLiveStatsSchema,
   eventNearbySchema,
   eventSchema,
   rsvpSchema,
@@ -22,6 +24,7 @@ export const eventKeys = {
   byOrganizer: (uid: string) => [...eventKeys.all, 'organizer', uid] as const,
   rsvp: (eventId: string) => [...eventKeys.all, 'rsvp', eventId] as const,
   attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
+  liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
 };
 
 /** Columns the client reads (everything except the geography `geo` column). */
@@ -273,4 +276,49 @@ export async function getEventAttendees(
   };
 }
 
-export type { Event, EventCategory, EventNearby };
+/** One-shot read of the live-listener stats for an online event (null if no row yet). */
+export async function getEventLiveStats(
+  client: AthanorClient,
+  eventId: string,
+): Promise<EventLiveStats | null> {
+  const { data, error } = await client
+    .from('event_live_stats')
+    .select('event_id,listener_count,is_live,updated_at')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? eventLiveStatsSchema.parse(data as unknown) : null;
+}
+
+/**
+ * Subscribe to live-listener stats for one online event (realtime INSERT/UPDATE) — backend 09 C8,
+ * channel `event:{id}:live`. The count is service-role/Realtime maintained; clients never write it.
+ * Returns a cleanup fn — callers MUST call it on unmount (rule api.md, invariant #1).
+ */
+export function subscribeEventLive(
+  client: AthanorClient,
+  eventId: string,
+  onStats: (stats: EventLiveStats) => void,
+): () => void {
+  const channel = client
+    .channel(`event:${eventId}:live`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'event_live_stats',
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const parsed = eventLiveStatsSchema.safeParse(payload.new);
+        if (parsed.success) onStats(parsed.data);
+      },
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export type { Event, EventCategory, EventLiveStats, EventNearby };
