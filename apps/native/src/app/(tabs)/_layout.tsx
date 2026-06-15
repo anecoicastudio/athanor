@@ -15,6 +15,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home', 'it') }} />
       <Tabs.Screen name="community" options={{ title: t('tabs.community', 'it') }} />
+      <Tabs.Screen name="costellazioni" options={{ title: t('tabs.costellazioni', 'it') }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.profile', 'it') }} />
     </Tabs>
   );
