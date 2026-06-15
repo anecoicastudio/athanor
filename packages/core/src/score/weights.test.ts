@@ -25,4 +25,12 @@ describe('AURA_WEIGHTS', () => {
   test('publishing a project is worth +4 Aura (compose-hint source, M6 award)', () => {
     expect(AURA_WEIGHTS.PROJECT_CREATE).toBe(4);
   });
+
+  test('attending an event is worth +15 Aura (read-only detail label, M6 award)', () => {
+    expect(AURA_WEIGHTS.EVENT_ATTEND).toBe(15);
+  });
+
+  test('organizing an event is worth +30 Aura (read-only label, M6 award)', () => {
+    expect(AURA_WEIGHTS.EVENT_ORGANIZE).toBe(30);
+  });
 });
