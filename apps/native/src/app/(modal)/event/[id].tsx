@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { eventKeys, getEvent, getEventAttendees, getMyRsvp, upsertRsvp } from '@
 import { semantic } from '@athanor/config';
 import { AURA_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
+import type { Rsvp } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EventCover } from '@/components/live/EventCover';
 import { DmetaRow } from '@/components/live/DmetaRow';
@@ -35,6 +36,12 @@ export default function EventDetailScreen() {
   const locale = profile?.locale ?? 'it';
   const uid = profile?.id ?? null;
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  // Auto-dismiss the inline confirmation so it never lingers under an idle bar (no toast host yet).
+  useEffect(() => {
+    if (!confirmation) return;
+    const handle = setTimeout(() => setConfirmation(null), 2500);
+    return () => clearTimeout(handle);
+  }, [confirmation]);
 
   const query = useQuery({
     queryKey: eventKeys.detail(id),
@@ -59,16 +66,18 @@ export default function EventDetailScreen() {
   const toggle = useMutation({
     mutationFn: (next: boolean) => upsertRsvp(supabase, id, uid as string, next),
     onMutate: async (next) => {
+      setConfirmation(null); // clear any stale confirmation as a new action begins
       await qc.cancelQueries({ queryKey: eventKeys.rsvp(id) });
       const prev = qc.getQueryData(eventKeys.rsvp(id));
-      qc.setQueryData(eventKeys.rsvp(id), {
+      const optimistic: Rsvp = {
         id: 'optimistic',
-        user_id: uid,
+        user_id: uid ?? '',
         event_id: id,
         status: next ? 'going' : 'cancelled',
         created_at: '',
         updated_at: '',
-      });
+      };
+      qc.setQueryData(eventKeys.rsvp(id), optimistic);
       return { prev };
     },
     onError: (_e, _next, ctx) => {
@@ -86,6 +95,7 @@ export default function EventDetailScreen() {
 
   const onAddToCalendar = useCallback(async () => {
     if (!event) return;
+    setConfirmation(null);
     const res = await addEventToCalendar({
       title: event.title,
       startISO: event.starts_at,
@@ -94,9 +104,9 @@ export default function EventDetailScreen() {
         ? null
         : [event.venue, event.city].filter(Boolean).join(' · ') || null,
     });
-    setConfirmation(
-      res === 'added' ? t('event.rsvp.calendarToast', locale) : t('event.rsvp.error', locale),
-    );
+    if (res === 'added') setConfirmation(t('event.rsvp.calendarToast', locale));
+    else if (res === 'error') setConfirmation(t('event.rsvp.error', locale));
+    // 'denied' → silent: the OS permission prompt already informed the user.
   }, [event, locale]);
 
   const now = Date.now();
