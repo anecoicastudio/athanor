@@ -475,6 +475,7 @@
   "live.map.allowLocation": "Consenti la posizione",
   "live.online.section": "In diretta e in arrivo",
   "live.online.upcoming": "In arrivo",
+  "live.online.liveNow": "In diretta ora · {n} in ascolto",
   "live.chip.liveNow": "In diretta",
   "live.error": "Non siamo riusciti a caricare gli eventi. Riprova.",
   "event.title": "Evento",

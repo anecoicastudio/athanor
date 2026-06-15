@@ -475,6 +475,7 @@
   "live.map.allowLocation": "Allow location",
   "live.online.section": "Live and upcoming",
   "live.online.upcoming": "Upcoming",
+  "live.online.liveNow": "Live now · {n} listening",
   "live.chip.liveNow": "Live",
   "live.error": "We couldn't load the events. Try again.",
   "event.title": "Event",
