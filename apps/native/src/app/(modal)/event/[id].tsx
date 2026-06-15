@@ -1,0 +1,126 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ActivityIndicator } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { eventKeys, getEvent } from '@athanor/api';
+import { semantic } from '@athanor/config';
+import { AURA_WEIGHTS } from '@athanor/core';
+import { t } from '@athanor/i18n';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { EventCover } from '@/components/live/EventCover';
+import { DmetaRow } from '@/components/live/DmetaRow';
+import { EmptyState } from '@/components/EmptyState';
+import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
+
+function formatWhen(iso: string, locale: 'it' | 'en'): string {
+  const d = new Date(iso);
+  return d.toLocaleString(locale === 'it' ? 'it-IT' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export default function EventDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { profile } = useAuth();
+  const router = useRouter();
+  const locale = profile?.locale ?? 'it';
+
+  const query = useQuery({
+    queryKey: eventKeys.detail(id),
+    queryFn: () => getEvent(supabase, id),
+    enabled: !!id,
+  });
+
+  const event = query.data;
+
+  return (
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
+      <View className="flex-row items-center gap-3 px-5 pb-1 pt-14">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityLabel={t('common.back', locale)}
+        >
+          <Text className="text-[22px] text-foreground">‹</Text>
+        </Pressable>
+        <Text className="text-2xl text-foreground">{t('event.title', locale)}</Text>
+      </View>
+
+      {query.isLoading ? (
+        <View className="items-center pt-16">
+          <ActivityIndicator color={semantic.aura} />
+        </View>
+      ) : query.isError || !event ? (
+        <View className="items-center gap-4 px-5 pt-16">
+          <EmptyState>{t('event.error', locale)}</EmptyState>
+          <Pressable
+            className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
+            onPress={() => void query.refetch()}
+          >
+            <Text className="text-[13px] text-aura">{t('common.retry', locale)}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View className="gap-5 px-5">
+          <EventCover event={event} locale={locale} />
+
+          <View className="gap-1">
+            <Text className="text-[12px] uppercase tracking-wider text-faint">
+              {t('event.organizedBy', locale)}
+            </Text>
+            <PostAuthorRow authorId={event.organizer_id} size="sm" />
+          </View>
+
+          <View className="gap-3 rounded-card border border-hair bg-raise p-4">
+            <DmetaRow glyph="◷" value={formatWhen(event.starts_at, locale)} />
+            <DmetaRow
+              glyph="◎"
+              value={
+                event.is_online
+                  ? t('event.whereOnline', locale, { kind: t('event.streamKind', locale) })
+                  : [event.venue, event.city].filter(Boolean).join(' · ') ||
+                    t('event.whereLabel', locale)
+              }
+            />
+            {/* Read-only Aura-worth label — n from AURA_WEIGHTS, never a literal (rule #10). Real award = M6. */}
+            <DmetaRow
+              glyph="✦"
+              value={t('event.auraWorth', locale, { aura: AURA_WEIGHTS.EVENT_ATTEND })}
+            />
+          </View>
+
+          <Text className="text-[15px] leading-6 text-ink-2">
+            {t('event.descFallback', locale)}
+          </Text>
+
+          {event.is_kairos_day || event.is_athanor_day ? (
+            <View className="rounded-card border border-aura-line bg-aura-soft p-4">
+              <Text className="text-[13px] text-aura">{t('event.kairos.banner', locale)}</Text>
+            </View>
+          ) : null}
+
+          {/* «Guarda in diretta» — external stream launch-out is deferred (link v1, later
+              slice). Rendered as a non-pressable styled badge for now (no empty handler). */}
+          {event.is_online ? (
+            <View className="rounded-full border border-aura-line bg-aura-soft px-5 py-3">
+              <Text className="text-center text-[14px] text-aura">
+                {t('event.watchLive', locale)}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Action bar (RSVP free / paid ticket) is the rsvp-attendance + tickets-qr slices. */}
+          <View className="rounded-card border border-hair bg-surface-muted p-4">
+            <Text className="text-center text-[13px] text-faint">
+              {t('event.actionSoon', locale)}
+            </Text>
+          </View>
+        </View>
+      )}
+    </ScrollView>
+  );
+}

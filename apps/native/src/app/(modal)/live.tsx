@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList } from 'react-native';
-import { type Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
@@ -23,9 +23,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
-// The `event/[id]` route file is registered in a later slice (Task 10); cast to Href
-// (via string) until its typed-route literal exists in the generated route map.
-const EVENT_HREF = (id: string): Href => `/(modal)/event/${id}` as string as Href;
+const EVENT_HREF = (id: string) => `/(modal)/event/${id}` as const;
 
 function toRowData(e: Event): EventRowData {
   const live = !!e.live_started_at && !e.live_ended_at;
