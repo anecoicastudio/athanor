@@ -470,6 +470,53 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          author_id: string
+          category: Database["public"]["Enums"]["project_category"]
+          created_at: string
+          deleted_at: string | null
+          description: string
+          id: string
+          status: Database["public"]["Enums"]["project_status"]
+          terms: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          category: Database["public"]["Enums"]["project_category"]
+          created_at?: string
+          deleted_at?: string | null
+          description?: string
+          id?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          terms?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          category?: Database["public"]["Enums"]["project_category"]
+          created_at?: string
+          deleted_at?: string | null
+          description?: string
+          id?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          terms?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       story_reactions: {
         Row: {
           created_at: string
@@ -584,6 +631,13 @@ export type Database = {
       moment_kind: "photo" | "video"
       post_category: "business" | "human" | "creative" | "evolution"
       post_type: "text" | "image" | "video" | "audio"
+      project_category:
+        | "startup"
+        | "artistic"
+        | "business"
+        | "scientific"
+        | "volunteer"
+      project_status: "open" | "closed"
       story_kind: "photo" | "video"
     }
     CompositeTypes: {
@@ -722,6 +776,14 @@ export const Constants = {
       moment_kind: ["photo", "video"],
       post_category: ["business", "human", "creative", "evolution"],
       post_type: ["text", "image", "video", "audio"],
+      project_category: [
+        "startup",
+        "artistic",
+        "business",
+        "scientific",
+        "volunteer",
+      ],
+      project_status: ["open", "closed"],
       story_kind: ["photo", "video"],
     },
   },
