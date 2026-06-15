@@ -36,10 +36,14 @@ export async function getEventsCalendar(
   cursor?: CalendarCursor | null,
   limit = PAGE_SIZE,
 ): Promise<CalendarPage> {
+  // Upcoming only: hide events that already started (the calendar/«Oggi»/map previews
+  // are "in arrivo"). Top-level filters AND together, so this composes with the keyset.
+  const cutoff = new Date().toISOString();
   let query = client
     .from('events')
     .select(EVENT_COLS)
     .is('deleted_at', null)
+    .gte('starts_at', cutoff)
     .order('starts_at', { ascending: true })
     .order('id', { ascending: true })
     .limit(limit);
