@@ -470,6 +470,95 @@ export type Database = {
         }
         Relationships: []
       }
+      story_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          person_id: string
+          segment_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          person_id: string
+          segment_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          person_id?: string
+          segment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_reactions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_reactions_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "story_segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_segments: {
+        Row: {
+          author_id: string
+          caption: string | null
+          created_at: string
+          deleted_at: string | null
+          duration_s: number | null
+          expires_at: string
+          id: string
+          is_step: boolean
+          kind: Database["public"]["Enums"]["story_kind"]
+          pinned: boolean
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          caption?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_s?: number | null
+          expires_at?: string
+          id?: string
+          is_step?: boolean
+          kind: Database["public"]["Enums"]["story_kind"]
+          pinned?: boolean
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          caption?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_s?: number | null
+          expires_at?: string
+          id?: string
+          is_step?: boolean
+          kind?: Database["public"]["Enums"]["story_kind"]
+          pinned?: boolean
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_segments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -485,6 +574,7 @@ export type Database = {
         Returns: boolean
       }
       post_reaction_count: { Args: { p_post_id: string }; Returns: number }
+      story_reaction_count: { Args: { p_segment_id: string }; Returns: number }
     }
     Enums: {
       help_status: "offered" | "accepted" | "declined" | "completed"
@@ -494,6 +584,7 @@ export type Database = {
       moment_kind: "photo" | "video"
       post_category: "business" | "human" | "creative" | "evolution"
       post_type: "text" | "image" | "video" | "audio"
+      story_kind: "photo" | "video"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -631,6 +722,7 @@ export const Constants = {
       moment_kind: ["photo", "video"],
       post_category: ["business", "human", "creative", "evolution"],
       post_type: ["text", "image", "video", "audio"],
+      story_kind: ["photo", "video"],
     },
   },
 } as const

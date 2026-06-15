@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import type { PickedMedia } from './pick';
 import { processImage, processVideo } from './process';
 
-export type MediaBucket = 'post-media' | 'moments';
+export type MediaBucket = 'post-media' | 'moments' | 'story-segments';
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
 
@@ -26,6 +26,11 @@ export function postMediaPath(
 /** Storage key for a moment: `${uid}/${momentId}.{ext}`. */
 export function momentPath(uid: string, momentId: string, kind: PickedMedia['kind']): string {
   return `${uid}/${momentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+}
+
+/** Storage key for a story segment: `${uid}/${segmentId}.{ext}`. */
+export function storyPath(uid: string, segmentId: string, kind: PickedMedia['kind']): string {
+  return `${uid}/${segmentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
 }
 
 /**

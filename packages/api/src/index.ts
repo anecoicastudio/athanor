@@ -12,4 +12,5 @@ export * from './waitlist';
 export * from './storage';
 export * from './post-media';
 export * from './moments';
+export * from './stories';
 export type { Database, Json } from './database.types';
