@@ -15,3 +15,4 @@ export * from './story-reaction';
 export * from './project';
 export * from './favor';
 export * from './waitlist';
+export * from './event';

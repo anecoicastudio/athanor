@@ -16,6 +16,10 @@ export const AURA_WEIGHTS = {
   STORY_REACT: 4,
   /** Publishing a Costellazioni project (M3 board). Displayed as `✦ +4 Aura` in the composer. */
   PROJECT_CREATE: 4,
+  /** Attending (checking in to) an Athanor Live event (M4/M6). Read-only «✦ +15 Aura» label on event detail. */
+  EVENT_ATTEND: 15,
+  /** Organizing an event whose attendees check in (M4/M6). Read-only label. */
+  EVENT_ORGANIZE: 30,
   /** Joining the Athanor Circle is never scored (rule #1). */
   CIRCLE_JOIN: 0,
   /** Contributing to Il Cuore (the fund) is never scored (rule #1). */

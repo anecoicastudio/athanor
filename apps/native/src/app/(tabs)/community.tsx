@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
+const LIVE_HREF = '/(modal)/live' as const;
 
 export default function CommunityScreen() {
   const { profile, session } = useAuth();
@@ -133,6 +134,14 @@ export default function CommunityScreen() {
               </Text>
             </Pressable>
             <CategoryTabs active={filter} onChange={setFilter} locale={locale} />
+            <Pressable
+              className="mx-5 flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
+              onPress={() => router.push(LIVE_HREF)}
+              accessibilityRole="link"
+            >
+              <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
+              <Text className="text-[13px] text-aura">{t('home.today.seeLive', locale)}</Text>
+            </Pressable>
             {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
               <StoryRail
                 you={{ handle: profile?.handle ?? null, hasStory: false }}
