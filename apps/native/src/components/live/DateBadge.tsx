@@ -1,3 +1,4 @@
+import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
 
 const MONTHS_IT = [
@@ -49,7 +50,7 @@ export function DateBadge({
     return (
       <View
         className="h-12 w-12 items-center justify-center rounded-ctl border border-aura-line bg-aura-soft"
-        accessibilityLabel="In diretta"
+        accessibilityLabel={t('live.chip.liveNow', locale)}
       >
         <Text className="text-[18px] text-aura">●</Text>
       </View>
