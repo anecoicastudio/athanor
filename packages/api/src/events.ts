@@ -241,7 +241,7 @@ export async function getMyRsvp(
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return rsvpSchema.parse(data as unknown);
+  return rsvpSchema.parse(data);
 }
 
 /** Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest user_ids. */
@@ -249,7 +249,7 @@ export type AttendeePreview = { count: number; userIds: string[] };
 export async function getEventAttendees(
   client: AthanorClient,
   eventId: string,
-  previewLimit = 4,
+  previewLimit = 4, // 4 = the avatar-stack size on the event detail
 ): Promise<AttendeePreview> {
   const { count, error: countErr } = await client
     .from('rsvps')
@@ -269,7 +269,7 @@ export async function getEventAttendees(
 
   return {
     count: count ?? 0,
-    userIds: (data ?? []).map((r) => (r as { user_id: string }).user_id),
+    userIds: (data ?? []).map((r) => r.user_id),
   };
 }
 
