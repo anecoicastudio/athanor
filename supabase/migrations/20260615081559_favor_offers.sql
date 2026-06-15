@@ -49,7 +49,7 @@ create policy "favor_offers_insert_actor"
   to authenticated
   with check ((select auth.uid()) = actor_id and actor_id <> target_id);
 
--- UPDATE: actor may soft-delete (withdraw) own favor — USING + WITH CHECK
+-- UPDATE: actor may withdraw (soft-delete) own favor — USING + WITH CHECK; the guard below pins identity/need immutable
 create policy "favor_offers_update_actor"
   on public.favor_offers for update
   to authenticated
@@ -57,6 +57,34 @@ create policy "favor_offers_update_actor"
   with check ((select auth.uid()) = actor_id);
 
 -- no delete policy: soft-delete via update(deleted_at); GDPR hard-erase service-side
+
+-- Withdraw-only: the actor may set deleted_at (withdraw); the identity/need columns are
+-- immutable from the client path. Mirrors milestone_helps_guard (column lockdown via trigger,
+-- since WITH CHECK cannot reference OLD). The M6 engine reads target_id/need_milestone_id, so
+-- a client must never re-target a favor after creating it.
+create function public.favor_offers_guard()
+returns trigger
+language plpgsql security invoker set search_path = ''
+as $$
+begin
+  if (select auth.role()) = 'service_role' then
+    return new;  -- engine/service path unrestricted (detect, not authorize — rule #2 note)
+  end if;
+  if new.actor_id            is distinct from old.actor_id
+     or new.target_id        is distinct from old.target_id
+     or new.need             is distinct from old.need
+     or new.need_milestone_id is distinct from old.need_milestone_id
+     or new.created_at       is distinct from old.created_at then
+    raise exception 'actor may only withdraw (soft-delete) a favor' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function public.favor_offers_guard() from public, anon, authenticated;
+
+create trigger favor_offers_guard
+  before update on public.favor_offers
+  for each row execute function public.favor_offers_guard();
 
 -- favor_needs — read-model of people with an OPEN need (frontend 03 §3.6.1 "FAVOR_NEEDS").
 -- Derived from open dream_milestones of OTHER members; excludes needs I've already favored.

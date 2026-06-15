@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(17);
 
 -- three deterministic users (handle_new_user trigger auto-creates their profiles)
 --   A = helped/target (plants a dream + two open tappe), B = helper/actor, C = non-party third user
@@ -109,6 +109,13 @@ select results_eq(
   'actor reads own outgoing favor'
 );
 
+-- the withdraw-only guard: actor cannot re-target / edit identity columns of own favor (42501)
+select throws_ok(
+  $$ update public.favor_offers set target_id = '33333333-3333-3333-3333-333333333333'
+       where actor_id = '22222222-2222-2222-2222-222222222222' $$,
+  '42501', null, 'actor cannot re-target own favor (withdraw-only guard)'
+);
+
 -- target A reads the incoming favor
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select results_eq(
@@ -124,6 +131,28 @@ select results_eq(
   $$ select count(*)::int from public.favor_offers $$,
   $$ values (0) $$,
   'non-party user sees zero favors'
+);
+
+-- non-party C's UPDATE is denied by the policy USING clause → affects zero rows
+update public.favor_offers set need = 'hacked'
+  where actor_id = '22222222-2222-2222-2222-222222222222';
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+select results_eq(
+  $$ select count(*)::int from public.favor_offers where need = 'hacked' $$,
+  $$ values (0) $$,
+  'non-party update of a favor affects zero rows (update policy USING denies it)'
+);
+
+-- the legitimate path: actor B withdraws (soft-deletes) own favor
+select lives_ok(
+  $$ update public.favor_offers set deleted_at = now()
+       where actor_id = '22222222-2222-2222-2222-222222222222' $$,
+  'actor can withdraw (soft-delete) own favor'
+);
+select results_eq(
+  $$ select count(*)::int from public.favor_offers $$,
+  $$ values (0) $$,
+  'withdrawn favor is no longer visible (deleted_at filter in the select policy)'
 );
 reset role;
 
