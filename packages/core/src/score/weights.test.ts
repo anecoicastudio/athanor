@@ -33,4 +33,8 @@ describe('AURA_WEIGHTS', () => {
   test('organizing an event is worth +30 Aura (read-only label, M6 award)', () => {
     expect(AURA_WEIGHTS.EVENT_ORGANIZE).toBe(30);
   });
+
+  test('MOMENTO_CONV is +5 (the ≥10-message conversation award, M6-awarded)', () => {
+    expect(AURA_WEIGHTS.MOMENTO_CONV).toBe(5);
+  });
 });

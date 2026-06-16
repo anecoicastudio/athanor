@@ -55,8 +55,13 @@ export default function HomeScreen() {
   const locale = profile.locale;
   const greeting = t(`home.greeting.${greetingFor(new Date().getHours())}` as MessageKey, locale);
 
-  // Header action targets land in later milestones — honest «Presto qui» hint.
-  const onAction = () => {
+  // `messages` opens the conversations list (M5); search/notifiche land later →
+  // honest «Presto qui» hint.
+  const onAction = (key: 'search' | 'messages' | 'notifications') => {
+    if (key === 'messages') {
+      router.push('/messages');
+      return;
+    }
     setActionSoon(true);
     setTimeout(() => setActionSoon(false), 2000);
   };

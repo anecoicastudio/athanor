@@ -6,8 +6,8 @@ import { BellIcon, MessageIcon, SearchIcon } from './icons';
 /**
  * Home greeting header (PRD 01-m1-identity §3.2, block 1). Time-of-day greeting
  * + the person's @handle (profiles has no `name` column), and three action
- * icons. Targets land in later milestones (search M8, messages M5, notifiche
- * M9) → tapping signals «Presto qui» via `onAction`; no dead routes, and
+ * icons. `messages` opens the conversations list (M5); search (M8) / notifiche
+ * (M9) still signal «Presto qui» via `onAction(key)`; no dead routes, and
  * **never a numeric badge** (Foundation §8 — the prototype's "3" is the mockup).
  */
 export function HomeHeader({
@@ -19,7 +19,7 @@ export function HomeHeader({
   greeting: string;
   handle: string | null;
   locale: Locale;
-  onAction: () => void;
+  onAction: (key: 'search' | 'messages' | 'notifications') => void;
 }) {
   const actions = [
     { key: 'search', label: t('home.action.search', locale), Icon: SearchIcon },
@@ -42,7 +42,7 @@ export function HomeHeader({
             accessibilityRole="button"
             accessibilityLabel={label}
             hitSlop={8}
-            onPress={onAction}
+            onPress={() => onAction(key)}
           >
             <Icon />
           </Pressable>

@@ -17,3 +17,5 @@ export * from './favor';
 export * from './waitlist';
 export * from './event';
 export * from './momento';
+export * from './conversation';
+export * from './message';

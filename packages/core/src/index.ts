@@ -11,3 +11,4 @@ export * from './media/limits';
 export * from './media/post-type';
 export * from './events/distance';
 export * from './events/price';
+export * from './chat/dayBucket';
