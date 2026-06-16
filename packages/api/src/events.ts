@@ -1,4 +1,6 @@
 import {
+  type Attendance,
+  type CheckInResult,
   type Event,
   type EventCategory,
   type EventCreate,
@@ -6,6 +8,8 @@ import {
   type EventNearby,
   type Rsvp,
   type Ticket,
+  attendanceSchema,
+  checkInResultSchema,
   eventCreateSchema,
   eventLiveStatsSchema,
   eventNearbySchema,
@@ -28,6 +32,7 @@ export const eventKeys = {
   attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
   liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
   ticket: (eventId: string) => [...eventKeys.all, 'ticket', eventId] as const,
+  checkin: (eventId: string) => [...eventKeys.all, 'checkin', eventId] as const,
 };
 
 /** Columns the client reads (everything except the geography `geo` column). */
@@ -391,4 +396,74 @@ export function subscribeTicket(
   };
 }
 
-export type { Event, EventCategory, EventLiveStats, EventNearby, Ticket };
+/**
+ * Submit a scanned QR to the `check-in` edge fn (organizer-only; verify_jwt=true). The fn verifies
+ * the HMAC token, matches the event, asserts the caller is the organizer, records attendance
+ * (idempotent) and flips the ticket paid→checked_in as service role (rule #6). Returns the verdict —
+ * the app renders it; it NEVER writes attendance/money/Aura itself.
+ */
+export async function checkInScan(
+  client: AthanorClient,
+  eventId: string,
+  qrToken: string,
+): Promise<CheckInResult> {
+  const { data, error } = await client.functions.invoke('check-in', {
+    body: { eventId, qrToken },
+  });
+  if (error) throw error;
+  return checkInResultSchema.parse(data);
+}
+
+/** Live arrived-count for an event. Organizer reads via RLS (holder-or-organizer). Head count only. */
+export async function getEventCheckinCount(
+  client: AthanorClient,
+  eventId: string,
+): Promise<number> {
+  const { count, error } = await client
+    .from('event_attendance')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Subscribe to new check-ins for an event (realtime INSERT on event_attendance). The organizer's
+ * scanner increments its «{n} arrivati» counter live. Returns a cleanup fn — callers MUST call it on
+ * unmount (.claude/rules/api.md invariant #1).
+ */
+export function subscribeAttendance(
+  client: AthanorClient,
+  eventId: string,
+  onCheckIn: (row: Attendance) => void,
+): () => void {
+  const channel = client
+    .channel(`event:${eventId}:attendance`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'event_attendance',
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const parsed = attendanceSchema.safeParse(payload.new);
+        if (parsed.success) onCheckIn(parsed.data);
+      },
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export type {
+  Attendance,
+  CheckInResult,
+  Event,
+  EventCategory,
+  EventLiveStats,
+  EventNearby,
+  Ticket,
+};
