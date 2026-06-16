@@ -34,6 +34,9 @@ export default function ChatScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList<Row>>(null);
+  // Whether the viewport is pinned to the newest message — gates auto-scroll so loading
+  // older history (scroll-up pagination) doesn't yank the reader back to the bottom.
+  const atBottomRef = useRef(true);
   const [draft, setDraft] = useState('');
 
   const headerQuery = useQuery({
@@ -100,6 +103,9 @@ export default function ChatScreen() {
     onError: () => Alert.alert(t('chat.failed', locale)),
   });
 
+  const trimmed = draft.trim();
+  const canSend = trimmed.length > 0 && !send.isPending && Boolean(conversationId);
+
   const openMenu = () =>
     Alert.alert(t('chat.a11y.menu', locale), undefined, [
       { text: t('chat.block', locale), onPress: () => Alert.alert(t('chat.action.soon', locale)) },
@@ -149,7 +155,12 @@ export default function ChatScreen() {
         data={rows}
         keyExtractor={(r) => r.key}
         contentContainerClassName="px-4 py-3"
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        onContentSizeChange={() => {
+          // Auto-scroll to the newest message only when the reader is already at the bottom;
+          // prepending older history (scroll-up pagination) must not bounce them down.
+          if (atBottomRef.current) listRef.current?.scrollToEnd({ animated: false });
+        }}
         renderItem={({ item }) =>
           item.type === 'marker' ? (
             <View className="my-3 items-center">
@@ -160,8 +171,11 @@ export default function ChatScreen() {
           )
         }
         onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          atBottomRef.current =
+            contentSize.height - (contentOffset.y + layoutMeasurement.height) < 120;
           if (
-            e.nativeEvent.contentOffset.y < 80 &&
+            contentOffset.y < 80 &&
             messagesQuery.hasNextPage &&
             !messagesQuery.isFetchingNextPage
           ) {
@@ -184,11 +198,11 @@ export default function ChatScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('chat.a11y.send', locale)}
-          disabled={draft.trim().length === 0 || send.isPending}
-          onPress={() => send.mutate(draft.trim())}
-          style={draft.trim().length > 0 ? auraGlow(1) : undefined}
+          disabled={!canSend}
+          onPress={() => send.mutate(trimmed)}
+          style={canSend ? auraGlow(1) : undefined}
           className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
-            draft.trim().length === 0 ? 'opacity-40' : ''
+            canSend ? '' : 'opacity-40'
           }`}
         >
           <Text className="text-[20px] text-on-aura">›</Text>
