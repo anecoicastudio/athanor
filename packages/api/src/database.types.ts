@@ -1301,6 +1301,20 @@ export type Database = {
         Returns: undefined;
       };
       run_momenti_matcher: { Args: never; Returns: number };
+      search_connections: {
+        Args: {
+          p_cursor_created_at?: string;
+          p_cursor_id?: string;
+          p_limit?: number;
+          p_query?: string;
+        };
+        Returns: {
+          connection_id: string;
+          created_at: string;
+          peer_handle: string;
+          peer_id: string;
+        }[];
+      };
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number };
     };
     Enums: {
