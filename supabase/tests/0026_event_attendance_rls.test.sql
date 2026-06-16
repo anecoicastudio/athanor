@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(12);
 
 -- two users: A (organizer/scanner), B (attendee/holder), C (random member)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -50,6 +50,17 @@ $$, '23505', null, 'duplicate check-in for same ticket rejected (idempotent)');
 select results_eq($$ select count(*)::int from public.event_attendance
   where ticket_id='bbbbbbbb-0000-0000-0000-00000000bbbb' $$,
   $$ values (1) $$, 'organizer can read attendance for their event');
+
+-- IMMUTABLE record: no UPDATE/DELETE grant or policy → even the organizer cannot mutate a check-in
+-- (corrections go through service role). Locks the "immutable" claim as a test, not just a comment.
+select throws_ok($$
+  update public.event_attendance set checked_in_at = now()
+  where ticket_id='bbbbbbbb-0000-0000-0000-00000000bbbb'
+$$, '42501', null, 'organizer cannot UPDATE a check-in (immutable)');
+select throws_ok($$
+  delete from public.event_attendance
+  where ticket_id='bbbbbbbb-0000-0000-0000-00000000bbbb'
+$$, '42501', null, 'organizer cannot DELETE a check-in (immutable)');
 
 -- B (holder, non-organizer) CANNOT insert attendance → 42501 (organizer-only WITH CHECK)
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
