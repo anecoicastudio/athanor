@@ -56,6 +56,7 @@ select ok(
 
 -- Regression (daily_rank offset): a SECOND same-day run with a NEW eligible candidate for a
 -- partially-filled recipient must NOT raise a daily_cap 23505, and must respect the ≤3/day cap.
+reset role;   -- auth.users INSERT needs the superuser session role; service_role lacks it
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000','dddddddd-dddd-dddd-dddd-dddddddddddd',
         'authenticated','authenticated','d@test.athanor','{}'::jsonb, now(), now());
