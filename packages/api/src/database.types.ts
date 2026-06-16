@@ -481,6 +481,63 @@ export type Database = {
           },
         ];
       };
+      momento_proposals: {
+        Row: {
+          affinity: number;
+          candidate_id: string;
+          created_at: string;
+          daily_rank: number;
+          id: string;
+          passed_until: string | null;
+          proposed_on: string;
+          reasons: string[];
+          status: Database["public"]["Enums"]["momento_status"];
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          affinity?: number;
+          candidate_id: string;
+          created_at?: string;
+          daily_rank?: number;
+          id?: string;
+          passed_until?: string | null;
+          proposed_on?: string;
+          reasons?: string[];
+          status?: Database["public"]["Enums"]["momento_status"];
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          affinity?: number;
+          candidate_id?: string;
+          created_at?: string;
+          daily_rank?: number;
+          id?: string;
+          passed_until?: string | null;
+          proposed_on?: string;
+          reasons?: string[];
+          status?: Database["public"]["Enums"]["momento_status"];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "momento_proposals_candidate_id_fkey";
+            columns: ["candidate_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "momento_proposals_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       moments: {
         Row: {
           caption: string | null;
@@ -979,6 +1036,7 @@ export type Database = {
       };
     };
     Functions: {
+      accept_momento: { Args: { p_proposal_id: string }; Returns: Json };
       confirm_milestone_help: {
         Args: { p_help_id: string };
         Returns: undefined;
@@ -1020,12 +1078,22 @@ export type Database = {
           venue: string;
         }[];
       };
+      momento_reasons: {
+        Args: {
+          p_locale: string;
+          p_offer_hit: string[];
+          p_seek_hit: string[];
+          p_shared: string[];
+        };
+        Returns: string[];
+      };
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean };
       owns_help_milestone: {
         Args: { p_milestone_id: string };
         Returns: boolean;
       };
       post_reaction_count: { Args: { p_post_id: string }; Returns: number };
+      run_momenti_matcher: { Args: never; Returns: number };
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number };
     };
     Enums: {
@@ -1044,6 +1112,7 @@ export type Database = {
       media_kind: "image" | "video" | "audio";
       milestone_status: "open" | "in_progress" | "done";
       moment_kind: "photo" | "video";
+      momento_status: "pending" | "accepted" | "passed";
       post_category: "business" | "human" | "creative" | "evolution";
       post_type: "text" | "image" | "video" | "audio";
       project_category:
@@ -1200,6 +1269,7 @@ export const Constants = {
       media_kind: ["image", "video", "audio"],
       milestone_status: ["open", "in_progress", "done"],
       moment_kind: ["photo", "video"],
+      momento_status: ["pending", "accepted", "passed"],
       post_category: ["business", "human", "creative", "evolution"],
       post_type: ["text", "image", "video", "audio"],
       project_category: [
