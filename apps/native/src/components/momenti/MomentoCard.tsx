@@ -1,0 +1,43 @@
+import { t } from '@athanor/i18n';
+import type { Locale, MomentoDeckCard } from '@athanor/schemas';
+import { Text, View } from '@/tw';
+import { Avatar } from '@/components/Avatar';
+import { AffinityRow } from './AffinityRow';
+
+/**
+ * Per-proposal deck card (frontend §9): avatar + handle + read-only «✦ Aura 0» chip
+ * (rule #1 — Aura is never client-rendered as a real number here), up to 3 affinity
+ * reasons, and the peer's dream quote in the Hanken-italic dream register (the same
+ * `font-dream` quote treatment as DreamCard, never a UI font).
+ */
+export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: Locale }) {
+  const name = card.handle ?? '—';
+  return (
+    <View className="flex-1 rounded-card border border-aura-line bg-raise p-5">
+      <View className="flex-row items-center gap-3">
+        <Avatar handle={card.handle} size={56} />
+        <View className="flex-1">
+          <Text className="text-[18px] font-semibold text-foreground">{name}</Text>
+          <Text className="text-[12px] text-faint">✦ Aura 0</Text>
+        </View>
+      </View>
+
+      <View className="mt-4 gap-1">
+        {card.reasons.slice(0, 3).map((reason, i) => (
+          <AffinityRow key={i} reason={reason} locale={locale} />
+        ))}
+      </View>
+
+      {card.dreamText ? (
+        <View className="mt-4">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            {t('momenti.theirDream', locale)}
+          </Text>
+          <Text className="mt-1 font-dream text-xl leading-relaxed text-foreground">
+            «{card.dreamText}»
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}

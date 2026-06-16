@@ -16,3 +16,4 @@ export * from './project';
 export * from './favor';
 export * from './waitlist';
 export * from './event';
+export * from './momento';
