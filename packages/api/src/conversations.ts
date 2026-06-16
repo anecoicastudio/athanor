@@ -1,8 +1,4 @@
-import {
-  type ConversationListItem,
-  conversationListItem,
-  conversationSchema,
-} from '@athanor/schemas';
+import { type ConversationListItem, conversationListItem } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 export const conversationKeys = {
