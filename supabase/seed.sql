@@ -30,3 +30,33 @@ insert into public.dream_milestones (dream_id, body, position)
   from public.dreams d join public.profiles p on p.id = d.profile_id
   where p.handle = 'sole' and d.status = 'active'
   on conflict do nothing;
+
+-- M5 Momenti demo: a couple of pending proposals so the swipe deck renders in local dev.
+-- (seed.sql is local-only; on hosted, run select public.run_momenti_matcher();)
+-- Give both members tags + an active dream so they are real matcher-eligible profiles, then
+-- hand-author two reciprocal pending proposals (sole↔luna) — the deck has cards from the first run.
+update public.profiles
+  set identity_tags = array['design'], seeking = array['music']
+  where handle = 'sole';
+update public.profiles
+  set identity_tags = array['music'], seeking = array['design']
+  where handle = 'luna';
+
+insert into public.dreams (profile_id, text, status)
+  select id, 'Launch a wellbeing app that helps people sleep.', 'active'
+  from public.profiles where handle = 'luna'
+  on conflict do nothing;
+
+-- sole sees luna (sole seeks music, luna is music)
+insert into public.momento_proposals (user_id, candidate_id, reasons, affinity, daily_rank)
+select a.id, b.id, array['Cerchi: music','Potrebbe cercare ciò che offri: design'], 2, 1
+from public.profiles a, public.profiles b
+where a.handle = 'sole' and b.handle = 'luna'
+on conflict do nothing;
+
+-- luna sees sole (luna seeks design, sole is design)
+insert into public.momento_proposals (user_id, candidate_id, reasons, affinity, daily_rank)
+select a.id, b.id, array['You''re seeking: design','May seek what you offer: music'], 2, 1
+from public.profiles a, public.profiles b
+where a.handle = 'luna' and b.handle = 'sole'
+on conflict do nothing;
