@@ -16,4 +16,5 @@ export * from './stories';
 export * from './projects';
 export * from './favors';
 export * from './events';
+export * from './momenti';
 export type { Database, Json } from './database.types';
