@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -49,6 +49,12 @@ select throws_ok(
 select throws_ok($$ update public.momento_proposals set reasons = array['hacked']
                     where user_id = '11111111-1111-1111-1111-111111111111' $$,
   '42501', null, 'client cannot rewrite reasons');
+select throws_ok($$ update public.momento_proposals set affinity = 999
+                    where user_id = '11111111-1111-1111-1111-111111111111' $$,
+  '42501', null, 'client cannot rewrite affinity (write-side invariant #3)');
+select throws_ok($$ update public.momento_proposals set daily_rank = 2
+                    where user_id = '11111111-1111-1111-1111-111111111111' $$,
+  '42501', null, 'client cannot rewrite daily_rank');
 
 -- accept_momento: A accepts → reciprocal (B) not yet accepted → matched false
 select is(

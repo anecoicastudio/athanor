@@ -71,6 +71,8 @@ export function SwipeDeck({
     }).start(() => advance(dir, card));
   };
 
+  // Intentionally runs every render (no deps): re-binds the handle to the latest flyOut closure
+  // so a button-triggered swipe() always uses the current `index`/`reduceMotion`. Do NOT add a dep array.
   useEffect(() => {
     if (deckRef) deckRef.current = { swipe: flyOut };
   });
