@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(7);
 
 -- three users: A & B share a tag (→ should match); C is isolated (no overlap)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -43,6 +43,23 @@ select ok(
     where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') >= 1,
   'proposal carries at least one reason string');
 
+-- Regression (daily_rank offset): a SECOND same-day run with a NEW eligible candidate for a
+-- partially-filled recipient must NOT raise a daily_cap 23505, and must respect the ≤3/day cap.
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000000','dddddddd-dddd-dddd-dddd-dddddddddddd',
+        'authenticated','authenticated','d@test.athanor','{}'::jsonb, now(), now());
+set local role service_role;
+update public.profiles set identity_tags = array['music'], seeking = array['design'], locale='it'
+  where id='dddddddd-dddd-dddd-dddd-dddddddddddd';   -- D, like B, matches A (A seeks music)
+insert into public.dreams (profile_id, text) values ('dddddddd-dddd-dddd-dddd-dddddddddddd','Un sogno D');
+
+select lives_ok($$ select public.run_momenti_matcher() $$,
+  'second same-day run does not raise on a partially-filled recipient');
+select ok(
+  (select count(*)::int from public.momento_proposals
+     where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+       and proposed_on = (now() at time zone 'utc')::date) <= 3,
+  'recipient A never exceeds the ≤3/day cap across re-runs');
 reset role;
 select * from finish();
 rollback;
