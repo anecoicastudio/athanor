@@ -560,5 +560,16 @@
   "ticket.show": "Show this code at the entrance",
   "ticket.status.valid": "Valid",
   "ticket.status.used": "Already used ✦ You attended",
-  "ticket.checkedIn": "✓ Checked in"
+  "ticket.checkedIn": "✓ Checked in",
+  "event.checkin": "Check-in",
+  "ticket.scan.title": "Check-in · {event}",
+  "ticket.scan.counter": "{n} arrived",
+  "ticket.scan.welcome": "✓ {name} · welcome",
+  "ticket.scan.already": "Already checked in",
+  "ticket.scan.invalid": "Invalid ticket",
+  "ticket.scan.wrongEvent": "Ticket for another event",
+  "ticket.scan.permission": "Allow the camera to check people in",
+  "ticket.scan.allow": "Allow the camera",
+  "ticket.scan.hint": "Frame the ticket's QR code",
+  "ticket.scan.someone": "a guest"
 }

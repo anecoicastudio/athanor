@@ -113,6 +113,7 @@ export default function EventDetailScreen() {
   const now = Date.now();
   const isPast = event ? new Date(event.ends_at ?? event.starts_at).getTime() < now : false;
   const isPaid = (event?.price_cents ?? 0) > 0;
+  const isOrganizer = !!uid && event?.organizer_id === uid;
   const count = attendees.data?.count ?? 0;
   const soldOut = event?.capacity != null && count >= event.capacity;
 
@@ -193,6 +194,19 @@ export default function EventDetailScreen() {
                 {t('event.watchLive', locale)}
               </Text>
             </View>
+          ) : null}
+
+          {isOrganizer && isPaid ? (
+            <Pressable
+              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-3"
+              onPress={() => router.push(`/event/${id}/checkin`)}
+              accessibilityRole="button"
+              accessibilityLabel={t('event.checkin', locale)}
+            >
+              <Text className="text-center text-[14px] text-aura">
+                {t('event.checkin', locale)}
+              </Text>
+            </Pressable>
           ) : null}
 
           {/* Type-aware action bar. */}

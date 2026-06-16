@@ -560,5 +560,16 @@
   "ticket.show": "Mostra questo codice all'ingresso",
   "ticket.status.valid": "Valido",
   "ticket.status.used": "Già usato ✦ Hai partecipato",
-  "ticket.checkedIn": "✓ Check-in effettuato"
+  "ticket.checkedIn": "✓ Check-in effettuato",
+  "event.checkin": "Check-in",
+  "ticket.scan.title": "Check-in · {event}",
+  "ticket.scan.counter": "{n} arrivati",
+  "ticket.scan.welcome": "✓ {name} · benvenuto",
+  "ticket.scan.already": "Già registrato",
+  "ticket.scan.invalid": "Biglietto non valido",
+  "ticket.scan.wrongEvent": "Biglietto di un altro evento",
+  "ticket.scan.permission": "Consenti la fotocamera per fare il check-in",
+  "ticket.scan.allow": "Consenti la fotocamera",
+  "ticket.scan.hint": "Inquadra il codice QR del biglietto",
+  "ticket.scan.someone": "un ospite"
 }
