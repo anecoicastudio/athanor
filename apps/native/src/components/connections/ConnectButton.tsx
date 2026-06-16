@@ -1,0 +1,157 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  cancelConnection,
+  connectionKeys,
+  conversationKeys,
+  getConnectionStatus,
+  respondToConnection,
+  sendConnection,
+} from '@athanor/api';
+import { type Locale, t } from '@athanor/i18n';
+import { Pressable, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
+import { supabase } from '@/lib/supabase';
+
+/**
+ * Profile action: send / cancel / accept-decline / connected, driven by the live
+ * connection status for `peerId`. Flat cyan only (rule #4) — a connection is routine,
+ * never a glow moment. Aura is never written here (rule #1).
+ */
+export function ConnectButton({ peerId, locale }: { peerId: string; locale: Locale }) {
+  const queryClient = useQueryClient();
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1600);
+  };
+
+  const statusQuery = useQuery({
+    queryKey: connectionKeys.status(peerId),
+    queryFn: () => getConnectionStatus(supabase, peerId),
+  });
+
+  // Shared invalidation: status for this peer + the inbox (a new/removed request shows there).
+  const resyncStatus = () =>
+    void queryClient.invalidateQueries({ queryKey: connectionKeys.status(peerId) });
+  const invalidateAll = () => {
+    resyncStatus();
+    void queryClient.invalidateQueries({ queryKey: connectionKeys.incoming() });
+  };
+
+  const sendMutation = useMutation({
+    mutationFn: () => sendConnection(supabase, peerId),
+    onSuccess: () => {
+      invalidateAll();
+      showToast(t('connection.sent.toast', locale));
+    },
+    onError: () => {
+      resyncStatus();
+      showToast(t('connection.failed', locale));
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (requestId: string) => cancelConnection(supabase, requestId),
+    onSuccess: () => {
+      invalidateAll();
+      showToast(t('connection.cancelled.toast', locale));
+    },
+    onError: () => {
+      resyncStatus();
+      showToast(t('connection.failed', locale));
+    },
+  });
+
+  const respondMutation = useMutation({
+    mutationFn: ({ requestId, accept }: { requestId: string; accept: boolean }) =>
+      respondToConnection(supabase, requestId, accept),
+    onSuccess: (_data, variables) => {
+      invalidateAll();
+      if (variables.accept) {
+        // An accept created a 1:1 chat — refresh the conversations list.
+        void queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
+        showToast(t('connection.accepted.toast', locale));
+      }
+    },
+    onError: () => {
+      resyncStatus();
+      showToast(t('connection.failed', locale));
+    },
+  });
+
+  const pending = sendMutation.isPending || cancelMutation.isPending || respondMutation.isPending;
+  const state = statusQuery.data?.state ?? 'none';
+  const requestId = statusQuery.data?.requestId ?? null;
+
+  return (
+    <View className="flex-1 gap-2">
+      {state === 'none' ? (
+        <Button
+          label={t('connection.cta', locale)}
+          variant="light"
+          disabled={pending || statusQuery.isLoading}
+          onPress={() => sendMutation.mutate()}
+        />
+      ) : null}
+
+      {state === 'pending-out' ? (
+        <View className="gap-2">
+          <Button
+            label={t('connection.pending', locale)}
+            variant="ghost"
+            disabled
+            onPress={() => {}}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={pending || !requestId}
+            hitSlop={8}
+            onPress={() => requestId && cancelMutation.mutate(requestId)}
+          >
+            <Text className={`text-center text-[13px] text-faint ${pending ? 'opacity-40' : ''}`}>
+              {t('connection.cancel', locale)}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {state === 'pending-in' ? (
+        <View className="flex-row items-center gap-3">
+          <View className="flex-1">
+            <Button
+              label={t('connection.accept', locale)}
+              variant="light"
+              disabled={pending || !requestId}
+              onPress={() => requestId && respondMutation.mutate({ requestId, accept: true })}
+            />
+          </View>
+          <View className="flex-1">
+            <Button
+              label={t('connection.decline', locale)}
+              variant="ghost"
+              disabled={pending || !requestId}
+              onPress={() => requestId && respondMutation.mutate({ requestId, accept: false })}
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {state === 'connected' ? (
+        <Button
+          label={t('connection.connected', locale)}
+          variant="ghost"
+          disabled
+          onPress={() => {}}
+        />
+      ) : null}
+
+      {toast ? (
+        <View className="absolute -top-12 self-center rounded-full border border-hair bg-raise-2 px-5 py-2">
+          <Text className="text-[14px] font-semibold text-foreground">{toast}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}

@@ -22,6 +22,7 @@ import {
 } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Lightbox } from '@/components/Lightbox';
@@ -244,29 +245,24 @@ export default function PersonDetailScreen() {
         <Text className="text-faint">—</Text>
       </View>
 
-      {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» is the
-          connection-requests slice (still a stub here). */}
+      {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» drives the
+          full connection-requests state machine (M5). */}
       <View className="flex-row items-center gap-4">
-        <Button
-          label={t('profile.write.cta', locale)}
-          variant="ghost"
-          onPress={async () => {
-            try {
-              const conversationId = await getOrCreateConversation(supabase, id);
-              router.push(`/chat?conversationId=${conversationId}`);
-            } catch {
-              showToast(t('chat.openFailed', locale));
-            }
-          }}
-        />
-        <Button
-          label={t('profile.connect.cta', locale)}
-          variant="primary"
-          onPress={() => {
-            /* TODO(M5): connection_requests */
-            showToast(t('profile.connect.toast', locale));
-          }}
-        />
+        <View className="flex-1">
+          <Button
+            label={t('profile.write.cta', locale)}
+            variant="ghost"
+            onPress={async () => {
+              try {
+                const conversationId = await getOrCreateConversation(supabase, id);
+                router.push(`/chat?conversationId=${conversationId}`);
+              } catch {
+                showToast(t('chat.openFailed', locale));
+              }
+            }}
+          />
+        </View>
+        <ConnectButton peerId={id} locale={locale} />
       </View>
 
       <Lightbox

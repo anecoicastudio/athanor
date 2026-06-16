@@ -23,6 +23,7 @@ export default function ModalLayout() {
       <Stack.Screen name="stories" options={{ animation: 'fade' }} />
       <Stack.Screen name="match" options={{ animation: 'fade' }} />
       <Stack.Screen name="messages" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="connections" options={{ presentation: 'modal' }} />
       <Stack.Screen name="chat" options={{ presentation: 'modal' }} />
       <Stack.Screen name="live" />
       <Stack.Screen name="event/[id]/index" options={{ presentation: 'modal' }} />

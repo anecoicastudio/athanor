@@ -19,3 +19,4 @@ export * from './event';
 export * from './momento';
 export * from './conversation';
 export * from './message';
+export * from './connection';
