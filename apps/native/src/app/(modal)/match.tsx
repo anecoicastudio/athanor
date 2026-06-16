@@ -15,15 +15,19 @@ import { useAuth } from '@/lib/auth-context';
  * Reduced-motion safe: under Reduce Motion the burst fades opacity only (no
  * scale/transform), following the MomentFlash/AccessibilityInfo pattern.
  *
- * The «Apri il Momento» / «Scrivi a {name}» CTA is a STUB — the guided
- * conversation/chat lands in a later slice. Tapping it shows the
- * `momenti.chat.soon` toast; «Più tardi» / «Continua a esplorare» dismisses.
+ * The «Apri il Momento» / «Scrivi a {name}» CTA opens the freshly created
+ * conversation (the deck forwards `conversationId` on a mutual match); with no
+ * id it just dismisses. «Più tardi» / «Continua a esplorare» dismisses.
  */
 export default function MatchOverlay() {
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const router = useRouter();
-  const { name = '', source = 'accepted' } = useLocalSearchParams<{
+  const {
+    name = '',
+    source = 'accepted',
+    conversationId,
+  } = useLocalSearchParams<{
     name: string;
     source: 'accepted' | 'incoming';
     conversationId?: string;
@@ -32,7 +36,6 @@ export default function MatchOverlay() {
   const [reduceMotion, setReduceMotion] = useState(false);
   const scale = useRef(new Animated.Value(0.9)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const [chatSoon, setChatSoon] = useState(false);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled()
@@ -96,10 +99,9 @@ export default function MatchOverlay() {
           variant="light"
           glow
           label={accepted ? fill('match.accepted.writeCta') : t('match.openCta', locale)}
-          // TODO(m5-conversations-chat): replace the chat.soon stub with router.replace to (modal)/chat?conversationId=...
           onPress={() => {
-            setChatSoon(true);
-            setTimeout(() => setChatSoon(false), 1600);
+            if (conversationId) router.replace(`/chat?conversationId=${conversationId}`);
+            else router.back();
           }}
         />
         <Button
@@ -108,14 +110,6 @@ export default function MatchOverlay() {
           onPress={() => router.back()}
         />
       </View>
-
-      {chatSoon ? (
-        <View className="absolute bottom-16 rounded-full border border-hair bg-raise-2 px-5 py-2">
-          <Text className="text-[14px] font-semibold text-foreground">
-            {t('momenti.chat.soon', locale)}
-          </Text>
-        </View>
-      ) : null}
     </Animated.View>
   );
 }

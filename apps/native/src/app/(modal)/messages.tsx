@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
-import { type Router, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type ConversationCursor,
@@ -82,12 +82,7 @@ export default function MessagesScreen() {
                 next.delete(item.id);
                 return next;
               });
-              // `(modal)/chat` is registered but TypeScript typed routes don't resolve
-              // query-string hrefs for future routes; use the same cast pattern as momenti.tsx.
-              router.push({
-                pathname: '/(modal)/chat',
-                params: { conversationId: item.id },
-              } as unknown as Parameters<Router['push']>[0]);
+              router.push(`/chat?conversationId=${item.id}`);
             }}
           />
         )}

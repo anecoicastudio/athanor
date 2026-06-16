@@ -5,6 +5,7 @@ import {
   getActiveDream,
   getAuraScore,
   getMomentsPage,
+  getOrCreateConversation,
   getProfileById,
   listMilestones,
   listMyHelps,
@@ -243,14 +244,19 @@ export default function PersonDetailScreen() {
         <Text className="text-faint">—</Text>
       </View>
 
-      {/* Action bar — connect/chat are M5 toast stubs. */}
+      {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» is the
+          connection-requests slice (still a stub here). */}
       <View className="flex-row items-center gap-4">
         <Button
           label={t('profile.write.cta', locale)}
           variant="ghost"
-          onPress={() => {
-            /* TODO(M5): open chat */
-            showToast(t('profile.write.cta', locale));
+          onPress={async () => {
+            try {
+              const conversationId = await getOrCreateConversation(supabase, id);
+              router.push(`/chat?conversationId=${conversationId}`);
+            } catch {
+              showToast(t('profile.write.cta', locale));
+            }
           }}
         />
         <Button
