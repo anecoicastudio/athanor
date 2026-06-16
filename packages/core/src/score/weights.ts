@@ -20,6 +20,12 @@ export const AURA_WEIGHTS = {
   EVENT_ATTEND: 15,
   /** Organizing an event whose attendees check in (M4/M6). Read-only label. */
   EVENT_ORGANIZE: 30,
+  /**
+   * A Momento conversation reaching ≥10 messages from BOTH sides (M5 records the
+   * messages; the M6 engine awards +5 to each party — never client-written, rule #1).
+   * Display-only constant; no `✦ +N` hint is shown in chat (the award is invisible in M5).
+   */
+  MOMENTO_CONV: 5,
   /** Joining the Athanor Circle is never scored (rule #1). */
   CIRCLE_JOIN: 0,
   /** Contributing to Il Cuore (the fund) is never scored (rule #1). */
