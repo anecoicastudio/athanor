@@ -1,0 +1,121 @@
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { t, type MessageKey } from '@athanor/i18n';
+import { Pressable, Text, View } from '@/tw';
+import { Mandorla } from '@/components/Mandorla';
+import { Button } from '@/components/Button';
+import { useAuth } from '@/lib/auth-context';
+
+/**
+ * Match overlay — fired on a MUTUAL Momento match (the deck navigates here on a
+ * matched accept). This is the one glowing surface of the swipe-deck slice
+ * (rule #4 — a moment happened): a glowing <Mandorla> burst with the ✦ mark.
+ *
+ * Reduced-motion safe: under Reduce Motion the burst fades opacity only (no
+ * scale/transform), following the MomentFlash/AccessibilityInfo pattern.
+ *
+ * The «Apri il Momento» / «Scrivi a {name}» CTA is a STUB — the guided
+ * conversation/chat lands in a later slice. Tapping it shows the
+ * `momenti.chat.soon` toast; «Più tardi» / «Continua a esplorare» dismisses.
+ */
+export default function MatchOverlay() {
+  const { profile } = useAuth();
+  const locale = profile?.locale ?? 'it';
+  const router = useRouter();
+  const { name = '', source = 'accepted' } = useLocalSearchParams<{
+    name: string;
+    source: 'accepted' | 'incoming';
+    conversationId?: string;
+  }>();
+  const accepted = source === 'accepted';
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const scale = useRef(new Animated.Value(0.9)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const [chatSoon, setChatSoon] = useState(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(setReduceMotion)
+      .catch(() => setReduceMotion(false));
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    if (!reduceMotion) {
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.15,
+          duration: 320,
+          easing: Easing.out(Easing.back(1.6)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+    } else {
+      scale.setValue(1);
+    }
+  }, [reduceMotion, opacity, scale]);
+
+  const fill = (k: MessageKey) => t(k, locale, { name });
+
+  return (
+    <Animated.View
+      style={{ opacity }}
+      className="flex-1 items-center justify-center bg-background px-8"
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('common.close', locale)}
+        onPress={() => router.back()}
+        className="absolute right-5 top-12 h-11 w-11 items-center justify-center"
+      >
+        <Text className="text-2xl text-faint">×</Text>
+      </Pressable>
+
+      <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
+        {/* glowing Mandorla burst — high glow (glowLevel 1), ✦ mark inside (rule #4) */}
+        <Mandorla size={140} glowLevel={1}>
+          <Text className="text-4xl text-aura">✦</Text>
+        </Mandorla>
+      </Animated.View>
+
+      <Text className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-aura">
+        {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
+      </Text>
+      <Text className="mt-2 text-center text-[26px] font-bold text-foreground">
+        {accepted ? t('match.accepted.big', locale) : name}
+      </Text>
+      <Text className="mt-3 text-center text-[15px] leading-[22px] text-faint">
+        {accepted ? fill('match.accepted.sub') : t('match.sub', locale)}
+      </Text>
+      <Text className="mt-3 text-[12px] text-faint">✦ Aura 0</Text>
+
+      <View className="mt-8 w-full gap-3">
+        <Button
+          variant="light"
+          glow
+          label={accepted ? fill('match.accepted.writeCta') : t('match.openCta', locale)}
+          // TODO(m5-conversations-chat): replace the chat.soon stub with router.replace to (modal)/chat?conversationId=...
+          onPress={() => {
+            setChatSoon(true);
+            setTimeout(() => setChatSoon(false), 1600);
+          }}
+        />
+        <Button
+          variant="ghost"
+          label={accepted ? t('match.accepted.keepCta', locale) : t('match.laterCta', locale)}
+          onPress={() => router.back()}
+        />
+      </View>
+
+      {chatSoon ? (
+        <View className="absolute bottom-16 rounded-full border border-hair bg-raise-2 px-5 py-2">
+          <Text className="text-[14px] font-semibold text-foreground">
+            {t('momenti.chat.soon', locale)}
+          </Text>
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
