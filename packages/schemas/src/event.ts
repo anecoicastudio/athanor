@@ -145,3 +145,25 @@ export const ticketSchema = z.object({
   updated_at: z.string(),
 });
 export type Ticket = z.infer<typeof ticketSchema>;
+
+/**
+ * event_attendance row (mirrors public.event_attendance). Immutable check-in record; the client
+ * never writes it (the check-in edge fn does, RLS organizer-gated). Used to parse realtime INSERT
+ * payloads for the live «{n} arrivati» counter.
+ */
+export const attendanceSchema = z.object({
+  id: z.string().uuid(),
+  ticket_id: z.string().uuid(),
+  event_id: z.string().uuid(),
+  checked_in_at: z.string(),
+  scanned_by: z.string().uuid(),
+  created_at: z.string(),
+});
+export type Attendance = z.infer<typeof attendanceSchema>;
+
+/** Verdict returned by the `check-in` edge fn (200 for every scan outcome). `name` = holder handle. */
+export const checkInResultSchema = z.object({
+  result: z.enum(['valid', 'already', 'invalid', 'wrongEvent']),
+  name: z.string().optional(),
+});
+export type CheckInResult = z.infer<typeof checkInResultSchema>;
