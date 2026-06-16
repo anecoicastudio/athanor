@@ -13,31 +13,36 @@ import { AffinityRow } from './AffinityRow';
 export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: Locale }) {
   const name = card.handle ?? '—';
   return (
-    <View className="flex-1 rounded-card border border-aura-line bg-raise p-5">
-      <View className="flex-row items-center gap-3">
-        <Avatar handle={card.handle} size={56} />
-        <View className="flex-1">
-          <Text className="text-[18px] font-semibold text-foreground">{name}</Text>
-          <Text className="text-[12px] text-faint">✦ Aura 0</Text>
+    // Opaque base (bg-background) UNDER the bg-raise tint: the deck stacks the next card behind
+    // this one (SwipeDeck), and bg-raise alone (rgba ~4%) is see-through — the peek card bled
+    // through and garbled the text. The base occludes it while preserving the raised-card look.
+    <View className="flex-1 rounded-card bg-background">
+      <View className="flex-1 rounded-card border border-aura-line bg-raise p-5">
+        <View className="flex-row items-center gap-3">
+          <Avatar handle={card.handle} size={56} />
+          <View className="flex-1">
+            <Text className="text-[18px] font-semibold text-foreground">{name}</Text>
+            <Text className="text-[12px] text-faint">✦ Aura 0</Text>
+          </View>
         </View>
-      </View>
 
-      <View className="mt-4 gap-1">
-        {card.reasons.slice(0, 3).map((reason, i) => (
-          <AffinityRow key={i} reason={reason} locale={locale} />
-        ))}
-      </View>
-
-      {card.dreamText ? (
-        <View className="mt-4">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
-            {t('momenti.theirDream', locale)}
-          </Text>
-          <Text className="mt-1 font-dream text-xl leading-relaxed text-foreground">
-            «{card.dreamText}»
-          </Text>
+        <View className="mt-4 gap-1">
+          {card.reasons.slice(0, 3).map((reason, i) => (
+            <AffinityRow key={i} reason={reason} locale={locale} />
+          ))}
         </View>
-      ) : null}
+
+        {card.dreamText ? (
+          <View className="mt-4">
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              {t('momenti.theirDream', locale)}
+            </Text>
+            <Text className="mt-1 font-dream text-xl leading-relaxed text-foreground">
+              «{card.dreamText}»
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }

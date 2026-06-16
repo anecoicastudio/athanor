@@ -52,6 +52,17 @@ export function SwipeDeck({
     pan.setValue({ x: 0, y: 0 });
   }, [index, pan]);
 
+  // The parent refetches the deck after every accept/pass (invalidateQueries), handing us a
+  // fresh, shorter `cards` array. Reset the cursor to the new top whenever the deck identity
+  // changes — otherwise a stale `index` renders + acts on the WRONG card: the deck acts on
+  // cards[index] while the parent's a11y labels + toast read cards[0], so a desynced index
+  // accepts/passes (and labels) someone other than the visible person. (accept/pass always
+  // removes the row server-side, so the id list — and this key — changes after each action.)
+  const deckKey = cards.map((c) => c.id).join('|');
+  useEffect(() => {
+    setIndex(0);
+  }, [deckKey]);
+
   const advance = (dir: 'left' | 'right', card: MomentoDeckCard) => {
     if (dir === 'right') onAccept(card);
     else onPass(card);
