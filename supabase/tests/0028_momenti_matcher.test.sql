@@ -21,6 +21,17 @@ insert into public.dreams (profile_id, text) values
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','Un sogno B'),
   ('cccccccc-cccc-cccc-cccc-cccccccccccc','Un sogno C');
 
+-- Isolate the matcher's GLOBAL candidate pool to just A/B/C: archive every OTHER profile's active
+-- dream (incl. seed.sql's sole/luna + any fixture) so the matcher pairs only the three test users and
+-- the assertions are deterministic. Rolled back with the test txn. D (added later for the regression)
+-- is inserted AFTER this, so it stays an eligible candidate.
+update public.dreams set status = 'archived'
+  where profile_id not in (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc')
+    and status = 'active' and deleted_at is null;
+
 select ok(public.run_momenti_matcher() >= 2, 'matcher inserts at least the A↔B pair');
 
 -- A got proposed B (seek_hit: A seeks music, B is music)
