@@ -145,7 +145,10 @@ export default function CheckinScreen() {
         </Text>
       </View>
       {/* Reticle */}
-      <View className="absolute inset-0 items-center justify-center" pointerEvents="none">
+      <View
+        className="absolute inset-0 items-center justify-center"
+        style={{ pointerEvents: 'none' }}
+      >
         <View className={`h-56 w-56 rounded-card border-2 ${flash}`} />
         {!last ? (
           <Text className="mt-4 text-[13px] text-ink-2">{t('ticket.scan.hint', locale)}</Text>
