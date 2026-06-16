@@ -46,10 +46,21 @@ jobs:
           # forgot to regenerate types". Formatting diffs are tolerated; column-level drift is caught
           # by the node job's typecheck (code using a missing/changed column fails to compile).
           supabase gen types --lang typescript --local > /tmp/gen.ts
+          # Extract the public-schema TABLE names only (the real staleness signal). Other schemas
+          # (e.g. graphql_public) and views/functions can legitimately differ in shape between the CLI
+          # and the MCP generator, so we don't compare them here.
+          awk '
+            /^  public: \{/ {p=1}
+            p && /^    Tables: \{/ {t=1; next}
+            p && /^    (Views|Functions|Enums|CompositeTypes): \{/ {t=0}
+            p && /^  [A-Za-z0-9_]+: \{/ && $0 !~ /^  public:/ {p=0; t=0}
+            t && /^      [A-Za-z0-9_]+: \{$/ {gsub(/[ :{]/,""); print}
+          ' /tmp/gen.ts | sort -u > /tmp/public_tables.txt
           missing=0
-          for name in $(grep -oE '^      [A-Za-z0-9_]+: \{$' /tmp/gen.ts | tr -d ' :{' | sort -u); do
+          while read -r name; do
+            [ -n "$name" ] || continue
             grep -qE "[[:space:]]$name: \{" packages/api/src/database.types.ts \
-              || { echo "::error::'$name' is in the schema but missing from packages/api/src/database.types.ts — run pnpm gen:types and commit"; missing=1; }
-          done
+              || { echo "::error::public table '$name' is in the schema but missing from packages/api/src/database.types.ts — run pnpm gen:types and commit"; missing=1; }
+          done < /tmp/public_tables.txt
           [ "$missing" = 0 ] || exit 1
-          echo "::notice::types-sync OK — every generated DB object is present in the committed types"
+          echo "::notice::types-sync OK — all $(wc -l < /tmp/public_tables.txt | tr -d ' ') public tables present in the committed types"
