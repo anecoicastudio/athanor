@@ -43,6 +43,97 @@ export type Database = {
           },
         ];
       };
+      connection_requests: {
+        Row: {
+          addressee_id: string;
+          created_at: string;
+          id: string;
+          requester_id: string;
+          responded_at: string | null;
+          status: Database["public"]["Enums"]["connection_status"];
+          updated_at: string;
+        };
+        Insert: {
+          addressee_id: string;
+          created_at?: string;
+          id?: string;
+          requester_id: string;
+          responded_at?: string | null;
+          status?: Database["public"]["Enums"]["connection_status"];
+          updated_at?: string;
+        };
+        Update: {
+          addressee_id?: string;
+          created_at?: string;
+          id?: string;
+          requester_id?: string;
+          responded_at?: string | null;
+          status?: Database["public"]["Enums"]["connection_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connection_requests_addressee_id_fkey";
+            columns: ["addressee_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "connection_requests_requester_id_fkey";
+            columns: ["requester_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      connections: {
+        Row: {
+          created_at: string;
+          id: string;
+          profile_a: string;
+          profile_b: string;
+          source_request_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          profile_a: string;
+          profile_b: string;
+          source_request_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          profile_a?: string;
+          profile_b?: string;
+          source_request_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connections_profile_a_fkey";
+            columns: ["profile_a"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "connections_profile_b_fkey";
+            columns: ["profile_b"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "connections_source_request_id_fkey";
+            columns: ["source_request_id"];
+            isOneToOne: false;
+            referencedRelation: "connection_requests";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       conversations: {
         Row: {
           created_at: string;
@@ -1205,10 +1296,15 @@ export type Database = {
         Returns: boolean;
       };
       post_reaction_count: { Args: { p_post_id: string }; Returns: number };
+      respond_to_connection: {
+        Args: { p_accept: boolean; p_request_id: string };
+        Returns: undefined;
+      };
       run_momenti_matcher: { Args: never; Returns: number };
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number };
     };
     Enums: {
+      connection_status: "pending" | "accepted" | "declined";
       conversation_source: "momento" | "direct";
       event_category:
         | "business"
@@ -1367,6 +1463,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      connection_status: ["pending", "accepted", "declined"],
       conversation_source: ["momento", "direct"],
       event_category: [
         "business",
