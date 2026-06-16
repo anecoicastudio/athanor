@@ -16,7 +16,7 @@ select is(
   52428800::bigint, 'story-segments file_size_limit = 52428800'
 );
 select ok(
-  'video/mp4' = any((select allowed_mime_types from storage.buckets where id = 'story-segments')),
+  (select 'video/mp4' = any(allowed_mime_types) from storage.buckets where id = 'story-segments'),
   'story-segments allowed_mime_types contains video/mp4'
 );
 select ok(

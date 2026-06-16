@@ -33,7 +33,7 @@ select is(
 
 -- 4. moments allowed_mime_types contains video/mp4
 select ok(
-  'video/mp4' = any((select allowed_mime_types from storage.buckets where id = 'moments')),
+  (select 'video/mp4' = any(allowed_mime_types) from storage.buckets where id = 'moments'),
   'moments allowed_mime_types contains video/mp4'
 );
 
@@ -46,7 +46,7 @@ select is(
 
 -- 4c. post-media accepts audio (the only bucket that does)
 select ok(
-  'audio/mpeg' = any((select allowed_mime_types from storage.buckets where id = 'post-media')),
+  (select 'audio/mpeg' = any(allowed_mime_types) from storage.buckets where id = 'post-media'),
   'post-media allowed_mime_types contains audio/mpeg'
 );
 

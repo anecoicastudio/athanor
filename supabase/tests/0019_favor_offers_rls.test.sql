@@ -79,7 +79,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.favor_offers (actor_id, target_id, need)
      values ('22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'me stesso') $$,
-  'self-favor (actor_id = target_id) rejected'
+  '42501', null, 'self-favor (actor_id = target_id) rejected (RLS with-check actor_id <> target_id fires first)'
 );
 
 -- favor_needs (as B): A's still-unfavored "Un logo" shows; the favored "Un mentor" is gone; B's own need never shows
@@ -149,10 +149,16 @@ select lives_ok(
        where actor_id = '22222222-2222-2222-2222-222222222222' $$,
   'actor can withdraw (soft-delete) own favor'
 );
+-- The withdrawn favor is gone for the TARGET (and everyone else). The actor keeps RLS visibility of
+-- its OWN soft-deleted row — required so the withdraw UPDATE's new row passes the SELECT policy
+-- (PostgreSQL checks the new row against SELECT; see 20260616083015_allow_owner_soft_delete.sql) — and
+-- the app filters `deleted_at is null` on every read, so it never surfaces in-app.
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select results_eq(
-  $$ select count(*)::int from public.favor_offers $$,
+  $$ select count(*)::int from public.favor_offers
+       where target_id = '11111111-1111-1111-1111-111111111111' $$,
   $$ values (0) $$,
-  'withdrawn favor is no longer visible (deleted_at filter in the select policy)'
+  'withdrawn favor is no longer visible to the target'
 );
 reset role;
 
