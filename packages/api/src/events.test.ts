@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventKeys, subscribeEventLive } from './events';
+import { eventKeys, subscribeEventLive, subscribeTicket } from './events';
 
 describe('eventKeys', () => {
   it('namespaces rsvp + attendees distinctly under the events root', () => {
@@ -28,6 +28,30 @@ describe('subscribeEventLive', () => {
     } as unknown as Parameters<typeof subscribeEventLive>[0];
 
     const cleanup = subscribeEventLive(fakeClient, 'e1', () => {});
+    expect(typeof cleanup).toBe('function');
+    cleanup();
+    expect(removed).toBe(channel);
+  });
+});
+
+describe('eventKeys.ticket', () => {
+  it('namespaces a ticket under the events root', () => {
+    expect(eventKeys.ticket('e1')).toEqual(['events', 'ticket', 'e1']);
+  });
+});
+
+describe('subscribeTicket', () => {
+  it('returns a cleanup fn that removes the channel (rule api.md)', () => {
+    let removed: unknown = null;
+    const channel = { on: () => channel, subscribe: () => channel };
+    const fakeClient = {
+      channel: () => channel,
+      removeChannel: (c: unknown) => {
+        removed = c;
+      },
+    } as unknown as Parameters<typeof subscribeTicket>[0];
+
+    const cleanup = subscribeTicket(fakeClient, 'e1', 'u1', () => {});
     expect(typeof cleanup).toBe('function');
     cleanup();
     expect(removed).toBe(channel);
