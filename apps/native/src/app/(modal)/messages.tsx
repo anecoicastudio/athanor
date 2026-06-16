@@ -52,18 +52,28 @@ export default function MessagesScreen() {
         <Text className="text-[17px] font-semibold text-foreground">
           {t('messages.title', locale)}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('messages.new', locale)}
-          hitSlop={8}
-          onPress={() => {
-            // No person-picker yet (search/connections land later) — honest stub toast.
-            setToast(true);
-            setTimeout(() => setToast(false), 1600);
-          }}
-        >
-          <Text className="text-2xl text-foreground">+</Text>
-        </Pressable>
+        <View className="flex-row items-center gap-5">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('connection.a11y.hub', locale)}
+            hitSlop={8}
+            onPress={() => router.push('/connections')}
+          >
+            <Text className="text-2xl text-faint">◎</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('messages.new', locale)}
+            hitSlop={8}
+            onPress={() => {
+              // No person-picker yet (search/connections land later) — honest stub toast.
+              setToast(true);
+              setTimeout(() => setToast(false), 1600);
+            }}
+          >
+            <Text className="text-2xl text-foreground">+</Text>
+          </Pressable>
+        </View>
       </View>
 
       <FlatList

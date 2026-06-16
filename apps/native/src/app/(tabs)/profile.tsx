@@ -35,6 +35,7 @@ import { IncomingOfferRow } from '@/components/IncomingOfferRow';
 import { MomentFlash } from '@/components/MomentFlash';
 import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
+import { SettingsRow } from '@/components/SettingsRow';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
 import { Lightbox } from '@/components/Lightbox';
 import { MediaSheet } from '@/components/MediaSheet';
@@ -381,6 +382,15 @@ function ProfileEditor({
               { value: '0', label: t('profile.stat.reviews', locale) },
             ]}
           />
+
+          {/* Connessioni — hub for established connections + the Richieste inbox (M5). */}
+          <View className="-mx-5 border-y border-hair">
+            <SettingsRow
+              title={t('connection.hub.title', locale)}
+              accessibilityLabel={t('connection.a11y.hub', locale)}
+              onPress={() => router.push('/connections')}
+            />
+          </View>
 
           {/* Le Sei Stelle */}
           <View className="gap-3">
