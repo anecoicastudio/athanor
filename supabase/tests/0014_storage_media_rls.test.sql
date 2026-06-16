@@ -46,7 +46,7 @@ select is(
 
 -- 4c. post-media accepts audio (the only bucket that does)
 select ok(
-  'audio/mpeg' = any((select allowed_mime_types from storage.buckets where id = 'post-media')),
+  (select 'audio/mpeg' = any(allowed_mime_types) from storage.buckets where id = 'post-media'),
   'post-media allowed_mime_types contains audio/mpeg'
 );
 
