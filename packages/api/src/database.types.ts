@@ -43,6 +43,54 @@ export type Database = {
           },
         ];
       };
+      conversations: {
+        Row: {
+          created_at: string;
+          created_from: Database["public"]["Enums"]["conversation_source"];
+          id: string;
+          last_message_at: string;
+          last_message_preview: string | null;
+          participant_a: string;
+          participant_b: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_from?: Database["public"]["Enums"]["conversation_source"];
+          id?: string;
+          last_message_at?: string;
+          last_message_preview?: string | null;
+          participant_a: string;
+          participant_b: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_from?: Database["public"]["Enums"]["conversation_source"];
+          id?: string;
+          last_message_at?: string;
+          last_message_preview?: string | null;
+          participant_a?: string;
+          participant_b?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "conversations_participant_a_fkey";
+            columns: ["participant_a"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_participant_b_fkey";
+            columns: ["participant_b"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       dream_milestones: {
         Row: {
           body: string;
@@ -414,6 +462,57 @@ export type Database = {
           {
             foreignKeyName: "favor_offers_target_id_fkey";
             columns: ["target_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      messages: {
+        Row: {
+          body: string | null;
+          conversation_id: string;
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["message_kind"];
+          media_url: string | null;
+          prompt_key: string | null;
+          sender_id: string | null;
+        };
+        Insert: {
+          body?: string | null;
+          conversation_id: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["message_kind"];
+          media_url?: string | null;
+          prompt_key?: string | null;
+          sender_id?: string | null;
+        };
+        Update: {
+          body?: string | null;
+          conversation_id?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["message_kind"];
+          media_url?: string | null;
+          prompt_key?: string | null;
+          sender_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey";
+            columns: ["sender_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -1041,6 +1140,14 @@ export type Database = {
         Args: { p_help_id: string };
         Returns: undefined;
       };
+      create_conversation_pair: {
+        Args: {
+          p1: string;
+          p2: string;
+          src: Database["public"]["Enums"]["conversation_source"];
+        };
+        Returns: string;
+      };
       create_event: {
         Args: {
           p_capacity?: number;
@@ -1078,6 +1185,11 @@ export type Database = {
           venue: string;
         }[];
       };
+      get_or_create_conversation: {
+        Args: { peer_id: string };
+        Returns: string;
+      };
+      inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined };
       momento_reasons: {
         Args: {
           p_locale: string;
@@ -1097,6 +1209,7 @@ export type Database = {
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number };
     };
     Enums: {
+      conversation_source: "momento" | "direct";
       event_category:
         | "business"
         | "networking"
@@ -1110,6 +1223,7 @@ export type Database = {
       help_status: "offered" | "accepted" | "declined" | "completed";
       help_type: "skill" | "connection" | "opportunity";
       media_kind: "image" | "video" | "audio";
+      message_kind: "user" | "system" | "prompt";
       milestone_status: "open" | "in_progress" | "done";
       moment_kind: "photo" | "video";
       momento_status: "pending" | "accepted" | "passed";
@@ -1253,6 +1367,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      conversation_source: ["momento", "direct"],
       event_category: [
         "business",
         "networking",
@@ -1267,6 +1382,7 @@ export const Constants = {
       help_status: ["offered", "accepted", "declined", "completed"],
       help_type: ["skill", "connection", "opportunity"],
       media_kind: ["image", "video", "audio"],
+      message_kind: ["user", "system", "prompt"],
       milestone_status: ["open", "in_progress", "done"],
       moment_kind: ["photo", "video"],
       momento_status: ["pending", "accepted", "passed"],
