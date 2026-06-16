@@ -191,25 +191,29 @@ describe('ticketSchema', () => {
 });
 
 describe('attendanceSchema', () => {
+  const valid = {
+    id: '11111111-1111-1111-1111-111111111111',
+    ticket_id: '22222222-2222-2222-2222-222222222222',
+    event_id: '33333333-3333-3333-3333-333333333333',
+    checked_in_at: '2026-06-16T10:00:00.000Z',
+    scanned_by: '44444444-4444-4444-4444-444444444444',
+    created_at: '2026-06-16T10:00:00.000Z',
+  };
   it('parses a valid attendance row', () => {
-    const row = {
-      id: '11111111-1111-1111-1111-111111111111',
-      ticket_id: '22222222-2222-2222-2222-222222222222',
-      event_id: '33333333-3333-3333-3333-333333333333',
-      checked_in_at: '2026-06-16T10:00:00.000Z',
-      scanned_by: '44444444-4444-4444-4444-444444444444',
-      created_at: '2026-06-16T10:00:00.000Z',
-    };
-    expect(attendanceSchema.parse(row)).toMatchObject({ ticket_id: row.ticket_id });
+    expect(attendanceSchema.parse(valid)).toMatchObject({ ticket_id: valid.ticket_id });
   });
   it('rejects a non-uuid ticket_id', () => {
-    expect(() => attendanceSchema.parse({ ticket_id: 'nope' })).toThrow();
+    // override only ticket_id on an otherwise-valid row so the failure isolates the uuid rule.
+    expect(() => attendanceSchema.parse({ ...valid, ticket_id: 'nope' })).toThrow();
   });
 });
 
 describe('checkInResultSchema', () => {
   it('parses each verdict, name optional', () => {
-    expect(checkInResultSchema.parse({ result: 'valid', name: 'marco' }).result).toBe('valid');
+    for (const result of ['valid', 'already', 'invalid', 'wrongEvent'] as const) {
+      expect(checkInResultSchema.parse({ result }).result).toBe(result);
+    }
+    expect(checkInResultSchema.parse({ result: 'valid', name: 'marco' }).name).toBe('marco');
     expect(checkInResultSchema.parse({ result: 'already' }).name).toBeUndefined();
   });
   it('rejects an unknown verdict', () => {
