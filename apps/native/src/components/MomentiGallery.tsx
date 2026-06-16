@@ -8,12 +8,13 @@ import { MomentAddTile, MomentTile } from '@/components/MomentTile';
 
 /**
  * "I tuoi Momenti" — the Profilo gallery section (frontend `01` §3.4 item 6).
- * Header + "Vedi tutti" → full grid; a 3-col gallery of own momenti + the
- * trailing add tile. M1 frame-only: empty for real new users (types/moment.ts);
- * create/upload + the live source land at M3.
+ * Header + "Vedi tutti" → full grid; a 3-col gallery of live momenti + the
+ * trailing add tile. Media renders from signed URLs (`urls`, path→url); a tile
+ * with no URL yet shows the quiet placeholder. Empty for a brand-new user.
  */
 export function MomentiGallery({
   moments,
+  urls,
   locale,
   onOpen,
   onSeeAll,
@@ -22,6 +23,8 @@ export function MomentiGallery({
   emptyLabel,
 }: {
   moments: Moment[];
+  /** Signed URLs by storage path (from `useSignedUrls('moments', …)`). */
+  urls: Record<string, string>;
   locale: Locale;
   onOpen: (index: number) => void;
   onSeeAll: () => void;
@@ -50,7 +53,13 @@ export function MomentiGallery({
       <View className="flex-row flex-wrap">
         {moments.map((m, i) => (
           <View key={m.id} className="w-1/3 p-0.5">
-            <MomentTile moment={m} variant="gallery" locale={locale} onPress={() => onOpen(i)} />
+            <MomentTile
+              moment={m}
+              variant="gallery"
+              locale={locale}
+              url={urls[m.media_path]}
+              onPress={() => onOpen(i)}
+            />
           </View>
         ))}
         {onAdd ? (

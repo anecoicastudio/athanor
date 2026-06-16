@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { type FeedCursor, getFeedPage, postKeys, subscribeNewPosts } from '@athanor/api';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import {
+  type FeedCursor,
+  getFeedPage,
+  getStoryRail,
+  postKeys,
+  storyKeys,
+  subscribeNewPosts,
+  subscribeNewStories,
+} from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
@@ -10,13 +18,15 @@ import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { EmptyState } from '@/components/EmptyState';
+import { StoryRail } from '@/components/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
+const LIVE_HREF = '/(modal)/live' as const;
 
 export default function CommunityScreen() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [hasNew, setHasNew] = useState(false);
@@ -30,14 +40,48 @@ export default function CommunityScreen() {
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  // Realtime: surface a "Nuovi passi ›" banner when a fresh post arrives.
-  // subscribeNewPosts returns its cleanup (rule api.md) — run it on unmount.
-  useEffect(() => {
-    const unsubscribe = subscribeNewPosts(supabase, () => setHasNew(true));
-    return unsubscribe;
-  }, []);
-
   const posts = query.data?.pages.flatMap((p) => p.posts) ?? [];
+
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+  const myId = session?.user.id;
+
+  // Realtime: "Nuovi passi ›" banner — skip your own posts and posts outside the
+  // active category (deferred refinement). subscribeNewPosts returns its cleanup.
+  useEffect(() => {
+    const unsubscribe = subscribeNewPosts(supabase, (post) => {
+      if (myId && post.author_id === myId) return;
+      const active = filterRef.current;
+      if (active !== 'all' && post.category !== active) return;
+      setHasNew(true);
+    });
+    return unsubscribe;
+  }, [myId]);
+
+  const railQuery = useQuery({
+    queryKey: storyKeys.rail(),
+    queryFn: () => getStoryRail(supabase),
+  });
+  const [seenIds] = useState<Set<string>>(() => new Set());
+
+  // Realtime: a new story segment → refresh the rail (skip your own insert).
+  useEffect(() => {
+    const unsubscribe = subscribeNewStories(supabase, (seg) => {
+      if (myId && seg.author_id === myId) return;
+      void railQuery.refetch();
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myId]);
+
+  const openPerson = (authorId: string) => {
+    const handle =
+      authorId === 'me'
+        ? (profile?.handle ?? '')
+        : (railQuery.data?.find((p) => p.author_id === authorId)?.handle ?? '');
+    if (authorId !== 'me') seenIds.add(authorId);
+    router.push({ pathname: '/(modal)/stories', params: { authorId, handle } });
+  };
 
   const onRefresh = () => {
     setHasNew(false);
@@ -90,6 +134,24 @@ export default function CommunityScreen() {
               </Text>
             </Pressable>
             <CategoryTabs active={filter} onChange={setFilter} locale={locale} />
+            <Pressable
+              className="mx-5 flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
+              onPress={() => router.push(LIVE_HREF)}
+              accessibilityRole="link"
+            >
+              <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
+              <Text className="text-[13px] text-aura">{t('home.today.seeLive', locale)}</Text>
+            </Pressable>
+            {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
+              <StoryRail
+                you={{ handle: profile?.handle ?? null, hasStory: false }}
+                people={railQuery.data ?? []}
+                seenIds={seenIds}
+                locale={locale}
+                onOpenPerson={openPerson}
+                onAddYours={() => router.push(COMPOSE_HREF)}
+              />
+            ) : null}
             {hasNew ? (
               <Pressable
                 className="mx-5 items-center rounded-ctl bg-aura-soft py-2"

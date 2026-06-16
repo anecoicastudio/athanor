@@ -6,6 +6,7 @@ import { t, type MessageKey } from '@athanor/i18n';
 import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
+import { TodaySection } from '@/components/home/TodaySection';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { InviteCard } from '@/components/home/InviteCard';
 import { StarsMiniRow } from '@/components/home/StarsMiniRow';
@@ -70,7 +71,7 @@ export default function HomeScreen() {
       <ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />
       <ComingSoonSection title={t('home.week.title', locale)} locale={locale} />
       <ComingSoonSection title={t('home.nudge.title', locale)} locale={locale} />
-      <ComingSoonSection title={t('home.section.today', locale)} locale={locale} />
+      <TodaySection locale={locale} />
 
       {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}
       <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />

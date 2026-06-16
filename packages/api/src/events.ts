@@ -1,0 +1,469 @@
+import {
+  type Attendance,
+  type CheckInResult,
+  type Event,
+  type EventCategory,
+  type EventCreate,
+  type EventLiveStats,
+  type EventNearby,
+  type Rsvp,
+  type Ticket,
+  attendanceSchema,
+  checkInResultSchema,
+  eventCreateSchema,
+  eventLiveStatsSchema,
+  eventNearbySchema,
+  eventSchema,
+  rsvpSchema,
+  ticketSchema,
+} from '@athanor/schemas';
+import type { AthanorClient } from './client';
+
+export const eventKeys = {
+  all: ['events'] as const,
+  nearby: (lat: number, lng: number, radiusKm: number) =>
+    [...eventKeys.all, 'nearby', lat, lng, radiusKm] as const,
+  calendar: () => [...eventKeys.all, 'calendar'] as const,
+  online: () => [...eventKeys.all, 'online'] as const,
+  today: () => [...eventKeys.all, 'today'] as const,
+  detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
+  byOrganizer: (uid: string) => [...eventKeys.all, 'organizer', uid] as const,
+  rsvp: (eventId: string) => [...eventKeys.all, 'rsvp', eventId] as const,
+  attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
+  liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
+  ticket: (eventId: string) => [...eventKeys.all, 'ticket', eventId] as const,
+  checkin: (eventId: string) => [...eventKeys.all, 'checkin', eventId] as const,
+};
+
+/** Columns the client reads (everything except the geography `geo` column). */
+const EVENT_COLS =
+  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_kairos_day,is_athanor_day,cover_url,live_started_at,live_ended_at,created_at,updated_at,deleted_at';
+
+const PAGE_SIZE = 20;
+
+/** Opaque keyset cursor for the calendar (the last (starts_at, id) seen). Never an offset (rule #9). */
+export type CalendarCursor = { starts_at: string; id: string };
+export type CalendarPage = { events: Event[]; nextCursor: CalendarCursor | null };
+
+/** Upcoming events ascending by (starts_at, id) — keyset, never offset. */
+export async function getEventsCalendar(
+  client: AthanorClient,
+  cursor?: CalendarCursor | null,
+  limit = PAGE_SIZE,
+): Promise<CalendarPage> {
+  // Upcoming only: hide events that already started (the calendar/«Oggi»/map previews
+  // are "in arrivo"). Top-level filters AND together, so this composes with the keyset.
+  const cutoff = new Date().toISOString();
+  let query = client
+    .from('events')
+    .select(EVENT_COLS)
+    .is('deleted_at', null)
+    .gte('starts_at', cutoff)
+    .order('starts_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(limit);
+
+  if (cursor) {
+    const { starts_at, id } = cursor;
+    query = query.or(`starts_at.gt.${starts_at},and(starts_at.eq.${starts_at},id.gt.${id})`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  const events = (data ?? []).map((row) => eventSchema.parse(row as unknown));
+  const last = events.length === limit ? events.at(-1) : undefined;
+  const nextCursor = last ? { starts_at: last.starts_at, id: last.id } : null;
+  return { events, nextCursor };
+}
+
+/**
+ * Online events (is_online). The screen partitions into live-now vs upcoming
+ * (presentation): live-now = live_started_at set AND live_ended_at null.
+ */
+export async function getEventsOnline(client: AthanorClient): Promise<Event[]> {
+  const { data, error } = await client
+    .from('events')
+    .select(EVENT_COLS)
+    .is('deleted_at', null)
+    .eq('is_online', true)
+    .order('starts_at', { ascending: true })
+    .limit(50);
+  if (error) throw error;
+  return (data ?? []).map((row) => eventSchema.parse(row as unknown));
+}
+
+/** Keyset cursor for nearby (the last (dist_meters, id) seen). */
+export type NearbyCursor = { dist: number; id: string };
+export type NearbyPage = { events: EventNearby[]; nextCursor: NearbyCursor | null };
+
+/** Physical events within radiusKm of (lat,lng), nearest-first. Distance computed server-side. */
+export async function getEventsNearby(
+  client: AthanorClient,
+  lat: number,
+  lng: number,
+  radiusKm = 50,
+  cursor?: NearbyCursor | null,
+  limit = PAGE_SIZE,
+): Promise<NearbyPage> {
+  const rpcArgs: {
+    lat: number;
+    long: number;
+    radius_m?: number;
+    cursor_dist?: number;
+    cursor_id?: string;
+    page_size?: number;
+  } = {
+    lat,
+    long: lng,
+    radius_m: radiusKm * 1000,
+    page_size: limit,
+  };
+  if (cursor) {
+    rpcArgs.cursor_dist = cursor.dist;
+    rpcArgs.cursor_id = cursor.id;
+  }
+
+  const { data, error } = await client.rpc('events_nearby', rpcArgs);
+  if (error) throw error;
+  const events = (data ?? []).map((row) => eventNearbySchema.parse(row as unknown));
+  const last = events.length === limit ? events.at(-1) : undefined;
+  const nextCursor = last ? { dist: last.dist_meters, id: last.id } : null;
+  return { events, nextCursor };
+}
+
+/** A single event (modal detail). Null when missing or soft-deleted. */
+export async function getEvent(client: AthanorClient, id: string): Promise<Event | null> {
+  const { data, error } = await client
+    .from('events')
+    .select(EVENT_COLS)
+    .eq('id', id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return eventSchema.parse(data as unknown);
+}
+
+/** Events an organizer owns (newest first). */
+export async function getEventsByOrganizer(client: AthanorClient, uid: string): Promise<Event[]> {
+  const { data, error } = await client
+    .from('events')
+    .select(EVENT_COLS)
+    .eq('organizer_id', uid)
+    .is('deleted_at', null)
+    .order('starts_at', { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return (data ?? []).map((row) => eventSchema.parse(row as unknown));
+}
+
+/**
+ * Publish an event via the create_event RPC (the server builds the geography point
+ * from lat/long; RLS enforces organizer = auth.uid()). Returns the new event row.
+ * NEVER writes money or Aura (rule #1) — price_cents is set, but the ticket/Stripe
+ * flow is the tickets-qr slice; the +30 organize award is M6 (TODO(M6)).
+ */
+export async function createEvent(client: AthanorClient, input: EventCreate): Promise<Event> {
+  const v = eventCreateSchema.parse(input);
+  const rpcArgs: {
+    p_title: string;
+    p_category: EventCategory;
+    p_is_online: boolean;
+    p_starts_at: string;
+    p_venue?: string;
+    p_city?: string;
+    p_lat?: number;
+    p_long?: number;
+    p_stream_url?: string;
+    p_ends_at?: string;
+    p_capacity?: number;
+    p_price_cents?: number;
+    p_currency?: string;
+  } = {
+    p_title: v.title,
+    p_category: v.category,
+    p_is_online: v.is_online,
+    p_starts_at: v.starts_at,
+  };
+  if (v.venue != null) rpcArgs.p_venue = v.venue;
+  if (v.city != null) rpcArgs.p_city = v.city;
+  if (v.lat != null) rpcArgs.p_lat = v.lat;
+  if (v.long != null) rpcArgs.p_long = v.long;
+  if (v.stream_url != null) rpcArgs.p_stream_url = v.stream_url;
+  if (v.ends_at != null) rpcArgs.p_ends_at = v.ends_at;
+  if (v.capacity != null) rpcArgs.p_capacity = v.capacity;
+  if (v.price_cents !== 0) rpcArgs.p_price_cents = v.price_cents;
+  if (v.currency !== 'eur') rpcArgs.p_currency = v.currency;
+
+  const { data: id, error } = await client.rpc('create_event', rpcArgs);
+  if (error) throw error;
+  const created = await getEvent(client, id as string);
+  if (!created) throw new Error('created event not found');
+  return created;
+}
+
+/** Register "Avvisami" interest in Athanor Days. Idempotent (unique nulls-not-distinct). */
+export async function registerAthanorDaysInterest(
+  client: AthanorClient,
+  userId: string,
+  edition: string | null = null,
+): Promise<void> {
+  const { error } = await client
+    .from('athanor_days_interest')
+    .upsert(
+      { user_id: userId, edition },
+      { onConflict: 'user_id,edition', ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+/**
+ * Upsert the viewer's RSVP for a free event. Idempotent: the unique (user_id, event_id)
+ * conflict flips status — a second "Partecipo" tap is a no-op, a cancel sets
+ * status='cancelled' (we keep the row, never delete — backend §2.2). NEVER writes Aura
+ * (rule #1): the +15 attend award is the M6 score-engine (TODO(M6)).
+ */
+export async function upsertRsvp(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+  going: boolean,
+): Promise<void> {
+  const { error } = await client
+    .from('rsvps')
+    .upsert(
+      { user_id: userId, event_id: eventId, status: going ? 'going' : 'cancelled' },
+      { onConflict: 'user_id,event_id' },
+    );
+  if (error) throw error;
+}
+
+/** The viewer's own RSVP for an event (null if they never RSVP'd). */
+export async function getMyRsvp(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+): Promise<Rsvp | null> {
+  const { data, error } = await client
+    .from('rsvps')
+    .select('id,user_id,event_id,status,created_at,updated_at')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return rsvpSchema.parse(data);
+}
+
+/** Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest user_ids. */
+export type AttendeePreview = { count: number; userIds: string[] };
+export async function getEventAttendees(
+  client: AthanorClient,
+  eventId: string,
+  previewLimit = 4, // 4 = the avatar-stack size on the event detail
+): Promise<AttendeePreview> {
+  const { count, error: countErr } = await client
+    .from('rsvps')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .eq('status', 'going');
+  if (countErr) throw countErr;
+
+  const { data, error } = await client
+    .from('rsvps')
+    .select('user_id')
+    .eq('event_id', eventId)
+    .eq('status', 'going')
+    .order('created_at', { ascending: true })
+    .limit(previewLimit);
+  if (error) throw error;
+
+  return {
+    count: count ?? 0,
+    userIds: (data ?? []).map((r) => r.user_id),
+  };
+}
+
+/** One-shot read of the live-listener stats for an online event (null if no row yet). */
+export async function getEventLiveStats(
+  client: AthanorClient,
+  eventId: string,
+): Promise<EventLiveStats | null> {
+  const { data, error } = await client
+    .from('event_live_stats')
+    .select('event_id,listener_count,is_live,updated_at')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? eventLiveStatsSchema.parse(data as unknown) : null;
+}
+
+/**
+ * Subscribe to live-listener stats for one online event (realtime INSERT/UPDATE) — backend 09 C8,
+ * channel `event:{id}:live`. The count is service-role/Realtime maintained; clients never write it.
+ * Returns a cleanup fn — callers MUST call it on unmount (rule api.md, invariant #1).
+ */
+export function subscribeEventLive(
+  client: AthanorClient,
+  eventId: string,
+  onStats: (stats: EventLiveStats) => void,
+): () => void {
+  const channel = client
+    .channel(`event:${eventId}:live`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'event_live_stats',
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const parsed = eventLiveStatsSchema.safeParse(payload.new);
+        if (parsed.success) onStats(parsed.data);
+      },
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+/**
+ * Start a Stripe Checkout for a paid event via the create-ticket-checkout edge fn.
+ * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only
+ * (rule #6) — the ticket is issued by the webhook (W1) and arrives via subscribeTicket.
+ */
+export async function createTicketCheckout(
+  client: AthanorClient,
+  eventId: string,
+): Promise<{ url: string }> {
+  const { data, error } = await client.functions.invoke('create-ticket-checkout', {
+    body: { eventId },
+  });
+  if (error) throw error;
+  const url = (data as { url?: string } | null)?.url;
+  if (!url) throw new Error('checkout did not return a url');
+  return { url };
+}
+
+/** The viewer's own ticket for an event (null if they never bought one). Owner-reads-own RLS. */
+export async function getMyTicket(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+): Promise<Ticket | null> {
+  const { data, error } = await client
+    .from('event_tickets')
+    .select('id,user_id,event_id,stripe_payment_id,qr_token,status,created_at,updated_at')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? ticketSchema.parse(data as unknown) : null;
+}
+
+/**
+ * Subscribe to the viewer's own ticket row for an event (realtime INSERT/UPDATE) — the buyer's app
+ * flips `confirming → ticket-ready` when the webhook (W1) writes status='paid' (frontend §3.4 / §7 S3).
+ * RLS only exposes the caller's own row; we also guard on user_id in the callback. Returns a cleanup fn
+ * — callers MUST call it on unmount (rule api.md, invariant #1).
+ */
+export function subscribeTicket(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+  onTicket: (ticket: Ticket) => void,
+): () => void {
+  const channel = client
+    .channel(`ticket:${eventId}:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'event_tickets',
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const parsed = ticketSchema.safeParse(payload.new);
+        if (parsed.success && parsed.data.user_id === userId) onTicket(parsed.data);
+      },
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+/**
+ * Submit a scanned QR to the `check-in` edge fn (organizer-only; verify_jwt=true). The fn verifies
+ * the HMAC token, matches the event, asserts the caller is the organizer, records attendance
+ * (idempotent) and flips the ticket paid→checked_in as service role (rule #6). Returns the verdict —
+ * the app renders it; it NEVER writes attendance/money/Aura itself.
+ */
+export async function checkInScan(
+  client: AthanorClient,
+  eventId: string,
+  qrToken: string,
+): Promise<CheckInResult> {
+  const { data, error } = await client.functions.invoke('check-in', {
+    body: { eventId, qrToken },
+  });
+  if (error) throw error;
+  return checkInResultSchema.parse(data);
+}
+
+/** Live arrived-count for an event. Organizer reads via RLS (holder-or-organizer). Head count only. */
+export async function getEventCheckinCount(
+  client: AthanorClient,
+  eventId: string,
+): Promise<number> {
+  const { count, error } = await client
+    .from('event_attendance')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Subscribe to new check-ins for an event (realtime INSERT on event_attendance). The organizer's
+ * scanner increments its «{n} arrivati» counter live. Returns a cleanup fn — callers MUST call it on
+ * unmount (.claude/rules/api.md invariant #1).
+ */
+export function subscribeAttendance(
+  client: AthanorClient,
+  eventId: string,
+  onCheckIn: (row: Attendance) => void,
+): () => void {
+  const channel = client
+    .channel(`event:${eventId}:attendance`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'event_attendance',
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const parsed = attendanceSchema.safeParse(payload.new);
+        if (parsed.success) onCheckIn(parsed.data);
+      },
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export type {
+  Attendance,
+  CheckInResult,
+  Event,
+  EventCategory,
+  EventLiveStats,
+  EventNearby,
+  Ticket,
+};

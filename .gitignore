@@ -33,3 +33,4 @@ coverage/
 *.types.ts.tmp
 .gstack/
 docs/screenshot-design/
+docs/ATHANOR.pdf

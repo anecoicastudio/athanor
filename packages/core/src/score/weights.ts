@@ -10,6 +10,16 @@
 export const AURA_WEIGHTS = {
   /** Sharing a Community post (M3 feed). Displayed as `✦ +6 Aura` in the composer. */
   POST_CREATE: 6,
+  /** Posting a reply on a Community post (M3). Displayed as `✦ +2 Aura` in the reply input. */
+  COMMENT_CREATE: 2,
+  /** Celebrating someone's growth step (M3 story ✦). Displayed as `✦ +4 Aura`. */
+  STORY_REACT: 4,
+  /** Publishing a Costellazioni project (M3 board). Displayed as `✦ +4 Aura` in the composer. */
+  PROJECT_CREATE: 4,
+  /** Attending (checking in to) an Athanor Live event (M4/M6). Read-only «✦ +15 Aura» label on event detail. */
+  EVENT_ATTEND: 15,
+  /** Organizing an event whose attendees check in (M4/M6). Read-only label. */
+  EVENT_ORGANIZE: 30,
   /** Joining the Athanor Circle is never scored (rule #1). */
   CIRCLE_JOIN: 0,
   /** Contributing to Il Cuore (the fund) is never scored (rule #1). */
