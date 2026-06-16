@@ -20,23 +20,25 @@ select policies_are('public', 'conversations',
   array['conversations_select_participant'],
   'only a select policy (read-only to clients; creation + bump are server-side)');
 
--- server creates a momento pair (canonicalizes order, injects ice-breakers)
+-- server creates a momento pair (canonicalizes order, injects ice-breakers). Capture the
+-- new id in a transaction-local GUC: psql :'var' interpolation does NOT happen inside
+-- $$…$$, so the assertions below read current_setting('test.conv') (plain SQL) instead.
 set local role service_role;
-select public.create_conversation_pair(
-  '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'momento') as conv \gset
+select set_config('test.conv', public.create_conversation_pair(
+  '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'momento')::text, true);
 reset role;
 
 -- participant reads own
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select results_eq(
-  $$ select count(*)::int from public.conversations where id = (select :'conv')::uuid $$,
+  $$ select count(*)::int from public.conversations where id = current_setting('test.conv')::uuid $$,
   $$ values (1) $$, 'participant reads own conversation');
 
 -- non-participant reads 0
 set local request.jwt.claims = '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
 select results_eq(
-  $$ select count(*)::int from public.conversations where id = (select :'conv')::uuid $$,
+  $$ select count(*)::int from public.conversations where id = current_setting('test.conv')::uuid $$,
   $$ values (0) $$, 'non-participant cannot read the conversation');
 
 -- client cannot INSERT (no grant → 42501)
@@ -48,7 +50,7 @@ select throws_ok(
 -- client cannot UPDATE (read-only: update grant revoked → 42501; bump is a DEFINER trigger)
 select throws_ok(
   $$ update public.conversations set last_message_preview = 'tamper'
-     where id = (select :'conv')::uuid $$,
+     where id = current_setting('test.conv')::uuid $$,
   '42501', null, 'client cannot update a conversation (read-only)');
 
 -- create_conversation_pair not executable by authenticated (revoked → 42501)
