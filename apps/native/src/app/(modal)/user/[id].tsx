@@ -255,7 +255,7 @@ export default function PersonDetailScreen() {
               const conversationId = await getOrCreateConversation(supabase, id);
               router.push(`/chat?conversationId=${conversationId}`);
             } catch {
-              showToast(t('profile.write.cta', locale));
+              showToast(t('chat.openFailed', locale));
             }
           }}
         />

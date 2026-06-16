@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(11);
 
 -- fixtures: three profiles (handle_new_user normally seeds profiles; insert directly for the test DB)
 insert into auth.users (id, email) values
@@ -17,8 +17,8 @@ select has_table('public', 'conversations', 'conversations exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.conversations'::regclass),
   'RLS enabled on conversations');
 select policies_are('public', 'conversations',
-  array['conversations_select_participant', 'conversations_update_participant'],
-  'only select + update policies (no client insert/delete)');
+  array['conversations_select_participant'],
+  'only a select policy (read-only to clients; creation + bump are server-side)');
 
 -- server creates a momento pair (canonicalizes order, injects ice-breakers)
 set local role service_role;
@@ -44,6 +44,12 @@ select throws_ok(
   $$ insert into public.conversations (participant_a, participant_b)
      values ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222') $$,
   '42501', null, 'client cannot insert a conversation');
+
+-- client cannot UPDATE (read-only: update grant revoked → 42501; bump is a DEFINER trigger)
+select throws_ok(
+  $$ update public.conversations set last_message_preview = 'tamper'
+     where id = (select :'conv')::uuid $$,
+  '42501', null, 'client cannot update a conversation (read-only)');
 
 -- create_conversation_pair not executable by authenticated (revoked → 42501)
 select throws_ok(

@@ -20,7 +20,6 @@ import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { auraGlow } from '@/lib/glow';
 
 type Row =
   | { type: 'marker'; key: string; label: string }
@@ -185,7 +184,8 @@ export default function ChatScreen() {
         scrollEventThrottle={64}
       />
 
-      {/* chat bar — the send button is the one glowing surface here (rule #4: chat send button) */}
+      {/* chat bar — send is a FLAT cyan surface (rule #4: cyan is allowed on the send button,
+          but the glow is reserved for moment-grade events; a routine send is not one). */}
       <View className="flex-row items-end gap-2 border-t border-hair bg-background px-4 py-3">
         <TextInput
           className="flex-1 rounded-2xl border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
@@ -200,7 +200,6 @@ export default function ChatScreen() {
           accessibilityLabel={t('chat.a11y.send', locale)}
           disabled={!canSend}
           onPress={() => send.mutate(trimmed)}
-          style={canSend ? auraGlow(1) : undefined}
           className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
             canSend ? '' : 'opacity-40'
           }`}

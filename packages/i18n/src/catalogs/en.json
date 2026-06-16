@@ -620,5 +620,10 @@
   "chat.a11y.menu": "Options",
   "chat.block": "Block",
   "chat.report": "Report",
-  "chat.action.soon": "Available soon"
+  "chat.action.soon": "Available soon",
+  "chat.openFailed": "Couldn't open the chat. Try again.",
+  "time.now": "now",
+  "time.minutes": "{n}m",
+  "time.hours": "{n}h",
+  "time.days": "{n}d"
 }
