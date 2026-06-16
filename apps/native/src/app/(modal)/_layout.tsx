@@ -22,7 +22,8 @@ export default function ModalLayout() {
       <Stack.Screen name="post/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="stories" options={{ animation: 'fade' }} />
       <Stack.Screen name="live" />
-      <Stack.Screen name="event/[id]" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="event/[id]/index" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="event/[id]/checkin" options={{ presentation: 'modal' }} />
       <Stack.Screen name="ticket/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="event-create" options={{ presentation: 'modal' }} />
     </Stack>
