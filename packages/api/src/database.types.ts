@@ -146,6 +146,55 @@ export type Database = {
         };
         Relationships: [];
       };
+      event_attendance: {
+        Row: {
+          checked_in_at: string;
+          created_at: string;
+          event_id: string;
+          id: string;
+          scanned_by: string;
+          ticket_id: string;
+        };
+        Insert: {
+          checked_in_at?: string;
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          scanned_by: string;
+          ticket_id: string;
+        };
+        Update: {
+          checked_in_at?: string;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          scanned_by?: string;
+          ticket_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_attendance_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_attendance_scanned_by_fkey";
+            columns: ["scanned_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_attendance_ticket_id_fkey";
+            columns: ["ticket_id"];
+            isOneToOne: true;
+            referencedRelation: "event_tickets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       event_live_stats: {
         Row: {
           event_id: string;
