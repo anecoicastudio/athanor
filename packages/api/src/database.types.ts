@@ -175,6 +175,54 @@ export type Database = {
           },
         ];
       };
+      event_tickets: {
+        Row: {
+          created_at: string;
+          event_id: string;
+          id: string;
+          qr_token: string | null;
+          status: string;
+          stripe_payment_id: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          event_id: string;
+          id?: string;
+          qr_token?: string | null;
+          status?: string;
+          stripe_payment_id?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          qr_token?: string | null;
+          status?: string;
+          stripe_payment_id?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_tickets_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_tickets_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       events: {
         Row: {
           capacity: number | null;
@@ -835,6 +883,30 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      stripe_webhook_events: {
+        Row: {
+          event_id: string;
+          payload: Json;
+          processed_at: string | null;
+          received_at: string;
+          type: string;
+        };
+        Insert: {
+          event_id: string;
+          payload: Json;
+          processed_at?: string | null;
+          received_at?: string;
+          type: string;
+        };
+        Update: {
+          event_id?: string;
+          payload?: Json;
+          processed_at?: string | null;
+          received_at?: string;
+          type?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {

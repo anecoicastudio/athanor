@@ -125,3 +125,23 @@ export const eventLiveStatsSchema = z.object({
   updated_at: z.string(),
 });
 export type EventLiveStats = z.infer<typeof eventLiveStatsSchema>;
+
+/** event_tickets.status — pending until the webhook pays it; checked_in after a door scan (Slice B). */
+export const ticketStatusSchema = z.enum(['pending', 'paid', 'checked_in', 'refunded']);
+export type TicketStatus = z.infer<typeof ticketStatusSchema>;
+
+/**
+ * event_tickets row (mirrors public.event_tickets). Service-role-written money cache; the client
+ * reads only its own row. `qr_token`/`stripe_payment_id` are NULL until W1 pays it.
+ */
+export const ticketSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  event_id: z.string().uuid(),
+  stripe_payment_id: z.string().nullable(),
+  qr_token: z.string().nullable(),
+  status: ticketStatusSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type Ticket = z.infer<typeof ticketSchema>;

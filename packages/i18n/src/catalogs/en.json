@@ -545,5 +545,20 @@
   "home.today.seeLive": "Athanor Live ›",
   "common.retry": "Try again",
   "common.allow": "Allow",
-  "common.refresh": "Refresh"
+  "common.refresh": "Refresh",
+  "ticket.buy": "Get your ticket · {price}",
+  "ticket.opening": "Opening payment…",
+  "ticket.confirming": "Confirming your payment ✦",
+  "ticket.confirmSlow": "Still confirming…",
+  "ticket.refresh": "Refresh",
+  "ticket.active": "Ticket active ✦",
+  "ticket.view": "View your ticket",
+  "ticket.cancelled": "Purchase cancelled",
+  "ticket.error.payment": "The payment didn't go through. Try again.",
+  "ticket.error.confirm": "We couldn't confirm yet. We'll let you know as soon as it's ready.",
+  "ticket.viewer.title": "Your ticket",
+  "ticket.show": "Show this code at the entrance",
+  "ticket.status.valid": "Valid",
+  "ticket.status.used": "Already used ✦ You attended",
+  "ticket.checkedIn": "✓ Checked in"
 }

@@ -5,11 +5,13 @@ import {
   type EventLiveStats,
   type EventNearby,
   type Rsvp,
+  type Ticket,
   eventCreateSchema,
   eventLiveStatsSchema,
   eventNearbySchema,
   eventSchema,
   rsvpSchema,
+  ticketSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
@@ -25,6 +27,7 @@ export const eventKeys = {
   rsvp: (eventId: string) => [...eventKeys.all, 'rsvp', eventId] as const,
   attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
   liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
+  ticket: (eventId: string) => [...eventKeys.all, 'ticket', eventId] as const,
 };
 
 /** Columns the client reads (everything except the geography `geo` column). */
@@ -321,4 +324,71 @@ export function subscribeEventLive(
   };
 }
 
-export type { Event, EventCategory, EventLiveStats, EventNearby };
+/**
+ * Start a Stripe Checkout for a paid event via the create-ticket-checkout edge fn.
+ * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only
+ * (rule #6) — the ticket is issued by the webhook (W1) and arrives via subscribeTicket.
+ */
+export async function createTicketCheckout(
+  client: AthanorClient,
+  eventId: string,
+): Promise<{ url: string }> {
+  const { data, error } = await client.functions.invoke('create-ticket-checkout', {
+    body: { eventId },
+  });
+  if (error) throw error;
+  const url = (data as { url?: string } | null)?.url;
+  if (!url) throw new Error('checkout did not return a url');
+  return { url };
+}
+
+/** The viewer's own ticket for an event (null if they never bought one). Owner-reads-own RLS. */
+export async function getMyTicket(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+): Promise<Ticket | null> {
+  const { data, error } = await client
+    .from('event_tickets')
+    .select('id,user_id,event_id,stripe_payment_id,qr_token,status,created_at,updated_at')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? ticketSchema.parse(data as unknown) : null;
+}
+
+/**
+ * Subscribe to the viewer's own ticket row for an event (realtime INSERT/UPDATE) — the buyer's app
+ * flips `confirming → ticket-ready` when the webhook (W1) writes status='paid' (frontend §3.4 / §7 S3).
+ * RLS only exposes the caller's own row; we also guard on user_id in the callback. Returns a cleanup fn
+ * — callers MUST call it on unmount (rule api.md, invariant #1).
+ */
+export function subscribeTicket(
+  client: AthanorClient,
+  eventId: string,
+  userId: string,
+  onTicket: (ticket: Ticket) => void,
+): () => void {
+  const channel = client
+    .channel(`ticket:${eventId}:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'event_tickets',
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const parsed = ticketSchema.safeParse(payload.new);
+        if (parsed.success && parsed.data.user_id === userId) onTicket(parsed.data);
+      },
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export type { Event, EventCategory, EventLiveStats, EventNearby, Ticket };

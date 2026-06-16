@@ -6,6 +6,7 @@ import {
   eventSchema,
   rsvpSchema,
   rsvpStatusSchema,
+  ticketSchema,
 } from './event';
 
 const baseRow = {
@@ -157,5 +158,32 @@ describe('eventLiveStatsSchema', () => {
 
   it('rejects a non-integer listener_count', () => {
     expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: 1.5 })).toThrow();
+  });
+});
+
+describe('ticketSchema', () => {
+  const valid = {
+    id: '33333333-3333-3333-3333-333333333333',
+    user_id: '22222222-2222-2222-2222-222222222222',
+    event_id: '11111111-1111-1111-1111-111111111111',
+    stripe_payment_id: 'pi_123',
+    qr_token: 'signed.token',
+    status: 'paid',
+    created_at: '2026-06-16T10:00:00.000Z',
+    updated_at: '2026-06-16T10:00:00.000Z',
+  };
+
+  it('parses a valid paid ticket', () => {
+    expect(ticketSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts a pending ticket with null payment id + qr', () => {
+    expect(() =>
+      ticketSchema.parse({ ...valid, status: 'pending', stripe_payment_id: null, qr_token: null }),
+    ).not.toThrow();
+  });
+
+  it('rejects an unknown status', () => {
+    expect(() => ticketSchema.parse({ ...valid, status: 'gifted' })).toThrow();
   });
 });

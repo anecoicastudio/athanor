@@ -545,5 +545,20 @@
   "home.today.seeLive": "Athanor Live ›",
   "common.retry": "Riprova",
   "common.allow": "Consenti",
-  "common.refresh": "Aggiorna"
+  "common.refresh": "Aggiorna",
+  "ticket.buy": "Acquista il biglietto · {price}",
+  "ticket.opening": "Apertura pagamento…",
+  "ticket.confirming": "Confermiamo il pagamento ✦",
+  "ticket.confirmSlow": "Stiamo ancora confermando…",
+  "ticket.refresh": "Aggiorna",
+  "ticket.active": "Biglietto attivo ✦",
+  "ticket.view": "Vedi il biglietto",
+  "ticket.cancelled": "Acquisto annullato",
+  "ticket.error.payment": "Il pagamento non è andato a buon fine. Riprova.",
+  "ticket.error.confirm": "Non siamo riusciti a confermare. Ti avviseremo appena è pronto.",
+  "ticket.viewer.title": "Il tuo biglietto",
+  "ticket.show": "Mostra questo codice all'ingresso",
+  "ticket.status.valid": "Valido",
+  "ticket.status.used": "Già usato ✦ Hai partecipato",
+  "ticket.checkedIn": "✓ Check-in effettuato"
 }

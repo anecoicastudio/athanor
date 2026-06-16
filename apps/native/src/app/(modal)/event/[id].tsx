@@ -12,6 +12,7 @@ import { EventCover } from '@/components/live/EventCover';
 import { DmetaRow } from '@/components/live/DmetaRow';
 import { AttendeeStack } from '@/components/live/AttendeeStack';
 import { RsvpBar } from '@/components/live/RsvpBar';
+import { TicketBar } from '@/components/live/TicketBar';
 import { EmptyState } from '@/components/EmptyState';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
@@ -200,12 +201,7 @@ export default function EventDetailScreen() {
               <Text className="text-center text-[13px] text-faint">{t('event.past', locale)}</Text>
             </View>
           ) : isPaid ? (
-            // Paid ticket flow = tickets-qr slice (Stripe Checkout + QR). Keep the stub.
-            <View className="rounded-card border border-hair bg-surface-muted p-4">
-              <Text className="text-center text-[13px] text-faint">
-                {t('event.actionSoon', locale)}
-              </Text>
-            </View>
+            <TicketBar event={event} locale={locale} />
           ) : (
             <RsvpBar
               going={going}
