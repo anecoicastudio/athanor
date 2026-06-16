@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(10);
 
 -- fixtures: three profiles (handle_new_user normally seeds profiles; insert directly for the test DB)
 insert into auth.users (id, email) values
