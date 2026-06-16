@@ -79,7 +79,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.favor_offers (actor_id, target_id, need)
      values ('22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'me stesso') $$,
-  'self-favor (actor_id = target_id) rejected'
+  '42501', null, 'self-favor (actor_id = target_id) rejected (RLS with-check actor_id <> target_id fires first)'
 );
 
 -- favor_needs (as B): A's still-unfavored "Un logo" shows; the favored "Un mentor" is gone; B's own need never shows

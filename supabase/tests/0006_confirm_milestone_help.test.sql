@@ -62,7 +62,7 @@ select lives_ok(
   'owner confirms an accepted help'
 );
 select results_eq(
-  $$ select status::text from public.milestone_helps mh
+  $$ select mh.status::text from public.milestone_helps mh
        join public.dream_milestones m on m.id = mh.milestone_id
        join public.dreams d on d.id = m.dream_id
       where d.profile_id = '11111111-1111-1111-1111-111111111111' and m.body = 'Un mentor' $$,
@@ -70,7 +70,7 @@ select results_eq(
   'confirm sets the help status to completed'
 );
 select results_eq(
-  $$ select status::text from public.dream_milestones m
+  $$ select m.status::text from public.dream_milestones m
        join public.dreams d on d.id = m.dream_id
       where d.profile_id = '11111111-1111-1111-1111-111111111111' and m.body = 'Un mentor' $$,
   $$ values ('done') $$,

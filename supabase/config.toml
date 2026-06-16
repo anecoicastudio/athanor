@@ -59,7 +59,12 @@ schema_paths = []
 
 [db.seed]
 # If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# Disabled: CI runs `supabase start` + `supabase test db`, and the demo seed (a PUBLIC `sole`
+# profile + dream + tappa) polluted the anon-visibility pgTAP tests (0001/0002/0004/0007 assert
+# "anon sees 0/NULL"). pgTAP RLS tests should run against migrations only, not demo data. Dev runs
+# against the hosted project (no local Docker), so local seeding is unused; re-enable + `supabase db
+# reset` if you want the demo data (incl. the M5 deck) in a local stack. seed.sql is kept.
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 sql_paths = ["./seed.sql"]
