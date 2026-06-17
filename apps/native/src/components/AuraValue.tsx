@@ -38,15 +38,17 @@ export function AuraValue({
     if (reduce) {
       anim.setValue(value);
       setDisplay(value);
+      AccessibilityInfo.announceForAccessibility(`Aura ${value}`);
     } else {
       Animated.timing(anim, {
         toValue: value,
         duration: 700,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
-      }).start();
+      }).start(({ finished }) => {
+        if (finished) AccessibilityInfo.announceForAccessibility(`Aura ${value}`);
+      });
     }
-    AccessibilityInfo.announceForAccessibility(`Aura ${value}`);
   }, [value, reduce, anim]);
 
   return (
