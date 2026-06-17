@@ -1,10 +1,16 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: '14.5';
+    PostgrestVersion: "14.5";
   };
   public: {
     Tables: {
@@ -29,11 +35,49 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'athanor_days_interest_user_id_fkey';
-            columns: ['user_id'];
+            foreignKeyName: "athanor_days_interest_user_id_fkey";
+            columns: ["user_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      aura_events: {
+        Row: {
+          created_at: string;
+          id: string;
+          points: number;
+          profile_id: string;
+          reason: Json | null;
+          ref_id: string | null;
+          type: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          points: number;
+          profile_id: string;
+          reason?: Json | null;
+          ref_id?: string | null;
+          type: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          points?: number;
+          profile_id?: string;
+          reason?: Json | null;
+          ref_id?: string | null;
+          type?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "aura_events_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -44,7 +88,7 @@ export type Database = {
           id: string;
           requester_id: string;
           responded_at: string | null;
-          status: Database['public']['Enums']['connection_status'];
+          status: Database["public"]["Enums"]["connection_status"];
           updated_at: string;
         };
         Insert: {
@@ -53,7 +97,7 @@ export type Database = {
           id?: string;
           requester_id: string;
           responded_at?: string | null;
-          status?: Database['public']['Enums']['connection_status'];
+          status?: Database["public"]["Enums"]["connection_status"];
           updated_at?: string;
         };
         Update: {
@@ -62,23 +106,23 @@ export type Database = {
           id?: string;
           requester_id?: string;
           responded_at?: string | null;
-          status?: Database['public']['Enums']['connection_status'];
+          status?: Database["public"]["Enums"]["connection_status"];
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'connection_requests_addressee_id_fkey';
-            columns: ['addressee_id'];
+            foreignKeyName: "connection_requests_addressee_id_fkey";
+            columns: ["addressee_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'connection_requests_requester_id_fkey';
-            columns: ['requester_id'];
+            foreignKeyName: "connection_requests_requester_id_fkey";
+            columns: ["requester_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -106,32 +150,32 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'connections_profile_a_fkey';
-            columns: ['profile_a'];
+            foreignKeyName: "connections_profile_a_fkey";
+            columns: ["profile_a"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'connections_profile_b_fkey';
-            columns: ['profile_b'];
+            foreignKeyName: "connections_profile_b_fkey";
+            columns: ["profile_b"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'connections_source_request_id_fkey';
-            columns: ['source_request_id'];
+            foreignKeyName: "connections_source_request_id_fkey";
+            columns: ["source_request_id"];
             isOneToOne: false;
-            referencedRelation: 'connection_requests';
-            referencedColumns: ['id'];
+            referencedRelation: "connection_requests";
+            referencedColumns: ["id"];
           },
         ];
       };
       conversations: {
         Row: {
           created_at: string;
-          created_from: Database['public']['Enums']['conversation_source'];
+          created_from: Database["public"]["Enums"]["conversation_source"];
           id: string;
           last_message_at: string;
           last_message_preview: string | null;
@@ -141,7 +185,7 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
-          created_from?: Database['public']['Enums']['conversation_source'];
+          created_from?: Database["public"]["Enums"]["conversation_source"];
           id?: string;
           last_message_at?: string;
           last_message_preview?: string | null;
@@ -151,7 +195,7 @@ export type Database = {
         };
         Update: {
           created_at?: string;
-          created_from?: Database['public']['Enums']['conversation_source'];
+          created_from?: Database["public"]["Enums"]["conversation_source"];
           id?: string;
           last_message_at?: string;
           last_message_preview?: string | null;
@@ -161,18 +205,18 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'conversations_participant_a_fkey';
-            columns: ['participant_a'];
+            foreignKeyName: "conversations_participant_a_fkey";
+            columns: ["participant_a"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'conversations_participant_b_fkey';
-            columns: ['participant_b'];
+            foreignKeyName: "conversations_participant_b_fkey";
+            columns: ["participant_b"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -184,7 +228,7 @@ export type Database = {
           dream_id: string;
           id: string;
           position: number;
-          status: Database['public']['Enums']['milestone_status'];
+          status: Database["public"]["Enums"]["milestone_status"];
           updated_at: string;
         };
         Insert: {
@@ -194,7 +238,7 @@ export type Database = {
           dream_id: string;
           id?: string;
           position?: number;
-          status?: Database['public']['Enums']['milestone_status'];
+          status?: Database["public"]["Enums"]["milestone_status"];
           updated_at?: string;
         };
         Update: {
@@ -204,16 +248,16 @@ export type Database = {
           dream_id?: string;
           id?: string;
           position?: number;
-          status?: Database['public']['Enums']['milestone_status'];
+          status?: Database["public"]["Enums"]["milestone_status"];
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'dream_milestones_dream_id_fkey';
-            columns: ['dream_id'];
+            foreignKeyName: "dream_milestones_dream_id_fkey";
+            columns: ["dream_id"];
             isOneToOne: false;
-            referencedRelation: 'dreams';
-            referencedColumns: ['id'];
+            referencedRelation: "dreams";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -247,11 +291,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'dreams_profile_id_fkey';
-            columns: ['profile_id'];
+            foreignKeyName: "dreams_profile_id_fkey";
+            columns: ["profile_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -306,25 +350,25 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'event_attendance_event_id_fkey';
-            columns: ['event_id'];
+            foreignKeyName: "event_attendance_event_id_fkey";
+            columns: ["event_id"];
             isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
+            referencedRelation: "events";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'event_attendance_scanned_by_fkey';
-            columns: ['scanned_by'];
+            foreignKeyName: "event_attendance_scanned_by_fkey";
+            columns: ["scanned_by"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'event_attendance_ticket_id_fkey';
-            columns: ['ticket_id'];
+            foreignKeyName: "event_attendance_ticket_id_fkey";
+            columns: ["ticket_id"];
             isOneToOne: true;
-            referencedRelation: 'event_tickets';
-            referencedColumns: ['id'];
+            referencedRelation: "event_tickets";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -349,11 +393,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'event_live_stats_event_id_fkey';
-            columns: ['event_id'];
+            foreignKeyName: "event_live_stats_event_id_fkey";
+            columns: ["event_id"];
             isOneToOne: true;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
+            referencedRelation: "events";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -390,25 +434,25 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'event_tickets_event_id_fkey';
-            columns: ['event_id'];
+            foreignKeyName: "event_tickets_event_id_fkey";
+            columns: ["event_id"];
             isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
+            referencedRelation: "events";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'event_tickets_user_id_fkey';
-            columns: ['user_id'];
+            foreignKeyName: "event_tickets_user_id_fkey";
+            columns: ["user_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
       events: {
         Row: {
           capacity: number | null;
-          category: Database['public']['Enums']['event_category'];
+          category: Database["public"]["Enums"]["event_category"];
           city: string | null;
           cover_url: string | null;
           created_at: string;
@@ -433,7 +477,7 @@ export type Database = {
         };
         Insert: {
           capacity?: number | null;
-          category: Database['public']['Enums']['event_category'];
+          category: Database["public"]["Enums"]["event_category"];
           city?: string | null;
           cover_url?: string | null;
           created_at?: string;
@@ -458,7 +502,7 @@ export type Database = {
         };
         Update: {
           capacity?: number | null;
-          category?: Database['public']['Enums']['event_category'];
+          category?: Database["public"]["Enums"]["event_category"];
           city?: string | null;
           cover_url?: string | null;
           created_at?: string;
@@ -483,11 +527,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'events_organizer_id_fkey';
-            columns: ['organizer_id'];
+            foreignKeyName: "events_organizer_id_fkey";
+            columns: ["organizer_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -524,32 +568,32 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'favor_offers_actor_id_fkey';
-            columns: ['actor_id'];
+            foreignKeyName: "favor_offers_actor_id_fkey";
+            columns: ["actor_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'favor_offers_need_milestone_id_fkey';
-            columns: ['need_milestone_id'];
+            foreignKeyName: "favor_offers_need_milestone_id_fkey";
+            columns: ["need_milestone_id"];
             isOneToOne: false;
-            referencedRelation: 'dream_milestones';
-            referencedColumns: ['id'];
+            referencedRelation: "dream_milestones";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'favor_offers_need_milestone_id_fkey';
-            columns: ['need_milestone_id'];
+            foreignKeyName: "favor_offers_need_milestone_id_fkey";
+            columns: ["need_milestone_id"];
             isOneToOne: false;
-            referencedRelation: 'favor_needs';
-            referencedColumns: ['need_milestone_id'];
+            referencedRelation: "favor_needs";
+            referencedColumns: ["need_milestone_id"];
           },
           {
-            foreignKeyName: 'favor_offers_target_id_fkey';
-            columns: ['target_id'];
+            foreignKeyName: "favor_offers_target_id_fkey";
+            columns: ["target_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -560,7 +604,7 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           id: string;
-          kind: Database['public']['Enums']['message_kind'];
+          kind: Database["public"]["Enums"]["message_kind"];
           media_url: string | null;
           prompt_key: string | null;
           sender_id: string | null;
@@ -571,7 +615,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           id?: string;
-          kind?: Database['public']['Enums']['message_kind'];
+          kind?: Database["public"]["Enums"]["message_kind"];
           media_url?: string | null;
           prompt_key?: string | null;
           sender_id?: string | null;
@@ -582,25 +626,25 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           id?: string;
-          kind?: Database['public']['Enums']['message_kind'];
+          kind?: Database["public"]["Enums"]["message_kind"];
           media_url?: string | null;
           prompt_key?: string | null;
           sender_id?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: 'messages_conversation_id_fkey';
-            columns: ['conversation_id'];
+            foreignKeyName: "messages_conversation_id_fkey";
+            columns: ["conversation_id"];
             isOneToOne: false;
-            referencedRelation: 'conversations';
-            referencedColumns: ['id'];
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'messages_sender_id_fkey';
-            columns: ['sender_id'];
+            foreignKeyName: "messages_sender_id_fkey";
+            columns: ["sender_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -613,8 +657,8 @@ export type Database = {
           link: string | null;
           message: string | null;
           milestone_id: string;
-          status: Database['public']['Enums']['help_status'];
-          type: Database['public']['Enums']['help_type'];
+          status: Database["public"]["Enums"]["help_status"];
+          type: Database["public"]["Enums"]["help_type"];
           updated_at: string;
         };
         Insert: {
@@ -625,8 +669,8 @@ export type Database = {
           link?: string | null;
           message?: string | null;
           milestone_id: string;
-          status?: Database['public']['Enums']['help_status'];
-          type: Database['public']['Enums']['help_type'];
+          status?: Database["public"]["Enums"]["help_status"];
+          type: Database["public"]["Enums"]["help_type"];
           updated_at?: string;
         };
         Update: {
@@ -637,31 +681,31 @@ export type Database = {
           link?: string | null;
           message?: string | null;
           milestone_id?: string;
-          status?: Database['public']['Enums']['help_status'];
-          type?: Database['public']['Enums']['help_type'];
+          status?: Database["public"]["Enums"]["help_status"];
+          type?: Database["public"]["Enums"]["help_type"];
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'milestone_helps_helper_id_fkey';
-            columns: ['helper_id'];
+            foreignKeyName: "milestone_helps_helper_id_fkey";
+            columns: ["helper_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'milestone_helps_milestone_id_fkey';
-            columns: ['milestone_id'];
+            foreignKeyName: "milestone_helps_milestone_id_fkey";
+            columns: ["milestone_id"];
             isOneToOne: false;
-            referencedRelation: 'dream_milestones';
-            referencedColumns: ['id'];
+            referencedRelation: "dream_milestones";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'milestone_helps_milestone_id_fkey';
-            columns: ['milestone_id'];
+            foreignKeyName: "milestone_helps_milestone_id_fkey";
+            columns: ["milestone_id"];
             isOneToOne: false;
-            referencedRelation: 'favor_needs';
-            referencedColumns: ['need_milestone_id'];
+            referencedRelation: "favor_needs";
+            referencedColumns: ["need_milestone_id"];
           },
         ];
       };
@@ -675,7 +719,7 @@ export type Database = {
           passed_until: string | null;
           proposed_on: string;
           reasons: string[];
-          status: Database['public']['Enums']['momento_status'];
+          status: Database["public"]["Enums"]["momento_status"];
           updated_at: string;
           user_id: string;
         };
@@ -688,7 +732,7 @@ export type Database = {
           passed_until?: string | null;
           proposed_on?: string;
           reasons?: string[];
-          status?: Database['public']['Enums']['momento_status'];
+          status?: Database["public"]["Enums"]["momento_status"];
           updated_at?: string;
           user_id: string;
         };
@@ -701,24 +745,24 @@ export type Database = {
           passed_until?: string | null;
           proposed_on?: string;
           reasons?: string[];
-          status?: Database['public']['Enums']['momento_status'];
+          status?: Database["public"]["Enums"]["momento_status"];
           updated_at?: string;
           user_id?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'momento_proposals_candidate_id_fkey';
-            columns: ['candidate_id'];
+            foreignKeyName: "momento_proposals_candidate_id_fkey";
+            columns: ["candidate_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'momento_proposals_user_id_fkey';
-            columns: ['user_id'];
+            foreignKeyName: "momento_proposals_user_id_fkey";
+            columns: ["user_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -730,7 +774,7 @@ export type Database = {
           duration_s: number | null;
           height: number | null;
           id: string;
-          kind: Database['public']['Enums']['moment_kind'];
+          kind: Database["public"]["Enums"]["moment_kind"];
           media_path: string;
           owner_id: string;
           thumb_path: string | null;
@@ -744,7 +788,7 @@ export type Database = {
           duration_s?: number | null;
           height?: number | null;
           id?: string;
-          kind: Database['public']['Enums']['moment_kind'];
+          kind: Database["public"]["Enums"]["moment_kind"];
           media_path: string;
           owner_id: string;
           thumb_path?: string | null;
@@ -758,7 +802,7 @@ export type Database = {
           duration_s?: number | null;
           height?: number | null;
           id?: string;
-          kind?: Database['public']['Enums']['moment_kind'];
+          kind?: Database["public"]["Enums"]["moment_kind"];
           media_path?: string;
           owner_id?: string;
           thumb_path?: string | null;
@@ -767,11 +811,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'moments_owner_id_fkey';
-            columns: ['owner_id'];
+            foreignKeyName: "moments_owner_id_fkey";
+            columns: ["owner_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -808,25 +852,25 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'post_comments_author_id_fkey';
-            columns: ['author_id'];
+            foreignKeyName: "post_comments_author_id_fkey";
+            columns: ["author_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'post_comments_parent_id_fkey';
-            columns: ['parent_id'];
+            foreignKeyName: "post_comments_parent_id_fkey";
+            columns: ["parent_id"];
             isOneToOne: false;
-            referencedRelation: 'post_comments';
-            referencedColumns: ['id'];
+            referencedRelation: "post_comments";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'post_comments_post_id_fkey';
-            columns: ['post_id'];
+            foreignKeyName: "post_comments_post_id_fkey";
+            columns: ["post_id"];
             isOneToOne: false;
-            referencedRelation: 'posts';
-            referencedColumns: ['id'];
+            referencedRelation: "posts";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -836,7 +880,7 @@ export type Database = {
           duration_s: number | null;
           height: number | null;
           id: string;
-          kind: Database['public']['Enums']['media_kind'];
+          kind: Database["public"]["Enums"]["media_kind"];
           position: number;
           post_id: string;
           storage_path: string;
@@ -848,7 +892,7 @@ export type Database = {
           duration_s?: number | null;
           height?: number | null;
           id?: string;
-          kind: Database['public']['Enums']['media_kind'];
+          kind: Database["public"]["Enums"]["media_kind"];
           position?: number;
           post_id: string;
           storage_path: string;
@@ -860,7 +904,7 @@ export type Database = {
           duration_s?: number | null;
           height?: number | null;
           id?: string;
-          kind?: Database['public']['Enums']['media_kind'];
+          kind?: Database["public"]["Enums"]["media_kind"];
           position?: number;
           post_id?: string;
           storage_path?: string;
@@ -869,11 +913,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'post_media_post_id_fkey';
-            columns: ['post_id'];
+            foreignKeyName: "post_media_post_id_fkey";
+            columns: ["post_id"];
             isOneToOne: false;
-            referencedRelation: 'posts';
-            referencedColumns: ['id'];
+            referencedRelation: "posts";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -898,18 +942,18 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'post_reactions_person_id_fkey';
-            columns: ['person_id'];
+            foreignKeyName: "post_reactions_person_id_fkey";
+            columns: ["person_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'post_reactions_post_id_fkey';
-            columns: ['post_id'];
+            foreignKeyName: "post_reactions_post_id_fkey";
+            columns: ["post_id"];
             isOneToOne: false;
-            referencedRelation: 'posts';
-            referencedColumns: ['id'];
+            referencedRelation: "posts";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -917,46 +961,46 @@ export type Database = {
         Row: {
           author_id: string;
           body: string;
-          category: Database['public']['Enums']['post_category'];
+          category: Database["public"]["Enums"]["post_category"];
           created_at: string;
           deleted_at: string | null;
           id: string;
           is_step: boolean;
           tags: string[];
-          type: Database['public']['Enums']['post_type'];
+          type: Database["public"]["Enums"]["post_type"];
           updated_at: string;
         };
         Insert: {
           author_id: string;
           body: string;
-          category: Database['public']['Enums']['post_category'];
+          category: Database["public"]["Enums"]["post_category"];
           created_at?: string;
           deleted_at?: string | null;
           id?: string;
           is_step?: boolean;
           tags?: string[];
-          type?: Database['public']['Enums']['post_type'];
+          type?: Database["public"]["Enums"]["post_type"];
           updated_at?: string;
         };
         Update: {
           author_id?: string;
           body?: string;
-          category?: Database['public']['Enums']['post_category'];
+          category?: Database["public"]["Enums"]["post_category"];
           created_at?: string;
           deleted_at?: string | null;
           id?: string;
           is_step?: boolean;
           tags?: string[];
-          type?: Database['public']['Enums']['post_type'];
+          type?: Database["public"]["Enums"]["post_type"];
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'posts_author_id_fkey';
-            columns: ['author_id'];
+            foreignKeyName: "posts_author_id_fkey";
+            columns: ["author_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -999,47 +1043,47 @@ export type Database = {
       projects: {
         Row: {
           author_id: string;
-          category: Database['public']['Enums']['project_category'];
+          category: Database["public"]["Enums"]["project_category"];
           created_at: string;
           deleted_at: string | null;
           description: string;
           id: string;
-          status: Database['public']['Enums']['project_status'];
+          status: Database["public"]["Enums"]["project_status"];
           terms: string | null;
           title: string;
           updated_at: string;
         };
         Insert: {
           author_id: string;
-          category: Database['public']['Enums']['project_category'];
+          category: Database["public"]["Enums"]["project_category"];
           created_at?: string;
           deleted_at?: string | null;
           description?: string;
           id?: string;
-          status?: Database['public']['Enums']['project_status'];
+          status?: Database["public"]["Enums"]["project_status"];
           terms?: string | null;
           title: string;
           updated_at?: string;
         };
         Update: {
           author_id?: string;
-          category?: Database['public']['Enums']['project_category'];
+          category?: Database["public"]["Enums"]["project_category"];
           created_at?: string;
           deleted_at?: string | null;
           description?: string;
           id?: string;
-          status?: Database['public']['Enums']['project_status'];
+          status?: Database["public"]["Enums"]["project_status"];
           terms?: string | null;
           title?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'projects_author_id_fkey';
-            columns: ['author_id'];
+            foreignKeyName: "projects_author_id_fkey";
+            columns: ["author_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1073,11 +1117,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'push_tokens_profile_id_fkey';
-            columns: ['profile_id'];
+            foreignKeyName: "push_tokens_profile_id_fkey";
+            columns: ["profile_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1108,18 +1152,18 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'rsvps_event_id_fkey';
-            columns: ['event_id'];
+            foreignKeyName: "rsvps_event_id_fkey";
+            columns: ["event_id"];
             isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
+            referencedRelation: "events";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'rsvps_user_id_fkey';
-            columns: ['user_id'];
+            foreignKeyName: "rsvps_user_id_fkey";
+            columns: ["user_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1144,18 +1188,18 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'story_reactions_person_id_fkey';
-            columns: ['person_id'];
+            foreignKeyName: "story_reactions_person_id_fkey";
+            columns: ["person_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'story_reactions_segment_id_fkey';
-            columns: ['segment_id'];
+            foreignKeyName: "story_reactions_segment_id_fkey";
+            columns: ["segment_id"];
             isOneToOne: false;
-            referencedRelation: 'story_segments';
-            referencedColumns: ['id'];
+            referencedRelation: "story_segments";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1169,7 +1213,7 @@ export type Database = {
           expires_at: string;
           id: string;
           is_step: boolean;
-          kind: Database['public']['Enums']['story_kind'];
+          kind: Database["public"]["Enums"]["story_kind"];
           pinned: boolean;
           storage_path: string;
           updated_at: string;
@@ -1183,7 +1227,7 @@ export type Database = {
           expires_at?: string;
           id?: string;
           is_step?: boolean;
-          kind: Database['public']['Enums']['story_kind'];
+          kind: Database["public"]["Enums"]["story_kind"];
           pinned?: boolean;
           storage_path: string;
           updated_at?: string;
@@ -1197,18 +1241,18 @@ export type Database = {
           expires_at?: string;
           id?: string;
           is_step?: boolean;
-          kind?: Database['public']['Enums']['story_kind'];
+          kind?: Database["public"]["Enums"]["story_kind"];
           pinned?: boolean;
           storage_path?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'story_segments_author_id_fkey';
-            columns: ['author_id'];
+            foreignKeyName: "story_segments_author_id_fkey";
+            columns: ["author_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1248,11 +1292,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'dreams_profile_id_fkey';
-            columns: ['target_id'];
+            foreignKeyName: "dreams_profile_id_fkey";
+            columns: ["target_id"];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1267,14 +1311,14 @@ export type Database = {
         Args: {
           p1: string;
           p2: string;
-          src: Database['public']['Enums']['conversation_source'];
+          src: Database["public"]["Enums"]["conversation_source"];
         };
         Returns: string;
       };
       create_event: {
         Args: {
           p_capacity?: number;
-          p_category: Database['public']['Enums']['event_category'];
+          p_category: Database["public"]["Enums"]["event_category"];
           p_city?: string;
           p_currency?: string;
           p_ends_at?: string;
@@ -1289,6 +1333,16 @@ export type Database = {
         };
         Returns: string;
       };
+      enqueue_push: {
+        Args: {
+          p_entity_ref: string;
+          p_params: Json;
+          p_recipient: string;
+          p_template_key: string;
+          p_type: string;
+        };
+        Returns: undefined;
+      };
       events_nearby: {
         Args: {
           cursor_dist?: number;
@@ -1299,7 +1353,7 @@ export type Database = {
           radius_m?: number;
         };
         Returns: {
-          category: Database['public']['Enums']['event_category'];
+          category: Database["public"]["Enums"]["event_category"];
           city: string;
           dist_meters: number;
           id: string;
@@ -1308,7 +1362,10 @@ export type Database = {
           venue: string;
         }[];
       };
-      get_or_create_conversation: { Args: { peer_id: string }; Returns: string };
+      get_or_create_conversation: {
+        Args: { peer_id: string };
+        Returns: string;
+      };
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined };
       momento_reasons: {
         Args: {
@@ -1347,30 +1404,35 @@ export type Database = {
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number };
     };
     Enums: {
-      connection_status: 'pending' | 'accepted' | 'declined';
-      conversation_source: 'momento' | 'direct';
+      connection_status: "pending" | "accepted" | "declined";
+      conversation_source: "momento" | "direct";
       event_category:
-        | 'business'
-        | 'networking'
-        | 'spiritualita'
-        | 'formazione'
-        | 'musica'
-        | 'arte'
-        | 'benessere'
-        | 'creativi'
-        | 'evoluzione';
-      help_status: 'offered' | 'accepted' | 'declined' | 'completed';
-      help_type: 'skill' | 'connection' | 'opportunity';
-      media_kind: 'image' | 'video' | 'audio';
-      message_kind: 'user' | 'system' | 'prompt';
-      milestone_status: 'open' | 'in_progress' | 'done';
-      moment_kind: 'photo' | 'video';
-      momento_status: 'pending' | 'accepted' | 'passed';
-      post_category: 'business' | 'human' | 'creative' | 'evolution';
-      post_type: 'text' | 'image' | 'video' | 'audio';
-      project_category: 'startup' | 'artistic' | 'business' | 'scientific' | 'volunteer';
-      project_status: 'open' | 'closed';
-      story_kind: 'photo' | 'video';
+        | "business"
+        | "networking"
+        | "spiritualita"
+        | "formazione"
+        | "musica"
+        | "arte"
+        | "benessere"
+        | "creativi"
+        | "evoluzione";
+      help_status: "offered" | "accepted" | "declined" | "completed";
+      help_type: "skill" | "connection" | "opportunity";
+      media_kind: "image" | "video" | "audio";
+      message_kind: "user" | "system" | "prompt";
+      milestone_status: "open" | "in_progress" | "done";
+      moment_kind: "photo" | "video";
+      momento_status: "pending" | "accepted" | "passed";
+      post_category: "business" | "human" | "creative" | "evolution";
+      post_type: "text" | "image" | "video" | "audio";
+      project_category:
+        | "startup"
+        | "artistic"
+        | "business"
+        | "scientific"
+        | "volunteer";
+      project_status: "open" | "closed";
+      story_kind: "photo" | "video";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1378,31 +1440,36 @@ export type Database = {
   };
 };
 
-type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>;
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, 'public'>];
+type DefaultSchema = DatabaseWithoutInternals[Extract<
+  keyof Database,
+  "public"
+>];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R;
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
-    ? (DefaultSchema['Tables'] & DefaultSchema['Views'])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R;
       }
       ? R
@@ -1411,23 +1478,23 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I;
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
-    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I;
       }
       ? I
@@ -1436,23 +1503,23 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U;
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
-    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U;
       }
       ? U
@@ -1461,66 +1528,72 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema['Enums']
+    | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
-    ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema['CompositeTypes']
+    | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
-    ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never;
 
 export const Constants = {
   public: {
     Enums: {
-      connection_status: ['pending', 'accepted', 'declined'],
-      conversation_source: ['momento', 'direct'],
+      connection_status: ["pending", "accepted", "declined"],
+      conversation_source: ["momento", "direct"],
       event_category: [
-        'business',
-        'networking',
-        'spiritualita',
-        'formazione',
-        'musica',
-        'arte',
-        'benessere',
-        'creativi',
-        'evoluzione',
+        "business",
+        "networking",
+        "spiritualita",
+        "formazione",
+        "musica",
+        "arte",
+        "benessere",
+        "creativi",
+        "evoluzione",
       ],
-      help_status: ['offered', 'accepted', 'declined', 'completed'],
-      help_type: ['skill', 'connection', 'opportunity'],
-      media_kind: ['image', 'video', 'audio'],
-      message_kind: ['user', 'system', 'prompt'],
-      milestone_status: ['open', 'in_progress', 'done'],
-      moment_kind: ['photo', 'video'],
-      momento_status: ['pending', 'accepted', 'passed'],
-      post_category: ['business', 'human', 'creative', 'evolution'],
-      post_type: ['text', 'image', 'video', 'audio'],
-      project_category: ['startup', 'artistic', 'business', 'scientific', 'volunteer'],
-      project_status: ['open', 'closed'],
-      story_kind: ['photo', 'video'],
+      help_status: ["offered", "accepted", "declined", "completed"],
+      help_type: ["skill", "connection", "opportunity"],
+      media_kind: ["image", "video", "audio"],
+      message_kind: ["user", "system", "prompt"],
+      milestone_status: ["open", "in_progress", "done"],
+      moment_kind: ["photo", "video"],
+      momento_status: ["pending", "accepted", "passed"],
+      post_category: ["business", "human", "creative", "evolution"],
+      post_type: ["text", "image", "video", "audio"],
+      project_category: [
+        "startup",
+        "artistic",
+        "business",
+        "scientific",
+        "volunteer",
+      ],
+      project_status: ["open", "closed"],
+      story_kind: ["photo", "video"],
     },
   },
 } as const;
