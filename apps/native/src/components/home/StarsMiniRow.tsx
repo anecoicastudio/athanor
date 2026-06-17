@@ -1,6 +1,7 @@
 import { t } from '@athanor/i18n';
 import { STAR_KEYS, type AuraSnapshot, type Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { AuraValue } from '@/components/AuraValue';
 import { SectionLabel } from '@/components/SectionLabel';
 
 /**
@@ -29,10 +30,10 @@ export function StarsMiniRow({
     >
       <View className="flex-row items-center justify-between">
         <SectionLabel>{t('home.stars.title', locale)}</SectionLabel>
-        <Text className="text-[15px] font-semibold text-aura">
-          {snapshot.score}{' '}
+        <View className="flex-row items-baseline gap-1">
+          <AuraValue value={snapshot.score} size={15} />
           <Text className="text-[11px] font-semibold tracking-[0.1em] text-faint">AURA</Text>
-        </Text>
+        </View>
       </View>
       <View className="flex-row items-center justify-between">
         <View className="flex-row gap-2">
