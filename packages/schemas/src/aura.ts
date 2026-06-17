@@ -107,9 +107,9 @@ export type Star = z.infer<typeof starSchema>;
  * the engine sends only what changed. Never written by a client (rule #1).
  */
 export const auraCelebrationPayload = z.object({
-  tier_up: z.string().optional(),
-  new_stars: z.array(z.string()).optional(),
-  score: z.number().optional(),
+  tier_up: z.string().nullish(),
+  new_stars: z.array(z.string()).nullish(),
+  score: z.number().int().optional(),
 });
 
 export type AuraCelebrationPayload = z.infer<typeof auraCelebrationPayload>;

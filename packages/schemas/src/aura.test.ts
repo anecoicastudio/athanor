@@ -107,4 +107,10 @@ describe('auraCelebrationPayload', () => {
   it('rejects a non-string-array new_stars', () => {
     expect(() => auraCelebrationPayload.parse({ new_stars: [1, 2] })).toThrow();
   });
+
+  it('parses the stars-only shape the engine emits (tier_up: null)', () => {
+    const parsed = auraCelebrationPayload.parse({ tier_up: null, new_stars: ['creatore'] });
+    expect(parsed.tier_up ?? undefined).toBeUndefined();
+    expect(parsed.new_stars).toEqual(['creatore']);
+  });
 });
