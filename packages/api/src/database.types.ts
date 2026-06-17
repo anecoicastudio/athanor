@@ -1376,6 +1376,14 @@ export type Database = {
     }
     Functions: {
       accept_momento: { Args: { p_proposal_id: string }; Returns: Json }
+      broadcast_aura_celebration: {
+        Args: {
+          p_new_stars?: string[]
+          p_profile_id: string
+          p_tier_up?: string
+        }
+        Returns: undefined
+      }
       confirm_milestone_help: {
         Args: { p_help_id: string }
         Returns: undefined
@@ -1437,6 +1445,7 @@ export type Database = {
       }
       get_or_create_conversation: { Args: { peer_id: string }; Returns: string }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_score_engine_decay: { Args: never; Returns: undefined }
       momento_reasons: {
         Args: {
           p_locale: string
@@ -1664,4 +1673,3 @@ export const Constants = {
     },
   },
 } as const
-
