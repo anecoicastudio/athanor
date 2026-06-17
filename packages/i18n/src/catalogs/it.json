@@ -713,6 +713,7 @@
   "recap.next.label": "Prossima stella",
   "recap.next.title": "{star} — {gap}",
   "recap.next.body": "Completa un progetto in più nelle Costellazioni e la stella si accende.",
+  "recap.next.gap": "a {remaining} {unit}",
   "recap.emptyWeek": "Una settimana tranquilla. La prossima azione riaccende il conteggio.",
   "star.criteria.visionario": "Pubblica il tuo sogno, definisci tre tappe e ricevi dieci ✦.",
   "star.criteria.creatore": "Completa due tappe del tuo sogno.",

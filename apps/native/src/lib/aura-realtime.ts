@@ -43,15 +43,10 @@ export function useAuraRealtime(
         void queryClient.invalidateQueries({ queryKey: ledgerKeys.all });
       },
 
-      // stars row change → bust stars cache + optionally surface a star-earned flash.
-      onStar: (row) => {
+      // stars row change → bust stars cache. Toast fires from onCelebration.new_stars
+      // (the authoritative broadcast) — not here — to avoid double-fire on the same grant.
+      onStar: () => {
         void queryClient.invalidateQueries({ queryKey: starKeys.all });
-        // Only fire the consumer callback when the star was just granted (granted_at present).
-        const r = row as Record<string, unknown>;
-        const starId = typeof r.star_id === 'string' ? r.star_id : null;
-        if (starId && r.granted_at != null) {
-          onStarEarnedRef.current?.(starId);
-        }
       },
 
       // Celebration broadcast from the score-engine edge function.

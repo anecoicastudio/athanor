@@ -87,7 +87,8 @@ export default function HomeScreen() {
       {/* Blocks 2–6: honest placeholders until their milestone fills them in. */}
       <ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />
       <ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />
-      {recapQuery.data != null ? (
+      {recapQuery.data != null &&
+      !(recapQuery.data.auraWeek === 0 && recapQuery.data.contributi === 0) ? (
         <WeekCard recap={recapQuery.data} locale={locale} onPress={() => router.push('/recap')} />
       ) : (
         <ComingSoonSection title={t('home.week.title', locale)} locale={locale} />

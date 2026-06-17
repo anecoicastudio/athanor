@@ -55,12 +55,12 @@ export default function RecapScreen() {
   const isError = recapQuery.isError;
   const isEmptyWeek = recap != null && recap.auraWeek === 0 && recap.contributi === 0;
 
-  // «Prossima stella» {gap}: "a {remaining} {unit}" derived from pickNextStar
+  // «Prossima stella» {gap}: localized via recap.next.gap to avoid Italian "a" leaking into EN.
   const gapStr = (() => {
     if (!nextStar) return '';
     const remaining = nextStar.total - nextStar.done;
     const unit = t(`star.unit.${nextStar.unit}` as MessageKey, locale);
-    return `a ${remaining} ${unit}`;
+    return t('recap.next.gap' as MessageKey, locale, { remaining, unit });
   })();
 
   const starName = nextStar ? t(`star.${nextStar.starId}` as MessageKey, locale) : '';

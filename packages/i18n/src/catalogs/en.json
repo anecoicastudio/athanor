@@ -713,6 +713,7 @@
   "recap.next.label": "Next star",
   "recap.next.title": "{star} — {gap}",
   "recap.next.body": "Complete one more project in Costellazioni and the star lights up.",
+  "recap.next.gap": "{remaining} {unit} to go",
   "recap.emptyWeek": "A quiet week. Your next action reignites the count.",
   "star.criteria.visionario": "Publish your dream, define three milestones, and earn ten ✦.",
   "star.criteria.creatore": "Complete two of your own milestones.",
