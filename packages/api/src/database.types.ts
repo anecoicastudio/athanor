@@ -632,6 +632,74 @@ export type Database = {
           },
         ]
       }
+      fund_aggregates: {
+        Row: {
+          contributor_count: number
+          edition_id: string
+          raised_cents: number
+          updated_at: string
+        }
+        Insert: {
+          contributor_count?: number
+          edition_id: string
+          raised_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          contributor_count?: number
+          edition_id?: string
+          raised_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_aggregates_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: true
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fund_editions: {
+        Row: {
+          candidacy_window_open: boolean
+          contributions_enabled: boolean
+          created_at: string
+          goal_cents: number
+          id: string
+          phase: string
+          target_at: string
+          updated_at: string
+          winner_candidacy_id: string | null
+          year: number
+        }
+        Insert: {
+          candidacy_window_open?: boolean
+          contributions_enabled?: boolean
+          created_at?: string
+          goal_cents: number
+          id?: string
+          phase?: string
+          target_at: string
+          updated_at?: string
+          winner_candidacy_id?: string | null
+          year: number
+        }
+        Update: {
+          candidacy_window_open?: boolean
+          contributions_enabled?: boolean
+          created_at?: string
+          goal_cents?: number
+          id?: string
+          phase?: string
+          target_at?: string
+          updated_at?: string
+          winner_candidacy_id?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           body: string | null
