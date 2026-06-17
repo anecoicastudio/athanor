@@ -5,6 +5,7 @@ import { isProfileComplete } from '@athanor/core';
 import type { Profile } from '@athanor/schemas';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
+import { registerForPush, unregisterPush } from './push';
 
 type AuthState = {
   session: Session | null;
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [flushing, setFlushing] = useState(false);
   const sessionRef = useRef<Session | null>(null);
+  const pushTokenRef = useRef<string | null>(null);
 
   const refreshProfile = useCallback(async () => {
     const userId = sessionRef.current?.user.id ?? null;
@@ -55,10 +57,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(data.session);
       })
       .finally(() => setLoading(false));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       sessionRef.current = next;
       setSession(next);
-      if (!next) setProfile(null); // sign-out clears profile here (event handler, not effect)
+      if (!next) {
+        setProfile(null); // sign-out clears profile here (event handler, not effect)
+        void unregisterPush(pushTokenRef.current);
+        pushTokenRef.current = null;
+      } else if (
+        event === 'SIGNED_IN' ||
+        event === 'INITIAL_SESSION' ||
+        event === 'TOKEN_REFRESHED'
+      ) {
+        if (!pushTokenRef.current) {
+          void registerForPush().then((t) => {
+            pushTokenRef.current = t;
+          });
+        }
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);

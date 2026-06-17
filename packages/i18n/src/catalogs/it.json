@@ -404,6 +404,10 @@
   "permission.camera.body": "Serve la fotocamera per aggiungere una foto o un video al tuo momento.",
   "permission.photos.title": "Scegli dalla tua libreria",
   "permission.photos.body": "Accedi alle foto che vuoi condividere. Solo quelle che scegli tu.",
+  "permission.push.title": "Resta in ascolto",
+  "permission.push.body": "Attiva le notifiche per sapere quando si accende un Momento.",
+  "permission.push.cta": "Attiva",
+  "permission.push.skip": "Più tardi",
   "permission.allow": "Consenti",
   "permission.notNow": "Non ora",
   "permission.blocked.body": "L'hai disattivato nelle impostazioni. Riattivalo quando vuoi.",
@@ -646,5 +650,7 @@
   "connection.a11y.accept": "Accetta la richiesta di {name}",
   "connection.a11y.decline": "Rifiuta la richiesta di {name}",
   "connection.a11y.open": "Apri il profilo di {name}",
-  "connection.a11y.hub": "Connessioni e richieste"
+  "connection.a11y.hub": "Connessioni e richieste",
+  "notif.tpl.moment": "Hai un Momento",
+  "notif.tpl.message": "Nuovo messaggio"
 }

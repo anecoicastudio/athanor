@@ -424,3 +424,6 @@ verify_jwt = false
 
 [functions.check-in]
 verify_jwt = true
+
+[functions.push-dispatch]
+verify_jwt = true
