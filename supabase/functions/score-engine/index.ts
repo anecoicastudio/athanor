@@ -13,22 +13,15 @@ import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
 
-// Core math via _core.ts shim (rule #10: single-source; see _core.ts for why).
-import {
-  pointsFor,
-  applyCap,
-  applyDecay,
-  aggregateScore,
-  evaluateStars,
-  tierOf,
-  AURA_CAPS,
-  STAR_KEYS,
-  type AwardContext,
-  type ScoringType,
-  type LedgerLine,
-  type StarFacts,
-  type StarKey,
-} from './_core.ts';
+// Core math — imported directly from packages/core (sloppy-imports resolves extension-less).
+import { pointsFor, type AwardContext } from '../../../packages/core/src/score/award.ts';
+import { applyCap } from '../../../packages/core/src/score/caps.ts';
+import { applyDecay } from '../../../packages/core/src/score/decay.ts';
+import { aggregateScore, type LedgerLine } from '../../../packages/core/src/score/aggregate.ts';
+import { evaluateStars, type StarFacts } from '../../../packages/core/src/score/stars.ts';
+import { tierOf } from '../../../packages/core/src/score/tier.ts';
+import { AURA_CAPS, type ScoringType } from '../../../packages/core/src/score/weights.ts';
+import { STAR_KEYS, type StarKey } from '../../../packages/schemas/src/aura.ts';
 
 // ── Request body ────────────────────────────────────────────────────────────
 
