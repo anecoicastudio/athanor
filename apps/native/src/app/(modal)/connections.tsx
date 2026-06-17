@@ -62,10 +62,11 @@ export default function ConnectionsScreen() {
     mutationFn: ({ accept, item }: { accept: boolean; item: ConnectionRequestListItem }) =>
       respondToConnection(supabase, item.id, accept),
     onMutate: ({ item }) => setRespondingId(item.id),
-    onSuccess: (_data, { accept, item }) => {
-      void queryClient.invalidateQueries({ queryKey: connectionKeys.incoming() });
-      void queryClient.invalidateQueries({ queryKey: connectionKeys.status(item.peerId) });
-      // An accept created a 1:1 chat — refresh the conversations list.
+    onSuccess: (_data, { accept }) => {
+      // refresh the whole connections tree — inbox + the Connessioni list + per-peer status
+      // (an accepted request must appear in the list, not just leave the inbox).
+      void queryClient.invalidateQueries({ queryKey: connectionKeys.all });
+      // an accept created a 1:1 chat — refresh the conversations list too.
       if (accept) void queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
     },
     onError: () => {
