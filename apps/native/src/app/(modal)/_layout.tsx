@@ -37,6 +37,7 @@ export default function ModalLayout() {
       <Stack.Screen name="star" options={{ presentation: 'modal' }} />
       <Stack.Screen name="recap" options={{ presentation: 'modal' }} />
       <Stack.Screen name="level" options={{ animation: 'fade' }} />
+      <Stack.Screen name="candidacy-success" options={{ animation: 'fade' }} />
     </Stack>
   );
 }

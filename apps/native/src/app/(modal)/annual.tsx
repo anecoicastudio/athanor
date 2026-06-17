@@ -19,8 +19,6 @@ export default function AnnualFundScreen() {
   const { profile } = useAuth();
   const router = useRouter();
   const locale = profile?.locale ?? 'it';
-  const [candidateSoon, setCandidateSoon] = useState(false);
-
   // ── Edition query ────────────────────────────────────────────────────────────
   const editionQuery = useQuery({
     queryKey: fundKeys.activeEdition(),
@@ -59,12 +57,6 @@ export default function AnnualFundScreen() {
   const raisedCents = agg?.raised_cents ?? 0;
   const contributorCount = agg?.contributor_count ?? 0;
   const goalCents = edition?.goal_cents ?? 0;
-
-  // ── «Candida il tuo sogno» hint (mirrors Home actionSoon pattern) ─────────────
-  const onCandidatePress = () => {
-    setCandidateSoon(true);
-    setTimeout(() => setCandidateSoon(false), 2000);
-  };
 
   // ── Loading state ────────────────────────────────────────────────────────────
   if (editionQuery.isLoading) {
@@ -151,19 +143,14 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 4. «Candida il tuo sogno» — flat light Button; candidacy is a later slice */}
+        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard */}
         <View className="gap-2">
           <Button
             label={t('fund.candidate.cta', locale)}
-            onPress={onCandidatePress}
+            onPress={() => router.push('/(modal)/candidacy')}
             variant="light"
             // No glow — flat CTA, rule #4
           />
-          {candidateSoon ? (
-            <Text className="text-center text-[13px] text-muted-foreground">
-              {t('fund.candidate.soon', locale)}
-            </Text>
-          ) : null}
         </View>
 
         {/* 5. Come si divide il fondo */}
