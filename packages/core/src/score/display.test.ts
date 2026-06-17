@@ -23,8 +23,8 @@ describe('breakdownRows', () => {
   });
   it('normalizes width to the max bucket', () => {
     const rows = breakdownRows(B);
-    expect(rows[0].width).toBeCloseTo(1); // contributi is the max (188)
-    expect(rows[5].width).toBeCloseTo(30 / 188);
+    expect(rows[0]!.width).toBeCloseTo(1); // contributi is the max (188)
+    expect(rows[5]!.width).toBeCloseTo(30 / 188);
   });
   it('all-zero breakdown → all widths 0, no NaN', () => {
     const z = {
