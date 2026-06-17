@@ -25,7 +25,7 @@ export function StarProgress({ next, locale }: { next: NextStar | null; locale: 
         {t('star.next.progress', locale, { done: next.done, total: next.total, unit })}
       </Text>
       <ProgressBar width={width} />
-      <Text className="text-[11px] text-muted">{t('star.next.hint', locale)}</Text>
+      <Text className="text-[11px] text-muted-foreground">{t('star.next.hint', locale)}</Text>
     </View>
   );
 }

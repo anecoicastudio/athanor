@@ -100,7 +100,7 @@ export default function StarScreen() {
 
             {/* Earned: date */}
             {earned && earnedDateStr != null ? (
-              <Text className="text-[13px] text-muted">
+              <Text className="text-[13px] text-muted-foreground">
                 {t('star.earnedOn', locale, { date: earnedDateStr })}
               </Text>
             ) : null}

@@ -59,7 +59,7 @@ export function LedgerRow({
   locale: Locale;
 }) {
   const sign = points > 0 ? '+' : '';
-  const tone = points > 0 ? 'text-aura' : type === 'decay' ? 'text-muted' : 'text-danger';
+  const tone = points > 0 ? 'text-aura' : type === 'decay' ? 'text-muted-foreground' : 'text-danger';
 
   return (
     <View className="flex-row items-center gap-3 py-2">

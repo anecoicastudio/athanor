@@ -85,7 +85,7 @@ export default function AuraScreen() {
           ) : (
             <AuraValue value={score} size={56} flashOnIncrease />
           )}
-          <Text className="text-[13px] text-muted">{t('aura.tagline', locale)}</Text>
+          <Text className="text-[13px] text-muted-foreground">{t('aura.tagline', locale)}</Text>
         </View>
 
         {/* Error state */}
@@ -144,7 +144,7 @@ export default function AuraScreen() {
 
         {/* Decay caption — only when idle > 30 days */}
         {idleDays !== null ? (
-          <Text className="mt-4 text-[12px] text-muted">
+          <Text className="mt-4 text-[12px] text-muted-foreground">
             {t('aura.decay.caption', locale, { days: idleDays })}
           </Text>
         ) : null}
