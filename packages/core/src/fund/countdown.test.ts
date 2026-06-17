@@ -52,4 +52,14 @@ describe('timeRemaining', () => {
   it('handles large day counts', () => {
     expect(timeRemaining(365 * DAY, 0).days).toBe(365);
   });
+
+  it('treats a NaN target as done (defensive — malformed target_at)', () => {
+    expect(timeRemaining(Number.NaN, 0)).toEqual({
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      done: true,
+    });
+  });
 });

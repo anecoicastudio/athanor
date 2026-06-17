@@ -10,7 +10,7 @@ export function timeRemaining(
   nowMs: number,
 ): { days: number; hours: number; minutes: number; seconds: number; done: boolean } {
   const remaining = targetMs - nowMs;
-  if (remaining <= 0) {
+  if (!Number.isFinite(remaining) || remaining <= 0) {
     return { days: 0, hours: 0, minutes: 0, seconds: 0, done: true };
   }
   const totalSeconds = Math.floor(remaining / 1000);

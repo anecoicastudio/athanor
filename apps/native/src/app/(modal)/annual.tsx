@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,40 +38,20 @@ export default function AnnualFundScreen() {
   });
 
   // ── Realtime subscription (fund ticker) ─────────────────────────────────────
-  const [live, setLive] = useState(true);
-  // Keep a stable ref so the cleanup Effect doesn't close over a stale edition.id
-  const editionIdRef = useRef<string | null>(null);
-  editionIdRef.current = edition?.id ?? null;
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
-    const editionId = editionIdRef.current;
+    const editionId = edition?.id;
     if (!editionId) return;
 
-    setLive(true);
+    const cleanup = subscribeFundAggregate(
+      supabase,
+      editionId,
+      (agg) => qc.setQueryData(fundKeys.aggregate(editionId), agg),
+      (status) => setLive(status === 'SUBSCRIBED'),
+    );
 
-    // On disconnect/error the subscription silently freezes (no error callback exposed).
-    // Track liveness with a heartbeat: if no agg push arrives within 15s after mount
-    // or after the last received update, mark the dot as paused. It flips back to live
-    // on the next successful push. No error toast — per brief.
-    let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const resetHeartbeat = () => {
-      if (heartbeatTimer) clearTimeout(heartbeatTimer);
-      heartbeatTimer = setTimeout(() => setLive(false), 15_000);
-    };
-
-    resetHeartbeat();
-
-    const cleanup = subscribeFundAggregate(supabase, editionId, (agg) => {
-      qc.setQueryData(fundKeys.aggregate(editionId), agg);
-      setLive(true);
-      resetHeartbeat();
-    });
-
-    return () => {
-      if (heartbeatTimer) clearTimeout(heartbeatTimer);
-      cleanup();
-    };
+    return cleanup;
   }, [edition?.id, qc]);
 
   // Flatten aggregate values (0 when null / not yet arrived)

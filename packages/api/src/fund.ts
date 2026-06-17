@@ -45,6 +45,7 @@ export function subscribeFundAggregate(
   client: AthanorClient,
   editionId: string,
   onAggregate: (agg: FundAggregate) => void,
+  onStatus?: (status: string) => void,
 ): () => void {
   const channel = client
     .channel(`fund:${editionId}:aggregate`)
@@ -61,7 +62,7 @@ export function subscribeFundAggregate(
         if (parsed.success) onAggregate(parsed.data);
       },
     )
-    .subscribe();
+    .subscribe((status) => onStatus?.(status));
   return () => {
     void client.removeChannel(channel);
   };
