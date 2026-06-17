@@ -160,10 +160,25 @@ Deno.serve(async (req) => {
       const idleWeeks = Math.floor((diffDays - DECAY.IDLE_DAYS_BEFORE) / 7);
       if (idleWeeks <= 0) continue;
 
-      const newScore = applyDecay({ score, peak: peak_score, idleWeeks });
-      if (newScore >= score) continue; // nothing to do (already at floor or unchanged)
+      // Compute stable base from NON-decay ledger rows so that:
+      //   target = base × 0.98^idleWeeks  (linear, spec §4.9 ×0.98/week)
+      // A same-night re-run produces the identical target → target < score is false
+      // → no new row appended (idempotent per night, backend-07 §476).
+      const { data: events } = await admin
+        .from('aura_events')
+        .select('type, points')
+        .eq('profile_id', profile_id);
 
-      const pointsDelta = newScore - score; // negative
+      const baseScore = aggregateScore(
+        (events ?? [])
+          .filter((e) => e.type !== 'decay')
+          .map((e) => ({ type: e.type as string, points: e.points as number })),
+      ).score;
+
+      const target = applyDecay({ score: baseScore, peak: peak_score, idleWeeks });
+      if (target >= score) continue; // already at or below target (idempotent guard)
+
+      const pointsDelta = target - score; // negative
 
       // Append a decay ledger row.
       await admin.from('aura_events').insert({
@@ -177,7 +192,7 @@ Deno.serve(async (req) => {
       // Update score — do NOT touch peak_score or last_qualifying_action_at.
       await admin
         .from('aura_scores')
-        .update({ score: newScore, computed_at: new Date().toISOString() })
+        .update({ score: target, computed_at: new Date().toISOString() })
         .eq('profile_id', profile_id);
 
       decayed++;
@@ -319,7 +334,7 @@ Deno.serve(async (req) => {
 
     // I3: never clear an already-earned star's grant date.
     let grantedAt: string | null;
-    if (prevGrantedAt !== undefined && prevGrantedAt !== null) {
+    if (prevGrantedAt !== null) {
       // Already earned before → preserve the original grant date.
       grantedAt = prevGrantedAt;
     } else if (isGranted) {
