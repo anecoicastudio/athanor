@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { type Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { fundKeys, getActiveEdition, submitCandidacy } from '@athanor/api';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -100,8 +100,7 @@ export default function CandidacyWizard() {
           plan: planText.trim(),
         },
       });
-      // Task 7 registers the candidacy-success route; cast until then.
-      router.replace('/(modal)/candidacy-success' as Href);
+      router.replace('/(modal)/candidacy-success');
     } catch {
       setError(t('candidacy.error.submit', locale));
       setSubmitting(false);
