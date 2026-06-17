@@ -22,3 +22,4 @@ export * from './message';
 export * from './connection';
 export * from './pushToken';
 export * from './fund';
+export * from './candidacy';

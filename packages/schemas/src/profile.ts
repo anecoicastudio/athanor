@@ -17,6 +17,7 @@ export const profileSchema = z.object({
   visibility: z.record(z.enum(['public', 'members', 'private'])),
   identity_tags: z.array(z.string()).max(10),
   seeking: z.array(z.string()).max(10),
+  identity_verified: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
 });
