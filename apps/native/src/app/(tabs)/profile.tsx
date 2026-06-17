@@ -1,22 +1,25 @@
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
+  auraKeys,
   confirmHelpComplete,
   getActiveDream,
   getAuraScore,
   getMomentsPage,
   getProfileById,
+  getStars,
   listIncomingHelps,
   listMilestones,
   momentKeys,
   respondToHelp,
   softDeleteMilestone,
+  starKeys,
   updateMilestoneStatus,
   updateProfile,
 } from '@athanor/api';
-import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@athanor/core';
+import { IDENTITY_TAGS, pickNextStar, profileCompleteness, SEEKING_TAGS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import {
   type AuraSnapshot,
@@ -25,6 +28,7 @@ import {
   ZERO_AURA_SNAPSHOT,
   type Locale,
   type Profile,
+  type StarKey,
 } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -37,6 +41,7 @@ import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SettingsRow } from '@/components/SettingsRow';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
+import { StarProgress } from '@/components/aura/StarProgress';
 import { Lightbox } from '@/components/Lightbox';
 import { MediaSheet } from '@/components/MediaSheet';
 import { MomentiGallery } from '@/components/MomentiGallery';
@@ -98,11 +103,11 @@ function ProfileEditor({
   const [helperNames, setHelperNames] = useState<Record<string, string>>({});
   const [mutatingHelpId, setMutatingHelpId] = useState<string | null>(null);
   const [flashMilestoneId, setFlashMilestoneId] = useState<string | null>(null);
-  const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // Live own momenti (rule #9: getMomentsPage is keyset). First page (24) is enough
   // for MVP — infinite scroll on the full grid is deferred.
@@ -120,9 +125,30 @@ function ProfileEditor({
   const [sheetOpen, setSheetOpen] = useState(false);
   const { addMoment } = useMomentUpload(userId);
 
+  // Read-only Aura snapshot — TanStack (M6 score-engine fills real values; coalesces to zero).
+  const auraQuery = useQuery({
+    queryKey: auraKeys.score(userId),
+    queryFn: () => getAuraScore(supabase, userId),
+    enabled: Boolean(userId),
+  });
+  const aura: AuraSnapshot = auraQuery.data ?? ZERO_AURA_SNAPSHOT;
+
+  // Stars for the Six Stars grid — TanStack (engine dormant → [] → all unearned).
+  const starsQuery = useQuery({
+    queryKey: starKeys.list(userId),
+    queryFn: () => getStars(supabase, userId),
+    enabled: Boolean(userId),
+  });
+  const stars = starsQuery.data ?? [];
+
   // Refetch the active dream + its tappe whenever Profilo regains focus (e.g. after editing).
+  // Also invalidates Aura + Stars so the grid refreshes after confirmed help events.
   useFocusEffect(
     useCallback(() => {
+      // Invalidate Aura caches (preserves focus-refetch behaviour from old useEffect).
+      void queryClient.invalidateQueries({ queryKey: auraKeys.score(userId) });
+      void queryClient.invalidateQueries({ queryKey: starKeys.list(userId) });
+
       let cancelled = false;
       getActiveDream(supabase, userId)
         .then(async (d) => {
@@ -163,23 +189,8 @@ function ProfileEditor({
       return () => {
         cancelled = true;
       };
-    }, [userId]),
+    }, [userId, queryClient]),
   );
-
-  // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
-  useEffect(() => {
-    let cancelled = false;
-    getAuraScore(supabase, userId)
-      .then((a) => {
-        if (!cancelled) setAura(a);
-      })
-      .catch(() => {
-        // zero-snapshot default is the safe fallback
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
 
   const completeness = profileCompleteness({
     handle: profile.handle,
@@ -395,7 +406,15 @@ function ProfileEditor({
           {/* Le Sei Stelle */}
           <View className="gap-3">
             <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-            <SixStarsGrid stars={aura.stars} locale={locale} />
+            <SixStarsGrid
+              stars={stars}
+              viewerIsOwner={true}
+              locale={locale}
+              onStarPress={(id: StarKey) =>
+                router.push({ pathname: '/(modal)/star', params: { starId: id } })
+              }
+            />
+            <StarProgress next={pickNextStar(stars)} locale={locale} />
           </View>
 
           {/* I tuoi Momenti — live identity gallery (signed thumbs + create/upload) */}

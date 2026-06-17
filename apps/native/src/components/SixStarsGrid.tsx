@@ -1,25 +1,38 @@
-import { Text, View } from '@/tw';
-import { t, type MessageKey } from '@athanor/i18n';
-import { STAR_KEYS, type AuraSnapshot, type Locale } from '@athanor/schemas';
+import { View } from '@/tw';
+import { StarCell } from '@/components/aura/StarCell';
+import { STAR_KEYS, type Locale, type Star, type StarKey } from '@athanor/schemas';
 
-export function SixStarsGrid({ stars, locale }: { stars: AuraSnapshot['stars']; locale: Locale }) {
+/**
+ * Six Stars grid — live from the engine's `stars` table (M6).
+ * Iterates `STAR_KEYS` canonical order; resolves each `Star` row from the array.
+ * A missing row (engine dormant / unearned) coalesces to unearned.
+ * Others' unearned cells render null so the grid naturally shows only earned.
+ */
+export function SixStarsGrid({
+  stars,
+  viewerIsOwner,
+  locale,
+  onStarPress,
+}: {
+  stars: Star[];
+  viewerIsOwner: boolean;
+  locale: Locale;
+  onStarPress?: (starId: StarKey) => void;
+}) {
   return (
     <View className="flex-row flex-wrap">
       {STAR_KEYS.map((key) => {
-        const lit = stars[key] ?? false;
-        const name = t(`star.${key}` as MessageKey, locale);
+        const row = stars.find((s) => s.starId === key);
+        const earned = row?.grantedAt != null;
         return (
-          <View
+          <StarCell
             key={key}
-            className="w-1/3 items-center gap-1.5 py-3"
-            accessibilityRole="image"
-            accessibilityLabel={`${name} · ${t(lit ? 'star.lit' : 'star.unlit', locale)}`}
-          >
-            <Text className={lit ? 'text-2xl text-aura' : 'text-2xl text-faint'}>
-              {lit ? '✦' : '✧'}
-            </Text>
-            <Text className="text-[11px] tracking-wide text-faint">{name}</Text>
-          </View>
+            starId={key}
+            earned={earned}
+            viewerIsOwner={viewerIsOwner}
+            locale={locale}
+            onPress={onStarPress ? () => onStarPress(key) : undefined}
+          />
         );
       })}
     </View>

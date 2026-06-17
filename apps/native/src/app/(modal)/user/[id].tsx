@@ -7,6 +7,7 @@ import {
   getMomentsPage,
   getOrCreateConversation,
   getProfileById,
+  getStars,
   listMilestones,
   listMyHelps,
   momentKeys,
@@ -18,6 +19,7 @@ import {
   type Locale,
   type Milestone,
   type Profile,
+  type Star,
   ZERO_AURA_SNAPSHOT,
 } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -55,6 +57,7 @@ export default function PersonDetailScreen() {
   const [dreamText, setDreamText] = useState<string | null>(null);
   const [tappe, setTappe] = useState<Milestone[]>([]);
   const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
+  const [stars, setStars] = useState<Star[]>([]);
   const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -106,6 +109,10 @@ export default function PersonDetailScreen() {
         const a = await getAuraScore(supabase, id);
         if (cancelled) return;
         setAura(a);
+        // Earned-only via RLS for others' profiles (rule #3).
+        const earnedStars = await getStars(supabase, id);
+        if (cancelled) return;
+        setStars(earnedStars);
         const helps = await listMyHelps(supabase, session.user.id);
         if (cancelled) return;
         setMyHelps(helps);
@@ -206,10 +213,10 @@ export default function PersonDetailScreen() {
         ]}
       />
 
-      {/* Le sei stelle */}
+      {/* Le sei stelle — earned-only for others via RLS (rule #3). */}
       <View className="gap-3">
         <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-        <SixStarsGrid stars={aura.stars} locale={locale} />
+        <SixStarsGrid stars={stars} viewerIsOwner={false} locale={locale} />
       </View>
 
       {/* I suoi Momenti — live, read-only (members-read RLS); no add affordance. */}
