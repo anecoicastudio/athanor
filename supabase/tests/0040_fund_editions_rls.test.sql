@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(11);
 
 -- structure
 select has_table('public', 'fund_editions', 'fund_editions exists');
@@ -22,6 +22,9 @@ select is((select count(*)::int from public.fund_editions), 1, 'anon can read th
 select throws_ok(
   $$insert into public.fund_editions (year, target_at, goal_cents) values (2099, now(), 100)$$,
   '42501', null, 'anon cannot insert an edition');
+select throws_ok(
+  $$delete from public.fund_editions$$,
+  '42501', null, 'anon cannot delete an edition');
 reset role;
 
 -- authenticated cannot write
@@ -32,6 +35,9 @@ select throws_ok(
 select throws_ok(
   $$update public.fund_editions set phase = 'closed'$$,
   '42501', null, 'authenticated cannot update an edition');
+select throws_ok(
+  $$delete from public.fund_editions$$,
+  '42501', null, 'authenticated cannot delete an edition');
 reset role;
 
 -- service_role can write

@@ -17,11 +17,14 @@ insert into public.fund_aggregates (edition_id, raised_cents, contributor_count)
   values ('00000000-0000-0000-0000-0000000000a1', 48328100, 13874);
 reset role;
 
--- anon CAN read the public total
+-- anon CAN read the public total but cannot write
 set local role anon;
 select is((select raised_cents from public.fund_aggregates
            where edition_id = '00000000-0000-0000-0000-0000000000a1'),
           48328100::bigint, 'anon can read the public fund total');
+select throws_ok(
+  $$insert into public.fund_aggregates (edition_id) values ('00000000-0000-0000-0000-0000000000a1')$$,
+  '42501', null, 'anon cannot insert an aggregate');
 reset role;
 
 -- authenticated cannot inflate / write the aggregate
