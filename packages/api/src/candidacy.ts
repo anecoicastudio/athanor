@@ -47,7 +47,7 @@ export async function submitCandidacy(
   const { id, profileId, input } = params;
   const { data, error } = await client
     .from('dream_candidacies')
-    .insert({ id, profile_id: profileId, status: 'submitted', ...input })
+    .insert({ ...input, id, profile_id: profileId, status: 'submitted' })
     .select('*')
     .single();
   if (error) throw error;
