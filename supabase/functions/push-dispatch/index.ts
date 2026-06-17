@@ -21,7 +21,13 @@ Deno.serve(async (req) => {
   } catch {
     return error('invalid json', 400);
   }
-  if (!body?.recipient_id || !body?.template_key || !body?.type || !body?.entity_ref) {
+  const missing = (v: unknown) => typeof v !== 'string' || v.trim() === '';
+  if (
+    missing(body?.recipient_id) ||
+    missing(body?.template_key) ||
+    missing(body?.type) ||
+    missing(body?.entity_ref)
+  ) {
     return error('missing fields', 400);
   }
 
@@ -55,7 +61,9 @@ Deno.serve(async (req) => {
   if (messages.length === 0) return json({ sent: 0 });
 
   // 5. Chunk + send.
-  const expo = new Expo({ accessToken: Deno.env.get('EXPO_ACCESS_TOKEN'), useFcmV1: true });
+  const expoToken = Deno.env.get('EXPO_ACCESS_TOKEN');
+  if (!expoToken) return error('EXPO_ACCESS_TOKEN not set', 500);
+  const expo = new Expo({ accessToken: expoToken, useFcmV1: true });
   const chunks = expo.chunkPushNotifications(messages);
   let sent = 0;
   for (const chunk of chunks) {
