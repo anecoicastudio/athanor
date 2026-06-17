@@ -167,6 +167,37 @@ export async function getAuraLedgerPage(
   return { rows, nextCursor };
 }
 
+/**
+ * Owner's recent events since `sinceIso` (newest-first, bounded). For the week recap —
+ * the app aggregates these client-side via @athanor/core summarizeWeek (display only,
+ * rule #1: never a score write). RLS scopes to the caller's own rows. Never offset (#9).
+ */
+export async function getAuraEventsSince(
+  client: AthanorClient,
+  profileId: string,
+  sinceIso: string,
+): Promise<AuraEvent[]> {
+  const { data, error } = await client
+    .from('aura_events')
+    .select('id, profile_id, type, points, ref_id, reason, created_at')
+    .eq('profile_id', profileId)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []).map((r) =>
+    auraEventSchema.parse({
+      id: r.id,
+      profileId: r.profile_id,
+      type: r.type,
+      points: r.points,
+      refId: r.ref_id,
+      reason: r.reason,
+      createdAt: r.created_at,
+    }),
+  );
+}
+
 /** Stars for a profile (earned-only for others via RLS; own profile sees unearned progress too). */
 export async function getStars(client: AthanorClient, profileId: string): Promise<Star[]> {
   const { data, error } = await client

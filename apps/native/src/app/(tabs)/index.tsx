@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { getAuraScore } from '@athanor/api';
-import { greetingFor } from '@athanor/core';
+import { auraKeys, getAuraEventsSince, getAuraScore } from '@athanor/api';
+import { greetingFor, summarizeWeek } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
+import { WeekCard } from '@/components/aura/WeekCard';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { TodaySection } from '@/components/home/TodaySection';
 import { HomeHeader } from '@/components/home/HomeHeader';
@@ -26,7 +28,7 @@ export default function HomeScreen() {
   const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
   const [actionSoon, setActionSoon] = useState(false);
 
-  const userId = session?.user.id;
+  const userId = session?.user.id ?? '';
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
   useEffect(() => {
@@ -43,6 +45,17 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [userId]);
+
+  // Week recap: last 8d of events → summarize client-side. now injected at call site (rule #1).
+  const recapQuery = useQuery({
+    queryKey: auraKeys.recap(userId),
+    queryFn: async () => {
+      const since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      const rows = await getAuraEventsSince(supabase, userId, since);
+      return summarizeWeek(rows, new Date());
+    },
+    enabled: !!userId,
+  });
 
   if (!profile) {
     return (
@@ -74,7 +87,12 @@ export default function HomeScreen() {
       {/* Blocks 2–6: honest placeholders until their milestone fills them in. */}
       <ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />
       <ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />
-      <ComingSoonSection title={t('home.week.title', locale)} locale={locale} />
+      {recapQuery.data != null &&
+      !(recapQuery.data.auraWeek === 0 && recapQuery.data.contributi === 0) ? (
+        <WeekCard recap={recapQuery.data} locale={locale} onPress={() => router.push('/recap')} />
+      ) : (
+        <ComingSoonSection title={t('home.week.title', locale)} locale={locale} />
+      )}
       <ComingSoonSection title={t('home.nudge.title', locale)} locale={locale} />
       <TodaySection locale={locale} />
 
