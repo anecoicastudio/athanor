@@ -20,6 +20,7 @@ export * from './media/post-type';
 export * from './events/distance';
 export * from './events/price';
 export * from './chat/dayBucket';
+export * from './fund/countdown';
 export {
   breakdownRows,
   pickNextStar,
