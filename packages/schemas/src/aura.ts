@@ -41,3 +41,61 @@ export const ZERO_AURA_SNAPSHOT: AuraSnapshot = {
     ambasciatore: false,
   },
 };
+
+/** The six display buckets (backend 07 §2.2). */
+export const breakdownSchema = z.object({
+  contributi: z.number().int(),
+  eventi: z.number().int(),
+  collaborazioni: z.number().int(),
+  valore: z.number().int(),
+  recensioni: z.number().int(),
+  affidabilita: z.number().int(),
+});
+export type Breakdown = z.infer<typeof breakdownSchema>;
+
+/** A computed Aura snapshot row (world-readable; engine-written). */
+export const auraScoreSchema = z.object({
+  profileId: z.string().uuid(),
+  score: z.number().int().min(0).max(1000),
+  breakdown: breakdownSchema,
+  peakScore: z.number().int().min(0).max(1000),
+  lastQualifyingActionAt: z.string().datetime().nullable(),
+  computedAt: z.string().datetime(),
+});
+export type AuraScore = z.infer<typeof auraScoreSchema>;
+
+/** The nine ledger types (eight signed actions + decay). */
+export const auraEventTypeSchema = z.enum([
+  'identity_verified',
+  'event_attended',
+  'event_organized',
+  'momento_conversation',
+  'milestone_help',
+  'own_milestone',
+  'post_starred',
+  'report_upheld',
+  'decay',
+]);
+export type AuraEventType = z.infer<typeof auraEventTypeSchema>;
+
+/** An append-only ledger row (owner-read). */
+export const auraEventSchema = z.object({
+  id: z.string().uuid(),
+  profileId: z.string().uuid(),
+  type: auraEventTypeSchema,
+  points: z.number().int(),
+  refId: z.string().uuid().nullable(),
+  reason: z.record(z.unknown()).nullable(),
+  createdAt: z.string().datetime(),
+});
+export type AuraEvent = z.infer<typeof auraEventSchema>;
+
+/** A six-star grant row (earned-only for others via RLS). */
+export const starSchema = z.object({
+  id: z.string().uuid(),
+  profileId: z.string().uuid(),
+  starId: starKeySchema,
+  grantedAt: z.string().datetime().nullable(),
+  progress: z.object({ done: z.number().int(), total: z.number().int(), unit: z.string() }),
+});
+export type Star = z.infer<typeof starSchema>;
