@@ -8,6 +8,7 @@ import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { WeekCard } from '@/components/aura/WeekCard';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
+import { DreamHeroCard } from '@/components/home/DreamHeroCard';
 import { TodaySection } from '@/components/home/TodaySection';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { InviteCard } from '@/components/home/InviteCard';
@@ -85,7 +86,12 @@ export default function HomeScreen() {
       {actionSoon ? <Text className="text-[13px] text-faint">{t('home.soon', locale)}</Text> : null}
 
       {/* Blocks 2–6: honest placeholders until their milestone fills them in. */}
-      <ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />
+      {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
+          active edition exists, so we show exactly one element in this slot. */}
+      <DreamHeroCard
+        locale={locale}
+        fallback={<ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />}
+      />
       <ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />
       {recapQuery.data != null &&
       !(recapQuery.data.auraWeek === 0 && recapQuery.data.contributi === 0) ? (
