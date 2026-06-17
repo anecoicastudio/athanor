@@ -11,6 +11,7 @@ import {
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -20,6 +21,7 @@ import { supabase } from '@/lib/supabase';
  */
 export function ConnectButton({ peerId, locale }: { peerId: string; locale: Locale }) {
   const queryClient = useQueryClient();
+  const { session } = useAuth();
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -30,15 +32,16 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
   const statusQuery = useQuery({
     queryKey: connectionKeys.status(peerId),
     queryFn: () => getConnectionStatus(supabase, peerId),
+    // getConnectionStatus needs auth.uid(); don't run (and cache a false 'none') before the
+    // session has restored — refetches once it lands.
+    enabled: Boolean(session?.user),
   });
 
-  // Shared invalidation: status for this peer + the inbox (a new/removed request shows there).
+  // status for this peer + the inbox + the connections list all change on send/cancel/accept,
+  // so invalidate the whole connections tree (cheap, keeps every surface in sync).
   const resyncStatus = () =>
     void queryClient.invalidateQueries({ queryKey: connectionKeys.status(peerId) });
-  const invalidateAll = () => {
-    resyncStatus();
-    void queryClient.invalidateQueries({ queryKey: connectionKeys.incoming() });
-  };
+  const invalidateAll = () => void queryClient.invalidateQueries({ queryKey: connectionKeys.all });
 
   const sendMutation = useMutation({
     mutationFn: () => sendConnection(supabase, peerId),
