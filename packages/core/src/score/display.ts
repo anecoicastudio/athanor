@@ -1,4 +1,10 @@
-import { STAR_KEYS, type Breakdown, type Star, type StarKey } from '@athanor/schemas';
+import {
+  STAR_KEYS,
+  type AuraEvent,
+  type Breakdown,
+  type Star,
+  type StarKey,
+} from '@athanor/schemas';
 
 export type BreakdownRow = { key: keyof Breakdown; value: number; width: number };
 
@@ -41,4 +47,49 @@ export function pickNextStar(stars: Star[]): NextStar | null {
     total: best.progress.total,
     unit: best.progress.unit,
   };
+}
+
+export type WeekRecap = {
+  auraWeek: number;
+  contributi: number;
+  sogniAiutati: number;
+  oreDonate: number;
+  streakDays: number;
+};
+
+type WeekEvent = Pick<AuraEvent, 'type' | 'points' | 'createdAt'>;
+
+/** UTC day key (YYYY-MM-DD) — deterministic, tz-stable for streak/window math. */
+function dayKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Weekly recap — display aggregation of persisted ledger rows (rule #1: no score compute/write). `now` injected. */
+export function summarizeWeek(events: WeekEvent[], now: Date): WeekRecap {
+  const windowStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  let auraWeek = 0,
+    contributi = 0,
+    sogniAiutati = 0;
+  const positiveDays = new Set<string>();
+
+  for (const e of events) {
+    const at = new Date(e.createdAt);
+    if (e.points > 0) positiveDays.add(dayKey(at));
+    if (at >= windowStart && at <= now) {
+      if (e.points > 0) {
+        auraWeek += e.points;
+        contributi += 1;
+      }
+      if (e.type === 'milestone_help') sogniAiutati += 1;
+    }
+  }
+
+  let streakDays = 0;
+  for (let i = 0; i < 7; i++) {
+    const day = dayKey(new Date(now.getTime() - i * 24 * 60 * 60 * 1000));
+    if (positiveDays.has(day)) streakDays += 1;
+    else break;
+  }
+
+  return { auraWeek, contributi, sogniAiutati, oreDonate: 0, streakDays };
 }

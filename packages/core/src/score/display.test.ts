@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakdownRows, pickNextStar } from './display';
+import { breakdownRows, pickNextStar, summarizeWeek } from './display';
 
 const B = {
   contributi: 188,
@@ -71,5 +71,44 @@ describe('pickNextStar', () => {
   it('null when all earned or empty', () => {
     expect(pickNextStar([])).toBeNull();
     expect(pickNextStar([star('creatore', '2026-01-01', 2, 2)])).toBeNull();
+  });
+});
+
+const NOW = new Date('2026-06-17T12:00:00.000Z');
+const ev = (type: string, points: number, iso: string) => ({ type, points, createdAt: iso }) as any;
+
+describe('summarizeWeek', () => {
+  it('sums positive points and counts in the 7-day window', () => {
+    const r = summarizeWeek(
+      [
+        ev('own_milestone', 10, '2026-06-17T08:00:00Z'),
+        ev('milestone_help', 40, '2026-06-16T08:00:00Z'),
+        ev('decay', -3, '2026-06-16T02:00:00Z'), // negative → excluded from auraWeek/contributi
+        ev('post_starred', 2, '2026-06-01T08:00:00Z'), // older than 7d → excluded
+      ],
+      NOW,
+    );
+    expect(r.auraWeek).toBe(50);
+    expect(r.contributi).toBe(2);
+    expect(r.sogniAiutati).toBe(1);
+    expect(r.oreDonate).toBe(0);
+  });
+  it('streak counts consecutive days ending today, capped at 7', () => {
+    const days = ['17', '16', '15'].map((d) => ev('own_milestone', 10, `2026-06-${d}T09:00:00Z`));
+    expect(summarizeWeek(days, NOW).streakDays).toBe(3);
+  });
+  it('no event today → streak 0', () => {
+    expect(summarizeWeek([ev('own_milestone', 10, '2026-06-15T09:00:00Z')], NOW).streakDays).toBe(
+      0,
+    );
+  });
+  it('empty ledger → all zero', () => {
+    expect(summarizeWeek([], NOW)).toEqual({
+      auraWeek: 0,
+      contributi: 0,
+      sogniAiutati: 0,
+      oreDonate: 0,
+      streakDays: 0,
+    });
   });
 });
