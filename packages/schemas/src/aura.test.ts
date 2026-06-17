@@ -6,6 +6,7 @@ import {
   auraScoreSchema,
   auraEventSchema,
   starSchema,
+  auraCelebrationPayload,
 } from './aura';
 
 describe('aura snapshot', () => {
@@ -89,5 +90,27 @@ describe('aura read schemas (M6)', () => {
       progress: { done: 1, total: 3, unit: 'aiuti' },
     });
     expect(ok.success).toBe(true);
+  });
+});
+
+describe('auraCelebrationPayload', () => {
+  it('parses a tier-up + new-stars payload', () => {
+    const parsed = auraCelebrationPayload.parse({ tier_up: 'bagliore', new_stars: ['creatore'] });
+    expect(parsed.tier_up).toBe('bagliore');
+    expect(parsed.new_stars).toEqual(['creatore']);
+  });
+
+  it('parses an empty payload (all fields optional)', () => {
+    expect(auraCelebrationPayload.parse({})).toEqual({});
+  });
+
+  it('rejects a non-string-array new_stars', () => {
+    expect(() => auraCelebrationPayload.parse({ new_stars: [1, 2] })).toThrow();
+  });
+
+  it('parses the stars-only shape the engine emits (tier_up: null)', () => {
+    const parsed = auraCelebrationPayload.parse({ tier_up: null, new_stars: ['creatore'] });
+    expect(parsed.tier_up ?? undefined).toBeUndefined();
+    expect(parsed.new_stars).toEqual(['creatore']);
   });
 });

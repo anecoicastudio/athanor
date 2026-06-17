@@ -99,3 +99,17 @@ export const starSchema = z.object({
   progress: z.object({ done: z.number().int(), total: z.number().int(), unit: z.string() }),
 });
 export type Star = z.infer<typeof starSchema>;
+
+/**
+ * The shaped Aura celebration broadcast payload (backend 09 §6.1). Emitted by the
+ * score-engine onto the owner-private `aura:{profileId}` Realtime topic; the app
+ * validates it before firing the level-up overlay / star flash. All fields optional —
+ * the engine sends only what changed. Never written by a client (rule #1).
+ */
+export const auraCelebrationPayload = z.object({
+  tier_up: z.string().nullish(),
+  new_stars: z.array(z.string()).nullish(),
+  score: z.number().int().optional(),
+});
+
+export type AuraCelebrationPayload = z.infer<typeof auraCelebrationPayload>;

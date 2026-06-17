@@ -58,6 +58,19 @@ export const ENGINE_WEIGHTS = {
 /** ✦ only counts toward POST_REACTION if the reactor's Aura is strictly above this. */
 export const REACTION_AUTHOR_MIN_SCORE = 300;
 
+// ── G-D (RESOLVED at M6 celebration-realtime) ────────────────────────────────
+// PRD §4.9 mandates the *properties* (reviewer weight monotone in score + capped;
+// reciprocal exchanges show pairwise diminishing returns), not the exact shapes.
+// The v1 shapes below are promoted to FINAL (no production data to tune against;
+// they satisfy every mandated property). Surfaced here as named constants so the
+// curves are server-tunable + test-asserted in ONE module (rule #10).
+
+/** Reciprocal dampening: the nth same-pair exchange is worth 1 / (1 + k·(n−1)). */
+export const RECIPROCAL_DAMPENING = 0.5;
+/** Reviewer-weight curve: 1 + ln1p(reviewerScore / SCALE), capped at CAP. */
+export const REVIEWER_WEIGHT_SCALE = 1000;
+export const REVIEWER_WEIGHT_CAP = 2;
+
 /** The eight signed action types the engine ledgers (PRD §4.9). `decay` is engine-internal. */
 export type ScoringType =
   | 'identity_verified'

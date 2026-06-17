@@ -1,12 +1,15 @@
 import {
   ZERO_AURA_SNAPSHOT,
   auraEventSchema,
+  auraCelebrationPayload,
   starKeySchema,
+  type AuraCelebrationPayload,
   type AuraEvent,
   type AuraScore,
   type AuraSnapshot,
   type Star,
 } from '@athanor/schemas';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { AthanorClient } from './client';
 
 /** Read-only Aura query-key factories (api rule: per-entity). No mutation keys — rule #1. */
@@ -226,47 +229,55 @@ export function subscribeAura(
     onScore?: (row: unknown) => void;
     onEvent?: (row: unknown) => void;
     onStar?: (row: unknown) => void;
-    onCelebration?: (payload: { tier_up?: string; new_stars?: string[] }) => void;
+    onCelebration?: (payload: AuraCelebrationPayload) => void;
   },
 ): () => void {
-  const channel = client
-    .channel(`aura:${profileId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'aura_scores',
-        filter: `profile_id=eq.${profileId}`,
-      },
-      (p) => handlers.onScore?.(p.new),
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'aura_events',
-        filter: `profile_id=eq.${profileId}`,
-      },
-      (p) => handlers.onEvent?.(p.new),
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'stars',
-        filter: `profile_id=eq.${profileId}`,
-      },
-      (p) => handlers.onStar?.(p.new),
-    )
-    .on('broadcast', { event: 'celebration' }, (p) =>
-      handlers.onCelebration?.(p.payload as { tier_up?: string; new_stars?: string[] }),
-    )
-    .subscribe();
+  let channel: RealtimeChannel | null = null;
+  let cancelled = false;
+
+  // Private channel (09 §5.2): broadcast authz is enforced by RLS on realtime.messages
+  // (owner-receive-only, no client send). postgres_changes stay authorized by each aura_*
+  // table's own RLS. setAuth() MUST complete before the private join (09 §5.2.2), so we
+  // join inside an async IIFE while keeping the synchronous cleanup contract below.
+  void (async () => {
+    await client.realtime.setAuth();
+    if (cancelled) return;
+    channel = client
+      .channel(`aura:${profileId}`, { config: { private: true } })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'aura_scores',
+          filter: `profile_id=eq.${profileId}`,
+        },
+        (p) => handlers.onScore?.(p.new),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'aura_events',
+          filter: `profile_id=eq.${profileId}`,
+        },
+        (p) => handlers.onEvent?.(p.new),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stars', filter: `profile_id=eq.${profileId}` },
+        (p) => handlers.onStar?.(p.new),
+      )
+      .on('broadcast', { event: 'celebration' }, (p) => {
+        const parsed = auraCelebrationPayload.safeParse(p.payload);
+        if (parsed.success) handlers.onCelebration?.(parsed.data);
+      })
+      .subscribe();
+  })();
 
   return () => {
-    void client.removeChannel(channel);
+    cancelled = true;
+    if (channel) void client.removeChannel(channel);
   };
 }

@@ -360,21 +360,23 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── 9. I2: Celebration broadcast ────────────────────────────────────────────
+  // ── 9. I2: Celebration broadcast (Broadcast-from-DB, owner-private) ───────────
+  // The engine knows old vs new tier + which stars were newly granted; it emits the
+  // shaped payload via the SECURITY DEFINER RPC, which calls realtime.send onto the
+  // private aura:{id} topic (09 §2.4). Service-role-only; clients can never forge it.
 
   const tierUp =
     tierOf(newScore) !== tierOf(oldScore) && newScore > oldScore ? tierOf(newScore) : undefined;
 
   if (tierUp !== undefined || newStars.length > 0) {
-    try {
-      await admin.channel(`aura:${profile_id}`).send({
-        type: 'broadcast',
-        event: 'celebration',
-        payload: { tier_up: tierUp, new_stars: newStars },
-      });
-    } catch (broadcastErr) {
+    const { error: broadcastErr } = await admin.rpc('broadcast_aura_celebration', {
+      p_profile_id: profile_id,
+      p_tier_up: tierUp ?? null,
+      p_new_stars: newStars.length > 0 ? newStars : null,
+    });
+    if (broadcastErr) {
       // Non-fatal — score and stars already committed.
-      console.error('celebration broadcast failed:', broadcastErr);
+      console.error('celebration broadcast failed:', broadcastErr.message);
     }
   }
 
