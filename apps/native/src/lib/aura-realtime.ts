@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { auraKeys, ledgerKeys, starKeys, subscribeAura } from '@athanor/api';
@@ -23,6 +23,12 @@ export function useAuraRealtime(
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  // Forward the latest onStarEarned through a ref so the subscription (dep:
+  // [profileId]) always calls the current closure — e.g. after a locale switch —
+  // without re-subscribing on every render.
+  const onStarEarnedRef = useRef(opts?.onStarEarned);
+  onStarEarnedRef.current = opts?.onStarEarned;
+
   useEffect(() => {
     if (!profileId) return;
 
@@ -44,7 +50,7 @@ export function useAuraRealtime(
         const r = row as Record<string, unknown>;
         const starId = typeof r.star_id === 'string' ? r.star_id : null;
         if (starId && r.granted_at != null) {
-          opts?.onStarEarned?.(starId);
+          onStarEarnedRef.current?.(starId);
         }
       },
 
@@ -53,7 +59,7 @@ export function useAuraRealtime(
         // new_stars array may also trigger the star-earned callback.
         if (payload.new_stars) {
           for (const sid of payload.new_stars) {
-            opts?.onStarEarned?.(sid);
+            onStarEarnedRef.current?.(sid);
           }
         }
         // Tier-up → navigate to the cinematic level overlay.
@@ -64,9 +70,9 @@ export function useAuraRealtime(
     });
 
     return cleanup;
-    // opts is not stable across renders; intentionally omit it from deps so we
-    // don't re-subscribe on every render. The callback is always read from the
-    // latest closure at call time. profileId change = re-subscribe.
+    // Only profileId drives (re)subscription. onStarEarned is read via
+    // onStarEarnedRef (updated every render), so omitting it from deps does NOT
+    // stale the callback. queryClient/router are stable singletons.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);
 }
