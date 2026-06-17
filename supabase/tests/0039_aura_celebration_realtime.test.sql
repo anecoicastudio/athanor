@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(8);
+select plan(12);
 
 -- RLS is enabled on realtime.messages (private-channel authz depends on it).
 select is(
@@ -57,6 +57,25 @@ select is(
     'public.broadcast_aura_celebration(uuid, text, text[])', 'execute'),
   true,
   'service_role (the engine) can call the celebration emitter');
+
+-- rt_aura_owner_receive qual must scope both the owner topic AND the broadcast extension.
+select is(
+  (select count(*)::int from pg_policies
+     where schemaname='realtime' and tablename='messages' and policyname='rt_aura_owner_receive'
+       and qual ilike '%extension%' and qual ilike '%broadcast%' and qual ilike '%realtime.topic()%'),
+  1,
+  'rt_aura_owner_receive qual scopes both the owner topic AND the broadcast extension');
+
+-- All three Aura tables must be in the supabase_realtime publication.
+select is((select count(*)::int from pg_publication_tables
+   where pubname='supabase_realtime' and schemaname='public' and tablename='aura_scores'), 1,
+   'aura_scores is in supabase_realtime publication');
+select is((select count(*)::int from pg_publication_tables
+   where pubname='supabase_realtime' and schemaname='public' and tablename='aura_events'), 1,
+   'aura_events is in supabase_realtime publication');
+select is((select count(*)::int from pg_publication_tables
+   where pubname='supabase_realtime' and schemaname='public' and tablename='stars'), 1,
+   'stars is in supabase_realtime publication');
 
 select * from finish();
 rollback;
