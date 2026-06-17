@@ -30,6 +30,7 @@ export default function ModalLayout() {
       <Stack.Screen name="event/[id]/checkin" options={{ presentation: 'modal' }} />
       <Stack.Screen name="ticket/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="event-create" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="annual" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura/ledger" options={{ presentation: 'modal' }} />
       <Stack.Screen name="star" options={{ presentation: 'modal' }} />
