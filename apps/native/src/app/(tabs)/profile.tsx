@@ -50,6 +50,7 @@ import { Tag } from '@/components/Tag';
 import { useMomentUpload } from '@/lib/media/useMomentUpload';
 import { useSignedUrls } from '@/lib/media/useSignedUrls';
 import { useAuth } from '@/lib/auth-context';
+import { useAuraRealtime } from '@/lib/aura-realtime';
 import { supabase } from '@/lib/supabase';
 
 type Visibility = 'public' | 'members' | 'private';
@@ -103,11 +104,28 @@ function ProfileEditor({
   const [helperNames, setHelperNames] = useState<Record<string, string>>({});
   const [mutatingHelpId, setMutatingHelpId] = useState<string | null>(null);
   const [flashMilestoneId, setFlashMilestoneId] = useState<string | null>(null);
+  const [starToast, setStarToast] = useState<string | null>(null);
+  const [starFlash, setStarFlash] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Realtime wiring: star grants show a toast + flash; tier-up navigates to /level.
+  // Cache invalidation (auraKeys / ledgerKeys / starKeys) happens inside the hook.
+  useAuraRealtime(userId, {
+    onStarEarned: (starId) => {
+      // Localize the star id → display name for the toast.
+      const name = t(`star.${starId}` as MessageKey, locale);
+      setStarToast(t('star.earned.toast', locale, { star: name }));
+      setStarFlash(true);
+      setTimeout(() => {
+        setStarToast(null);
+        setStarFlash(false);
+      }, 2800);
+    },
+  });
 
   // Live own momenti (rule #9: getMomentsPage is keyset). First page (24) is enough
   // for MVP — infinite scroll on the full grid is deferred.
@@ -611,6 +629,16 @@ function ProfileEditor({
 
       {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
       <MomentFlash visible={flashMilestoneId != null} locale={locale} />
+
+      {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash. */}
+      <MomentFlash visible={starFlash} locale={locale} />
+
+      {/* Star-earned toast: transient inline surface (à la help.tsx toast pattern). */}
+      {starToast ? (
+        <View className="absolute inset-x-5 bottom-10 items-center rounded-card border border-hair bg-raise-2 px-5 py-3">
+          <Text className="text-sm font-semibold text-foreground">{starToast}</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }

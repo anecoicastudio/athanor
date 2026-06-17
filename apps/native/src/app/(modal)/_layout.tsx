@@ -33,6 +33,7 @@ export default function ModalLayout() {
       <Stack.Screen name="aura" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura/ledger" options={{ presentation: 'modal' }} />
       <Stack.Screen name="star" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="level" options={{ animation: 'fade' }} />
     </Stack>
   );
 }

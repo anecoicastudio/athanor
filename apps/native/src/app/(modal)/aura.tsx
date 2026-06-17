@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Mandorla } from '@/components/Mandorla';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
+import { useAuraRealtime } from '@/lib/aura-realtime';
 import { supabase } from '@/lib/supabase';
 
 const IDLE_THRESHOLD_DAYS = 30;
@@ -35,6 +36,11 @@ export default function AuraScreen() {
   const { session, profile } = useAuth();
   const locale: Locale = profile?.locale ?? 'it';
   const me = session?.user.id ?? '';
+
+  // Realtime wiring: when score pushes arrive, auraKeys.all is invalidated so
+  // the hero AuraValue re-tweens on the refetched value (§3.1 realtime-bump).
+  // No callback needed — just score + ledger + stars cache invalidation.
+  useAuraRealtime(me);
 
   const query = useQuery({
     queryKey: auraKeys.detail(me),
