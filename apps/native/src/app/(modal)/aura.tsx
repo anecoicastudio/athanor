@@ -104,9 +104,9 @@ export default function AuraScreen() {
         {!query.isError ? (
           <View className="gap-3">
             <SectionLabel>{t('aura.sources.title', locale)}</SectionLabel>
-            {query.isLoading
+            {full === undefined
               ? Array.from({ length: 6 }).map((_, i) => <ShimmerBar key={i} />)
-              : breakdownRows(full!.breakdown).map((row) => (
+              : breakdownRows(full.breakdown).map((row) => (
                   <AuraSourceRow
                     key={row.key}
                     label={t(`aura.source.${row.key}` as MessageKey, locale)}
