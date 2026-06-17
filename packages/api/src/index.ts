@@ -21,4 +21,5 @@ export * from './pushTokens';
 export * from './conversations';
 export * from './messages';
 export * from './connections';
+export * from './fund';
 export type { Database, Json } from './database.types';

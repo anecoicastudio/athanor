@@ -21,3 +21,4 @@ export * from './conversation';
 export * from './message';
 export * from './connection';
 export * from './pushToken';
+export * from './fund';
