@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(8);
+select plan(9);
 
 -- two users: A (owner), B (unrelated member)
 -- handle_new_user trigger auto-creates their public.profiles rows
@@ -54,6 +54,7 @@ select throws_ok(
 select throws_ok(
   $$ update public.stars set granted_at = now() $$,
   '42501', null, 'client cannot light a star');
+select throws_ok($$ delete from public.stars $$, '42501', null, 'client cannot delete a star');
 reset role;
 
 -- anon sees only earned (SELECT grant exists; earned-anon policy applies)

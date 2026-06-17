@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(9);
+select plan(10);
 
 -- seed: one user; handle_new_user trigger auto-creates the public.profiles row
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -37,6 +37,7 @@ select throws_ok(
   $$ insert into public.aura_scores (profile_id, score) values ('11111111-1111-1111-1111-111111111111', 999) $$,
   '42501', null, 'client cannot insert a score');
 select throws_ok($$ update public.aura_scores set score = 1000 $$, '42501', null, 'client cannot update a score');
+select throws_ok($$ delete from public.aura_scores $$, '42501', null, 'client cannot delete a score');
 reset role;
 
 -- CHECK holds against the engine too; engine can upsert a clamped score
