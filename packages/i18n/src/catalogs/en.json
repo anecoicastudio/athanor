@@ -404,6 +404,10 @@
   "permission.camera.body": "We need the camera to add a photo or video to your moment.",
   "permission.photos.title": "Pick from your library",
   "permission.photos.body": "Access the photos you want to share. Only the ones you pick.",
+  "permission.push.title": "Stay tuned",
+  "permission.push.body": "Turn on notifications to know when a Momento lights up.",
+  "permission.push.cta": "Turn on",
+  "permission.push.skip": "Later",
   "permission.allow": "Allow",
   "permission.notNow": "Not now",
   "permission.blocked.body": "You turned this off in settings. Turn it back on whenever you like.",
@@ -646,5 +650,7 @@
   "connection.a11y.accept": "Accept {name}'s request",
   "connection.a11y.decline": "Decline {name}'s request",
   "connection.a11y.open": "Open {name}'s profile",
-  "connection.a11y.hub": "Connections & requests"
+  "connection.a11y.hub": "Connections & requests",
+  "notif.tpl.moment": "You have a Momento",
+  "notif.tpl.message": "New message"
 }

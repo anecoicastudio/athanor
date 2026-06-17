@@ -62,7 +62,13 @@
           "calendarPermission": "Athanor adds events you're attending to your calendar — only when you choose."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#2BD0D2"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
