@@ -38,6 +38,11 @@ describe('pushData', () => {
       'moment',
     );
   });
+  it('accepts the message deep-link payload', () => {
+    expect(pushData.parse({ type: 'message', route: 'chat', entity_ref: 'c1' }).type).toBe(
+      'message',
+    );
+  });
   it('rejects an unknown type', () => {
     expect(() => pushData.parse({ type: 'spam', route: 'x', entity_ref: 'y' })).toThrow();
   });

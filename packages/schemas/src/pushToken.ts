@@ -20,10 +20,12 @@ export const pushTokenInsertSchema = pushTokenSchema.pick({
   deviceId: true,
 });
 
-/** Push `data` deep-link payload (09 §3/§6.1). Handling wiring lands at M10; the shape is fixed here. */
+/** Push `data` deep-link payload (09 §3/§6.1). Handling wiring lands at M10; the shape is fixed here.
+ * Keep in sync with packages/i18n/src/catalogs/{it,en}.json. */
 export const pushData = z.object({
   type: z.enum([
     'moment',
+    'message',
     'dreamMilestone',
     'review',
     'eventReminder',

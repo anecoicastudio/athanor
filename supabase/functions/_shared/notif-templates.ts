@@ -1,5 +1,5 @@
 // Inline mirror of @athanor/i18n notif.tpl.* — the Deno edge fn can't import the TS i18n
-// package. Keep in sync with packages/i18n/src/locales/{it,en}.json.
+// package. Keep in sync with packages/i18n/src/catalogs/{it,en}.json.
 // TODO(M9): unify when notification-fan-out lands (single template source).
 type Locale = 'it' | 'en';
 type Tpl = { title: string; body: (p: Record<string, unknown>) => string };

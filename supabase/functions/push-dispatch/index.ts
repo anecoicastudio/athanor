@@ -15,6 +15,15 @@ type Body = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // Caller authorization: service-role only. verify_jwt=true merely proves a valid
+  // project JWT (every member has one) — assert the bearer IS the service-role key.
+  // The enqueue_push trigger sets this bearer to app.settings.push_dispatch_key,
+  // which MUST be the service-role key (set at deploy time).
+  const authz = req.headers.get('Authorization') ?? '';
+  const bearer = authz.replace(/^Bearer\s+/i, '');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!serviceKey || bearer !== serviceKey) return error('unauthorized', 401);
+
   let body: Body;
   try {
     body = await req.json();
