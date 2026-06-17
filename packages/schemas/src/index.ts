@@ -20,3 +20,4 @@ export * from './momento';
 export * from './conversation';
 export * from './message';
 export * from './connection';
+export * from './pushToken';
