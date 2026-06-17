@@ -67,9 +67,9 @@ describe('ENGINE_WEIGHTS — canonical PRD §4.9', () => {
     expect(ENGINE_WEIGHTS.MARKETPLACE).toBe(0);
   });
   test('caps, decay, reviewer floor', () => {
-    expect(AURA_CAPS.EVENT_ATTENDED).toEqual({ limit: 4, window: 'week' });
-    expect(AURA_CAPS.POST_REACTION).toEqual({ limit: 10, window: 'day' });
-    expect(AURA_CAPS.IDENTITY_VERIFIED.window).toBe('lifetime');
+    expect(AURA_CAPS.event_attended).toEqual({ limit: 4, window: 'week' });
+    expect(AURA_CAPS.post_starred).toEqual({ limit: 10, window: 'day' });
+    expect(AURA_CAPS.identity_verified.window).toBe('lifetime');
     expect(DECAY).toEqual({ IDLE_DAYS_BEFORE: 30, WEEKLY_FACTOR: 0.98, PEAK_FLOOR_RATIO: 0.4 });
     expect(REPORT_PENALTY).toEqual({ low: -50, medium: -100, high: -200 });
     expect(REACTION_AUTHOR_MIN_SCORE).toBe(300);

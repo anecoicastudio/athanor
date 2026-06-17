@@ -2,13 +2,16 @@
  * score-engine — M6 Aura engine (service-role only).
  *
  * SOLE writer of: aura_events, aura_scores, stars.
- * Called by per-action award triggers wired at each originating milestone.
- * DORMANT this slice: no trigger is wired yet. `deno check` is the gate.
+ * Two modes:
+ *   award — called per qualifying action (per-milestone triggers, wired at each originating slice).
+ *   decay — called nightly by the cron (scheduled Supabase cron or external scheduler).
  *
  * Endpoint: POST /functions/v1/score-engine
- * Body: { profile_id: string; type: ScoringType; ref_id?: string; ctx?: AwardContext }
+ * Body (award): { mode: 'award', profileId: string, type: ScoringType, refId?: string, ctx?: AwardContext }
+ * Body (decay): { mode: 'decay' }
  */
 
+import { z } from 'zod';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
@@ -20,17 +23,24 @@ import { applyDecay } from '../../../packages/core/src/score/decay.ts';
 import { aggregateScore, type LedgerLine } from '../../../packages/core/src/score/aggregate.ts';
 import { evaluateStars, type StarFacts } from '../../../packages/core/src/score/stars.ts';
 import { tierOf } from '../../../packages/core/src/score/tier.ts';
-import { AURA_CAPS, type ScoringType } from '../../../packages/core/src/score/weights.ts';
+import { AURA_CAPS, DECAY, type ScoringType } from '../../../packages/core/src/score/weights.ts';
 import { STAR_KEYS, type StarKey } from '../../../packages/schemas/src/aura.ts';
 
-// ── Request body ────────────────────────────────────────────────────────────
+// ── Request schema (discriminated union) ────────────────────────────────────
 
-interface EngineRequest {
-  profile_id: string;
-  type: ScoringType;
-  ref_id?: string;
-  ctx?: AwardContext;
-}
+const awardSchema = z.object({
+  mode: z.literal('award'),
+  profileId: z.string().uuid(),
+  type: z.string(), // validated as ScoringType downstream; zod enum would need duplication
+  refId: z.string().uuid().optional(),
+  ctx: z.record(z.unknown()).optional(),
+});
+
+const decaySchema = z.object({
+  mode: z.literal('decay'),
+});
+
+const bodySchema = z.union([awardSchema, decaySchema]);
 
 // ── Cap window helpers ───────────────────────────────────────────────────────
 
@@ -52,18 +62,6 @@ function windowStart(window: string): string {
     default:
       return new Date(0).toISOString();
   }
-}
-
-// ── Idle-weeks calculation ───────────────────────────────────────────────────
-
-function idleWeeks(lastActionAt: string | null): number {
-  if (!lastActionAt) return 0;
-  const last = new Date(lastActionAt).getTime();
-  const now = Date.now();
-  const diffDays = (now - last) / (1000 * 60 * 60 * 24);
-  const IDLE_BEFORE = 30;
-  if (diffDays <= IDLE_BEFORE) return 0;
-  return Math.floor((diffDays - IDLE_BEFORE) / 7);
 }
 
 // ── Star facts gather (v1) ───────────────────────────────────────────────────
@@ -120,24 +118,86 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!serviceKey || bearer !== serviceKey) return error('unauthorized', 401);
 
-  let body: EngineRequest;
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return error('invalid json', 400);
   }
 
-  const { profile_id, type, ref_id, ctx = {} } = body;
-  if (!profile_id || typeof profile_id !== 'string') return error('missing profile_id', 400);
-  if (!type || typeof type !== 'string') return error('missing type', 400);
+  const parsed = bodySchema.safeParse(rawBody);
+  if (!parsed.success) return error(`invalid body: ${parsed.error.message}`, 400);
 
+  const body = parsed.data;
   const admin = supabaseAdmin();
+
+  // ══════════════════════════════════════════════════════════════════
+  // DECAY MODE — nightly cron; no profileId required
+  // ══════════════════════════════════════════════════════════════════
+
+  if (body.mode === 'decay') {
+    const idleThreshold = new Date(
+      Date.now() - DECAY.IDLE_DAYS_BEFORE * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const { data: stale } = await admin
+      .from('aura_scores')
+      .select('profile_id, score, peak_score, last_qualifying_action_at')
+      .lt('last_qualifying_action_at', idleThreshold);
+
+    let decayed = 0;
+    for (const row of stale ?? []) {
+      const { profile_id, score, peak_score, last_qualifying_action_at } = row as {
+        profile_id: string;
+        score: number;
+        peak_score: number;
+        last_qualifying_action_at: string | null;
+      };
+
+      if (!last_qualifying_action_at) continue;
+      const diffMs = Date.now() - new Date(last_qualifying_action_at).getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      const idleWeeks = Math.floor((diffDays - DECAY.IDLE_DAYS_BEFORE) / 7);
+      if (idleWeeks <= 0) continue;
+
+      const newScore = applyDecay({ score, peak: peak_score, idleWeeks });
+      if (newScore >= score) continue; // nothing to do (already at floor or unchanged)
+
+      const pointsDelta = newScore - score; // negative
+
+      // Append a decay ledger row.
+      await admin.from('aura_events').insert({
+        profile_id,
+        type: 'decay',
+        points: pointsDelta,
+        ref_id: null,
+        reason: { weeks: idleWeeks },
+      });
+
+      // Update score — do NOT touch peak_score or last_qualifying_action_at.
+      await admin
+        .from('aura_scores')
+        .update({ score: newScore, computed_at: new Date().toISOString() })
+        .eq('profile_id', profile_id);
+
+      decayed++;
+    }
+
+    return json({ decayed });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // AWARD MODE
+  // ══════════════════════════════════════════════════════════════════
+
+  const { profileId: profile_id, type, refId: ref_id, ctx = {} } = body;
+  const awardCtx = ctx as AwardContext;
 
   // ── 1. Cap check ────────────────────────────────────────────────────────────
 
   const cap = (AURA_CAPS as Record<string, { limit: number; window: string }>)[type];
-
   let withinCap = true;
+
   if (cap) {
     const since = windowStart(cap.window);
     const { count } = await admin
@@ -150,31 +210,57 @@ Deno.serve(async (req) => {
     withinCap = applyCap(type, count ?? 0);
   }
 
-  // ── 2. Compute points ───────────────────────────────────────────────────────
+  // I1: if over cap, return immediately without inserting any ledger row.
+  if (!withinCap) return json({ capped: true });
 
-  const points = pointsFor(type as ScoringType, { ...ctx, withinCap });
+  // ── 2. Dampening (pairExchangeIndex) ────────────────────────────────────────
+
+  let pairExchangeIndex: number | undefined;
+  if ((type === 'milestone_help' || type === 'momento_conversation') && ref_id) {
+    const { count: priorPair } = await admin
+      .from('aura_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', profile_id)
+      .eq('type', type)
+      .eq('ref_id', ref_id);
+    pairExchangeIndex = (priorPair ?? 0) + 1;
+  }
+
+  // ── 3. Compute points ───────────────────────────────────────────────────────
+
+  const points = pointsFor(type as ScoringType, { ...awardCtx, withinCap, pairExchangeIndex });
   if (points === 0 && withinCap) {
     // Zero-point non-scoring action (circle/fund/marketplace): nothing to write.
     return json({ awarded: 0, skipped: true });
   }
 
-  // ── 3. Insert ledger row (idempotent on ref_id via unique index) ────────────
+  // ── 4. Idempotent insert ledger row (on conflict ref_id unique index → duplicate) ──
 
   const { error: insertErr } = await admin.from('aura_events').insert({
     profile_id,
     type,
     points,
     ref_id: ref_id ?? null,
-    reason: ctx,
+    reason: awardCtx,
   });
 
   if (insertErr) {
-    // Duplicate (ref_id idempotency key already present) → silently skip.
     if (insertErr.code === '23505') return json({ awarded: 0, duplicate: true });
     return error(`ledger insert failed: ${insertErr.message}`, 500);
   }
 
-  // ── 4. Re-aggregate full ledger ─────────────────────────────────────────────
+  // ── 5. Fetch current snapshot (for peak + tier comparison) ─────────────────
+
+  const { data: snapshot } = await admin
+    .from('aura_scores')
+    .select('score, peak_score, last_qualifying_action_at')
+    .eq('profile_id', profile_id)
+    .maybeSingle();
+
+  const oldScore = snapshot?.score ?? 0;
+  const prevPeak = snapshot?.peak_score ?? 0;
+
+  // ── 6. Full re-aggregation ───────────────────────────────────────────────────
 
   const { data: allEvents } = await admin
     .from('aura_events')
@@ -186,35 +272,18 @@ Deno.serve(async (req) => {
     points: e.points as number,
   }));
 
-  const { score, breakdown } = aggregateScore(ledgerLines);
+  const { score: newScore, breakdown } = aggregateScore(ledgerLines);
+  const newPeak = Math.max(prevPeak, newScore);
 
-  // ── 5. Fetch current snapshot for decay + peak ──────────────────────────────
-
-  const { data: snapshot } = await admin
-    .from('aura_scores')
-    .select('peak_score, last_qualifying_action_at')
-    .eq('profile_id', profile_id)
-    .maybeSingle();
-
-  const prevPeak = snapshot?.peak_score ?? 0;
-  const newPeak = Math.max(prevPeak, score);
-  const lastAction = snapshot?.last_qualifying_action_at ?? null;
-
-  // Decay only applies when the current event is NOT a positive Aura action.
-  const idle = points > 0 ? 0 : idleWeeks(lastAction);
-  const decayedScore = idle > 0 ? applyDecay({ score, peak: newPeak, idleWeeks: idle }) : score;
-
-  const tier = tierOf(decayedScore);
-
-  // ── 6. Upsert aura_scores ───────────────────────────────────────────────────
+  // ── 7. Upsert aura_scores ───────────────────────────────────────────────────
 
   const { error: scoreErr } = await admin.from('aura_scores').upsert(
     {
       profile_id,
-      score: decayedScore,
+      score: newScore,
       breakdown,
       peak_score: newPeak,
-      last_qualifying_action_at: points > 0 ? new Date().toISOString() : lastAction,
+      last_qualifying_action_at: new Date().toISOString(),
       computed_at: new Date().toISOString(),
     },
     { onConflict: 'profile_id' },
@@ -222,19 +291,50 @@ Deno.serve(async (req) => {
 
   if (scoreErr) return error(`score upsert failed: ${scoreErr.message}`, 500);
 
-  // ── 7. Star evaluation & upsert ─────────────────────────────────────────────
+  // ── 8. Star evaluation & upsert (I3: preserve granted_at) ──────────────────
+
+  // Fetch existing stars to preserve already-earned grant dates.
+  const { data: existingStars } = await admin
+    .from('stars')
+    .select('star_id, granted_at')
+    .eq('profile_id', profile_id);
+
+  const existingGrantedAt = new Map<string, string | null>(
+    (existingStars ?? []).map((s: { star_id: string; granted_at: string | null }) => [
+      s.star_id,
+      s.granted_at,
+    ]),
+  );
 
   const facts = await gatherStarFacts(admin, profile_id);
   const { granted, progress } = evaluateStars(facts);
 
+  const now = new Date().toISOString();
+  const newStars: StarKey[] = [];
+
   for (const starId of STAR_KEYS) {
     const isGranted = granted.includes(starId as StarKey);
     const prog = progress[starId as StarKey];
+    const prevGrantedAt = existingGrantedAt.get(starId) ?? null;
+
+    // I3: never clear an already-earned star's grant date.
+    let grantedAt: string | null;
+    if (prevGrantedAt !== undefined && prevGrantedAt !== null) {
+      // Already earned before → preserve the original grant date.
+      grantedAt = prevGrantedAt;
+    } else if (isGranted) {
+      // Newly earned this run.
+      grantedAt = now;
+      newStars.push(starId as StarKey);
+    } else {
+      grantedAt = null;
+    }
+
     const { error: starErr } = await admin.from('stars').upsert(
       {
         profile_id,
         star_id: starId,
-        granted_at: isGranted ? new Date().toISOString() : null,
+        granted_at: grantedAt,
         progress: { done: prog.done, total: prog.total, unit: prog.unit },
       },
       { onConflict: 'profile_id,star_id' },
@@ -245,12 +345,30 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── 8. Respond ──────────────────────────────────────────────────────────────
+  // ── 9. I2: Celebration broadcast ────────────────────────────────────────────
+
+  const tierUp =
+    tierOf(newScore) !== tierOf(oldScore) && newScore > oldScore ? tierOf(newScore) : undefined;
+
+  if (tierUp !== undefined || newStars.length > 0) {
+    try {
+      await admin.channel(`aura:${profile_id}`).send({
+        type: 'broadcast',
+        event: 'celebration',
+        payload: { tier_up: tierUp, new_stars: newStars },
+      });
+    } catch (broadcastErr) {
+      // Non-fatal — score and stars already committed.
+      console.error('celebration broadcast failed:', broadcastErr);
+    }
+  }
+
+  // ── 10. Respond ─────────────────────────────────────────────────────────────
 
   return json({
     awarded: points,
-    score: decayedScore,
-    tier,
+    score: newScore,
+    tier: tierOf(newScore),
     starsGranted: granted,
   });
 });

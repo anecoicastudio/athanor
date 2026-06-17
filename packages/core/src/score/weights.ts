@@ -58,17 +58,30 @@ export const ENGINE_WEIGHTS = {
 /** ✦ only counts toward POST_REACTION if the reactor's Aura is strictly above this. */
 export const REACTION_AUTHOR_MIN_SCORE = 300;
 
+/** The eight signed action types the engine ledgers (PRD §4.9). `decay` is engine-internal. */
+export type ScoringType =
+  | 'identity_verified'
+  | 'event_attended'
+  | 'event_organized'
+  | 'momento_conversation'
+  | 'milestone_help'
+  | 'own_milestone'
+  | 'post_starred'
+  | 'report_upheld';
+
 export type CapWindow = 'day' | 'week' | 'month' | 'lifetime';
 
-/** Caps as (limit, window) pairs — counted from `aura_events` in the window by the engine. */
+/** Caps as (limit, window) pairs — counted from `aura_events` in the window by the engine.
+ *  Keys are snake_case `ScoringType` values so the engine can look up `AURA_CAPS[type]`
+ *  directly from the ledger row's `type` field. */
 export const AURA_CAPS = {
-  EVENT_ATTENDED: { limit: 4, window: 'week' },
-  EVENT_ORGANIZED: { limit: 2, window: 'month' },
-  MOMENTO_CONV: { limit: 10, window: 'month' },
-  POST_REACTION: { limit: 10, window: 'day' },
-  IDENTITY_VERIFIED: { limit: 1, window: 'lifetime' },
-  // MILESTONE_HELP, OWN_MILESTONE: uncapped (no entry).
-} as const satisfies Record<string, { limit: number; window: CapWindow }>;
+  event_attended: { limit: 4, window: 'week' },
+  event_organized: { limit: 2, window: 'month' },
+  momento_conversation: { limit: 10, window: 'month' },
+  post_starred: { limit: 10, window: 'day' },
+  identity_verified: { limit: 1, window: 'lifetime' },
+  // milestone_help, own_milestone: uncapped (no entry).
+} as const satisfies Partial<Record<ScoringType, { limit: number; window: CapWindow }>>;
 
 /** Decay (PRD §4.9): inactive > 30d → ×0.98 per elapsed week, floored at 40% of lifetime peak. */
 export const DECAY = { IDLE_DAYS_BEFORE: 30, WEEKLY_FACTOR: 0.98, PEAK_FLOOR_RATIO: 0.4 } as const;
@@ -85,17 +98,6 @@ export const TIER_THRESHOLDS = [
   { tier: 'costellazione', min: 1000 },
 ] as const;
 export type TierId = (typeof TIER_THRESHOLDS)[number]['tier'];
-
-/** The eight signed action types the engine ledgers (PRD §4.9). `decay` is engine-internal. */
-export type ScoringType =
-  | 'identity_verified'
-  | 'event_attended'
-  | 'event_organized'
-  | 'momento_conversation'
-  | 'milestone_help'
-  | 'own_milestone'
-  | 'post_starred'
-  | 'report_upheld';
 
 /** Six-star earn criteria (PRD §4.10), v1; tunable with seed data (G-D). */
 export const STAR_CRITERIA = {
