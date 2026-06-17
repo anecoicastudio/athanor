@@ -17,6 +17,7 @@ export * from './projects';
 export * from './favors';
 export * from './events';
 export * from './momenti';
+export * from './pushTokens';
 export * from './conversations';
 export * from './messages';
 export * from './connections';
