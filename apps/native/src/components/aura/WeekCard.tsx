@@ -2,7 +2,6 @@ import { t, type MessageKey } from '@athanor/i18n';
 import type { WeekRecap } from '@athanor/core';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import { SectionLabel } from '@/components/SectionLabel';
 import { Card } from '@/components/Card';
 
 /**
@@ -30,7 +29,9 @@ export function WeekCard({
     >
       {/* Section label row */}
       <View className="flex-row items-center justify-between">
-        <SectionLabel>{t('recap.weekTitle' as MessageKey, locale)}</SectionLabel>
+        <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-aura">
+          {t('recap.weekTitle' as MessageKey, locale)}
+        </Text>
         <Text className="text-[12px] text-muted-foreground">
           {t('recap.weekHint' as MessageKey, locale)}
         </Text>

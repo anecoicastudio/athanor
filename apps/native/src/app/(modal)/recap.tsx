@@ -10,7 +10,6 @@ import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
-import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -104,12 +103,15 @@ export default function RecapScreen() {
         {/* Metric rows */}
         {!isError ? (
           <View className="gap-1">
-            <SectionLabel>{t('recap.metric.aura' as MessageKey, locale)}</SectionLabel>
             {isLoading ? (
               <View className="gap-3 py-2">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <ShimmerBar key={i} />
                 ))}
+              </View>
+            ) : isEmptyWeek ? (
+              <View className="mt-4">
+                <EmptyState>{t('recap.emptyWeek' as MessageKey, locale)}</EmptyState>
               </View>
             ) : (
               <View className="gap-1 py-2">
@@ -139,13 +141,6 @@ export default function RecapScreen() {
                 />
               </View>
             )}
-          </View>
-        ) : null}
-
-        {/* Empty week state */}
-        {isEmptyWeek && !isLoading && !isError ? (
-          <View className="mt-4">
-            <EmptyState>{t('recap.emptyWeek' as MessageKey, locale)}</EmptyState>
           </View>
         ) : null}
 
