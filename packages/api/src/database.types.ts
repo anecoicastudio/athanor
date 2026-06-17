@@ -81,6 +81,41 @@ export type Database = {
           },
         ];
       };
+      aura_scores: {
+        Row: {
+          breakdown: Json;
+          computed_at: string;
+          last_qualifying_action_at: string | null;
+          peak_score: number;
+          profile_id: string;
+          score: number;
+        };
+        Insert: {
+          breakdown?: Json;
+          computed_at?: string;
+          last_qualifying_action_at?: string | null;
+          peak_score?: number;
+          profile_id: string;
+          score?: number;
+        };
+        Update: {
+          breakdown?: Json;
+          computed_at?: string;
+          last_qualifying_action_at?: string | null;
+          peak_score?: number;
+          profile_id?: string;
+          score?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "aura_scores_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       connection_requests: {
         Row: {
           addressee_id: string;
