@@ -34,3 +34,5 @@ coverage/
 .gstack/
 docs/screenshot-design/
 docs/ATHANOR.pdf
+# Deno edge-function local lockfile (transient; functions pin deps in deno.json)
+deno.lock
