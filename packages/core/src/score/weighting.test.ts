@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { reviewerWeight } from './weighting';
+import { REVIEWER_WEIGHT_CAP, REVIEWER_WEIGHT_SCALE } from './weights';
 
 test('zero / low score reviewer weighs 1', () => {
   expect(reviewerWeight(0)).toBe(1);
@@ -12,8 +13,6 @@ test('higher score weighs more, monotone', () => {
 test('capped at ~2×', () => {
   expect(reviewerWeight(1_000_000)).toBe(2);
 });
-
-import { REVIEWER_WEIGHT_CAP, REVIEWER_WEIGHT_SCALE } from './weights';
 
 test('reviewerWeight is driven by the named G-D constants', () => {
   expect(reviewerWeight(REVIEWER_WEIGHT_SCALE)).toBeCloseTo(1 + Math.log1p(1), 10); // score = SCALE

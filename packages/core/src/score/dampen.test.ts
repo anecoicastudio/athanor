@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { reciprocalFactor } from './dampen';
+import { RECIPROCAL_DAMPENING } from './weights';
 
 test('first exchange is full weight', () => {
   expect(reciprocalFactor(1)).toBe(1);
@@ -14,8 +15,6 @@ test('factor stays in (0,1]', () => {
   expect(f).toBeGreaterThan(0);
   expect(f).toBeLessThanOrEqual(1);
 });
-
-import { RECIPROCAL_DAMPENING } from './weights';
 
 test('reciprocalFactor is driven by the named G-D coefficient', () => {
   // factor(2) = 1 / (1 + k·(2−1)) with k = RECIPROCAL_DAMPENING
