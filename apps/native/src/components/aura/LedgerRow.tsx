@@ -1,6 +1,7 @@
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEventType, Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
+import { timeAgo } from '@/lib/time-ago';
 
 /** Glyph representing each ledger event type (esoteric set). */
 const LEDGER_GLYPH: Record<AuraEventType, string> = {
@@ -40,15 +41,6 @@ const LEDGER_TITLE: Record<AuraEventType, MessageKey> = {
   report_upheld: 'ledger.type.report',
   decay: 'ledger.type.decay',
 };
-
-/** Compact relative-time string (same logic as ConversationRow.timeAgo). */
-function timeAgo(iso: string, locale: Locale): string {
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (s < 60) return t('time.now', locale);
-  if (s < 3600) return t('time.minutes', locale, { n: Math.floor(s / 60) });
-  if (s < 86400) return t('time.hours', locale, { n: Math.floor(s / 3600) });
-  return t('time.days', locale, { n: Math.floor(s / 86400) });
-}
 
 /**
  * One row in the Aura ledger list (spec §3.2).
