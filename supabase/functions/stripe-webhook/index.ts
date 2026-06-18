@@ -47,6 +47,9 @@ async function handleTicketPaid(db: Db, session: Stripe.Checkout.Session): Promi
 async function handleContribution(db: Db, session: Stripe.Checkout.Session): Promise<void> {
   const editionId = session.metadata?.edition_id;
   if (!editionId) throw new Error('contribution session missing edition_id');
+  // Stripe is the source of truth for the amount. Fail loud on a missing total so Stripe retries
+  // (rather than relying on the amount_cents >= 100 CHECK to bounce a junk 0-row).
+  if (!session.amount_total) throw new Error('contribution session missing amount_total');
   const profileId = session.metadata?.profile_id ?? null; // nullable: anonymous donors allowed
 
   const paymentIntent =
@@ -59,7 +62,7 @@ async function handleContribution(db: Db, session: Stripe.Checkout.Session): Pro
     {
       edition_id: editionId,
       profile_id: profileId,
-      amount_cents: session.amount_total ?? 0,
+      amount_cents: session.amount_total,
       currency: (session.currency ?? 'eur').toLowerCase(),
       stripe_checkout_session_id: session.id,
       stripe_payment_intent_id: paymentIntent,
