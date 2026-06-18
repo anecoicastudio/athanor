@@ -22,4 +22,5 @@ export * from './conversations';
 export * from './messages';
 export * from './connections';
 export * from './fund';
+export * from './candidacy';
 export type { Database, Json } from './database.types';

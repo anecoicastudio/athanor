@@ -3,7 +3,7 @@ import type { AthanorClient } from './client';
 /** Upload bytes to a private bucket at an exact key. `upsert` replaces on retry. */
 export async function uploadToBucket(
   client: AthanorClient,
-  bucket: 'post-media' | 'moments' | 'story-segments',
+  bucket: 'post-media' | 'moments' | 'story-segments' | 'candidacy-videos',
   path: string,
   body: ArrayBuffer | Blob | Uint8Array,
   contentType: string,
@@ -21,7 +21,7 @@ export async function uploadToBucket(
  */
 export async function signMediaUrls(
   client: AthanorClient,
-  bucket: 'post-media' | 'moments' | 'story-segments',
+  bucket: 'post-media' | 'moments' | 'story-segments' | 'candidacy-videos',
   paths: string[],
   expiresIn = 3600,
 ): Promise<Record<string, string>> {
