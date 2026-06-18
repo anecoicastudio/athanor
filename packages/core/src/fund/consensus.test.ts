@@ -35,4 +35,17 @@ describe('consensusForCandidacy', () => {
   it('returns 0 for a candidacy absent from the tally', () => {
     expect(consensusForCandidacy(tally, 'z')).toBe(0);
   });
+  it('uses Aura-weighted share (not vote-count share) when weighted_total is non-zero', () => {
+    // 'a' has 1 vote out of 5 (20% by count) but 6 weighted out of 10 (60% by weight)
+    const weightedTally = [
+      { candidacy_id: 'a', vote_count: 1, weighted_total: 6 },
+      { candidacy_id: 'b', vote_count: 4, weighted_total: 4 },
+    ];
+    expect(consensusForCandidacy(weightedTally, 'a')).toBe(60);
+  });
+  it('returns 100 for a single-candidate edition (vote-count fallback, no other candidates)', () => {
+    // weighted_total is 0 so falls back to vote-count; only one row → 3/3 = 100%
+    const soloTally = [{ candidacy_id: 'solo', vote_count: 3, weighted_total: 0 }];
+    expect(consensusForCandidacy(soloTally, 'solo')).toBe(100);
+  });
 });
