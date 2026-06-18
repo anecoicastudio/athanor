@@ -24,3 +24,5 @@ export * from './pushToken';
 export * from './fund';
 export * from './candidacy';
 export * from './vote';
+export * from './circle';
+export * from './entitlements';
