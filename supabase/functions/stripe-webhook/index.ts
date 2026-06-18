@@ -55,7 +55,7 @@ async function handleContribution(db: Db, session: Stripe.Checkout.Session): Pro
       : (session.payment_intent?.id ?? null);
 
   // Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery is a no-op insert.
-  const { error: insErr } = await db.from('fund_contributions').upsert(
+  const { error: insErr, count } = await db.from('fund_contributions').upsert(
     {
       edition_id: editionId,
       profile_id: profileId,
@@ -65,9 +65,10 @@ async function handleContribution(db: Db, session: Stripe.Checkout.Session): Pro
       stripe_payment_intent_id: paymentIntent,
       status: 'succeeded',
     },
-    { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true },
+    { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true, count: 'exact' },
   );
   if (insErr) throw insErr;
+  if (count === 0) return; // true duplicate delivery — the row already exists, aggregate already current
 
   // Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change.
   const { error: aggErr } = await db.rpc('recompute_fund_aggregate', { p_edition_id: editionId });
@@ -93,7 +94,8 @@ async function handleContributionRefunded(db: Db, charge: Stripe.Charge): Promis
   const { error: updErr } = await db
     .from('fund_contributions')
     .update({ status: 'refunded' })
-    .eq('stripe_payment_intent_id', paymentIntent);
+    .eq('stripe_payment_intent_id', paymentIntent)
+    .eq('status', 'succeeded'); // idempotency guard: a re-delivered refund won't re-flip
   if (updErr) throw updErr;
 
   const { error: aggErr } = await db.rpc('recompute_fund_aggregate', {
