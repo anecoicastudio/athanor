@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -7,6 +9,7 @@ import {
   type CandidateCard as CandidateCardModel,
   candidacyKeys,
   castVote,
+  createContributionSession,
   fundKeys,
   getActiveEdition,
   getCandidates,
@@ -22,6 +25,7 @@ import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { SectionLabel } from '@/components/SectionLabel';
+import { AmountRow } from '@/components/fund/AmountRow';
 import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
 import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
@@ -165,6 +169,35 @@ export default function AnnualFundScreen() {
     return 'notVoted';
   };
 
+  // ── Contribution state + handler ─────────────────────────────────────────────
+  const [amountCents, setAmountCents] = useState<number>(100); // default 1€ chip on
+  const [contribPhase, setContribPhase] = useState<
+    'idle' | 'opening' | 'pending' | 'canceled' | 'error'
+  >('idle');
+
+  const onContribute = useCallback(async () => {
+    if (!amountCents) return;
+    setContribPhase('opening');
+    try {
+      const { url } = await createContributionSession(supabase, {
+        editionId: edition?.id ?? '',
+        amountCents,
+      });
+      const result = await WebBrowser.openAuthSessionAsync(url, `${'athanor://'}annual`);
+      if (result.type === 'success' && result.url) {
+        const { queryParams } = Linking.parse(result.url);
+        if (queryParams?.contrib === 'success') {
+          setContribPhase('pending'); // ticker moves when the webhook lands (money = webhook cache)
+          router.push('/(modal)/contribution-thanks');
+          return;
+        }
+      }
+      setContribPhase('canceled');
+    } catch {
+      setContribPhase('error');
+    }
+  }, [amountCents, edition?.id, router]);
+
   // ── Loading state ────────────────────────────────────────────────────────────
   if (editionQuery.isLoading) {
     return (
@@ -269,28 +302,66 @@ export default function AnnualFundScreen() {
           </Text>
         </View>
 
-        {/* 6. Partecipa — locked variant (production default)
-            contributions_enabled defaults false.
-            When true, still render the locked variant this slice — the interactive
-            amount chips + Stripe CTA ship in the contributions slice.
-            TODO(M7-contributions): replace with interactive Stripe flow when contributions_enabled */}
+        {/* 6. Partecipa */}
         <View className="gap-3">
           <SectionLabel>{t('fund.contribute.title', locale)}</SectionLabel>
           <Text className="text-[14px] leading-5 text-foreground">
             {t('fund.contribute.intro', locale)}
           </Text>
-          <Button
-            label={t('fund.contribute.soon', locale)}
-            onPress={() => {}}
-            variant="ghost"
-            disabled
-          />
-          <Text className="text-[12px] text-muted-foreground">
-            {t('fund.contribute.soonNote', locale)}
-          </Text>
-          <Text className="text-[12px] text-muted-foreground">
-            {t('fund.contribute.zeroAura', locale)}
-          </Text>
+
+          {edition.contributions_enabled ? (
+            <View className="gap-3">
+              <AmountRow
+                amountCents={amountCents}
+                onChange={(c) => setAmountCents(c ?? 0)}
+                locale={locale}
+              />
+              <Button
+                label={
+                  contribPhase === 'opening'
+                    ? t('fund.contribute.opening', locale)
+                    : t('fund.contribute.cta', locale, {
+                        amt: String(Math.floor(amountCents / 100)),
+                      })
+                }
+                onPress={() => void onContribute()}
+                variant="light"
+                disabled={contribPhase === 'opening' || amountCents < 100}
+                // Flat cyan CTA — no glow (rule #4)
+              />
+              {contribPhase === 'pending' ? (
+                <Text className="text-[12px] text-muted-foreground">
+                  {t('fund.contribute.pending', locale)}
+                </Text>
+              ) : null}
+              {contribPhase === 'canceled' ? (
+                <Text className="text-[12px] text-muted-foreground">
+                  {t('fund.contribute.canceled', locale)}
+                </Text>
+              ) : null}
+              {contribPhase === 'error' ? (
+                <Text className="text-[12px] text-error">{t('fund.contribute.error', locale)}</Text>
+              ) : null}
+              <Text className="text-[12px] text-muted-foreground">
+                {t('fund.contribute.zeroAura', locale)}
+              </Text>
+            </View>
+          ) : (
+            <View className="gap-3">
+              <Button
+                label={t('fund.contribute.soon', locale)}
+                onPress={() => {}}
+                variant="ghost"
+                disabled
+              />
+              <Text className="text-[12px] text-muted-foreground">
+                {t('fund.contribute.soonNote', locale)}
+              </Text>
+              <Text className="text-[12px] text-muted-foreground">
+                {t('fund.contribute.zeroAura', locale)}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* 7. Sogni candidati — live candidate cards (voting slice).
