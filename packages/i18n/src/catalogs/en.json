@@ -829,5 +829,21 @@
   "candidacy.success.title": "Your dream is in the running ✦",
   "candidacy.success.sub": "It now lives among the candidates. The community votes, Aura weighs in, the ethics commission reviews — and the final event announces it.",
   "candidacy.success.toFund": "Go to Bring Your Dream to Life",
-  "candidacy.success.toHome": "Back to home"
+  "candidacy.success.toHome": "Back to home",
+  "common.done": "done",
+  "common.locked": "locked",
+  "circle.plan.monthly": "Monthly",
+  "circle.plan.annual": "Annual",
+  "circle.benefit.soon": "coming soon",
+  "circle.member.title": "You're in the Circle ✦",
+  "circle.member.planMonthly": "Monthly plan active",
+  "circle.member.planAnnual": "Annual plan active",
+  "circle.member.renews": "Renews on {date}",
+  "circle.member.pastDue": "Payment pending. Update your payment method to continue.",
+  "circle.member.foundingBadge": "Founding member ✦",
+  "circle.analytics.title": "Your impact",
+  "circle.analytics.sub": "Your data, not a public score.",
+  "circle.analytics.weekDelta": "Aura this week",
+  "circle.analytics.topSources": "Top sources",
+  "circle.analytics.empty": "Coming soon — keep taking action."
 }

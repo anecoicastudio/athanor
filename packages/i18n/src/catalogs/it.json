@@ -829,5 +829,21 @@
   "candidacy.success.title": "Il tuo sogno è in gara ✦",
   "candidacy.success.sub": "Ora vive tra i candidati. La community vota, l'Aura pesa, la commissione etica valuta — e l'evento finale lo annuncia.",
   "candidacy.success.toFund": "Vai a Dai Vita al Tuo Sogno",
-  "candidacy.success.toHome": "Torna alla home"
+  "candidacy.success.toHome": "Torna alla home",
+  "common.done": "fatto",
+  "common.locked": "bloccato",
+  "circle.plan.monthly": "Mensile",
+  "circle.plan.annual": "Annuale",
+  "circle.benefit.soon": "in arrivo",
+  "circle.member.title": "Sei nel Circle ✦",
+  "circle.member.planMonthly": "Piano mensile attivo",
+  "circle.member.planAnnual": "Piano annuale attivo",
+  "circle.member.renews": "Si rinnova il {date}",
+  "circle.member.pastDue": "Pagamento in attesa. Aggiorna il metodo di pagamento per continuare.",
+  "circle.member.foundingBadge": "Membro fondatore ✦",
+  "circle.analytics.title": "Il tuo impatto",
+  "circle.analytics.sub": "I tuoi dati, non un punteggio pubblico.",
+  "circle.analytics.weekDelta": "Aura questa settimana",
+  "circle.analytics.topSources": "Fonti principali",
+  "circle.analytics.empty": "Presto qui — continua ad agire."
 }
