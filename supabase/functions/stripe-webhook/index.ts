@@ -43,17 +43,82 @@ async function handleTicketPaid(db: Db, session: Stripe.Checkout.Session): Promi
   if (error) throw error;
 }
 
+/** W3 — a contribution Checkout completed. Write the contribution + recompute the aggregate (service role). Idempotent. */
+async function handleContribution(db: Db, session: Stripe.Checkout.Session): Promise<void> {
+  const editionId = session.metadata?.edition_id;
+  if (!editionId) throw new Error('contribution session missing edition_id');
+  const profileId = session.metadata?.profile_id ?? null; // nullable: anonymous donors allowed
+
+  const paymentIntent =
+    typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+
+  // Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery is a no-op insert.
+  const { error: insErr } = await db.from('fund_contributions').upsert(
+    {
+      edition_id: editionId,
+      profile_id: profileId,
+      amount_cents: session.amount_total ?? 0,
+      currency: (session.currency ?? 'eur').toLowerCase(),
+      stripe_checkout_session_id: session.id,
+      stripe_payment_intent_id: paymentIntent,
+      status: 'succeeded',
+    },
+    { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true },
+  );
+  if (insErr) throw insErr;
+
+  // Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change.
+  const { error: aggErr } = await db.rpc('recompute_fund_aggregate', { p_edition_id: editionId });
+  if (aggErr) throw aggErr;
+}
+
+/** W4 — a contribution charge refunded. Flip status + recompute. Match by payment_intent; ack if not found. */
+async function handleContributionRefunded(db: Db, charge: Stripe.Charge): Promise<void> {
+  const paymentIntent =
+    typeof charge.payment_intent === 'string'
+      ? charge.payment_intent
+      : (charge.payment_intent?.id ?? null);
+  if (!paymentIntent) return; // nothing to match — ack (idempotency ledger already recorded it)
+
+  const { data: rows, error: selErr } = await db
+    .from('fund_contributions')
+    .select('id,edition_id')
+    .eq('stripe_payment_intent_id', paymentIntent)
+    .eq('status', 'succeeded');
+  if (selErr) throw selErr;
+  if (!rows || rows.length === 0) return; // not a fund contribution (e.g. a ticket) — never error-loop
+
+  const { error: updErr } = await db
+    .from('fund_contributions')
+    .update({ status: 'refunded' })
+    .eq('stripe_payment_intent_id', paymentIntent);
+  if (updErr) throw updErr;
+
+  const { error: aggErr } = await db.rpc('recompute_fund_aggregate', {
+    p_edition_id: rows[0].edition_id,
+  });
+  if (aggErr) throw aggErr;
+}
+
 async function processEvent(db: Db, event: Stripe.Event): Promise<void> {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
       if (session.metadata?.kind === 'ticket') {
         await handleTicketPaid(db, session);
+      } else if (session.metadata?.kind === 'contribution') {
+        await handleContribution(db, session);
       }
-      // metadata.kind 'contribution' (M7) / 'subscription' (M8) → later slices.
+      // metadata.kind 'subscription' (M8) → later slice.
       return;
     }
-    // TODO(M8): case 'charge.refunded' → handleTicketRefunded (status='refunded'). Not in this slice.
+    case 'charge.refunded': {
+      // W4: only fund contributions are handled here in M7 (ticket refunds = M8/W2).
+      await handleContributionRefunded(db, event.data.object as Stripe.Charge);
+      return;
+    }
     default:
       return; // unhandled types are acknowledged (200) so Stripe stops retrying.
   }
