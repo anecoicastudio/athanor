@@ -1,13 +1,28 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fundKeys, getActiveEdition, getFundAggregate, subscribeFundAggregate } from '@athanor/api';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type CandidacyVote,
+  type CandidateCard as CandidateCardModel,
+  candidacyKeys,
+  castVote,
+  fundKeys,
+  getActiveEdition,
+  getCandidates,
+  getEditionTally,
+  getFundAggregate,
+  getMyVote,
+  subscribeFundAggregate,
+  voteKeys,
+} from '@athanor/api';
+import { consensusForCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { SectionLabel } from '@/components/SectionLabel';
+import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
 import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
 import { SplitBar } from '@/components/fund/SplitBar';
@@ -57,6 +72,98 @@ export default function AnnualFundScreen() {
   const raisedCents = agg?.raised_cents ?? 0;
   const contributorCount = agg?.contributor_count ?? 0;
   const goalCents = edition?.goal_cents ?? 0;
+
+  // ── Voting: candidates + tally + my vote ────────────────────────────────────
+  const editionId = edition?.id ?? '';
+  const uid = profile?.id;
+
+  const candidatesQuery = useQuery({
+    queryKey: candidacyKeys.list(editionId),
+    queryFn: () => getCandidates(supabase, { editionId }),
+    enabled: !!editionId,
+  });
+  const tallyQuery = useQuery({
+    queryKey: voteKeys.tally(editionId),
+    queryFn: () => getEditionTally(supabase, editionId),
+    enabled: !!editionId,
+  });
+  const myVoteQuery = useQuery({
+    queryKey: voteKeys.mine(editionId),
+    queryFn: () => getMyVote(supabase, editionId, uid!),
+    enabled: !!editionId && !!uid,
+  });
+
+  // Refetch the tally on focus — others' votes don't stream (own-row RLS), so
+  // there's no realtime subscription here; the % refreshes on focus + on a vote.
+  useFocusEffect(
+    useCallback(() => {
+      if (editionId) qc.invalidateQueries({ queryKey: voteKeys.tally(editionId) });
+    }, [editionId, qc]),
+  );
+
+  // Vote mutation — optimistic flip of `voteKeys.mine` to the tapped candidacy,
+  // rolled back on error. Invalidates mine + tally on settle.
+  const voteMutation = useMutation({
+    mutationFn: (candidacyId: string) => castVote(supabase, { editionId, candidacyId }),
+    onMutate: async (candidacyId: string) => {
+      const key = voteKeys.mine(editionId);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<CandidacyVote | null>(key);
+      // Optimistic placeholder: only candidacy_id drives the «Votato ✦» flip.
+      qc.setQueryData<CandidacyVote | null>(key, (old) =>
+        old
+          ? { ...old, candidacy_id: candidacyId }
+          : ({
+              id: '',
+              edition_id: editionId,
+              candidacy_id: candidacyId,
+              voter_id: uid ?? '',
+              weight: 0,
+              created_at: new Date().toISOString(),
+            } satisfies CandidacyVote),
+      );
+      return { previous };
+    },
+    onError: (_err, _candidacyId, context) => {
+      qc.setQueryData(voteKeys.mine(editionId), context?.previous ?? null);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: voteKeys.mine(editionId) });
+      qc.invalidateQueries({ queryKey: voteKeys.tally(editionId) });
+    },
+  });
+
+  const myVote = myVoteQuery.data ?? null;
+  const tally = tallyQuery.data ?? [];
+  const pendingCandidacyId = voteMutation.isPending ? (voteMutation.variables ?? null) : null;
+
+  const onVote = useCallback(
+    (card: CandidateCardModel) => {
+      const move = !!myVote && myVote.candidacy_id !== card.candidacy_id;
+      if (move) {
+        Alert.alert(t('fund.vote.oneOnly', locale), undefined, [
+          { text: t('common.cancel', locale), style: 'cancel' },
+          {
+            text: t('fund.vote.cta', locale),
+            onPress: () => voteMutation.mutate(card.candidacy_id),
+          },
+        ]);
+      } else {
+        voteMutation.mutate(card.candidacy_id);
+      }
+    },
+    [myVote, locale, voteMutation],
+  );
+
+  const candidates = candidatesQuery.data?.items ?? [];
+
+  const voteStateFor = (card: CandidateCardModel): VoteState => {
+    if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
+    if (edition && edition.phase !== 'community') return 'votingClosed';
+    if (pendingCandidacyId === card.candidacy_id) return 'voting';
+    if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
+    return 'notVoted';
+  };
 
   // ── Loading state ────────────────────────────────────────────────────────────
   if (editionQuery.isLoading) {
@@ -186,13 +293,32 @@ export default function AnnualFundScreen() {
           </Text>
         </View>
 
-        {/* 7. Sogni candidati — calm empty hint; candidate cards land in voting/candidacy slices
-            TODO(M7-candidacy): replace with real candidate cards */}
+        {/* 7. Sogni candidati — live candidate cards (voting slice).
+            Realtime tally is DEFERRED (own-row RLS can't stream others' votes);
+            the consensus % refreshes on focus + after a vote. */}
         <View className="gap-3">
           <SectionLabel>{t('fund.candidates.title', locale)}</SectionLabel>
-          <Text className="text-[14px] text-muted-foreground">
-            {t('fund.candidates.empty', locale)}
-          </Text>
+          {candidatesQuery.isLoading ? (
+            <ActivityIndicator color={semantic.aura} />
+          ) : candidates.length === 0 ? (
+            <Text className="text-[14px] text-muted-foreground">
+              {t('fund.candidates.empty', locale)}
+            </Text>
+          ) : (
+            <View className="gap-4">
+              {candidates.map((card) => (
+                <CandidateCard
+                  key={card.candidacy_id}
+                  card={card}
+                  consensus={consensusForCandidacy(tally, card.candidacy_id)}
+                  voteState={voteStateFor(card)}
+                  locale={locale}
+                  onVote={() => onVote(card)}
+                  onOpen={() => router.push(`/(modal)/candidacy/${card.candidacy_id}`)}
+                />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* 8. Come vengono scelti */}

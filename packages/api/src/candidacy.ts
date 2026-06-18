@@ -105,4 +105,22 @@ export async function getCandidates(
   return { items, nextCursor };
 }
 
+/**
+ * One candidate card by id — reads the `fund_candidate_cards` view filtered by
+ * `candidacy_id` so the detail screen works from a deep link (no list row needed).
+ * Returns null when absent (e.g. screened out / not visible to the caller).
+ */
+export async function getCandidateById(
+  client: AthanorClient,
+  candidacyId: string,
+): Promise<CandidateCard | null> {
+  const { data, error } = await client
+    .from('fund_candidate_cards')
+    .select('*')
+    .eq('candidacy_id', candidacyId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? candidateCardSchema.parse(data) : null;
+}
+
 export type { CandidateCard, DreamCandidacy };
