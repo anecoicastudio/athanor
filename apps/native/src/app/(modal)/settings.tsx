@@ -10,6 +10,7 @@ import { Chip } from '@/components/Chip';
 import { SettingsGroup } from '@/components/SettingsGroup';
 import { SettingsRow } from '@/components/SettingsRow';
 import { useAuth } from '@/lib/auth-context';
+import { useEntitlement } from '@/lib/useEntitlement';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -22,6 +23,7 @@ import { supabase } from '@/lib/supabase';
 export default function SettingsScreen() {
   const router = useRouter();
   const { session, profile, refreshProfile } = useAuth();
+  const { data: entitlement } = useEntitlement();
 
   const [toast, setToast] = useState<string | null>(null);
   const [aura, setAura] = useState(0);
@@ -116,8 +118,14 @@ export default function SettingsScreen() {
         <SettingsRow
           title={t('settings.circle.title', locale)}
           description={t('settings.circle.desc', locale)}
-          value={t('settings.circle.none', locale)}
-          onPress={() => showToast(t('settings.soon', locale))}
+          value={
+            entitlement?.plan === 'monthly'
+              ? t('settings.circle.monthly', locale)
+              : entitlement?.plan === 'annual'
+                ? t('settings.circle.annual', locale)
+                : t('settings.circle.none', locale)
+          }
+          onPress={() => router.push('/(modal)/circle')}
         />
         <SettingsRow
           title={t('settings.payments.title', locale)}

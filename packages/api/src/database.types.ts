@@ -38,6 +38,13 @@ export type Database = {
             foreignKeyName: "athanor_days_interest_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "athanor_days_interest_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -76,6 +83,13 @@ export type Database = {
             foreignKeyName: "aura_events_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "aura_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -107,6 +121,13 @@ export type Database = {
           score?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "aura_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "aura_scores_profile_id_fkey"
             columns: ["profile_id"]
@@ -167,6 +188,67 @@ export type Database = {
             foreignKeyName: "candidacy_votes_voter_id_fkey"
             columns: ["voter_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "candidacy_votes_voter_id_fkey"
+            columns: ["voter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_memberships: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          founding_member: boolean
+          id: string
+          plan: string
+          profile_id: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          founding_member?: boolean
+          id?: string
+          plan: string
+          profile_id: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          founding_member?: boolean
+          id?: string
+          plan?: string
+          profile_id?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_memberships_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "circle_memberships_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -205,8 +287,22 @@ export type Database = {
             foreignKeyName: "connection_requests_addressee_id_fkey"
             columns: ["addressee_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "connection_requests_addressee_id_fkey"
+            columns: ["addressee_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connection_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "connection_requests_requester_id_fkey"
@@ -244,8 +340,22 @@ export type Database = {
             foreignKeyName: "connections_profile_a_fkey"
             columns: ["profile_a"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "connections_profile_a_fkey"
+            columns: ["profile_a"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connections_profile_b_fkey"
+            columns: ["profile_b"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "connections_profile_b_fkey"
@@ -299,8 +409,22 @@ export type Database = {
             foreignKeyName: "conversations_participant_a_fkey"
             columns: ["participant_a"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "conversations_participant_a_fkey"
+            columns: ["participant_a"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_participant_b_fkey"
+            columns: ["participant_b"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "conversations_participant_b_fkey"
@@ -367,6 +491,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fund_editions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dream_candidacies_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "dream_candidacies_profile_id_fkey"
@@ -451,6 +582,13 @@ export type Database = {
             foreignKeyName: "dreams_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "dreams_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -512,6 +650,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendance_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "event_attendance_scanned_by_fkey"
@@ -596,6 +741,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "event_tickets_user_id_fkey"
@@ -687,6 +839,13 @@ export type Database = {
             foreignKeyName: "events_organizer_id_fkey"
             columns: ["organizer_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "events_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -728,6 +887,13 @@ export type Database = {
             foreignKeyName: "favor_offers_actor_id_fkey"
             columns: ["actor_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "favor_offers_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -744,6 +910,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "favor_needs"
             referencedColumns: ["need_milestone_id"]
+          },
+          {
+            foreignKeyName: "favor_offers_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "favor_offers_target_id_fkey"
@@ -827,6 +1000,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fund_editions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fund_contributions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "fund_contributions_profile_id_fkey"
@@ -937,6 +1117,13 @@ export type Database = {
             foreignKeyName: "messages_sender_id_fkey"
             columns: ["sender_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -980,6 +1167,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "milestone_helps_helper_id_fkey"
+            columns: ["helper_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "milestone_helps_helper_id_fkey"
             columns: ["helper_id"]
@@ -1048,8 +1242,22 @@ export type Database = {
             foreignKeyName: "momento_proposals_candidate_id_fkey"
             columns: ["candidate_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "momento_proposals_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "momento_proposals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "momento_proposals_user_id_fkey"
@@ -1108,6 +1316,13 @@ export type Database = {
             foreignKeyName: "moments_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "moments_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1145,6 +1360,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "post_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "post_comments_author_id_fkey"
             columns: ["author_id"]
@@ -1239,6 +1461,13 @@ export type Database = {
             foreignKeyName: "post_reactions_person_id_fkey"
             columns: ["person_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "post_reactions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1289,6 +1518,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "posts_author_id_fkey"
             columns: ["author_id"]
@@ -1379,6 +1615,13 @@ export type Database = {
             foreignKeyName: "projects_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "projects_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1413,6 +1656,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "push_tokens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "push_tokens_profile_id_fkey"
             columns: ["profile_id"]
@@ -1459,6 +1709,13 @@ export type Database = {
             foreignKeyName: "rsvps_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "rsvps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1497,6 +1754,13 @@ export type Database = {
             foreignKeyName: "stars_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "stars_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1522,6 +1786,13 @@ export type Database = {
           segment_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "story_reactions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "story_reactions_person_id_fkey"
             columns: ["person_id"]
@@ -1586,6 +1857,13 @@ export type Database = {
             foreignKeyName: "story_segments_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "story_segments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1617,6 +1895,20 @@ export type Database = {
       }
     }
     Views: {
+      entitlements: {
+        Row: {
+          advanced_filters: boolean | null
+          analytics: boolean | null
+          founding: boolean | null
+          is_member: boolean | null
+          market_reduced_fee: boolean | null
+          plan: string | null
+          premium_events: boolean | null
+          profile_id: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
       favor_needs: {
         Row: {
           need: string | null
@@ -1626,6 +1918,13 @@ export type Database = {
           target_id: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "dreams_profile_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "dreams_profile_id_fkey"
             columns: ["target_id"]
@@ -1655,6 +1954,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fund_editions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dream_candidacies_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "dream_candidacies_profile_id_fkey"
