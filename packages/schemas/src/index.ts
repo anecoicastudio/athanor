@@ -23,3 +23,4 @@ export * from './connection';
 export * from './pushToken';
 export * from './fund';
 export * from './candidacy';
+export * from './vote';
