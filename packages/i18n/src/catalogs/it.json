@@ -834,6 +834,8 @@
   "common.locked": "bloccato",
   "circle.plan.monthly": "Mensile",
   "circle.plan.annual": "Annuale",
+  "circle.toast.joinedMonthly": "Sei nel Circle ✦ piano mensile",
+  "circle.toast.joinedAnnual": "Sei nel Circle ✦ piano annuale",
   "circle.benefit.soon": "in arrivo",
   "circle.member.title": "Sei nel Circle ✦",
   "circle.member.planMonthly": "Piano mensile attivo",

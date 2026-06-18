@@ -105,6 +105,7 @@ export default function CircleScreen() {
     } catch {
       // Error handled silently; invalidate anyway
       qc.invalidateQueries({ queryKey: entitlementKeys.me() });
+      qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
     } finally {
       setCheckoutPhase('idle');
     }

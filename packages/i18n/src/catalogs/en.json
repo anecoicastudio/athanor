@@ -834,6 +834,8 @@
   "common.locked": "locked",
   "circle.plan.monthly": "Monthly",
   "circle.plan.annual": "Annual",
+  "circle.toast.joinedMonthly": "You're in the Circle ✦ monthly plan",
+  "circle.toast.joinedAnnual": "You're in the Circle ✦ annual plan",
   "circle.benefit.soon": "coming soon",
   "circle.member.title": "You're in the Circle ✦",
   "circle.member.planMonthly": "Monthly plan active",
