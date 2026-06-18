@@ -175,6 +175,15 @@ export default function AnnualFundScreen() {
     'idle' | 'opening' | 'pending' | 'canceled' | 'error'
   >('idle');
 
+  // Clear a stale canceled/error/pending banner when the screen regains focus
+  // (returning from the thank-you overlay, or navigating away and back). Never
+  // clobber an in-flight `opening`.
+  useFocusEffect(
+    useCallback(() => {
+      setContribPhase((p) => (p === 'opening' ? p : 'idle'));
+    }, []),
+  );
+
   const onContribute = useCallback(async () => {
     if (!amountCents) return;
     setContribPhase('opening');
