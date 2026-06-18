@@ -46,18 +46,18 @@ Deno.serve(async (req) => {
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  let customerId = existing?.stripe_customer_id ?? null;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: userData.user.email ?? undefined,
-      metadata: { profile_id: profileId },
-    });
-    customerId = customer.id;
-  }
-
   const appBase = Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://';
 
   try {
+    let customerId = existing?.stripe_customer_id ?? null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: userData.user.email ?? undefined,
+        metadata: { profile_id: profileId },
+      });
+      customerId = customer.id;
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
