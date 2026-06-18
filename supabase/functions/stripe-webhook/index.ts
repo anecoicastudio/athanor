@@ -107,6 +107,69 @@ async function handleContributionRefunded(db: Db, charge: Stripe.Charge): Promis
   if (aggErr) throw aggErr;
 }
 
+/** Map a Stripe subscription status to our circle_memberships enum. */
+function mapSubStatus(s: Stripe.Subscription.Status): string {
+  switch (s) {
+    case 'active':
+    case 'trialing':
+      return 'active';
+    case 'past_due':
+      return 'past_due';
+    case 'incomplete':
+      return 'incomplete';
+    default:
+      return 'canceled'; // canceled | unpaid | incomplete_expired | paused
+  }
+}
+
+/** W5/W6/W7/W11 — upsert the membership cache from a Stripe subscription (service role). Idempotent. */
+async function handleSubscription(db: Db, sub: Stripe.Subscription): Promise<void> {
+  const profileId = sub.metadata?.profile_id;
+  if (!profileId) throw new Error('subscription missing profile_id metadata');
+
+  const item = sub.items?.data?.[0];
+  const interval = item?.price?.recurring?.interval; // 'month' | 'year'
+  const plan = interval === 'year' ? 'annual' : 'monthly';
+
+  // current_period_end moved onto items in newer API versions; fall back to the subscription field.
+  const periodEndUnix =
+    (item as { current_period_end?: number } | undefined)?.current_period_end ??
+    (sub as unknown as { current_period_end?: number }).current_period_end ??
+    null;
+  const currentPeriodEnd = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null;
+
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+
+  // profile_id is UNIQUE → upsert keeps one membership per profile. founding_member is NOT touched here
+  // (cosmetic; default false; award path is out of M8 scope).
+  const { error } = await db.from('circle_memberships').upsert(
+    {
+      profile_id: profileId,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: sub.id,
+      plan,
+      status: mapSubStatus(sub.status),
+      current_period_end: currentPeriodEnd,
+    },
+    { onConflict: 'profile_id' },
+  );
+  if (error) throw error;
+}
+
+/** W8 — invoice.payment_failed → mark the cached membership past_due (dunning is Stripe's; app reflects). */
+async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Promise<void> {
+  const subId =
+    typeof (invoice as { subscription?: unknown }).subscription === 'string'
+      ? ((invoice as { subscription?: string }).subscription as string)
+      : ((invoice as { subscription?: { id?: string } }).subscription?.id ?? null);
+  if (!subId) return; // not a subscription invoice — ack
+  const { error } = await db
+    .from('circle_memberships')
+    .update({ status: 'past_due' })
+    .eq('stripe_subscription_id', subId);
+  if (error) throw error;
+}
+
 async function processEvent(db: Db, event: Stripe.Event): Promise<void> {
   switch (event.type) {
     case 'checkout.session.completed': {
@@ -115,8 +178,29 @@ async function processEvent(db: Db, event: Stripe.Event): Promise<void> {
         await handleTicketPaid(db, session);
       } else if (session.metadata?.kind === 'contribution') {
         await handleContribution(db, session);
+      } else if (session.metadata?.kind === 'subscription') {
+        // W11 — reconcile: retrieve the subscription and upsert the full cache row (covers W5 lag).
+        if (session.subscription) {
+          const subId =
+            typeof session.subscription === 'string'
+              ? session.subscription
+              : session.subscription.id;
+          const sub = await stripe.subscriptions.retrieve(subId);
+          await handleSubscription(db, sub);
+        }
       }
-      // metadata.kind 'subscription' (M8) → later slice.
+      return;
+    }
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      // W5/W6/W7 — the deleted event carries status='canceled' already → mapSubStatus handles it.
+      await handleSubscription(db, event.data.object as Stripe.Subscription);
+      return;
+    }
+    case 'invoice.payment_failed': {
+      // W8
+      await handleInvoiceFailed(db, event.data.object as Stripe.Invoice);
       return;
     }
     case 'charge.refunded': {
