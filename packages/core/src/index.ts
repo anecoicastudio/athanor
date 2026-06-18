@@ -22,6 +22,7 @@ export * from './events/price';
 export * from './chat/dayBucket';
 export * from './fund/countdown';
 export * from './fund/format';
+export * from './fund/consensus';
 export {
   breakdownRows,
   pickNextStar,

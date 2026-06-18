@@ -116,6 +116,62 @@ export type Database = {
           },
         ];
       };
+      candidacy_votes: {
+        Row: {
+          candidacy_id: string;
+          created_at: string;
+          edition_id: string;
+          id: string;
+          voter_id: string;
+          weight: number;
+        };
+        Insert: {
+          candidacy_id: string;
+          created_at?: string;
+          edition_id: string;
+          id?: string;
+          voter_id: string;
+          weight?: number;
+        };
+        Update: {
+          candidacy_id?: string;
+          created_at?: string;
+          edition_id?: string;
+          id?: string;
+          voter_id?: string;
+          weight?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "candidacy_votes_candidacy_id_fkey";
+            columns: ["candidacy_id"];
+            isOneToOne: false;
+            referencedRelation: "dream_candidacies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "candidacy_votes_candidacy_id_fkey";
+            columns: ["candidacy_id"];
+            isOneToOne: false;
+            referencedRelation: "fund_candidate_cards";
+            referencedColumns: ["candidacy_id"];
+          },
+          {
+            foreignKeyName: "candidacy_votes_edition_id_fkey";
+            columns: ["edition_id"];
+            isOneToOne: false;
+            referencedRelation: "fund_editions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "candidacy_votes_voter_id_fkey";
+            columns: ["voter_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       connection_requests: {
         Row: {
           addressee_id: string;
@@ -771,6 +827,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "dream_candidacies";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "fund_editions_winner_candidacy_fk";
+            columns: ["winner_candidacy_id"];
+            isOneToOne: false;
+            referencedRelation: "fund_candidate_cards";
+            referencedColumns: ["candidacy_id"];
           },
         ];
       };
@@ -1518,6 +1581,36 @@ export type Database = {
           },
         ];
       };
+      fund_candidate_cards: {
+        Row: {
+          candidacy_id: string | null;
+          category: string | null;
+          city: string | null;
+          created_at: string | null;
+          edition_id: string | null;
+          handle: string | null;
+          profile_id: string | null;
+          status: string | null;
+          title: string | null;
+          video_url: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "dream_candidacies_edition_id_fkey";
+            columns: ["edition_id"];
+            isOneToOne: false;
+            referencedRelation: "fund_editions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "dream_candidacies_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Functions: {
       accept_momento: { Args: { p_proposal_id: string }; Returns: Json };
@@ -1527,6 +1620,18 @@ export type Database = {
           p_profile_id: string;
           p_tier_up?: string;
         };
+        Returns: undefined;
+      };
+      candidacy_tally: {
+        Args: { p_edition_id: string };
+        Returns: {
+          candidacy_id: string;
+          vote_count: number;
+          weighted_total: number;
+        }[];
+      };
+      cast_vote: {
+        Args: { p_candidacy_id: string; p_edition_id: string };
         Returns: undefined;
       };
       confirm_milestone_help: {

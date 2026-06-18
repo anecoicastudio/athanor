@@ -23,4 +23,5 @@ export * from './messages';
 export * from './connections';
 export * from './fund';
 export * from './candidacy';
+export * from './votes';
 export type { Database, Json } from './database.types';

@@ -45,3 +45,18 @@ export const candidacyUpdateSchema = dreamCandidacySchema
   .pick({ story: true, goal: true, impact: true, video_url: true, plan: true })
   .partial();
 export type CandidacyUpdate = z.infer<typeof candidacyUpdateSchema>;
+
+/** The `fund_candidate_cards` view read-model — candidacy + author handle + dream-text title. */
+export const candidateCardSchema = z.object({
+  candidacy_id: z.string().uuid(),
+  edition_id: z.string().uuid(),
+  profile_id: z.string().uuid(),
+  handle: z.string().nullable(),
+  title: z.string().nullable(), // author's active dream text
+  city: z.string().nullable(),
+  category: z.string().nullable(),
+  status: candidacyStatusSchema,
+  video_url: z.string().min(1),
+  created_at: z.string(),
+});
+export type CandidateCard = z.infer<typeof candidateCardSchema>;
