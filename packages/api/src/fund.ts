@@ -3,6 +3,7 @@ import {
   fundAggregateSchema,
   type FundEdition,
   fundEditionSchema,
+  type ContributionSessionInput,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
@@ -66,6 +67,24 @@ export function subscribeFundAggregate(
   return () => {
     void client.removeChannel(channel);
   };
+}
+
+/**
+ * Start a Stripe Checkout for a Dream-Fund contribution via the create-contribution-session edge fn.
+ * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only (rule #6):
+ * the fund total moves when the webhook (W3) lands → fund_aggregates → the realtime ticker. Never optimistic.
+ */
+export async function createContributionSession(
+  client: AthanorClient,
+  input: ContributionSessionInput,
+): Promise<{ url: string }> {
+  const { data, error } = await client.functions.invoke('create-contribution-session', {
+    body: { editionId: input.editionId, amountCents: input.amountCents },
+  });
+  if (error) throw error;
+  const url = (data as { url?: string } | null)?.url;
+  if (!url) throw new Error('contribution checkout did not return a url');
+  return { url };
 }
 
 export type { FundAggregate, FundEdition };

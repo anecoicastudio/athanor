@@ -26,3 +26,25 @@ export const fundAggregateSchema = z.object({
   updated_at: z.string(),
 });
 export type FundAggregate = z.infer<typeof fundAggregateSchema>;
+
+/** Client → `create-contribution-session` edge-fn input (backend 08 §3.2). Min €1, no max. */
+export const contributionSessionInputSchema = z.object({
+  editionId: z.string().uuid(),
+  amountCents: z.number().int().min(100), // ≥ €1 (PRD §4.11)
+});
+export type ContributionSessionInput = z.infer<typeof contributionSessionInputSchema>;
+
+/** Read-model of a Stripe contribution row (backend 06 §2.2). Owner reads own; written only by the webhook. */
+export const fundContributionSchema = z.object({
+  id: z.string().uuid(),
+  edition_id: z.string().uuid(),
+  profile_id: z.string().uuid().nullable(),
+  amount_cents: z.number().int().nonnegative(),
+  currency: z.string(),
+  stripe_checkout_session_id: z.string(),
+  stripe_payment_intent_id: z.string().nullable(),
+  status: z.enum(['pending', 'succeeded', 'refunded']),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type FundContribution = z.infer<typeof fundContributionSchema>;

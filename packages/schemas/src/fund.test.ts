@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { fundEditionSchema, fundAggregateSchema } from './fund';
+import {
+  fundEditionSchema,
+  fundAggregateSchema,
+  contributionSessionInputSchema,
+  fundContributionSchema,
+} from './fund';
 
 const validEdition = {
   id: '00000000-0000-0000-0000-0000000000a1',
@@ -42,5 +47,44 @@ describe('fundAggregateSchema', () => {
         updated_at: '2026-06-17T00:00:00.000Z',
       }),
     ).toThrow();
+  });
+});
+
+describe('contributionSessionInputSchema', () => {
+  it('accepts a valid €1 contribution', () => {
+    const r = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: 100,
+    });
+    expect(r.success).toBe(true);
+  });
+  it('rejects below €1', () => {
+    const r = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: 99,
+    });
+    expect(r.success).toBe(false);
+  });
+  it('rejects a non-uuid edition', () => {
+    const r = contributionSessionInputSchema.safeParse({ editionId: 'nope', amountCents: 500 });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe('fundContributionSchema', () => {
+  it('parses a succeeded contribution row', () => {
+    const r = fundContributionSchema.safeParse({
+      id: '00000000-0000-0000-0000-0000000000c1',
+      edition_id: '00000000-0000-0000-0000-0000000000ed',
+      profile_id: '11111111-1111-1111-1111-111111111111',
+      amount_cents: 500,
+      currency: 'eur',
+      stripe_checkout_session_id: 'cs_1',
+      stripe_payment_intent_id: 'pi_1',
+      status: 'succeeded',
+      created_at: '2026-06-18T00:00:00Z',
+      updated_at: '2026-06-18T00:00:00Z',
+    });
+    expect(r.success).toBe(true);
   });
 });

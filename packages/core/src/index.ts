@@ -23,6 +23,7 @@ export * from './chat/dayBucket';
 export * from './fund/countdown';
 export * from './fund/format';
 export * from './fund/consensus';
+export * from './fund/amount';
 export {
   breakdownRows,
   pickNextStar,

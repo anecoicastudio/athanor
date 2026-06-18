@@ -419,6 +419,9 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.create-ticket-checkout]
 verify_jwt = true
 
+[functions.create-contribution-session]
+verify_jwt = true
+
 [functions.stripe-webhook]
 verify_jwt = false
 
