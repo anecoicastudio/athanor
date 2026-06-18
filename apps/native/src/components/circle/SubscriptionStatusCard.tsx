@@ -41,8 +41,10 @@ export function SubscriptionStatusCard({
   }, []);
 
   useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-  }, [opacity]);
+    if (!reduceMotion) {
+      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    }
+  }, [reduceMotion, opacity]);
 
   const isPastDue = status === 'past_due';
 
