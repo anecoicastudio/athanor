@@ -119,6 +119,22 @@ export default function EventDetailScreen() {
   const count = attendees.data?.count ?? 0;
   const soldOut = event?.capacity != null && count >= event.capacity;
 
+  // Single action-bar node reused by both the premium <CircleGate> branch and the
+  // non-premium branch — avoids duplicated prop sets that could drift on future edits.
+  const actionBar = isPaid ? (
+    <TicketBar event={event!} locale={locale} />
+  ) : (
+    <RsvpBar
+      going={going}
+      soldOut={soldOut}
+      pending={toggle.isPending || myRsvp.isLoading}
+      confirmation={confirmation}
+      onToggle={() => toggle.mutate(!going)}
+      onAddToCalendar={() => void onAddToCalendar()}
+      locale={locale}
+    />
+  );
+
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
       <View className="flex-row items-center gap-3 px-5 pb-1 pt-14">
@@ -221,32 +237,10 @@ export default function EventDetailScreen() {
             </View>
           ) : isPremium ? (
             <CircleGate feature="premiumEvents" variant="banner" locale={locale}>
-              {isPaid ? (
-                <TicketBar event={event} locale={locale} />
-              ) : (
-                <RsvpBar
-                  going={going}
-                  soldOut={soldOut}
-                  pending={toggle.isPending || myRsvp.isLoading}
-                  confirmation={confirmation}
-                  onToggle={() => toggle.mutate(!going)}
-                  onAddToCalendar={() => void onAddToCalendar()}
-                  locale={locale}
-                />
-              )}
+              {actionBar}
             </CircleGate>
-          ) : isPaid ? (
-            <TicketBar event={event} locale={locale} />
           ) : (
-            <RsvpBar
-              going={going}
-              soldOut={soldOut}
-              pending={toggle.isPending || myRsvp.isLoading}
-              confirmation={confirmation}
-              onToggle={() => toggle.mutate(!going)}
-              onAddToCalendar={() => void onAddToCalendar()}
-              locale={locale}
-            />
+            actionBar
           )}
         </View>
       )}
