@@ -148,9 +148,11 @@ export default function SearchScreen() {
   // ── Applied filter chips (summary row when filters are set) ──────────────────
   const hasFilters = filtersFromParams !== undefined;
   const filterChips: string[] = [];
-  if (filtersFromParams?.auraMin) filterChips.push(`Aura ${filtersFromParams.auraMin}+`);
+  if (filtersFromParams?.auraMin)
+    filterChips.push(t('search.filter.summary.aura', locale, { min: filtersFromParams.auraMin }));
   if (filtersFromParams?.city) filterChips.push(filtersFromParams.city);
-  if (filtersFromParams?.star) filterChips.push(`★ ${filtersFromParams.star}`);
+  if (filtersFromParams?.star)
+    filterChips.push(`★ ${t(`star.${filtersFromParams.star}` as Parameters<typeof t>[0], locale)}`);
 
   // Build params to pass into the filter sheet so it can pre-fill current values
   const filterSheetParams = {
@@ -165,7 +167,7 @@ export default function SearchScreen() {
       <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Indietro"
+          accessibilityLabel={t('common.back', locale)}
           hitSlop={8}
           onPress={() => router.back()}
         >
@@ -180,6 +182,7 @@ export default function SearchScreen() {
               setDebouncedQ('');
             }}
             placeholder={t('search.placeholder', locale)}
+            clearAccessibilityLabel={t('search.clear', locale)}
           />
         </View>
       </View>

@@ -65,7 +65,7 @@ export function CircleGate({
     return (
       <View
         accessibilityLabel={t('circle.gate.a11y', locale)}
-        accessibilityHint="sbloccato"
+        accessibilityHint={t('common.unlocked', locale)}
         accessibilityRole="none"
       >
         {children}

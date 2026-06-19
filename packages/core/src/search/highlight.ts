@@ -29,6 +29,9 @@ export function highlightMatches(text: string, query: string): HighlightSpan[] {
   const normalizedText = normalize(text);
 
   // Build a boolean mask: matchMask[i] === true means text[i] is inside a match.
+  // ASSUMPTION: mask is indexed by NFD-normalized offsets and assumes precomposed BMP input
+  // (IT/EN) where normalize() preserves character length/position; non-BMP or fully-decomposed
+  // input could cause offset drift between normalizedText and the original text.
   const matchMask = new Uint8Array(text.length); // 0 = not matched, 1 = matched
 
   for (const token of tokens) {

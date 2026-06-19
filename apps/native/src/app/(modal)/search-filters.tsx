@@ -154,7 +154,7 @@ export default function SearchFiltersScreen() {
       {/* ── Aura minima ── */}
       <View className="gap-3">
         <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-          Aura
+          {t('search.filter.section.aura', locale)}
         </Text>
         <View className="flex-row flex-wrap gap-2">
           {AURA_BUCKETS.map((bucket) => (
@@ -171,12 +171,11 @@ export default function SearchFiltersScreen() {
       {/* ── Città ── */}
       <View className="gap-3">
         <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-          {/* no separate i18n key for "Città" label — inline in this non-user-visible label */}
-          Città
+          {t('search.filter.section.city', locale)}
         </Text>
         <TextInput
           className="rounded-hero border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
-          placeholder={t('search.filterSheet.sub', locale)}
+          placeholder={t('search.filter.city.placeholder', locale)}
           placeholderTextColor={semantic.foregroundMuted}
           value={city}
           onChangeText={setCity}
@@ -189,7 +188,7 @@ export default function SearchFiltersScreen() {
       {/* ── Stella ── */}
       <View className="gap-3">
         <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-          Stella
+          {t('search.filter.section.star', locale)}
         </Text>
         <View className="flex-row flex-wrap gap-2">
           {STAR_VALUES.map((s) => (
@@ -207,7 +206,7 @@ export default function SearchFiltersScreen() {
       <View className="gap-3 opacity-40">
         <View className="flex-row items-center gap-2">
           <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-            Disponibilità
+            {t('search.filter.section.availability', locale)}
           </Text>
           <Text className="text-[11px] text-muted-foreground">
             ({t('circle.benefit.soon', locale)})

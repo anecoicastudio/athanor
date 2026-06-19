@@ -46,9 +46,9 @@ describe('search schemas', () => {
     expect(searchFiltersSchema.parse(filters)).toEqual({});
   });
 
-  test('rejects auraMin over max (2000)', () => {
+  test('rejects auraMin over max (1000)', () => {
     const filters = {
-      auraMin: 2000,
+      auraMin: 1001,
     };
     expect(searchFiltersSchema.safeParse(filters).success).toBe(false);
   });

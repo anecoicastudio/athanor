@@ -22,11 +22,13 @@ export function SearchBar({
   onChangeText,
   onClear,
   placeholder,
+  clearAccessibilityLabel = 'Clear search',
 }: {
   value: string;
   onChangeText: (text: string) => void;
   onClear: () => void;
   placeholder: string;
+  clearAccessibilityLabel?: string;
 }) {
   const [focused, setFocused] = useState(false);
 
@@ -66,7 +68,7 @@ export function SearchBar({
           style={{ width: 44, height: 44 }}
           onPress={onClear}
           accessibilityRole="button"
-          accessibilityLabel="Cancella ricerca"
+          accessibilityLabel={clearAccessibilityLabel}
           hitSlop={8}
         >
           <View
