@@ -44,11 +44,13 @@ insert into public.projects (id, author_id, title, category, description, delete
   );
 
 -- live event that matches 'videomaker' — must appear in results (assertion 6).
-insert into public.events (id, organizer_id, title, category, starts_at, ends_at)
+-- online + stream_url to satisfy the events_online_or_physical check
+-- ((is_online AND stream_url IS NOT NULL) OR (NOT is_online AND geo IS NOT NULL)) without needing PostGIS geo.
+insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, ends_at)
   values (
     'd4d4d4d4-d4d4-d4d4-d4d4-d4d4d4d4d4d4',
     'a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1',
-    'videomaker festival live', 'formazione',
+    'videomaker festival live', 'formazione', true, 'https://athanor.test/live',
     now() + interval '7 days', now() + interval '8 days'
   );
 
