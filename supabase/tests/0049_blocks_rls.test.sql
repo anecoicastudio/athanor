@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -19,6 +19,14 @@ select ok(
    where schemaname = 'public' and tablename = 'blocks'
      and indexname = 'blocks_pair'),
   'unique (blocker_id, blocked_id)');
+
+select ok(
+  (select indisunique
+     from pg_index i
+     join pg_class c on c.oid = i.indexrelid
+    where c.relname = 'blocks_pair'
+      and i.indrelid = 'public.blocks'::regclass),
+  'blocks_pair index is UNIQUE');
 
 -- ── anon denied ──
 set local role anon;
