@@ -3,6 +3,8 @@ import { Alert, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  blockKeys,
+  blockUser,
   conversationKeys,
   getConversation,
   getMessagesPage,
@@ -107,7 +109,23 @@ export default function ChatScreen() {
 
   const openMenu = () =>
     Alert.alert(t('chat.a11y.menu', locale), undefined, [
-      { text: t('chat.block', locale), onPress: () => Alert.alert(t('chat.action.soon', locale)) },
+      {
+        text: t('chat.block', locale),
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert(t('block.confirm', locale, { name: peer?.peerHandle ?? '' }), undefined, [
+            { text: t('common.cancel', locale), style: 'cancel' },
+            {
+              text: t('block.cta', locale),
+              style: 'destructive',
+              onPress: () =>
+                blockUser(supabase, peer?.peerId ?? '').then(() => {
+                  void queryClient.invalidateQueries({ queryKey: blockKeys.all });
+                  router.back();
+                }),
+            },
+          ]),
+      },
       { text: t('chat.report', locale), onPress: () => Alert.alert(t('chat.action.soon', locale)) },
       { text: t('common.cancel', locale), style: 'cancel' },
     ]);
