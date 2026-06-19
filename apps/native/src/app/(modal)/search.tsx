@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { searchAll, searchKeys, type SearchCursor } from '@athanor/api';
+import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { SearchFilters, SearchResult, SearchScope } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -234,7 +235,7 @@ export default function SearchScreen() {
         </View>
       ) : isLoading ? (
         <View className="flex-1 items-center pt-20">
-          <ActivityIndicator color="#2BD0D2" />
+          <ActivityIndicator color={semantic.aura} />
         </View>
       ) : isNoResults ? (
         <View className="flex-1 items-center px-8 pt-20">
