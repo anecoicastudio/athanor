@@ -6,6 +6,12 @@
 -- Cursor: keyset on (rank desc, id desc) — never offset (rule #9).
 -- Advanced filters (f_aura_min, f_city, f_star): Circle-members only; silently dropped for non-members.
 -- listings (Fase 3, spec 12): a future union-all arm added when the table ships — no signature change.
+--
+-- Index/predicate parity: each arm's `% needle` match-expression and its similarity() expression are
+-- written IDENTICALLY to the matching GIN index expression below (same coalesce() shape) so the planner
+-- can use the trigram index. An expression mismatch (e.g. bare `title` vs `coalesce(title,'')`) would
+-- leave the index unused → seq scan, even though title is NOT NULL — Postgres matches expression trees,
+-- not semantics.
 
 -- ── §2.0 extensions ──────────────────────────────────────────────────────────────────────────────
 
@@ -88,7 +94,7 @@ begin
 
   return query
   with hits as (
-    -- PEOPLE
+    -- PEOPLE (match + similarity expr === profiles_search_trgm index expr)
     select 'person'::text as entity_type, p.id,
            p.handle as title,
            left(coalesce(p.bio,''), 140) as subtitle,
@@ -108,24 +114,24 @@ begin
       and (f_city is null or p.bio ilike '%' || f_city || '%')   -- people have no geo; weak city match on bio
 
     union all
-    -- PROJECTS
+    -- PROJECTS (match + similarity expr === projects_search_trgm index expr)
     select 'project', pr.id, pr.title,
            pr.category::text,
-           extensions.similarity(public.f_unaccent(pr.title || ' ' || pr.description), needle)
+           extensions.similarity(public.f_unaccent(coalesce(pr.title,'') || ' ' || coalesce(pr.description,'')), needle)
     from public.projects pr
     where scope in ('all','projects')
       and pr.deleted_at is null
-      and public.f_unaccent(pr.title || ' ' || coalesce(pr.description,'')) % needle
+      and public.f_unaccent(coalesce(pr.title,'') || ' ' || coalesce(pr.description,'')) % needle
 
     union all
-    -- EVENTS
+    -- EVENTS (match + similarity expr === events_search_trgm index expr)
     select 'event', ev.id, ev.title,
            coalesce(ev.venue,'') ,
-           extensions.similarity(public.f_unaccent(ev.title || ' ' || coalesce(ev.venue,'')), needle)
+           extensions.similarity(public.f_unaccent(coalesce(ev.title,'') || ' ' || coalesce(ev.venue,'')), needle)
     from public.events ev
     where scope in ('all','events')
       and ev.deleted_at is null
-      and public.f_unaccent(ev.title || ' ' || coalesce(ev.venue,'')) % needle
+      and public.f_unaccent(coalesce(ev.title,'') || ' ' || coalesce(ev.venue,'')) % needle
       and (f_city is null or ev.venue ilike '%' || f_city || '%')
     -- listings (Fase 3): + another union all arm here when 12 ships; scope 'marketplace'.
   )
