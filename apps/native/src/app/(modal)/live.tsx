@@ -23,12 +23,14 @@ import { EventRow, type EventRowData } from '@/components/live/EventRow';
 import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
+import { useEntitlement } from '@/lib/useEntitlement';
 import { supabase } from '@/lib/supabase';
 
 const EVENT_HREF = (id: string) => `/(modal)/event/${id}` as const;
 
-function toRowData(e: Event): EventRowData {
+function toRowData(e: Event, premiumEnabled: boolean): EventRowData {
   const live = !!e.live_started_at && !e.live_ended_at;
+  const isPremium = e.is_kairos_day || e.is_athanor_day;
   return {
     id: e.id,
     title: e.title,
@@ -37,7 +39,9 @@ function toRowData(e: Event): EventRowData {
     venue: e.venue,
     city: e.city,
     is_online: e.is_online,
+    is_kairos_day: e.is_kairos_day,
     is_athanor_day: e.is_athanor_day,
+    premiumLocked: isPremium && !premiumEnabled,
     live,
   };
 }
@@ -55,6 +59,8 @@ export default function LiveScreen() {
   const router = useRouter();
   const locale = profile?.locale ?? 'it';
   const [panel, setPanel] = useState<LivePanel>('vicino');
+  const { data: entitlement } = useEntitlement();
+  const premiumEnabled = entitlement?.features.premiumEvents ?? false;
 
   return (
     <View className="flex-1 bg-background">
@@ -75,13 +81,25 @@ export default function LiveScreen() {
         <VicinoPanel locale={locale} onOpen={(id) => router.push(EVENT_HREF(id))} />
       ) : null}
       {panel === 'calendario' ? (
-        <CalendarPanel locale={locale} onOpen={(id) => router.push(EVENT_HREF(id))} />
+        <CalendarPanel
+          locale={locale}
+          onOpen={(id) => router.push(EVENT_HREF(id))}
+          premiumEnabled={premiumEnabled}
+        />
       ) : null}
       {panel === 'mappa' ? (
-        <MapPanel locale={locale} onOpen={(id) => router.push(EVENT_HREF(id))} />
+        <MapPanel
+          locale={locale}
+          onOpen={(id) => router.push(EVENT_HREF(id))}
+          premiumEnabled={premiumEnabled}
+        />
       ) : null}
       {panel === 'online' ? (
-        <OnlinePanel locale={locale} onOpen={(id) => router.push(EVENT_HREF(id))} />
+        <OnlinePanel
+          locale={locale}
+          onOpen={(id) => router.push(EVENT_HREF(id))}
+          premiumEnabled={premiumEnabled}
+        />
       ) : null}
     </View>
   );
@@ -236,7 +254,15 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
 }
 
 /* ── Calendario ── */
-function CalendarPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => void }) {
+function CalendarPanel({
+  locale,
+  onOpen,
+  premiumEnabled,
+}: {
+  locale: Locale;
+  onOpen: (id: string) => void;
+  premiumEnabled: boolean;
+}) {
   const query = useInfiniteQuery({
     queryKey: eventKeys.calendar(),
     queryFn: ({ pageParam }) => getEventsCalendar(supabase, pageParam as CalendarCursor | null),
@@ -267,7 +293,12 @@ function CalendarPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string
         <View className="gap-3 px-5 pb-4">
           <Text className="text-[12px] uppercase tracking-wider text-faint">{month}</Text>
           {items.map((e) => (
-            <EventRow key={e.id} data={toRowData(e)} locale={locale} onPress={() => onOpen(e.id)} />
+            <EventRow
+              key={e.id}
+              data={toRowData(e, premiumEnabled)}
+              locale={locale}
+              onPress={() => onOpen(e.id)}
+            />
           ))}
         </View>
       )}
@@ -288,7 +319,15 @@ function CalendarPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string
 }
 
 /* ── Mappa (list-only) ── */
-function MapPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => void }) {
+function MapPanel({
+  locale,
+  onOpen,
+  premiumEnabled,
+}: {
+  locale: Locale;
+  onOpen: (id: string) => void;
+  premiumEnabled: boolean;
+}) {
   const [cityFilter, setCityFilter] = useState<string | null>(null);
   // Reuse the calendar set as the plotted source (events with a city). Real map + the
   // events_map_cities() aggregate are a future dev-client slice (list-only here).
@@ -342,7 +381,12 @@ function MapPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => 
       </Text>
       <View className="gap-3 px-5">
         {listed.map((e) => (
-          <EventRow key={e.id} data={toRowData(e)} locale={locale} onPress={() => onOpen(e.id)} />
+          <EventRow
+            key={e.id}
+            data={toRowData(e, premiumEnabled)}
+            locale={locale}
+            onPress={() => onOpen(e.id)}
+          />
         ))}
         {listed.length === 0 && !query.isLoading ? (
           <EmptyState>{t('live.calendar.empty', locale)}</EmptyState>
@@ -381,7 +425,7 @@ function LiveEventRow({
 
   return (
     <EventRow
-      data={{ ...toRowData(event), live: isLive, listeningCount }}
+      data={{ ...toRowData(event, true), live: isLive, listeningCount }}
       locale={locale}
       onPress={() => onOpen(event.id)}
     />
@@ -389,7 +433,15 @@ function LiveEventRow({
 }
 
 /* ── Online ── */
-function OnlinePanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => void }) {
+function OnlinePanel({
+  locale,
+  onOpen,
+  premiumEnabled,
+}: {
+  locale: Locale;
+  onOpen: (id: string) => void;
+  premiumEnabled: boolean;
+}) {
   const query = useQuery({
     queryKey: eventKeys.online(),
     queryFn: () => getEventsOnline(supabase),
@@ -410,7 +462,12 @@ function OnlinePanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
           <LiveEventRow key={e.id} event={e} locale={locale} onOpen={onOpen} />
         ))}
         {upcoming.map((e) => (
-          <EventRow key={e.id} data={toRowData(e)} locale={locale} onPress={() => onOpen(e.id)} />
+          <EventRow
+            key={e.id}
+            data={toRowData(e, premiumEnabled)}
+            locale={locale}
+            onPress={() => onOpen(e.id)}
+          />
         ))}
         {all.length === 0 && !query.isLoading ? (
           <EmptyState>{t('live.calendar.empty', locale)}</EmptyState>

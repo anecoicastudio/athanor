@@ -13,6 +13,7 @@ import { DmetaRow } from '@/components/live/DmetaRow';
 import { AttendeeStack } from '@/components/live/AttendeeStack';
 import { RsvpBar } from '@/components/live/RsvpBar';
 import { TicketBar } from '@/components/live/TicketBar';
+import { CircleGate } from '@/components/circle/CircleGate';
 import { EmptyState } from '@/components/EmptyState';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
@@ -113,9 +114,26 @@ export default function EventDetailScreen() {
   const now = Date.now();
   const isPast = event ? new Date(event.ends_at ?? event.starts_at).getTime() < now : false;
   const isPaid = (event?.price_cents ?? 0) > 0;
+  const isPremium = event ? event.is_kairos_day || event.is_athanor_day : false;
   const isOrganizer = !!uid && event?.organizer_id === uid;
   const count = attendees.data?.count ?? 0;
   const soldOut = event?.capacity != null && count >= event.capacity;
+
+  // Single action-bar node reused by both the premium <CircleGate> branch and the
+  // non-premium branch — avoids duplicated prop sets that could drift on future edits.
+  const actionBar = isPaid ? (
+    <TicketBar event={event!} locale={locale} />
+  ) : (
+    <RsvpBar
+      going={going}
+      soldOut={soldOut}
+      pending={toggle.isPending || myRsvp.isLoading}
+      confirmation={confirmation}
+      onToggle={() => toggle.mutate(!going)}
+      onAddToCalendar={() => void onAddToCalendar()}
+      locale={locale}
+    />
+  );
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
@@ -209,23 +227,20 @@ export default function EventDetailScreen() {
             </Pressable>
           ) : null}
 
-          {/* Type-aware action bar. */}
+          {/* Type-aware action bar. Premium (Kairos/Athanor-Day) events gate the
+              action behind Circle membership for non-members (M8 §3.4). The gate
+              renders the real action bar for members, the upsell banner otherwise.
+              Past events are over → no gate, just the past stub. */}
           {isPast ? (
             <View className="rounded-card border border-hair bg-surface-muted p-4">
               <Text className="text-center text-[13px] text-faint">{t('event.past', locale)}</Text>
             </View>
-          ) : isPaid ? (
-            <TicketBar event={event} locale={locale} />
+          ) : isPremium ? (
+            <CircleGate feature="premiumEvents" variant="banner" locale={locale}>
+              {actionBar}
+            </CircleGate>
           ) : (
-            <RsvpBar
-              going={going}
-              soldOut={soldOut}
-              pending={toggle.isPending || myRsvp.isLoading}
-              confirmation={confirmation}
-              onToggle={() => toggle.mutate(!going)}
-              onAddToCalendar={() => void onAddToCalendar()}
-              locale={locale}
-            />
+            actionBar
           )}
         </View>
       )}

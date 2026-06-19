@@ -11,8 +11,11 @@ export type EventRowData = {
   venue: string | null;
   city: string | null;
   is_online?: boolean;
+  is_kairos_day?: boolean;
   is_athanor_day?: boolean;
   live?: boolean;
+  /** Premium (Kairos/Athanor-Day) event AND the viewer is not a Circle member → show the lock marker. */
+  premiumLocked?: boolean;
   /** Pre-formatted "x km" sub-fragment (Vicino/Mappa); omit elsewhere. */
   distanceKm?: string | null;
   /** Realtime live-listener count; when present on a live row → «In diretta ora · {n} in ascolto». */
@@ -66,6 +69,19 @@ export function EventRow({
         <Text className="text-[13px] text-faint" numberOfLines={1}>
           {sub}
         </Text>
+        {data.premiumLocked ? (
+          <View
+            className="mt-1 flex-row items-center gap-1 self-start rounded-full border border-hair bg-raise-2 px-2 py-0.5"
+            accessibilityLabel={`${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`}
+          >
+            <Text className="text-[11px] text-muted-foreground" accessibilityLabel="">
+              🔒
+            </Text>
+            <Text className="text-[11px] text-muted-foreground">
+              {t('circle.gate.premiumEvents', locale)}
+            </Text>
+          </View>
+        ) : null}
       </View>
       <View
         className={`rounded-ctl border px-3 py-1 ${
