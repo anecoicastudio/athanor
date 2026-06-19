@@ -41,6 +41,8 @@ export default function ModalLayout() {
       <Stack.Screen name="candidacy-success" options={{ animation: 'fade' }} />
       <Stack.Screen name="contribution-thanks" options={{ animation: 'fade' }} />
       <Stack.Screen name="circle" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="search" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="search-filters" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
