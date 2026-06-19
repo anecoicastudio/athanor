@@ -25,4 +25,5 @@ export * from './fund';
 export * from './circle';
 export * from './candidacy';
 export * from './votes';
+export * from './search';
 export type { Database, Json } from './database.types';
