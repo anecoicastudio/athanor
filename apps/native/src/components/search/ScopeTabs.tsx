@@ -1,6 +1,5 @@
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
-import type { SearchScope } from '@athanor/schemas';
+import type { Locale, SearchScope } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 
 /**
