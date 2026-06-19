@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { Alert } from 'react-native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  blockKeys,
+  blockUser,
   getActiveDream,
   getAuraScore,
+  getBlockStatus,
   getMomentsPage,
   getOrCreateConversation,
   getProfileById,
@@ -11,6 +15,7 @@ import {
   listMilestones,
   listMyHelps,
   momentKeys,
+  unblockUser,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import {
@@ -69,6 +74,54 @@ export default function PersonDetailScreen() {
 
   // Self guard — never double-render the own profile; bounce to the owner tab.
   const isSelf = id != null && id === session?.user?.id;
+
+  const qc = useQueryClient();
+
+  const isBlocked =
+    useQuery({
+      queryKey: blockKeys.status(id ?? ''),
+      queryFn: () => getBlockStatus(supabase, id as string),
+      enabled: Boolean(id) && !isSelf,
+    }).data ?? false;
+
+  const blockMutation = useMutation({
+    mutationFn: () => blockUser(supabase, id as string),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: blockKeys.all });
+      showToast(t('block.toast.blocked', locale));
+      router.back();
+    },
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: () => unblockUser(supabase, id as string),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: blockKeys.all });
+      showToast(t('block.toast.unblocked', locale));
+    },
+  });
+
+  const openMenu = () => {
+    const handle = person != null && person !== 'missing' ? (person.handle ?? '') : '';
+    Alert.alert(handle, undefined, [
+      isBlocked
+        ? { text: t('block.unblock', locale), onPress: () => unblockMutation.mutate() }
+        : {
+            text: t('block.cta', locale),
+            style: 'destructive',
+            onPress: () =>
+              Alert.alert(t('block.confirm', locale, { name: handle }), undefined, [
+                { text: t('common.cancel', locale), style: 'cancel' },
+                {
+                  text: t('block.cta', locale),
+                  style: 'destructive',
+                  onPress: () => blockMutation.mutate(),
+                },
+              ]),
+          },
+      { text: t('common.cancel', locale), style: 'cancel' },
+    ]);
+  };
 
   // Read-only: the viewed person's live momenti (members-read RLS). No add/delete here.
   const momentsQuery = useQuery({
@@ -162,6 +215,7 @@ export default function PersonDetailScreen() {
         <Header
           onBack={() => router.back()}
           onShare={() => showToast(t('profile.share.toast', locale))}
+          onMenu={openMenu}
           locale={locale}
         />
         <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
@@ -192,6 +246,7 @@ export default function PersonDetailScreen() {
       <Header
         onBack={() => router.back()}
         onShare={() => showToast(t('profile.share.toast', locale))}
+        onMenu={openMenu}
         locale={locale}
       />
 
@@ -286,14 +341,16 @@ export default function PersonDetailScreen() {
   );
 }
 
-/** Modal header: back chevron + share ✦ (toast stub). */
+/** Modal header: back chevron + share ✦ + kebab ⋯ overflow. */
 function Header({
   onBack,
   onShare,
+  onMenu,
   locale,
 }: {
   onBack: () => void;
   onShare: () => void;
+  onMenu: () => void;
   locale: Locale;
 }) {
   return (
@@ -306,14 +363,24 @@ function Header({
       >
         <Text className="text-2xl text-foreground">‹</Text>
       </Pressable>
-      <Pressable
-        onPress={onShare}
-        accessibilityRole="button"
-        accessibilityLabel={t('profile.share.toast', locale)}
-        hitSlop={8}
-      >
-        <Text className="text-xl text-aura">✦</Text>
-      </Pressable>
+      <View className="flex-row items-center gap-4">
+        <Pressable
+          onPress={onShare}
+          accessibilityRole="button"
+          accessibilityLabel={t('profile.share.toast', locale)}
+          hitSlop={8}
+        >
+          <Text className="text-xl text-aura">✦</Text>
+        </Pressable>
+        <Pressable
+          onPress={onMenu}
+          accessibilityRole="button"
+          accessibilityLabel={t('block.cta', locale)}
+          hitSlop={8}
+        >
+          <Text className="text-xl text-foreground">⋯</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

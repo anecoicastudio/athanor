@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { getAuraScore, updateProfile } from '@athanor/api';
+import { useQuery } from '@tanstack/react-query';
+import { blockKeys, getAuraScore, getBlockedCount, updateProfile } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -33,6 +34,12 @@ export default function SettingsScreen() {
   const locale: Locale = profile?.locale ?? 'it';
   const email = session?.user.email ?? '';
   const version = Constants.expoConfig?.version ?? '1.0.0';
+
+  // Owner-private count for the blocked-profiles subtitle (rule #3: never public).
+  const { data: blockedCount = 0 } = useQuery({
+    queryKey: blockKeys.count(),
+    queryFn: () => getBlockedCount(supabase),
+  });
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
   useEffect(() => {
@@ -184,9 +191,14 @@ export default function SettingsScreen() {
           onPress={() => showToast(t('settings.soon', locale))}
         />
         <SettingsRow
-          title={t('settings.blocked.title', locale)}
-          description={t('settings.blocked.empty', locale)}
-          onPress={() => showToast(t('settings.soon', locale))}
+          title={t('block.list.title', locale)}
+          description={
+            blockedCount === 0
+              ? t('block.settingsRow.none', locale)
+              : t('block.settingsRow.count', locale, { n: String(blockedCount) })
+          }
+          onPress={() => router.push('/(modal)/blocked')}
+          showChevron
         />
         <SettingsRow
           title={t('settings.export.title', locale)}
