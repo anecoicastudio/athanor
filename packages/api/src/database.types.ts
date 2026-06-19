@@ -2053,6 +2053,16 @@ export type Database = {
           venue: string
         }[]
       }
+      f_profile_search: {
+        Args: {
+          p_bio: string
+          p_handle: string
+          p_seeking: string[]
+          p_tags: string[]
+        }
+        Returns: string
+      }
+      f_unaccent: { Args: { "": string }; Returns: string }
       fund_edition_open: { Args: never; Returns: boolean }
       get_or_create_conversation: { Args: { peer_id: string }; Returns: string }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
@@ -2082,6 +2092,25 @@ export type Database = {
         Returns: undefined
       }
       run_momenti_matcher: { Args: never; Returns: number }
+      search_all: {
+        Args: {
+          cursor_id?: string
+          cursor_rank?: number
+          f_aura_min?: number
+          f_city?: string
+          f_star?: string
+          page_size?: number
+          q: string
+          scope?: string
+        }
+        Returns: {
+          entity_type: string
+          id: string
+          rank: number
+          subtitle: string
+          title: string
+        }[]
+      }
       search_connections: {
         Args: {
           p_cursor_created_at?: string
