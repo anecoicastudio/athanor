@@ -32,3 +32,4 @@ export {
   type NextStar,
   type WeekRecap,
 } from './score/display';
+export { highlightMatches, type HighlightSpan } from './search/highlight';
