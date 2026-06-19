@@ -72,10 +72,15 @@ export default function HomeScreen() {
   // `messages` opens the conversations list (M5); search/notifiche land later →
   // honest «Presto qui» hint.
   const onAction = (key: 'search' | 'messages' | 'notifications') => {
+    if (key === 'search') {
+      router.push('/search');
+      return;
+    }
     if (key === 'messages') {
       router.push('/messages');
       return;
     }
+    // notifications — honest stub until M9
     setActionSoon(true);
     setTimeout(() => setActionSoon(false), 2000);
   };
