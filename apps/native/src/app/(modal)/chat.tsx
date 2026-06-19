@@ -118,11 +118,13 @@ export default function ChatScreen() {
             {
               text: t('block.cta', locale),
               style: 'destructive',
-              onPress: () =>
-                blockUser(supabase, peer?.peerId ?? '').then(() => {
+              onPress: () => {
+                if (!peer?.peerId) return;
+                return blockUser(supabase, peer.peerId).then(() => {
                   void queryClient.invalidateQueries({ queryKey: blockKeys.all });
                   router.back();
-                }),
+                });
+              },
             },
           ]),
       },
