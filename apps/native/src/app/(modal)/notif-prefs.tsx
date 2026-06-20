@@ -11,7 +11,7 @@ import {
   getPushEnabled,
   setPushEnabled,
 } from '@athanor/api';
-import type { NotifPrefInput } from '@athanor/schemas';
+import type { NotifPrefInput, NotificationPreference } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -46,8 +46,9 @@ export default function NotifPrefsScreen() {
   });
 
   // ── Master push toggle (profiles.push_enabled) ─────────────────────────────
+  const pushKey = [...notifKeys.prefs(), 'push'] as const;
   const pushQuery = useQuery({
-    queryKey: [...notifKeys.prefs(), 'push'] as const,
+    queryKey: pushKey,
     queryFn: () => getPushEnabled(supabase),
   });
 
@@ -59,14 +60,54 @@ export default function NotifPrefsScreen() {
   );
 
   // ── Mutations ─────────────────────────────────────────────────────────────
+  // Optimistic: flip the cached row immediately so the Switch responds instantly; roll back on error.
   const setPref = useMutation({
     mutationFn: (input: NotifPrefInput) => setNotifPref(supabase, input),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: notifKeys.prefs() }),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: notifKeys.prefs() });
+      const prev = qc.getQueryData<NotificationPreference[]>(notifKeys.prefs());
+      qc.setQueryData<NotificationPreference[]>(notifKeys.prefs(), (old) => {
+        const list = old ?? [];
+        const i = list.findIndex((p) => p.type === input.type && p.channel === input.channel);
+        if (i >= 0) {
+          const copy = [...list];
+          copy[i] = { ...copy[i]!, enabled: input.enabled };
+          return copy;
+        }
+        const now = new Date().toISOString();
+        return [
+          ...list,
+          {
+            id: `optimistic-${input.type}-${input.channel}`,
+            profile_id: profile?.id ?? '',
+            type: input.type,
+            channel: input.channel,
+            enabled: input.enabled,
+            created_at: now,
+            updated_at: now,
+          },
+        ];
+      });
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(notifKeys.prefs(), ctx.prev);
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: notifKeys.prefs() }),
   });
 
   const setMaster = useMutation({
     mutationFn: (v: boolean) => setPushEnabled(supabase, v),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: [...notifKeys.prefs(), 'push'] }),
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: pushKey });
+      const prev = qc.getQueryData<boolean>(pushKey);
+      qc.setQueryData<boolean>(pushKey, v);
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev !== undefined) qc.setQueryData(pushKey, ctx.prev);
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: pushKey }),
   });
 
   return (
@@ -103,12 +144,9 @@ export default function NotifPrefsScreen() {
             <Text className="flex-1 text-base text-foreground">{t(key as MessageKey, locale)}</Text>
             <Switch
               value={enabledFor(type)}
-              onValueChange={(v) =>
-                setPref.mutate({ type, channel: 'push', enabled: v })
-              }
+              onValueChange={(v) => setPref.mutate({ type, channel: 'push', enabled: v })}
               trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
               thumbColor={semantic.foreground}
-              disabled={setPref.isPending}
             />
           </View>
         ))}
@@ -125,7 +163,6 @@ export default function NotifPrefsScreen() {
             onValueChange={(v) => setMaster.mutate(v)}
             trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
             thumbColor={semantic.foreground}
-            disabled={setMaster.isPending}
           />
         </View>
       </View>

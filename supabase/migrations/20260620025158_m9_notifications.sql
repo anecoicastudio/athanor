@@ -42,6 +42,9 @@ create policy "notifications_update_own_read"
 
 -- Narrow the client UPDATE to read_at only (column grant). A broad grant would let a client
 -- rewrite template_key/params/type. RLS scopes rows; the column grant scopes columns.
+-- NOTE: on hosted, new public tables auto-grant INSERT/DELETE to anon+authenticated via default
+-- privileges; the companion migration 20260620025819_m9_notifications_revoke strips those so this
+-- table is service-role-write only (clients keep SELECT + the column-narrowed UPDATE(read_at)).
 revoke update on table public.notifications from authenticated;
 grant update (read_at) on table public.notifications to authenticated;
 
@@ -88,8 +91,10 @@ create policy "notification_preferences_update_own"
   with check ((select auth.uid()) = profile_id);
 
 -- 3. master push toggle ------------------------------------------------------
--- profiles already grants full UPDATE to authenticated (init_profiles) + has an update-own RLS
--- policy, so the owner can flip push_enabled with no extra grant. Default-on (master rule, 09 §2.5).
+-- profiles uses a COLUMN-SCOPED UPDATE grant for authenticated (m7_candidacy revoked table-level
+-- UPDATE and re-granted a fixed column list excluding server-only cols like identity_verified).
+-- This new column is NOT in that list, so the companion migration 20260620025819_m9_notifications_revoke
+-- grants update(push_enabled) to authenticated — without it setPushEnabled would 42501. Default-on (09 §2.5).
 alter table public.profiles add column push_enabled boolean not null default true;
 comment on column public.profiles.push_enabled is
   'Master push toggle (M9 «Notifiche push»). push-dispatch checks this FIRST; false suppresses all push (in-app rows unaffected).';
