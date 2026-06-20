@@ -20,6 +20,7 @@ export * from './momento';
 export * from './conversation';
 export * from './message';
 export * from './connection';
+export * from './consent';
 export * from './pushToken';
 export * from './fund';
 export * from './candidacy';
