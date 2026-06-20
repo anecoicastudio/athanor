@@ -27,8 +27,6 @@ export default function HomeScreen() {
   const { profile, session } = useAuth();
   const router = useRouter();
   const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
-  const [actionSoon, setActionSoon] = useState(false);
-
   const userId = session?.user.id ?? '';
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
@@ -69,8 +67,8 @@ export default function HomeScreen() {
   const locale = profile.locale;
   const greeting = t(`home.greeting.${greetingFor(new Date().getHours())}` as MessageKey, locale);
 
-  // `messages` opens the conversations list (M5); search/notifiche land later →
-  // honest «Presto qui» hint.
+  // `messages` opens the conversations list (M5); search (M8) → search modal;
+  // notifications (M9) → notification center.
   const onAction = (key: 'search' | 'messages' | 'notifications') => {
     if (key === 'search') {
       router.push('/search');
@@ -80,16 +78,13 @@ export default function HomeScreen() {
       router.push('/messages');
       return;
     }
-    // notifications — honest stub until M9
-    setActionSoon(true);
-    setTimeout(() => setActionSoon(false), 2000);
+    // notifications (M9)
+    router.push('/(modal)/notifications');
   };
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 py-12">
       <HomeHeader greeting={greeting} handle={profile.handle} locale={locale} onAction={onAction} />
-      {actionSoon ? <Text className="text-[13px] text-faint">{t('home.soon', locale)}</Text> : null}
-
       {/* Blocks 2–6: honest placeholders until their milestone fills them in. */}
       {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
           active edition exists, so we show exactly one element in this slot. */}
