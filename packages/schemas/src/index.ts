@@ -29,3 +29,5 @@ export * from './entitlements';
 export * from './search';
 export * from './block';
 export * from './report';
+export * from './notification';
+export * from './notificationPreference';
