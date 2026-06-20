@@ -1378,6 +1378,99 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          channel: string
+          created_at: string
+          enabled: boolean
+          id: string
+          profile_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          profile_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          profile_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "notification_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          entity_ref: Json | null
+          id: string
+          params: Json
+          read_at: string | null
+          recipient_id: string
+          template_key: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          entity_ref?: Json | null
+          id?: string
+          params?: Json
+          read_at?: string | null
+          recipient_id: string
+          template_key: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          entity_ref?: Json | null
+          id?: string
+          params?: Json
+          read_at?: string | null
+          recipient_id?: string
+          template_key?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_comments: {
         Row: {
           author_id: string
@@ -1593,6 +1686,7 @@ export type Database = {
           identity_tags: string[]
           identity_verified: boolean
           locale: string
+          push_enabled: boolean
           seeking: string[]
           updated_at: string
           visibility: Json
@@ -1605,6 +1699,7 @@ export type Database = {
           identity_tags?: string[]
           identity_verified?: boolean
           locale?: string
+          push_enabled?: boolean
           seeking?: string[]
           updated_at?: string
           visibility?: Json
@@ -1617,6 +1712,7 @@ export type Database = {
           identity_tags?: string[]
           identity_verified?: boolean
           locale?: string
+          push_enabled?: boolean
           seeking?: string[]
           updated_at?: string
           visibility?: Json
