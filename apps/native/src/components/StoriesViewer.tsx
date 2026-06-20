@@ -4,6 +4,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const PHOTO_MS = 5000;
@@ -53,6 +54,7 @@ export function StoriesViewer({
 }) {
   const [si, setSi] = useState(0);
   const [paused, setPaused] = useState(false);
+  const reduce = useReducedMotion();
   const progress = useRef(new Animated.Value(0)).current;
   const current = segments[si];
   const currentUrl = current ? urls[current.storage_path] : undefined;
@@ -73,6 +75,10 @@ export function StoriesViewer({
     if (!current) return;
     progress.setValue(0);
     if (paused) return;
+    if (reduce) {
+      progress.setValue(1); // no auto-advance under reduced motion — manual tap only
+      return;
+    }
     const anim = Animated.timing(progress, {
       toValue: 1,
       duration: segmentMs(current),
@@ -83,7 +89,7 @@ export function StoriesViewer({
     });
     return () => anim.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [si, paused, current?.id]);
+  }, [si, paused, current?.id, reduce]);
 
   const pan = useMemo(
     () =>
