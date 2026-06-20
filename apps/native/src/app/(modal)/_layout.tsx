@@ -50,6 +50,9 @@ export default function ModalLayout() {
       <Stack.Screen name="notif-prefs" options={{ presentation: 'modal' }} />
       {/* M9 trust & safety */}
       <Stack.Screen name="trust" options={{ presentation: 'modal' }} />
+      {/* M9 GDPR export + erasure */}
+      <Stack.Screen name="data-export" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="delete-account" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
