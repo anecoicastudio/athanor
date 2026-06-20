@@ -37,13 +37,13 @@ export default function DeleteAccountScreen() {
     [],
   );
 
-  const word = t('gdpr.erasure.confirmWord', locale);
+  const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
 
   const erase = useMutation({
     mutationFn: () => requestErasure(supabase),
     onSuccess: () => {
-      flashToast(t('gdpr.erasure.toast', locale));
+      flashToast(t('account.delete.toast', locale));
       // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
       signOutTimer.current = setTimeout(() => {
         supabase.auth.signOut().catch(() => undefined);
@@ -67,22 +67,22 @@ export default function DeleteAccountScreen() {
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
         <Text className="text-[17px] font-semibold text-foreground">
-          {t('gdpr.erasure.title', locale)}
+          {t('account.delete.title', locale)}
         </Text>
       </View>
 
       <Text className="text-[15px] leading-relaxed text-muted-foreground">
-        {t('gdpr.erasure.body', locale)}
+        {t('account.delete.body', locale)}
       </Text>
 
       {/* honesty line — export before delete (routes to the export sheet) */}
       <Pressable onPress={() => router.replace('/(modal)/data-export')} accessibilityRole="button">
-        <Text className="text-[14px] text-aura">{t('gdpr.erasure.exportFirst', locale)}</Text>
+        <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
       </Pressable>
 
       <View className="gap-2">
         <Text className="text-[13px] text-muted-foreground">
-          {t('gdpr.erasure.confirmField', locale)}
+          {t('account.delete.confirmField', locale)}
         </Text>
         <TextInput
           value={confirm}
@@ -92,13 +92,13 @@ export default function DeleteAccountScreen() {
           placeholder={word}
           placeholderTextColor={semantic.faint}
           className="rounded-ctl border border-hair bg-raise px-4 py-3 text-base text-foreground"
-          accessibilityLabel={t('gdpr.erasure.confirmField', locale)}
+          accessibilityLabel={t('account.delete.confirmField', locale)}
         />
       </View>
 
       <Button
         variant="danger"
-        label={t('gdpr.erasure.cta', locale)}
+        label={t('account.delete.cta', locale)}
         disabled={!matched || erase.isPending}
         onPress={() => erase.mutate()}
       />

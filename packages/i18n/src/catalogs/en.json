@@ -1029,12 +1029,12 @@
   "gdpr.export.ready": "Your data is ready.",
   "gdpr.export.download": "Download",
   "gdpr.export.toast": "Request received — check your email",
-  "gdpr.erasure.row": "Delete account",
-  "gdpr.erasure.title": "Delete your account",
-  "gdpr.erasure.body": "We'll erase your profile, your dream and your data. Some information required by law or for transactions may be kept for the required time.",
-  "gdpr.erasure.confirmField": "Type DELETE to confirm",
-  "gdpr.erasure.confirmWord": "DELETE",
-  "gdpr.erasure.exportFirst": "Want to save your data first? Download everything.",
-  "gdpr.erasure.cta": "Delete permanently",
-  "gdpr.erasure.toast": "Your account will be deleted"
+  "account.delete.row": "Delete account",
+  "account.delete.title": "Delete your account",
+  "account.delete.body": "We'll erase your profile, your dream and your data. Some information required by law or for transactions may be kept for the required time.",
+  "account.delete.confirmField": "Type DELETE to confirm",
+  "account.delete.confirmWord": "DELETE",
+  "account.delete.exportFirst": "Want to save your data first? Download everything.",
+  "account.delete.cta": "Delete permanently",
+  "account.delete.toast": "Your account will be deleted"
 }
