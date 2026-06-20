@@ -20,7 +20,7 @@ export async function getVerificationStatus(
   const me = userData.user.id;
 
   const [{ data: profile, error: pErr }, { data: latest, error: vErr }] = await Promise.all([
-    client.from('profiles').select('identity_verified').eq('id', me).single(),
+    client.from('profiles').select('identity_verified').eq('id', me).maybeSingle(),
     client
       .from('verifications')
       .select('status')
