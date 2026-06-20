@@ -69,6 +69,8 @@ export default function TrustScreen() {
         return [
           ...list,
           {
+            // Transient client-only cache row (non-UUID id) — never round-trips through
+            // consentSchema; replaced by the real row on onSettled invalidation.
             id: `optimistic-${v.kind}`,
             profile_id: profile?.id ?? '',
             kind: v.kind,
