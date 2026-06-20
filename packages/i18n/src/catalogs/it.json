@@ -994,5 +994,22 @@
   "gdpr.neverSold.desc": "Nessuna cessione a terzi. Sempre.",
   "gdpr.consent.section": "I tuoi consensi",
   "gdpr.consent.comms": "Comunicazioni e novità",
-  "gdpr.consent.commsDesc": "Email occasionali su Athanor. Puoi disattivarle quando vuoi."
+  "gdpr.consent.commsDesc": "Email occasionali su Athanor. Puoi disattivarle quando vuoi.",
+  "gdpr.export.title": "Scarica i tuoi dati",
+  "gdpr.export.row": "Esporta tutto, in qualsiasi momento",
+  "gdpr.export.sub": "Esporta tutto ciò che è tuo — profilo, sogno, momenti, messaggi. Te lo inviamo via email entro 30 giorni.",
+  "gdpr.export.cta": "Richiedi l'esportazione",
+  "gdpr.export.requesting": "Richiesta in corso",
+  "gdpr.export.processing": "Stiamo preparando i tuoi dati. Ti avvisiamo via email — entro 30 giorni.",
+  "gdpr.export.ready": "I tuoi dati sono pronti.",
+  "gdpr.export.download": "Scarica",
+  "gdpr.export.toast": "Richiesta ricevuta — controlla la mail",
+  "gdpr.erasure.row": "Elimina account",
+  "gdpr.erasure.title": "Elimina il tuo account",
+  "gdpr.erasure.body": "Cancelleremo il tuo profilo, il tuo sogno e i tuoi dati. Alcune informazioni necessarie per legge o per transazioni possono essere conservate per il tempo richiesto.",
+  "gdpr.erasure.confirmField": "Scrivi ELIMINA per confermare",
+  "gdpr.erasure.confirmWord": "ELIMINA",
+  "gdpr.erasure.exportFirst": "Vuoi prima salvare i tuoi dati? Scarica tutto.",
+  "gdpr.erasure.cta": "Elimina definitivamente",
+  "gdpr.erasure.toast": "Il tuo account verrà eliminato"
 }

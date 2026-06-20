@@ -994,5 +994,22 @@
   "gdpr.neverSold.desc": "Never shared with third parties. Always.",
   "gdpr.consent.section": "Your consents",
   "gdpr.consent.comms": "Communications and updates",
-  "gdpr.consent.commsDesc": "Occasional emails about Athanor. Turn them off whenever you like."
+  "gdpr.consent.commsDesc": "Occasional emails about Athanor. Turn them off whenever you like.",
+  "gdpr.export.title": "Download your data",
+  "gdpr.export.row": "Export everything, anytime",
+  "gdpr.export.sub": "Export everything that's yours — profile, dream, moments, messages. We email it to you within 30 days.",
+  "gdpr.export.cta": "Request the export",
+  "gdpr.export.requesting": "Request in progress",
+  "gdpr.export.processing": "We're preparing your data. We'll email you — within 30 days.",
+  "gdpr.export.ready": "Your data is ready.",
+  "gdpr.export.download": "Download",
+  "gdpr.export.toast": "Request received — check your email",
+  "gdpr.erasure.row": "Delete account",
+  "gdpr.erasure.title": "Delete your account",
+  "gdpr.erasure.body": "We'll erase your profile, your dream and your data. Some information required by law or for transactions may be kept for the required time.",
+  "gdpr.erasure.confirmField": "Type DELETE to confirm",
+  "gdpr.erasure.confirmWord": "DELETE",
+  "gdpr.erasure.exportFirst": "Want to save your data first? Download everything.",
+  "gdpr.erasure.cta": "Delete permanently",
+  "gdpr.erasure.toast": "Your account will be deleted"
 }
