@@ -27,4 +27,5 @@ export * from './candidacy';
 export * from './votes';
 export * from './search';
 export * from './blocks';
+export * from './reports';
 export type { Database, Json } from './database.types';

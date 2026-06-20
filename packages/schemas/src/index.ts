@@ -28,3 +28,4 @@ export * from './circle';
 export * from './entitlements';
 export * from './search';
 export * from './block';
+export * from './report';

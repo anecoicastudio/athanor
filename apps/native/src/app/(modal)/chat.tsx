@@ -128,7 +128,20 @@ export default function ChatScreen() {
             },
           ]),
       },
-      { text: t('chat.report', locale), onPress: () => Alert.alert(t('chat.action.soon', locale)) },
+      {
+        text: t('chat.report', locale),
+        onPress: () => {
+          if (!peer?.peerId) return;
+          router.push({
+            pathname: '/(modal)/report',
+            params: {
+              targetType: 'person',
+              targetId: peer.peerId,
+              peerName: peer.peerHandle ?? '',
+            },
+          });
+        },
+      },
       { text: t('common.cancel', locale), style: 'cancel' },
     ]);
 
