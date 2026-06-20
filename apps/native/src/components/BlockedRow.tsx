@@ -1,4 +1,5 @@
 import { Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 import type { BlockedListItem } from '@athanor/schemas';
 
@@ -23,7 +24,12 @@ export function BlockedRow({
     <View className="flex-row items-center gap-3 py-3" style={{ opacity: mutating ? 0.5 : 1 }}>
       <Avatar handle={item.peerHandle} size={40} />
       <Text className="flex-1 text-foreground">{item.peerHandle ?? '—'}</Text>
-      <Pressable onPress={onUnblock} disabled={mutating} accessibilityRole="button" hitSlop={8}>
+      <Pressable
+        onPress={onUnblock}
+        disabled={mutating}
+        accessibilityRole="button"
+        hitSlop={HIT_SLOP}
+      >
         <Text className="text-[13px] text-muted-foreground">{unblockLabel}</Text>
       </Pressable>
     </View>

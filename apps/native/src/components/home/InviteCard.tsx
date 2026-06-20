@@ -31,7 +31,7 @@ export function InviteCard({ locale }: { locale: Locale }) {
       accessibilityRole="button"
       accessibilityLabel={t('home.invite', locale)}
       onPress={invite}
-      className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
+      className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4 min-h-[56px]"
     >
       <Text className="text-lg text-aura">✦</Text>
       <Text className="flex-1 text-sm font-medium text-foreground">

@@ -18,13 +18,14 @@ export function Chip({
   small?: boolean;
 }) {
   const pad = small ? 'px-3 py-1.5' : 'px-5 py-3';
+  const minH = small ? 'min-h-[44px] justify-center' : '';
   const text = small ? 'text-xs' : '';
   return (
     <Pressable
       className={
         selected
-          ? `rounded-full border border-aura-line bg-aura-soft ${pad}`
-          : `rounded-full border border-hair bg-raise-2 ${pad}`
+          ? `rounded-full border border-aura-line bg-aura-soft ${pad} ${minH}`
+          : `rounded-full border border-hair bg-raise-2 ${pad} ${minH}`
       }
       onPress={onPress}
       accessibilityRole="button"

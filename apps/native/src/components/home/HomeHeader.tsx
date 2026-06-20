@@ -4,6 +4,7 @@ import type { Locale } from '@athanor/schemas';
 import { unreadPresence, subscribeNotifications } from '@athanor/api';
 import { Pressable, Text, View } from '@/tw';
 import { supabase } from '@/lib/supabase';
+import { HIT_SLOP } from '@/lib/a11y';
 import { BellIcon, MessageIcon, SearchIcon } from './icons';
 
 /**
@@ -34,17 +35,21 @@ export function HomeHeader({
     let cancelled = false;
 
     // Initial fetch
-    unreadPresence(supabase).then((v) => {
-      if (!cancelled) setHasUnread(v);
-    }).catch(() => {
-      // silent — absence of dot is the safe fallback
-    });
+    unreadPresence(supabase)
+      .then((v) => {
+        if (!cancelled) setHasUnread(v);
+      })
+      .catch(() => {
+        // silent — absence of dot is the safe fallback
+      });
 
     // Live update via realtime
     const unsub = subscribeNotifications(supabase, () => {
-      unreadPresence(supabase).then((v) => {
-        if (!cancelled) setHasUnread(v);
-      }).catch(() => {});
+      unreadPresence(supabase)
+        .then((v) => {
+          if (!cancelled) setHasUnread(v);
+        })
+        .catch(() => {});
     });
 
     return () => {
@@ -78,7 +83,7 @@ export function HomeHeader({
             key={key}
             accessibilityRole="button"
             accessibilityLabel={label}
-            hitSlop={8}
+            hitSlop={HIT_SLOP}
             onPress={() => onAction(key)}
           >
             {/* Presence dot sits top-right of the icon; never a number (rule #3) */}

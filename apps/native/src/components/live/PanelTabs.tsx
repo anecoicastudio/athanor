@@ -28,7 +28,7 @@ export function PanelTabs({
             onPress={() => onChange(p)}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            className={`rounded-full px-4 py-2 ${on ? 'bg-foreground' : 'border border-hair bg-raise'}`}
+            className={`rounded-full px-4 py-2 min-h-[44px] justify-center ${on ? 'bg-foreground' : 'border border-hair bg-raise'}`}
           >
             <Text className={`text-[13px] ${on ? 'font-semibold text-background' : 'text-faint'}`}>
               {t(`live.tab.${p}` as 'live.tab.vicino', locale)}
