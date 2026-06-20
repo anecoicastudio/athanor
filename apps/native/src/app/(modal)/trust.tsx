@@ -150,13 +150,16 @@ export default function TrustScreen() {
             if (verifyState !== 'verified') router.push('/(modal)/verify');
           }}
           accessibilityRole="button"
-          accessibilityLabel={t(
-            `trust.identity.status.${verifyState === 'idle' ? 'idle' : verifyState}` as const,
-            locale,
-          )}
+          accessibilityLabel={t(`trust.identity.status.${verifyState}` as const, locale)}
           className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
         >
-          <Text className="text-2xl text-aura">{verifyState === 'verified' ? '✦' : '◇'}</Text>
+          <Text
+            className={
+              verifyState === 'verified' ? 'text-2xl text-aura' : 'text-2xl text-muted-foreground'
+            }
+          >
+            {verifyState === 'verified' ? '✦' : '◇'}
+          </Text>
           <View className="flex-1 gap-0.5">
             <Text className="text-base text-foreground">{t('trust.identity.title', locale)}</Text>
             <Text className="text-[13px] leading-snug text-muted-foreground">
