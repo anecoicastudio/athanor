@@ -7,7 +7,13 @@ import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 
 const SIGNED_TTL_SECONDS = 72 * 60 * 60; // 72h (≤30d GDPR cap; target far sooner — 10 §5)
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  // Caller gate: service-role only. verify_jwt=true merely proves a valid project JWT
+  // (every member has one) — assert the bearer IS the service-role key.
+  const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!serviceKey || bearer !== serviceKey) return new Response('unauthorized', { status: 401 });
+
   const db = supabaseAdmin();
 
   const { data: jobs, error } = await db

@@ -8,7 +8,13 @@
 // DEPLOY-DEFERRED + LEGAL-GATED: not deployed this slice; does NOT go live until the retention gate clears.
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  // Caller gate: service-role only. verify_jwt=true merely proves a valid project JWT
+  // (every member has one) — assert the bearer IS the service-role key.
+  const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!serviceKey || bearer !== serviceKey) return new Response('unauthorized', { status: 401 });
+
   const db = supabaseAdmin();
 
   const { data: reqs, error } = await db
@@ -18,11 +24,11 @@ Deno.serve(async () => {
     .limit(20);
   if (error) return new Response(error.message, { status: 500 });
 
-  for (const req of reqs ?? []) {
-    await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', req.id);
+  for (const erasureReq of reqs ?? []) {
+    await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', erasureReq.id);
 
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
-    await db.auth.admin.signOut(req.profile_id, 'global').catch(() => undefined);
+    await db.auth.admin.signOut(erasureReq.profile_id, 'global').catch(() => undefined);
 
     // (3) TODO(legal-gate): pseudonymize Stripe-linked rows BEFORE deleting the user, so the
     //     on-delete-cascade does not remove legally-retained financial history. Detach profile_id to a
@@ -34,7 +40,7 @@ Deno.serve(async () => {
     //       fund_contributions  — profile_id FK
     //       event_tickets       — profile_id FK
     //       circle_memberships  — profile_id FK
-    //     Strategy (when legal gate clears): SET profile_id = '<tombstone-uuid>' WHERE profile_id = req.profile_id,
+    //     Strategy (when legal gate clears): SET profile_id = '<tombstone-uuid>' WHERE profile_id = erasureReq.profile_id,
     //     so financial rows survive the auth.users cascade with a detached placeholder rather than being
     //     deleted. The tombstone profile row itself is a separate pre-seeded sentinel (no PII).
 
@@ -42,15 +48,15 @@ Deno.serve(async () => {
     //     purge waitlist by email. Left commented until the legal gate clears so a stray run can't hard-delete.
     //
     // Step (4a) — purge waitlist by the erased user's email (fetch from auth.users before deletion):
-    // const { data: authUser } = await db.auth.admin.getUserById(req.profile_id);
+    // const { data: authUser } = await db.auth.admin.getUserById(erasureReq.profile_id);
     // if (authUser?.user?.email) {
     //   await db.from('email_waitlist').delete().eq('email', authUser.user.email);
     // }
     //
     // Step (4b) — delete auth.users row; cascades → profiles → all FK on-delete-cascade content:
-    // await db.auth.admin.deleteUser(req.profile_id);
+    // await db.auth.admin.deleteUser(erasureReq.profile_id);
 
-    await db.from('gdpr_erasure_requests').update({ status: 'failed' }).eq('id', req.id);
+    await db.from('gdpr_erasure_requests').update({ status: 'failed' }).eq('id', erasureReq.id);
     // ^ stays 'failed' (not 'done') intentionally while legal-gated: the request is logged but the
     //   destructive cascade is NOT performed. Flip to the real cascade + status='done' at deploy-time
     //   once step (3) pseudonymization is implemented and counsel has confirmed the retention window.

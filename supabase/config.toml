@@ -433,3 +433,12 @@ verify_jwt = true
 
 [functions.score-engine]
 verify_jwt = true
+
+[functions.notification-fan-out]
+verify_jwt = true
+
+[functions.gdpr-export-job]
+verify_jwt = true
+
+[functions.erasure-job]
+verify_jwt = true
