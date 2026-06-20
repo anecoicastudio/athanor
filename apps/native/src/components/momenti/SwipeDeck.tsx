@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, PanResponder } from 'react-native';
+import { Animated, PanResponder } from 'react-native';
 import type { Locale, MomentoDeckCard } from '@athanor/schemas';
 import { View } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 import { MomentoCard } from './MomentoCard';
 import { SwipeStamp } from './SwipeStamp';
 
@@ -39,14 +40,8 @@ export function SwipeDeck({
   deckRef?: React.MutableRefObject<SwipeDeckHandle | null>;
 }) {
   const [index, setIndex] = useState(0);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const pan = useRef(new Animated.ValueXY()).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => setReduceMotion(false));
-  }, []);
 
   useEffect(() => {
     pan.setValue({ x: 0, y: 0 });

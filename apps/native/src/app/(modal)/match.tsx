@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
@@ -33,15 +34,9 @@ export default function MatchOverlay() {
     conversationId?: string;
   }>();
   const accepted = source === 'accepted';
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(0.9)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => setReduceMotion(false));
-  }, []);
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();

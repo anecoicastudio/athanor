@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing } from 'react-native';
 import { Text } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 /**
  * Single animated tabular-nums Aura number (spec §4 DRY).
@@ -21,13 +22,7 @@ export function AuraValue({
 }) {
   const anim = useRef(new Animated.Value(value)).current;
   const [display, setDisplay] = useState(value);
-  const [reduce, setReduce] = useState(false);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduce)
-      .catch(() => setReduce(false));
-  }, []);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     const id = anim.addListener(({ value: v }) => setDisplay(Math.round(v)));

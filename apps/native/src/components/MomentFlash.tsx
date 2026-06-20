@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing } from 'react-native';
+import { Animated, Easing } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 /**
  * Moment flash (frontend `02` §9): the one glow moment (rule #4) — a help became real.
@@ -18,15 +19,9 @@ import { auraGlow } from '@/lib/glow';
  */
 export function MomentFlash({ visible, locale }: { visible: boolean; locale: Locale }) {
   const [mounted, setMounted] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.9)).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => setReduceMotion(false));
-  }, []);
 
   useEffect(() => {
     if (!visible) return;

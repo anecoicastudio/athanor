@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo } from 'react-native';
 import { formatFundTotal } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 import { auraGlow } from '@/lib/glow';
 import { ProgressBar } from '@/components/ProgressBar';
 
@@ -25,13 +24,7 @@ export function FundTicker({
   live: boolean;
   locale: 'it' | 'en';
 }) {
-  const [reduce, setReduce] = useState(false);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduce)
-      .catch(() => setReduce(false));
-  }, []);
+  const reduce = useReducedMotion();
 
   const progress = goalCents > 0 ? raisedCents / goalCents : 0;
   const totalLabel = formatFundTotal(raisedCents, locale);
