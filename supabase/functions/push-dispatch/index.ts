@@ -42,8 +42,21 @@ Deno.serve(async (req) => {
 
   const admin = supabaseAdmin();
 
-  // 1. Preference gate — TODO(M9): query notification_preferences(recipient, type, channel='push').
-  //    Table is M9; pre-M9 every push sends (default-on per the master rule, 09 §2.5).
+  // 1. Preference gate. Master push toggle first (profiles.push_enabled), then the per-type
+  //    channel='push' opt-out row. Absent rows = default-on (master rule, 09 §2.5). The in-app
+  //    notification row is unaffected — this only suppresses push transport.
+  const [{ data: prof }, { data: pref }] = await Promise.all([
+    admin.from('profiles').select('push_enabled').eq('id', body.recipient_id).maybeSingle(),
+    admin
+      .from('notification_preferences')
+      .select('enabled')
+      .eq('profile_id', body.recipient_id)
+      .eq('type', body.type)
+      .eq('channel', 'push')
+      .maybeSingle(),
+  ]);
+  if (prof?.push_enabled === false) return json({ sent: 0, skipped: 'master_push_off' });
+  if (pref?.enabled === false) return json({ sent: 0, skipped: 'type_pref_off' });
 
   // 2. Token lookup + recipient locale (multi-device).
   const [{ data: tokens }, { data: profile }] = await Promise.all([

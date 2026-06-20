@@ -1,6 +1,7 @@
 // Inline mirror of @athanor/i18n notif.tpl.* — the Deno edge fn can't import the TS i18n
-// package. Keep in sync with packages/i18n/src/catalogs/{it,en}.json.
-// TODO(M9): unify when notification-fan-out lands (single template source).
+// package. Keep in sync with packages/i18n/src/catalogs/{it,en}.json (title = notif.type.*,
+// body = notif.tpl.*). push-dispatch composes the push from these; the app renders the same
+// notif.tpl.* for the in-app row.
 type Locale = 'it' | 'en';
 type Tpl = { title: string; body: (p: Record<string, unknown>) => string };
 
@@ -8,11 +9,11 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.moment': {
     it: {
       title: 'Hai un Momento',
-      body: (p) => `${p.name ?? 'Qualcuno'} potrebbe essere un Momento per te.`,
+      body: (p) => `${p.name ?? 'Qualcuno'} ha una forte affinità sul tuo sogno.`,
     },
     en: {
       title: 'You have a Momento',
-      body: (p) => `${p.name ?? 'Someone'} could be a Momento for you.`,
+      body: (p) => `${p.name ?? 'Someone'} has a strong affinity with your dream.`,
     },
   },
   'notif.tpl.message': {
@@ -21,6 +22,64 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `${p.name ?? 'Qualcuno'}: ${p.preview ?? ''}`.trim(),
     },
     en: { title: 'New message', body: (p) => `${p.name ?? 'Someone'}: ${p.preview ?? ''}`.trim() },
+  },
+  'notif.tpl.dreamMilestone': {
+    it: {
+      title: 'Una tappa del tuo sogno',
+      body: (p) => `${p.name ?? 'Qualcuno'} si è offerto come mentor per il tuo sogno.`,
+    },
+    en: {
+      title: 'A milestone of your dream',
+      body: (p) => `${p.name ?? 'Someone'} offered to mentor your dream.`,
+    },
+  },
+  'notif.tpl.review': {
+    it: {
+      title: 'Nuova recensione',
+      body: (p) => `${p.name ?? 'Qualcuno'} ti ha lasciato una recensione.`,
+    },
+    en: { title: 'New review', body: (p) => `${p.name ?? 'Someone'} left you a review.` },
+  },
+  'notif.tpl.eventReminder': {
+    it: {
+      title: 'Promemoria evento',
+      body: (p) => `«${p.title ?? ''}» è tra poco. ${p.count ?? 0} partecipano.`,
+    },
+    en: {
+      title: 'Event reminder',
+      body: (p) => `«${p.title ?? ''}» is coming up. ${p.count ?? 0} attending.`,
+    },
+  },
+  'notif.tpl.fundMilestone': {
+    it: {
+      title: 'Dai Vita al Tuo Sogno',
+      body: (p) => `Il fondo «Dai Vita al Tuo Sogno» ha superato i ${p.amount ?? ''}.`,
+    },
+    en: {
+      title: 'Bring Your Dream to Life',
+      body: (p) => `The «Bring Your Dream to Life» fund passed ${p.amount ?? ''}.`,
+    },
+  },
+  'notif.tpl.projectResponse': {
+    it: {
+      title: 'Risposta',
+      body: (p) => `${p.name ?? 'Qualcuno'} ha risposto alla tua ricerca «${p.title ?? ''}».`,
+    },
+    en: {
+      title: 'Response',
+      body: (p) => `${p.name ?? 'Someone'} responded to your search «${p.title ?? ''}».`,
+    },
+  },
+  'notif.tpl.connection': {
+    it: { title: 'Connessione', body: (p) => `${p.name ?? 'Qualcuno'} vuole connettersi con te.` },
+    en: { title: 'Connection', body: (p) => `${p.name ?? 'Someone'} wants to connect with you.` },
+  },
+  'notif.tpl.connectionAccepted': {
+    it: {
+      title: 'Connessione',
+      body: (p) => `${p.name ?? 'Qualcuno'} ha accettato la tua richiesta ✦`,
+    },
+    en: { title: 'Connection', body: (p) => `${p.name ?? 'Someone'} accepted your request ✦` },
   },
 };
 

@@ -36,6 +36,85 @@ Deno.test('drops tokens failing the Expo validator', () => {
   assertEquals(msgs[0].to, 'ExponentPushToken[ok]');
 });
 
+Deno.test('localizes every notification template in IT + EN with interpolation', () => {
+  const cases: {
+    templateKey: string;
+    type: string;
+    params: Record<string, unknown>;
+    itHas: string;
+    enHas: string;
+  }[] = [
+    {
+      templateKey: 'notif.tpl.dreamMilestone',
+      type: 'dreamMilestone',
+      params: { name: 'Nadia' },
+      itHas: 'Nadia',
+      enHas: 'Nadia',
+    },
+    {
+      templateKey: 'notif.tpl.review',
+      type: 'review',
+      params: { name: 'Karim' },
+      itHas: 'Karim',
+      enHas: 'Karim',
+    },
+    {
+      templateKey: 'notif.tpl.eventReminder',
+      type: 'eventReminder',
+      params: { title: 'Notte', count: 38 },
+      itHas: '38',
+      enHas: '38',
+    },
+    {
+      templateKey: 'notif.tpl.fundMilestone',
+      type: 'fundMilestone',
+      params: { amount: '480.000€' },
+      itHas: '480.000€',
+      enHas: '480.000€',
+    },
+    {
+      templateKey: 'notif.tpl.projectResponse',
+      type: 'projectResponse',
+      params: { name: 'Sara', title: 'video' },
+      itHas: 'video',
+      enHas: 'video',
+    },
+    {
+      templateKey: 'notif.tpl.connection',
+      type: 'connection',
+      params: { name: 'Lia' },
+      itHas: 'Lia',
+      enHas: 'Lia',
+    },
+    {
+      templateKey: 'notif.tpl.connectionAccepted',
+      type: 'connection',
+      params: { name: 'Lia' },
+      itHas: '✦',
+      enHas: '✦',
+    },
+  ];
+  for (const c of cases) {
+    for (const [locale, needle] of [
+      ['it', c.itHas],
+      ['en', c.enHas],
+    ] as const) {
+      const msgs = buildPushMessages(
+        ['ExponentPushToken[a]'],
+        { type: c.type, templateKey: c.templateKey, params: c.params, entityRef: 'x', locale },
+        allValid,
+      );
+      assertEquals(msgs.length, 1, `${c.templateKey} ${locale} builds`);
+      assertEquals(
+        msgs[0].body.includes(needle),
+        true,
+        `${c.templateKey} ${locale} interpolates ${needle}`,
+      );
+      assertEquals(msgs[0].title.length > 0, true, `${c.templateKey} ${locale} has a title`);
+    }
+  }
+});
+
 Deno.test('falls back to IT for an unknown locale and empty for an unknown template', () => {
   assertEquals(
     buildPushMessages(
