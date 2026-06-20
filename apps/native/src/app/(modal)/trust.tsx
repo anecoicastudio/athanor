@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,6 +31,14 @@ export default function TrustScreen() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 1800);
   }, []);
+  // Clear a pending toast timer on unmount so it can't setToast on a dead component
+  // (e.g. tapping «Segnala un comportamento» pushes a new modal mid-toast).
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
   // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
   const consents = useQuery({ queryKey: gdprKeys.consent(), queryFn: () => getConsents(supabase) });
@@ -112,6 +120,8 @@ export default function TrustScreen() {
           onPress={() => {
             if (!verified) flashToast(t('settings.soon', locale));
           }}
+          accessibilityRole="button"
+          accessibilityLabel={t('trust.identity.title', locale)}
           className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
         >
           <Text className="text-2xl">{verified ? '✦' : '○'}</Text>
@@ -122,13 +132,7 @@ export default function TrustScreen() {
             </Text>
           </View>
           {/* Status badge — read-only display, not an interactive chip */}
-          <View
-            className={
-              verified
-                ? 'rounded-full border border-hair bg-raise-2 px-3 py-1.5'
-                : 'rounded-full border border-hair bg-raise-2 px-3 py-1.5'
-            }
-          >
+          <View className="rounded-full border border-hair bg-raise-2 px-3 py-1.5">
             <Text className="text-xs text-foreground">
               {t(
                 verified ? 'trust.identity.status.verified' : 'trust.identity.status.idle',
@@ -148,6 +152,8 @@ export default function TrustScreen() {
           {/* dream visibility — navigational cross-link to the M1 inline editor (no duplicate toggle) */}
           <Pressable
             onPress={() => router.push('/(tabs)/profile')}
+            accessibilityRole="button"
+            accessibilityLabel={t('trust.privacy.dream', locale)}
             className="flex-row items-center gap-4 border-b border-hair px-5 py-4"
           >
             <View className="flex-1 gap-0.5">
