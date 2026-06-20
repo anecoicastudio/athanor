@@ -86,6 +86,7 @@ export default function VerifyScreen() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 1800);
       await WebBrowser.openAuthSessionAsync(url, 'athanor://verify');
+      setSessionPending(false); // browser returned (completed OR cancelled) — re-enable CTA; realtime/poll flips to verified if it actually completed
       // back from the Stripe flow — refetch; realtime/poll carry the rest.
       void qc.invalidateQueries({ queryKey: verifyKeys.status() });
     } catch {
