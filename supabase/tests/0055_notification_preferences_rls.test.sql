@@ -1,5 +1,5 @@
 begin;
-select plan(7);
+select plan(8);
 
 select tests.create_supabase_user('pref_a');
 select tests.create_supabase_user('pref_b');
@@ -17,6 +17,12 @@ select lives_ok(
   $$ insert into public.notification_preferences (profile_id, type, channel, enabled)
      values (current_setting('test.a')::uuid, 'moment', 'push', false) $$,
   'owner inserts own pref');
+
+-- cannot insert a pref for ANOTHER profile (insert_own WITH CHECK pins profile_id=auth.uid())
+select throws_ok(
+  $$ insert into public.notification_preferences (profile_id, type, channel, enabled)
+     values (current_setting('test.b')::uuid, 'review', 'push', false) $$,
+  '42501', null, 'cannot forge a pref for another profile');
 
 -- unique (profile_id,type,channel)
 select throws_ok(
