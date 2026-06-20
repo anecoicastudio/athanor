@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
@@ -31,11 +31,18 @@ export default function ReportScreen() {
   const { targetType, targetId } = useLocalSearchParams<{
     targetType?: ReportTargetType;
     targetId?: string;
-    peerName?: string;
   }>();
 
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [note, setNote] = useState('');
+  // Track the auto-dismiss timer so an early close (✕) doesn't fire router.back() after unmount.
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    },
+    [],
+  );
 
   const report = useMutation({
     mutationFn: () =>
@@ -49,7 +56,7 @@ export default function ReportScreen() {
       void qc.invalidateQueries({ queryKey: reportKeys.mine() });
       // Confirmation auto-dismisses (~1.9s) unless this is a person report — there we keep
       // the sheet so the user can tap «Blocca anche questa persona».
-      if (targetType !== 'person') setTimeout(() => router.back(), 1900);
+      if (targetType !== 'person') dismissTimer.current = setTimeout(() => router.back(), 1900);
     },
   });
 

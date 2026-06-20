@@ -55,11 +55,12 @@ select is(
      where reporter_id = '22222222-2222-2222-2222-222222222222')::int,
   0, 'reporter cannot see another reporter''s reports or verdicts');
 
--- ── ZERO AURA (rule #1) ──
+-- ── ZERO AURA (rule #1) — count globally under service_role (bypasses aura_events owner-RLS) ──
+set local role service_role;
 select is(
   (select count(*)::int from public.aura_events
    where profile_id in ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222')),
-  0, 'filing reports produced zero aura_events');
+  0, 'filing reports produced zero aura_events (global)');
 reset role;
 
 select * from finish();
