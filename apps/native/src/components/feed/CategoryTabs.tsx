@@ -34,7 +34,7 @@ export function CategoryTabs({
               isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
             }`}
           >
-            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
+            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-muted-foreground'}`}>
               {t(`feed.filter.${f}` as MessageKey, locale)}
             </Text>
           </Pressable>

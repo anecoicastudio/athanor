@@ -47,7 +47,7 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
           <Text className="text-[18px] text-faint">✦</Text>
         </Pressable>
         <Pressable className="min-h-[44px] justify-center" onPress={openDetail}>
-          <Text className="text-[13px] text-faint">{t('comment.reply', locale)}</Text>
+          <Text className="text-[13px] text-muted-foreground">{t('comment.reply', locale)}</Text>
         </Pressable>
       </View>
     </View>

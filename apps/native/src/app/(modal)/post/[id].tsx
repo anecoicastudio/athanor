@@ -112,7 +112,7 @@ export default function PostDetailScreen() {
   if (!post) {
     return (
       <View className="flex-1 items-center justify-center bg-background px-5">
-        <Text className="text-[15px] text-faint">{t('feed.error', locale)}</Text>
+        <Text className="text-[15px] text-foreground">{t('feed.error', locale)}</Text>
       </View>
     );
   }
@@ -165,7 +165,7 @@ export default function PostDetailScreen() {
 
             <View className="flex-row items-center gap-2 border-t border-hair pt-4">
               {isAuthor ? (
-                <Text className="text-[13px] text-faint">
+                <Text className="text-[13px] text-muted-foreground">
                   ✦ {t('post.author.reactions', locale, { n: countQuery.data ?? 0 })}
                 </Text>
               ) : (
@@ -182,14 +182,16 @@ export default function PostDetailScreen() {
               {t('comment.sectionLabel', locale)}
             </Text>
             {commentsQuery.isError ? (
-              <Text className="text-[13px] text-faint">{t('comment.error', locale)}</Text>
+              <Text className="text-[13px] text-foreground">{t('comment.error', locale)}</Text>
             ) : null}
           </View>
         }
         renderItem={({ item }) => <Comment comment={item} locale={locale} />}
         ListEmptyComponent={
           !commentsQuery.isLoading ? (
-            <Text className="px-1 text-[14px] text-faint">{t('comment.empty', locale)}</Text>
+            <Text className="px-1 text-[14px] text-muted-foreground">
+              {t('comment.empty', locale)}
+            </Text>
           ) : null
         }
         onEndReachedThreshold={0.5}
