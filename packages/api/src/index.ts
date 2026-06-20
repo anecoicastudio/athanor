@@ -31,4 +31,5 @@ export * from './reports';
 export * from './notifications';
 export * from './notificationPreferences';
 export * from './consent';
+export * from './gdpr';
 export type { Database, Json } from './database.types';

@@ -1,11 +1,12 @@
 import { type Consent, type SetConsentInput, consentSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
-// gdprKeys covers the GDPR surface query factory. The export-job status key
-// (gdprKeys.exportStatus) is added by the gdpr-export-erasure slice (09 §5).
+// gdprKeys covers the GDPR surface query factory (consent records + export-job status).
 export const gdprKeys = {
   all: ['gdpr'] as const,
   consent: () => [...gdprKeys.all, 'consent'] as const,
+  exportStatus: () => [...gdprKeys.all, 'export'] as const,
+  erasure: () => [...gdprKeys.all, 'erasure'] as const,
 };
 
 /** All of the caller's consent records (RLS scopes to own). */
