@@ -1,6 +1,9 @@
 import { type Notification, notificationSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
+// Rows are written ONLY by the `notification-fan-out` edge fn (service role) — see
+// supabase/functions/notification-fan-out/. TODO(M9-fanout): that fn + its DB-trigger wiring from
+// source tables is deploy-deferred, so this list is empty (honest empty state) until producers land.
 const PAGE = 20;
 
 export type NotifCursor = { createdAt: string; id: string };
@@ -53,11 +56,16 @@ export async function markRead(client: AthanorClient, id: string): Promise<void>
   if (error) throw error;
 }
 
-/** Mark all own unread notifications read («Segna lette»). RLS scopes to own rows. */
+/** Mark all own unread notifications read («Segna lette»). RLS scopes to own rows; the explicit
+ *  recipient_id filter is defensive (RLS + grant already restrict, but make the intent explicit). */
 export async function markAllRead(client: AthanorClient): Promise<void> {
+  const { data: auth } = await client.auth.getUser();
+  const me = auth.user?.id;
+  if (!me) throw new Error('not authenticated');
   const { error } = await client
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
+    .eq('recipient_id', me)
     .is('read_at', null);
   if (error) throw error;
 }
