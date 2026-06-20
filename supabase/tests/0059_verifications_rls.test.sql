@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(12);
 
 select tests.create_supabase_user('verify_a');
 select tests.create_supabase_user('verify_b');
