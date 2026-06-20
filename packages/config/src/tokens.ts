@@ -31,6 +31,7 @@ export const semantic = {
   auraSoft: 'rgba(43,208,210,0.10)', // moment fill / active accent chip
   auraLine: 'rgba(43,208,210,0.40)', // moment / accent 1px inset border
   onAura: '#04222a', // text inverted on a cyan fill
+  onError: '#F0EDF7', // text on an error-colored surface (same value as foreground)
 } as const;
 
 /** Mandala gradient — logo + hero ring ONLY. Not a UI accent. */

@@ -21,6 +21,8 @@ export * from './conversation';
 export * from './message';
 export * from './connection';
 export * from './consent';
+export * from './gdprErasureRequest';
+export * from './gdprExportJob';
 export * from './pushToken';
 export * from './fund';
 export * from './candidacy';

@@ -34,6 +34,7 @@
     --color-aura-soft: rgba(43, 208, 210, 0.1);
     --color-aura-line: rgba(43, 208, 210, 0.4);
     --color-on-aura: #04222a;
+    --color-on-error: #f0edf7;
     --radius-ctl: 14px;
     --radius-card: 20px;
     --radius-hero: 26px;

@@ -18,7 +18,7 @@ export function Button({
 }: {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'ghost' | 'light';
+  variant?: 'primary' | 'ghost' | 'light' | 'danger';
   disabled?: boolean;
   glow?: boolean;
   accessibilityLabel?: string;
@@ -48,6 +48,19 @@ export function Button({
         accessibilityLabel={accessibilityLabel}
       >
         <Text className="font-semibold tracking-widest text-background">{label}</Text>
+      </Pressable>
+    );
+  }
+  if (variant === 'danger') {
+    return (
+      <Pressable
+        className={`${base} bg-error ${disabled ? 'opacity-40' : ''}`}
+        disabled={disabled}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      >
+        <Text className="font-semibold tracking-widest text-on-error">{label}</Text>
       </Pressable>
     );
   }

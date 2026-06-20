@@ -212,7 +212,14 @@ export default function SettingsScreen() {
         <SettingsRow
           title={t('settings.export.title', locale)}
           description={t('settings.export.desc', locale)}
-          onPress={() => showToast(t('settings.soon', locale))}
+          onPress={() => router.push('/(modal)/data-export')}
+          showChevron
+        />
+        <SettingsRow
+          title={t('gdpr.erasure.row', locale)}
+          danger
+          onPress={() => router.push('/(modal)/delete-account')}
+          showChevron
         />
       </SettingsGroup>
 
