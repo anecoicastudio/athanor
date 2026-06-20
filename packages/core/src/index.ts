@@ -33,3 +33,4 @@ export {
   type WeekRecap,
 } from './score/display';
 export { highlightMatches, type HighlightSpan } from './search/highlight';
+export * from './verify/state';

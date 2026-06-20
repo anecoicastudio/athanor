@@ -156,6 +156,53 @@ async function handleSubscription(db: Db, sub: Stripe.Subscription): Promise<voi
   if (error) throw error;
 }
 
+/**
+ * W9 — a Stripe Identity session verified. Cache the row (service role) and flip
+ * profiles.identity_verified. Idempotent: upsert on stripe_session_id (UNIQUE). Does NOT write
+ * aura_* (rule #1) — the +50 «Identity verified» is the M6 score-engine's job (07), wired when
+ * the engine deploys (TODO(M6): engine reads this verified fact / a domain-event invocation).
+ */
+async function handleIdentityVerified(
+  db: Db,
+  vs: Stripe.Identity.VerificationSession,
+): Promise<void> {
+  const profileId = vs.metadata?.profile_id;
+  if (!profileId) throw new Error('verification session missing profile_id');
+
+  const { error: vErr } = await db
+    .from('verifications')
+    .upsert(
+      { profile_id: profileId, stripe_session_id: vs.id, status: 'verified' },
+      { onConflict: 'stripe_session_id' },
+    );
+  if (vErr) throw vErr;
+
+  const { error: pErr } = await db
+    .from('profiles')
+    .update({ identity_verified: true })
+    .eq('id', profileId);
+  if (pErr) throw pErr;
+}
+
+/**
+ * W10 — a Stripe Identity session needs input or was canceled. Cache 'failed' so the UI offers
+ * retry. No profile flag change. Idempotent via the stripe_session_id UNIQUE upsert.
+ */
+async function handleIdentityFailed(
+  db: Db,
+  vs: Stripe.Identity.VerificationSession,
+): Promise<void> {
+  const profileId = vs.metadata?.profile_id;
+  if (!profileId) throw new Error('verification session missing profile_id');
+  const { error: vErr } = await db
+    .from('verifications')
+    .upsert(
+      { profile_id: profileId, stripe_session_id: vs.id, status: 'failed' },
+      { onConflict: 'stripe_session_id' },
+    );
+  if (vErr) throw vErr;
+}
+
 /** W8 — invoice.payment_failed → mark the cached membership past_due (dunning is Stripe's; app reflects). */
 async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Promise<void> {
   const subId =
@@ -206,6 +253,17 @@ async function processEvent(db: Db, event: Stripe.Event): Promise<void> {
     case 'charge.refunded': {
       // W4: only fund contributions are handled here in M7 (ticket refunds = M8/W2).
       await handleContributionRefunded(db, event.data.object as Stripe.Charge);
+      return;
+    }
+    case 'identity.verification_session.verified': {
+      // W9
+      await handleIdentityVerified(db, event.data.object as Stripe.Identity.VerificationSession);
+      return;
+    }
+    case 'identity.verification_session.requires_input':
+    case 'identity.verification_session.canceled': {
+      // W10
+      await handleIdentityFailed(db, event.data.object as Stripe.Identity.VerificationSession);
       return;
     }
     default:

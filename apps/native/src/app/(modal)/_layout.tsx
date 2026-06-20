@@ -53,6 +53,8 @@ export default function ModalLayout() {
       {/* M9 GDPR export + erasure */}
       <Stack.Screen name="data-export" options={{ presentation: 'modal' }} />
       <Stack.Screen name="delete-account" options={{ presentation: 'modal' }} />
+      {/* M9 identity verify */}
+      <Stack.Screen name="verify" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
