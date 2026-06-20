@@ -75,12 +75,29 @@ export default function StarScreen() {
         {starId != null ? (
           <View className="gap-5">
             {/* Glyph + name + state chip */}
-            <View className="items-center gap-3 py-6">
+            <View
+              className="items-center gap-3 py-6"
+              accessibilityLabel={t(earned ? 'star.a11y.lit' : 'star.a11y.unlit', locale, {
+                star: starName,
+              })}
+            >
               <Text className="text-5xl" style={{ color: earned ? undefined : undefined }}>
                 {earned ? (
-                  <Text className="text-5xl text-aura">✦</Text>
+                  <Text
+                    className="text-5xl text-aura"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    ✦
+                  </Text>
                 ) : (
-                  <Text className="text-5xl text-faint">✧</Text>
+                  <Text
+                    className="text-5xl text-faint"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    ✧
+                  </Text>
                 )}
               </Text>
               <Text className="text-[20px] font-semibold text-foreground">{starName}</Text>

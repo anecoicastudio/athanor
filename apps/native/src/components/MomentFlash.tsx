@@ -68,12 +68,19 @@ export function MomentFlash({ visible, locale }: { visible: boolean; locale: Loc
       className="absolute inset-x-0 top-1/3 items-center"
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
+      accessibilityLabel={t('help.toast.completed', locale)}
     >
       <Animated.View
         style={[reduceMotion ? undefined : { transform: [{ scale }] }, auraGlow(1)]}
         className="h-20 w-20 items-center justify-center rounded-full border border-aura-line bg-raise"
       >
-        <Text className="text-3xl text-aura">✦</Text>
+        <Text
+          className="text-3xl text-aura"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          ✦
+        </Text>
       </Animated.View>
       <View className="mt-4 rounded-full border border-hair bg-raise-2 px-5 py-2">
         <Text className="text-[14px] font-semibold text-foreground">

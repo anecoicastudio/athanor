@@ -59,7 +59,13 @@ export default function HomeScreen() {
   if (!profile) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <Text className="text-2xl text-muted-foreground">✦</Text>
+        <Text
+          className="text-2xl text-muted-foreground"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          ✦
+        </Text>
       </View>
     );
   }

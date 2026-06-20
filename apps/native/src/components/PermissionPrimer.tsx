@@ -45,7 +45,13 @@ export function PermissionPrimer({
           onPress={() => {}}
         >
           <View className="items-center">
-            <Text className="text-4xl text-aura">✦</Text>
+            <Text
+              className="text-4xl text-aura"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ✦
+            </Text>
             <Text className="mt-5 text-center text-xl font-semibold text-foreground">
               {t(titleKey, locale)}
             </Text>

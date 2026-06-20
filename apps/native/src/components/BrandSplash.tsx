@@ -119,7 +119,13 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
         { backgroundColor: semantic.background, opacity: container },
       ]}
     >
-      <Svg width={SIZE} height={SIZE} viewBox="0 0 100 100">
+      <Svg
+        width={SIZE}
+        height={SIZE}
+        viewBox="0 0 100 100"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         <Defs>
           <LinearGradient id="splashLens" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={mandorla.lensTop} />

@@ -157,6 +157,8 @@ export default function TrustScreen() {
             className={
               verifyState === 'verified' ? 'text-2xl text-aura' : 'text-2xl text-muted-foreground'
             }
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
           >
             {verifyState === 'verified' ? '✦' : '◇'}
           </Text>
