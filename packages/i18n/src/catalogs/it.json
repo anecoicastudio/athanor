@@ -233,6 +233,7 @@
   "onboarding.dream.later": "più tardi",
   "onboarding.next": "Continua",
   "onboarding.back": "indietro",
+  "onboarding.a11y.step": "Passo {n} di {total}",
   "onboarding.error.submit": "Non siamo riusciti a salvare. Riprova.",
   "tag.identity.imprenditore": "Imprenditore",
   "tag.identity.freelance": "Freelance",

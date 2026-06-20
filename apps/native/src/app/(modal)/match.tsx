@@ -7,6 +7,7 @@ import { useReducedMotion } from '@/lib/useReducedMotion';
 import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
+import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 
 /**
  * Match overlay — fired on a MUTUAL Momento match (the deck navigates here on a
@@ -57,8 +58,12 @@ export default function MatchOverlay() {
 
   const fill = (k: MessageKey) => t(k, locale, { name });
 
+  const headline = accepted ? t('match.accepted.big', locale) : name;
+  useAnnounceOnMount(headline);
+
   return (
     <Animated.View
+      {...MODAL_A11Y}
       style={{ opacity }}
       className="flex-1 items-center justify-center bg-background px-8"
     >
@@ -81,8 +86,11 @@ export default function MatchOverlay() {
       <Text className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-aura">
         {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
       </Text>
-      <Text className="mt-2 text-center text-[26px] font-bold text-foreground">
-        {accepted ? t('match.accepted.big', locale) : name}
+      <Text
+        accessibilityRole="header"
+        className="mt-2 text-center text-[26px] font-bold text-foreground"
+      >
+        {headline}
       </Text>
       <Text className="mt-3 text-center text-[15px] leading-[22px] text-faint">
         {accepted ? fill('match.accepted.sub') : t('match.sub', locale)}

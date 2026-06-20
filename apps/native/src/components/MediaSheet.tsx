@@ -12,6 +12,7 @@ import {
   type PermStatus,
 } from '@/lib/media/permissions';
 import { capturePhoto, pickFromLibrary, recordVideo, type PickedMedia } from '@/lib/media/pick';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Which source a row launches once its permission is granted. */
 type Source = 'photo' | 'video' | 'library';
@@ -93,10 +94,14 @@ export function MediaSheet({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable className="flex-1 justify-end bg-surface-muted" onPress={onClose}>
         <Pressable
+          {...MODAL_A11Y}
           className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-7"
           onPress={() => {}}
         >
-          <Text className="text-center text-lg font-semibold text-foreground">
+          <Text
+            accessibilityRole="header"
+            className="text-center text-lg font-semibold text-foreground"
+          >
             {t('media.sheet.title', locale)}
           </Text>
           <Text className="mt-1 text-center text-[14px] leading-5 text-faint">

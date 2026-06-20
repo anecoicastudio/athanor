@@ -8,6 +8,7 @@ import { Pressable, Text, View } from '@/tw';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Star detail sheet (M6 §3.2).
@@ -58,7 +59,7 @@ export default function StarScreen() {
   const progressWidth = total > 0 ? done / total : 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center gap-4 px-5 pb-3 pt-14">
         <Pressable
@@ -100,7 +101,12 @@ export default function StarScreen() {
                   </Text>
                 )}
               </Text>
-              <Text className="text-[20px] font-semibold text-foreground">{starName}</Text>
+              <Text
+                accessibilityRole="header"
+                className="text-[20px] font-semibold text-foreground"
+              >
+                {starName}
+              </Text>
               <View className={`rounded-full px-3 py-1 ${earned ? 'bg-aura-soft' : 'bg-raise'}`}>
                 <Text className={`text-[12px] font-medium ${earned ? 'text-aura' : 'text-faint'}`}>
                   {t(earned ? 'star.lit' : 'star.unlit', locale)}

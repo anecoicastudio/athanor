@@ -15,6 +15,7 @@ import type { NotifPrefInput, NotificationPreference } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Notification preferences (M9 §3.7). 6 per-type push toggles + master push toggle.
@@ -111,7 +112,11 @@ export default function NotifPrefsScreen() {
   });
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-6 pb-12">
+    <ScrollView
+      {...MODAL_A11Y}
+      className="flex-1 bg-background"
+      contentContainerClassName="gap-6 pb-12"
+    >
       {/* Header */}
       <View className="flex-row items-center gap-3 px-5 pb-2 pt-14">
         <Pressable
@@ -122,7 +127,7 @@ export default function NotifPrefsScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">
+        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
           {t('notif.prefs.title', locale)}
         </Text>
       </View>

@@ -7,6 +7,7 @@ import { useReducedMotion } from '@/lib/useReducedMotion';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { useAuth } from '@/lib/auth-context';
+import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 
 /**
  * Contribution thank-you overlay (M7 §3.6). A moment happened — your contribution
@@ -40,8 +41,12 @@ export default function ContributionThanksOverlay() {
     }
   }, [reduceMotion, opacity, scale]);
 
+  const headline = t('fund.thanks.title', locale);
+  useAnnounceOnMount(headline);
+
   return (
     <Animated.View
+      {...MODAL_A11Y}
       style={{ opacity }}
       className="flex-1 items-center justify-center bg-background px-8"
     >
@@ -55,8 +60,11 @@ export default function ContributionThanksOverlay() {
       <Text className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-aura">
         {t('fund.thanks.eyebrow', locale)}
       </Text>
-      <Text className="mt-2 text-center text-[26px] font-bold text-foreground">
-        {t('fund.thanks.title', locale)}
+      <Text
+        accessibilityRole="header"
+        className="mt-2 text-center text-[26px] font-bold text-foreground"
+      >
+        {headline}
       </Text>
       <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
         {t('fund.thanks.sub', locale)}

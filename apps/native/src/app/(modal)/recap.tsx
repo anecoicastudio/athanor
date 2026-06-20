@@ -12,6 +12,7 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Shimmer placeholder bar — muted rect for loading state */
 function ShimmerBar({ width = 'w-full' }: { width?: string }) {
@@ -66,10 +67,10 @@ export default function RecapScreen() {
   const starName = nextStar ? t(`star.${nextStar.starId}` as MessageKey, locale) : '';
 
   return (
-    <View className="flex-1 bg-background">
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 pb-3 pt-14">
-        <Text className="text-[17px] font-semibold text-foreground">
+        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
           {t('recap.title' as MessageKey, locale)}
         </Text>
         <Pressable

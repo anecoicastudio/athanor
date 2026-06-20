@@ -13,6 +13,7 @@ import { SettingsRow } from '@/components/SettingsRow';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/lib/useEntitlement';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Settings (PRD §4, M1 §3.4) — account hub. M1 ships full chrome; most rows
@@ -89,7 +90,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 py-12">
+    <ScrollView
+      {...MODAL_A11Y}
+      className="flex-1 bg-background"
+      contentContainerClassName="gap-7 px-5 py-12"
+    >
       {/* Header: back + title */}
       <View className="flex-row items-center gap-4">
         <Pressable
@@ -100,7 +105,9 @@ export default function SettingsScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="text-xl font-semibold text-foreground">{t('settings.title', locale)}</Text>
+        <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">
+          {t('settings.title', locale)}
+        </Text>
       </View>
 
       {/* Account card */}

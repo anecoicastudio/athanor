@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/lib/useEntitlement';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Advanced-filter sheet (M8 §3.5, Task 9) — member-only.
@@ -119,6 +120,7 @@ export default function SearchFiltersScreen() {
 
   return (
     <ScrollView
+      {...MODAL_A11Y}
       className="flex-1 bg-background"
       contentContainerClassName="gap-6 px-5 pb-16 pt-12"
       keyboardShouldPersistTaps="handled"
@@ -133,7 +135,7 @@ export default function SearchFiltersScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="flex-1 text-xl font-semibold text-foreground">
+        <Text accessibilityRole="header" className="flex-1 text-xl font-semibold text-foreground">
           {t('search.filterSheet.title', locale)}
         </Text>
         <Pressable
