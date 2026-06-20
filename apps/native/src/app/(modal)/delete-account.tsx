@@ -76,11 +76,7 @@ export default function DeleteAccountScreen() {
       </Text>
 
       {/* honesty line — export before delete (routes to the export sheet) */}
-      <Pressable
-        onPress={() => router.replace('/(modal)/data-export')}
-        accessibilityRole="button"
-        accessibilityLabel={t('gdpr.erasure.exportFirst', locale)}
-      >
+      <Pressable onPress={() => router.replace('/(modal)/data-export')} accessibilityRole="button">
         <Text className="text-[14px] text-aura">{t('gdpr.erasure.exportFirst', locale)}</Text>
       </Pressable>
 

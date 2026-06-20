@@ -217,6 +217,7 @@ export default function SettingsScreen() {
         />
         <SettingsRow
           title={t('gdpr.erasure.row', locale)}
+          danger
           onPress={() => router.push('/(modal)/delete-account')}
           showChevron
         />
