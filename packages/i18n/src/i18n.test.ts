@@ -20,7 +20,10 @@ describe('t', () => {
 });
 
 describe('catalog quality', () => {
-  const placeholders = (s: string): string[] => [...new Set(s.match(/\{(\w+)\}/g) ?? [])].sort();
+  // `?? ''` keeps the failure self-describing if a key is missing from one
+  // catalog (the `catalog parity` test catches that first, but don't throw here).
+  const placeholders = (s: string | undefined): string[] =>
+    [...new Set((s ?? '').match(/\{(\w+)\}/g) ?? [])].sort();
 
   // I-4: every {var} present in IT is present in EN for the same key (and vice-versa).
   test('placeholder sets match IT<->EN per key', () => {

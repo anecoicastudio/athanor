@@ -3,6 +3,10 @@
 // Flags natural-language literals in JSX text nodes and known text props
 // under apps/mobile/src that are NOT wrapped in t(). Allowlist a line with
 // an `i18n-ignore` comment (any style), or add a brand token to ALLOWLIST.
+// FLOOR, not a ceiling: a deliberately conservative single-line regex gate.
+// It does NOT catch multi-line JSX text, template-literal JSX text, or
+// imperative-API strings (Alert.alert(...), thrown messages). Those rely on
+// review + the parity test; replace with an AST pass if coverage must grow.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
