@@ -422,6 +422,9 @@ verify_jwt = true
 [functions.create-contribution-session]
 verify_jwt = true
 
+[functions.create-verification-session]
+verify_jwt = true
+
 [functions.stripe-webhook]
 verify_jwt = false
 
