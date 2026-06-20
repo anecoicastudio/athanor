@@ -996,7 +996,6 @@
   "gdpr.consent.comms": "Communications and updates",
   "gdpr.consent.commsDesc": "Occasional emails about Athanor. Turn them off whenever you like.",
   "gdpr.export.title": "Download your data",
-  "gdpr.export.row": "Export everything, anytime",
   "gdpr.export.sub": "Export everything that's yours — profile, dream, moments, messages. We email it to you within 30 days.",
   "gdpr.export.cta": "Request the export",
   "gdpr.export.requesting": "Request in progress",

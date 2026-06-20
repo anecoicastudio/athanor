@@ -22,15 +22,17 @@ export default function DeleteAccountScreen() {
   const [confirm, setConfirm] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashToast = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 1800);
   }, []);
-  // Clear a pending toast timer on unmount so it can't setToast on a dead component.
+  // Clear pending timers on unmount so they can't fire on a dead component.
   useEffect(
     () => () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (signOutTimer.current) clearTimeout(signOutTimer.current);
     },
     [],
   );
@@ -43,7 +45,7 @@ export default function DeleteAccountScreen() {
     onSuccess: () => {
       flashToast(t('gdpr.erasure.toast', locale));
       // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
-      setTimeout(() => {
+      signOutTimer.current = setTimeout(() => {
         supabase.auth.signOut().catch(() => undefined);
       }, 700);
     },
@@ -74,7 +76,11 @@ export default function DeleteAccountScreen() {
       </Text>
 
       {/* honesty line — export before delete (routes to the export sheet) */}
-      <Pressable onPress={() => router.replace('/(modal)/data-export')}>
+      <Pressable
+        onPress={() => router.replace('/(modal)/data-export')}
+        accessibilityRole="button"
+        accessibilityLabel={t('gdpr.erasure.exportFirst', locale)}
+      >
         <Text className="text-[14px] text-aura">{t('gdpr.erasure.exportFirst', locale)}</Text>
       </Pressable>
 

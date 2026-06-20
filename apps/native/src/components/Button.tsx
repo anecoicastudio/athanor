@@ -60,7 +60,7 @@ export function Button({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
       >
-        <Text className="font-semibold tracking-widest text-foreground">{label}</Text>
+        <Text className="font-semibold tracking-widest text-on-error">{label}</Text>
       </Pressable>
     );
   }
