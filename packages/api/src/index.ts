@@ -30,4 +30,5 @@ export * from './blocks';
 export * from './reports';
 export * from './notifications';
 export * from './notificationPreferences';
+export * from './consent';
 export type { Database, Json } from './database.types';
