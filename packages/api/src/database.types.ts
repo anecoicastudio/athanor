@@ -1169,6 +1169,90 @@ export type Database = {
           },
         ]
       }
+      gdpr_erasure_requests: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gdpr_erasure_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "gdpr_erasure_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gdpr_export_jobs: {
+        Row: {
+          created_at: string
+          download_url: string | null
+          expires_at: string | null
+          id: string
+          profile_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          download_url?: string | null
+          expires_at?: string | null
+          id?: string
+          profile_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          download_url?: string | null
+          expires_at?: string | null
+          id?: string
+          profile_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gdpr_export_jobs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "gdpr_export_jobs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           body: string | null
