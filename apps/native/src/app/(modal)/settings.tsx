@@ -201,6 +201,13 @@ export default function SettingsScreen() {
           showChevron
         />
         <SettingsRow
+          title={t('report.behavior.row', locale)}
+          onPress={() =>
+            router.push({ pathname: '/(modal)/report', params: { targetType: 'behavior' } })
+          }
+          showChevron
+        />
+        <SettingsRow
           title={t('settings.export.title', locale)}
           description={t('settings.export.desc', locale)}
           onPress={() => showToast(t('settings.soon', locale))}

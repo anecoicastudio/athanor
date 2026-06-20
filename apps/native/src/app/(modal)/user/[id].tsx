@@ -119,6 +119,14 @@ export default function PersonDetailScreen() {
                 },
               ]),
           },
+      {
+        text: t('report.title', locale),
+        onPress: () =>
+          router.push({
+            pathname: '/(modal)/report',
+            params: { targetType: 'person', targetId: id, peerName: handle },
+          }),
+      },
       { text: t('common.cancel', locale), style: 'cancel' },
     ]);
   };

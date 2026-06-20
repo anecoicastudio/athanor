@@ -138,7 +138,21 @@ export default function PostDetailScreen() {
                 <Pressable onPress={confirmDelete}>
                   <Text className="text-[13px] text-error">{t('post.delete', locale)}</Text>
                 </Pressable>
-              ) : null}
+              ) : (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(modal)/report',
+                      params: { targetType: 'post', targetId: post.id },
+                    })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={t('report.title', locale)}
+                  hitSlop={8}
+                >
+                  <Text className="text-[13px] text-faint">{t('report.title', locale)}</Text>
+                </Pressable>
+              )}
             </View>
 
             <PostAuthorRow authorId={post.author_id} />
