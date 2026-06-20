@@ -3,8 +3,17 @@ import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { semantic } from '@athanor/config';
+import { deriveVerifyState } from '@athanor/core';
 import { t } from '@athanor/i18n';
-import { gdprKeys, getConsents, setConsent, setLocationConsent } from '@athanor/api';
+import {
+  gdprKeys,
+  getConsents,
+  getVerificationStatus,
+  setConsent,
+  setLocationConsent,
+  subscribeVerifyStatus,
+  verifyKeys,
+} from '@athanor/api';
 import type { Consent } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -42,6 +51,24 @@ export default function TrustScreen() {
 
   // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
   const consents = useQuery({ queryKey: gdprKeys.consent(), queryFn: () => getConsents(supabase) });
+
+  // Live identity-verification status (M9 identity-verify slice).
+  const verifyQuery = useQuery({
+    queryKey: verifyKeys.status(),
+    queryFn: () => getVerificationStatus(supabase),
+  });
+  useEffect(() => {
+    if (!profile?.id) return;
+    return subscribeVerifyStatus(
+      supabase,
+      profile.id,
+      () => void qc.invalidateQueries({ queryKey: verifyKeys.status() }),
+    );
+  }, [profile?.id, qc]);
+  const verifyState = deriveVerifyState({
+    identityVerified: verifyQuery.data?.identityVerified ?? verified,
+    latestStatus: verifyQuery.data?.latestStatus ?? null,
+  });
   const grantedFor = useCallback(
     (kind: Consent['kind'], fallback: boolean) =>
       consents.data?.find((c) => c.kind === kind)?.granted ?? fallback,
@@ -120,26 +147,36 @@ export default function TrustScreen() {
         </Text>
         <Pressable
           onPress={() => {
-            if (!verified) flashToast(t('settings.soon', locale));
+            if (verifyState !== 'verified') router.push('/(modal)/verify');
           }}
           accessibilityRole="button"
-          accessibilityLabel={t('trust.identity.title', locale)}
+          accessibilityLabel={t(
+            `trust.identity.status.${verifyState === 'idle' ? 'idle' : verifyState}` as const,
+            locale,
+          )}
           className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
         >
-          <Text className="text-2xl">{verified ? '✦' : '○'}</Text>
+          <Text className="text-2xl text-aura">{verifyState === 'verified' ? '✦' : '◇'}</Text>
           <View className="flex-1 gap-0.5">
             <Text className="text-base text-foreground">{t('trust.identity.title', locale)}</Text>
             <Text className="text-[13px] leading-snug text-muted-foreground">
               {t('trust.identity.desc', locale)}
             </Text>
           </View>
-          {/* Status badge — read-only display, not an interactive chip */}
-          <View className="rounded-full border border-hair bg-raise-2 px-3 py-1.5">
-            <Text className="text-xs text-foreground">
-              {t(
-                verified ? 'trust.identity.status.verified' : 'trust.identity.status.idle',
-                locale,
-              )}
+          {/* status chip — verified lights cyan (moment-grade, rule #4); others neutral */}
+          <View
+            className={
+              verifyState === 'verified'
+                ? 'rounded-full border border-aura-line bg-aura-soft px-3 py-1.5'
+                : 'rounded-full border border-hair bg-raise-2 px-3 py-1.5'
+            }
+          >
+            <Text
+              className={
+                verifyState === 'verified' ? 'text-xs text-aura' : 'text-xs text-foreground'
+              }
+            >
+              {t(`trust.identity.status.${verifyState}` as const, locale)}
             </Text>
           </View>
         </Pressable>

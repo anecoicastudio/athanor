@@ -394,6 +394,7 @@ function ProfileEditor({
             bio={bio || null}
             auraScore={aura.score}
             locale={locale}
+            verified={profile.identity_verified}
           />
 
           {/* Completeness hint */}
