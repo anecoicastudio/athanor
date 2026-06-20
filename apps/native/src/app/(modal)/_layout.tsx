@@ -45,6 +45,9 @@ export default function ModalLayout() {
       <Stack.Screen name="search-filters" options={{ presentation: 'modal' }} />
       <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
       <Stack.Screen name="report" options={{ presentation: 'modal' }} />
+      {/* M9 notification center + preferences */}
+      <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="notif-prefs" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

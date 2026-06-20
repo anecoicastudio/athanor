@@ -175,11 +175,12 @@ export default function SettingsScreen() {
           value={t('settings.theme.on', locale)}
           showChevron={false}
         />
-        {/* Notifiche — no numeric badge (rule §3.2/§8) */}
+        {/* Notifiche — routes to notification center (M9); presence dot, no number (rule #3) */}
         <SettingsRow
           title={t('settings.notif.title', locale)}
           description={t('settings.notif.desc', locale)}
-          onPress={() => showToast(t('settings.soon', locale))}
+          onPress={() => router.push('/(modal)/notifications')}
+          showChevron
         />
       </SettingsGroup>
 

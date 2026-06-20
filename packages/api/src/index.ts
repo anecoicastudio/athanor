@@ -28,4 +28,6 @@ export * from './votes';
 export * from './search';
 export * from './blocks';
 export * from './reports';
+export * from './notifications';
+export * from './notificationPreferences';
 export type { Database, Json } from './database.types';
