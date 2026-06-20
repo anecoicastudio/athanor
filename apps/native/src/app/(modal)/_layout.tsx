@@ -48,6 +48,8 @@ export default function ModalLayout() {
       {/* M9 notification center + preferences */}
       <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
       <Stack.Screen name="notif-prefs" options={{ presentation: 'modal' }} />
+      {/* M9 trust & safety */}
+      <Stack.Screen name="trust" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

@@ -189,7 +189,8 @@ export default function SettingsScreen() {
         <SettingsRow
           title={t('settings.trust.title', locale)}
           description={t('settings.trust.desc', locale)}
-          onPress={() => showToast(t('settings.soon', locale))}
+          onPress={() => router.push('/(modal)/trust')}
+          showChevron
         />
         <SettingsRow
           title={t('block.list.title', locale)}
