@@ -78,11 +78,12 @@ export default function StarScreen() {
             {/* Glyph + name + state chip */}
             <View
               className="items-center gap-3 py-6"
+              accessible={true}
               accessibilityLabel={t(earned ? 'star.a11y.lit' : 'star.a11y.unlit', locale, {
                 star: starName,
               })}
             >
-              <Text className="text-5xl" style={{ color: earned ? undefined : undefined }}>
+              <Text className="text-5xl">
                 {earned ? (
                   <Text
                     className="text-5xl text-aura"

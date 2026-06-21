@@ -116,6 +116,7 @@ export default function VerifyScreen() {
 
       <View className="items-center gap-4 py-4">
         <View
+          accessible={true}
           accessibilityLabel={
             verified ? t('verify.a11y.verified', locale) : t('verify.a11y.unverified', locale)
           }
