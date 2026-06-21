@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   circleKeys,
   entitlementKeys,
-  getMyEntitlements,
   getMyMembership,
   openCustomerPortal,
   startCheckout,
@@ -15,6 +14,7 @@ import {
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { useEntitlement } from '@/lib/useEntitlement';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
@@ -47,13 +47,13 @@ export default function CircleScreen() {
   const [checkoutPhase, setCheckoutPhase] = useState<'idle' | 'opening' | 'portal'>('idle');
 
   // ── Entitlements query ──────────────────────────────────────────────────────
-  const entQuery = useQuery({
-    queryKey: entitlementKeys.me(),
-    queryFn: () => getMyEntitlements(supabase),
-    staleTime: 30_000,
-  });
+  // Shares the canonical EntitlementView shape + cache key with CircleGate's
+  // useEntitlement(). Both MUST map through the same queryFn — a second useQuery on
+  // entitlementKeys.me() returning the raw flat row would poison the shared cache and
+  // crash CircleGate (it reads entitlement.features.*).
+  const entQuery = useEntitlement();
 
-  const isMember = entQuery.data?.is_member ?? false;
+  const isMember = entQuery.data?.isMember ?? false;
 
   // ── Membership detail query (renewal date, founding flag) ───────────────────
   const memberQuery = useQuery({
