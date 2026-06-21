@@ -60,3 +60,12 @@ select a.id, b.id, array['You''re seeking: design','May seek what you offer: mus
 from public.profiles a, public.profiles b
 where a.handle = 'luna' and b.handle = 'sole'
 on conflict do nothing;
+
+-- remote_config: boot-time kill-switch defaults (fail-open: no force-update, not in maintenance).
+-- Local-dev only; the hosted defaults are set via MCP (see the release runbook). on conflict = idempotent.
+insert into public.remote_config (key, value) values
+  ('min_app_version',          '{"ios":"1.0.0","android":"1.0.0"}'::jsonb),
+  ('maintenance_mode',         '{"enabled":false,"eta":null}'::jsonb),
+  ('fund_contributions_enabled','{"enabled":false}'::jsonb),
+  ('prime_stelle_enabled',     '{"enabled":false}'::jsonb)
+on conflict (key) do nothing;

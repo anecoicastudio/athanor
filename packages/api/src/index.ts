@@ -33,4 +33,5 @@ export * from './notificationPreferences';
 export * from './consent';
 export * from './gdpr';
 export * from './verifications';
+export * from './remoteConfig';
 export type { Database, Json } from './database.types';

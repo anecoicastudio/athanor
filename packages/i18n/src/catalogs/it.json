@@ -1042,5 +1042,12 @@
   "account.delete.confirmWord": "ELIMINA",
   "account.delete.exportFirst": "Vuoi prima salvare i tuoi dati? Scarica tutto.",
   "account.delete.cta": "Elimina definitivamente",
-  "account.delete.toast": "Il tuo account verrà eliminato"
+  "account.delete.toast": "Il tuo account verrà eliminato",
+  "update.title": "Aggiorna Athanor",
+  "update.body": "Questa versione non è più supportata. Aggiorna per continuare ad accendere la tua Aura.",
+  "update.cta": "Aggiorna",
+  "maintenance.title": "Torniamo a breve",
+  "maintenance.body": "Stiamo facendo un po' di manutenzione. Riprova tra poco.",
+  "maintenance.eta": "Torniamo entro le {time}.",
+  "maintenance.retry": "Riprova"
 }
