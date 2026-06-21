@@ -59,8 +59,10 @@ export const auraScoreSchema = z.object({
   score: z.number().int().min(0).max(1000),
   breakdown: breakdownSchema,
   peakScore: z.number().int().min(0).max(1000),
-  lastQualifyingActionAt: z.string().datetime().nullable(),
-  computedAt: z.string().datetime(),
+  // PostgREST serializes timestamptz with a numeric offset (`+00:00`), not a `Z` suffix —
+  // plain .datetime() rejects offsets, so { offset: true } is required to parse DB rows.
+  lastQualifyingActionAt: z.string().datetime({ offset: true }).nullable(),
+  computedAt: z.string().datetime({ offset: true }),
 });
 export type AuraScore = z.infer<typeof auraScoreSchema>;
 
@@ -86,7 +88,7 @@ export const auraEventSchema = z.object({
   points: z.number().int(),
   refId: z.string().uuid().nullable(),
   reason: z.record(z.unknown()).nullable(),
-  createdAt: z.string().datetime(),
+  createdAt: z.string().datetime({ offset: true }),
 });
 export type AuraEvent = z.infer<typeof auraEventSchema>;
 
@@ -95,7 +97,7 @@ export const starSchema = z.object({
   id: z.string().uuid(),
   profileId: z.string().uuid(),
   starId: starKeySchema,
-  grantedAt: z.string().datetime().nullable(),
+  grantedAt: z.string().datetime({ offset: true }).nullable(),
   progress: z.object({ done: z.number().int(), total: z.number().int(), unit: z.string() }),
 });
 export type Star = z.infer<typeof starSchema>;

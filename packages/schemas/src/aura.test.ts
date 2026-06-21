@@ -91,6 +91,50 @@ describe('aura read schemas (M6)', () => {
     });
     expect(ok.success).toBe(true);
   });
+
+  // PostgREST serializes timestamptz with a numeric offset (`+00:00`), NOT a `Z` suffix.
+  // Plain z.string().datetime() rejects offsets → every real DB row would fail to parse.
+  // These guard the read schemas against that (regression: Aura ledger broke on real data).
+  test('auraEventSchema accepts a PostgREST +00:00 createdAt', () => {
+    const ok = auraEventSchema.safeParse({
+      id: '22222222-2222-2222-2222-222222222222',
+      profileId: '11111111-1111-1111-1111-111111111111',
+      type: 'event_attended',
+      points: 25,
+      refId: null,
+      reason: { src: 'engine' },
+      createdAt: '2026-06-20T14:35:30.72216+00:00',
+    });
+    expect(ok.success).toBe(true);
+  });
+  test('auraScoreSchema accepts PostgREST +00:00 timestamps', () => {
+    const ok = auraScoreSchema.safeParse({
+      profileId: '11111111-1111-1111-1111-111111111111',
+      score: 320,
+      breakdown: {
+        contributi: 80,
+        eventi: 60,
+        collaborazioni: 70,
+        valore: 50,
+        recensioni: 30,
+        affidabilita: 30,
+      },
+      peakScore: 360,
+      lastQualifyingActionAt: '2026-06-20T14:35:30.72216+00:00',
+      computedAt: '2026-06-21T09:00:00.123456+00:00',
+    });
+    expect(ok.success).toBe(true);
+  });
+  test('starSchema accepts a PostgREST +00:00 grantedAt', () => {
+    const ok = starSchema.safeParse({
+      id: '33333333-3333-3333-3333-333333333333',
+      profileId: '11111111-1111-1111-1111-111111111111',
+      starId: 'visionario',
+      grantedAt: '2026-06-11T14:35:30.72216+00:00',
+      progress: { done: 1, total: 1, unit: 'sogno' },
+    });
+    expect(ok.success).toBe(true);
+  });
 });
 
 describe('auraCelebrationPayload', () => {
