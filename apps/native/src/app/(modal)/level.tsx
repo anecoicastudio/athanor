@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { useAuth } from '@/lib/auth-context';
+import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 
 /**
  * Level-up overlay — fired when the score-engine broadcasts a `tier_up` celebration.
@@ -23,15 +25,9 @@ export default function LevelOverlay() {
   const router = useRouter();
   const { tier = '' } = useLocalSearchParams<{ tier: string }>();
 
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(0.9)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => setReduceMotion(false));
-  }, []);
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
@@ -52,9 +48,12 @@ export default function LevelOverlay() {
 
   // Localize the tier id → display name (e.g. 'bagliore' → 'Bagliore' / 'Glow').
   const tierName = tier ? t(`tier.${tier}` as MessageKey, locale) : tier;
+  const headline = t('tier.up.title', locale, { tier: tierName });
+  useAnnounceOnMount(headline);
 
   return (
     <Animated.View
+      {...MODAL_A11Y}
       style={{ opacity }}
       className="flex-1 items-center justify-center bg-background px-8"
     >
@@ -68,8 +67,11 @@ export default function LevelOverlay() {
       <Text className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-aura">
         {t('tier.up.eyebrow', locale)}
       </Text>
-      <Text className="mt-2 text-center text-[26px] font-bold text-foreground">
-        {t('tier.up.title', locale, { tier: tierName })}
+      <Text
+        accessibilityRole="header"
+        className="mt-2 text-center text-[26px] font-bold text-foreground"
+      >
+        {headline}
       </Text>
       <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
         {t('tier.up.sub', locale)}

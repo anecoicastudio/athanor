@@ -115,9 +115,22 @@ export default function VerifyScreen() {
       </View>
 
       <View className="items-center gap-4 py-4">
-        <Mandorla size={92} glowLevel={verified ? 1 : 0.4}>
-          <Text className="text-3xl text-aura">{verified ? '✦' : '◇'}</Text>
-        </Mandorla>
+        <View
+          accessible={true}
+          accessibilityLabel={
+            verified ? t('verify.a11y.verified', locale) : t('verify.a11y.unverified', locale)
+          }
+        >
+          <Mandorla size={92} glowLevel={verified ? 1 : 0.4}>
+            <Text
+              className="text-3xl text-aura"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {verified ? '✦' : '◇'}
+            </Text>
+          </Mandorla>
+        </View>
 
         {verified ? (
           <Text className="text-center text-lg font-semibold text-aura">

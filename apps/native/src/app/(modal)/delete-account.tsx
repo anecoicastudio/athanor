@@ -8,6 +8,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * GDPR right-to-erasure / store-mandated in-app account deletion (09 §3.5.2, 12 §3.3, Apple 5.1.1(v)).
@@ -54,6 +55,7 @@ export default function DeleteAccountScreen() {
 
   return (
     <ScrollView
+      {...MODAL_A11Y}
       className="flex-1 bg-background"
       contentContainerClassName="gap-6 px-5 pb-[104px] pt-14"
     >
@@ -66,7 +68,7 @@ export default function DeleteAccountScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">
+        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
           {t('account.delete.title', locale)}
         </Text>
       </View>

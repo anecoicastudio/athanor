@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { t } from '@athanor/i18n';
 import { mandorla, semantic } from '@athanor/config';
 import { Text } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -29,7 +30,7 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
   const wordmark = useRef(new Animated.Value(0)).current;
   const tagline = useRef(new Animated.Value(0)).current;
   const container = useRef(new Animated.Value(1)).current;
-  const [reduce, setReduce] = useState(false);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     let cancelled = false;
@@ -57,23 +58,31 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
       timers.push(setTimeout(finish, 900)); // guaranteed exit ~100ms after the fade
     };
 
-    AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
-      if (cancelled) return;
-      if (reduced) {
-        // Static finished mark, brief hold, then leave.
-        setReduce(true);
-        circles.setValue(0);
-        lens.setValue(0);
-        spark.setValue(1);
-        wordmark.setValue(1);
-        tagline.setValue(1);
-        timers.push(setTimeout(fadeOut, 700));
-        return;
-      }
+    if (reduce) {
+      // Static finished mark, brief hold, then leave.
+      circles.setValue(0);
+      lens.setValue(0);
+      spark.setValue(1);
+      wordmark.setValue(1);
+      tagline.setValue(1);
+      timers.push(setTimeout(fadeOut, 700));
+    } else {
       const draw = (v: Animated.Value, delay: number) =>
-        Animated.timing(v, { toValue: 0, duration: 1600, delay, easing: Easing.ease, useNativeDriver: false });
+        Animated.timing(v, {
+          toValue: 0,
+          duration: 1600,
+          delay,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        });
       const fade = (v: Animated.Value, delay: number) =>
-        Animated.timing(v, { toValue: 1, duration: 1000, delay, easing: Easing.ease, useNativeDriver: false });
+        Animated.timing(v, {
+          toValue: 1,
+          duration: 1000,
+          delay,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        });
       Animated.parallel([
         draw(circles, 0),
         draw(lens, 500),
@@ -88,13 +97,13 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
         fade(tagline, 1100),
       ]).start();
       timers.push(setTimeout(fadeOut, 2700));
-    });
+    }
 
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [circles, lens, spark, wordmark, tagline, container, onDone]);
+  }, [circles, lens, spark, wordmark, tagline, container, onDone, reduce]);
 
   // pop curve: scale .2 → 1.25 → 1 (prototype @keyframes pop).
   const sparkScale = spark.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.2, 1.25, 1] });
@@ -110,7 +119,13 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
         { backgroundColor: semantic.background, opacity: container },
       ]}
     >
-      <Svg width={SIZE} height={SIZE} viewBox="0 0 100 100">
+      <Svg
+        width={SIZE}
+        height={SIZE}
+        viewBox="0 0 100 100"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         <Defs>
           <LinearGradient id="splashLens" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={mandorla.lensTop} />

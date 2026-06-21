@@ -4,6 +4,7 @@ import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import type { PermStatus } from '@/lib/media/permissions';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Pre-permission priming sheet (resilience §7 / privacy-by-design). Shown BEFORE
@@ -41,12 +42,22 @@ export function PermissionPrimer({
       <Pressable className="flex-1 justify-end bg-surface-muted" onPress={onDismiss}>
         {/* sheet — stop propagation so taps inside don't dismiss */}
         <Pressable
+          {...MODAL_A11Y}
           className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-8"
           onPress={() => {}}
         >
           <View className="items-center">
-            <Text className="text-4xl text-aura">✦</Text>
-            <Text className="mt-5 text-center text-xl font-semibold text-foreground">
+            <Text
+              className="text-4xl text-aura"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ✦
+            </Text>
+            <Text
+              accessibilityRole="header"
+              className="mt-5 text-center text-xl font-semibold text-foreground"
+            >
               {t(titleKey, locale)}
             </Text>
             <Text className="mt-2 text-center text-[15px] leading-5 text-faint">

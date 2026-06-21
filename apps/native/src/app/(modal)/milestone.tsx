@@ -7,6 +7,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Milestone composer (M2, frontend `02` §3.3 — sheet-milestone). Adds one tappa
@@ -45,6 +46,7 @@ export default function MilestoneScreen() {
 
   return (
     <ScrollView
+      {...MODAL_A11Y}
       className="flex-1 bg-background"
       contentContainerClassName="gap-6 px-5 py-12"
       keyboardShouldPersistTaps="handled"
@@ -58,7 +60,7 @@ export default function MilestoneScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="text-xl font-semibold text-foreground">
+        <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">
           {t('milestone.sheet.title', locale)}
         </Text>
       </View>

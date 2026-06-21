@@ -10,6 +10,7 @@ import {
 } from '@athanor/api';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -110,7 +111,7 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
           <Pressable
             accessibilityRole="button"
             disabled={pending || !requestId}
-            hitSlop={8}
+            hitSlop={HIT_SLOP}
             onPress={() => requestId && cancelMutation.mutate(requestId)}
           >
             <Text className={`text-center text-[13px] text-faint ${pending ? 'opacity-40' : ''}`}>

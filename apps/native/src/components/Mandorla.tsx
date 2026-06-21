@@ -24,7 +24,14 @@ export function Mandorla({
       className="items-center justify-center"
       style={[{ width: size, height: size }, auraGlow(glowLevel)]}
     >
-      <Svg width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
+      <Svg
+        width={size}
+        height={size}
+        viewBox="0 0 100 100"
+        style={{ position: 'absolute' }}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         {/* Vertical vesica: top point (50,4) → bottom (50,96), one arc per side.
             Verify on device the lens is symmetric; flip a sweep flag if a side inverts. */}
         <Path

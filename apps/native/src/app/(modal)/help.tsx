@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /** A Postgres unique-violation (23505) — you already offered help on this tappa. */
 function isUniqueViolation(e: unknown): boolean {
@@ -66,6 +67,7 @@ export default function HelpScreen() {
 
   return (
     <ScrollView
+      {...MODAL_A11Y}
       className="flex-1 bg-background"
       contentContainerClassName="gap-6 px-5 py-12"
       keyboardShouldPersistTaps="handled"
@@ -79,7 +81,7 @@ export default function HelpScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="text-xl font-semibold text-foreground">
+        <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">
           {t('help.sheet.title', locale)}
         </Text>
       </View>

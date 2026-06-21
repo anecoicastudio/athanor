@@ -23,7 +23,7 @@ export function ConversationRow({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      className="flex-row items-center gap-3 py-3"
+      className="flex-row items-center gap-3 py-3 min-h-[56px]"
     >
       <Avatar handle={item.peerHandle} size={48} />
       <View className="flex-1 gap-0.5">

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsCalendar } from '@athanor/api';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { EventRow } from '@/components/live/EventRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { EmptyState } from '@/components/EmptyState';
@@ -24,7 +25,11 @@ export function TodaySection({ locale }: { locale: Locale }) {
     <View className="gap-3">
       <View className="flex-row items-center justify-between">
         <SectionLabel>{t('home.today.title', locale)}</SectionLabel>
-        <Pressable onPress={() => router.push(LIVE_HREF)} hitSlop={8} accessibilityRole="link">
+        <Pressable
+          onPress={() => router.push(LIVE_HREF)}
+          hitSlop={HIT_SLOP}
+          accessibilityRole="link"
+        >
           <Text className="text-[13px] text-aura">{t('home.today.seeLive', locale)}</Text>
         </Pressable>
       </View>

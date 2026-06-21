@@ -13,6 +13,7 @@ import { FavorRow } from '@/components/costellazioni/FavorRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { auraGlow } from '@/lib/glow';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /** A Postgres unique-violation (23505) — you already passed this favor. Treat as "done". */
 function isUniqueViolation(e: unknown): boolean {
@@ -75,7 +76,7 @@ export default function FavorScreen() {
   if (done) {
     const name = done.target_handle ?? '—';
     return (
-      <View className="flex-1 items-center justify-center gap-6 bg-background px-8">
+      <View {...MODAL_A11Y} className="flex-1 items-center justify-center gap-6 bg-background px-8">
         {/* The one glow (rule #4): a favor was lit — a moment. Shows NO Aura number (rule #1). */}
         <View
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
@@ -108,7 +109,7 @@ export default function FavorScreen() {
 
   if (query.isError) {
     return (
-      <View className="flex-1 items-center justify-center gap-4 bg-background px-8">
+      <View {...MODAL_A11Y} className="flex-1 items-center justify-center gap-4 bg-background px-8">
         <EmptyState>{t('favor.error', locale)}</EmptyState>
         <Pressable
           className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
@@ -121,7 +122,7 @@ export default function FavorScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
       <FlatList
         data={needs}
         keyExtractor={(item) => item.need_milestone_id}
@@ -129,7 +130,9 @@ export default function FavorScreen() {
           <View className="gap-3 px-5 pb-2 pt-12">
             <View className="flex-row items-start justify-between">
               <View className="flex-1 gap-1 pr-4">
-                <Text className="text-2xl text-foreground">{t('favor.sheet.title', locale)}</Text>
+                <Text accessibilityRole="header" className="text-2xl text-foreground">
+                  {t('favor.sheet.title', locale)}
+                </Text>
                 <Text className="text-[14px] text-faint">{t('favor.sheet.sub', locale)}</Text>
               </View>
               <Pressable

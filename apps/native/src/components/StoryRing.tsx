@@ -2,6 +2,7 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Avatar } from '@/components/Avatar';
 import { Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 
 /**
  * One story-rail entry (frontend §3.1/§4): a ringed Avatar + a name label. An unseen ring is
@@ -30,6 +31,7 @@ export function StoryRing({
       accessibilityRole="button"
       accessibilityLabel={name}
       onPress={onPress}
+      hitSlop={HIT_SLOP}
       className="w-[76px] items-center gap-1.5"
     >
       <View className={`rounded-full border-2 p-0.5 ${ring}`}>

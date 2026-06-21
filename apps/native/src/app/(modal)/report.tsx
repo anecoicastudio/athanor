@@ -14,6 +14,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Report sheet (M9, frontend `09` §3.3). One sheet parameterized by targetType ∈
@@ -70,13 +71,16 @@ export default function ReportScreen() {
 
   return (
     <ScrollView
+      {...MODAL_A11Y}
       className="flex-1 bg-background"
       contentContainerClassName="gap-6 px-5 py-12"
       keyboardShouldPersistTaps="handled"
     >
       {/* head — title + close x */}
       <View className="flex-row items-center justify-between">
-        <Text className="text-xl font-semibold text-foreground">{t('report.title', locale)}</Text>
+        <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">
+          {t('report.title', locale)}
+        </Text>
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"

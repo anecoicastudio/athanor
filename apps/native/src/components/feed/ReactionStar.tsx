@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 /**
  * The single ✦ "light a star" (frontend §3.2). VIEWER-STATE-ONLY — never renders a
@@ -22,14 +23,8 @@ export function ReactionStar({
   onPress: () => void;
   locale: Locale;
 }) {
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => setReduceMotion(false));
-  }, []);
 
   useEffect(() => {
     if (!lit || reduceMotion) return;

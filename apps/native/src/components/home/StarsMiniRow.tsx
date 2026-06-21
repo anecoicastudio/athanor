@@ -26,7 +26,7 @@ export function StarsMiniRow({
       accessibilityRole="button"
       accessibilityLabel={t('home.stars.title', locale)}
       onPress={onPress}
-      className="gap-3"
+      className="gap-3 min-h-[56px] justify-center"
     >
       <View className="flex-row items-center justify-between">
         <SectionLabel>{t('home.stars.title', locale)}</SectionLabel>

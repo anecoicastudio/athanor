@@ -55,7 +55,7 @@ export function DreamHeroCard({ locale, fallback }: { locale: Locale; fallback?:
       accessibilityRole="button"
       accessibilityLabel={t('home.dream.title', locale)}
       onPress={() => router.push('/annual')}
-      className="gap-3"
+      className="gap-3 min-h-[56px]"
     >
       <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
       <Card>

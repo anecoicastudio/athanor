@@ -30,11 +30,11 @@ export function CategoryTabs({
           <Pressable
             key={f}
             onPress={() => onChange(f)}
-            className={`rounded-ctl border px-4 py-2 ${
+            className={`rounded-ctl border px-4 py-2 min-h-[44px] justify-center ${
               isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
             }`}
           >
-            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
+            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-muted-foreground'}`}>
               {t(`feed.filter.${f}` as MessageKey, locale)}
             </Text>
           </Pressable>

@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo } from 'react-native';
 import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
@@ -39,6 +40,13 @@ export default function OnboardingScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Announce the current step to screen readers whenever it changes (A-5).
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(
+      t('onboarding.a11y.step', locale, { n: String(step + 1), total: '3' }),
+    );
+  }, [step, locale]);
 
   const toggle = (list: string[], set: (v: string[]) => void, tag: string) =>
     set(list.includes(tag) ? list.filter((x) => x !== tag) : [...list, tag]);
@@ -99,7 +107,9 @@ export default function OnboardingScreen() {
           </Text>
         </View>
         <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8}>
-          <Text className="text-[13px] font-semibold text-aura">{t('auth.haveAccount', locale)}</Text>
+          <Text className="text-[13px] font-semibold text-aura">
+            {t('auth.haveAccount', locale)}
+          </Text>
         </Pressable>
       </View>
       <View className="mt-3">

@@ -28,7 +28,7 @@ export function Comment({
       <Text className="text-[14px] leading-6 text-foreground">{comment.body}</Text>
       {onReply ? (
         <Pressable className="self-start" onPress={() => onReply(null)}>
-          <Text className="text-[12px] text-faint">{t('comment.reply', locale)}</Text>
+          <Text className="text-[12px] text-muted-foreground">{t('comment.reply', locale)}</Text>
         </Pressable>
       ) : null}
     </View>

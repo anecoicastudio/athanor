@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 import { Tag } from '@/components/Tag';
 import { auraGlow } from '@/lib/glow';
 
@@ -31,14 +32,8 @@ export function SubscriptionStatusCard({
   founding: boolean;
   locale: Locale;
 }) {
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => setReduceMotion(false));
-  }, []);
 
   useEffect(() => {
     if (!reduceMotion) {

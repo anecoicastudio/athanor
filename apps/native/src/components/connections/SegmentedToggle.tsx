@@ -26,7 +26,7 @@ export function SegmentedToggle({
             key={segment}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            className={`flex-1 items-center justify-center rounded-full px-4 py-2 ${active ? 'bg-aura' : ''}`}
+            className={`flex-1 items-center justify-center rounded-full px-4 py-2 min-h-[44px] ${active ? 'bg-aura' : ''}`}
             onPress={() => onChange(segment)}
           >
             <Text className={`text-[14px] font-semibold ${active ? 'text-on-aura' : 'text-faint'}`}>

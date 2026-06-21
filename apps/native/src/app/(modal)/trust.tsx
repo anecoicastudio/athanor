@@ -19,6 +19,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
  * Trust & safety (M9 §3.1 + §3.5.3). Quote (the one cyan statement) · read-only Identity card
@@ -119,7 +120,11 @@ export default function TrustScreen() {
   });
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-6 pb-[104px]">
+    <ScrollView
+      {...MODAL_A11Y}
+      className="flex-1 bg-background"
+      contentContainerClassName="gap-6 pb-[104px]"
+    >
       {/* Header */}
       <View className="flex-row items-center gap-3 px-5 pb-2 pt-14">
         <Pressable
@@ -130,7 +135,7 @@ export default function TrustScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">
+        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
           {t('trust.title', locale)}
         </Text>
       </View>
@@ -157,6 +162,8 @@ export default function TrustScreen() {
             className={
               verifyState === 'verified' ? 'text-2xl text-aura' : 'text-2xl text-muted-foreground'
             }
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
           >
             {verifyState === 'verified' ? '✦' : '◇'}
           </Text>

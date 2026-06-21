@@ -29,7 +29,7 @@ export function PriceToggle({
             key={plan}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            className={`flex-1 items-center justify-center rounded-full px-4 py-2 ${active ? 'bg-foreground' : ''}`}
+            className={`flex-1 items-center justify-center rounded-full px-4 py-2 min-h-[44px] ${active ? 'bg-foreground' : ''}`}
             onPress={() => onChange(plan)}
           >
             <Text

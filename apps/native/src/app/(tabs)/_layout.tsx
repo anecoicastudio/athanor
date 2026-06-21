@@ -29,6 +29,9 @@ export default function TabsLayout() {
           title: t('tabs.momenti', 'it'),
           tabBarBadge: hasUnseen ? '✦' : undefined,
           tabBarBadgeStyle: { backgroundColor: 'transparent', color: semantic.aura },
+          tabBarAccessibilityLabel: hasUnseen
+            ? t('tabs.a11y.momentiUnread', 'it')
+            : t('tabs.momenti', 'it'),
         }}
       />
       <Tabs.Screen name="costellazioni" options={{ title: t('tabs.costellazioni', 'it') }} />
