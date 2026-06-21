@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(14);
 
 select has_table('public', 'remote_config', 'remote_config exists');
 select ok(
@@ -15,7 +15,8 @@ select lives_ok(
   $$insert into public.remote_config (key, value) values
       ('min_app_version', '{"ios":"1.0.0","android":"1.0.0"}'::jsonb),
       ('maintenance_mode', '{"enabled":false,"eta":null}'::jsonb),
-      ('prime_stelle_enabled', '{"enabled":false}'::jsonb)$$,
+      ('prime_stelle_enabled', '{"enabled":false}'::jsonb),
+      ('fund_contributions_enabled', '{"enabled":false}'::jsonb)$$,
   'service_role can write well-formed config');
 reset role;
 
@@ -50,6 +51,9 @@ select throws_ok(
 select throws_ok(
   $$insert into public.remote_config (key, value) values ('maintenance_mode', '{"enabled":"yes"}'::jsonb)$$,
   '23514', null, 'maintenance_mode.enabled must be boolean');
+select throws_ok(
+  $$insert into public.remote_config (key, value) values ('some_new_flag', '{"foo":1}'::jsonb)$$,
+  '23514', null, 'unknown flag key with missing "enabled" field is rejected (else-branch)');
 select lives_ok(
   $$update public.remote_config set value = '{"ios":"1.1.0","android":"1.1.0"}'::jsonb
     where key = 'min_app_version'$$,
