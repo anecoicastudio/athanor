@@ -16,6 +16,7 @@ import { isProfileComplete } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/BrandSplash';
+import { BootGate } from '@/components/BootGate';
 import { asyncStoragePersister, queryClient } from '@/lib/query-client';
 
 SplashScreen.preventAutoHideAsync();
@@ -86,19 +87,21 @@ export default function RootLayout() {
         persistOptions={{ persister: asyncStoragePersister }}
       >
         <StatusBar style="light" />
-        <AuthGuard>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: semantic.background },
-            }}
-          >
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(onboarding)" />
-            <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
-          </Stack>
-        </AuthGuard>
+        <BootGate>
+          <AuthGuard>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: semantic.background },
+              }}
+            >
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(onboarding)" />
+              <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
+            </Stack>
+          </AuthGuard>
+        </BootGate>
         {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
         {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
       </PersistQueryClientProvider>
