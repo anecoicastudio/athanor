@@ -36,3 +36,4 @@ export * from './notification';
 export * from './notificationPreference';
 export * from './verification';
 export * from './remoteConfig';
+export * from './admin';
