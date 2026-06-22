@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { t, type Locale } from '@athanor/i18n';
-import { submitVerdict } from '@/app/admin/reports/[id]/actions';
+import { submitVerdict } from '@/app/admin/(dashboard)/reports/[id]/actions';
 
 /**
  * VerdictForm — client component that submits to the submitVerdict server action.
