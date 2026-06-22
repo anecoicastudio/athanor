@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation';
 import { t } from '@athanor/i18n';
 import { getReportDetail } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
@@ -10,7 +11,12 @@ export const dynamic = 'force-dynamic';
 export default async function ReportDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [supabase, locale] = await Promise.all([createAuthedClient(), getLocale()]);
-  const report = await getReportDetail(supabase, id);
+  let report: Awaited<ReturnType<typeof getReportDetail>>;
+  try {
+    report = await getReportDetail(supabase, id);
+  } catch {
+    notFound();
+  }
   const resolved = report.status === 'upheld' || report.status === 'dismissed';
   return (
     <section className="flex flex-col gap-5">
@@ -39,7 +45,7 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
           {report.resolution ? ` — ${report.resolution}` : ''}
         </p>
       ) : (
-        <VerdictForm reportId={report.id} locale={locale} />
+        <VerdictForm reportId={report.id} locale={locale} targetType={report.target_type} />
       )}
       <AuditTrail audit={report.audit} locale={locale} />
     </section>

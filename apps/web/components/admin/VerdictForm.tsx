@@ -15,8 +15,17 @@ import { submitVerdict } from '@/app/admin/(dashboard)/reports/[id]/actions';
  * locale is threaded as a prop from the server page (same pattern as Task 7
  * ReportRow / StatusTabs) so the server page controls the locale, not the client.
  */
-export function VerdictForm({ reportId, locale }: { reportId: string; locale: Locale }) {
+export function VerdictForm({
+  reportId,
+  locale,
+  targetType,
+}: {
+  reportId: string;
+  locale: Locale;
+  targetType: 'person' | 'post' | 'behavior';
+}) {
   const [verdict, setVerdict] = useState<'dismiss' | 'uphold'>('dismiss');
+  const canUphold = targetType === 'person';
   return (
     <form
       action={submitVerdict}
@@ -35,18 +44,20 @@ export function VerdictForm({ reportId, locale }: { reportId: string; locale: Lo
           />
           {t('admin.verdict.dismiss', locale)}
         </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="verdict"
-            value="uphold"
-            checked={verdict === 'uphold'}
-            onChange={() => setVerdict('uphold')}
-          />
-          {t('admin.verdict.uphold', locale)}
-        </label>
+        {canUphold && (
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="verdict"
+              value="uphold"
+              checked={verdict === 'uphold'}
+              onChange={() => setVerdict('uphold')}
+            />
+            {t('admin.verdict.uphold', locale)}
+          </label>
+        )}
       </fieldset>
-      {verdict === 'uphold' && (
+      {canUphold && verdict === 'uphold' && (
         <label className="flex flex-col gap-1">
           <span>{t('admin.verdict.severity', locale)}</span>
           <select
