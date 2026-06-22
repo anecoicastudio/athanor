@@ -39,7 +39,7 @@ export default function AdminLogin() {
           />
           <button
             type="submit"
-            className="rounded-[14px] bg-aura px-4 py-3 font-semibold text-[#04222a]"
+            className="rounded-[14px] bg-aura px-4 py-3 font-semibold text-on-aura"
           >
             {t('admin.login.cta', locale)}
           </button>
