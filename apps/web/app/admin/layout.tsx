@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { t } from '@athanor/i18n';
+import { typography } from '@athanor/config';
 import { createAuthedClient } from '@/utils/supabase/server';
 import { getLocale } from '@/lib/get-locale';
 
@@ -18,7 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <span className="font-semibold tracking-[0.3em]">ATHANOR</span>
+        <span className="font-semibold tracking-[0.3em]">{typography.wordmark}</span>
         <form action="/admin/auth/signout" method="post">
           <button className="text-muted-foreground" type="submit">
             {t('admin.signout', locale)}

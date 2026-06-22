@@ -14,7 +14,8 @@ export function ReportRow({ row, locale }: { row: AdminReportRow; locale: Locale
             {t(`report.reason.${row.category}` as Parameters<typeof t>[0], locale)}
           </span>
           <span className="text-sm text-muted-foreground">
-            {row.target_type} · {t('admin.report.reporter', locale)} @{row.reporter_handle ?? '—'}
+            {t(`admin.target.${row.target_type}` as Parameters<typeof t>[0], locale)} ·{' '}
+            {t('admin.report.reporter', locale)} @{row.reporter_handle ?? '—'}
           </span>
         </span>
         <span className="text-xs text-muted-foreground">
