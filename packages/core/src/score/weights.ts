@@ -102,6 +102,12 @@ export const DECAY = { IDLE_DAYS_BEFORE: 30, WEEKLY_FACTOR: 0.98, PEAK_FLOOR_RAT
 /** Report-upheld penalty by severity, within [MIN, MAX]. Owned by M9 moderation; consumed here. */
 export const REPORT_PENALTY = { low: -50, medium: -100, high: -200 } as const;
 
+export type ReportSeverity = keyof typeof REPORT_PENALTY;
+/** Penalty points for an upheld report by severity (rule #10 single source). */
+export function reportPenaltyPoints(severity: ReportSeverity): number {
+  return REPORT_PENALTY[severity];
+}
+
 /** Tier display bands (frontend §3.4; display-only, never a score write). */
 export const TIER_THRESHOLDS = [
   { tier: 'scintilla', min: 0 },
