@@ -1085,5 +1085,10 @@
   "admin.verdict.done": "Decisione registrata.",
   "admin.verdict.error": "Qualcosa non ha funzionato.",
   "admin.audit.title": "Registro",
-  "admin.audit.empty": "Nessuna decisione ancora."
+  "admin.audit.empty": "Nessuna decisione ancora.",
+  "admin.action.dismiss": "Archiviato",
+  "admin.action.warn": "Avvertimento",
+  "admin.action.penalty": "Penalità",
+  "admin.action.suspend": "Sospensione",
+  "admin.action.ban": "Bannato"
 }

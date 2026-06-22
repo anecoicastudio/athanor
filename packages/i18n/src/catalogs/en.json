@@ -1085,5 +1085,10 @@
   "admin.verdict.done": "Decision recorded.",
   "admin.verdict.error": "Something went wrong.",
   "admin.audit.title": "Log",
-  "admin.audit.empty": "No decisions yet."
+  "admin.audit.empty": "No decisions yet.",
+  "admin.action.dismiss": "Dismissed",
+  "admin.action.warn": "Warning",
+  "admin.action.penalty": "Penalty",
+  "admin.action.suspend": "Suspension",
+  "admin.action.ban": "Banned"
 }
