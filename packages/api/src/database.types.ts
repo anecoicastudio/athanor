@@ -50,6 +50,58 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          id: string
+          penalty_points: number | null
+          reason: string | null
+          report_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          id?: string
+          penalty_points?: number | null
+          reason?: string | null
+          report_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          id?: string
+          penalty_points?: number | null
+          reason?: string | null
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       aura_events: {
         Row: {
           created_at: string
@@ -2494,6 +2546,17 @@ export type Database = {
       post_reaction_count: { Args: { p_post_id: string }; Returns: number }
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }
+        Returns: undefined
+      }
+      resolve_report: {
+        Args: {
+          p_action: string
+          p_penalty_points?: number
+          p_report_id: string
+          p_resolution: string
+          p_severity?: string
+          p_status: string
+        }
         Returns: undefined
       }
       respond_to_connection: {
