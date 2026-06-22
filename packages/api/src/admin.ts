@@ -1,28 +1,18 @@
 import { reportPenaltyPoints } from '@athanor/core';
-import { type ResolveReportInput, type AuditLogRow } from '@athanor/schemas';
+import {
+  type ResolveReportInput,
+  type AuditLogRow,
+  type AdminReportRow,
+  type AdminReportDetail,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
+
+export type { AdminReportRow, AdminReportDetail } from '@athanor/schemas';
 
 export const adminReportKeys = {
   all: ['admin', 'reports'] as const,
   queue: (status: string) => [...adminReportKeys.all, 'queue', status] as const,
   detail: (id: string) => [...adminReportKeys.all, 'detail', id] as const,
-};
-
-export type AdminReportRow = {
-  id: string;
-  target_type: 'person' | 'post' | 'behavior';
-  target_id: string | null;
-  category: string;
-  status: string;
-  created_at: string;
-  reporter_handle: string | null;
-};
-
-export type AdminReportDetail = AdminReportRow & {
-  note: string | null;
-  resolution: string | null;
-  target_handle: string | null;
-  audit: AuditLogRow[];
 };
 
 const PAGE = 25;

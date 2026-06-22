@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(8);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
@@ -37,6 +37,14 @@ select throws_ok(
   $$ insert into public.audit_log (report_id, actor_id, action, penalty_points) values
      (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', 'penalty', -10) $$,
   '23514', null, 'penalty_points out of [-200,-50] rejected');
+
+-- authenticated non-admin: SELECT returns 0 rows (RLS-filtered, not 42501)
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select is(
+  (select count(*)::int from public.audit_log),
+  0, 'non-admin authenticated sees no audit rows');
+reset role;
 
 select * from finish();
 rollback;

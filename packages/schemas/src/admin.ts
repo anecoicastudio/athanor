@@ -30,3 +30,24 @@ export const auditLogRow = z.object({
   created_at: z.string(),
 });
 export type AuditLogRow = z.infer<typeof auditLogRow>;
+
+/** Admin queue row shape (read from reports table + reporter join). */
+export const adminReportRow = z.object({
+  id: z.string().uuid(),
+  target_type: z.enum(['person', 'post', 'behavior']),
+  target_id: z.string().uuid().nullable(),
+  category: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  reporter_handle: z.string().nullable(),
+});
+export type AdminReportRow = z.infer<typeof adminReportRow>;
+
+/** Admin detail shape (report + audit trail + target handle). */
+export const adminReportDetail = adminReportRow.extend({
+  note: z.string().nullable(),
+  resolution: z.string().nullable(),
+  target_handle: z.string().nullable(),
+  audit: z.array(auditLogRow),
+});
+export type AdminReportDetail = z.infer<typeof adminReportDetail>;

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 -- one admin, one normal member, one target
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
@@ -43,8 +43,13 @@ select lives_ok(
   'admin upholds with penalty');
 select is((select status from public.reports where id='dddddddd-dddd-dddd-dddd-dddddddddddd'),'upheld','status upheld');
 select is((select count(*) from public.audit_log where report_id='dddddddd-dddd-dddd-dddd-dddddddddddd' and action='penalty' and penalty_points=-200)::int,1,'audit row written');
--- rule #1: the RPC wrote NO aura_events
-select is((select count(*) from public.aura_events where ref_id='dddddddd-dddd-dddd-dddd-dddddddddddd')::int,0,'RPC writes no aura_events (rule #1)');
+-- rule #1: the RPC wrote NO aura_events (service_role for true global — own-row SELECT RLS would hide others)
+set local role service_role;
+select is(
+  (select count(*)::int from public.aura_events
+     where profile_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+       and ref_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'),
+  0, 'RPC writes no aura_events (rule #1)');
 reset role;
 
 -- second resolve is a no-op (already upheld → not in open/reviewing)
@@ -53,6 +58,19 @@ set local role authenticated;
 select lives_ok(
   $$ select public.resolve_report('dddddddd-dddd-dddd-dddd-dddddddddddd','dismissed','x','dismiss') $$,
   'second verdict no-ops on resolved report');
+reset role;
+
+-- penalty on non-person target → 22023
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","role":"authenticated"}';
+insert into public.reports (id, target_type, target_id, category)
+  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','post', null, 'spam');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated","app_metadata":{"role":"admin"}}';
+select throws_ok(
+  $$ select public.resolve_report('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','upheld','test','penalty','high',-200) $$,
+  '22023', null, 'penalty on non-person target raises 22023');
 reset role;
 
 select * from finish();
