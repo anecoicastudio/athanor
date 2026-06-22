@@ -287,6 +287,9 @@ importers:
 
   packages/api:
     dependencies:
+      '@athanor/core':
+        specifier: workspace:*
+        version: link:../core
       '@athanor/schemas':
         specifier: workspace:*
         version: link:../schemas

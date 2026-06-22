@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@athanor/core": "workspace:*",
     "@athanor/schemas": "workspace:*",
     "@supabase/supabase-js": "^2.49.4"
   },
