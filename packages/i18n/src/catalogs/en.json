@@ -1056,6 +1056,9 @@
   "admin.login.cta": "Send the link",
   "admin.login.sent": "Check your email for the sign-in link.",
   "admin.login.error": "Couldn't send the link.",
+  "admin.login.password": "Password",
+  "admin.login.passwordCta": "Sign in",
+  "admin.login.badPassword": "Wrong email or password.",
   "admin.signout": "Sign out",
   "admin.queue.title": "To review",
   "admin.queue.empty": "Nothing to review right now.",
@@ -1090,5 +1093,12 @@
   "admin.action.warn": "Warning",
   "admin.action.penalty": "Penalty",
   "admin.action.suspend": "Suspension",
-  "admin.action.ban": "Banned"
+  "admin.action.ban": "Banned",
+  "admin.waitlist.title": "Waitlist",
+  "admin.waitlist.count": "people waiting",
+  "admin.waitlist.empty": "No signups yet.",
+  "admin.waitlist.export": "Export CSV",
+  "admin.waitlist.colEmail": "Email",
+  "admin.waitlist.colSource": "Source",
+  "admin.waitlist.colWhen": "When"
 }

@@ -1056,6 +1056,9 @@
   "admin.login.cta": "Invia il link",
   "admin.login.sent": "Controlla la mail per il link d'accesso.",
   "admin.login.error": "Non è stato possibile inviare il link.",
+  "admin.login.password": "Password",
+  "admin.login.passwordCta": "Entra",
+  "admin.login.badPassword": "Email o password non corretti.",
   "admin.signout": "Esci",
   "admin.queue.title": "Da rivedere",
   "admin.queue.empty": "Per ora non c'è nulla da rivedere.",
@@ -1090,5 +1093,12 @@
   "admin.action.warn": "Avvertimento",
   "admin.action.penalty": "Penalità",
   "admin.action.suspend": "Sospensione",
-  "admin.action.ban": "Bannato"
+  "admin.action.ban": "Bannato",
+  "admin.waitlist.title": "Lista d'attesa",
+  "admin.waitlist.count": "persone in attesa",
+  "admin.waitlist.empty": "Ancora nessuna iscrizione.",
+  "admin.waitlist.export": "Esporta CSV",
+  "admin.waitlist.colEmail": "Email",
+  "admin.waitlist.colSource": "Origine",
+  "admin.waitlist.colWhen": "Quando"
 }

@@ -1,5 +1,8 @@
 import { type WaitlistInsert, waitlistInsertSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import type { Database } from './database.types';
+
+type AdminListWaitlistReturns = Database['public']['Functions']['admin_list_waitlist']['Returns'];
 
 export const waitlistKeys = {
   all: ['waitlist'] as const,
@@ -22,4 +25,36 @@ export async function subscribeToWaitlist(
     throw error;
   }
   return { ok: true, duplicate: false };
+}
+
+/**
+ * A waitlist row as returned to admins (no id — export/display only). Tied to the
+ * generated `admin_list_waitlist` return shape, but `source` is corrected to
+ * nullable (the column is nullable; the SQL function's return type doesn't carry
+ * that, so gen:types infers it as non-null).
+ */
+export type WaitlistAdminRow = Omit<
+  AdminListWaitlistReturns[number],
+  'source'
+> & { source: string | null };
+
+/**
+ * Admin-only count of waitlist signups (the "how many are interested" number).
+ * Calls the SECURITY DEFINER `admin_waitlist_count` RPC, which re-checks
+ * is_admin() server-side and raises 42501 for non-admins.
+ */
+export async function getWaitlistCount(client: AthanorClient): Promise<number> {
+  const { data, error } = await client.rpc('admin_waitlist_count');
+  if (error) throw error;
+  return data ?? 0;
+}
+
+/** Admin-only list of waitlist rows, newest first. Feeds the /admin table + CSV. */
+export async function getWaitlistRows(
+  client: AthanorClient,
+  limit = 5000,
+): Promise<WaitlistAdminRow[]> {
+  const { data, error } = await client.rpc('admin_list_waitlist', { p_limit: limit });
+  if (error) throw error;
+  return data ?? [];
 }

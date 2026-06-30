@@ -2435,6 +2435,16 @@ export type Database = {
     }
     Functions: {
       accept_momento: { Args: { p_proposal_id: string }; Returns: Json }
+      admin_list_waitlist: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          email: string
+          locale: string
+          source: string
+        }[]
+      }
+      admin_waitlist_count: { Args: never; Returns: number }
       broadcast_aura_celebration: {
         Args: {
           p_new_stars?: string[]
