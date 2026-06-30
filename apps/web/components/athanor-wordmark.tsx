@@ -76,11 +76,18 @@ export function BrandText({ text }: { text: string }) {
  * ATHANOR wordmark (DESIGN.md §4 wordmark rule + §11). "ATHANOR" in the body sans
  * (Hanken Grotesk, `font-sans`), uppercase + letterspaced — matching the vertical
  * section labels (2026-06-13) — with the A's drawn as a Λ peak (<LambdaA>, since
- * Hanken has no Greek Λ; user request 2026-06-13). The lambdas carry a small
- * `mx` to emulate the side-bearings the bare peak lacks, so they don't crowd the
- * `U`/`I`. Derived from the i18n brand name so there are no hardcoded user-facing
- * strings (rule 5): the visible glyphs are decorative (`aria-hidden`) and the
- * accessible name comes from `aria-label`, so a screen reader hears "Athanor".
+ * Hanken has no Greek Λ; user request 2026-06-13). The lambdas carry an
+ * *asymmetric* side-bearing (`-ml`/`mr`) so they sit as evenly as the plain
+ * letters: `tracking-[0.3em]` renders as trailing space inside each text glyph's
+ * box but is NOT applied after the inline-block SVG, so a bare peak reads open on
+ * its left and tight on its right — the negative `ml` cancels the preceding
+ * letter's leftover trailing space (and the triangle's optical whitespace), the
+ * positive `mr` replaces the trailing letter-spacing the SVG never gets. Values
+ * tuned by eye at logo scale (measured true-ink gaps ≈ plain-letter gaps, a hair
+ * tighter as a triangular glyph wants). Derived from the i18n brand name so there
+ * are no hardcoded user-facing strings (rule 5): the visible glyphs are decorative
+ * (`aria-hidden`) and the accessible name comes from `aria-label`, so a screen
+ * reader hears "Athanor".
  *
  * Letterspaced per §4 (callers can override the tracking via className — twMerge
  * resolves the conflict). Color follows `currentColor` (foreground by default —
@@ -95,7 +102,7 @@ export function AthanorWordmark({ className }: { className?: string }) {
     >
       <span aria-hidden>
         {[...name].map((ch, i) =>
-          ch === 'A' ? <LambdaA key={i} className="mx-[0.26em]" /> : <span key={i}>{ch}</span>,
+          ch === 'A' ? <LambdaA key={i} className="ml-[-0.10em] mr-[0.19em]" /> : <span key={i}>{ch}</span>,
         )}
       </span>
     </span>
