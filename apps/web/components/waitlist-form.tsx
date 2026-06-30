@@ -26,6 +26,9 @@ export function WaitlistForm({
 }) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>('idle');
+  // Honeypot — a hidden field humans never see. A non-empty value means a bot
+  // filled it; the endpoint silently no-ops so the count stays trustworthy.
+  const [company, setCompany] = useState('');
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -39,7 +42,7 @@ export function WaitlistForm({
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: value, locale, source }),
+        body: JSON.stringify({ email: value, locale, source, company }),
       });
       if (!res.ok) {
         setStatus(res.status === 400 ? 'invalid' : 'error');
@@ -62,6 +65,17 @@ export function WaitlistForm({
         </p>
       ) : (
         <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
+          {/* honeypot: off-screen, never tabbable, hidden from a11y tree */}
+          <input
+            type="text"
+            name="company"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            className="absolute left-[-9999px] h-0 w-0 opacity-0"
+          />
           <input
             type="email"
             inputMode="email"

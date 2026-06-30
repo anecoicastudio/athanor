@@ -27,6 +27,17 @@ async function notify(email: string, locale: string): Promise<void> {
 
 export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
+  // Honeypot: bots fill the hidden `company` field; humans leave it empty.
+  // Return a benign success without storing so a bot can't tell it was rejected.
+  // (waitlistInsertSchema strips unknown keys, so `company` never reaches the DB.)
+  if (
+    json &&
+    typeof json === 'object' &&
+    typeof (json as { company?: unknown }).company === 'string' &&
+    (json as { company: string }).company.trim() !== ''
+  ) {
+    return NextResponse.json({ ok: true, duplicate: false });
+  }
   const parsed = waitlistInsertSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
