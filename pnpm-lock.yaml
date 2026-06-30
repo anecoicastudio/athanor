@@ -208,6 +208,9 @@ importers:
       '@athanor/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@athanor/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@athanor/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
