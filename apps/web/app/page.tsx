@@ -8,6 +8,7 @@ import { MandorlaMark } from '@/components/mandorla-mark';
 import { KairosStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
 import { WaitlistForm } from '@/components/waitlist-form';
+import { LaunchCountdown } from '@/components/launch-countdown';
 import { ChapterSpine, type Chapter } from '@/components/chapter-spine';
 import { DeviceMockup } from '@/components/device-mockup';
 import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
@@ -144,12 +145,10 @@ export default function Home() {
         <Reveal className="flex flex-col items-center gap-8" delay={0.1}>
           <AthanorWordmark className="text-3xl md:text-4xl" />
           <h1 className="max-w-2xl font-display text-5xl font-medium leading-[1.05] tracking-tight md:text-7xl">
-            {t('app.tagline', L)}
+            {t('landing.hero.title', L)}
           </h1>
-          <p className="max-w-md text-base text-muted-foreground md:text-lg">
-            {t('landing.hero.subhead', L)}
-          </p>
           <WaitlistForm className="mt-2" locale={L} source="landing-hero" />
+          <LaunchCountdown className="mt-2" locale={L} />
         </Reveal>
       </section>
 

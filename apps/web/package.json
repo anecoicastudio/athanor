@@ -13,6 +13,7 @@
   "dependencies": {
     "@athanor/api": "workspace:*",
     "@athanor/config": "workspace:*",
+    "@athanor/core": "workspace:*",
     "@athanor/i18n": "workspace:*",
     "@athanor/schemas": "workspace:*",
     "@gsap/react": "^2.1.2",
