@@ -4,7 +4,7 @@
   "landing.enter": "Enter",
   "landing.cta": "Light your Aura",
   "landing.hero.title": "Do you want to be free?",
-  "landing.countdown.label": "We open on September 11, 2026",
+  "landing.countdown.label": "We open on {date}",
   "landing.countdown.days": "days",
   "landing.countdown.hours": "hours",
   "landing.countdown.minutes": "minutes",
