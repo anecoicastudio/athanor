@@ -1,5 +1,10 @@
 # Athanor — PRD Build Order
 
+> ⚠ **STALE — frozen at the 2026-06-13 initial plan.** The status column below (`[ ]`/`[~]`)
+> is out of date: M2–M9 are complete and M10 is in progress. **`docs/MILESTONES.md` is the
+> authoritative, kept-current milestone/slice tracker** — check there for real status. This
+> file is kept only for its milestone→spec-file mapping table (§ below), which still holds.
+
 Single source for **what to build next**. Milestone order is binding (`docs/PRD.md` §11). Each milestone pairs a **frontend** PRD with its **backend** doc(s); migrations ship in milestone order even though the backend suite is organized by subsystem.
 
 - **Frontend suite:** `docs/superpowers/specs/2026-06-13-frontend-prd/`
@@ -61,7 +66,7 @@ Backend **M0 + M1 shipped**:
 - `@athanor/api`: `profiles.ts`, `dreams.ts`, generated `database.types.ts`
 - `@athanor/schemas`: `profile.ts`, `dream.ts`, `onboarding.ts`
 - `@athanor/core`: `onboarding/*`, `profile/completeness.ts`, `score/clamp.ts`, `onboarding/tags.ts` — **no score engine / weights.ts / matcher yet**
-- Auth: OTP magic-link (6-digit, 3600s), IT template, signup enabled — OAuth providers pending
+- Auth: OTP magic-link (6-digit, 3600s), IT template, signup enabled — OAuth providers pending *(superseded 2026-06-14: shipped as email+password+Google OAuth; Apple built but disabled via `APPLE_ENABLED=false`)*
 
 > ⚠ Frontend M0/M1 marked `[~]`: M1 onboarding shipped to `main` earlier, but the new frontend suite **restores all 5 tabs** (supersedes the 2-tab mobile-first trim) and adopts the prototype design system — foundation + M1 screens need rebuild/reconcile against this suite after M0.5.
 

@@ -14,8 +14,10 @@ These items require a physical device + screen reader and are verified at device
 ## Device-only (not buildable on web preview — see [[athanor-mobile-web-smoke-limits]])
 
 - [ ] A-6 — Dynamic Type at largest accessibility size: Profilo, Aura, Annual, Chat — no clip/overlap.
-- [ ] A-8 — VoiceOver (iOS) + TalkBack (Android) critical-path smoke: splash → OTP login → home →
-      open a Momento → profilo → settings → sign out, driven entirely by the screen reader.
+- [ ] A-8 — VoiceOver (iOS) + TalkBack (Android) critical-path smoke: splash → email+password
+      (or Google) login → home → open a Momento → profilo → settings → sign out, driven
+      entirely by the screen reader. (Auth is email+password+Google, not OTP; Apple disabled —
+      `APPLE_ENABLED=false` in `(auth)/welcome.tsx`.)
 
 ## A-2 focus rings — deferred note
 
