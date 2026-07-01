@@ -6,6 +6,7 @@ import {
   postSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const postKeys = {
   all: ['posts'] as const,
@@ -104,7 +105,7 @@ export function subscribeNewPosts(
   onInsert: (post: Post) => void,
 ): () => void {
   const channel = client
-    .channel('public:posts:insert')
+    .channel(channelTopic('public:posts:insert'))
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
       const parsed = postSchema.safeParse(payload.new);
       if (parsed.success) onInsert(parsed.data);

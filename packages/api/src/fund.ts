@@ -6,6 +6,7 @@ import {
   type ContributionSessionInput,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const fundKeys = {
   all: ['fund'] as const,
@@ -49,7 +50,7 @@ export function subscribeFundAggregate(
   onStatus?: (status: string) => void,
 ): () => void {
   const channel = client
-    .channel(`fund:${editionId}:aggregate`)
+    .channel(channelTopic(`fund:${editionId}:aggregate`))
     .on(
       'postgres_changes',
       {

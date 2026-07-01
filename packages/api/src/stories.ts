@@ -5,6 +5,7 @@ import {
   storySegmentSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const storyKeys = {
   all: ['stories'] as const,
@@ -184,7 +185,7 @@ export function subscribeNewStories(
   onInsert: (segment: StorySegment) => void,
 ): () => void {
   const channel = client
-    .channel('public:story_segments:insert')
+    .channel(channelTopic('public:story_segments:insert'))
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'story_segments' },

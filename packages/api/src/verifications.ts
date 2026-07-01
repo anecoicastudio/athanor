@@ -1,5 +1,6 @@
 import type { VerificationStatus } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 /** Query-key factory (one per entity). */
 export const verifyKeys = {
@@ -67,7 +68,7 @@ export function subscribeVerifyStatus(
   onChange: () => void,
 ): () => void {
   const channel = client
-    .channel(`profile:${me}:verify`)
+    .channel(channelTopic(`profile:${me}:verify`))
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${me}` },

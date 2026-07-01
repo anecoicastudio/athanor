@@ -1,5 +1,6 @@
 import { type ConversationListItem, conversationListItem } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const conversationKeys = {
   all: ['conversations'] as const,
@@ -111,7 +112,7 @@ export async function getOrCreateConversation(
  */
 export function subscribeConversations(client: AthanorClient, onChange: () => void): () => void {
   const channel = client
-    .channel('conversations:mine')
+    .channel(channelTopic('conversations:mine'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () =>
       onChange(),
     )

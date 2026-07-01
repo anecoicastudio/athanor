@@ -1,5 +1,6 @@
 import { type Notification, notificationSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 // Rows are written ONLY by the `notification-fan-out` edge fn (service role) — see
 // supabase/functions/notification-fan-out/. TODO(M9-fanout): that fn + its DB-trigger wiring from
@@ -88,7 +89,7 @@ export async function unreadPresence(client: AthanorClient): Promise<boolean> {
  */
 export function subscribeNotifications(client: AthanorClient, onChange: () => void): () => void {
   const channel = client
-    .channel('notifications:mine')
+    .channel(channelTopic('notifications:mine'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () =>
       onChange(),
     )
