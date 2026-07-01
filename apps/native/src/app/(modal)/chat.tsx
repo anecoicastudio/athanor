@@ -3,9 +3,11 @@ import { Alert, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  auraKeys,
   blockKeys,
   blockUser,
   conversationKeys,
+  getAuraScore,
   getConversation,
   getMessagesPage,
   type MessageCursor,
@@ -46,6 +48,15 @@ export default function ChatScreen() {
     enabled: Boolean(conversationId),
   });
   const peer = headerQuery.data;
+
+  // Peer Aura for the header (read-only; coalesces to zero until the engine is live).
+  const peerId = peer?.peerId;
+  const peerAuraQuery = useQuery({
+    queryKey: auraKeys.score(peerId ?? ''),
+    queryFn: () => getAuraScore(supabase, peerId as string),
+    enabled: Boolean(peerId),
+  });
+  const peerScore = peerAuraQuery.data?.score ?? 0;
 
   const messagesQuery = useInfiniteQuery({
     queryKey: messageKeys.thread(conversationId),
@@ -160,7 +171,9 @@ export default function ChatScreen() {
           <Text className="text-[15px] font-semibold text-foreground">
             {peer?.peerHandle ? `@${peer.peerHandle}` : '—'}
           </Text>
-          <Text className="text-[11px] text-faint">✦ Aura 0</Text>
+          <Text className="text-[11px] text-faint">
+            {t('chat.peerAura', locale, { score: peerScore })}
+          </Text>
         </View>
         {peer?.peerId ? (
           <Pressable

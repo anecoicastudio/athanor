@@ -218,9 +218,7 @@ export default function CandidacyWizard() {
         {isLast && !profile?.identity_verified ? (
           <Pressable
             className="mt-4"
-            onPress={() => {
-              // M9 Trust deep-link — route not yet built; stub until M9 wires Stripe Identity.
-            }}
+            onPress={() => router.push('/(modal)/verify')}
             accessibilityRole="button"
           >
             <Text className="text-[13px] font-semibold text-aura">

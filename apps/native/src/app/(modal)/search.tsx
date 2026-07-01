@@ -68,9 +68,8 @@ function buildSections(rows: SearchResult[]): GroupSection[] {
 function deriveRoute(result: SearchResult): string {
   if (result.entity_type === 'person') return `/(modal)/user/${result.id}`;
   if (result.entity_type === 'event') return `/(modal)/event/${result.id}`;
-  // project: no dedicated project detail route yet — route to costellazioni tab
-  // CONCERN: a proper /(modal)/project/[id] route is a follow-up (M8+ or Fase 2).
-  return '/costellazioni';
+  // project → the project detail modal (listing/[id] renders getProject).
+  return `/(modal)/listing/${result.id}`;
 }
 
 export default function SearchScreen() {
