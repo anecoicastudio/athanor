@@ -2,8 +2,8 @@ import type { Locale } from '@athanor/i18n';
 
 /**
  * Long-form legal copy lives here as per-locale content (not in the @athanor/i18n
- * UI catalog, which is for short interface strings). TEMPLATE TEXT — review with
- * counsel and replace the controller name / contact email before launch.
+ * UI catalog, which is for short interface strings). Scope: the Athanor presentation
+ * site only — the mobile app ships its own, broader policy at store submission.
  */
 export type LegalSection = { heading: string; body: string[] };
 export type LegalDoc = {
@@ -14,26 +14,28 @@ export type LegalDoc = {
   reviewNote: string;
 };
 
-const CONTROLLER = 'Anecoica Studio';
-const EMAIL = 'privacy@athanor.app';
+const CONTROLLER = 'Anecoica Studio UG (haftungsbeschränkt)';
+const EMAIL = 'info@anecoica.net';
 
 export const privacy: Record<Locale, LegalDoc> = {
   it: {
     title: 'Informativa sulla privacy',
-    updated: 'Giugno 2026',
-    intro: `Questa pagina spiega come ${CONTROLLER} tratta i dati di chi visita il sito di presentazione di Athanor. Il sito è una vetrina: non richiede registrazione e non raccoglie dati di profilazione.`,
+    updated: 'Luglio 2026',
+    intro: `Questa informativa spiega come ${CONTROLLER} tratta i dati di chi visita il sito di presentazione di Athanor. Il sito non richiede la creazione di un account e non profila chi lo visita: puoi soltanto iscriverti alla lista d'attesa, e vengono conservati log tecnici minimi. Riguarda solo questo sito; l'app Athanor avrà una propria informativa al momento della pubblicazione sugli store.`,
     sections: [
       {
         heading: 'Titolare del trattamento',
         body: [
-          `${CONTROLLER}, con sede nell'Unione Europea, è il titolare del trattamento. Per qualsiasi richiesta puoi scrivere a ${EMAIL}.`,
+          `Il titolare del trattamento è ${CONTROLLER}, Thaerstrasse 17, 12049 Berlino, Germania.`,
+          'Iscritta al Registro delle imprese (Handelsregister) con il numero HRB 242211 B presso il tribunale di Charlottenburg (Amtsgericht Charlottenburg). Rappresentante legale: Alessandro De Angelis.',
+          `Per qualsiasi richiesta relativa ai tuoi dati puoi scrivere a ${EMAIL}.`,
         ],
       },
       {
         heading: 'Dati che raccogliamo',
         body: [
-          'Il sito non chiede né conserva dati personali identificativi. Non ci sono moduli, account o login in questa fase.',
-          'Vengono trattati solo i dati tecnici minimi necessari a servire le pagine (ad esempio gli header inviati dal browser), nei log del provider di hosting.',
+          'Log tecnici. Per servire le pagine, il nostro fornitore di hosting (Vercel) registra dati tecnici minimi — ad esempio gli header inviati dal browser, l’indirizzo IP e la data e ora della richiesta. La base giuridica è il legittimo interesse a far funzionare il sito e a mantenerlo sicuro; questi dati non vengono usati per profilarti.',
+          'Lista d’attesa. Se compili il modulo di iscrizione, trattiamo l’indirizzo email che inserisci (insieme alla lingua scelta e alla provenienza dal sito) al solo scopo di avvisarti quando Athanor sarà disponibile. La base giuridica è il tuo consenso. L’indirizzo è conservato su Supabase (Unione Europea, Francoforte) e l’invio del messaggio è gestito da Resend. Non lo usiamo per altre comunicazioni di marketing oltre all’avviso di lancio e non lo cediamo né vendiamo a terzi. Lo cancelliamo al più tardi dopo circa 18 mesi, oppure prima se crei un account o ci chiedi di rimuoverlo.',
         ],
       },
       {
@@ -45,37 +47,38 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Analisi del traffico',
         body: [
-          'Per capire come viene usato il sito usiamo statistiche aggregate e senza cookie (Vercel Analytics e Speed Insights): non identificano la singola persona e non tracciano la navigazione tra siti diversi.',
+          'Per capire come viene usato il sito usiamo statistiche aggregate e senza cookie (Vercel Analytics e Speed Insights), con indirizzo IP anonimizzato e server nell’Unione Europea: non identificano la singola persona e non tracciano la navigazione tra siti diversi.',
         ],
       },
       {
         heading: 'I tuoi diritti',
         body: [
-          'In base al GDPR puoi chiedere accesso, rettifica, cancellazione o limitazione dei dati che ti riguardano e opporti al trattamento. Per esercitare questi diritti scrivi a ' +
-            EMAIL +
-            '.',
+          `In base al GDPR puoi chiedere in qualsiasi momento l’accesso, la rettifica, la cancellazione, la limitazione e la portabilità dei dati che ti riguardano, opporti al trattamento e revocare il consenso alla lista d’attesa. La revoca non pregiudica i trattamenti svolti prima. Per esercitare questi diritti scrivi a ${EMAIL}.`,
+          'Hai inoltre il diritto di presentare un reclamo a un’autorità di controllo. Per il nostro titolare l’autorità competente è il Garante di Berlino (Berliner Beauftragte für Datenschutz und Informationsfreiheit), ma puoi rivolgerti anche all’autorità del tuo Paese di residenza — in Italia, il Garante per la protezione dei dati personali.',
         ],
       },
     ],
     reviewNote:
-      'Bozza — da rivedere con un legale e completare con i dati societari prima del lancio.',
+      'I dati sono trattati nell’Unione Europea. La ragione sociale completa e i dati di registrazione sono nell’impressum su anecoica.net.',
   },
   en: {
     title: 'Privacy Policy',
-    updated: 'June 2026',
-    intro: `This page explains how ${CONTROLLER} handles the data of visitors to the Athanor presentation site. The site is a showcase: it requires no sign-up and collects no profiling data.`,
+    updated: 'July 2026',
+    intro: `This policy explains how ${CONTROLLER} handles the data of visitors to the Athanor presentation site. The site requires no account and does not profile visitors: you can only join the waitlist, and minimal technical logs are kept. It covers this site only; the Athanor app will have its own policy when it is published on the app stores.`,
     sections: [
       {
         heading: 'Data controller',
         body: [
-          `${CONTROLLER}, based in the European Union, is the data controller. For any request you can write to ${EMAIL}.`,
+          `The data controller is ${CONTROLLER}, Thaerstrasse 17, 12049 Berlin, Germany.`,
+          'Registered in the commercial register (Handelsregister) under number HRB 242211 B at the Charlottenburg local court (Amtsgericht Charlottenburg). Managing director: Alessandro De Angelis.',
+          `For any request about your data you can write to ${EMAIL}.`,
         ],
       },
       {
         heading: 'Data we collect',
         body: [
-          'The site neither asks for nor stores identifying personal data. There are no forms, accounts or logins at this stage.',
-          'Only the minimal technical data needed to serve the pages (such as the headers your browser sends) is processed, in the hosting provider’s logs.',
+          'Technical logs. To serve the pages, our hosting provider (Vercel) records minimal technical data — such as the headers your browser sends, your IP address and the time of the request. The legal basis is our legitimate interest in operating and securing the site; this data is not used to profile you.',
+          'Waitlist. If you submit the sign-up form, we process the email address you enter (along with your chosen language and the fact you came from the site) for the sole purpose of letting you know when Athanor is available. The legal basis is your consent. The address is stored on Supabase (European Union, Frankfurt) and message delivery is handled by Resend. We do not use it for any marketing beyond the launch notice, and we do not share or sell it. We delete it after roughly 18 months at the latest, or sooner if you create an account or ask us to remove it.',
         ],
       },
       {
@@ -87,19 +90,19 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Traffic analytics',
         body: [
-          'To understand how the site is used we rely on aggregated, cookieless statistics (Vercel Analytics and Speed Insights): they do not identify individuals and do not track browsing across other sites.',
+          'To understand how the site is used we rely on aggregated, cookieless statistics (Vercel Analytics and Speed Insights), with anonymized IP addresses and EU-based servers: they do not identify individuals and do not track browsing across other sites.',
         ],
       },
       {
         heading: 'Your rights',
         body: [
-          'Under the GDPR you can request access, rectification, erasure or restriction of your data and object to its processing. To exercise these rights, write to ' +
-            EMAIL +
-            '.',
+          `Under the GDPR you can at any time request access to, rectification, erasure, restriction and portability of your data, object to its processing, and withdraw your consent to the waitlist. Withdrawal does not affect processing carried out beforehand. To exercise these rights, write to ${EMAIL}.`,
+          'You also have the right to lodge a complaint with a supervisory authority. For our controller the competent one is the Berlin authority (Berliner Beauftragte für Datenschutz und Informationsfreiheit), but you may also contact the authority in your country of residence.',
         ],
       },
     ],
-    reviewNote: 'Draft — review with counsel and complete with company details before launch.',
+    reviewNote:
+      'Data is processed within the European Union. Our full legal name and registration details are in the impressum at anecoica.net.',
   },
 };
 
