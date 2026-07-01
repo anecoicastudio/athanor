@@ -68,9 +68,12 @@ begin
   if v_attendee is not null then
     perform athanor.enqueue_score_award(v_attendee, 'event_attended', new.id, null);
   end if;
-  -- organized: award the organizer once, on the crossing to 5 attendees (PRD §4.9 >=5).
+  -- organized: award the organizer once, when attendance reaches >=5 (PRD §4.9). Deliberately
+  -- ">=5" not "=5": the engine dedups on (organizer,'event_organized',event_id), so ">=5"
+  -- over-fires harmlessly (deduped) whereas "=5" can PERMANENTLY MISS the +30 if a bulk/
+  -- concurrent event_attendance insert makes no single AFTER-ROW trigger observe exactly 5.
   select count(*) into v_count from public.event_attendance where event_id = new.event_id;
-  if v_count = 5 then
+  if v_count >= 5 then
     select e.organizer_id into v_organizer from public.events e where e.id = new.event_id;
     if v_organizer is not null then
       perform athanor.enqueue_score_award(v_organizer, 'event_organized', new.event_id, null);
@@ -106,7 +109,7 @@ begin
          count(*) filter (where m.sender_id = v_b)
     into v_from_a, v_from_b
     from public.messages m
-    where m.conversation_id = new.conversation_id and m.kind = 'user';
+    where m.conversation_id = new.conversation_id and m.kind = 'user' and m.deleted_at is null;
   -- PRD §4.9 "reaching >=10 messages from both sides": total >=10 with both parties present.
   if (v_from_a + v_from_b) >= 10 and v_from_a >= 1 and v_from_b >= 1 then
     perform athanor.enqueue_score_award(v_a, 'momento_conversation', new.conversation_id, null);
