@@ -315,7 +315,7 @@ export default function Home() {
           </p>
           <div className="flex flex-col items-center gap-12 md:flex-row md:gap-20 md:text-left">
             <DeviceMockup
-              src="/mobile-image.png"
+              src="/mobile-image-2.png"
               alt={t('landing.preview.alt', L)}
               className="w-[340px] md:w-[440px]"
             />
