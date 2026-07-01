@@ -30,6 +30,7 @@ import {
   type Profile,
   type StarKey,
 } from '@athanor/schemas';
+import { Share } from 'react-native';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -269,6 +270,20 @@ function ProfileEditor({
   const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
     t(`${prefix}.${key}` as MessageKey, locale);
 
+  // Native share sheet: shares the @handle + app name (mirrors home InviteCard;
+  // tracked-referral attribution is a later milestone).
+  const shareProfile = async () => {
+    const handle = profile.handle;
+    const message = handle
+      ? `@${handle} — ${t('app.name', locale)}`
+      : t('app.name', locale);
+    try {
+      await Share.share({ message });
+    } catch {
+      // user dismissed or share unavailable — no-op
+    }
+  };
+
   const refetchMilestones = useCallback(async () => {
     if (!dreamId) return;
     try {
@@ -375,9 +390,7 @@ function ProfileEditor({
               accessibilityRole="button"
               accessibilityLabel={t('profile.share.toast', locale)}
               hitSlop={8}
-              onPress={() => {
-                /* TODO(M2): open native share sheet */
-              }}
+              onPress={() => void shareProfile()}
             >
               <Text className="text-xl text-aura">✦</Text>
             </Pressable>

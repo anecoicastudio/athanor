@@ -675,6 +675,7 @@
   "chat.day.yesterday": "Yesterday",
   "chat.a11y.send": "Send",
   "chat.a11y.profile": "View profile",
+  "chat.peerAura": "✦ Aura {score}",
   "chat.failed": "Not sent. Tap to retry.",
   "chat.a11y.menu": "Options",
   "chat.block": "Block",

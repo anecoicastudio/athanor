@@ -128,7 +128,11 @@ export function SwipeDeck({
   return (
     <View className="flex-1">
       {next ? (
-        <View className="absolute inset-0 scale-95 opacity-70" pointerEvents="none">
+        <View
+          className="absolute inset-0 opacity-70"
+          style={{ transform: [{ scale: 0.95 }] }}
+          pointerEvents="none"
+        >
           <MomentoCard card={next} locale={locale} />
         </View>
       ) : null}
