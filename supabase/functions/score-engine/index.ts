@@ -82,16 +82,61 @@ async function gatherStarFacts(
   const helpsCompleted = rows.filter((r) => r.type === 'milestone_help').length;
   const momentoConversations = rows.filter((r) => r.type === 'momento_conversation').length;
 
-  // Composite facts — stubbed until originating milestones wire their triggers.
-  // TODO(M6-wire): dreamPublished = query dreams table (M2/M3).
-  const dreamPublished = false;
-  // TODO(M6-wire): milestonesDefined = count milestones rows (M2).
-  const milestonesDefined = 0;
-  // TODO(M6-wire): evoluzionePostsStarred = post_reactions on own posts (M3).
-  const evoluzionePostsStarred = 0;
-  // TODO(M6-wire): distinctStarrers = distinct reactor_id on own posts (M3).
-  const distinctStarrers = 0;
-  // TODO(M6-wire): invitesActivated = invites table where referrer_id = profileId (M?).
+  // Composite facts — four now wired from their originating tables; only
+  // invitesActivated remains stubbed (the `invites` table is not built yet).
+
+  // Dreams — feeds dreamPublished and scopes milestonesDefined. A dream has no
+  // "draft" state (status is 'active'|'archived'), so an active, non-deleted
+  // dream IS a published dream.
+  const { data: dreamsRows } = await admin
+    .from('dreams')
+    .select('id')
+    .eq('profile_id', profileId)
+    .eq('status', 'active')
+    .is('deleted_at', null);
+  const dreamIds = (dreamsRows ?? []).map((d) => d.id);
+  const dreamPublished = dreamIds.length > 0;
+
+  // milestonesDefined — non-deleted tappe on those active dreams.
+  let milestonesDefined = 0;
+  if (dreamIds.length > 0) {
+    const { count } = await admin
+      .from('dream_milestones')
+      .select('id', { count: 'exact', head: true })
+      .in('dream_id', dreamIds)
+      .is('deleted_at', null);
+    milestonesDefined = count ?? 0;
+  }
+
+  // Own Evoluzione posts and their reactions — feeds evoluzionePostsStarred
+  // (distinct own posts that received ✦; Visionario ≥10, Innovatore ≥5) and
+  // distinctStarrers (distinct reactors, Innovatore ≥10). Self-reactions excluded:
+  // reputation is earned through others' real actions, never self-inflated.
+  const { data: myPosts } = await admin
+    .from('posts')
+    .select('id')
+    .eq('author_id', profileId)
+    .eq('category', 'evolution')
+    .is('deleted_at', null);
+  const postIds = (myPosts ?? []).map((p) => p.id);
+
+  let evoluzionePostsStarred = 0;
+  let distinctStarrers = 0;
+  if (postIds.length > 0) {
+    const { data: reactions } = await admin
+      .from('post_reactions')
+      .select('post_id, person_id')
+      .in('post_id', postIds)
+      .neq('person_id', profileId);
+    const rr = reactions ?? [];
+    evoluzionePostsStarred = new Set(rr.map((r) => r.post_id)).size;
+    distinctStarrers = new Set(rr.map((r) => r.person_id)).size;
+  }
+
+  // invitesActivated — NO backing table yet. `invites` (PRD §11, backend PRD 02)
+  // was spec'd but never built, so Ambasciatore stays unreachable until an
+  // invites-infra slice ships.
+  // TODO(invites-infra): count invites where referrer = profileId AND activated_at IS NOT NULL.
   const invitesActivated = 0;
 
   return {
