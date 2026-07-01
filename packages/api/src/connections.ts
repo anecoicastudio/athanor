@@ -6,6 +6,7 @@ import {
   type ConnectionState,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const connectionKeys = {
   all: ['connections'] as const,
@@ -199,7 +200,7 @@ export function subscribeIncomingConnections(
   onChange: () => void,
 ): () => void {
   const channel = client
-    .channel('connection_requests:mine')
+    .channel(channelTopic('connection_requests:mine'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'connection_requests' }, () =>
       onChange(),
     )

@@ -5,6 +5,7 @@ import {
   messageSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const messageKeys = {
   all: ['messages'] as const,
@@ -81,7 +82,7 @@ export function subscribeMessages(
   onInsert: (message: Message) => void,
 ): () => void {
   const channel = client
-    .channel(`conversation:${conversationId}:messages`)
+    .channel(channelTopic(`conversation:${conversationId}:messages`))
     .on(
       'postgres_changes',
       {

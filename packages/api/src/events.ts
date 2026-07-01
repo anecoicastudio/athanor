@@ -18,6 +18,7 @@ import {
   ticketSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 export const eventKeys = {
   all: ['events'] as const,
@@ -309,7 +310,7 @@ export function subscribeEventLive(
   onStats: (stats: EventLiveStats) => void,
 ): () => void {
   const channel = client
-    .channel(`event:${eventId}:live`)
+    .channel(channelTopic(`event:${eventId}:live`))
     .on(
       'postgres_changes',
       {
@@ -376,7 +377,7 @@ export function subscribeTicket(
   onTicket: (ticket: Ticket) => void,
 ): () => void {
   const channel = client
-    .channel(`ticket:${eventId}:${userId}`)
+    .channel(channelTopic(`ticket:${eventId}:${userId}`))
     .on(
       'postgres_changes',
       {
@@ -438,7 +439,7 @@ export function subscribeAttendance(
   onCheckIn: (row: Attendance) => void,
 ): () => void {
   const channel = client
-    .channel(`event:${eventId}:attendance`)
+    .channel(channelTopic(`event:${eventId}:attendance`))
     .on(
       'postgres_changes',
       {

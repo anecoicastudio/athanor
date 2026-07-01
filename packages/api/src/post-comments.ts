@@ -5,6 +5,7 @@ import {
   postCommentSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { channelTopic } from './realtime';
 
 /** Opaque keyset cursor — the last (created_at, id) the caller has seen. Never an offset. */
 export type CommentCursor = { created_at: string; id: string };
@@ -79,7 +80,7 @@ export function subscribeComments(
   onInsert: (comment: PostComment) => void,
 ): () => void {
   const channel = client
-    .channel(`public:post_comments:${postId}`)
+    .channel(channelTopic(`public:post_comments:${postId}`))
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'post_comments', filter: `post_id=eq.${postId}` },
