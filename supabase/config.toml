@@ -445,3 +445,9 @@ verify_jwt = true
 
 [functions.erasure-job]
 verify_jwt = true
+
+[functions.create-circle-checkout]
+verify_jwt = true
+
+[functions.create-circle-portal]
+verify_jwt = true

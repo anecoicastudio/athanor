@@ -976,6 +976,8 @@
   "circle.cta.monthly": "Join the Circle · €12/mo",
   "circle.cta.annual": "Join the Circle · €99/yr",
   "circle.zeroAura.note": "Membership never changes your Aura, your visibility, or the order of your Momenti.",
+  "circle.iosUnavailable": "Membership isn't available on this device.",
+  "circle.iosManageUnavailable": "Manage your membership from the device where you activated it.",
   "circle.error.title": "Something didn't work",
   "circle.error.retry": "Try again",
   "circle.benefit.tools.t": "Business tools",
