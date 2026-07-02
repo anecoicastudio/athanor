@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -222,13 +222,21 @@ export default function CircleScreen() {
           {/* 3. Six benefits — all rendered as unlocked for members */}
           <View className="gap-2">{benefitList(true)}</View>
 
-          {/* 4. Manage button → Stripe Customer Portal */}
-          <Button
-            label={checkoutPhase === 'portal' ? '…' : t('circle.member.manage', locale)}
-            onPress={() => void onManage()}
-            variant="ghost"
-            disabled={checkoutPhase !== 'idle'}
-          />
+          {/* 4. Manage → Stripe Customer Portal (non-iOS). On iOS, opening the
+              hosted billing portal in-app is the same Apple 3.1.1 surface as the
+              subscribe CTA (S-IAP-1) — show a neutral, non-steering note instead. */}
+          {Platform.OS === 'ios' ? (
+            <Text className="text-[13px] leading-5 text-muted-foreground">
+              {t('circle.iosManageUnavailable', locale)}
+            </Text>
+          ) : (
+            <Button
+              label={checkoutPhase === 'portal' ? '…' : t('circle.member.manage', locale)}
+              onPress={() => void onManage()}
+              variant="ghost"
+              disabled={checkoutPhase !== 'idle'}
+            />
+          )}
 
           {/* 5. Zero-Aura assurance — REQUIRED for member state too (rule #1) */}
           {zeroAuraNote}
@@ -265,33 +273,43 @@ export default function CircleScreen() {
           </Text>
         </View>
 
-        {/* 2. Price toggle */}
-        <View className="gap-2">
-          <PriceToggle value={plan} onChange={setPlan} locale={locale} />
-          {plan === 'annual' ? (
-            <Text className="text-center text-[13px] text-muted-foreground">
-              {t('circle.plan.annualNote', locale)}
-            </Text>
-          ) : null}
-        </View>
+        {/* 2. Price toggle — hidden on iOS (Apple 3.1.1 / S-IAP-1: no in-app subscribe) */}
+        {Platform.OS !== 'ios' ? (
+          <View className="gap-2">
+            <PriceToggle value={plan} onChange={setPlan} locale={locale} />
+            {plan === 'annual' ? (
+              <Text className="text-center text-[13px] text-muted-foreground">
+                {t('circle.plan.annualNote', locale)}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* 3. Six benefit rows (non-member: all shown, locked visual for Fase-2) */}
         <View className="gap-2">{benefitList(false)}</View>
 
-        {/* 4. Join CTA — light glow (joining is moment-grade, rule #4) */}
-        <Button
-          label={
-            checkoutPhase === 'opening'
-              ? '…'
-              : plan === 'annual'
-                ? t('circle.cta.annual', locale)
-                : t('circle.cta.monthly', locale)
-          }
-          onPress={() => void onJoin()}
-          variant="light"
-          glow
-          disabled={checkoutPhase !== 'idle'}
-        />
+        {/* 4. Join CTA (non-iOS) — light glow (joining is moment-grade, rule #4).
+            On iOS the in-app Stripe subscribe button is forbidden (Apple 3.1.1 /
+            S-IAP-1); show a neutral, non-steering note instead. Apple IAP deferred. */}
+        {Platform.OS === 'ios' ? (
+          <Text className="text-[13px] leading-5 text-muted-foreground">
+            {t('circle.iosUnavailable', locale)}
+          </Text>
+        ) : (
+          <Button
+            label={
+              checkoutPhase === 'opening'
+                ? '…'
+                : plan === 'annual'
+                  ? t('circle.cta.annual', locale)
+                  : t('circle.cta.monthly', locale)
+            }
+            onPress={() => void onJoin()}
+            variant="light"
+            glow
+            disabled={checkoutPhase !== 'idle'}
+          />
+        )}
 
         {/* 5. Zero-Aura assurance footnote — REQUIRED on non-member state (rule #1) */}
         {zeroAuraNote}
