@@ -209,7 +209,7 @@ export default function ChatScreen() {
         renderItem={({ item }) =>
           item.type === 'marker' ? (
             <View className="my-3 items-center">
-              <Text className="text-[11px] uppercase tracking-wider text-faint">{item.label}</Text>
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{item.label}</Text>
             </View>
           ) : (
             <Bubble message={item.message} myId={myId as string} locale={locale} />

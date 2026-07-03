@@ -12,8 +12,18 @@ export type ViewProps = React.ComponentProps<typeof RNView> & { className?: stri
 export const View = (props: ViewProps) => useCssElement(RNView, props, { className: 'style' });
 View.displayName = 'CSS(View)';
 
+// Default family (DESIGN §4: everything is Hanken). Precedence is stylesheet
+// SOURCE ORDER in global.css — `.font-app` is defined before the font-weight
+// remaps and `.font-dream`, so explicit font-* utilities on the call site win.
+// Don't reorder those rules.
+const withAppFont = <P extends { className?: string }>(props: P): P => ({
+  ...props,
+  className: props.className ? `font-app ${props.className}` : 'font-app',
+});
+
 export type TextProps = React.ComponentProps<typeof RNText> & { className?: string };
-export const Text = (props: TextProps) => useCssElement(RNText, props, { className: 'style' });
+export const Text = (props: TextProps) =>
+  useCssElement(RNText, withAppFont(props), { className: 'style' });
 Text.displayName = 'CSS(Text)';
 
 export type PressableProps = React.ComponentProps<typeof RNPressable> & { className?: string };
@@ -38,5 +48,5 @@ ScrollView.displayName = 'CSS(ScrollView)';
 
 export type TextInputProps = React.ComponentProps<typeof RNTextInput> & { className?: string };
 export const TextInput = (props: TextInputProps) =>
-  useCssElement(RNTextInput, props, { className: 'style' });
+  useCssElement(RNTextInput, withAppFont(props), { className: 'style' });
 TextInput.displayName = 'CSS(TextInput)';

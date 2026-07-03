@@ -73,7 +73,7 @@ export default function ProjectComposeScreen() {
         </View>
 
         <View className="gap-2">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
             {t('project.compose.titleLabel', locale)}
           </Text>
           <TextInput
@@ -88,7 +88,7 @@ export default function ProjectComposeScreen() {
         {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
         <View className="gap-2">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
             {t('project.compose.catLabel', locale)}
           </Text>
           <View className="flex-row flex-wrap gap-2">
@@ -112,7 +112,7 @@ export default function ProjectComposeScreen() {
         </View>
 
         <View className="gap-2">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
             {t('project.compose.descLabel', locale)}
           </Text>
           <TextInput

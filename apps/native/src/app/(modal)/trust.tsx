@@ -147,7 +147,7 @@ export default function TrustScreen() {
 
       {/* Identity (read-only — verify flow is the identity-verify slice) */}
       <View className="gap-2 px-5">
-        <Text className="text-xs uppercase tracking-wide text-muted-foreground">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t('trust.identity.section', locale)}
         </Text>
         <Pressable
@@ -194,7 +194,7 @@ export default function TrustScreen() {
 
       {/* Privacy by design · GDPR */}
       <View className="gap-2 px-5">
-        <Text className="text-xs uppercase tracking-wide text-muted-foreground">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t('trust.privacy.section', locale)}
         </Text>
         <View className="rounded-card border border-hair bg-raise">
@@ -251,7 +251,7 @@ export default function TrustScreen() {
 
       {/* Consent management (§3.5.3) — comms opt-in (default OFF) */}
       <View className="gap-2 px-5">
-        <Text className="text-xs uppercase tracking-wide text-muted-foreground">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t('gdpr.consent.section', locale)}
         </Text>
         <View className="rounded-card border border-hair bg-raise">
@@ -274,7 +274,7 @@ export default function TrustScreen() {
 
       {/* Ethical moderation + report CTA */}
       <View className="gap-2 px-5">
-        <Text className="text-xs uppercase tracking-wide text-muted-foreground">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t('trust.moderation.section', locale)}
         </Text>
         <View className="gap-3 rounded-card border border-hair bg-raise p-4">

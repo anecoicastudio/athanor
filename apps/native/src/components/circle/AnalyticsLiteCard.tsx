@@ -64,7 +64,7 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
       {/* Top-2 breakdown sources */}
       {top2.length > 0 ? (
         <View className="gap-2">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
             {t('circle.analytics.topSources', locale)}
           </Text>
           {top2.map((row) => (

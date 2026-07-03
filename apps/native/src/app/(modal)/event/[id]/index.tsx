@@ -171,7 +171,7 @@ export default function EventDetailScreen() {
           ) : null}
 
           <View className="gap-1">
-            <Text className="text-[12px] uppercase tracking-wider text-faint">
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
               {t('event.organizedBy', locale)}
             </Text>
             <PostAuthorRow authorId={event.organizer_id} size="sm" />

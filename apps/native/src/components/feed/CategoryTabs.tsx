@@ -1,13 +1,14 @@
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory } from '@athanor/schemas';
-import { Pressable, ScrollView, Text } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 
 export type FeedFilter = PostCategory | 'all';
 const FILTERS: FeedFilter[] = ['all', 'business', 'human', 'creative', 'evolution'];
 
 /**
- * Horizontal filter row. Active chip = aura-soft fill + aura-line border
- * (the Chip vocabulary, DESIGN.md), idle = hairline-bordered raised surface.
+ * Horizontal feed-tab row (DESIGN §9 Tabs): text pills, active = foreground
+ * text + 2px foreground underline, inactive = foregroundMuted. Tabs are
+ * navigation, not moments — no aura here.
  */
 export function CategoryTabs({
   active,
@@ -30,13 +31,22 @@ export function CategoryTabs({
           <Pressable
             key={f}
             onPress={() => onChange(f)}
-            className={`rounded-ctl border px-4 py-2 min-h-[44px] justify-center ${
-              isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-            }`}
+            className="min-h-[44px] items-center justify-center px-4"
+            accessibilityRole="button"
+            accessibilityState={{ selected: isActive }}
           >
-            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-muted-foreground'}`}>
+            <Text
+              className={`text-[13px] ${
+                isActive ? 'font-semibold text-foreground' : 'text-muted-foreground'
+              }`}
+            >
               {t(`feed.filter.${f}` as MessageKey, locale)}
             </Text>
+            <View
+              className={`mt-1 h-[2px] self-stretch rounded-full ${
+                isActive ? 'bg-foreground' : 'bg-transparent'
+              }`}
+            />
           </Pressable>
         );
       })}

@@ -1,9 +1,13 @@
 import '../global.css';
 
 import {
+  HankenGrotesk_300Light,
   HankenGrotesk_400Regular,
   HankenGrotesk_400Regular_Italic,
+  HankenGrotesk_500Medium,
   HankenGrotesk_600SemiBold,
+  HankenGrotesk_700Bold,
+  HankenGrotesk_800ExtraBold,
 } from '@expo-google-fonts/hanken-grotesk';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -62,9 +66,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  // One face per weight — RN selects fonts by exact family name, so each
+  // font-{light..extrabold} utility maps to its own family (global.css).
   const [fontsLoaded] = useFonts({
+    HankenGrotesk_300Light,
     HankenGrotesk_400Regular,
+    HankenGrotesk_500Medium,
     HankenGrotesk_600SemiBold,
+    HankenGrotesk_700Bold,
+    HankenGrotesk_800ExtraBold,
     // Dream register only (DESIGN.md §4): dream quotes + ritual captions, never UI.
     HankenGrotesk_400Regular_Italic,
   });

@@ -69,7 +69,7 @@ export default function CostellazioniScreen() {
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
             <View className="flex-row items-center justify-between px-5">
-              <Text className="text-[12px] uppercase tracking-wider text-faint">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
                 {t('costellazioni.board.label', locale)}
               </Text>
               <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={8}>

@@ -173,7 +173,7 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
   const header = (
     <View className="gap-4 px-5 pb-2">
       <View className="gap-2 rounded-hero border border-aura-line bg-aura-soft p-5">
-        <Text className="text-[12px] uppercase tracking-wider text-aura">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
           {t('live.athanorDays.label', locale)}
         </Text>
         <Text className="text-[17px] font-semibold text-foreground">
@@ -190,7 +190,7 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
           </Text>
         </Pressable>
       </View>
-      <Text className="text-[12px] uppercase tracking-wider text-faint">
+      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
         {city ? t('live.vicino.section', locale, { city }) : t('live.vicino.sectionNoCity', locale)}
       </Text>
     </View>
@@ -291,7 +291,7 @@ function CalendarPanel({
       keyExtractor={([month]) => month}
       renderItem={({ item: [month, items] }) => (
         <View className="gap-3 px-5 pb-4">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">{month}</Text>
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{month}</Text>
           {items.map((e) => (
             <EventRow
               key={e.id}
@@ -376,7 +376,7 @@ function MapPanel({
           );
         })}
       </ScrollView>
-      <Text className="px-5 pb-2 text-[12px] uppercase tracking-wider text-faint">
+      <Text className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
         {t('live.map.section', locale)}
       </Text>
       <View className="gap-3 px-5">
@@ -455,7 +455,7 @@ function OnlinePanel({
   return (
     <ScrollView contentContainerClassName="pb-[104px] gap-4">
       <View className="gap-3 px-5">
-        <Text className="text-[12px] uppercase tracking-wider text-faint">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
           {t('live.online.section', locale)}
         </Text>
         {liveNow.map((e) => (

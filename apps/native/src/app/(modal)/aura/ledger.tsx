@@ -199,7 +199,7 @@ export default function LedgerScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
           renderSectionHeader={({ section }) => (
             <View className="bg-background py-2">
-              <Text className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
                 {section.title}
               </Text>
             </View>
