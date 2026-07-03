@@ -13,6 +13,7 @@ import { deriveVerifyState } from '@athanor/core';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -98,81 +99,80 @@ export default function VerifyScreen() {
   const verified = state === 'verified';
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 px-6 pb-10 pt-6">
-      {/* grab handle */}
-      <View className="mx-auto h-1 w-10 rounded-full bg-hair" />
-      {/* head */}
-      <View className="flex-row items-center justify-between">
-        <Text className="text-xl font-bold text-foreground">{t('trust.verify.title', locale)}</Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-muted-foreground">×</Text>
-        </Pressable>
-      </View>
-
-      <View className="items-center gap-4 py-4">
-        <View
-          accessible={true}
-          accessibilityLabel={
-            verified ? t('verify.a11y.verified', locale) : t('verify.a11y.unverified', locale)
-          }
-        >
-          <Mandorla size={92} glowLevel={verified ? 1 : 0.4}>
-            <Text
-              className="text-3xl text-aura"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              {verified ? '✦' : '◇'}
-            </Text>
-          </Mandorla>
-        </View>
-
-        {verified ? (
-          <Text className="text-center text-lg font-semibold text-aura">
-            {t('trust.verify.success', locale)}
+    <View className="flex-1 bg-background">
+      <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-10 pt-6">
+        {/* grab handle */}
+        <View className="mx-auto h-1 w-10 rounded-full bg-hair" />
+        {/* head */}
+        <View className="flex-row items-center justify-between">
+          <Text className="text-xl font-bold text-foreground">
+            {t('trust.verify.title', locale)}
           </Text>
-        ) : (
-          <>
-            <Text className="text-center text-[15px] leading-relaxed text-foreground">
-              {t('trust.verify.sub', locale)}
-            </Text>
-            <Text className="text-center text-[13px] leading-snug text-muted-foreground">
-              {t('trust.verify.privacy', locale)}
-            </Text>
-          </>
-        )}
-      </View>
-
-      {error ? (
-        <Text className="text-center text-sm text-error">{t('trust.verify.error', locale)}</Text>
-      ) : null}
-
-      {!verified ? (
-        <Button
-          variant="light"
-          glow={state === 'pending'}
-          disabled={state === 'pending'}
-          label={
-            state === 'pending'
-              ? t('trust.verify.pending', locale)
-              : state === 'failed'
-                ? t('trust.verify.retry', locale)
-                : t('trust.verify.cta', locale)
-          }
-          onPress={start}
-        />
-      ) : null}
-
-      {toast ? (
-        <View className="absolute inset-x-6 bottom-8 rounded-card bg-raise-2 px-4 py-3">
-          <Text className="text-center text-sm text-foreground">{toast}</Text>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', locale)}
+            hitSlop={8}
+          >
+            <Text className="text-2xl text-muted-foreground">×</Text>
+          </Pressable>
         </View>
-      ) : null}
-    </ScrollView>
+
+        <View className="items-center gap-4 py-4">
+          <View
+            accessible={true}
+            accessibilityLabel={
+              verified ? t('verify.a11y.verified', locale) : t('verify.a11y.unverified', locale)
+            }
+          >
+            <Mandorla size={92} glowLevel={verified ? 1 : 0.4}>
+              <Text
+                className="text-3xl text-aura"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {verified ? '✦' : '◇'}
+              </Text>
+            </Mandorla>
+          </View>
+
+          {verified ? (
+            <Text className="text-center text-lg font-semibold text-aura">
+              {t('trust.verify.success', locale)}
+            </Text>
+          ) : (
+            <>
+              <Text className="text-center text-[15px] leading-relaxed text-foreground">
+                {t('trust.verify.sub', locale)}
+              </Text>
+              <Text className="text-center text-[13px] leading-snug text-muted-foreground">
+                {t('trust.verify.privacy', locale)}
+              </Text>
+            </>
+          )}
+        </View>
+
+        {error ? (
+          <Text className="text-center text-sm text-error">{t('trust.verify.error', locale)}</Text>
+        ) : null}
+
+        {!verified ? (
+          <Button
+            variant="light"
+            disabled={state === 'pending'}
+            label={
+              state === 'pending'
+                ? t('trust.verify.pending', locale)
+                : state === 'failed'
+                  ? t('trust.verify.retry', locale)
+                  : t('trust.verify.cta', locale)
+            }
+            onPress={start}
+          />
+        ) : null}
+      </ScrollView>
+
+      {toast ? <Toast label={toast} /> : null}
+    </View>
   );
 }

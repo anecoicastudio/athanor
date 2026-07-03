@@ -22,8 +22,9 @@ import {
 import { consensusForCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { AmountRow } from '@/components/fund/AmountRow';
 import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
@@ -211,17 +212,7 @@ export default function AnnualFundScreen() {
   if (editionQuery.isLoading) {
     return (
       <View className="flex-1 bg-background">
-        {/* Header */}
-        <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={8}
-            accessibilityLabel={t('common.back', locale)}
-          >
-            <Text className="text-[22px] text-foreground">‹</Text>
-          </Pressable>
-          <Text className="text-2xl text-foreground">{t('fund.title', locale)}</Text>
-        </View>
+        <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Skeleton / quiet placeholder */}
         <View className="flex-1 items-center justify-center gap-4 px-5">
           <ActivityIndicator color={semantic.aura} />
@@ -235,17 +226,7 @@ export default function AnnualFundScreen() {
   if (!edition) {
     return (
       <View className="flex-1 bg-background">
-        {/* Header */}
-        <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={8}
-            accessibilityLabel={t('common.back', locale)}
-          >
-            <Text className="text-[22px] text-foreground">‹</Text>
-          </Pressable>
-          <Text className="text-2xl text-foreground">{t('fund.title', locale)}</Text>
-        </View>
+        <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Calm empty state */}
         <View className="flex-1 items-center justify-center px-5">
           <Text className="text-center text-[15px] text-muted-foreground">
@@ -260,16 +241,7 @@ export default function AnnualFundScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* 1. Header — back chevron + fund.title */}
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-2xl text-foreground">{t('fund.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
 
       <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-16">
         {/* 2. Hero quote — brand voice, cyan (NOT Hanken-italic dream register) */}
@@ -279,7 +251,7 @@ export default function AnnualFundScreen() {
 
         {/* 3. Hero countdown block */}
         <View className="gap-4">
-          <Text className="text-[12px] uppercase tracking-wider text-muted-foreground">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t('fund.countdown.label', locale)}
           </Text>
           <CountdownGrid targetMs={Date.parse(edition.target_at)} locale={locale} />
@@ -409,7 +381,7 @@ export default function AnnualFundScreen() {
 
         {/* 9. Il motore virale — cyan-wash card */}
         <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
-          <Text className="text-[12px] uppercase tracking-wider text-aura">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
             {t('fund.viral.label', locale)}
           </Text>
           <Text className="text-[14px] leading-5 text-foreground">

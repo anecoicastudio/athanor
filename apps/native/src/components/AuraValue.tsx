@@ -48,7 +48,8 @@ export function AuraValue({
 
   return (
     <Text
-      className={`text-aura font-extrabold ${className ?? ''}`}
+      // DESIGN §8.5/§11: Aura is status, not a moment — foreground, never aura cyan.
+      className={`text-foreground font-extrabold ${className ?? ''}`}
       style={{ fontSize: size, fontVariant: ['tabular-nums'] }}
       accessibilityRole="text"
     >

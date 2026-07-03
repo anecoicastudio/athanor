@@ -19,6 +19,7 @@ import { metersToKm } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { Event, EventNearby } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { EventRow, type EventRowData } from '@/components/live/EventRow';
 import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { EmptyState } from '@/components/EmptyState';
@@ -64,16 +65,7 @@ export default function LiveScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-2xl text-foreground">{t('live.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('live.title', locale)} backLabel={t('common.back', locale)} />
       <View className="pb-3">
         <PanelTabs active={panel} onChange={setPanel} locale={locale} />
       </View>
@@ -173,7 +165,7 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
   const header = (
     <View className="gap-4 px-5 pb-2">
       <View className="gap-2 rounded-hero border border-aura-line bg-aura-soft p-5">
-        <Text className="text-[12px] uppercase tracking-wider text-aura">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
           {t('live.athanorDays.label', locale)}
         </Text>
         <Text className="text-[17px] font-semibold text-foreground">
@@ -190,7 +182,7 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
           </Text>
         </Pressable>
       </View>
-      <Text className="text-[12px] uppercase tracking-wider text-faint">
+      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
         {city ? t('live.vicino.section', locale, { city }) : t('live.vicino.sectionNoCity', locale)}
       </Text>
     </View>
@@ -291,7 +283,7 @@ function CalendarPanel({
       keyExtractor={([month]) => month}
       renderItem={({ item: [month, items] }) => (
         <View className="gap-3 px-5 pb-4">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">{month}</Text>
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{month}</Text>
           {items.map((e) => (
             <EventRow
               key={e.id}
@@ -376,7 +368,7 @@ function MapPanel({
           );
         })}
       </ScrollView>
-      <Text className="px-5 pb-2 text-[12px] uppercase tracking-wider text-faint">
+      <Text className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
         {t('live.map.section', locale)}
       </Text>
       <View className="gap-3 px-5">
@@ -455,7 +447,7 @@ function OnlinePanel({
   return (
     <ScrollView contentContainerClassName="pb-[104px] gap-4">
       <View className="gap-3 px-5">
-        <Text className="text-[12px] uppercase tracking-wider text-faint">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
           {t('live.online.section', locale)}
         </Text>
         {liveNow.map((e) => (

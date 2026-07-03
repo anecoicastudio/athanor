@@ -74,7 +74,7 @@ export function HomeHeader({
       <View className="gap-0.5">
         <Text className="text-[13px] text-faint">{greeting}</Text>
         {handle ? (
-          <Text className="text-3xl font-bold tracking-[-0.02em] text-foreground">@{handle}</Text>
+          <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">@{handle}</Text>
         ) : null}
       </View>
       <View className="flex-row items-center gap-4 pt-1">

@@ -5,13 +5,10 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 /**
  * Horizontal scope-tab row for the search screen (M8 §3.3 / §4).
  *
- * Active state: ink/cosmo — `bg-foreground` / `text-cosmo` (inverted, dark-on-light).
- * This deliberately does NOT use cyan (rule #4): scope tabs are navigation controls,
- * not aura/moment events. Mirror the active treatment from SegmentedToggle.tsx
- * but with a pill shape instead of a full toggle container.
- *
- * Inactive state: `border-hair` + `bg-raise-2` + `text-foreground` — same as Chip
- * idle state, consistent with the filter-chip vocabulary.
+ * DESIGN §9 Tabs: text pills, active = foreground text + 2px foreground
+ * underline, inactive = foregroundMuted. Deliberately NO cyan (rule #4):
+ * scope tabs are navigation controls, not aura/moment events. Same pattern
+ * as feed CategoryTabs.
  *
  * i18n note: the marketplace scope key is `search.scope.market` (not `.marketplace`).
  */
@@ -46,22 +43,24 @@ export function ScopeTabs({
         return (
           <Pressable
             key={s}
-            className={
-              active
-                ? 'rounded-full bg-foreground px-4 py-2'
-                : 'rounded-full border border-hair bg-raise-2 px-4 py-2'
-            }
-            style={{ minHeight: 44, justifyContent: 'center' }}
+            className="min-h-[44px] items-center justify-center px-4"
             onPress={() => onChange(s)}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
             accessibilityLabel={t(SCOPE_KEY[s], locale)}
           >
             <Text
-              className={`text-[14px] font-semibold ${active ? 'text-cosmo' : 'text-foreground'}`}
+              className={`text-[14px] ${
+                active ? 'font-semibold text-foreground' : 'text-muted-foreground'
+              }`}
             >
               {t(SCOPE_KEY[s], locale)}
             </Text>
+            <View
+              className={`mt-1 h-[2px] self-stretch rounded-full ${
+                active ? 'bg-foreground' : 'bg-transparent'
+              }`}
+            />
           </Pressable>
         );
       })}

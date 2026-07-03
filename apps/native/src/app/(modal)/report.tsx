@@ -12,6 +12,7 @@ import {
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -70,89 +71,92 @@ export default function ReportScreen() {
   });
 
   return (
-    <ScrollView
-      {...MODAL_A11Y}
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 px-5 py-12"
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* head — title + close x */}
-      <View className="flex-row items-center justify-between">
-        <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">
-          {t('report.title', locale)}
-        </Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.cancel', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-xl text-faint">✕</Text>
-        </Pressable>
-      </View>
-
-      {report.isSuccess ? (
-        // submitted — body swaps to the confirmation
-        <View className="items-center gap-4 py-10">
-          <Text className="text-3xl text-aura">✓</Text>
-          <Text className="px-4 text-center text-[15px] leading-relaxed text-foreground">
-            {t('report.confirm', locale)}
-          </Text>
-          {targetType === 'person' && targetId ? (
-            <Pressable
-              onPress={() => blockAlso.mutate()}
-              disabled={blockAlso.isPending}
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Text className="pt-2 text-[15px] text-error">{t('report.alsoBlock', locale)}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : (
-        <>
-          <Text className="text-[15px] leading-relaxed text-faint">{t('report.sub', locale)}</Text>
-
-          {/* reason picker — single-select radio group */}
-          <View
-            className="flex-row flex-wrap gap-2"
-            accessibilityRole="radiogroup"
-            accessibilityLabel={t('report.sub', locale)}
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
+      {/* head — back + title + close x */}
+      <ModalHeader
+        title={t('report.title', locale)}
+        backLabel={t('common.back', locale)}
+        right={
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.cancel', locale)}
+            hitSlop={8}
           >
-            {REPORT_CATEGORIES.map((option) => (
-              <Chip
-                key={option}
-                label={t(`report.reason.${option}`, locale)}
-                selected={category === option}
-                onPress={() => setCategory(option)}
-              />
-            ))}
+            <Text className="text-xl text-faint">✕</Text>
+          </Pressable>
+        }
+      />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pb-12"
+        keyboardShouldPersistTaps="handled"
+      >
+        {report.isSuccess ? (
+          // submitted — body swaps to the confirmation
+          <View className="items-center gap-4 py-10">
+            <Text className="text-3xl text-aura">✓</Text>
+            <Text className="px-4 text-center text-[15px] leading-relaxed text-foreground">
+              {t('report.confirm', locale)}
+            </Text>
+            {targetType === 'person' && targetId ? (
+              <Pressable
+                onPress={() => blockAlso.mutate()}
+                disabled={blockAlso.isPending}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text className="pt-2 text-[15px] text-error">{t('report.alsoBlock', locale)}</Text>
+              </Pressable>
+            ) : null}
           </View>
+        ) : (
+          <>
+            <Text className="text-[15px] leading-relaxed text-faint">
+              {t('report.sub', locale)}
+            </Text>
 
-          {/* optional note */}
-          <TextInput
-            className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
-            multiline
-            maxLength={2000}
-            editable={!report.isPending}
-            placeholder={t('report.note.placeholder', locale)}
-            value={note}
-            onChangeText={setNote}
-          />
+            {/* reason picker — single-select radio group */}
+            <View
+              className="flex-row flex-wrap gap-2"
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('report.sub', locale)}
+            >
+              {REPORT_CATEGORIES.map((option) => (
+                <Chip
+                  key={option}
+                  label={t(`report.reason.${option}`, locale)}
+                  selected={category === option}
+                  onPress={() => setCategory(option)}
+                />
+              ))}
+            </View>
 
-          {report.isError ? (
-            <Text className="text-sm text-error">{t('report.error', locale)}</Text>
-          ) : null}
+            {/* optional note */}
+            <TextInput
+              className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+              multiline
+              maxLength={2000}
+              editable={!report.isPending}
+              placeholder={t('report.note.placeholder', locale)}
+              value={note}
+              onChangeText={setNote}
+            />
 
-          {/* flat light CTA — reporting is not moment-grade, so no glow (rule #4). */}
-          <Button
-            label={report.isPending ? t('report.submitting', locale) : t('report.cta', locale)}
-            variant="light"
-            disabled={category === null || report.isPending}
-            onPress={() => report.mutate()}
-          />
-        </>
-      )}
-    </ScrollView>
+            {report.isError ? (
+              <Text className="text-sm text-error">{t('report.error', locale)}</Text>
+            ) : null}
+
+            {/* flat light CTA — reporting is not moment-grade, so no glow (rule #4). */}
+            <Button
+              label={report.isPending ? t('report.submitting', locale) : t('report.cta', locale)}
+              variant="light"
+              disabled={category === null || report.isPending}
+              onPress={() => report.mutate()}
+            />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }

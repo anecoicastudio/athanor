@@ -11,6 +11,8 @@ import {
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { ConversationRow } from '@/components/chat/ConversationRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -45,36 +47,34 @@ export default function MessagesScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between px-5 pb-3 pt-14">
-        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
-          <Text className="text-2xl text-faint">‹</Text>
-        </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">
-          {t('messages.title', locale)}
-        </Text>
-        <View className="flex-row items-center gap-5">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('connection.a11y.hub', locale)}
-            hitSlop={8}
-            onPress={() => router.push('/connections')}
-          >
-            <Text className="text-2xl text-faint">◎</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('messages.new', locale)}
-            hitSlop={8}
-            onPress={() => {
-              // No person-picker yet (search/connections land later) — honest stub toast.
-              setToast(true);
-              setTimeout(() => setToast(false), 1600);
-            }}
-          >
-            <Text className="text-2xl text-foreground">+</Text>
-          </Pressable>
-        </View>
-      </View>
+      <ModalHeader
+        title={t('messages.title', locale)}
+        backLabel={t('common.back', locale)}
+        right={
+          <View className="flex-row items-center gap-5">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('connection.a11y.hub', locale)}
+              hitSlop={8}
+              onPress={() => router.push('/connections')}
+            >
+              <Text className="text-2xl text-faint">◎</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('messages.new', locale)}
+              hitSlop={8}
+              onPress={() => {
+                // No person-picker yet (search/connections land later) — honest stub toast.
+                setToast(true);
+                setTimeout(() => setToast(false), 1600);
+              }}
+            >
+              <Text className="text-2xl text-foreground">+</Text>
+            </Pressable>
+          </View>
+        }
+      />
 
       <FlatList
         data={items}
@@ -112,13 +112,7 @@ export default function MessagesScreen() {
         }}
       />
 
-      {toast ? (
-        <View className="absolute bottom-16 self-center rounded-full border border-hair bg-raise-2 px-5 py-2">
-          <Text className="text-[14px] font-semibold text-foreground">
-            {t('messages.new.toast', locale)}
-          </Text>
-        </View>
-      ) : null}
+      {toast ? <Toast label={t('messages.new.toast', locale)} /> : null}
     </View>
   );
 }

@@ -18,6 +18,7 @@ import { AURA_WEIGHTS } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { PostMedia } from '@/components/feed/PostMedia';
@@ -124,37 +125,37 @@ export default function PostDetailScreen() {
       className="flex-1 bg-background"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <ModalHeader
+        title={categoryLabel}
+        backLabel={t('common.back', locale)}
+        right={
+          isAuthor ? (
+            <Pressable onPress={confirmDelete} accessibilityRole="button" hitSlop={8}>
+              <Text className="text-[13px] text-error">{t('post.delete', locale)}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/(modal)/report',
+                  params: { targetType: 'post', targetId: post.id },
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={t('report.title', locale)}
+              hitSlop={8}
+            >
+              <Text className="text-[13px] text-faint">{t('report.title', locale)}</Text>
+            </Pressable>
+          )
+        }
+      />
       <FlatList
         data={comments}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="gap-3 px-5 py-8 pb-4"
+        contentContainerClassName="gap-3 px-5 pb-4 pt-2"
         ListHeaderComponent={
           <View className="gap-5 pb-3">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-[12px] uppercase tracking-wider text-faint">
-                {categoryLabel}
-              </Text>
-              {isAuthor ? (
-                <Pressable onPress={confirmDelete}>
-                  <Text className="text-[13px] text-error">{t('post.delete', locale)}</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(modal)/report',
-                      params: { targetType: 'post', targetId: post.id },
-                    })
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={t('report.title', locale)}
-                  hitSlop={8}
-                >
-                  <Text className="text-[13px] text-faint">{t('report.title', locale)}</Text>
-                </Pressable>
-              )}
-            </View>
-
             <PostAuthorRow authorId={post.author_id} />
 
             {post.is_step ? (
@@ -203,7 +204,7 @@ export default function PostDetailScreen() {
 
       <View className="flex-row items-center gap-2 border-t border-hair bg-background px-5 py-3">
         <TextInput
-          className="flex-1 rounded-ctl border border-hair bg-raise px-4 py-2 text-[14px] text-foreground"
+          className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[14px] text-foreground"
           placeholder={t('comment.placeholder', locale)}
           placeholderTextColor={semantic.faint}
           value={draft}

@@ -170,7 +170,7 @@ export default function SearchScreen() {
           hitSlop={8}
           onPress={() => router.back()}
         >
-          <Text className="text-2xl text-faint">‹</Text>
+          <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
         <View className="flex-1">
           <SearchBar

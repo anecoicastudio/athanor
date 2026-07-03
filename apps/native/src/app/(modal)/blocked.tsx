@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Alert, FlatList, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, listBlocked, unblockUser } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { BlockedRow } from '@/components/BlockedRow';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -17,7 +18,6 @@ import { supabase } from '@/lib/supabase';
  * before firing the mutation; the touched row dims while in flight.
  */
 export default function BlockedScreen() {
-  const router = useRouter();
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const qc = useQueryClient();
@@ -65,19 +65,7 @@ export default function BlockedScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="flex-row items-center gap-3 px-5 pb-4 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">
-          {t('block.list.title', locale)}
-        </Text>
-      </View>
+      <ModalHeader title={t('block.list.title', locale)} backLabel={t('common.back', locale)} />
 
       <FlatList
         data={rows}
@@ -109,11 +97,7 @@ export default function BlockedScreen() {
       />
 
       {/* Inline toast — no global host (rule: no global Sheet/Overlay/Toast) */}
-      {toast ? (
-        <View className="absolute inset-x-5 bottom-10 items-center rounded-card border border-hair bg-raise-2 px-5 py-3">
-          <Text className="text-sm text-foreground">{toast}</Text>
-        </View>
-      ) : null}
+      {toast ? <Toast label={toast} /> : null}
     </View>
   );
 }

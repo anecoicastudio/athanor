@@ -32,6 +32,7 @@ import {
 } from '@athanor/schemas';
 import { Share } from 'react-native';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
@@ -42,6 +43,7 @@ import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SettingsRow } from '@/components/SettingsRow';
 import { SixStarsGrid } from '@/components/SixStarsGrid';
+import { Toast } from '@/components/Toast';
 import { StarProgress } from '@/components/aura/StarProgress';
 import { Lightbox } from '@/components/Lightbox';
 import { MediaSheet } from '@/components/MediaSheet';
@@ -384,26 +386,27 @@ function ProfileEditor({
     >
       {!editing ? (
         <>
-          {/* Header row: share stub + edit toggle */}
-          <View className="flex-row items-center justify-end gap-4">
+          {/* Header row: share stub + edit toggle — sized to the 24px icon scale
+              (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. */}
+          <View className="flex-row items-center justify-end gap-5">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('profile.share.toast', locale)}
-              hitSlop={8}
+              hitSlop={HIT_SLOP}
               onPress={() => void shareProfile()}
             >
-              <Text className="text-xl text-aura">✦</Text>
+              <Text className="text-2xl text-aura">✦</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('settings.title', locale)}
-              hitSlop={8}
+              hitSlop={HIT_SLOP}
               onPress={() => router.push('/(modal)/settings')}
             >
-              <Text className="text-xl text-faint">⚙</Text>
+              <Text className="text-2xl text-faint">⚙</Text>
             </Pressable>
-            <Pressable onPress={() => setEditing(true)} accessibilityRole="button" hitSlop={8}>
-              <Text className="font-semibold text-faint">{t('profile.edit', locale)}</Text>
+            <Pressable onPress={() => setEditing(true)} accessibilityRole="button" hitSlop={HIT_SLOP}>
+              <Text className="text-base font-semibold text-faint">{t('profile.edit', locale)}</Text>
             </Pressable>
           </View>
 
@@ -645,6 +648,7 @@ function ProfileEditor({
         locale={locale}
         onClose={() => setSheetOpen(false)}
         onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+        onError={() => setError(t('media.failed', locale))}
       />
 
       {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
@@ -653,12 +657,8 @@ function ProfileEditor({
       {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash. */}
       <MomentFlash visible={starFlash} locale={locale} />
 
-      {/* Star-earned toast: transient inline surface (à la help.tsx toast pattern). */}
-      {starToast ? (
-        <View className="absolute inset-x-5 bottom-10 items-center rounded-card border border-hair bg-raise-2 px-5 py-3">
-          <Text className="text-sm font-semibold text-foreground">{starToast}</Text>
-        </View>
-      ) : null}
+      {/* Star-earned toast: transient inline surface (shared Toast recipe). */}
+      {starToast ? <Toast label={starToast} /> : null}
     </ScrollView>
   );
 }

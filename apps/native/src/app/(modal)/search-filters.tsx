@@ -6,6 +6,7 @@ import type { SearchFilters } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/lib/useEntitlement';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -119,122 +120,115 @@ export default function SearchFiltersScreen() {
   };
 
   return (
-    <ScrollView
-      {...MODAL_A11Y}
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 px-5 pb-16 pt-12"
-      keyboardShouldPersistTaps="handled"
-    >
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
       {/* ── Header ── */}
-      <View className="flex-row items-center gap-4">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Text accessibilityRole="header" className="flex-1 text-xl font-semibold text-foreground">
-          {t('search.filterSheet.title', locale)}
+      <ModalHeader
+        title={t('search.filterSheet.title', locale)}
+        backLabel={t('common.back', locale)}
+        right={
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.cancel', locale)}
+            hitSlop={8}
+          >
+            <Text className="text-[22px] text-muted-foreground">×</Text>
+          </Pressable>
+        }
+      />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pb-16"
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ── Sub ── */}
+        <Text className="text-[14px] leading-relaxed text-muted-foreground">
+          {t('search.filterSheet.sub', locale)}
         </Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.cancel', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-[22px] text-muted-foreground">×</Text>
-        </Pressable>
-      </View>
 
-      {/* ── Sub ── */}
-      <Text className="text-[14px] leading-relaxed text-muted-foreground">
-        {t('search.filterSheet.sub', locale)}
-      </Text>
-
-      {/* ── Aura minima ── */}
-      <View className="gap-3">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-          {t('search.filter.section.aura', locale)}
-        </Text>
-        <View className="flex-row flex-wrap gap-2">
-          {AURA_BUCKETS.map((bucket) => (
-            <Chip
-              key={bucket}
-              label={t(`search.filter.aura.${bucket}`, locale)}
-              selected={auraBucket === bucket}
-              onPress={() => setAuraBucket(bucket)}
-            />
-          ))}
-        </View>
-      </View>
-
-      {/* ── Città ── */}
-      <View className="gap-3">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-          {t('search.filter.section.city', locale)}
-        </Text>
-        <TextInput
-          className="rounded-hero border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
-          placeholder={t('search.filter.city.placeholder', locale)}
-          placeholderTextColor={semantic.foregroundMuted}
-          value={city}
-          onChangeText={setCity}
-          autoCorrect={false}
-          autoCapitalize="words"
-          returnKeyType="done"
-        />
-      </View>
-
-      {/* ── Stella ── */}
-      <View className="gap-3">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-          {t('search.filter.section.star', locale)}
-        </Text>
-        <View className="flex-row flex-wrap gap-2">
-          {STAR_VALUES.map((s) => (
-            <Chip
-              key={s}
-              label={t(`star.${s}`, locale)}
-              selected={star === s}
-              onPress={() => setStar((prev) => (prev === s ? undefined : s))}
-            />
-          ))}
-        </View>
-      </View>
-
-      {/* ── Disponibilità (disabled — backend param not yet implemented) ── */}
-      <View className="gap-3 opacity-40">
-        <View className="flex-row items-center gap-2">
+        {/* ── Aura minima ── */}
+        <View className="gap-3">
           <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
-            {t('search.filter.section.availability', locale)}
+            {t('search.filter.section.aura', locale)}
           </Text>
-          <Text className="text-[11px] text-muted-foreground">
-            ({t('circle.benefit.soon', locale)})
-          </Text>
+          <View className="flex-row flex-wrap gap-2">
+            {AURA_BUCKETS.map((bucket) => (
+              <Chip
+                key={bucket}
+                label={t(`search.filter.aura.${bucket}`, locale)}
+                selected={auraBucket === bucket}
+                onPress={() => setAuraBucket(bucket)}
+              />
+            ))}
+          </View>
         </View>
-        <View className="flex-row flex-wrap gap-2">
-          {(['now', 'week', 'project'] as const).map((slot) => (
-            <View
-              key={slot}
-              className="rounded-full border border-hair bg-raise-2 px-5 py-3"
-              // Not a Pressable — intentionally non-interactive until backend ships
-              accessibilityElementsHidden
-            >
-              <Text className="text-foreground">
-                {t(`search.filter.availability.${slot}`, locale)}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
 
-      {/* ── Footer ── */}
-      <View className="gap-3 pt-2">
-        <Button label={t('common.apply', locale)} variant="light" onPress={handleApply} />
-        <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
-      </View>
-    </ScrollView>
+        {/* ── Città ── */}
+        <View className="gap-3">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+            {t('search.filter.section.city', locale)}
+          </Text>
+          <TextInput
+            className="rounded-full border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
+            placeholder={t('search.filter.city.placeholder', locale)}
+            placeholderTextColor={semantic.foregroundMuted}
+            value={city}
+            onChangeText={setCity}
+            autoCorrect={false}
+            autoCapitalize="words"
+            returnKeyType="done"
+          />
+        </View>
+
+        {/* ── Stella ── */}
+        <View className="gap-3">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+            {t('search.filter.section.star', locale)}
+          </Text>
+          <View className="flex-row flex-wrap gap-2">
+            {STAR_VALUES.map((s) => (
+              <Chip
+                key={s}
+                label={t(`star.${s}`, locale)}
+                selected={star === s}
+                onPress={() => setStar((prev) => (prev === s ? undefined : s))}
+              />
+            ))}
+          </View>
+        </View>
+
+        {/* ── Disponibilità (disabled — backend param not yet implemented) ── */}
+        <View className="gap-3 opacity-40">
+          <View className="flex-row items-center gap-2">
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+              {t('search.filter.section.availability', locale)}
+            </Text>
+            <Text className="text-[11px] text-muted-foreground">
+              ({t('circle.benefit.soon', locale)})
+            </Text>
+          </View>
+          <View className="flex-row flex-wrap gap-2">
+            {(['now', 'week', 'project'] as const).map((slot) => (
+              <View
+                key={slot}
+                className="rounded-full border border-hair bg-raise-2 px-5 py-3"
+                // Not a Pressable — intentionally non-interactive until backend ships
+                accessibilityElementsHidden
+              >
+                <Text className="text-foreground">
+                  {t(`search.filter.availability.${slot}`, locale)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Footer ── */}
+        <View className="gap-3 pt-2">
+          <Button label={t('common.apply', locale)} variant="light" onPress={handleApply} />
+          <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
+        </View>
+      </ScrollView>
+    </View>
   );
 }

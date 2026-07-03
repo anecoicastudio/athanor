@@ -64,12 +64,14 @@ export default function CostellazioniScreen() {
         ListHeaderComponent={
           <View className="gap-4 py-4">
             <View className="gap-1 px-5">
-              <Text className="text-3xl text-foreground">{t('costellazioni.title', locale)}</Text>
+              <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+                {t('costellazioni.title', locale)}
+              </Text>
               <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
             <View className="flex-row items-center justify-between px-5">
-              <Text className="text-[12px] uppercase tracking-wider text-faint">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
                 {t('costellazioni.board.label', locale)}
               </Text>
               <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={8}>

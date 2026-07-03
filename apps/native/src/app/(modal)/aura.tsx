@@ -12,6 +12,7 @@ import { AuraValue } from '@/components/AuraValue';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Mandorla } from '@/components/Mandorla';
+import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraRealtime } from '@/lib/aura-realtime';
@@ -63,17 +64,7 @@ export default function AuraScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="flex-row items-center gap-4 px-5 pb-3 pt-14">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-faint">‹</Text>
-        </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">{t('aura.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('aura.title', locale)} backLabel={t('common.back', locale)} />
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
         {/* Hero */}

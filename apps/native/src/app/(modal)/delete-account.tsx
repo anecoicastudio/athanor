@@ -6,6 +6,8 @@ import { t } from '@athanor/i18n';
 import { requestErasure } from '@athanor/api';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -54,62 +56,45 @@ export default function DeleteAccountScreen() {
   });
 
   return (
-    <ScrollView
-      {...MODAL_A11Y}
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 px-5 pb-[104px] pt-14"
-    >
-      <View className="flex-row items-center gap-3 pb-2">
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <ModalHeader title={t('account.delete.title', locale)} backLabel={t('common.back', locale)} />
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+        <Text className="text-[15px] leading-relaxed text-muted-foreground">
+          {t('account.delete.body', locale)}
+        </Text>
+
+        {/* honesty line — export before delete (routes to the export sheet) */}
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => router.replace('/(modal)/data-export')}
           accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
         >
-          <Text className="text-2xl text-foreground">‹</Text>
+          <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
         </Pressable>
-        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
-          {t('account.delete.title', locale)}
-        </Text>
-      </View>
 
-      <Text className="text-[15px] leading-relaxed text-muted-foreground">
-        {t('account.delete.body', locale)}
-      </Text>
-
-      {/* honesty line — export before delete (routes to the export sheet) */}
-      <Pressable onPress={() => router.replace('/(modal)/data-export')} accessibilityRole="button">
-        <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
-      </Pressable>
-
-      <View className="gap-2">
-        <Text className="text-[13px] text-muted-foreground">
-          {t('account.delete.confirmField', locale)}
-        </Text>
-        <TextInput
-          value={confirm}
-          onChangeText={setConfirm}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          placeholder={word}
-          placeholderTextColor={semantic.faint}
-          className="rounded-ctl border border-hair bg-raise px-4 py-3 text-base text-foreground"
-          accessibilityLabel={t('account.delete.confirmField', locale)}
-        />
-      </View>
-
-      <Button
-        variant="danger"
-        label={t('account.delete.cta', locale)}
-        disabled={!matched || erase.isPending}
-        onPress={() => erase.mutate()}
-      />
-
-      {toast ? (
-        <View className="absolute inset-x-5 bottom-10 rounded-card bg-raise-2 px-4 py-3">
-          <Text className="text-center text-sm text-foreground">{toast}</Text>
+        <View className="gap-2">
+          <Text className="text-[13px] text-muted-foreground">
+            {t('account.delete.confirmField', locale)}
+          </Text>
+          <TextInput
+            value={confirm}
+            onChangeText={setConfirm}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder={word}
+            placeholderTextColor={semantic.faint}
+            className="rounded-full border border-hair bg-raise px-4 py-3 text-base text-foreground"
+            accessibilityLabel={t('account.delete.confirmField', locale)}
+          />
         </View>
-      ) : null}
-    </ScrollView>
+
+        <Button
+          variant="danger"
+          label={t('account.delete.cta', locale)}
+          disabled={!matched || erase.isPending}
+          onPress={() => erase.mutate()}
+        />
+      </ScrollView>
+      {toast ? <Toast label={toast} /> : null}
+    </View>
   );
 }

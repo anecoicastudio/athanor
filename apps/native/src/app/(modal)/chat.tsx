@@ -162,9 +162,14 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* header */}
-      <View className="flex-row items-center gap-3 px-4 pb-3 pt-14">
-        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
-          <Text className="text-2xl text-faint">‹</Text>
+      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', locale)}
+          hitSlop={8}
+          onPress={() => router.back()}
+        >
+          <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
         <Avatar handle={peer?.peerHandle ?? null} size={36} />
         <View className="flex-1">
@@ -209,7 +214,9 @@ export default function ChatScreen() {
         renderItem={({ item }) =>
           item.type === 'marker' ? (
             <View className="my-3 items-center">
-              <Text className="text-[11px] uppercase tracking-wider text-faint">{item.label}</Text>
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+                {item.label}
+              </Text>
             </View>
           ) : (
             <Bubble message={item.message} myId={myId as string} locale={locale} />
@@ -234,7 +241,7 @@ export default function ChatScreen() {
           but the glow is reserved for moment-grade events; a routine send is not one). */}
       <View className="flex-row items-end gap-2 border-t border-hair bg-background px-4 py-3">
         <TextInput
-          className="flex-1 rounded-2xl border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
+          className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
           placeholder={t('chat.input.placeholder', locale)}
           placeholderTextColor={semantic.faint}
           value={draft}

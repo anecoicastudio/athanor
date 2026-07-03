@@ -8,6 +8,7 @@ import { AURA_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Rsvp } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { EventCover } from '@/components/live/EventCover';
 import { DmetaRow } from '@/components/live/DmetaRow';
 import { AttendeeStack } from '@/components/live/AttendeeStack';
@@ -137,16 +138,7 @@ export default function EventDetailScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
-      <View className="flex-row items-center gap-3 px-5 pb-1 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-2xl text-foreground">{t('event.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('event.title', locale)} backLabel={t('common.back', locale)} />
 
       {query.isLoading ? (
         <View className="items-center pt-16">
@@ -171,13 +163,13 @@ export default function EventDetailScreen() {
           ) : null}
 
           <View className="gap-1">
-            <Text className="text-[12px] uppercase tracking-wider text-faint">
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
               {t('event.organizedBy', locale)}
             </Text>
             <PostAuthorRow authorId={event.organizer_id} size="sm" />
           </View>
 
-          <View className="gap-3 rounded-card border border-hair bg-raise p-4">
+          <View className="gap-3 rounded-card border border-hair bg-raise p-5">
             <DmetaRow glyph="◷" value={formatWhen(event.starts_at, locale)} />
             <DmetaRow
               glyph="◎"
@@ -216,7 +208,7 @@ export default function EventDetailScreen() {
 
           {isOrganizer && isPaid ? (
             <Pressable
-              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-3"
+              className="rounded-full border border-aura-line bg-aura-soft px-5 py-3"
               onPress={() => router.push(`/event/${id}/checkin`)}
               accessibilityRole="button"
               accessibilityLabel={t('event.checkin', locale)}

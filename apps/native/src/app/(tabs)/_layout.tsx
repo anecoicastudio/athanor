@@ -24,8 +24,12 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: semantic.background },
         headerTintColor: semantic.foreground,
         tabBarStyle: { backgroundColor: semantic.surfaceMuted, borderTopColor: semantic.border },
-        tabBarActiveTintColor: semantic.aura,
+        // DESIGN §9 tab bar: active = foreground — cyan stays on the ✦ badge only.
+        // Icons only: labels don't fit the 5-tab slot in either language
+        // («Costellazioni»); titles still feed the a11y labels + screen headers.
+        tabBarActiveTintColor: semantic.foreground,
         tabBarInactiveTintColor: semantic.foregroundMuted,
+        tabBarShowLabel: false,
       }}
     >
       <Tabs.Screen

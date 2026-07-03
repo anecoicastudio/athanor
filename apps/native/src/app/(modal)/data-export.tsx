@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
 import { gdprKeys, getLatestExportJob, requestExport } from '@athanor/api';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -16,7 +17,6 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * and surfaces the same link when ready. Neutral chrome, flat cyan CTA — no glow (rule #4).
  */
 export default function DataExportScreen() {
-  const router = useRouter();
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const qc = useQueryClient();
@@ -53,65 +53,45 @@ export default function DataExportScreen() {
   });
 
   return (
-    <ScrollView
-      {...MODAL_A11Y}
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 px-5 pb-[104px] pt-14"
-    >
-      <View className="flex-row items-center gap-3 pb-2">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
-          {t('gdpr.export.title', locale)}
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <ModalHeader title={t('gdpr.export.title', locale)} backLabel={t('common.back', locale)} />
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+        <Text className="text-[15px] leading-relaxed text-muted-foreground">
+          {t('gdpr.export.sub', locale)}
         </Text>
-      </View>
 
-      <Text className="text-[15px] leading-relaxed text-muted-foreground">
-        {t('gdpr.export.sub', locale)}
-      </Text>
+        {pending ? (
+          <View className="rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[14px] leading-relaxed text-muted-foreground">
+              {t('gdpr.export.processing', locale)}
+            </Text>
+          </View>
+        ) : null}
 
-      {pending ? (
-        <View className="rounded-card border border-hair bg-raise p-4">
-          <Text className="text-[14px] leading-relaxed text-muted-foreground">
-            {t('gdpr.export.processing', locale)}
-          </Text>
-        </View>
-      ) : null}
+        {ready ? (
+          <View className="gap-3 rounded-card border border-hair bg-raise p-5">
+            <Text className="text-base text-foreground">{t('gdpr.export.ready', locale)}</Text>
+            <Button
+              variant="light"
+              label={t('gdpr.export.download', locale)}
+              onPress={() => {
+                const url = job.data?.download_url;
+                if (url) void Linking.openURL(url);
+              }}
+            />
+          </View>
+        ) : null}
 
-      {ready ? (
-        <View className="gap-3 rounded-card border border-hair bg-raise p-4">
-          <Text className="text-base text-foreground">{t('gdpr.export.ready', locale)}</Text>
+        {!ready ? (
           <Button
             variant="light"
-            label={t('gdpr.export.download', locale)}
-            onPress={() => {
-              const url = job.data?.download_url;
-              if (url) void Linking.openURL(url);
-            }}
+            label={pending ? t('gdpr.export.requesting', locale) : t('gdpr.export.cta', locale)}
+            disabled={pending || request.isPending}
+            onPress={() => request.mutate()}
           />
-        </View>
-      ) : null}
-
-      {!ready ? (
-        <Button
-          variant="light"
-          label={pending ? t('gdpr.export.requesting', locale) : t('gdpr.export.cta', locale)}
-          disabled={pending || request.isPending}
-          onPress={() => request.mutate()}
-        />
-      ) : null}
-
-      {toast ? (
-        <View className="absolute inset-x-5 bottom-10 rounded-card bg-raise-2 px-4 py-3">
-          <Text className="text-center text-sm text-foreground">{toast}</Text>
-        </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+      </ScrollView>
+      {toast ? <Toast label={toast} /> : null}
+    </View>
   );
 }

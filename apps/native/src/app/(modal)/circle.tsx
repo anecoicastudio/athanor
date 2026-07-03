@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   circleKeys,
@@ -16,6 +16,7 @@ import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/lib/useEntitlement';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
@@ -37,7 +38,6 @@ const BENEFITS = [
 
 export default function CircleScreen() {
   const { profile } = useAuth();
-  const router = useRouter();
   const qc = useQueryClient();
   const locale = profile?.locale ?? 'it';
   const profileId = profile?.id ?? '';
@@ -116,18 +116,7 @@ export default function CircleScreen() {
   if (entQuery.isLoading) {
     return (
       <View {...MODAL_A11Y} className="flex-1 bg-background">
-        <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={8}
-            accessibilityLabel={t('common.back', locale)}
-          >
-            <Text className="text-[22px] text-foreground">‹</Text>
-          </Pressable>
-          <Text accessibilityRole="header" className="text-2xl text-foreground">
-            {t('circle.title', locale)}
-          </Text>
-        </View>
+        <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center gap-4 px-5">
           <ActivityIndicator color={semantic.aura} />
         </View>
@@ -139,18 +128,7 @@ export default function CircleScreen() {
   if (entQuery.isError) {
     return (
       <View {...MODAL_A11Y} className="flex-1 bg-background">
-        <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={8}
-            accessibilityLabel={t('common.back', locale)}
-          >
-            <Text className="text-[22px] text-foreground">‹</Text>
-          </Pressable>
-          <Text accessibilityRole="header" className="text-2xl text-foreground">
-            {t('circle.title', locale)}
-          </Text>
-        </View>
+        <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center px-5">
           <EmptyState>
             {t('circle.error.title', locale)}
@@ -166,18 +144,7 @@ export default function CircleScreen() {
 
   // ── Shared header ────────────────────────────────────────────────────────────
   const header = (
-    <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={8}
-        accessibilityLabel={t('common.back', locale)}
-      >
-        <Text className="text-[22px] text-foreground">‹</Text>
-      </Pressable>
-      <Text accessibilityRole="header" className="text-2xl text-foreground">
-        {t('circle.title', locale)}
-      </Text>
-    </View>
+    <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
   );
 
   // ── Shared zero-Aura footnote (REQUIRED on both states, rule #1) ─────────────
@@ -253,7 +220,7 @@ export default function CircleScreen() {
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
-          <Text className="text-[12px] uppercase tracking-wider text-aura">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
             {t('circle.eyebrow', locale)}
           </Text>
 
@@ -288,7 +255,8 @@ export default function CircleScreen() {
         {/* 3. Six benefit rows (non-member: all shown, locked visual for Fase-2) */}
         <View className="gap-2">{benefitList(false)}</View>
 
-        {/* 4. Join CTA (non-iOS) — light glow (joining is moment-grade, rule #4).
+        {/* 4. Join CTA (non-iOS) — flat cyan, no glow: a subscription checkout is
+            commerce, not a moment-grade event (rule #4 / DESIGN §2.3).
             On iOS the in-app Stripe subscribe button is forbidden (Apple 3.1.1 /
             S-IAP-1); show a neutral, non-steering note instead. Apple IAP deferred. */}
         {Platform.OS === 'ios' ? (
@@ -306,7 +274,6 @@ export default function CircleScreen() {
             }
             onPress={() => void onJoin()}
             variant="light"
-            glow
             disabled={checkoutPhase !== 'idle'}
           />
         )}

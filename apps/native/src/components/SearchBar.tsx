@@ -10,8 +10,8 @@ import { semantic } from '@athanor/config';
  * controlled and fires `onChangeText` on every keystroke. Clear ×
  * appears only when `value` is non-empty; tap calls `onClear`.
  *
- * Focus → `border-aura-line` ring (rule #4: aura on the focus ring is
- * the action/meaning use; no glow). Unfocused → `border-hair`.
+ * Pill shape + focus → `border-foreground` ring 1px (DESIGN §9 Input:
+ * radius full, focus = foreground ring — not aura). Unfocused → `border-hair`.
  *
  * Tokens only — no literal hex (hook enforced). The one exception is
  * `placeholderTextColor` which RN requires a raw color value; we pull it
@@ -36,8 +36,8 @@ export function SearchBar({
 
   return (
     <View
-      className={`flex-row items-center gap-2 rounded-2xl border bg-raise px-3 ${
-        focused ? 'border-aura-line' : 'border-hair'
+      className={`flex-row items-center gap-2 rounded-full border bg-raise px-3 ${
+        focused ? 'border-foreground' : 'border-hair'
       }`}
     >
       {/* Search glyph — leading icon */}

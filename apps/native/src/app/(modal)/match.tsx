@@ -83,7 +83,7 @@ export default function MatchOverlay() {
         </Mandorla>
       </Animated.View>
 
-      <Text className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-aura">
+      <Text className="mt-6 text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
         {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
       </Text>
       <Text

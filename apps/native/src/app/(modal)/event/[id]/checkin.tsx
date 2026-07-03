@@ -15,6 +15,7 @@ import { t } from '@athanor/i18n';
 import type { CheckInResult } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -100,7 +101,7 @@ export default function CheckinScreen() {
       <View className="flex-1 items-center justify-center gap-5 bg-background px-8">
         <EmptyState>{t('ticket.scan.permission', locale)}</EmptyState>
         <Pressable
-          className="rounded-ctl bg-aura px-6 py-3"
+          className="rounded-full bg-aura px-6 py-3"
           onPress={() => void requestPermission()}
           accessibilityRole="button"
         >
@@ -129,20 +130,16 @@ export default function CheckinScreen() {
         onBarcodeScanned={({ data }) => void onScan(data)}
       />
       {/* Header overlay */}
-      <View className="absolute left-0 right-0 top-0 flex-row items-center gap-3 px-5 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="flex-1 text-[16px] text-foreground">
-          {t('ticket.scan.title', locale, { event: event.data?.title ?? '' })}
-        </Text>
-        <Text className="text-[13px] text-aura">
-          {t('ticket.scan.counter', locale, { n: count })}
-        </Text>
+      <View className="absolute left-0 right-0 top-0">
+        <ModalHeader
+          title={t('ticket.scan.title', locale, { event: event.data?.title ?? '' })}
+          backLabel={t('common.back', locale)}
+          right={
+            <Text className="text-[13px] text-aura">
+              {t('ticket.scan.counter', locale, { n: count })}
+            </Text>
+          }
+        />
       </View>
       {/* Reticle */}
       <View

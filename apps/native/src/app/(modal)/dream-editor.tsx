@@ -3,8 +3,10 @@ import { useRouter } from 'expo-router';
 import { getActiveDream, upsertActiveDream } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -67,61 +69,49 @@ export default function DreamEditorScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 px-5 py-12"
-      keyboardShouldPersistTaps="handled"
-    >
+    <View className="flex-1 bg-background">
       {/* head: back + title */}
-      <View className="flex-row items-center gap-4">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-xl font-semibold text-foreground">
-          {t('dream.editor.title', locale)}
+      <ModalHeader title={t('dream.editor.title', locale)} backLabel={t('common.back', locale)} />
+
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pb-12 pt-4"
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text className="text-[15px] leading-relaxed text-faint">
+          {t('dream.editor.sub', locale)}
         </Text>
-      </View>
 
-      <Text className="text-[15px] leading-relaxed text-faint">
-        {t('dream.editor.sub', locale)}
-      </Text>
+        <TextInput
+          className={`min-h-36 rounded-hero border bg-raise px-5 py-4 font-dream text-lg text-foreground ${
+            error ? 'border-error' : 'border-hair'
+          }`}
+          multiline
+          maxLength={500}
+          editable={loaded && !saving}
+          placeholder={t('dream.editor.placeholder', locale)}
+          value={text}
+          onChangeText={(v) => {
+            setText(v);
+            if (error) setError(false);
+          }}
+        />
 
-      <TextInput
-        className={`min-h-36 rounded-hero border bg-raise px-5 py-4 font-dream text-lg text-foreground ${
-          error ? 'border-error' : 'border-hair'
-        }`}
-        multiline
-        maxLength={500}
-        editable={loaded && !saving}
-        placeholder={t('dream.editor.placeholder', locale)}
-        value={text}
-        onChangeText={(v) => {
-          setText(v);
-          if (error) setError(false);
-        }}
-      />
+        {error ? (
+          <Text className="text-sm text-error">{t('dream.error.empty', locale)}</Text>
+        ) : null}
 
-      {error ? <Text className="text-sm text-error">{t('dream.error.empty', locale)}</Text> : null}
+        {/* light + glow = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
+        <Button
+          label={t('dream.editor.cta', locale)}
+          variant="light"
+          glow
+          disabled={saving || !loaded}
+          onPress={save}
+        />
+      </ScrollView>
 
-      {/* light + glow = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
-      <Button
-        label={t('dream.editor.cta', locale)}
-        variant="light"
-        glow
-        disabled={saving || !loaded}
-        onPress={save}
-      />
-
-      {toast ? (
-        <View className="absolute inset-x-5 bottom-10 items-center rounded-card border border-hair bg-raise-2 px-5 py-3">
-          <Text className="text-sm text-foreground">{t('dream.toast.saved', locale)}</Text>
-        </View>
-      ) : null}
-    </ScrollView>
+      {toast ? <Toast label={t('dream.toast.saved', locale)} /> : null}
+    </View>
   );
 }
