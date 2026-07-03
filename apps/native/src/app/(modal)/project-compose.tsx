@@ -5,7 +5,6 @@ import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
-import { AURA_WEIGHTS } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
@@ -129,11 +128,7 @@ export default function ProjectComposeScreen() {
             />
           </View>
 
-          {/* Display-only Aura hint — n from AURA_WEIGHTS, never a literal (rule #10). Real award = M6. */}
-          <Text className="text-[13px] text-aura">
-            ✦ {t('project.compose.auraHint', locale, { n: AURA_WEIGHTS.PROJECT_CREATE })}
-          </Text>
-
+          {/* P2.5 hint-truth: no create-hint — the engine never rewards publishing (anti-gaming). */}
           <Button
             label={t('common.publish', locale)}
             onPress={onPublish}
