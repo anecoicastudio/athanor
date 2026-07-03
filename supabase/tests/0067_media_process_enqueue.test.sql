@@ -5,7 +5,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(7);
 
 select has_function('public', 'enqueue_media_process', 'enqueue_media_process exists');
 
@@ -14,6 +14,10 @@ select is_definer('public', 'enqueue_media_process', 'enqueue fn is SECURITY DEF
 select ok(
   not has_function_privilege('authenticated', 'public.enqueue_media_process()', 'execute'),
   'authenticated cannot execute enqueue_media_process directly');
+
+select ok(
+  not has_function_privilege('anon', 'public.enqueue_media_process()', 'execute'),
+  'anon cannot execute enqueue_media_process directly');
 
 select has_trigger('storage', 'objects', 'media_process_enqueue',
   'media_process_enqueue trigger exists on storage.objects');

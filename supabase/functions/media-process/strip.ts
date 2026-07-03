@@ -16,6 +16,11 @@
  *
  * Every stripper is idempotent: a second pass finds nothing and reports changed=false —
  * this is also what terminates the storage-trigger re-upload loop.
+ *
+ * Accepted JPEG gaps (documented, not bugs): bytes after EOI survive verbatim (motion-photo
+ * MP4 trailers), Extended-XMP APP1 (ns.adobe.com/xmp/extension/) and APP2/MPF are kept.
+ * MP4: top-level `uuid` boxes (vendor XMP) are not stripped. HEIF-family brands are skipped
+ * entirely (their `meta` box is the image itself — see dispatcher).
  */
 
 export type StripResult = {
@@ -128,6 +133,7 @@ function stripWebp(b: Uint8Array): StripResult {
     else kept.push(b.subarray(i, Math.min(chunkEnd, b.length)));
     i = chunkEnd;
   }
+  if (i < b.length) kept.push(b.subarray(i)); // malformed tail — preserved, never dropped
   if (!changed) return { out: b, changed: false, kind: 'webp' };
   const body = kept.reduce((n, s) => n + s.length, 0);
   const out = new Uint8Array(12 + body);
@@ -253,7 +259,16 @@ export function stripMetadata(bytes: Uint8Array): StripResult {
   ) {
     return stripWebp(bytes);
   }
-  if (bytes.length >= 12 && ascii(bytes, 4, 4) === 'ftyp') return stripMp4(bytes);
+  if (bytes.length >= 12 && ascii(bytes, 4, 4) === 'ftyp') {
+    // HEIF-family guard: for HEIC/AVIF the top-level `meta` box IS the image (iloc/iprp) —
+    // freeing it would destroy the file. No bucket accepts these mimes today; this protects
+    // against mislabeled uploads and a future avatars bucket.
+    const brand = bytes.length >= 16 ? ascii(bytes, 8, 4) : '';
+    if (['heic', 'heix', 'hevc', 'mif1', 'msf1', 'avif', 'avis'].includes(brand)) {
+      return { out: bytes, changed: false, kind: 'unknown' };
+    }
+    return stripMp4(bytes);
+  }
   if (
     bytes.length >= 10 &&
     (ascii(bytes, 0, 3) === 'ID3' ||

@@ -18,6 +18,11 @@ import { stripMetadata } from './strip.ts';
 
 const BUCKETS = new Set(['post-media', 'moments', 'story-segments', 'candidacy-videos']);
 
+// Edge isolate memory is ~256 MB and download+arrayBuffer holds ~2× the file. Above this
+// the strip would OOM mid-flight; skip explicitly instead (fail-open backstop — the
+// coverage hole for >100 MB candidacy videos is documented in PRODUCTION-READINESS P2.2).
+const MAX_BYTES = 100 * 1024 * 1024;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return error('method not allowed', 405);
@@ -49,6 +54,11 @@ Deno.serve(async (req) => {
     if (dlErr || !blob) {
       // Deleted before we ran, or transient — benign for a backstop.
       return json({ skipped: 'not_found', bucket_id: bucketId, name });
+    }
+
+    if (blob.size > MAX_BYTES) {
+      console.warn('media-process skipped oversized object', bucketId, name, blob.size);
+      return json({ skipped: 'too_large', bucket_id: bucketId, name, size: blob.size });
     }
 
     const bytes = new Uint8Array(await blob.arrayBuffer());
