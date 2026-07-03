@@ -17,10 +17,25 @@
     },
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.athanor.app"
+      "bundleIdentifier": "com.athanor.app",
+      "associatedDomains": ["applinks:athanor-page.vercel.app"]
     },
     "android": {
       "package": "com.athanor.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/momento" },
+            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/event" },
+            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/post" },
+            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/invite" },
+            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/@" }
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0a0a1a",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
