@@ -451,3 +451,6 @@ verify_jwt = true
 
 [functions.create-circle-portal]
 verify_jwt = true
+
+[functions.media-process]
+verify_jwt = true
