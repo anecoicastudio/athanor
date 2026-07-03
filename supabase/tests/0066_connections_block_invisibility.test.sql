@@ -6,7 +6,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 -- ── seed two users (profiles auto-created by handle_new_user trigger) ─────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -69,6 +69,15 @@ select is(
 select is(
   (select count(*) from public.connections)::int,
   0, 'post-block: blocked user (B) cannot see the connection');
+
+-- ── respond_to_connection DEFINER RPC: blocked addressee cannot accept a cached
+--    pending request id (raises the same no_data_found = P0002 as a missing request,
+--    so block state stays unobservable — Inv 7). Request cccc0002 still exists here. ──
+select throws_ok(
+  $$ select public.respond_to_connection('cccc0002-0000-0000-0000-000000000000', true) $$,
+  'P0002',
+  null,
+  'blocked addressee (B) cannot accept a cached pending request via RPC');
 
 -- ── new request INSERT rejected from both sides (WITH CHECK → 42501) ──────────
 -- remove the seeded pending request first so the RLS failure is unambiguous
