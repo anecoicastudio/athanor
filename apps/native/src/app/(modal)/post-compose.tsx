@@ -179,6 +179,7 @@ export default function PostComposeScreen() {
             locale={locale}
             onPick={onPickMedia}
             onClose={() => setSheetOpen(false)}
+            onError={() => setError(t('media.failed', locale))}
           />
 
           <View className="gap-2">

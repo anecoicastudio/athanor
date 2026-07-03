@@ -131,6 +131,7 @@ export default function GridScreen() {
           locale={locale}
           onClose={() => setSheetOpen(false)}
           onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+          onError={() => setError(t('media.failed', locale))}
         />
       </ScrollView>
     </View>

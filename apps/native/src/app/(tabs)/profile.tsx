@@ -648,6 +648,7 @@ function ProfileEditor({
         locale={locale}
         onClose={() => setSheetOpen(false)}
         onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+        onError={() => setError(t('media.failed', locale))}
       />
 
       {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Modal } from 'react-native';
+import { useRef, useState } from 'react';
+import { Modal, Platform } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -21,14 +21,22 @@ type Source = 'photo' | 'video' | 'library';
  * The `sheet-media` picker (frontend `01` §3.6 / backend 10). A bottom Modal with
  * three sources: take a photo, record a video (when `allowVideo`), or pick from
  * the library. Each source primes the relevant permission via {@link
- * PermissionPrimer} BEFORE the OS prompt, then runs the matching `pick.ts`
- * function and hands the descriptor up to `onPick`.
+ * PermissionPrimer} BEFORE the OS prompt (skipped when already granted), then
+ * runs the matching `pick.ts` function and hands the descriptor up to `onPick`.
  *
- * State machine (deliberately small):
- *   idle → (tap row) → priming(source)         ← primer visible
- *   priming → (allow) → OS prompt → granted? → launch picker → onPick + onClose
- *                                  → blocked  → primer stays, swaps to Settings CTA
+ * State machine:
+ *   idle → (tap row) → peek granted? → close sheet → launch picker → onPick
+ *                    → else primer(source)
+ *   priming → (allow) → OS prompt → granted → close sheet → launch → onPick
+ *                                 → blocked → primer stays, swaps to Settings CTA
  *   priming → (dismiss) → idle
+ *
+ * iOS CRITICAL: the picker/camera view controller silently fails to present
+ * while an RN Modal is still up (known Expo issue) — so on grant we CLOSE the
+ * sheet first and launch only from the Modal's `onDismiss` (iOS-only callback).
+ * Android/web present independently → launch right after `onClose()`. Callers
+ * must keep this component mounted (visible={false}, not conditional render) or
+ * the queued launch dies with the unmount.
  *
  * No glow anywhere (rule #4): attaching media isn't itself a moment.
  */
@@ -37,29 +45,66 @@ export function MediaSheet({
   locale,
   onPick,
   onClose,
+  onError,
   allowVideo = false,
 }: {
   visible: boolean;
   locale: Locale;
   onPick: (m: PickedMedia) => void;
   onClose: () => void;
+  /** Native picker threw (camera unavailable, interrupted…) — surface `media.failed`. */
+  onError?: () => void;
   allowVideo?: boolean;
 }) {
   // The source the user tapped + the primer's permission status. `null` source
   // means the primer is closed and the sheet rows are interactive.
   const [pending, setPending] = useState<{ source: Source; status: PermStatus } | null>(null);
   const [busy, setBusy] = useState(false);
+  // Source queued to launch after the Modal finishes dismissing (iOS path).
+  const queuedLaunch = useRef<Source | null>(null);
+  // Synchronous re-entry lock: `busy` state is async and lets a double-tap
+  // race two picker launches (the second rejects → spurious onError).
+  const launchLock = useRef(false);
 
   const primerKind = pending?.source === 'library' ? 'photos' : 'camera';
 
-  // Tap a row → resolve which permission it needs and open the primer. We don't
-  // fire the OS prompt yet; the primer's «Consenti» does (via onAllow → run).
+  async function doLaunch(source: Source) {
+    setBusy(true);
+    try {
+      const picked = await pickForSource(source, allowVideo);
+      if (picked) onPick(picked);
+    } catch {
+      onError?.();
+    } finally {
+      setBusy(false);
+      launchLock.current = false;
+    }
+  }
+
+  // Close the sheet, then launch: iOS defers to Modal onDismiss; elsewhere the
+  // picker presents fine immediately after requesting the close.
+  function closeThenLaunch(source: Source) {
+    launchLock.current = true;
+    setPending(null);
+    if (Platform.OS === 'ios') {
+      queuedLaunch.current = source;
+      onClose();
+      return;
+    }
+    onClose();
+    void doLaunch(source);
+  }
+
+  // Tap a row → peek (no OS prompt). Already granted → straight to the picker;
+  // otherwise open the primer («Consenti» fires the real request via run()).
   async function openPrimer(source: Source) {
-    if (busy) return;
-    // Peek (no OS prompt) so an already-`blocked` permission seeds the primer's
-    // Settings CTA; «Consenti» → run() does the actual request.
+    if (busy || launchLock.current) return;
     const status =
       source === 'library' ? await peekLibraryPermission() : await peekCameraPermission();
+    if (status === 'granted') {
+      closeThenLaunch(source);
+      return;
+    }
     setPending({ source, status });
   }
 
@@ -77,21 +122,30 @@ export function MediaSheet({
       return;
     }
 
-    setPending(null);
-    setBusy(true);
-    try {
-      const picked = await pickForSource(source, allowVideo);
-      if (picked) {
-        onPick(picked);
-        onClose();
-      }
-    } finally {
-      setBusy(false);
-    }
+    closeThenLaunch(source);
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onShow={() => {
+        // Re-shown sheet must never fire a stale launch: if onDismiss was ever
+        // missed (iOS double-dismiss edge with the nested primer), reset here.
+        queuedLaunch.current = null;
+        launchLock.current = false;
+      }}
+      onDismiss={() => {
+        // iOS-only: fires once the modal is fully gone — safe to present the picker.
+        const source = queuedLaunch.current;
+        if (source) {
+          queuedLaunch.current = null;
+          void doLaunch(source);
+        }
+      }}
+    >
       <Pressable className="flex-1 justify-end bg-surface-muted" onPress={onClose}>
         <Pressable
           {...MODAL_A11Y}
