@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { Switch } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -12,7 +11,8 @@ import {
   setPushEnabled,
 } from '@athanor/api';
 import type { NotifPrefInput, NotificationPreference } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -35,7 +35,6 @@ const PREF_ROWS: { key: string; type: NotifPrefInput['type'] }[] = [
 ];
 
 export default function NotifPrefsScreen() {
-  const router = useRouter();
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const qc = useQueryClient();
@@ -118,19 +117,7 @@ export default function NotifPrefsScreen() {
       contentContainerClassName="gap-6 pb-12"
     >
       {/* Header */}
-      <View className="flex-row items-center gap-3 px-5 pb-2 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
-          {t('notif.prefs.title', locale)}
-        </Text>
-      </View>
+      <ModalHeader title={t('notif.prefs.title', locale)} backLabel={t('common.back', locale)} />
 
       {/* Subtitle */}
       <Text className="px-5 text-[14px] leading-relaxed text-faint">

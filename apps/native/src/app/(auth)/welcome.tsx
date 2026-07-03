@@ -184,7 +184,7 @@ export default function WelcomeScreen() {
               {t('auth.name.label', locale)}
             </Text>
             <TextInput
-              className="rounded-ctl border border-hair bg-raise px-4 py-4 text-foreground"
+              className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
               autoCapitalize="words"
               autoComplete="name"
               placeholder={t('auth.name.placeholder', locale)}
@@ -199,7 +199,7 @@ export default function WelcomeScreen() {
             {t('auth.email.label', locale)}
           </Text>
           <TextInput
-            className="rounded-ctl border border-hair bg-raise px-4 py-4 text-foreground"
+            className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
             autoCapitalize="none"
             autoComplete="email"
             inputMode="email"
@@ -214,7 +214,7 @@ export default function WelcomeScreen() {
             {t('auth.password.label', locale)}
           </Text>
           <TextInput
-            className="rounded-ctl border border-hair bg-raise px-4 py-4 text-foreground"
+            className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
             autoCapitalize="none"
             autoComplete={login ? 'current-password' : 'new-password'}
             secureTextEntry

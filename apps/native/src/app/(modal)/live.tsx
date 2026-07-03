@@ -19,6 +19,7 @@ import { metersToKm } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { Event, EventNearby } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { EventRow, type EventRowData } from '@/components/live/EventRow';
 import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { EmptyState } from '@/components/EmptyState';
@@ -64,16 +65,7 @@ export default function LiveScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-2xl text-foreground">{t('live.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('live.title', locale)} backLabel={t('common.back', locale)} />
       <View className="pb-3">
         <PanelTabs active={panel} onChange={setPanel} locale={locale} />
       </View>

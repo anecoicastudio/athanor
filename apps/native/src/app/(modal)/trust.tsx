@@ -17,6 +17,8 @@ import {
 import type { Consent } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -120,193 +122,179 @@ export default function TrustScreen() {
   });
 
   return (
-    <ScrollView
-      {...MODAL_A11Y}
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 pb-[104px]"
-    >
-      {/* Header */}
-      <View className="flex-row items-center gap-3 px-5 pb-2 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
-          {t('trust.title', locale)}
+    <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <ModalHeader title={t('trust.title', locale)} backLabel={t('common.back', locale)} />
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-[104px] pt-2">
+        {/* Quote — the single cyan statement (rule #4) */}
+        <Text className="px-5 text-base font-semibold italic text-aura">
+          {t('trust.quote', locale)}
         </Text>
-      </View>
 
-      {/* Quote — the single cyan statement (rule #4) */}
-      <Text className="px-5 text-base font-semibold italic text-aura">
-        {t('trust.quote', locale)}
-      </Text>
-
-      {/* Identity (read-only — verify flow is the identity-verify slice) */}
-      <View className="gap-2 px-5">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {t('trust.identity.section', locale)}
-        </Text>
-        <Pressable
-          onPress={() => {
-            if (verifyState !== 'verified') router.push('/(modal)/verify');
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t(`trust.identity.status.${verifyState}` as const, locale)}
-          className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
-        >
-          <Text
-            className={
-              verifyState === 'verified' ? 'text-2xl text-aura' : 'text-2xl text-muted-foreground'
-            }
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            {verifyState === 'verified' ? '✦' : '◇'}
+        {/* Identity (read-only — verify flow is the identity-verify slice) */}
+        <View className="gap-2 px-5">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {t('trust.identity.section', locale)}
           </Text>
-          <View className="flex-1 gap-0.5">
-            <Text className="text-base text-foreground">{t('trust.identity.title', locale)}</Text>
-            <Text className="text-[13px] leading-snug text-muted-foreground">
-              {t('trust.identity.desc', locale)}
-            </Text>
-          </View>
-          {/* status chip — verified lights cyan (moment-grade, rule #4); others neutral */}
-          <View
-            className={
-              verifyState === 'verified'
-                ? 'rounded-full border border-aura-line bg-aura-soft px-3 py-1.5'
-                : 'rounded-full border border-hair bg-raise-2 px-3 py-1.5'
-            }
+          <Pressable
+            onPress={() => {
+              if (verifyState !== 'verified') router.push('/(modal)/verify');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={t(`trust.identity.status.${verifyState}` as const, locale)}
+            className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-5"
           >
             <Text
               className={
-                verifyState === 'verified' ? 'text-xs text-aura' : 'text-xs text-foreground'
+                verifyState === 'verified' ? 'text-2xl text-aura' : 'text-2xl text-muted-foreground'
+              }
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {verifyState === 'verified' ? '✦' : '◇'}
+            </Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base text-foreground">{t('trust.identity.title', locale)}</Text>
+              <Text className="text-[13px] leading-snug text-muted-foreground">
+                {t('trust.identity.desc', locale)}
+              </Text>
+            </View>
+            {/* status chip — verified lights cyan (moment-grade, rule #4); others neutral */}
+            <View
+              className={
+                verifyState === 'verified'
+                  ? 'rounded-full border border-aura-line bg-aura-soft px-3 py-1.5'
+                  : 'rounded-full border border-hair bg-raise-2 px-3 py-1.5'
               }
             >
-              {t(`trust.identity.status.${verifyState}` as const, locale)}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
-
-      {/* Privacy by design · GDPR */}
-      <View className="gap-2 px-5">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {t('trust.privacy.section', locale)}
-        </Text>
-        <View className="rounded-card border border-hair bg-raise">
-          {/* dream visibility — navigational cross-link to the M1 inline editor (no duplicate toggle) */}
-          <Pressable
-            onPress={() => router.push('/(tabs)/profile')}
-            accessibilityRole="button"
-            accessibilityLabel={t('trust.privacy.dream', locale)}
-            className="flex-row items-center gap-4 border-b border-hair px-5 py-4"
-          >
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base text-foreground">{t('trust.privacy.dream', locale)}</Text>
-              <Text className="text-[13px] leading-snug text-muted-foreground">
-                {t('trust.privacy.dreamDesc', locale)}
+              <Text
+                className={
+                  verifyState === 'verified' ? 'text-xs text-aura' : 'text-xs text-foreground'
+                }
+              >
+                {t(`trust.identity.status.${verifyState}` as const, locale)}
               </Text>
             </View>
-            <Text className="text-xl text-muted-foreground">›</Text>
           </Pressable>
-
-          {/* approximate-location consent (default ON) */}
-          <View className="flex-row items-center gap-4 border-b border-hair px-5 py-4">
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base text-foreground">{t('gdpr.location.label', locale)}</Text>
-              <Text className="text-[13px] leading-snug text-muted-foreground">
-                {t('gdpr.location.desc', locale)}
-              </Text>
-            </View>
-            <Switch
-              value={grantedFor('location_approx', true)}
-              onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
-              trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-              thumbColor={semantic.foreground}
-            />
-          </View>
-
-          {/* «non venduti» — locked statement, never mutates (§3.1) */}
-          <View className="flex-row items-center gap-4 px-5 py-4 opacity-60">
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base text-foreground">{t('gdpr.neverSold.label', locale)}</Text>
-              <Text className="text-[13px] leading-snug text-muted-foreground">
-                {t('gdpr.neverSold.desc', locale)}
-              </Text>
-            </View>
-            <Switch
-              value
-              disabled
-              accessibilityState={{ disabled: true }}
-              trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-              thumbColor={semantic.foreground}
-            />
-          </View>
         </View>
-      </View>
 
-      {/* Consent management (§3.5.3) — comms opt-in (default OFF) */}
-      <View className="gap-2 px-5">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {t('gdpr.consent.section', locale)}
-        </Text>
-        <View className="rounded-card border border-hair bg-raise">
-          <View className="flex-row items-center gap-4 px-5 py-4">
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base text-foreground">{t('gdpr.consent.comms', locale)}</Text>
-              <Text className="text-[13px] leading-snug text-muted-foreground">
-                {t('gdpr.consent.commsDesc', locale)}
-              </Text>
-            </View>
-            <Switch
-              value={grantedFor('comms', false)}
-              onValueChange={(v) => setConsentMut.mutate({ kind: 'comms', granted: v })}
-              trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-              thumbColor={semantic.foreground}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Ethical moderation + report CTA */}
-      <View className="gap-2 px-5">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {t('trust.moderation.section', locale)}
-        </Text>
-        <View className="gap-3 rounded-card border border-hair bg-raise p-4">
-          <Text className="text-[13px] leading-relaxed text-muted-foreground">
-            {t('trust.moderation.intro', locale)}
+        {/* Privacy by design · GDPR */}
+        <View className="gap-2 px-5">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {t('trust.privacy.section', locale)}
           </Text>
-          {(['selling', 'income', 'mlm'] as const).map((r) => (
-            <View key={r} className="flex-row items-center gap-2">
-              <Text className="text-muted-foreground">⊘</Text>
-              <Text className="flex-1 text-sm text-foreground">
-                {t(`trust.moderation.rule.${r}` as const, locale)}
-              </Text>
-            </View>
-          ))}
-          <Text className="text-[13px] leading-relaxed text-muted-foreground">
-            {t('trust.moderation.note', locale)}
-          </Text>
-          <Button
-            variant="ghost"
-            label={t('trust.report.cta', locale)}
-            onPress={() =>
-              router.push({ pathname: '/(modal)/report', params: { targetType: 'behavior' } })
-            }
-          />
-        </View>
-      </View>
+          <View className="rounded-card border border-hair bg-raise">
+            {/* dream visibility — navigational cross-link to the M1 inline editor (no duplicate toggle) */}
+            <Pressable
+              onPress={() => router.push('/(tabs)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel={t('trust.privacy.dream', locale)}
+              className="flex-row items-center gap-4 border-b border-hair px-5 py-4"
+            >
+              <View className="flex-1 gap-0.5">
+                <Text className="text-base text-foreground">
+                  {t('trust.privacy.dream', locale)}
+                </Text>
+                <Text className="text-[13px] leading-snug text-muted-foreground">
+                  {t('trust.privacy.dreamDesc', locale)}
+                </Text>
+              </View>
+              <Text className="text-xl text-muted-foreground">›</Text>
+            </Pressable>
 
-      {toast ? (
-        <View className="absolute inset-x-5 bottom-10 rounded-card bg-raise-2 px-4 py-3">
-          <Text className="text-center text-sm text-foreground">{toast}</Text>
+            {/* approximate-location consent (default ON) */}
+            <View className="flex-row items-center gap-4 border-b border-hair px-5 py-4">
+              <View className="flex-1 gap-0.5">
+                <Text className="text-base text-foreground">
+                  {t('gdpr.location.label', locale)}
+                </Text>
+                <Text className="text-[13px] leading-snug text-muted-foreground">
+                  {t('gdpr.location.desc', locale)}
+                </Text>
+              </View>
+              <Switch
+                value={grantedFor('location_approx', true)}
+                onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
+
+            {/* «non venduti» — locked statement, never mutates (§3.1) */}
+            <View className="flex-row items-center gap-4 px-5 py-4 opacity-60">
+              <View className="flex-1 gap-0.5">
+                <Text className="text-base text-foreground">
+                  {t('gdpr.neverSold.label', locale)}
+                </Text>
+                <Text className="text-[13px] leading-snug text-muted-foreground">
+                  {t('gdpr.neverSold.desc', locale)}
+                </Text>
+              </View>
+              <Switch
+                value
+                disabled
+                accessibilityState={{ disabled: true }}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
+          </View>
         </View>
-      ) : null}
-    </ScrollView>
+
+        {/* Consent management (§3.5.3) — comms opt-in (default OFF) */}
+        <View className="gap-2 px-5">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {t('gdpr.consent.section', locale)}
+          </Text>
+          <View className="rounded-card border border-hair bg-raise">
+            <View className="flex-row items-center gap-4 px-5 py-4">
+              <View className="flex-1 gap-0.5">
+                <Text className="text-base text-foreground">{t('gdpr.consent.comms', locale)}</Text>
+                <Text className="text-[13px] leading-snug text-muted-foreground">
+                  {t('gdpr.consent.commsDesc', locale)}
+                </Text>
+              </View>
+              <Switch
+                value={grantedFor('comms', false)}
+                onValueChange={(v) => setConsentMut.mutate({ kind: 'comms', granted: v })}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Ethical moderation + report CTA */}
+        <View className="gap-2 px-5">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {t('trust.moderation.section', locale)}
+          </Text>
+          <View className="gap-3 rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[13px] leading-relaxed text-muted-foreground">
+              {t('trust.moderation.intro', locale)}
+            </Text>
+            {(['selling', 'income', 'mlm'] as const).map((r) => (
+              <View key={r} className="flex-row items-center gap-2">
+                <Text className="text-muted-foreground">⊘</Text>
+                <Text className="flex-1 text-sm text-foreground">
+                  {t(`trust.moderation.rule.${r}` as const, locale)}
+                </Text>
+              </View>
+            ))}
+            <Text className="text-[13px] leading-relaxed text-muted-foreground">
+              {t('trust.moderation.note', locale)}
+            </Text>
+            <Button
+              variant="ghost"
+              label={t('trust.report.cta', locale)}
+              onPress={() =>
+                router.push({ pathname: '/(modal)/report', params: { targetType: 'behavior' } })
+              }
+            />
+          </View>
+        </View>
+      </ScrollView>
+
+      {toast ? <Toast label={toast} /> : null}
+    </View>
   );
 }

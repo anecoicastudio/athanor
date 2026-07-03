@@ -64,7 +64,9 @@ export default function CostellazioniScreen() {
         ListHeaderComponent={
           <View className="gap-4 py-4">
             <View className="gap-1 px-5">
-              <Text className="text-3xl text-foreground">{t('costellazioni.title', locale)}</Text>
+              <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+                {t('costellazioni.title', locale)}
+              </Text>
               <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />

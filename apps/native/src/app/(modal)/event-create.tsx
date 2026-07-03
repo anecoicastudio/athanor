@@ -10,6 +10,7 @@ import { type MessageKey, t } from '@athanor/i18n';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -99,7 +100,9 @@ export default function EventCreateScreen() {
   };
 
   const label = (key: MessageKey) => (
-    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{t(key, locale)}</Text>
+    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+      {t(key, locale)}
+    </Text>
   );
 
   return (
@@ -107,198 +110,198 @@ export default function EventCreateScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
-        className="flex-1 bg-background"
-        contentContainerClassName="gap-5 px-5 py-8 pb-16"
-      >
-        <Text className="text-2xl text-foreground">{t('event.create.title', locale)}</Text>
-
-        <View className="gap-2">
-          {label('event.create.name')}
-          <TextInput
-            className="rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-            placeholder={t('event.create.namePlaceholder', locale)}
-            placeholderTextColor={semantic.foregroundMuted}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={140}
-          />
-        </View>
-
-        <View className="gap-2">
-          {label('event.create.category')}
-          <View className="flex-row flex-wrap gap-2">
-            {CATEGORIES.map((c) => {
-              const on = c === category;
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => setCategory(c)}
-                  className={`rounded-ctl border px-4 py-2 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                >
-                  <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                    {t(`event.cat.${c}` as MessageKey, locale)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View className="gap-2">
-          {label('event.create.type')}
-          <View className="flex-row gap-2">
-            {[false, true].map((online) => {
-              const on = online === isOnline;
-              return (
-                <Pressable
-                  key={String(online)}
-                  onPress={() => setIsOnline(online)}
-                  className={`flex-1 items-center rounded-ctl border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                >
-                  <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                    {t(online ? 'event.create.online' : 'event.create.inPerson', locale)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        {isOnline ? (
+      <View className="flex-1 bg-background">
+        <ModalHeader title={t('event.create.title', locale)} backLabel={t('common.back', locale)} />
+        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
           <View className="gap-2">
-            {label('event.create.streamUrl')}
+            {label('event.create.name')}
             <TextInput
-              className="rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-              placeholder={t('event.create.streamUrlPlaceholder', locale)}
+              className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+              placeholder={t('event.create.namePlaceholder', locale)}
               placeholderTextColor={semantic.foregroundMuted}
-              value={streamUrl}
-              onChangeText={setStreamUrl}
-              autoCapitalize="none"
-              keyboardType="url"
+              value={title}
+              onChangeText={setTitle}
+              maxLength={140}
             />
           </View>
-        ) : (
-          <>
+
+          <View className="gap-2">
+            {label('event.create.category')}
+            <View className="flex-row flex-wrap gap-2">
+              {CATEGORIES.map((c) => {
+                const on = c === category;
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => setCategory(c)}
+                    className={`rounded-full border px-4 py-2 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
+                  >
+                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
+                      {t(`event.cat.${c}` as MessageKey, locale)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View className="gap-2">
+            {label('event.create.type')}
+            <View className="flex-row gap-2">
+              {[false, true].map((online) => {
+                const on = online === isOnline;
+                return (
+                  <Pressable
+                    key={String(online)}
+                    onPress={() => setIsOnline(online)}
+                    className={`flex-1 items-center rounded-full border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
+                  >
+                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
+                      {t(online ? 'event.create.online' : 'event.create.inPerson', locale)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {isOnline ? (
             <View className="gap-2">
-              {label('event.create.venue')}
+              {label('event.create.streamUrl')}
               <TextInput
-                className="rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-                placeholder={t('event.create.venuePlaceholder', locale)}
+                className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                placeholder={t('event.create.streamUrlPlaceholder', locale)}
                 placeholderTextColor={semantic.foregroundMuted}
-                value={venue}
-                onChangeText={setVenue}
-                maxLength={240}
+                value={streamUrl}
+                onChangeText={setStreamUrl}
+                autoCapitalize="none"
+                keyboardType="url"
               />
             </View>
-            <View className="gap-2">
-              {label('event.create.city')}
-              <TextInput
-                className="rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-                placeholder={t('event.create.cityPlaceholder', locale)}
-                placeholderTextColor={semantic.foregroundMuted}
-                value={city}
-                onChangeText={setCity}
-                maxLength={120}
-              />
-            </View>
+          ) : (
+            <>
+              <View className="gap-2">
+                {label('event.create.venue')}
+                <TextInput
+                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                  placeholder={t('event.create.venuePlaceholder', locale)}
+                  placeholderTextColor={semantic.foregroundMuted}
+                  value={venue}
+                  onChangeText={setVenue}
+                  maxLength={240}
+                />
+              </View>
+              <View className="gap-2">
+                {label('event.create.city')}
+                <TextInput
+                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                  placeholder={t('event.create.cityPlaceholder', locale)}
+                  placeholderTextColor={semantic.foregroundMuted}
+                  value={city}
+                  onChangeText={setCity}
+                  maxLength={120}
+                />
+              </View>
+              <Pressable
+                onPress={() => void requestMyLocation()}
+                className="self-start rounded-full border border-aura-line px-4 py-2"
+                accessibilityRole="button"
+              >
+                <Text className="text-[13px] text-aura">
+                  {coords
+                    ? t('event.create.locationSet', locale)
+                    : t('event.create.useLocation', locale)}
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          <View className="gap-2">
+            {label('event.create.datetime')}
             <Pressable
-              onPress={() => void requestMyLocation()}
-              className="self-start rounded-full border border-aura-line px-4 py-2"
-              accessibilityRole="button"
+              onPress={() => setShowPicker(true)}
+              className="rounded-card border border-hair bg-raise p-5"
             >
-              <Text className="text-[13px] text-aura">
-                {coords
-                  ? t('event.create.locationSet', locale)
-                  : t('event.create.useLocation', locale)}
+              <Text className="text-[15px] text-foreground">
+                {startsAt.toLocaleString(locale === 'it' ? 'it-IT' : 'en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </Text>
             </Pressable>
-          </>
-        )}
-
-        <View className="gap-2">
-          {label('event.create.datetime')}
-          <Pressable
-            onPress={() => setShowPicker(true)}
-            className="rounded-card border border-hair bg-raise p-4"
-          >
-            <Text className="text-[15px] text-foreground">
-              {startsAt.toLocaleString(locale === 'it' ? 'it-IT' : 'en-GB', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-          </Pressable>
-          {showPicker ? (
-            <DateTimePicker
-              value={startsAt}
-              mode="datetime"
-              onChange={(_, d) => {
-                setShowPicker(Platform.OS === 'ios');
-                if (d) setStartsAt(d);
-              }}
-            />
-          ) : null}
-        </View>
-
-        <View className="gap-2">
-          {label('event.create.capacity')}
-          <TextInput
-            className="rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-            placeholder={t('event.create.capacityHint', locale)}
-            placeholderTextColor={semantic.foregroundMuted}
-            value={capacity}
-            onChangeText={(text) => setCapacity(text.replace(/[^0-9]/g, ''))}
-            keyboardType="number-pad"
-          />
-        </View>
-
-        <View className="gap-2">
-          {label('event.create.ticket')}
-          <View className="flex-row gap-2">
-            {[false, true].map((p) => {
-              const on = p === paid;
-              return (
-                <Pressable
-                  key={String(p)}
-                  onPress={() => setPaid(p)}
-                  className={`flex-1 items-center rounded-ctl border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                >
-                  <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                    {t(p ? 'event.create.paid' : 'event.create.free', locale)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {paid ? (
-            <View className="gap-2">
-              <TextInput
-                className="rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-                placeholder={t('event.create.pricePlaceholder', locale)}
-                placeholderTextColor={semantic.foregroundMuted}
-                value={price}
-                onChangeText={setPrice}
-                keyboardType="decimal-pad"
+            {showPicker ? (
+              <DateTimePicker
+                value={startsAt}
+                mode="datetime"
+                onChange={(_, d) => {
+                  setShowPicker(Platform.OS === 'ios');
+                  if (d) setStartsAt(d);
+                }}
               />
-              <Text className="text-[12px] text-faint">{t('event.create.feeNote', locale)}</Text>
-              <Text className="text-[12px] text-aura">{t('event.create.verifySoon', locale)}</Text>
+            ) : null}
+          </View>
+
+          <View className="gap-2">
+            {label('event.create.capacity')}
+            <TextInput
+              className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+              placeholder={t('event.create.capacityHint', locale)}
+              placeholderTextColor={semantic.foregroundMuted}
+              value={capacity}
+              onChangeText={(text) => setCapacity(text.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+            />
+          </View>
+
+          <View className="gap-2">
+            {label('event.create.ticket')}
+            <View className="flex-row gap-2">
+              {[false, true].map((p) => {
+                const on = p === paid;
+                return (
+                  <Pressable
+                    key={String(p)}
+                    onPress={() => setPaid(p)}
+                    className={`flex-1 items-center rounded-full border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
+                  >
+                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
+                      {t(p ? 'event.create.paid' : 'event.create.free', locale)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          ) : null}
-        </View>
+            {paid ? (
+              <View className="gap-2">
+                <TextInput
+                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                  placeholder={t('event.create.pricePlaceholder', locale)}
+                  placeholderTextColor={semantic.foregroundMuted}
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="decimal-pad"
+                />
+                <Text className="text-[12px] text-faint">{t('event.create.feeNote', locale)}</Text>
+                <Text className="text-[12px] text-aura">
+                  {t('event.create.verifySoon', locale)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
 
-        {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
+          {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
-        <Button
-          label={t('event.create.submit', locale)}
-          onPress={onSubmit}
-          disabled={mutation.isPending}
-          variant="light"
-        />
-      </ScrollView>
+          <Button
+            label={t('event.create.submit', locale)}
+            onPress={onSubmit}
+            disabled={mutation.isPending}
+            variant="light"
+          />
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }

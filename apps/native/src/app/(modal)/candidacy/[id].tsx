@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { ActivityIndicator, Alert, StyleSheet } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,6 +18,7 @@ import { t } from '@athanor/i18n';
 import type { VoteState } from '@/components/fund/CandidateCard';
 import { VoteBar } from '@/components/fund/VoteBar';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -35,7 +36,6 @@ import { supabase } from '@/lib/supabase';
 export default function CandidacyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
-  const router = useRouter();
   const locale = profile?.locale ?? 'it';
   const uid = profile?.id;
   const qc = useQueryClient();
@@ -106,7 +106,7 @@ export default function CandidacyDetailScreen() {
   // ── Loading / not-found ───────────────────────────────────────────────────
   if (cardQuery.isLoading) {
     return (
-      <Screen onBack={() => router.back()} locale={locale}>
+      <Screen locale={locale}>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={semantic.aura} />
         </View>
@@ -115,7 +115,7 @@ export default function CandidacyDetailScreen() {
   }
   if (!card) {
     return (
-      <Screen onBack={() => router.back()} locale={locale}>
+      <Screen locale={locale}>
         <View className="flex-1 items-center justify-center px-5">
           <Text className="text-center text-[15px] text-muted-foreground">
             {t('fund.candidates.empty', locale)}
@@ -134,7 +134,7 @@ export default function CandidacyDetailScreen() {
   const title = card.title ?? card.category ?? '';
 
   return (
-    <Screen onBack={() => router.back()} locale={locale}>
+    <Screen locale={locale}>
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
         {/* Player */}
         <View className="aspect-video w-full items-center justify-center overflow-hidden rounded-card bg-raise-2">
@@ -190,23 +190,10 @@ export default function CandidacyDetailScreen() {
 }
 
 /** Shared modal chrome — back chevron + fund title. */
-function Screen({
-  children,
-  onBack,
-  locale,
-}: {
-  children: React.ReactNode;
-  onBack: () => void;
-  locale: 'it' | 'en';
-}) {
+function Screen({ children, locale }: { children: React.ReactNode; locale: 'it' | 'en' }) {
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-        <Pressable onPress={onBack} hitSlop={8} accessibilityLabel={t('common.back', locale)}>
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-2xl text-foreground">{t('fund.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
       {children}
     </View>
   );

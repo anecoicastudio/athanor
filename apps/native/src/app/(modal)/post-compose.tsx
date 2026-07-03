@@ -11,6 +11,7 @@ import type { PostCategory, PostMediaInsert } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { MediaSheet } from '@/components/MediaSheet';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
 import { postMediaPath, processAndUpload } from '@/lib/media/upload';
@@ -96,140 +97,140 @@ export default function PostComposeScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 px-5 py-8">
-        <View className="gap-1">
-          <Text className="text-2xl text-foreground">{t('create.post.title', locale)}</Text>
+      <View className="flex-1 bg-background">
+        <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
+        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
-        </View>
 
-        <TextInput
-          className="min-h-[120px] rounded-card border border-hair bg-raise p-4 text-[15px] text-foreground"
-          placeholder={t('post.compose.placeholder', locale)}
-          placeholderTextColor={semantic.foregroundMuted}
-          value={body}
-          onChangeText={setBody}
-          multiline
-          textAlignVertical="top"
-        />
-        {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
+          <TextInput
+            className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
+            placeholder={t('post.compose.placeholder', locale)}
+            placeholderTextColor={semantic.foregroundMuted}
+            value={body}
+            onChangeText={setBody}
+            multiline
+            textAlignVertical="top"
+          />
+          {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
-        {/* Attach affordance — flat, no glow (rule #4) */}
-        <Pressable
-          className="flex-row items-center gap-2 rounded-ctl border border-hair bg-raise px-4 py-3"
-          onPress={() => setSheetOpen(true)}
-          disabled={mutation.isPending || items.length >= MEDIA_LIMITS.MAX_POST_MEDIA}
-          accessibilityRole="button"
-        >
-          <Text
-            className={`text-[14px] ${items.length >= MEDIA_LIMITS.MAX_POST_MEDIA ? 'text-faint' : 'text-foreground'}`}
+          {/* Attach affordance — flat, no glow (rule #4) */}
+          <Pressable
+            className="flex-row items-center gap-2 rounded-ctl border border-hair bg-raise px-4 py-3"
+            onPress={() => setSheetOpen(true)}
+            disabled={mutation.isPending || items.length >= MEDIA_LIMITS.MAX_POST_MEDIA}
+            accessibilityRole="button"
           >
-            {t('post.compose.attach', locale)}
-          </Text>
-        </Pressable>
-
-        {/* Preview tiles */}
-        {items.length > 0 ? (
-          <View className="flex-row flex-wrap gap-2">
-            {items.map((item, index) => (
-              <View key={index} className="relative h-20 w-20">
-                <Image
-                  source={{ uri: item.uri }}
-                  style={{ width: 80, height: 80, borderRadius: 8 }}
-                  resizeMode="cover"
-                />
-                {/* Video indicator */}
-                {item.kind === 'video' ? (
-                  <View className="absolute bottom-1 left-1">
-                    <Text className="text-[12px] text-foreground">▶</Text>
-                  </View>
-                ) : null}
-                {/* Uploading dim overlay */}
-                {mutation.isPending ? (
-                  <View
-                    className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
-                    style={{ opacity: 0.6 }}
-                  />
-                ) : null}
-                {/* Remove button — hidden while uploading */}
-                {!mutation.isPending ? (
-                  <Pressable
-                    className="absolute right-[-6px] top-[-6px] h-5 w-5 items-center justify-center rounded-full bg-raise"
-                    onPress={() => removeItem(index)}
-                    accessibilityRole="button"
-                    hitSlop={8}
-                  >
-                    <Text className="text-[11px] text-faint">✕</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {/* Uploading indicator */}
-        {mutation.isPending && items.length > 0 ? (
-          <Text className="text-[13px] text-faint">
-            {t('media.uploadingIndeterminate', locale)}
-          </Text>
-        ) : null}
-
-        <MediaSheet
-          visible={sheetOpen}
-          allowVideo
-          locale={locale}
-          onPick={onPickMedia}
-          onClose={() => setSheetOpen(false)}
-        />
-
-        <View className="gap-2">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
-            {t('post.compose.catLabel', locale)}
-          </Text>
-          <View className="flex-row flex-wrap gap-2">
-            {CATEGORIES.map((c) => {
-              const isActive = c === category;
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => setCategory(c)}
-                  className={`rounded-ctl border px-4 py-2 ${
-                    isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-                  }`}
-                >
-                  <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-                    {t(`feed.filter.${c}` as MessageKey, locale)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <Pressable
-          className="flex-row items-center justify-between rounded-card border border-hair bg-raise p-4"
-          onPress={() => setIsStep((v) => !v)}
-        >
-          <View className="flex-1 pr-4">
-            <Text className="text-[15px] text-foreground">
-              {t('post.compose.stepTitle', locale)}
+            <Text
+              className={`text-[14px] ${items.length >= MEDIA_LIMITS.MAX_POST_MEDIA ? 'text-faint' : 'text-foreground'}`}
+            >
+              {t('post.compose.attach', locale)}
             </Text>
-            <Text className="text-[13px] text-faint">{t('post.compose.stepDesc', locale)}</Text>
+          </Pressable>
+
+          {/* Preview tiles */}
+          {items.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2">
+              {items.map((item, index) => (
+                <View key={index} className="relative h-20 w-20">
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={{ width: 80, height: 80, borderRadius: 8 }}
+                    resizeMode="cover"
+                  />
+                  {/* Video indicator */}
+                  {item.kind === 'video' ? (
+                    <View className="absolute bottom-1 left-1">
+                      <Text className="text-[12px] text-foreground">▶</Text>
+                    </View>
+                  ) : null}
+                  {/* Uploading dim overlay */}
+                  {mutation.isPending ? (
+                    <View
+                      className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
+                      style={{ opacity: 0.6 }}
+                    />
+                  ) : null}
+                  {/* Remove button — hidden while uploading */}
+                  {!mutation.isPending ? (
+                    <Pressable
+                      className="absolute right-[-6px] top-[-6px] h-5 w-5 items-center justify-center rounded-full bg-raise"
+                      onPress={() => removeItem(index)}
+                      accessibilityRole="button"
+                      hitSlop={8}
+                    >
+                      <Text className="text-[11px] text-faint">✕</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Uploading indicator */}
+          {mutation.isPending && items.length > 0 ? (
+            <Text className="text-[13px] text-faint">
+              {t('media.uploadingIndeterminate', locale)}
+            </Text>
+          ) : null}
+
+          <MediaSheet
+            visible={sheetOpen}
+            allowVideo
+            locale={locale}
+            onPick={onPickMedia}
+            onClose={() => setSheetOpen(false)}
+          />
+
+          <View className="gap-2">
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              {t('post.compose.catLabel', locale)}
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {CATEGORIES.map((c) => {
+                const isActive = c === category;
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => setCategory(c)}
+                    className={`rounded-full border px-4 py-2 ${
+                      isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
+                    }`}
+                  >
+                    <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
+                      {t(`feed.filter.${c}` as MessageKey, locale)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-          <Text className={isStep ? 'text-aura' : 'text-faint'}>{isStep ? '✦' : '○'}</Text>
-        </Pressable>
 
-        {/* Display-only Aura hint — n from AURA_WEIGHTS, never a literal (rule #10). Real award = M6. */}
-        <Text className="text-[13px] text-aura">
-          ✦ {t('post.compose.auraHint', locale, { n: AURA_WEIGHTS.POST_CREATE })}
-        </Text>
+          <Pressable
+            className="flex-row items-center justify-between rounded-card border border-hair bg-raise p-5"
+            onPress={() => setIsStep((v) => !v)}
+          >
+            <View className="flex-1 pr-4">
+              <Text className="text-[15px] text-foreground">
+                {t('post.compose.stepTitle', locale)}
+              </Text>
+              <Text className="text-[13px] text-faint">{t('post.compose.stepDesc', locale)}</Text>
+            </View>
+            <Text className={isStep ? 'text-aura' : 'text-faint'}>{isStep ? '✦' : '○'}</Text>
+          </Pressable>
 
-        <Button
-          label={t('common.publish', locale)}
-          onPress={onPublish}
-          disabled={mutation.isPending}
-          variant="light"
-        />
-      </ScrollView>
+          {/* Display-only Aura hint — n from AURA_WEIGHTS, never a literal (rule #10). Real award = M6. */}
+          <Text className="text-[13px] text-aura">
+            ✦ {t('post.compose.auraHint', locale, { n: AURA_WEIGHTS.POST_CREATE })}
+          </Text>
+
+          <Button
+            label={t('common.publish', locale)}
+            onPress={onPublish}
+            disabled={mutation.isPending}
+            variant="light"
+          />
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }

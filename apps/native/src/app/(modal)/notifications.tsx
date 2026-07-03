@@ -15,6 +15,7 @@ import type { NotifCursor } from '@athanor/api';
 import type { Notification } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -35,8 +36,7 @@ export default function NotificationsScreen() {
   // ── Notification list (keyset, created_at desc) ───────────────────────────
   const query = useInfiniteQuery({
     queryKey: notifKeys.list(),
-    queryFn: ({ pageParam }) =>
-      listNotifications(supabase, pageParam as NotifCursor | undefined),
+    queryFn: ({ pageParam }) => listNotifications(supabase, pageParam as NotifCursor | undefined),
     initialPageParam: undefined as NotifCursor | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -84,50 +84,39 @@ export default function NotificationsScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header: back + title + «Segna lette» + gear → prefs */}
-      <View className="flex-row items-center justify-between gap-3 px-5 pb-4 pt-14">
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', locale)}
-            hitSlop={8}
-          >
-            <Text className="text-2xl text-foreground">‹</Text>
-          </Pressable>
-          <Text className="text-[17px] font-semibold text-foreground">
-            {t('notif.title', locale)}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-4">
-          {unreadItems.length > 0 ? (
+      <ModalHeader
+        title={t('notif.title', locale)}
+        backLabel={t('common.back', locale)}
+        right={
+          <View className="flex-row items-center gap-4">
+            {unreadItems.length > 0 ? (
+              <Pressable
+                onPress={() => markAll.mutate()}
+                disabled={markAll.isPending}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text className="text-[13px] text-muted-foreground">
+                  {t('notif.markAll', locale)}
+                </Text>
+              </Pressable>
+            ) : null}
+            {/* Overflow → preferences. Gear character (settings icon) */}
             <Pressable
-              onPress={() => markAll.mutate()}
-              disabled={markAll.isPending}
+              onPress={() => router.push('/(modal)/notif-prefs')}
               accessibilityRole="button"
+              accessibilityLabel={t('notif.prefs.title', locale)}
               hitSlop={8}
             >
-              <Text className="text-[13px] text-muted-foreground">
-                {t('notif.markAll', locale)}
-              </Text>
+              <Text className="text-[18px] text-muted-foreground">⚙</Text>
             </Pressable>
-          ) : null}
-          {/* Overflow → preferences. Gear character (settings icon) */}
-          <Pressable
-            onPress={() => router.push('/(modal)/notif-prefs')}
-            accessibilityRole="button"
-            accessibilityLabel={t('notif.prefs.title', locale)}
-            hitSlop={8}
-          >
-            <Text className="text-[18px] text-muted-foreground">⚙</Text>
-          </Pressable>
-        </View>
-      </View>
+          </View>
+        }
+      />
 
       <FlatList
         data={sections}
-        keyExtractor={(section, idx) =>
-          section.kind === 'header' ? `h-${idx}` : section.item.id
-        }
+        keyExtractor={(section, idx) => (section.kind === 'header' ? `h-${idx}` : section.item.id)}
         contentContainerClassName="pb-10"
         refreshControl={
           <RefreshControl

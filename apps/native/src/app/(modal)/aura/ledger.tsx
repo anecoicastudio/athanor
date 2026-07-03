@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, SectionList } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type LedgerCursor, type LedgerFilter, getAuraLedgerPage, ledgerKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
@@ -10,6 +9,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { LedgerRow } from '@/components/aura/LedgerRow';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/relative-time';
 import { supabase } from '@/lib/supabase';
@@ -66,7 +66,7 @@ function FilterPills({
           <Pressable
             key={f}
             onPress={() => onChange(f)}
-            className={`rounded-ctl border px-4 py-2 ${
+            className={`rounded-full border px-4 py-2 ${
               isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
             }`}
           >
@@ -90,7 +90,6 @@ function FilterPills({
  * Read-only — no Aura writes (rule #1). Engine is dormant; empty is the normal state.
  */
 export default function LedgerScreen() {
-  const router = useRouter();
   const { session, profile } = useAuth();
   const locale: Locale = profile?.locale ?? 'it';
   const me = session?.user.id ?? '';
@@ -147,22 +146,8 @@ export default function LedgerScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="flex-row items-center gap-4 px-5 pb-2 pt-14">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-faint">‹</Text>
-        </Pressable>
-        <View className="flex-1">
-          <Text className="text-[17px] font-semibold text-foreground">
-            {t('ledger.title', locale)}
-          </Text>
-          <Text className="text-[12px] text-faint">{t('ledger.sub', locale)}</Text>
-        </View>
-      </View>
+      <ModalHeader title={t('ledger.title', locale)} backLabel={t('common.back', locale)} />
+      <Text className="px-5 text-[12px] text-faint">{t('ledger.sub', locale)}</Text>
 
       {/* Filter pills */}
       <FilterPills active={filter} onChange={setFilter} locale={locale} />
