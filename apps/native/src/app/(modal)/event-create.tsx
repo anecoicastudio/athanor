@@ -99,7 +99,7 @@ export default function EventCreateScreen() {
   };
 
   const label = (key: MessageKey) => (
-    <Text className="text-[12px] uppercase tracking-wider text-faint">{t(key, locale)}</Text>
+    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{t(key, locale)}</Text>
   );
 
   return (

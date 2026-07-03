@@ -182,7 +182,7 @@ export default function PostComposeScreen() {
         />
 
         <View className="gap-2">
-          <Text className="text-[12px] uppercase tracking-wider text-faint">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
             {t('post.compose.catLabel', locale)}
           </Text>
           <View className="flex-row flex-wrap gap-2">

@@ -82,7 +82,7 @@ export default function FavorScreen() {
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
           style={auraGlow(1)}
         >
-          <Text className="text-[12px] uppercase tracking-wider text-aura">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
             {t('favor.done.eyebrow', locale)}
           </Text>
           <Text className="text-center text-2xl text-foreground">

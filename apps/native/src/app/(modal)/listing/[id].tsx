@@ -36,7 +36,7 @@ export default function ProjectDetailScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Text className="text-[15px] text-faint">‹ {t('common.back', locale)}</Text>
         </Pressable>
-        <Text className="text-[12px] uppercase tracking-wider text-faint">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
           {t('project.detail.title', locale)}
         </Text>
       </View>

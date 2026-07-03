@@ -171,7 +171,7 @@ export default function WelcomeScreen() {
 
       <View className="my-6 flex-row items-center gap-3">
         <View className="h-px flex-1 bg-hair" />
-        <Text className="text-[11px] uppercase tracking-widest text-muted-foreground">
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t('auth.orEmail', locale)}
         </Text>
         <View className="h-px flex-1 bg-hair" />
@@ -238,7 +238,7 @@ export default function WelcomeScreen() {
         {submitting ? (
           <ActivityIndicator color={semantic.onAura} />
         ) : (
-          <Text className="font-semibold tracking-widest text-on-aura">
+          <Text className="text-[13px] font-semibold tracking-[0.14em] text-on-aura">
             {t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
           </Text>
         )}

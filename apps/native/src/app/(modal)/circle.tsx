@@ -253,7 +253,7 @@ export default function CircleScreen() {
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
-          <Text className="text-[12px] uppercase tracking-wider text-aura">
+          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
             {t('circle.eyebrow', locale)}
           </Text>
 
@@ -288,7 +288,8 @@ export default function CircleScreen() {
         {/* 3. Six benefit rows (non-member: all shown, locked visual for Fase-2) */}
         <View className="gap-2">{benefitList(false)}</View>
 
-        {/* 4. Join CTA (non-iOS) — light glow (joining is moment-grade, rule #4).
+        {/* 4. Join CTA (non-iOS) — flat cyan, no glow: a subscription checkout is
+            commerce, not a moment-grade event (rule #4 / DESIGN §2.3).
             On iOS the in-app Stripe subscribe button is forbidden (Apple 3.1.1 /
             S-IAP-1); show a neutral, non-steering note instead. Apple IAP deferred. */}
         {Platform.OS === 'ios' ? (
@@ -306,7 +307,6 @@ export default function CircleScreen() {
             }
             onPress={() => void onJoin()}
             variant="light"
-            glow
             disabled={checkoutPhase !== 'idle'}
           />
         )}

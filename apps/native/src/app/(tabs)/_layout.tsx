@@ -24,8 +24,16 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: semantic.background },
         headerTintColor: semantic.foreground,
         tabBarStyle: { backgroundColor: semantic.surfaceMuted, borderTopColor: semantic.border },
-        tabBarActiveTintColor: semantic.aura,
+        // DESIGN §9 tab bar: active = foreground, micro label — cyan stays on the ✦ badge only.
+        tabBarActiveTintColor: semantic.foreground,
         tabBarInactiveTintColor: semantic.foregroundMuted,
+        // Micro tracking capped: at 0.16em «COSTELLAZIONI» overflows a 5-tab slot.
+        tabBarLabelStyle: {
+          fontFamily: 'HankenGrotesk_600SemiBold',
+          fontSize: 11,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+        },
       }}
     >
       <Tabs.Screen

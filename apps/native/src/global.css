@@ -46,7 +46,50 @@
      * (DESIGN.md §4): dream quotes + ritual captions, never UI.
      */
     --font-sans: 'HankenGrotesk_400Regular';
+    --font-sans-light: 'HankenGrotesk_300Light';
+    --font-sans-medium: 'HankenGrotesk_500Medium';
     --font-sans-semibold: 'HankenGrotesk_600SemiBold';
+    --font-sans-bold: 'HankenGrotesk_700Bold';
+    --font-sans-extrabold: 'HankenGrotesk_800ExtraBold';
     --font-dream: 'HankenGrotesk_400Regular_Italic';
   }
+}
+
+/*
+ * DESIGN §4: everything is Hanken Grotesk. The @/tw Text/TextInput wrappers
+ * prepend `font-app` as the default family. All rules below are unlayered
+ * and ordered by precedence (react-native-css resolves equal-specificity
+ * conflicts by source order): font-app first, then the weight remaps —
+ * Tailwind's font-weight utilities only set font-weight, but RN picks faces
+ * by exact family name (one file = one family) — then font-dream re-asserted
+ * last so the dream register always beats the default.
+ */
+.font-app {
+  font-family: var(--font-sans);
+}
+/* font-weight reset to 400: the face already carries the weight; leaving
+ * Tailwind's font-weight in place makes Android synthesize faux-bold on top
+ * (Typeface.create(family, weight)). */
+.font-light {
+  font-family: var(--font-sans-light);
+  font-weight: 400;
+}
+.font-medium {
+  font-family: var(--font-sans-medium);
+  font-weight: 400;
+}
+.font-semibold {
+  font-family: var(--font-sans-semibold);
+  font-weight: 400;
+}
+.font-bold {
+  font-family: var(--font-sans-bold);
+  font-weight: 400;
+}
+.font-extrabold {
+  font-family: var(--font-sans-extrabold);
+  font-weight: 400;
+}
+.font-dream {
+  font-family: var(--font-dream);
 }

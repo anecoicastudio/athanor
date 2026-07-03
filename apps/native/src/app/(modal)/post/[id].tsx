@@ -131,7 +131,7 @@ export default function PostDetailScreen() {
         ListHeaderComponent={
           <View className="gap-5 pb-3">
             <View className="flex-row items-center justify-between">
-              <Text className="text-[12px] uppercase tracking-wider text-faint">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
                 {categoryLabel}
               </Text>
               {isAuthor ? (

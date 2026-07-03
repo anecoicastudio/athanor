@@ -155,7 +155,6 @@ export default function VerifyScreen() {
       {!verified ? (
         <Button
           variant="light"
-          glow={state === 'pending'}
           disabled={state === 'pending'}
           label={
             state === 'pending'
