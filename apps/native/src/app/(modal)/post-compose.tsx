@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addPostMedia, createPost, postKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
-import { AURA_WEIGHTS, MEDIA_LIMITS, derivePostType } from '@athanor/core';
+import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaInsert } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
@@ -219,11 +219,7 @@ export default function PostComposeScreen() {
             <Text className={isStep ? 'text-aura' : 'text-faint'}>{isStep ? '✦' : '○'}</Text>
           </Pressable>
 
-          {/* Display-only Aura hint — n from AURA_WEIGHTS, never a literal (rule #10). Real award = M6. */}
-          <Text className="text-[13px] text-aura">
-            ✦ {t('post.compose.auraHint', locale, { n: AURA_WEIGHTS.POST_CREATE })}
-          </Text>
-
+          {/* P2.5 hint-truth: no create-hint — the engine never rewards posting (anti-gaming). */}
           <Button
             label={t('common.publish', locale)}
             onPress={onPublish}

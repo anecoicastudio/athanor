@@ -14,7 +14,6 @@ import {
   subscribeComments,
   togglePostReaction,
 } from '@athanor/api';
-import { AURA_WEIGHTS } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
@@ -211,9 +210,7 @@ export default function PostDetailScreen() {
           onChangeText={setDraft}
           multiline
         />
-        <Text className="text-[11px] text-aura">
-          {t('post.compose.auraHint', locale, { n: AURA_WEIGHTS.COMMENT_CREATE })}
-        </Text>
+        {/* P2.5 hint-truth: no comment-hint — the engine never rewards commenting (anti-gaming). */}
         <Pressable
           disabled={draft.trim().length === 0 || sendComment.isPending}
           onPress={() => sendComment.mutate(draft.trim())}

@@ -1,44 +1,7 @@
-import { describe, expect, it, test } from 'vitest';
-import { AURA_WEIGHTS } from './weights';
-
-describe('AURA_WEIGHTS', () => {
-  test('a created post is worth +6 Aura (compose-hint source, M6 award)', () => {
-    expect(AURA_WEIGHTS.POST_CREATE).toBe(6);
-  });
-
-  test('Circle membership yields zero Aura (rule #1)', () => {
-    expect(AURA_WEIGHTS.CIRCLE_JOIN).toBe(0);
-  });
-
-  test('fund contributions yield zero Aura (rule #1)', () => {
-    expect(AURA_WEIGHTS.FUND_CONTRIBUTION).toBe(0);
-  });
-
-  test('a posted comment is worth +2 Aura (compose-hint source, M6 award)', () => {
-    expect(AURA_WEIGHTS.COMMENT_CREATE).toBe(2);
-  });
-
-  it('STORY_REACT is the display-only celebration hint (4)', () => {
-    expect(AURA_WEIGHTS.STORY_REACT).toBe(4);
-  });
-
-  test('publishing a project is worth +4 Aura (compose-hint source, M6 award)', () => {
-    expect(AURA_WEIGHTS.PROJECT_CREATE).toBe(4);
-  });
-
-  test('attending an event is worth +15 Aura (read-only detail label, M6 award)', () => {
-    expect(AURA_WEIGHTS.EVENT_ATTEND).toBe(15);
-  });
-
-  test('organizing an event is worth +30 Aura (read-only label, M6 award)', () => {
-    expect(AURA_WEIGHTS.EVENT_ORGANIZE).toBe(30);
-  });
-
-  test('MOMENTO_CONV is +5 (the ≥10-message conversation award, M6-awarded)', () => {
-    expect(AURA_WEIGHTS.MOMENTO_CONV).toBe(5);
-  });
-});
-
+import { describe, expect, test } from 'vitest';
+// P2.5 hint-truth: the legacy AURA_WEIGHTS display table is gone — ENGINE_WEIGHTS is
+// the single source (rule #10). Creating content is deliberately unrewarded; no
+// POST_CREATE/COMMENT_CREATE/PROJECT_CREATE keys may reappear.
 import {
   ENGINE_WEIGHTS,
   AURA_CAPS,
@@ -65,6 +28,12 @@ describe('ENGINE_WEIGHTS — canonical PRD §4.9', () => {
     expect(ENGINE_WEIGHTS.CIRCLE_MEMBERSHIP).toBe(0);
     expect(ENGINE_WEIGHTS.FUND_CONTRIBUTION).toBe(0);
     expect(ENGINE_WEIGHTS.MARKETPLACE).toBe(0);
+  });
+  test('creating content is never rewarded (P2.5 hint-truth, anti-gaming)', () => {
+    expect('POST_CREATE' in ENGINE_WEIGHTS).toBe(false);
+    expect('COMMENT_CREATE' in ENGINE_WEIGHTS).toBe(false);
+    expect('PROJECT_CREATE' in ENGINE_WEIGHTS).toBe(false);
+    expect('STORY_REACT' in ENGINE_WEIGHTS).toBe(false);
   });
   test('caps, decay, reviewer floor', () => {
     expect(AURA_CAPS.event_attended).toEqual({ limit: 4, window: 'week' });

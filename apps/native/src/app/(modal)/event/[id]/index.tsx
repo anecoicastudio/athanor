@@ -4,7 +4,7 @@ import { ActivityIndicator } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { eventKeys, getEvent, getEventAttendees, getMyRsvp, upsertRsvp } from '@athanor/api';
 import { semantic } from '@athanor/config';
-import { AURA_WEIGHTS } from '@athanor/core';
+import { ENGINE_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Rsvp } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -180,11 +180,12 @@ export default function EventDetailScreen() {
                     t('event.whereLabel', locale)
               }
             />
-            {/* Attendees + read-only Aura-worth label — n from AURA_WEIGHTS, never a literal
-                (rule #1/#10). Real +15 award = M6. Attendee count is allowed (rule #3). */}
+            {/* Attendees + read-only Aura-worth label — aura from ENGINE_WEIGHTS (rule #1/#10),
+                truthful: maps 1:1 to the engine's `event_attended` award (P2.5 hint-truth).
+                Attendee count is allowed (rule #3). */}
             <DmetaRow
               glyph="◇"
-              value={t('event.attendees', locale, { n: count, aura: AURA_WEIGHTS.EVENT_ATTEND })}
+              value={t('event.attendees', locale, { n: count, aura: ENGINE_WEIGHTS.EVENT_ATTENDED })}
             />
           </View>
 
