@@ -2,6 +2,9 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  # sentry-cli binary — needed for Hermes source-map/symbol upload during the EAS
+  # build (P1.4/P1.5). Runtime SDK doesn't need it; the build hook does.
+  '@sentry/cli': true
   esbuild: true
   sharp: true
   unrs-resolver: true

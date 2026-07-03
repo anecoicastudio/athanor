@@ -16,17 +16,22 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import * as Sentry from '@sentry/react-native';
 import { isProfileComplete } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/BrandSplash';
 import { BootGate } from '@/components/BootGate';
+import { SentryConsentGate } from '@/components/SentryConsentGate';
 import { asyncStoragePersister, queryClient } from '@/lib/query-client';
 
 SplashScreen.preventAutoHideAsync();
 // Settles a dangling OAuth browser session on resume (required for the web target;
 // no-op on native). Must run at module load, not inside a component.
 WebBrowser.maybeCompleteAuthSession();
+// NOTE: Sentry is NOT initialized here. Init is deferred to SentryConsentGate (fires only
+// once the user grants diagnostics consent) so no telemetry leaves the device before consent
+// (B-5). Sentry.wrap below is safe pre-init — it just captures nothing until init runs.
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { session, profile, loading, flushing } = useAuth();
@@ -65,7 +70,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   // One face per weight — RN selects fonts by exact family name, so each
   // font-{light..extrabold} utility maps to its own family (global.css).
   const [fontsLoaded] = useFonts({
@@ -97,6 +102,8 @@ export default function RootLayout() {
         persistOptions={{ persister: asyncStoragePersister }}
       >
         <StatusBar style="light" />
+        {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
+        <SentryConsentGate />
         <BootGate>
           <AuthGuard>
             <Stack
@@ -118,3 +125,7 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+// Sentry.wrap adds the crash-reporting error boundary + touch/navigation breadcrumbs.
+// Harmless when init no-oped (Expo Go / no DSN); events only flow once consent is granted.
+export default Sentry.wrap(RootLayout);

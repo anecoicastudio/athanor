@@ -1034,6 +1034,8 @@
   "gdpr.consent.section": "Your consents",
   "gdpr.consent.comms": "Communications and updates",
   "gdpr.consent.commsDesc": "Occasional emails about Athanor. Turn them off whenever you like.",
+  "gdpr.consent.diagnostics": "Anonymous diagnostics",
+  "gdpr.consent.diagnosticsDesc": "Send anonymous crash reports to make Athanor more stable. Never any of your content.",
   "gdpr.export.title": "Download your data",
   "gdpr.export.sub": "Export everything that's yours — profile, dream, moments, messages. We email it to you within 30 days.",
   "gdpr.export.cta": "Request the export",

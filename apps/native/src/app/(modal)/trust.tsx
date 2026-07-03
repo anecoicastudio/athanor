@@ -53,7 +53,7 @@ export default function TrustScreen() {
   );
 
   // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
-  const consents = useQuery({ queryKey: gdprKeys.consent(), queryFn: () => getConsents(supabase) });
+  const consents = useQuery({ queryKey: gdprKeys.consent(profile?.id ?? ''), queryFn: () => getConsents(supabase) });
 
   // Live identity-verification status (M9 identity-verify slice).
   const verifyQuery = useQuery({
@@ -85,9 +85,9 @@ export default function TrustScreen() {
         ? setLocationConsent(supabase, v.granted)
         : setConsent(supabase, { kind: v.kind, granted: v.granted, source: 'settings' }),
     onMutate: async (v) => {
-      await qc.cancelQueries({ queryKey: gdprKeys.consent() });
-      const prev = qc.getQueryData<Consent[]>(gdprKeys.consent());
-      qc.setQueryData<Consent[]>(gdprKeys.consent(), (old) => {
+      await qc.cancelQueries({ queryKey: gdprKeys.consent(profile?.id ?? '') });
+      const prev = qc.getQueryData<Consent[]>(gdprKeys.consent(profile?.id ?? ''));
+      qc.setQueryData<Consent[]>(gdprKeys.consent(profile?.id ?? ''), (old) => {
         const list = old ?? [];
         const i = list.findIndex((c) => c.kind === v.kind);
         const now = new Date().toISOString();
@@ -115,10 +115,10 @@ export default function TrustScreen() {
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(gdprKeys.consent(), ctx.prev);
+      if (ctx?.prev) qc.setQueryData(gdprKeys.consent(profile?.id ?? ''), ctx.prev);
       flashToast(t('profile.error', locale));
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: gdprKeys.consent() }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: gdprKeys.consent(profile?.id ?? '') }),
   });
 
   return (
@@ -246,7 +246,7 @@ export default function TrustScreen() {
             {t('gdpr.consent.section', locale)}
           </Text>
           <View className="rounded-card border border-hair bg-raise">
-            <View className="flex-row items-center gap-4 px-5 py-4">
+            <View className="flex-row items-center gap-4 border-b border-hair px-5 py-4">
               <View className="flex-1 gap-0.5">
                 <Text className="text-base text-foreground">{t('gdpr.consent.comms', locale)}</Text>
                 <Text className="text-[13px] leading-snug text-muted-foreground">
@@ -256,6 +256,24 @@ export default function TrustScreen() {
               <Switch
                 value={grantedFor('comms', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'comms', granted: v })}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
+
+            {/* Diagnostics (crash reports) — default OFF; gates Sentry egress (P1.4 / B-5). */}
+            <View className="flex-row items-center gap-4 px-5 py-4">
+              <View className="flex-1 gap-0.5">
+                <Text className="text-base text-foreground">
+                  {t('gdpr.consent.diagnostics', locale)}
+                </Text>
+                <Text className="text-[13px] leading-snug text-muted-foreground">
+                  {t('gdpr.consent.diagnosticsDesc', locale)}
+                </Text>
+              </View>
+              <Switch
+                value={grantedFor('analytics', false)}
+                onValueChange={(v) => setConsentMut.mutate({ kind: 'analytics', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
                 thumbColor={semantic.foreground}
               />
