@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { candidacyVideoPath, uploadToBucket } from '@athanor/api';
 import { supabase } from '@/lib/supabase';
+import { ensureCameraPermission, ensureLibraryPermission } from './permissions';
 import { pickFromLibrary, recordVideo } from './pick';
 import type { PickedMedia } from './pick';
 
@@ -47,11 +48,29 @@ export function useCandidacyUpload(uid: string): {
     }
   }
 
+  // Guarded launchers: this path has no MediaSheet/primer, so ensure the
+  // permission first (denied/blocked → status 'error', surfaced by the wizard's
+  // candidacy.error.video on Continue) and never let a native throw escape.
+  async function launch(kind: 'record' | 'pick'): Promise<void> {
+    try {
+      const perm =
+        kind === 'record' ? await ensureCameraPermission() : await ensureLibraryPermission();
+      if (perm !== 'granted') {
+        setStatus('error');
+        return;
+      }
+      const asset = kind === 'record' ? await recordVideo() : await pickFromLibrary({ allowVideo: true });
+      await handle(asset);
+    } catch {
+      setStatus('error');
+    }
+  }
+
   return {
     candidacyId,
     videoPath,
     status,
-    pick: () => pickFromLibrary({ allowVideo: true }).then(handle),
-    record: () => recordVideo().then(handle),
+    pick: () => launch('pick'),
+    record: () => launch('record'),
   };
 }
