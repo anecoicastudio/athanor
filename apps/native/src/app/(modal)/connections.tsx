@@ -15,8 +15,9 @@ import {
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { ConnectionRequestListItem } from '@athanor/schemas';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { Text, TextInput, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
 import { ConnectionRequestRow } from '@/components/connections/ConnectionRequestRow';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { SegmentedToggle } from '@/components/connections/SegmentedToggle';
@@ -90,20 +91,7 @@ export default function ConnectionsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between px-5 pb-3 pt-14">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-faint">‹</Text>
-        </Pressable>
-        <Text className="text-[17px] font-semibold text-foreground">
-          {t('connection.hub.title', locale)}
-        </Text>
-        <View className="w-6" />
-      </View>
+      <ModalHeader title={t('connection.hub.title', locale)} backLabel={t('common.back', locale)} />
 
       <View className="px-5 pb-4">
         <SegmentedToggle

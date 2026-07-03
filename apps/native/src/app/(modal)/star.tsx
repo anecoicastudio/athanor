@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { ScrollView } from 'react-native';
 import { getStars, starKeys } from '@athanor/api';
 import { t, type MessageKey } from '@athanor/i18n';
 import { starKeySchema, type Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -18,7 +19,6 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * Rule #1: read-only, no Aura writes.
  */
 export default function StarScreen() {
-  const router = useRouter();
   const { session, profile } = useAuth();
   const locale: Locale = profile?.locale ?? 'it';
   const me = session?.user.id ?? '';
@@ -60,17 +60,8 @@ export default function StarScreen() {
 
   return (
     <View {...MODAL_A11Y} className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center gap-4 px-5 pb-3 pt-14">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-faint">‹</Text>
-        </Pressable>
-      </View>
+      {/* Header — chevron-only (star name is the in-body header below) */}
+      <ModalHeader title="" backLabel={t('common.back', locale)} />
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
         {starId != null ? (

@@ -124,7 +124,7 @@ export default function OnboardingScreen() {
               <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
                 {t('onboarding.identity.eyebrow', locale)}
               </Text>
-              <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+              <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.identity.title', locale)}
               </Text>
               <Text className="text-muted-foreground">{t('onboarding.identity.sub', locale)}</Text>
@@ -146,7 +146,7 @@ export default function OnboardingScreen() {
               <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
                 {t('onboarding.seeking.eyebrow', locale)}
               </Text>
-              <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+              <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.seeking.title', locale)}
               </Text>
               <Text className="text-muted-foreground">{t('onboarding.seeking.sub', locale)}</Text>
@@ -168,7 +168,7 @@ export default function OnboardingScreen() {
               <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
                 {t('onboarding.dream.eyebrow', locale)}
               </Text>
-              <Text className="text-[30px] font-bold tracking-[-0.025em] text-foreground">
+              <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.dream.title', locale)}
               </Text>
               <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>

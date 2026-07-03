@@ -29,6 +29,8 @@ import {
 } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ModalHeader } from '@/components/ModalHeader';
+import { Toast } from '@/components/Toast';
 import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -204,6 +206,28 @@ export default function PersonDetailScreen() {
     }, [isSelf, session]),
   );
 
+  // Header right slot: share ✦ + kebab ⋯ overflow (shared by the missing + loaded branches).
+  const headerRight = (
+    <View className="flex-row items-center gap-4">
+      <Pressable
+        onPress={() => showToast(t('profile.share.toast', locale))}
+        accessibilityRole="button"
+        accessibilityLabel={t('profile.share.toast', locale)}
+        hitSlop={8}
+      >
+        <Text className="text-xl text-aura">✦</Text>
+      </Pressable>
+      <Pressable
+        onPress={openMenu}
+        accessibilityRole="button"
+        accessibilityLabel={t('block.cta', locale)}
+        hitSlop={8}
+      >
+        <Text className="text-xl text-foreground">⋯</Text>
+      </Pressable>
+    </View>
+  );
+
   // Self → already redirecting; render nothing.
   if (isSelf) return null;
 
@@ -219,16 +243,13 @@ export default function PersonDetailScreen() {
   // Unavailable / not found.
   if (person === 'missing') {
     return (
-      <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-8 px-5 py-12">
-        <Header
-          onBack={() => router.back()}
-          onShare={() => showToast(t('profile.share.toast', locale))}
-          onMenu={openMenu}
-          locale={locale}
-        />
-        <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
-        {toast ? <Toast>{toast}</Toast> : null}
-      </ScrollView>
+      <View className="flex-1 bg-background">
+        <ModalHeader title="" backLabel={t('common.back', locale)} right={headerRight} />
+        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
+          <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
+        </ScrollView>
+        {toast ? <Toast label={toast} /> : null}
+      </View>
     );
   }
 
@@ -246,158 +267,104 @@ export default function PersonDetailScreen() {
   ) as Record<string, HelpState>;
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-8 px-5 py-12"
-      keyboardShouldPersistTaps="handled"
-    >
-      <Header
-        onBack={() => router.back()}
-        onShare={() => showToast(t('profile.share.toast', locale))}
-        onMenu={openMenu}
-        locale={locale}
+    <View className="flex-1 bg-background">
+      <ModalHeader
+        title={person.handle ?? ''}
+        backLabel={t('common.back', locale)}
+        right={headerRight}
       />
-
-      {/* Hero: third-person Aura label «la sua Aura» */}
-      <ProfileHero
-        handle={person.handle ?? ''}
-        bio={person.bio ?? null}
-        auraScore={aura.score}
-        locale={locale}
-        auraLabel={t('profile.aura.theirLabel', locale)}
-      />
-
-      {/* Stat line — G-B reads 0 for now (PRD §4.2 stubs). */}
-      <StatLine
-        items={[
-          { value: '0', label: t('profile.stat.collabs', locale) },
-          { value: '0', label: t('profile.stat.events', locale) },
-          { value: '0', label: t('profile.stat.reviews', locale) },
-        ]}
-      />
-
-      {/* Le sei stelle — earned-only for others via RLS (rule #3). */}
-      <View className="gap-3">
-        <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-        <SixStarsGrid stars={stars} viewerIsOwner={false} locale={locale} />
-      </View>
-
-      {/* I suoi Momenti — live, read-only (members-read RLS); no add affordance. */}
-      <MomentiGallery
-        moments={moments}
-        urls={urls}
-        locale={locale}
-        onOpen={setLightboxIndex}
-        onSeeAll={() => {
-          /* M3: their full grid (read-only) — deferred */
-        }}
-        label={t('profile.moments.theirLabel', locale)}
-        emptyLabel={t('profile.moments.theirEmpty', locale)}
-      />
-
-      {/* Il suo sogno — read-only, per-tappa «Aiuta». */}
-      <DreamCard
-        variant="read"
-        dream={dreamText}
-        locale={locale}
-        milestones={tappe}
-        helpStateById={helpStateById}
-        onHelpMilestone={(milestoneId) => {
-          const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
-          router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
-        }}
-        onMakeHappen={() => showToast(t('dream.toast.saved', locale))}
-      />
-
-      {/* Recensioni umane — Fase 3, no backend. Label only, no vanity count. */}
-      <View className="gap-3">
-        <SectionLabel>{t('profile.reviews.label', locale)}</SectionLabel>
-        <Text className="text-faint">—</Text>
-      </View>
-
-      {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» drives the
-          full connection-requests state machine (M5). */}
-      <View className="flex-row items-center gap-4">
-        <View className="flex-1">
-          <Button
-            label={t('profile.write.cta', locale)}
-            variant="ghost"
-            onPress={async () => {
-              try {
-                const conversationId = await getOrCreateConversation(supabase, id);
-                router.push(`/chat?conversationId=${conversationId}`);
-              } catch {
-                showToast(t('chat.openFailed', locale));
-              }
-            }}
-          />
-        </View>
-        <ConnectButton peerId={id} locale={locale} />
-      </View>
-
-      <Lightbox
-        moments={moments}
-        urls={urls}
-        index={lightboxIndex}
-        locale={locale}
-        onClose={() => setLightboxIndex(null)}
-        onIndexChange={setLightboxIndex}
-      />
-
-      {toast ? <Toast>{toast}</Toast> : null}
-    </ScrollView>
-  );
-}
-
-/** Modal header: back chevron + share ✦ + kebab ⋯ overflow. */
-function Header({
-  onBack,
-  onShare,
-  onMenu,
-  locale,
-}: {
-  onBack: () => void;
-  onShare: () => void;
-  onMenu: () => void;
-  locale: Locale;
-}) {
-  return (
-    <View className="flex-row items-center justify-between">
-      <Pressable
-        onPress={onBack}
-        accessibilityRole="button"
-        accessibilityLabel={t('common.back', locale)}
-        hitSlop={8}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-8 px-5 pb-12"
+        keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-2xl text-foreground">‹</Text>
-      </Pressable>
-      <View className="flex-row items-center gap-4">
-        <Pressable
-          onPress={onShare}
-          accessibilityRole="button"
-          accessibilityLabel={t('profile.share.toast', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-xl text-aura">✦</Text>
-        </Pressable>
-        <Pressable
-          onPress={onMenu}
-          accessibilityRole="button"
-          accessibilityLabel={t('block.cta', locale)}
-          hitSlop={8}
-        >
-          <Text className="text-xl text-foreground">⋯</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
+        {/* Hero: third-person Aura label «la sua Aura» */}
+        <ProfileHero
+          handle={person.handle ?? ''}
+          bio={person.bio ?? null}
+          auraScore={aura.score}
+          locale={locale}
+          auraLabel={t('profile.aura.theirLabel', locale)}
+        />
 
-/** Auto-dismissing bottom toast (mirrors milestone.tsx / help.tsx). */
-function Toast({ children }: { children: string }) {
-  return (
-    <View className="absolute inset-x-5 bottom-10 items-center rounded-card border border-hair bg-raise-2 px-5 py-3">
-      <Text className="text-sm text-foreground">{children}</Text>
+        {/* Stat line — G-B reads 0 for now (PRD §4.2 stubs). */}
+        <StatLine
+          items={[
+            { value: '0', label: t('profile.stat.collabs', locale) },
+            { value: '0', label: t('profile.stat.events', locale) },
+            { value: '0', label: t('profile.stat.reviews', locale) },
+          ]}
+        />
+
+        {/* Le sei stelle — earned-only for others via RLS (rule #3). */}
+        <View className="gap-3">
+          <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
+          <SixStarsGrid stars={stars} viewerIsOwner={false} locale={locale} />
+        </View>
+
+        {/* I suoi Momenti — live, read-only (members-read RLS); no add affordance. */}
+        <MomentiGallery
+          moments={moments}
+          urls={urls}
+          locale={locale}
+          onOpen={setLightboxIndex}
+          onSeeAll={() => {
+            /* M3: their full grid (read-only) — deferred */
+          }}
+          label={t('profile.moments.theirLabel', locale)}
+          emptyLabel={t('profile.moments.theirEmpty', locale)}
+        />
+
+        {/* Il suo sogno — read-only, per-tappa «Aiuta». */}
+        <DreamCard
+          variant="read"
+          dream={dreamText}
+          locale={locale}
+          milestones={tappe}
+          helpStateById={helpStateById}
+          onHelpMilestone={(milestoneId) => {
+            const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
+            router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
+          }}
+          onMakeHappen={() => showToast(t('dream.toast.saved', locale))}
+        />
+
+        {/* Recensioni umane — Fase 3, no backend. Label only, no vanity count. */}
+        <View className="gap-3">
+          <SectionLabel>{t('profile.reviews.label', locale)}</SectionLabel>
+          <Text className="text-faint">—</Text>
+        </View>
+
+        {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» drives the
+          full connection-requests state machine (M5). */}
+        <View className="flex-row items-center gap-4">
+          <View className="flex-1">
+            <Button
+              label={t('profile.write.cta', locale)}
+              variant="ghost"
+              onPress={async () => {
+                try {
+                  const conversationId = await getOrCreateConversation(supabase, id);
+                  router.push(`/chat?conversationId=${conversationId}`);
+                } catch {
+                  showToast(t('chat.openFailed', locale));
+                }
+              }}
+            />
+          </View>
+          <ConnectButton peerId={id} locale={locale} />
+        </View>
+
+        <Lightbox
+          moments={moments}
+          urls={urls}
+          index={lightboxIndex}
+          locale={locale}
+          onClose={() => setLightboxIndex(null)}
+          onIndexChange={setLightboxIndex}
+        />
+      </ScrollView>
+      {toast ? <Toast label={toast} /> : null}
     </View>
   );
 }

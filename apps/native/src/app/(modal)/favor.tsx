@@ -127,7 +127,7 @@ export default function FavorScreen() {
         data={needs}
         keyExtractor={(item) => item.need_milestone_id}
         ListHeaderComponent={
-          <View className="gap-3 px-5 pb-2 pt-12">
+          <View className="gap-3 px-5 pb-2 pt-14">
             <View className="flex-row items-start justify-between">
               <View className="flex-1 gap-1 pr-4">
                 <Text accessibilityRole="header" className="text-2xl text-foreground">

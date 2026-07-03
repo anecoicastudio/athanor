@@ -1,18 +1,18 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getMyTicket } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 export default function TicketViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); // id = eventId
-  const router = useRouter();
   const { profile } = useAuth();
   const locale = (profile?.locale ?? 'it') as 'it' | 'en';
   const uid = profile?.id ?? null;
@@ -27,16 +27,7 @@ export default function TicketViewerScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-6 pb-12">
-      <View className="flex-row items-center gap-3 px-5 pb-1 pt-14">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-[22px] text-foreground">‹</Text>
-        </Pressable>
-        <Text className="text-2xl text-foreground">{t('ticket.viewer.title', locale)}</Text>
-      </View>
+      <ModalHeader title={t('ticket.viewer.title', locale)} backLabel={t('common.back', locale)} />
 
       {ticketQ.isLoading ? (
         <View className="items-center pt-16">

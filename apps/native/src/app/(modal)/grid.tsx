@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
@@ -11,13 +10,13 @@ import { useSignedUrls } from '@/lib/media/useSignedUrls';
 import { supabase } from '@/lib/supabase';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ModalHeader } from '@/components/ModalHeader';
 import { Lightbox } from '@/components/Lightbox';
 import { MediaSheet } from '@/components/MediaSheet';
 import { MomentAddTile, MomentTile } from '@/components/MomentTile';
 
 /** Full personal Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). */
 export default function GridScreen() {
-  const router = useRouter();
   const { profile, session } = useAuth();
   const locale = profile?.locale ?? 'it';
   const uid = session?.user?.id;
@@ -62,85 +61,78 @@ export default function GridScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="px-5 pb-11 pt-12">
+    <View className="flex-1 bg-background">
       {/* head */}
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-1.5">
+      <ModalHeader
+        title={t('moment.gallery.title', locale)}
+        backLabel={t('common.back', locale)}
+        right={
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('common.back', locale)}
+            accessibilityLabel={t('moment.add', locale)}
             hitSlop={8}
-            onPress={() => router.back()}
+            onPress={() => setSheetOpen(true)}
           >
-            <Text className="text-2xl text-foreground">‹</Text>
+            <Text className="text-2xl text-faint">+</Text>
           </Pressable>
-          <Text className="text-lg font-semibold text-foreground">
-            {t('moment.gallery.title', locale)}
-          </Text>
+        }
+      />
+
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-11">
+        <Text className="mt-0.5 text-[13px] text-muted-foreground">
+          {t('moment.gallery.sub', locale)}
+        </Text>
+
+        {error ? <Text className="mt-2 text-[13px] text-error">{error}</Text> : null}
+
+        <View className="mt-4 flex-row flex-wrap">
+          {moments.map((m, i) => (
+            <View key={m.id} className="w-1/3 p-0.5">
+              <MomentTile
+                moment={m}
+                variant="full"
+                locale={locale}
+                url={urls[m.media_path]}
+                onPress={() => setIndex(i)}
+                onLongPress={() => confirmDelete(m)}
+              />
+            </View>
+          ))}
+          {empty ? (
+            <View className="w-1/3 p-0.5">
+              <MomentAddTile
+                variant="full"
+                label={t('moment.add', locale)}
+                onPress={() => setSheetOpen(true)}
+              />
+            </View>
+          ) : null}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('moment.add', locale)}
-          hitSlop={8}
-          onPress={() => setSheetOpen(true)}
-        >
-          <Text className="text-2xl text-faint">+</Text>
-        </Pressable>
-      </View>
 
-      <Text className="mt-0.5 text-[13px] text-muted-foreground">
-        {t('moment.gallery.sub', locale)}
-      </Text>
-
-      {error ? <Text className="mt-2 text-[13px] text-error">{error}</Text> : null}
-
-      <View className="mt-4 flex-row flex-wrap">
-        {moments.map((m, i) => (
-          <View key={m.id} className="w-1/3 p-0.5">
-            <MomentTile
-              moment={m}
-              variant="full"
-              locale={locale}
-              url={urls[m.media_path]}
-              onPress={() => setIndex(i)}
-              onLongPress={() => confirmDelete(m)}
-            />
-          </View>
-        ))}
         {empty ? (
-          <View className="w-1/3 p-0.5">
-            <MomentAddTile
-              variant="full"
-              label={t('moment.add', locale)}
-              onPress={() => setSheetOpen(true)}
-            />
+          <View className="mt-2">
+            <EmptyState>{t('moment.empty', locale)}</EmptyState>
           </View>
         ) : null}
-      </View>
 
-      {empty ? (
-        <View className="mt-2">
-          <EmptyState>{t('moment.empty', locale)}</EmptyState>
-        </View>
-      ) : null}
+        <Lightbox
+          moments={moments}
+          urls={urls}
+          index={index}
+          locale={locale}
+          onClose={() => setIndex(null)}
+          onIndexChange={setIndex}
+        />
 
-      <Lightbox
-        moments={moments}
-        urls={urls}
-        index={index}
-        locale={locale}
-        onClose={() => setIndex(null)}
-        onIndexChange={setIndex}
-      />
-
-      {/* «Aggiungi un Momento» — real create/upload (rule #1: writes only `moments`). */}
-      <MediaSheet
-        visible={sheetOpen}
-        allowVideo
-        locale={locale}
-        onClose={() => setSheetOpen(false)}
-        onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
-      />
-    </ScrollView>
+        {/* «Aggiungi un Momento» — real create/upload (rule #1: writes only `moments`). */}
+        <MediaSheet
+          visible={sheetOpen}
+          allowVideo
+          locale={locale}
+          onClose={() => setSheetOpen(false)}
+          onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+        />
+      </ScrollView>
+    </View>
   );
 }
