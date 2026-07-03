@@ -42,9 +42,14 @@ Deno.serve(async (req) => {
   if (!event) return error('event not found', 404);
   if (!event.price_cents || event.price_cents <= 0) return error('event is free', 400);
 
-  // TODO(M9): assert the organizer is identity_verified before selling tickets (08 §3.1).
-  // The profiles.identity_verified column does not exist until M9 — gate deferred (see plan Deferred).
-  // No Stripe Connect in MVP, so funds route to the platform account, not an unverified third party.
+  // P2.4 — organizer must be identity_verified before selling tickets (08 §3.1).
+  // is_identity_verified is the DEFINER helper from m7_candidacy (reads the column without
+  // exposing it cross-RLS); fail-closed on lookup error — never sell for an unverifiable organizer.
+  const { data: organizerVerified, error: verErr } = await userClient.rpc('is_identity_verified', {
+    uid: event.organizer_id,
+  });
+  if (verErr) return error('organizer verification lookup failed', 500);
+  if (!organizerVerified) return error('organizer not verified', 403);
 
   const appBase = Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://';
 
