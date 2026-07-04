@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { ScrollView } from 'react-native';
-import { auraKeys, getAuraEventsSince, getStars, starKeys } from '@athanor/api';
-import { pickNextStar, summarizeWeek } from '@athanor/core';
+import { auraKeys, getStars, starKeys } from '@athanor/api';
+import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -12,6 +12,7 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { fetchWeekRecap } from '@/lib/weekRecap';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Shimmer placeholder bar — muted rect for loading state */
@@ -30,14 +31,10 @@ export default function RecapScreen() {
   const locale: Locale = profile?.locale ?? 'it';
   const me = session?.user.id ?? '';
 
-  // Week recap: fetch last 8d of events → summarize client-side. now injected at call site (core stays pure).
+  // Week recap: shared queryFn (lib/weekRecap) — one fetch shape per auraKeys.recap key.
   const recapQuery = useQuery({
     queryKey: auraKeys.recap(me),
-    queryFn: async () => {
-      const since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
-      const rows = await getAuraEventsSince(supabase, me, since);
-      return summarizeWeek(rows, new Date());
-    },
+    queryFn: () => fetchWeekRecap(me),
     enabled: !!me,
   });
 

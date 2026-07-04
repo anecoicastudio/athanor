@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { auraKeys, getAuraEventsSince, getAuraScore } from '@athanor/api';
-import { greetingFor, summarizeWeek } from '@athanor/core';
+import { auraKeys, getAuraScore } from '@athanor/api';
+import { greetingFor } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
@@ -15,6 +15,7 @@ import { InviteCard } from '@/components/home/InviteCard';
 import { StarsMiniRow } from '@/components/home/StarsMiniRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { fetchWeekRecap } from '@/lib/weekRecap';
 
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 ships the shell + the
@@ -45,14 +46,10 @@ export default function HomeScreen() {
     };
   }, [userId]);
 
-  // Week recap: last 8d of events → summarize client-side. now injected at call site (rule #1).
+  // Week recap: shared queryFn (lib/weekRecap) — same key as AnalyticsLiteCard.
   const recapQuery = useQuery({
     queryKey: auraKeys.recap(userId),
-    queryFn: async () => {
-      const since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
-      const rows = await getAuraEventsSince(supabase, userId, since);
-      return summarizeWeek(rows, new Date());
-    },
+    queryFn: () => fetchWeekRecap(userId),
     enabled: !!userId,
   });
 

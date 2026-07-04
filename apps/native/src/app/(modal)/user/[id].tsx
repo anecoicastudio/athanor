@@ -11,10 +11,12 @@ import {
   getMomentsPage,
   getOrCreateConversation,
   getProfileById,
+  getProfileStatCounts,
   getStars,
   listMilestones,
   listMyHelps,
   momentKeys,
+  profileKeys,
   unblockUser,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
@@ -140,6 +142,14 @@ export default function PersonDetailScreen() {
     enabled: Boolean(id) && !isSelf,
   });
   const moments = momentsQuery.data?.moments ?? [];
+
+  // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).
+  const statCounts = useQuery({
+    queryKey: profileKeys.statCounts(id ?? ''),
+    queryFn: () => getProfileStatCounts(supabase, id as string),
+    enabled: Boolean(id) && !isSelf,
+    staleTime: 60_000,
+  }).data;
   const { urls } = useSignedUrls(
     'moments',
     moments.map((m) => m.media_path),
@@ -287,11 +297,14 @@ export default function PersonDetailScreen() {
           auraLabel={t('profile.aura.theirLabel', locale)}
         />
 
-        {/* Stat line — G-B reads 0 for now (PRD §4.2 stubs). */}
+        {/* Stat line — live collabs/events via aggregate-only RPC (P3.1); reviews Fase 3. */}
         <StatLine
           items={[
-            { value: '0', label: t('profile.stat.collabs', locale) },
-            { value: '0', label: t('profile.stat.events', locale) },
+            {
+              value: String(statCounts?.collabsCount ?? 0),
+              label: t('profile.stat.collabs', locale),
+            },
+            { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
             { value: '0', label: t('profile.stat.reviews', locale) },
           ]}
         />
@@ -308,9 +321,7 @@ export default function PersonDetailScreen() {
           urls={urls}
           locale={locale}
           onOpen={setLightboxIndex}
-          onSeeAll={() => {
-            /* M3: their full grid (read-only) — deferred */
-          }}
+          onSeeAll={() => router.push({ pathname: '/(modal)/grid', params: { userId: id } })}
           label={t('profile.moments.theirLabel', locale)}
           emptyLabel={t('profile.moments.theirEmpty', locale)}
         />

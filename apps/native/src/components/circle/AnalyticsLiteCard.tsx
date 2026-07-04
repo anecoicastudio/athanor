@@ -6,6 +6,7 @@ import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { StatLine } from '@/components/StatLine';
 import { supabase } from '@/lib/supabase';
+import { fetchWeekRecap } from '@/lib/weekRecap';
 
 /**
  * Analytics lite card for Circle members (M8 §3.4, rule #3).
@@ -28,7 +29,16 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
     staleTime: 60_000,
   });
 
+  // Real 7-day delta (P3.7): shared fetch shape with Home's WeekCard (same key).
+  const recapQuery = useQuery({
+    queryKey: auraKeys.recap(profileId),
+    queryFn: () => fetchWeekRecap(profileId),
+    enabled: !!profileId,
+    staleTime: 60_000,
+  });
+
   const full = query.data;
+  const recap = recapQuery.data;
 
   // Top-2 breakdown sources by raw value (engine dormant → all zero → empty list)
   const top2 =
@@ -51,11 +61,11 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
         </Text>
       </View>
 
-      {/* Week Aura delta stat */}
+      {/* Week Aura delta stat — real 7-day sum from the ledger, not lifetime score */}
       <StatLine
         items={[
           {
-            value: full ? `+${full.score}` : '—',
+            value: recap ? `+${recap.auraWeek}` : '—',
             label: t('circle.analytics.weekDelta', locale),
           },
         ]}

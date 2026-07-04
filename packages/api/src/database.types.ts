@@ -2554,6 +2554,13 @@ export type Database = {
         Returns: boolean
       }
       post_reaction_count: { Args: { p_post_id: string }; Returns: number }
+      profile_stat_counts: {
+        Args: { p_profile_id: string }
+        Returns: {
+          collabs_count: number
+          events_count: number
+        }[]
+      }
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }
         Returns: undefined
