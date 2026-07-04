@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Linking, Share } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useQuery } from '@tanstack/react-query';
 import { blockKeys, getAuraScore, getBlockedCount, updateProfile } from '@athanor/api';
 import { t } from '@athanor/i18n';
@@ -13,6 +15,7 @@ import { SettingsGroup } from '@/components/SettingsGroup';
 import { Toast } from '@/components/Toast';
 import { SettingsRow } from '@/components/SettingsRow';
 import { useAuth } from '@/lib/auth-context';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
 import { useEntitlement } from '@/lib/useEntitlement';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -221,16 +224,31 @@ export default function SettingsScreen() {
         <SettingsGroup label={t('settings.section.support', locale)}>
           <SettingsRow
             title={t('settings.help.title', locale)}
-            onPress={() => showToast(t('settings.soon', locale))}
+            onPress={() => {
+              Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() =>
+                showToast(t('settings.help.error', locale)),
+              );
+            }}
           />
           <SettingsRow
-            title={t('settings.legal.title', locale)}
-            onPress={() => showToast(t('settings.soon', locale))}
+            title={t('settings.legal.terms', locale)}
+            onPress={() => void WebBrowser.openBrowserAsync(LEGAL_TERMS_URL)}
+          />
+          <SettingsRow
+            title={t('settings.legal.privacy', locale)}
+            onPress={() => void WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL)}
           />
           <SettingsRow
             title={t('settings.invite.title', locale)}
             description={t('settings.invite.desc', locale)}
-            onPress={() => showToast(t('settings.soon', locale))}
+            onPress={() => {
+              // Plain share for now; referral attribution lands with P4.1 invites.
+              Share.share({
+                message: `${t('home.invite', locale)} — ${t('app.name', locale)}`,
+              }).catch(() => {
+                // user dismissed the sheet — no-op
+              });
+            }}
           />
         </SettingsGroup>
 
