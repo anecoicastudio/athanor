@@ -12,7 +12,6 @@ import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
 import { ConversationRow } from '@/components/chat/ConversationRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -27,7 +26,6 @@ export default function MessagesScreen() {
   // In-session unread: ids that arrived via realtime while the list was open (#3 — pip, no badge).
   // Persistent read-state (conversation_reads) is deferred to a later slice.
   const [unread, setUnread] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState(false);
 
   const query = useInfiniteQuery({
     queryKey: conversationKeys.list(),
@@ -64,11 +62,7 @@ export default function MessagesScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('messages.new', locale)}
               hitSlop={8}
-              onPress={() => {
-                // No person-picker yet (search/connections land later) — honest stub toast.
-                setToast(true);
-                setTimeout(() => setToast(false), 1600);
-              }}
+              onPress={() => router.push('/new-message')}
             >
               <Text className="text-2xl text-foreground">+</Text>
             </Pressable>
@@ -111,8 +105,6 @@ export default function MessagesScreen() {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
       />
-
-      {toast ? <Toast label={t('messages.new.toast', locale)} /> : null}
     </View>
   );
 }

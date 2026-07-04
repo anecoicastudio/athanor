@@ -659,7 +659,6 @@
   "match.accepted.keepCta": "Keep exploring",
   "messages.title": "Messages",
   "messages.new": "New conversation",
-  "messages.new.toast": "New conversation ✦",
   "messages.empty.title": "No messages yet",
   "messages.empty.body": "When a Momento lights up, the conversation starts here.",
   "messages.preview.fresh": "The ice is waiting to break.",
