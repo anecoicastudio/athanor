@@ -45,12 +45,12 @@ select throws_ok(
 
 -- non-owner update affects 0 rows (not an error)
 select set_config('request.jwt.claim.sub', current_setting('test.b'), true);
-select is(
-  (with upd as (
-     update public.consent set granted = true
-     where profile_id = current_setting('test.a')::uuid returning 1)
-   select count(*)::int from upd),
-  0, 'non-owner update affects 0 rows');
+-- (data-modifying CTE must be top-level, not inside is() — capture the count via set_config)
+with upd as (
+  update public.consent set granted = true
+  where profile_id = current_setting('test.a')::uuid returning 1)
+select set_config('test.upd_count', count(*)::text, true) from upd;
+select is(current_setting('test.upd_count')::int, 0, 'non-owner update affects 0 rows');
 
 -- owner reads own only
 select set_config('request.jwt.claim.sub', current_setting('test.a'), true);
