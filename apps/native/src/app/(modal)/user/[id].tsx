@@ -321,9 +321,7 @@ export default function PersonDetailScreen() {
           urls={urls}
           locale={locale}
           onOpen={setLightboxIndex}
-          onSeeAll={() => {
-            /* M3: their full grid (read-only) — deferred */
-          }}
+          onSeeAll={() => router.push({ pathname: '/(modal)/grid', params: { userId: id } })}
           label={t('profile.moments.theirLabel', locale)}
           emptyLabel={t('profile.moments.theirEmpty', locale)}
         />

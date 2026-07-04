@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
@@ -15,18 +16,26 @@ import { Lightbox } from '@/components/Lightbox';
 import { MediaSheet } from '@/components/MediaSheet';
 import { MomentAddTile, MomentTile } from '@/components/MomentTile';
 
-/** Full personal Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). */
+/**
+ * Full Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). Owner mode
+ * by default; with a `userId` param it renders another member's grid read-only
+ * (P3.6: members-read RLS, no add/delete affordances). A self deep-link falls
+ * back to owner mode.
+ */
 export default function GridScreen() {
   const { profile, session } = useAuth();
+  const { userId } = useLocalSearchParams<{ userId?: string }>();
   const locale = profile?.locale ?? 'it';
   const uid = session?.user?.id;
+  const readOnly = Boolean(userId) && userId !== uid;
+  const ownerId = readOnly ? (userId as string) : uid;
   const queryClient = useQueryClient();
 
-  // Live own momenti (rule #9: keyset). First page (24) only — infinite scroll deferred.
+  // Live momenti (rule #9: keyset). First page (24) only — infinite scroll deferred.
   const momentsQuery = useQuery({
-    queryKey: momentKeys.list(uid ?? ''),
-    queryFn: () => getMomentsPage(supabase, uid as string),
-    enabled: Boolean(uid),
+    queryKey: momentKeys.list(ownerId ?? ''),
+    queryFn: () => getMomentsPage(supabase, ownerId as string),
+    enabled: Boolean(ownerId),
   });
   const moments = momentsQuery.data?.moments ?? [];
   const { urls } = useSignedUrls(
@@ -64,24 +73,28 @@ export default function GridScreen() {
     <View className="flex-1 bg-background">
       {/* head */}
       <ModalHeader
-        title={t('moment.gallery.title', locale)}
+        title={t(readOnly ? 'profile.moments.theirLabel' : 'moment.gallery.title', locale)}
         backLabel={t('common.back', locale)}
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('moment.add', locale)}
-            hitSlop={8}
-            onPress={() => setSheetOpen(true)}
-          >
-            <Text className="text-2xl text-faint">+</Text>
-          </Pressable>
+          readOnly ? undefined : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('moment.add', locale)}
+              hitSlop={8}
+              onPress={() => setSheetOpen(true)}
+            >
+              <Text className="text-2xl text-faint">+</Text>
+            </Pressable>
+          )
         }
       />
 
       <ScrollView className="flex-1" contentContainerClassName="px-5 pb-11">
-        <Text className="mt-0.5 text-[13px] text-muted-foreground">
-          {t('moment.gallery.sub', locale)}
-        </Text>
+        {readOnly ? null : (
+          <Text className="mt-0.5 text-[13px] text-muted-foreground">
+            {t('moment.gallery.sub', locale)}
+          </Text>
+        )}
 
         {error ? <Text className="mt-2 text-[13px] text-error">{error}</Text> : null}
 
@@ -94,11 +107,11 @@ export default function GridScreen() {
                 locale={locale}
                 url={urls[m.media_path]}
                 onPress={() => setIndex(i)}
-                onLongPress={() => confirmDelete(m)}
+                onLongPress={readOnly ? undefined : () => confirmDelete(m)}
               />
             </View>
           ))}
-          {empty ? (
+          {empty && !readOnly ? (
             <View className="w-1/3 p-0.5">
               <MomentAddTile
                 variant="full"
@@ -111,7 +124,9 @@ export default function GridScreen() {
 
         {empty ? (
           <View className="mt-2">
-            <EmptyState>{t('moment.empty', locale)}</EmptyState>
+            <EmptyState>
+              {t(readOnly ? 'profile.moments.theirEmpty' : 'moment.empty', locale)}
+            </EmptyState>
           </View>
         ) : null}
 
@@ -124,15 +139,18 @@ export default function GridScreen() {
           onIndexChange={setIndex}
         />
 
-        {/* «Aggiungi un Momento» — real create/upload (rule #1: writes only `moments`). */}
-        <MediaSheet
-          visible={sheetOpen}
-          allowVideo
-          locale={locale}
-          onClose={() => setSheetOpen(false)}
-          onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
-          onError={() => setError(t('media.failed', locale))}
-        />
+        {/* «Aggiungi un Momento» — owner only (rule #1: writes only `moments`). Stays
+          mounted in owner mode (iOS picker-under-Modal trap — close-then-launch). */}
+        {readOnly ? null : (
+          <MediaSheet
+            visible={sheetOpen}
+            allowVideo
+            locale={locale}
+            onClose={() => setSheetOpen(false)}
+            onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+            onError={() => setError(t('media.failed', locale))}
+          />
+        )}
       </ScrollView>
     </View>
   );
