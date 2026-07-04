@@ -13,12 +13,12 @@ select ok(
 );
 
 -- 3. unconfigured (no app.settings.*) → guard returns void without error
-set local role service_role;
+-- (run as the default superuser: pg_cron invokes this as postgres in production;
+--  the migration revokes execute from public/anon/authenticated and grants no one else)
 select lives_ok(
   $$ select public.invoke_score_engine_decay() $$,
   'decay invoker no-ops cleanly when score_engine_url/_key are unset (pre-deploy)'
 );
-reset role;
 
 select * from finish();
 rollback;

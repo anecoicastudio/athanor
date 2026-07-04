@@ -12,8 +12,8 @@ values
 -- ── schema ──
 select has_table('public', 'reports', 'reports exists');
 select policies_are('public', 'reports',
-  array['reports_select_own','reports_insert_own'],
-  'exactly the two reporter-own policies (no client UPDATE/DELETE)');
+  array['reports_select_own','reports_insert_own','reports_select_admin'],
+  'reporter-own policies + admin read (no client UPDATE/DELETE)');
 
 -- ── anon denied ──
 set local role anon;

@@ -1,10 +1,15 @@
 begin;
+create extension if not exists pgtap with schema extensions;
 select plan(10);
 
-select tests.create_supabase_user('consent_a');
-select tests.create_supabase_user('consent_b');
-select set_config('test.a', tests.get_supabase_uid('consent_a')::text, false);
-select set_config('test.b', tests.get_supabase_uid('consent_b')::text, false);
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values
+  ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
+   'authenticated', 'authenticated', 'consent_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
+   'authenticated', 'authenticated', 'consent_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now());
+select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
+select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 
 select has_table('public', 'consent', 'table exists');
 
@@ -40,12 +45,12 @@ select throws_ok(
 
 -- non-owner update affects 0 rows (not an error)
 select set_config('request.jwt.claim.sub', current_setting('test.b'), true);
-select is(
-  (with upd as (
-     update public.consent set granted = true
-     where profile_id = current_setting('test.a')::uuid returning 1)
-   select count(*)::int from upd),
-  0, 'non-owner update affects 0 rows');
+-- (data-modifying CTE must be top-level, not inside is() — capture the count via set_config)
+with upd as (
+  update public.consent set granted = true
+  where profile_id = current_setting('test.a')::uuid returning 1)
+select set_config('test.upd_count', count(*)::text, true) from upd;
+select is(current_setting('test.upd_count')::int, 0, 'non-owner update affects 0 rows');
 
 -- owner reads own only
 select set_config('request.jwt.claim.sub', current_setting('test.a'), true);

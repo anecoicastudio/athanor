@@ -1,10 +1,15 @@
 begin;
+create extension if not exists pgtap with schema extensions;
 select plan(12);
 
-select tests.create_supabase_user('verify_a');
-select tests.create_supabase_user('verify_b');
-select set_config('test.a', tests.get_supabase_uid('verify_a')::text, false);
-select set_config('test.b', tests.get_supabase_uid('verify_b')::text, false);
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values
+  ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
+   'authenticated', 'authenticated', 'verify_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
+   'authenticated', 'authenticated', 'verify_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now());
+select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
+select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 
 select has_table('public', 'verifications', 'table exists');
 select ok(

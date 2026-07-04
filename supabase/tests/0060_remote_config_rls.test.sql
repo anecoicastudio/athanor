@@ -64,5 +64,5 @@ reset role;
 select is((select count(*)::int from public.aura_events), 0,
   'remote_config writes create zero aura_events');
 
-select * from finished();
+select * from finish();
 rollback;

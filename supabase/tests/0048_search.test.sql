@@ -133,9 +133,9 @@ select is(
 --
 -- 4a (static): function body must NOT order by any aura/circle/entitlement column.
 select ok(
-  (select pg_get_functiondef('public.search_all'::regprocedure)) not ilike '%order by%aura%'
-  and (select pg_get_functiondef('public.search_all'::regprocedure)) not ilike '%order by%circle%'
-  and (select pg_get_functiondef('public.search_all'::regprocedure)) not ilike '%order by%entitlement%',
+  (select pg_get_functiondef('public.search_all(text, text, real, uuid, integer, integer, text, text)'::regprocedure)) not ilike '%order by%aura%'
+  and (select pg_get_functiondef('public.search_all(text, text, real, uuid, integer, integer, text, text)'::regprocedure)) not ilike '%order by%circle%'
+  and (select pg_get_functiondef('public.search_all(text, text, real, uuid, integer, integer, text, text)'::regprocedure)) not ilike '%order by%entitlement%',
   'search_all body: ORDER BY contains no aura/circle/entitlement column (static check)'
 );
 
