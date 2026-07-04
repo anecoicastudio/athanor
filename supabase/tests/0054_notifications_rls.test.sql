@@ -1,11 +1,16 @@
 begin;
+create extension if not exists pgtap with schema extensions;
 select plan(10);
 
 -- seed two users + a service-role-written notification for user_b
-select tests.create_supabase_user('notif_a');
-select tests.create_supabase_user('notif_b');
-select set_config('test.a', tests.get_supabase_uid('notif_a')::text, false);
-select set_config('test.b', tests.get_supabase_uid('notif_b')::text, false);
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values
+  ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
+   'authenticated', 'authenticated', 'notif_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
+   'authenticated', 'authenticated', 'notif_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now());
+select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
+select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 
 -- schema + RLS present
 select has_table('public', 'notifications', 'notifications table exists');
