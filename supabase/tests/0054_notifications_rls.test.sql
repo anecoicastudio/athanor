@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(9);
 
 -- seed two users + a service-role-written notification for user_b
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
