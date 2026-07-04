@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getAuthorStoryCount,
+  getOrCreateConversation,
   getPersonStory,
   getViewerStoryReaction,
   pinStoryStep,
@@ -88,7 +89,16 @@ export default function StoriesScreen() {
         });
         Alert.alert(t('story.react.toast', locale));
       }}
-      onReply={() => Alert.alert(t('story.reply.placeholder', locale, { name }))}
+      onReply={async () => {
+        // Reply = open the DM with the author (P3.5, canonical open-or-create pattern).
+        if (!myId || isOwn || !targetId) return;
+        try {
+          const conversationId = await getOrCreateConversation(supabase, targetId);
+          router.push(`/chat?conversationId=${conversationId}`);
+        } catch {
+          Alert.alert(t('chat.openFailed', locale));
+        }
+      }}
       onMakeDream={() => Alert.alert(t('story.dream.toast', locale, { name }))}
       onAddMoment={() => {
         router.back();
