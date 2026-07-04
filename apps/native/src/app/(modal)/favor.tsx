@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { ActivityIndicator, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { type NeedCursor, favorKeys, listOpenNeeds, passFavor } from '@athanor/api';
+import {
+  type NeedCursor,
+  favorKeys,
+  getOrCreateConversation,
+  listOpenNeeds,
+  passFavor,
+} from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed, Locale } from '@athanor/schemas';
@@ -37,8 +43,24 @@ export default function FavorScreen() {
 
   const [helpingId, setHelpingId] = useState<string | null>(null);
   const [done, setDone] = useState<FavorNeed | null>(null);
-  const [stubToast, setStubToast] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const [writeError, setWriteError] = useState(false);
   const [helpError, setHelpError] = useState(false);
+
+  // «Scrivi a {name}» — open-or-create the DM with the helped person (P3.3).
+  const write = async (need: FavorNeed) => {
+    if (writing) return;
+    setWriting(true);
+    setWriteError(false);
+    try {
+      const conversationId = await getOrCreateConversation(supabase, need.target_id);
+      router.push(`/chat?conversationId=${conversationId}`);
+    } catch {
+      setWriteError(true);
+    } finally {
+      setWriting(false);
+    }
+  };
 
   const query = useInfiniteQuery({
     queryKey: favorKeys.openNeeds,
@@ -90,14 +112,15 @@ export default function FavorScreen() {
           </Text>
           <Text className="text-center text-[14px] text-faint">{t('favor.done.sub', locale)}</Text>
         </View>
-        {stubToast ? (
-          <Text className="text-[13px] text-aura">{t('project.respond.soon', locale)}</Text>
+        {writeError ? (
+          <Text className="text-[13px] text-error">{t('chat.openFailed', locale)}</Text>
         ) : null}
         <View className="w-full gap-3">
           <Button
             label={t('favor.done.write', locale, { name })}
             variant="light"
-            onPress={() => setStubToast(true)}
+            disabled={writing}
+            onPress={() => void write(done)}
           />
           <Pressable onPress={() => router.back()} hitSlop={8} className="items-center py-2">
             <Text className="text-[14px] text-faint">{t('favor.done.dismiss', locale)}</Text>
