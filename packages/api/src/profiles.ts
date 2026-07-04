@@ -12,6 +12,7 @@ export const profileKeys = {
   all: ['profiles'] as const,
   detail: (id: string) => ['profiles', id] as const,
   handleAvailable: (handle: string) => ['profiles', 'handle-available', handle] as const,
+  statCounts: (id: string) => ['profiles', id, 'stat-counts'] as const,
 };
 
 export async function getOwnProfile(client: AthanorClient, userId: string) {
@@ -32,6 +33,31 @@ export async function getProfileById(client: AthanorClient, profileId: string) {
   if (error) throw error;
   if (!data) return null;
   return profileSchema.parse(data);
+}
+
+export type ProfileStatCounts = {
+  collabsCount: number;
+  eventsCount: number;
+};
+
+/**
+ * Stat-line counts (collabs completed as helper, distinct events attended) for
+ * any profile — the `profile_stat_counts` DEFINER RPC, because the source
+ * tables are party/holder-scoped under RLS. Zero rows (blocked either way, or
+ * unknown id) coalesce to zeros.
+ */
+export async function getProfileStatCounts(
+  client: AthanorClient,
+  profileId: string,
+): Promise<ProfileStatCounts> {
+  const { data, error } = await client
+    .rpc('profile_stat_counts', { p_profile_id: profileId })
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    collabsCount: data?.collabs_count ?? 0,
+    eventsCount: data?.events_count ?? 0,
+  };
 }
 
 /** UX pre-check only; the DB unique constraint is the real guard — writers must handle 23505. */

@@ -9,10 +9,12 @@ import {
   getAuraScore,
   getMomentsPage,
   getProfileById,
+  getProfileStatCounts,
   getStars,
   listIncomingHelps,
   listMilestones,
   momentKeys,
+  profileKeys,
   respondToHelp,
   softDeleteMilestone,
   starKeys,
@@ -167,6 +169,15 @@ function ProfileEditor({
     enabled: Boolean(userId),
   });
   const stars = starsQuery.data ?? [];
+
+  // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).
+  const statCountsQuery = useQuery({
+    queryKey: profileKeys.statCounts(userId),
+    queryFn: () => getProfileStatCounts(supabase, userId),
+    enabled: Boolean(userId),
+    staleTime: 60_000,
+  });
+  const statCounts = statCountsQuery.data;
 
   // Refetch the active dream + its tappe whenever Profilo regains focus (e.g. after editing).
   // Also invalidates Aura + Stars so the grid refreshes after confirmed help events.
@@ -426,11 +437,11 @@ function ProfileEditor({
             </Text>
           ) : null}
 
-          {/* Stat line: collabs / events / reviews (M1 stubs) */}
+          {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3 */}
           <StatLine
             items={[
-              { value: '0', label: t('profile.stat.collabs', locale) },
-              { value: '0', label: t('profile.stat.events', locale) },
+              { value: String(statCounts?.collabsCount ?? 0), label: t('profile.stat.collabs', locale) },
+              { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
               { value: '0', label: t('profile.stat.reviews', locale) },
             ]}
           />
