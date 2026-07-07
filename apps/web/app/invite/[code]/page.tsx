@@ -12,9 +12,12 @@ import { WaitlistForm } from '@/components/waitlist-form';
  * (that opens the app directly and never renders a web page). Purely
  * presentational, like `/privacy` and `/terms`: no Supabase, no auth, no lookup
  * against the `invites` table (web app hard rule). The code param is only ever
- * echoed back to the invitee so they can type it manually into the app's invite
- * field — it is never validated against the database, just shape-checked so junk
- * input can't be reflected onto the page.
+ * echoed back to the invitee as an identity cue while they install the app —
+ * redemption itself happens when they reopen this same link on their device
+ * after installing (the app stashes the code and redeems it against the
+ * signed-up account; there is no in-app field to type it into). The code is
+ * never validated against the database here, just shape-checked so junk input
+ * can't be reflected onto the page.
  */
 const CODE_RE = /^[A-Z0-9]{6,12}$/;
 
