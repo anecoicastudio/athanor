@@ -2,6 +2,7 @@ export * from './profile';
 export * from './dream';
 export * from './milestone';
 export * from './help';
+export * from './invite';
 export * from './onboarding';
 export * from './aura';
 export * from './public-profile';
