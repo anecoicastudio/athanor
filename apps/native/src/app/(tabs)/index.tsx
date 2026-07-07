@@ -12,6 +12,7 @@ import { DreamHeroCard } from '@/components/home/DreamHeroCard';
 import { TodaySection } from '@/components/home/TodaySection';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { InviteCard } from '@/components/home/InviteCard';
+import { PrimeStelleCard } from '@/components/home/PrimeStelleCard';
 import { StarsMiniRow } from '@/components/home/StarsMiniRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -95,7 +96,12 @@ export default function HomeScreen() {
         locale={locale}
         fallback={<ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />}
       />
-      <ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />
+      {/* Block 3: Esplora slot — Prime Stelle launch card while the flag is on (P4.2);
+          honest placeholder otherwise. */}
+      <PrimeStelleCard
+        locale={locale}
+        fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
+      />
       {recapQuery.data != null &&
       !(recapQuery.data.auraWeek === 0 && recapQuery.data.contributi === 0) ? (
         <WeekCard recap={recapQuery.data} locale={locale} onPress={() => router.push('/recap')} />
