@@ -1931,6 +1931,7 @@ export type Database = {
         Row: {
           bio: string | null
           created_at: string
+          founding_member: boolean
           handle: string | null
           id: string
           identity_tags: string[]
@@ -1945,6 +1946,7 @@ export type Database = {
         Insert: {
           bio?: string | null
           created_at?: string
+          founding_member?: boolean
           handle?: string | null
           id: string
           identity_tags?: string[]
@@ -1959,6 +1961,7 @@ export type Database = {
         Update: {
           bio?: string | null
           created_at?: string
+          founding_member?: boolean
           handle?: string | null
           id?: string
           identity_tags?: string[]
