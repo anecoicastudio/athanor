@@ -5,6 +5,7 @@ import type { Locale } from '@athanor/schemas';
 import { Avatar } from './Avatar';
 import { AuraBlock } from './AuraBlock';
 import { Mandorla } from './Mandorla';
+import { FoundingBadge } from './FoundingBadge';
 
 export function ProfileHero({
   handle,
@@ -13,6 +14,7 @@ export function ProfileHero({
   locale,
   auraLabel,
   verified,
+  founding,
 }: {
   handle: string;
   bio: string | null;
@@ -21,6 +23,7 @@ export function ProfileHero({
   /** Override the Aura heading for a third-person view (e.g. «la sua Aura»). Defaults to the owner label. */
   auraLabel?: string;
   verified?: boolean;
+  founding?: boolean;
 }) {
   return (
     <View className="items-center gap-3">
@@ -33,6 +36,7 @@ export function ProfileHero({
           {t('profile.identityVerified', locale)}
         </Text>
       ) : null}
+      {founding ? <FoundingBadge locale={locale} /> : null}
       {bio ? <Text className="text-center text-ink-2">{bio}</Text> : null}
       <AuraBlock score={auraScore} locale={locale} label={auraLabel} />
     </View>

@@ -295,6 +295,7 @@ export default function PersonDetailScreen() {
           auraScore={aura.score}
           locale={locale}
           auraLabel={t('profile.aura.theirLabel', locale)}
+          founding={person.founding_member}
         />
 
         {/* Stat line — live collabs/events via aggregate-only RPC (P3.1); reviews Fase 3. */}
