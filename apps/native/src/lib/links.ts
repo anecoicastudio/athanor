@@ -6,3 +6,4 @@
 export const LEGAL_TERMS_URL = 'https://athanor-page.vercel.app/terms';
 export const LEGAL_PRIVACY_URL = 'https://athanor-page.vercel.app/privacy';
 export const SUPPORT_EMAIL = 'info.anecoica@gmail.com';
+export const INVITE_URL_BASE = 'https://athanor-page.vercel.app/invite';

@@ -1305,6 +1305,72 @@ export type Database = {
           },
         ]
       }
+      invites: {
+        Row: {
+          activated_at: string | null
+          code: string
+          created_at: string
+          id: string
+          invitee_id: string | null
+          inviter_id: string
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          invitee_id?: string | null
+          inviter_id: string
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          invitee_id?: string | null
+          inviter_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invites_code_fkey"
+            columns: ["code"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["referral_code"]
+          },
+          {
+            foreignKeyName: "invites_invitee_id_fkey"
+            columns: ["invitee_id"]
+            isOneToOne: true
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "invites_invitee_id_fkey"
+            columns: ["invitee_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invites_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "invites_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           body: string | null
@@ -1871,6 +1937,7 @@ export type Database = {
           identity_verified: boolean
           locale: string
           push_enabled: boolean
+          referral_code: string | null
           seeking: string[]
           updated_at: string
           visibility: Json
@@ -1884,6 +1951,7 @@ export type Database = {
           identity_verified?: boolean
           locale?: string
           push_enabled?: boolean
+          referral_code?: string | null
           seeking?: string[]
           updated_at?: string
           visibility?: Json
@@ -1897,6 +1965,7 @@ export type Database = {
           identity_verified?: boolean
           locale?: string
           push_enabled?: boolean
+          referral_code?: string | null
           seeking?: string[]
           updated_at?: string
           visibility?: Json
@@ -2505,6 +2574,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      ensure_referral_code: { Args: never; Returns: string }
       events_nearby: {
         Args: {
           cursor_dist?: number

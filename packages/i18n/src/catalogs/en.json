@@ -57,6 +57,8 @@
   "landing.waitlist.invalid": "That email doesn't look valid.",
   "landing.waitlist.error": "Something went wrong. Try again.",
   "landing.waitlist.privacy": "No spam. Just one note when we open.",
+  "invite.landing.title": "A star invited you ✦",
+  "invite.landing.body": "Download Athanor and open this link again after installing — the invite activates on its own.",
   "legal.privacy": "Privacy",
   "legal.terms": "Terms",
   "notFound.title": "This place doesn't exist",

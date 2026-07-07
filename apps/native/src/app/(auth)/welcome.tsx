@@ -6,6 +6,7 @@ import { semantic } from '@athanor/config';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
 import { signInWithProvider } from '@/lib/oauth';
+import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
 
 // Well-formed check (UX gate only) — the real validity verdict is Supabase's.
@@ -61,16 +62,28 @@ export default function WelcomeScreen() {
       if (err) {
         if (__DEV__) console.warn('[auth] signIn', err.status, err.code, err.message);
         setError(t(authErrorKey(err), locale));
+        return;
       }
+      // A code stashed on this device (e.g. from a link opened before the user chose to
+      // sign into an existing, unrelated account) must never attach to that account.
+      void clearPendingReferral();
       return;
     }
     // `display_name` lives in auth.users.user_metadata for now — `profiles` has no
     // name column yet (deferred to M2's @handle page; add a column + flush then).
     // It's retrievable via session.user.user_metadata.display_name in the meantime.
+    // Referral attribution is email-signup-only for now: OAuth signups don't carry
+    // this metadata, so a code stashed ahead of a Google/Apple signup is silently lost.
+    const referral = await getPendingReferral();
     const { data, error: err } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { display_name: name.trim() } },
+      options: {
+        data: {
+          display_name: name.trim(),
+          ...(referral ? { referral_code: referral } : {}),
+        },
+      },
     });
     setSubmitting(false);
     if (err) {
@@ -78,6 +91,7 @@ export default function WelcomeScreen() {
       setError(t(authErrorKey(err), locale));
       return;
     }
+    void clearPendingReferral();
     // Confirmations OFF (dev) → session is set → AuthGuard routes. Confirmations ON →
     // no session yet, so prompt the user to confirm via email.
     if (!data.session) setNotice(t('auth.confirmEmail', locale));

@@ -4,7 +4,14 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useQuery } from '@tanstack/react-query';
-import { blockKeys, getAuraScore, getBlockedCount, updateProfile } from '@athanor/api';
+import {
+  blockKeys,
+  getAuraScore,
+  getBlockedCount,
+  getMyReferralCode,
+  inviteKeys,
+  updateProfile,
+} from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
@@ -15,7 +22,7 @@ import { SettingsGroup } from '@/components/SettingsGroup';
 import { Toast } from '@/components/Toast';
 import { SettingsRow } from '@/components/SettingsRow';
 import { useAuth } from '@/lib/auth-context';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
+import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
 import { useEntitlement } from '@/lib/useEntitlement';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -45,6 +52,12 @@ export default function SettingsScreen() {
   const { data: blockedCount = 0 } = useQuery({
     queryKey: blockKeys.count(),
     queryFn: () => getBlockedCount(supabase),
+  });
+
+  // Personal referral code, appended to the Invite row's share link (P4.1).
+  const { data: referralCode } = useQuery({
+    queryKey: inviteKeys.code(),
+    queryFn: () => getMyReferralCode(supabase),
   });
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
@@ -242,9 +255,10 @@ export default function SettingsScreen() {
             title={t('settings.invite.title', locale)}
             description={t('settings.invite.desc', locale)}
             onPress={() => {
-              // Plain share for now; referral attribution lands with P4.1 invites.
+              // Share fires even while the code query is loading — link just omitted.
+              const link = referralCode ? ` ${INVITE_URL_BASE}/${referralCode}` : '';
               Share.share({
-                message: `${t('home.invite', locale)} — ${t('app.name', locale)}`,
+                message: `${t('home.invite', locale)} — ${t('app.name', locale)}${link}`,
               }).catch(() => {
                 // user dismissed the sheet — no-op
               });
