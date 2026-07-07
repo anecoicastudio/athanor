@@ -23,10 +23,11 @@ export default function HandleCatchScreen() {
   const [unavailable, setUnavailable] = useState(false);
 
   const locale = profile?.locale ?? 'it';
+  const userId = session?.user.id ?? null;
 
   useEffect(() => {
     if (loading) return;
-    if (!session) {
+    if (!userId) {
       router.replace('/(auth)/welcome');
       return;
     }
@@ -55,7 +56,7 @@ export default function HandleCatchScreen() {
     return () => {
       cancelled = true;
     };
-  }, [loading, session, raw, router]);
+  }, [loading, userId, raw, router]);
 
   if (unavailable) {
     return (
