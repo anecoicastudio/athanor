@@ -1,11 +1,14 @@
 -- 0069_invites_referral.test.sql
 -- P4.1 — referral chain: profiles.referral_code, ensure_referral_code(), invites, signup
--- redemption via handle_new_user v2. Asserts: schema shape + RLS posture · idempotent code
--- generation · referral_code is client-unwritable (column-grant lockdown, no guard trigger
--- needed) · valid-code signup activates an invite · malformed/unknown codes are a silent
--- no-op (fail-open, rule: signup must never break) · select_party RLS (inviter/invitee only,
--- non-party sees zero) · invites is server-write-only (no client insert/update) · zero Aura
--- (rule #1 — invites confer no aura_events row, at all, ever).
+-- redemption via handle_new_user v3 + athanor.redeem_referral(). Asserts: schema shape + RLS
+-- posture · idempotent code generation · referral_code is client-unwritable (column-grant
+-- lockdown, no guard trigger needed) · valid-code signup (already-confirmed) activates an
+-- invite · malformed/unknown codes are a silent no-op (fail-open, rule: signup must never
+-- break) · select_party RLS (inviter/invitee only, non-party sees zero) · invites is
+-- server-write-only (no client insert/update) · zero Aura (rule #1 — invites confer no
+-- aura_events row, at all, ever) · redemption is gated on email confirmation — an unconfirmed
+-- signup with a valid code creates no invite until email_confirmed_at flips (pre-confirmation
+-- gaming guard, 20260707093739_p4_1_referral_hardening.sql).
 -- CI-only (hosted lacks pgtap + tests.* helpers); the hosted-replay smoke in
 -- docs/superpowers/sdd/task-1-report.md is the correctness evidence for this slice.
 --
@@ -17,7 +20,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 -- ── seed inviter A + third-party E (auth trigger fires → profiles auto-created) ───────────
 -- Top-level, no role switch: inserting into auth.users fires on_auth_user_created, which
@@ -67,12 +70,15 @@ select throws_ok(
 
 reset role;
 
--- ── B signs up with A's real code → activated invite ───────────────────────────────────────
-insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+-- ── B signs up with A's real code, already-confirmed → activated invite ────────────────────
+-- (email_confirmed_at set at INSERT time: redemption is now gated on confirmation, so this
+-- simulates the confirmations-OFF / born-confirmed path — see the unconfirmed-then-confirmed
+-- case near the end of this file for the confirmations-ON path.)
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at, email_confirmed_at)
 values (
   '00000000-0000-0000-0000-000000000000', 'bbbb0000-0000-0000-0000-000000000069',
   'authenticated', 'authenticated', 'invite_b@test.athanor',
-  jsonb_build_object('locale', 'it', 'referral_code', current_setting('test.code1')), now(), now()
+  jsonb_build_object('locale', 'it', 'referral_code', current_setting('test.code1')), now(), now(), now()
 );
 
 select is(
@@ -152,6 +158,34 @@ select is(
   'referral activation confers zero Aura (rule #1)'
 );
 reset role;
+
+-- ── F signs up with A's valid code but UNCONFIRMED → no invite until email confirms ────────
+-- (confirmations-ON path; pre-confirmation-gaming guard added by
+-- 20260707093739_p4_1_referral_hardening.sql)
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values (
+  '00000000-0000-0000-0000-000000000000', 'ffff0000-0000-0000-0000-000000000069',
+  'authenticated', 'authenticated', 'invite_f@test.athanor',
+  jsonb_build_object('locale', 'it', 'referral_code', current_setting('test.code1')), now(), now()
+);
+
+select is(
+  (select count(*) from public.invites where invitee_id = 'ffff0000-0000-0000-0000-000000000069')::int,
+  0,
+  'unconfirmed signup with a valid code creates no invite (pre-confirmation gaming guard)'
+);
+
+update auth.users set email_confirmed_at = now()
+  where id = 'ffff0000-0000-0000-0000-000000000069';
+
+select is(
+  (select (count(*) = 1) from public.invites
+    where inviter_id = 'aaaa0000-0000-0000-0000-000000000069'
+      and invitee_id = 'ffff0000-0000-0000-0000-000000000069'
+      and activated_at is not null),
+  true,
+  'confirming email retroactively redeems the stashed referral code'
+);
 
 select * from finish();
 rollback;
