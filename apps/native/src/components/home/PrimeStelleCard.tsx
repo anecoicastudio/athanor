@@ -25,7 +25,7 @@ export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback
   const enabled = useFeatureFlags().prime_stelle_enabled === true;
 
   // Same session-gated read the InviteCard uses; only fires when the card is live.
-  const { data: code } = useQuery({
+  const { data: code, isPending } = useQuery({
     queryKey: inviteKeys.code(),
     queryFn: () => getMyReferralCode(supabase),
     enabled,
@@ -55,7 +55,12 @@ export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback
           {t('prime.card.body', locale)}
         </Text>
         <Text className="text-xs italic text-faint">{t('prime.note', locale)}</Text>
-        <Button label={t('prime.card.cta', locale)} variant="primary" onPress={() => void invite()} />
+        <Button
+          label={t('prime.card.cta', locale)}
+          variant="primary"
+          disabled={isPending}
+          onPress={() => void invite()}
+        />
       </Card>
     </View>
   );
