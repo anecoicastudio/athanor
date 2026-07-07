@@ -82,8 +82,7 @@ async function gatherStarFacts(
   const helpsCompleted = rows.filter((r) => r.type === 'milestone_help').length;
   const momentoConversations = rows.filter((r) => r.type === 'momento_conversation').length;
 
-  // Composite facts — four now wired from their originating tables; only
-  // invitesActivated remains stubbed (the `invites` table is not built yet).
+  // Composite facts — all five now wired from their originating tables.
 
   // Dreams — feeds dreamPublished and scopes milestonesDefined. A dream has no
   // "draft" state (status is 'active'|'archived'), so an active, non-deleted
@@ -133,11 +132,14 @@ async function gatherStarFacts(
     distinctStarrers = new Set(rr.map((r) => r.person_id)).size;
   }
 
-  // invitesActivated — NO backing table yet. `invites` (PRD §11, backend PRD 02)
-  // was spec'd but never built, so Ambasciatore stays unreachable until an
-  // invites-infra slice ships.
-  // TODO(invites-infra): count invites where referrer = profileId AND activated_at IS NOT NULL.
-  const invitesActivated = 0;
+  // invitesActivated — activated referral rows (P4.1). Zero Aura points (rule #1):
+  // Ambasciatore is a counted composite star (07 §709), no ledger type exists.
+  const { count: invitesCount } = await admin
+    .from('invites')
+    .select('id', { count: 'exact', head: true })
+    .eq('inviter_id', profileId)
+    .not('activated_at', 'is', null);
+  const invitesActivated = invitesCount ?? 0;
 
   return {
     dreamPublished,
