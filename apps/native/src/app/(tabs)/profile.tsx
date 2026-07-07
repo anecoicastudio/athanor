@@ -428,6 +428,7 @@ function ProfileEditor({
             auraScore={aura.score}
             locale={locale}
             verified={profile.identity_verified}
+            founding={profile.founding_member}
           />
 
           {/* Completeness hint */}
