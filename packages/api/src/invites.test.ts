@@ -20,14 +20,16 @@ describe('getMyReferralCode', () => {
 });
 
 describe('getInviteStats', () => {
-  it('counts activated invites (head count, no rows)', async () => {
+  it('counts activated invites sent by the given inviter (head count, no rows)', async () => {
     const calls: unknown[] = [];
     const chain = {
       select: (sel: string, opts: unknown) => { calls.push(['select', sel, opts]); return chain; },
+      eq: (col: string, v: unknown) => { calls.push(['eq', col, v]); return chain; },
       not: (col: string, op: string, v: unknown) => { calls.push(['not', col, op, v]); return Promise.resolve({ count: 3, error: null }); },
     };
     const client = { from: (t: string) => { calls.push(['from', t]); return chain; } } as unknown as AthanorClient;
-    expect(await getInviteStats(client)).toEqual({ activated: 3 });
+    expect(await getInviteStats(client, 'profile-1')).toEqual({ activated: 3 });
     expect(calls[0]).toEqual(['from', 'invites']);
+    expect(calls).toContainEqual(['eq', 'inviter_id', 'profile-1']);
   });
 });

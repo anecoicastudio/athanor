@@ -62,7 +62,11 @@ export default function WelcomeScreen() {
       if (err) {
         if (__DEV__) console.warn('[auth] signIn', err.status, err.code, err.message);
         setError(t(authErrorKey(err), locale));
+        return;
       }
+      // A code stashed on this device (e.g. from a link opened before the user chose to
+      // sign into an existing, unrelated account) must never attach to that account.
+      void clearPendingReferral();
       return;
     }
     // `display_name` lives in auth.users.user_metadata for now — `profiles` has no
