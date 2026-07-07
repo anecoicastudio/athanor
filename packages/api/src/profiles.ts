@@ -35,6 +35,25 @@ export async function getProfileById(client: AthanorClient, profileId: string) {
   return profileSchema.parse(data);
 }
 
+/**
+ * Resolve an @handle deep link to its profile id (P4.3). Members-wide profiles
+ * SELECT (blocked pairs are RLS-invisible via athanor.not_blocked) — null means
+ * unknown handle OR not visible to the caller; the screen treats both as
+ * «profilo non disponibile». Single-row lookup, no pagination (rule #9 n/a).
+ */
+export async function getProfileIdByHandle(
+  client: AthanorClient,
+  handle: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('profiles')
+    .select('id')
+    .eq('handle', handle)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
 export type ProfileStatCounts = {
   collabsCount: number;
   eventsCount: number;
