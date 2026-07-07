@@ -91,11 +91,13 @@ select is(
 );
 
 -- ── C signs up with a blank/self-referential code → silent no-op, no row ───────────────────
-insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+-- (born-confirmed like B, so redeem_referral actually runs and the guard is exercised —
+-- an unconfirmed seed would make this assertion vacuously true under the confirmation gate.)
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at, email_confirmed_at)
 values (
   '00000000-0000-0000-0000-000000000000', 'cccc0000-0000-0000-0000-000000000069',
   'authenticated', 'authenticated', 'invite_c@test.athanor',
-  jsonb_build_object('locale', 'it', 'referral_code', '   '), now(), now()
+  jsonb_build_object('locale', 'it', 'referral_code', '   '), now(), now(), now()
 );
 
 select is(
@@ -105,11 +107,12 @@ select is(
 );
 
 -- ── D signs up with an unknown code → signup must never be blocked ─────────────────────────
+-- (born-confirmed like B/C so the unknown-code lookup path in redeem_referral really runs.)
 select lives_ok(
-  $$ insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+  $$ insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at, email_confirmed_at)
      values ('00000000-0000-0000-0000-000000000000', 'dddd0000-0000-0000-0000-000000000069',
              'authenticated', 'authenticated', 'invite_d@test.athanor',
-             jsonb_build_object('locale', 'it', 'referral_code', 'ZZZZZZZZ'), now(), now()) $$,
+             jsonb_build_object('locale', 'it', 'referral_code', 'ZZZZZZZZ'), now(), now(), now()) $$,
   'unknown referral code never blocks signup'
 );
 
