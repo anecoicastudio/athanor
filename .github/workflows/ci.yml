@@ -72,7 +72,18 @@ jobs:
           # migrations schema is present in the committed types: this catches "added a migration but
           # forgot to regenerate types". Formatting diffs are tolerated; column-level drift is caught
           # by the node job's typecheck (code using a missing/changed column fails to compile).
-          supabase gen types --lang typescript --local > /tmp/gen.ts
+          # gen types pulls public.ecr.aws/supabase/postgres-meta; shared runner IPs hit the
+          # unauthenticated ECR rate limit ("docker: toomanyrequests") in bursts — retry with
+          # backoff instead of failing the gate on infra weather (3 consecutive hits 2026-07-07).
+          for attempt in 1 2 3 4 5; do
+            supabase gen types --lang typescript --local > /tmp/gen.ts && break
+            if [ "$attempt" = 5 ]; then
+              echo "::error::supabase gen types failed after 5 attempts (ECR rate limit?)"
+              exit 1
+            fi
+            echo "::warning::gen types attempt $attempt failed — retrying in $((attempt * 60))s"
+            sleep $((attempt * 60))
+          done
           # Extract the public-schema TABLE names only (the real staleness signal). Other schemas
           # (e.g. graphql_public) and views/functions can legitimately differ in shape between the CLI
           # and the MCP generator, so we don't compare them here.
