@@ -18,6 +18,7 @@ export const profileSchema = z.object({
   identity_tags: z.array(z.string()).max(10),
   seeking: z.array(z.string()).max(10),
   identity_verified: z.boolean(),
+  founding_member: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
 });
