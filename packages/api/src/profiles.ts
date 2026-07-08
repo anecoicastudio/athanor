@@ -11,7 +11,6 @@ import type { AthanorClient } from './client';
 export const profileKeys = {
   all: ['profiles'] as const,
   detail: (id: string) => ['profiles', id] as const,
-  handleAvailable: (handle: string) => ['profiles', 'handle-available', handle] as const,
   statCounts: (id: string) => ['profiles', id, 'stat-counts'] as const,
 };
 
