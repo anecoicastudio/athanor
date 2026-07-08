@@ -25,6 +25,12 @@ import { evaluateStars, type StarFacts } from '../../../packages/core/src/score/
 import { tierOf } from '../../../packages/core/src/score/tier.ts';
 import { AURA_CAPS, DECAY, type ScoringType } from '../../../packages/core/src/score/weights.ts';
 import { STAR_KEYS, type StarKey } from '../../../packages/schemas/src/aura.ts';
+// Deploy-asset pins: the CLI upload walker only follows extension-suffixed imports,
+// but core reaches these three extension-less (sloppy-imports) — without the pins the
+// remote bundler 400s with "Module not found …/score/dampen" (hit at P1.1 deploy).
+import '../../../packages/core/src/score/clamp.ts';
+import '../../../packages/core/src/score/dampen.ts';
+import '../../../packages/core/src/score/weighting.ts';
 
 // ── Request schema (discriminated union) ────────────────────────────────────
 
