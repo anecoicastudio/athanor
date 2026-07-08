@@ -11,6 +11,6 @@ export const entitlementsSchema = z.object({
   advanced_filters: z.boolean(),
   premium_events: z.boolean(),
   analytics: z.boolean(),
-  market_reduced_fee: z.boolean(),
+  market_reduced_fee: z.boolean(), // PARKED(Fase-2): marketplace unbuilt; bit stays false-only at launch (PRODUCTION-READINESS P5)
 });
 export type Entitlements = z.infer<typeof entitlementsSchema>;

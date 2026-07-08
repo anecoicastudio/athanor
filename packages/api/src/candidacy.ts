@@ -26,7 +26,7 @@ export function candidacyVideoPath(uid: string, candidacyId: string): string {
   return `${uid}/${candidacyId}.mp4`;
 }
 
-/** The caller's own candidacy for an edition, if any (the one-per-edition unique row). */
+/** PARKED(candidacy-edit): the caller's own candidacy for an edition (one-per-edition unique row). 0 callers — candidacy-edit UI is a tracked follow-up (PRODUCTION-READINESS P5). */
 export async function getMyCandidacy(
   client: AthanorClient,
   editionId: string,
@@ -62,7 +62,7 @@ export async function submitCandidacy(
   return dreamCandidacySchema.parse(data);
 }
 
-/** Edit an own candidacy while it is still 'submitted' (RLS pins the window). */
+/** PARKED(candidacy-edit): edit an own candidacy while still 'submitted' (RLS pins the window). 0 callers — ships with the candidacy-edit surface (PRODUCTION-READINESS P5). */
 export async function updateCandidacy(
   client: AthanorClient,
   id: string,
