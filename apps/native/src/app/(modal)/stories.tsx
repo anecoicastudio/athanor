@@ -117,9 +117,13 @@ export default function StoriesScreen() {
             style: 'destructive',
             onPress: () => {
               void (async () => {
-                await softDeleteStorySegment(supabase, seg.id);
-                await queryClient.invalidateQueries({ queryKey: storyKeys.person(targetId) });
-                router.back();
+                try {
+                  await softDeleteStorySegment(supabase, seg.id);
+                  await queryClient.invalidateQueries({ queryKey: storyKeys.person(targetId) });
+                  router.back();
+                } catch {
+                  Alert.alert(t('story.own.delete.error', locale));
+                }
               })();
             },
           },
