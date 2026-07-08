@@ -1,6 +1,8 @@
 import {
   type FundAggregate,
   fundAggregateSchema,
+  type FundContribution,
+  fundContributionSchema,
   type FundEdition,
   fundEditionSchema,
   type ContributionSessionInput,
@@ -13,6 +15,7 @@ export const fundKeys = {
   activeEdition: () => [...fundKeys.all, 'edition', 'active'] as const,
   edition: (id: string) => [...fundKeys.all, 'edition', id] as const,
   aggregate: (editionId: string) => [...fundKeys.all, 'aggregate', editionId] as const,
+  myContributions: (profileId: string) => [...fundKeys.all, 'contributions', profileId] as const,
 };
 
 /** The current non-closed edition (newest year). The unique index guarantees ≤1 active per year. */
@@ -88,4 +91,37 @@ export async function createContributionSession(
   return { url };
 }
 
-export type { FundAggregate, FundEdition };
+/** Opaque keyset cursor — the last (created_at, id) seen. Never an offset (rule #9). */
+export type ContributionCursor = { ts: string; id: string };
+
+/**
+ * Owner's contribution receipts, newest-first, keyset on (created_at, id) — matches
+ * the fund_contributions_profile_feed index. RLS (select-own) scopes rows to the caller;
+ * rows are written only by the Stripe webhook (rule #6) — this is a read-only history.
+ */
+export async function getMyContributions(
+  client: AthanorClient,
+  profileId: string,
+  { cursor, limit = 20 }: { cursor?: ContributionCursor; limit?: number } = {},
+): Promise<{ rows: FundContribution[]; nextCursor: ContributionCursor | null }> {
+  let q = client
+    .from('fund_contributions')
+    .select('*')
+    .eq('profile_id', profileId)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit);
+
+  if (cursor) {
+    q = q.or(`created_at.lt.${cursor.ts},and(created_at.eq.${cursor.ts},id.lt.${cursor.id})`);
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const rows = (data ?? []).map((r) => fundContributionSchema.parse(r));
+  const last = rows.length === limit ? rows.at(-1) : undefined;
+  return { rows, nextCursor: last ? { ts: last.created_at, id: last.id } : null };
+}
+
+export type { FundAggregate, FundContribution, FundEdition };
