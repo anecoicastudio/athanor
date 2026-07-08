@@ -24,6 +24,7 @@ import { SettingsRow } from '@/components/SettingsRow';
 import { useAuth } from '@/lib/auth-context';
 import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
 import { useEntitlement } from '@/lib/useEntitlement';
+import { useFeatureFlags } from '@/lib/useRemoteConfig';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 
@@ -38,6 +39,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { session, profile, refreshProfile } = useAuth();
   const { data: entitlement } = useEntitlement();
+  const flags = useFeatureFlags();
 
   const [toast, setToast] = useState<string | null>(null);
   const [aura, setAura] = useState(0);
@@ -147,7 +149,11 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.payments.title', locale)}
             description={t('settings.payments.desc', locale)}
-            onPress={() => showToast(t('settings.payments.soon', locale))}
+            onPress={() =>
+              flags.fund_contributions_enabled
+                ? router.push('/(modal)/payments')
+                : showToast(t('settings.payments.soon', locale))
+            }
           />
         </SettingsGroup>
 
