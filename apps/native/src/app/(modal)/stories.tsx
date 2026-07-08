@@ -7,6 +7,7 @@ import {
   getPersonStory,
   getViewerStoryReaction,
   pinStoryStep,
+  softDeleteStorySegment,
   storyKeys,
   toggleStoryReaction,
 } from '@athanor/api';
@@ -107,6 +108,22 @@ export default function StoriesScreen() {
       onPin={async (seg) => {
         await pinStoryStep(supabase, seg.id);
         await queryClient.invalidateQueries({ queryKey: storyKeys.person(targetId) });
+      }}
+      onDelete={(seg) => {
+        Alert.alert(t('story.own.delete.confirm', locale), undefined, [
+          { text: t('common.cancel', locale), style: 'cancel' },
+          {
+            text: t('story.own.delete', locale),
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                await softDeleteStorySegment(supabase, seg.id);
+                await queryClient.invalidateQueries({ queryKey: storyKeys.person(targetId) });
+                router.back();
+              })();
+            },
+          },
+        ]);
       }}
     />
   );
