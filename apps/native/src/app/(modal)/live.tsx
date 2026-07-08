@@ -25,6 +25,7 @@ import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/lib/useEntitlement';
+import { HIT_SLOP } from '@/lib/a11y';
 import { supabase } from '@/lib/supabase';
 
 const EVENT_HREF = (id: string) => `/(modal)/event/${id}` as const;
@@ -65,7 +66,20 @@ export default function LiveScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ModalHeader title={t('live.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('live.title', locale)}
+        backLabel={t('common.back', locale)}
+        right={
+          <Pressable
+            onPress={() => router.push('/(modal)/my-events')}
+            hitSlop={HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel={t('live.mine.title', locale)}
+          >
+            <Text className="text-[13px] text-aura">{t('live.mine.title', locale)}</Text>
+          </Pressable>
+        }
+      />
       <View className="pb-3">
         <PanelTabs active={panel} onChange={setPanel} locale={locale} />
       </View>
