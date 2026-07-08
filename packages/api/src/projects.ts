@@ -84,7 +84,7 @@ export async function createProject(
   return projectSchema.parse(data);
 }
 
-/** Edit an own project (owner UPDATE policy). */
+/** PARKED(project-edit): edit an own project (owner UPDATE policy). 0 callers — project-edit UI is a tracked follow-up (PRODUCTION-READINESS P5). */
 export async function editProject(
   client: AthanorClient,
   id: string,
@@ -102,7 +102,7 @@ export async function editProject(
   return projectSchema.parse(data);
 }
 
-/** Toggle a project open/closed (owner UPDATE policy). */
+/** PARKED(project-edit): toggle a project open/closed (owner UPDATE policy). 0 callers — ships with the project-edit surface (PRODUCTION-READINESS P5). */
 export async function setProjectStatus(
   client: AthanorClient,
   id: string,

@@ -10,6 +10,7 @@ import {
   getPostById,
   getViewerReaction,
   postKeys,
+  softDeleteComment,
   softDeletePost,
   subscribeComments,
   togglePostReaction,
@@ -85,6 +86,13 @@ export default function PostDetailScreen() {
       setDraft('');
       await queryClient.invalidateQueries({ queryKey: postKeys.comments(id) });
       Alert.alert(t('comment.toast.posted', locale));
+    },
+  });
+
+  const deleteComment = useMutation({
+    mutationFn: (commentId: string) => softDeleteComment(supabase, commentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: postKeys.comments(id) });
     },
   });
 
@@ -186,7 +194,25 @@ export default function PostDetailScreen() {
             ) : null}
           </View>
         }
-        renderItem={({ item }) => <Comment comment={item} locale={locale} />}
+        renderItem={({ item }) => (
+          <Comment
+            comment={item}
+            locale={locale}
+            onDelete={
+              item.author_id === myId
+                ? () =>
+                    Alert.alert(t('comment.delete.confirm', locale), undefined, [
+                      { text: t('common.cancel', locale), style: 'cancel' },
+                      {
+                        text: t('comment.delete', locale),
+                        style: 'destructive',
+                        onPress: () => deleteComment.mutate(item.id),
+                      },
+                    ])
+                : undefined
+            }
+          />
+        )}
         ListEmptyComponent={
           !commentsQuery.isLoading ? (
             <Text className="px-1 text-[14px] text-muted-foreground">

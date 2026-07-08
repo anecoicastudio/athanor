@@ -36,6 +36,7 @@ export function StoriesViewer({
   onMakeDream,
   onAddMoment,
   onPin,
+  onDelete,
 }: {
   segments: StorySegment[];
   urls: Record<string, string>;
@@ -51,6 +52,7 @@ export function StoriesViewer({
   onMakeDream: () => void;
   onAddMoment: () => void;
   onPin: (segment: StorySegment) => void;
+  onDelete: (segment: StorySegment) => void;
 }) {
   const [si, setSi] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -200,6 +202,15 @@ export function StoriesViewer({
                   <Text className="text-[14px] text-foreground">{t('story.own.pin', locale)}</Text>
                 </Pressable>
               ) : null}
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onDelete(current)}
+                className="items-center justify-center rounded-ctl border border-hair px-4"
+              >
+                <Text className="text-[14px] text-muted-foreground">
+                  {t('story.own.delete', locale)}
+                </Text>
+              </Pressable>
             </View>
           </View>
         ) : (

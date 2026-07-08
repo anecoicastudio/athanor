@@ -11,7 +11,6 @@ import type { AthanorClient } from './client';
 export const profileKeys = {
   all: ['profiles'] as const,
   detail: (id: string) => ['profiles', id] as const,
-  handleAvailable: (handle: string) => ['profiles', 'handle-available', handle] as const,
   statCounts: (id: string) => ['profiles', id, 'stat-counts'] as const,
 };
 
@@ -77,16 +76,6 @@ export async function getProfileStatCounts(
     collabsCount: data?.collabs_count ?? 0,
     eventsCount: data?.events_count ?? 0,
   };
-}
-
-/** UX pre-check only; the DB unique constraint is the real guard — writers must handle 23505. */
-export async function isHandleAvailable(client: AthanorClient, handle: string): Promise<boolean> {
-  const { count, error } = await client
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('handle', handle);
-  if (error) throw error;
-  return (count ?? 0) === 0;
 }
 
 export async function updateOnboardingProfile(

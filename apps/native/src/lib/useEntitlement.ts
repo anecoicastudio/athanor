@@ -11,7 +11,7 @@ export interface EntitlementView {
     advancedFilters: boolean;
     premiumEvents: boolean;
     analytics: boolean;
-    marketReducedFee: boolean;
+    marketReducedFee: boolean; // PARKED(Fase-2): marketplace unbuilt (PRODUCTION-READINESS P5)
   };
 }
 
@@ -36,7 +36,7 @@ export function useEntitlement() {
           advancedFilters: e?.advanced_filters ?? false,
           premiumEvents: e?.premium_events ?? false,
           analytics: e?.analytics ?? false,
-          marketReducedFee: e?.market_reduced_fee ?? false,
+          marketReducedFee: e?.market_reduced_fee ?? false, // PARKED(Fase-2): marketplace unbuilt (PRODUCTION-READINESS P5)
         },
       };
     },

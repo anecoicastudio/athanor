@@ -32,7 +32,9 @@ export function StarsMiniRow({
         <SectionLabel>{t('home.stars.title', locale)}</SectionLabel>
         <View className="flex-row items-baseline gap-1">
           <AuraValue value={snapshot.score} size={15} />
-          <Text className="text-[11px] font-semibold tracking-[0.1em] text-faint">AURA</Text>
+          <Text className="text-[11px] font-semibold tracking-[0.1em] text-faint">
+            {t('aura.unit', locale)}
+          </Text>
         </View>
       </View>
       <View className="flex-row items-center justify-between">

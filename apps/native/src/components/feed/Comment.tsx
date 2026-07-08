@@ -11,11 +11,13 @@ import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 export function Comment({
   comment,
   onReply,
+  onDelete,
   pending = false,
   locale,
 }: {
   comment: PostComment;
   onReply?: (handle: string | null) => void;
+  onDelete?: () => void;
   pending?: boolean;
   locale: Locale;
 }) {
@@ -26,11 +28,20 @@ export function Comment({
     >
       <PostAuthorRow authorId={comment.author_id} size="sm" />
       <Text className="text-[14px] leading-6 text-foreground">{comment.body}</Text>
-      {onReply ? (
-        <Pressable className="self-start" onPress={() => onReply(null)}>
-          <Text className="text-[12px] text-muted-foreground">{t('comment.reply', locale)}</Text>
-        </Pressable>
-      ) : null}
+      <View className="flex-row gap-4">
+        {onReply ? (
+          <Pressable className="self-start" onPress={() => onReply(null)}>
+            <Text className="text-[12px] text-muted-foreground">{t('comment.reply', locale)}</Text>
+          </Pressable>
+        ) : null}
+        {onDelete ? (
+          <Pressable className="self-start" onPress={onDelete} accessibilityRole="button">
+            <Text className="text-[12px] text-muted-foreground">
+              {t('comment.delete', locale)}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }

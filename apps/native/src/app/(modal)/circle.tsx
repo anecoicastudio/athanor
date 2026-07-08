@@ -184,7 +184,10 @@ export default function CircleScreen() {
           />
 
           {/* 2. Analytics lite card — member-only self-impact data (rule #3) */}
-          <AnalyticsLiteCard profileId={profileId} locale={locale} />
+          {/* Gated on the entitlements bit (P5) — server-derived view stays the switch */}
+          {entQuery.data?.features.analytics ? (
+            <AnalyticsLiteCard profileId={profileId} locale={locale} />
+          ) : null}
 
           {/* 3. Six benefits — all rendered as unlocked for members */}
           <View className="gap-2">{benefitList(true)}</View>
