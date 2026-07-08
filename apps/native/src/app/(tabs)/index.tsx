@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { auraKeys, getAuraScore } from '@athanor/api';
@@ -28,24 +27,16 @@ import { fetchWeekRecap } from '@/lib/weekRecap';
 export default function HomeScreen() {
   const { profile, session } = useAuth();
   const router = useRouter();
-  const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
   const userId = session?.user.id ?? '';
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    getAuraScore(supabase, userId)
-      .then((a) => {
-        if (!cancelled) setAura(a);
-      })
-      .catch(() => {
-        // zero-snapshot default is the safe fallback
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  // Shares auraKeys.score + getAuraScore with profile.tsx (one queryFn per key).
+  const auraQuery = useQuery({
+    queryKey: auraKeys.score(userId),
+    queryFn: () => getAuraScore(supabase, userId),
+    enabled: !!userId,
+  });
+  const aura: AuraSnapshot = auraQuery.data ?? ZERO_AURA_SNAPSHOT;
 
   // Week recap: shared queryFn (lib/weekRecap) — same key as AnalyticsLiteCard.
   const recapQuery = useQuery({

@@ -45,6 +45,7 @@ export default function CircleScreen() {
   // ── Local UI state ──────────────────────────────────────────────────────────
   const [plan, setPlan] = useState<PricePlan>('monthly');
   const [checkoutPhase, setCheckoutPhase] = useState<'idle' | 'opening' | 'portal'>('idle');
+  const [checkoutError, setCheckoutError] = useState(false);
 
   // ── Entitlements query ──────────────────────────────────────────────────────
   // Shares the canonical EntitlementView shape + cache key with CircleGate's
@@ -74,6 +75,7 @@ export default function CircleScreen() {
   // ── Checkout handler ────────────────────────────────────────────────────────
   const onJoin = useCallback(async () => {
     setCheckoutPhase('opening');
+    setCheckoutError(false);
     try {
       const result = await startCheckout(supabase, { plan });
       if (result.kind === 'url') {
@@ -89,7 +91,9 @@ export default function CircleScreen() {
         // The edge function currently only returns { kind: 'url' }
       }
     } catch {
-      // Error is surfaced via query error state on next invalidate
+      // Checkout-session failure happens before any subscription exists, so the query
+      // error state never fires — surface it inline instead.
+      setCheckoutError(true);
     } finally {
       setCheckoutPhase('idle');
     }
@@ -280,6 +284,11 @@ export default function CircleScreen() {
             disabled={checkoutPhase !== 'idle'}
           />
         )}
+        {checkoutError ? (
+          <Text className="text-center text-[13px] text-error">
+            {t('circle.error.title', locale)}
+          </Text>
+        ) : null}
 
         {/* 5. Zero-Aura assurance footnote — REQUIRED on non-member state (rule #1) */}
         {zeroAuraNote}

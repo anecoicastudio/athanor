@@ -86,6 +86,9 @@ export async function getPersonStory(
  * Create a story segment (owner-only via RLS; expires_at defaults to now()+24h server-side).
  * Bytes are uploaded to the story-segments bucket first. Writes ONLY story_segments — never any
  * Aura/score event (rule #1). TODO(M6): the engine awards points from this domain event.
+ *
+ * PARKED(story-add): 0 callers — the StoriesViewer "add" button routes to profile compose, not
+ * here. Ships with the story-segment-add surface; wire or remove then.
  */
 export async function createStorySegment(
   client: AthanorClient,

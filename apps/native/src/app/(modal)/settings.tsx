@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Linking, Share } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useQuery } from '@tanstack/react-query';
 import {
+  auraKeys,
   blockKeys,
   getAuraScore,
   getBlockedCount,
@@ -42,7 +43,6 @@ export default function SettingsScreen() {
   const flags = useFeatureFlags();
 
   const [toast, setToast] = useState<string | null>(null);
-  const [aura, setAura] = useState(0);
   const [langBusy, setLangBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -63,21 +63,14 @@ export default function SettingsScreen() {
   });
 
   // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
-  useEffect(() => {
-    const userId = session?.user.id;
-    if (!userId) return;
-    let cancelled = false;
-    getAuraScore(supabase, userId)
-      .then((a) => {
-        if (!cancelled) setAura(a.score);
-      })
-      .catch(() => {
-        // zero is the safe fallback
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
+  // Shares auraKeys.score + getAuraScore with profile.tsx/Home (one queryFn per key).
+  const userId = session?.user.id ?? '';
+  const { data: auraSnapshot } = useQuery({
+    queryKey: auraKeys.score(userId),
+    queryFn: () => getAuraScore(supabase, userId),
+    enabled: !!userId,
+  });
+  const aura = auraSnapshot?.score ?? 0;
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -132,7 +125,7 @@ export default function SettingsScreen() {
             title={t('settings.aura.title', locale)}
             description={t('settings.aura.desc', locale)}
             value={String(aura)}
-            onPress={() => showToast(t('settings.soon', locale))}
+            onPress={() => router.push('/(modal)/aura')}
           />
           <SettingsRow
             title={t('settings.circle.title', locale)}

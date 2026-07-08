@@ -39,7 +39,7 @@ export async function registerForPush(): Promise<string | null> {
     return token;
   } catch (e) {
     // Expo Go (SDK 53+) can't issue a remote token; never crash auth over it.
-    console.warn('[push] registration skipped:', e);
+    if (__DEV__) console.warn('[push] registration skipped:', e);
     return null;
   }
 }

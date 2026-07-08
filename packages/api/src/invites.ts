@@ -19,6 +19,9 @@ export async function getMyReferralCode(client: AthanorClient): Promise<string> 
  * (rule #3). select_party RLS also returns rows where the caller is the INVITEE, so this
  * must scope to `inviter_id` explicitly — otherwise an invited (not inviting) user's own
  * activated-invite row would inflate their own count to 1.
+ *
+ * PARKED(invite-stats): test-only — no UI consumer yet (InviteCard uses getMyReferralCode).
+ * Ships with an invite-stats / Ambasciatore-progress surface; wire or remove then.
  */
 export async function getInviteStats(
   client: AthanorClient,
