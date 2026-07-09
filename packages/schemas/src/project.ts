@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { trimmedNonBlank } from './primitives';
 
 /** Mirrors supabase/migrations community_projects. Update both together. */
 export const projectCategorySchema = z.enum([
@@ -24,7 +25,7 @@ export const projectSchema = z.object({
 });
 
 /** Shared write-path rule for the title: trim, then 1–140 chars. */
-const projectTitleSchema = z.string().trim().min(1, 'project title must not be blank').max(140);
+const projectTitleSchema = trimmedNonBlank(140, 'project title must not be blank');
 
 /** Publishing a project — title required; status defaults to 'open', description optional. */
 export const projectInsertSchema = projectSchema.pick({ author_id: true, category: true }).extend({

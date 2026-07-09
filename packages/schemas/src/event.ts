@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { trimmedNonBlank } from './primitives';
 
 /** Mirrors supabase/migrations events (public.event_category). Update both together. */
 export const eventCategorySchema = z.enum([
@@ -66,7 +67,7 @@ export type EventNearby = z.infer<typeof eventNearbySchema>;
  */
 export const eventCreateSchema = z
   .object({
-    title: z.string().trim().min(1, 'event title must not be blank').max(140),
+    title: trimmedNonBlank(140, 'event title must not be blank'),
     category: eventCategorySchema,
     is_online: z.boolean(),
     venue: z.string().max(240).nullable().default(null),

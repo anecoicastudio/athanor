@@ -1,15 +1,13 @@
 import { z } from 'zod';
+import { nonBlankString } from './primitives';
 
 /** Mirrors supabase/migrations favor_offers. Update both together. */
 export const favorOfferSchema = z.object({
   id: z.string().uuid(),
   actor_id: z.string().uuid(),
   target_id: z.string().uuid(),
-  need: z
-    .string()
-    .min(1)
-    .max(280)
-    .refine((v) => v.trim().length > 0, 'need cannot be blank'),
+  // (former extra .min(1) dropped — the non-blank refine already implies length ≥ 1)
+  need: nonBlankString(280, 'need cannot be blank'),
   need_milestone_id: z.string().uuid().nullable(),
   created_at: z.string(),
   updated_at: z.string(),

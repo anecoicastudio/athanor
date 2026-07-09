@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nonBlankString, trimmedNonBlank } from './primitives';
 
 /** Mirrors supabase/migrations feed_posts. Update both together. */
 export const postCategorySchema = z.enum(['business', 'human', 'creative', 'evolution']);
@@ -9,10 +10,7 @@ export const postSchema = z.object({
   author_id: z.string().uuid(),
   category: postCategorySchema,
   type: postTypeSchema,
-  body: z
-    .string()
-    .max(5000)
-    .refine((v) => v.trim().length > 0, 'post body must not be blank'),
+  body: nonBlankString(5000, 'post body must not be blank'),
   is_step: z.boolean(),
   tags: z.array(z.string()).max(8),
   created_at: z.string(),
@@ -21,7 +19,7 @@ export const postSchema = z.object({
 });
 
 /** Shared write-path rule for post body: trim, then 1–5000 chars. */
-const postBodySchema = z.string().trim().min(1, 'post body must not be blank').max(5000);
+const postBodySchema = trimmedNonBlank(5000, 'post body must not be blank');
 
 /** Authoring a post — type defaults to 'text', tags optional. */
 export const postInsertSchema = postSchema.pick({ author_id: true, category: true }).extend({
