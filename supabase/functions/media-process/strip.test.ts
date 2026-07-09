@@ -1,4 +1,4 @@
-// deno test supabase/functions/media-process/ — manual-run per _shared precedent (no CI deno job).
+// Run via `cd supabase/functions && deno test .` — executed in CI by the `edge` job.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { stripMetadata } from './strip.ts';
 
