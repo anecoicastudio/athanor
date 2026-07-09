@@ -46,6 +46,19 @@ jobs:
           pnpm --filter web exec playwright install --with-deps chromium
           pnpm --filter web test:e2e
 
+  edge:
+    name: edge functions (deno test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Run from supabase/functions so its deno.json (nodeModulesDir: none) applies —
+      # from the repo root, Deno finds package.json and expects npm deps in node_modules.
+      - run: deno test .
+        working-directory: supabase/functions
+
   db:
     name: migrations · pgTAP · types in sync
     runs-on: ubuntu-latest
