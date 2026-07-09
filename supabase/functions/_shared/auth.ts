@@ -21,15 +21,34 @@ export async function requireUser(
 }
 
 /**
+ * Constant-time string equality — a plain `!==` short-circuits at the first differing
+ * byte, letting an attacker probe the service-role key prefix through response timing.
+ * XOR-accumulates over the full longer length; only the final result branches.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = ab.length ^ bb.length;
+  const len = Math.max(ab.length, bb.length);
+  for (let i = 0; i < len; i++) {
+    diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
+/**
  * Service-role gate — verify_jwt=true merely proves a valid project JWT (every member has
- * one); assert the bearer IS the service-role key. Returns the key for onward
- * service-to-service calls (e.g. fan-out → push-dispatch).
+ * one); assert the bearer IS the service-role key (timing-safe). Returns the key for
+ * onward service-to-service calls (e.g. fan-out → push-dispatch).
  */
 export function requireServiceRole(
   req: Request,
 ): { ok: true; serviceKey: string } | { ok: false; response: Response } {
   const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return { ok: false, response: error('unauthorized', 401) };
+  if (!serviceKey || !timingSafeEqual(bearer, serviceKey)) {
+    return { ok: false, response: error('unauthorized', 401) };
+  }
   return { ok: true, serviceKey };
 }

@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { registerPushToken, unregisterPushToken } from '@athanor/api';
+import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 
 // Foreground arrivals do NOT show an OS banner — the in-app surface (✦ pip) updates instead
@@ -48,7 +49,8 @@ export async function unregisterPush(token: string | null): Promise<void> {
   if (!token) return;
   try {
     await unregisterPushToken(supabase, token);
-  } catch {
+  } catch (e) {
+    devWarn('[push] unregister', e);
     // best-effort — a stale token is also pruned server-side on a DeviceNotRegistered receipt
   }
 }

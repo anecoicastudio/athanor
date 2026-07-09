@@ -17,9 +17,12 @@ import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 
-type Verdict = CheckInResult['result'];
+// 'error' = the scan REQUEST failed (network/edge-fn down) — distinct from 'invalid'
+// (a verified verdict about the ticket) so a transient outage never reads as a bad ticket.
+type Verdict = CheckInResult['result'] | 'error';
 
 function verdictText(v: Verdict, name: string | undefined, locale: 'it' | 'en'): string {
   switch (v) {
@@ -29,6 +32,8 @@ function verdictText(v: Verdict, name: string | undefined, locale: 'it' | 'en'):
       return t('ticket.scan.already', locale);
     case 'wrongEvent':
       return t('ticket.scan.wrongEvent', locale);
+    case 'error':
+      return t('ticket.scan.error', locale);
     default:
       return t('ticket.scan.invalid', locale);
   }
@@ -75,8 +80,9 @@ export default function CheckinScreen() {
         const res = await checkInScan(supabase, id, token);
         setLast({ v: res.result, name: res.name });
         // counter is driven by the realtime INSERT; no optimistic bump here to avoid double-count.
-      } catch {
-        setLast({ v: 'invalid' });
+      } catch (e) {
+        devWarn('[checkin] scan request failed', e);
+        setLast({ v: 'error' }); // transport failure ≠ invalid ticket — say "retry", not "invalid"
       } finally {
         // cooldown so the same QR in-frame isn't re-submitted ~10×/sec.
         setTimeout(() => {

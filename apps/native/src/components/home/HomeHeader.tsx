@@ -5,6 +5,7 @@ import { unreadPresence, subscribeNotifications } from '@athanor/api';
 import { Pressable, Text, View } from '@/tw';
 import { supabase } from '@/lib/supabase';
 import { HIT_SLOP } from '@/lib/a11y';
+import { devWarn } from '@/lib/log';
 import { BellIcon, MessageIcon, SearchIcon } from './icons';
 
 /**
@@ -49,7 +50,7 @@ export function HomeHeader({
         .then((v) => {
           if (!cancelled) setHasUnread(v);
         })
-        .catch(() => {});
+        .catch((e) => devWarn('[home] unreadPresence refresh', e));
     });
 
     return () => {

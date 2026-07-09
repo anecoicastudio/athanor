@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { trimmedNonBlank } from './primitives';
 
 export const messageKind = z.enum(['user', 'system', 'prompt']);
 export type MessageKind = z.infer<typeof messageKind>;
@@ -21,6 +22,6 @@ export type Message = z.infer<typeof messageSchema>;
 export const messageInsertSchema = z.object({
   conversation_id: z.string().uuid(),
   sender_id: z.string().uuid(),
-  body: z.string().trim().min(1).max(4000),
+  body: trimmedNonBlank(4000),
 });
 export type MessageInsert = z.infer<typeof messageInsertSchema>;

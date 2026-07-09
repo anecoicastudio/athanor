@@ -38,3 +38,4 @@ export * from './notificationPreference';
 export * from './verification';
 export * from './remoteConfig';
 export * from './admin';
+export * from './primitives';

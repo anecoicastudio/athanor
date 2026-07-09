@@ -24,6 +24,7 @@ import { EventRow, type EventRowData } from '@/components/live/EventRow';
 import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
 import { useEntitlement } from '@/lib/useEntitlement';
 import { HIT_SLOP } from '@/lib/a11y';
 import { supabase } from '@/lib/supabase';
@@ -145,8 +146,8 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
     try {
       const [place] = await Location.reverseGeocodeAsync(pos.coords);
       setCity(place?.city ?? null);
-    } catch {
-      // city is a label nicety; absence is fine
+    } catch (e) {
+      devWarn('[live] reverseGeocode', e); // city is a label nicety; absence is fine
     }
   };
 
@@ -167,10 +168,9 @@ function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) 
     if (!session?.user.id) return;
     try {
       await registerAthanorDaysInterest(supabase, session.user.id, null);
-      setNotified(true);
-    } catch {
-      // best-effort; idempotent
-      setNotified(true);
+      setNotified(true); // confirm only on a real write — no false success on failure
+    } catch (e) {
+      devWarn('[live] registerAthanorDaysInterest', e);
     }
   };
 

@@ -1,13 +1,11 @@
 import { z } from 'zod';
+import { nonBlankString, trimmedNonBlank } from './primitives';
 
 /** Mirrors supabase/migrations onboarding_identity + dreams_constraints. Update both together. */
 export const dreamSchema = z.object({
   id: z.string().uuid(),
   profile_id: z.string().uuid(),
-  text: z
-    .string()
-    .max(500)
-    .refine((value) => value.trim().length > 0, 'dream text must not be blank'),
+  text: nonBlankString(500, 'dream text must not be blank'),
   status: z.enum(['active', 'archived']),
   created_at: z.string(),
   updated_at: z.string(),
@@ -15,7 +13,7 @@ export const dreamSchema = z.object({
 });
 
 /** Shared write-path rule for dream text: trim, then 1–500 chars. */
-const dreamTextSchema = z.string().trim().min(1, 'dream text must not be blank').max(500);
+const dreamTextSchema = trimmedNonBlank(500, 'dream text must not be blank');
 
 export const dreamInsertSchema = dreamSchema
   .pick({ profile_id: true })

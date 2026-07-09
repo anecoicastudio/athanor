@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { trimmedNonBlank } from './primitives';
 
 /** Moderation severity → maps to REPORT_PENALTY in @athanor/core (rule #10). */
 export const REPORT_SEVERITIES = ['low', 'medium', 'high'] as const;
@@ -10,7 +11,7 @@ export const resolveReportInput = z
   .object({
     reportId: z.string().uuid(),
     verdict: z.enum(['dismiss', 'uphold']),
-    resolution: z.string().trim().min(1).max(2000),
+    resolution: trimmedNonBlank(2000),
     severity: reportSeverity.optional(),
   })
   .refine((v) => v.verdict !== 'uphold' || v.severity != null, {

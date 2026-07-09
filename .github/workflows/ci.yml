@@ -56,7 +56,8 @@ jobs:
           deno-version: v2.x
       # Run from supabase/functions so its deno.json (nodeModulesDir: none) applies —
       # from the repo root, Deno finds package.json and expects npm deps in node_modules.
-      - run: deno test .
+      # --allow-env: _shared/auth.test.ts sets/reads SUPABASE_SERVICE_ROLE_KEY.
+      - run: deno test --allow-env .
         working-directory: supabase/functions
 
   db:
