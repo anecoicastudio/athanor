@@ -1,6 +1,7 @@
 import { updateOnboardingProfileWithHandleFallback, upsertActiveDream } from '@athanor/api';
 import { suggestHandle, validateOnboardingAnswers } from '@athanor/core';
 import { onboardingAnswersSchema } from '@athanor/schemas';
+import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { clearDraft, hasDraftAnswers, loadDraft } from './onboarding-draft';
 
@@ -40,7 +41,8 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
 
     await clearDraft();
     return 'flushed';
-  } catch {
+  } catch (e) {
+    devWarn('[onboarding] flush', e);
     // Keep the draft; the next foreground (or next auth event) retries the flush.
     return 'error';
   }

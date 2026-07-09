@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { getOwnProfile } from '@athanor/api';
 import { isProfileComplete } from '@athanor/core';
 import type { Profile } from '@athanor/schemas';
+import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
 import { registerForPush, unregisterPush } from './push';
@@ -44,7 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (sessionRef.current?.user.id === userId) {
         setProfile(fresh);
       }
-    } catch {
+    } catch (e) {
+      devWarn('[auth] refreshProfile', e);
       // keep prior profile; next session change or manual refresh retries
     }
   }, []);
@@ -108,7 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setProfile(p);
         }
-      } catch {
+      } catch (e) {
+        devWarn('[auth] profile hydration', e);
         // profile stays as-is; guard waits, next auth event retries
         if (!cancelled) setFlushing(false);
       }

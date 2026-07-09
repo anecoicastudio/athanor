@@ -23,6 +23,7 @@ import { BenefitRow } from '@/components/circle/BenefitRow';
 import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 
@@ -46,6 +47,7 @@ export default function CircleScreen() {
   const [plan, setPlan] = useState<PricePlan>('monthly');
   const [checkoutPhase, setCheckoutPhase] = useState<'idle' | 'opening' | 'portal'>('idle');
   const [checkoutError, setCheckoutError] = useState(false);
+  const [portalError, setPortalError] = useState(false);
 
   // ── Entitlements query ──────────────────────────────────────────────────────
   // Shares the canonical EntitlementView shape + cache key with CircleGate's
@@ -102,13 +104,17 @@ export default function CircleScreen() {
   // ── Portal handler ──────────────────────────────────────────────────────────
   const onManage = useCallback(async () => {
     setCheckoutPhase('portal');
+    setPortalError(false);
     try {
       const { url } = await openCustomerPortal(supabase);
       await WebBrowser.openAuthSessionAsync(url, 'athanor://circle');
       qc.invalidateQueries({ queryKey: entitlementKeys.me() });
       qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
-    } catch {
-      // Error handled silently; invalidate anyway
+    } catch (e) {
+      // Portal-session failure happens before Stripe opens — tell the member the tap
+      // did nothing (was fully swallowed pre-2026-07-09 audit); invalidate anyway.
+      devWarn('[circle] openCustomerPortal', e);
+      setPortalError(true);
       qc.invalidateQueries({ queryKey: entitlementKeys.me() });
       qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
     } finally {
@@ -211,6 +217,11 @@ export default function CircleScreen() {
               disabled={checkoutPhase !== 'idle'}
             />
           )}
+          {portalError ? (
+            <Text className="text-center text-[13px] text-error">
+              {t('circle.portal.error', locale)}
+            </Text>
+          ) : null}
 
           {/* 5. Zero-Aura assurance — REQUIRED for member state too (rule #1) */}
           {zeroAuraNote}

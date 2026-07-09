@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Locale } from '@athanor/schemas';
+import { devWarn } from '@/lib/log';
 
 /**
  * Pre-auth onboarding draft. The funnel (`(onboarding)/index.tsx`) now runs
@@ -42,7 +43,8 @@ export async function loadDraft(): Promise<OnboardingDraft | null> {
       seeking: Array.isArray(parsed.seeking) ? parsed.seeking : [],
       dream: typeof parsed.dream === 'string' ? parsed.dream : '',
     };
-  } catch {
+  } catch (e) {
+    devWarn('[onboarding-draft] loadDraft', e);
     return null; // corrupt/unreadable draft → treat as none
   }
 }

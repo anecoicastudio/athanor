@@ -12,6 +12,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 
 const CATEGORIES: EventCategory[] = [
@@ -56,7 +57,8 @@ export default function EventCreateScreen() {
     try {
       const [place] = await Location.reverseGeocodeAsync(pos.coords);
       if (place?.city && !city) setCity(place.city);
-    } catch {
+    } catch (e) {
+      devWarn('[event-create] reverseGeocode', e);
       // label nicety only
     }
   };

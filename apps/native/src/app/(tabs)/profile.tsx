@@ -52,6 +52,7 @@ import { useMomentUpload } from '@/lib/media/useMomentUpload';
 import { useSignedUrls } from '@/lib/media/useSignedUrls';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraRealtime } from '@/lib/aura-realtime';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 
 type Visibility = 'public' | 'members' | 'private';
@@ -207,7 +208,8 @@ function ProfileEditor({
               try {
                 const p = await getProfileById(supabase, hid);
                 names[hid] = p?.handle ?? hid.slice(0, 8);
-              } catch {
+              } catch (e) {
+                devWarn('[profile] helper name lookup', e);
                 names[hid] = hid.slice(0, 8);
               }
             }
@@ -217,8 +219,9 @@ function ProfileEditor({
             setIncoming([]);
           }
         })
-        .catch(() => {
+        .catch((e) => {
           // leave dream unset; the empty state is the safe default
+          devWarn('[profile] dream load', e);
         });
       return () => {
         cancelled = true;
@@ -297,7 +300,8 @@ function ProfileEditor({
     if (!dreamId) return;
     try {
       setMilestones(await listMilestones(supabase, dreamId));
-    } catch {
+    } catch (e) {
+      devWarn('[profile] refetchMilestones', e);
       // keep the optimistic state; a later focus refetch reconciles
     }
   }, [dreamId]);
@@ -312,7 +316,8 @@ function ProfileEditor({
           milestones.map((m) => m.id),
         ),
       );
-    } catch {
+    } catch (e) {
+      devWarn('[profile] refetchIncoming', e);
       // keep the optimistic state; a later focus refetch reconciles
     }
   }, [milestones]);
@@ -324,7 +329,8 @@ function ProfileEditor({
     try {
       await updateMilestoneStatus(supabase, id, 'done');
       await refetchMilestones();
-    } catch {
+    } catch (e) {
+      devWarn('[profile] markMilestoneDone', e);
       await refetchMilestones();
     } finally {
       setMutatingMilestoneId(null);
@@ -337,7 +343,8 @@ function ProfileEditor({
     try {
       await softDeleteMilestone(supabase, id);
       await refetchMilestones();
-    } catch {
+    } catch (e) {
+      devWarn('[profile] deleteMilestone', e);
       await refetchMilestones();
     } finally {
       setMutatingMilestoneId(null);
@@ -354,7 +361,8 @@ function ProfileEditor({
     );
     try {
       await respondToHelp(supabase, id, status);
-    } catch {
+    } catch (e) {
+      devWarn('[profile] respondToHelp', e);
       await refetchIncoming(); // reconcile the optimistic flip on failure
     } finally {
       setMutatingHelpId(null);
@@ -376,7 +384,8 @@ function ProfileEditor({
     try {
       await confirmHelpComplete(supabase, helpId);
       await refetchMilestones();
-    } catch {
+    } catch (e) {
+      devWarn('[profile] confirmHelp', e);
       await refetchMilestones();
       await refetchIncoming(); // reconcile the optimistic completed-flip on failure
     } finally {

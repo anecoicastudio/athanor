@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -62,7 +63,7 @@ export default function NotificationsScreen() {
   // ── Tap handler: markRead + route ─────────────────────────────────────────
   const onRow = useCallback(
     (n: Notification) => {
-      markRead(supabase, n.id).catch(() => {});
+      markRead(supabase, n.id).catch((e) => devWarn('[notifications] markRead', e));
       void qc.invalidateQueries({ queryKey: notifKeys.all });
       routeFor(n, router);
     },
