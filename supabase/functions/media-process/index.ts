@@ -1,3 +1,4 @@
+import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
@@ -27,12 +28,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return error('method not allowed', 405);
 
-  // Caller authorization: service-role only. verify_jwt=true merely proves a valid
-  // project JWT (every member has one) — assert the bearer IS the service-role key.
-  const authz = req.headers.get('Authorization') ?? '';
-  const bearer = authz.replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return error('unauthorized', 401);
+  // Caller authorization: service-role only (see _shared/auth.ts).
+  const gate = requireServiceRole(req);
+  if (!gate.ok) return gate.response;
 
   let bucketId: string;
   let name: string;

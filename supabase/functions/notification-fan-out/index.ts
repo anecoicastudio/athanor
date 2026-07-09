@@ -6,6 +6,7 @@
 // DB-trigger / direct-invocation wiring from source tables (M2 milestone_helps, M3 post_reactions/
 // projects, M4 events/event_tickets, M5 momento_proposals/connection_requests, M7 fund_aggregates)
 // is DEFERRED — until producers call this, the in-app center renders the honest empty state.
+import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
@@ -21,11 +22,10 @@ type Body = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Caller authorization: service-role only. verify_jwt=true merely proves a valid project JWT
-  // (every member has one) — assert the bearer IS the service-role key.
-  const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return error('unauthorized', 401);
+  // Caller authorization: service-role only (see _shared/auth.ts).
+  const gate = requireServiceRole(req);
+  if (!gate.ok) return gate.response;
+  const { serviceKey } = gate;
 
   let body: Body;
   try {

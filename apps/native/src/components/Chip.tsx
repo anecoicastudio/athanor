@@ -1,4 +1,4 @@
-import { Pressable, Text } from '@/tw';
+import { Pressable, Text, cn } from '@/tw';
 
 /**
  * Interactive selection chip (DESIGN.md §8 toggle). selected = cyan-accent fill
@@ -17,21 +17,18 @@ export function Chip({
   onPress: () => void;
   small?: boolean;
 }) {
-  const pad = small ? 'px-3 py-1.5' : 'px-5 py-3';
-  const minH = small ? 'min-h-[44px] justify-center' : '';
-  const text = small ? 'text-xs' : '';
   return (
     <Pressable
-      className={
-        selected
-          ? `rounded-full border border-aura-line bg-aura-soft ${pad} ${minH}`
-          : `rounded-full border border-hair bg-raise-2 ${pad} ${minH}`
-      }
+      className={cn(
+        'rounded-full border',
+        selected ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise-2',
+        small ? 'px-3 py-1.5 min-h-[44px] justify-center' : 'px-5 py-3',
+      )}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
     >
-      <Text className={`${text} ${selected ? 'font-semibold text-foreground' : 'text-foreground'}`}>
+      <Text className={cn(small && 'text-xs', 'text-foreground', selected && 'font-semibold')}>
         {label}
       </Text>
     </Pressable>

@@ -1,4 +1,5 @@
 import Expo from 'npm:expo-server-sdk@^4';
+import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
@@ -15,14 +16,11 @@ type Body = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Caller authorization: service-role only. verify_jwt=true merely proves a valid
-  // project JWT (every member has one) — assert the bearer IS the service-role key.
-  // The enqueue_push trigger sets this bearer to app.settings.push_dispatch_key,
-  // which MUST be the service-role key (set at deploy time).
-  const authz = req.headers.get('Authorization') ?? '';
-  const bearer = authz.replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return error('unauthorized', 401);
+  // Caller authorization: service-role only (see _shared/auth.ts). The enqueue_push trigger
+  // sets this bearer to app.settings.push_dispatch_key, which MUST be the service-role key
+  // (set at deploy time).
+  const gate = requireServiceRole(req);
+  if (!gate.ok) return gate.response;
 
   let body: Body;
   try {

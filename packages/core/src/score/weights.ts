@@ -98,14 +98,16 @@ export const STAR_CRITERIA = {
   ambasciatore: { invitesActivated: 5 },
 } as const;
 
-/** The six display buckets (frontend §3.1). */
-export type BucketKey =
-  | 'contributi'
-  | 'eventi'
-  | 'collaborazioni'
-  | 'valore'
-  | 'recensioni'
-  | 'affidabilita';
+/** The six display buckets in canonical display order (frontend §3.1) — single source (rule #10). */
+export const BUCKET_ORDER = [
+  'contributi',
+  'eventi',
+  'collaborazioni',
+  'valore',
+  'recensioni',
+  'affidabilita',
+] as const;
+export type BucketKey = (typeof BUCKET_ORDER)[number];
 
 /** v1 mapping of ledger type → display bucket (sum need NOT equal score). `decay` is unbucketed. */
 export const BUCKET_MAP = {

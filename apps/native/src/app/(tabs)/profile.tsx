@@ -21,7 +21,7 @@ import {
   updateMilestoneStatus,
   updateProfile,
 } from '@athanor/api';
-import { IDENTITY_TAGS, pickNextStar, profileCompleteness, SEEKING_TAGS } from '@athanor/core';
+import { IDENTITY_TAGS, profileCompleteness, SEEKING_TAGS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import {
   type AuraSnapshot,
@@ -41,16 +41,12 @@ import { Chip } from '@/components/Chip';
 import { DreamCard } from '@/components/DreamCard';
 import { IncomingOfferRow } from '@/components/IncomingOfferRow';
 import { MomentFlash } from '@/components/MomentFlash';
-import { ProfileHero } from '@/components/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SettingsRow } from '@/components/SettingsRow';
-import { SixStarsGrid } from '@/components/SixStarsGrid';
 import { Toast } from '@/components/Toast';
-import { StarProgress } from '@/components/aura/StarProgress';
 import { Lightbox } from '@/components/Lightbox';
 import { MediaSheet } from '@/components/MediaSheet';
-import { MomentiGallery } from '@/components/MomentiGallery';
-import { StatLine } from '@/components/StatLine';
+import { ProfileBody } from '@/components/profile/ProfileBody';
 import { Tag } from '@/components/Tag';
 import { useMomentUpload } from '@/lib/media/useMomentUpload';
 import { useSignedUrls } from '@/lib/media/useSignedUrls';
@@ -421,66 +417,49 @@ function ProfileEditor({
             </Pressable>
           </View>
 
-          {/* Hero: avatar mandorla + handle + bio + Aura score */}
-          <ProfileHero
-            handle={profile.handle ?? ''}
-            bio={bio || null}
-            auraScore={aura.score}
+          {/* Shared Profilo stack: hero → stat line → Sei Stelle → Momenti (frontend 02 §3.5) */}
+          <ProfileBody
             locale={locale}
-            verified={profile.identity_verified}
-            founding={profile.founding_member}
+            hero={{
+              handle: profile.handle ?? '',
+              bio: bio || null,
+              auraScore: aura.score,
+              locale,
+              verified: profile.identity_verified,
+              founding: profile.founding_member,
+            }}
+            statCounts={statCounts}
+            afterHero={
+              completeness < 1 ? (
+                <Text className="text-center text-[13px] text-faint">
+                  {t('profile.completeness', locale, { percent: Math.round(completeness * 100) })}
+                </Text>
+              ) : null
+            }
+            afterStats={
+              /* Connessioni — hub for established connections + the Richieste inbox (M5). */
+              <View className="-mx-5 border-y border-hair">
+                <SettingsRow
+                  title={t('connection.hub.title', locale)}
+                  accessibilityLabel={t('connection.a11y.hub', locale)}
+                  onPress={() => router.push('/connections')}
+                />
+              </View>
+            }
+            stars={stars}
+            viewerIsOwner={true}
+            onStarPress={(id: StarKey) =>
+              router.push({ pathname: '/(modal)/star', params: { starId: id } })
+            }
+            gallery={{
+              moments,
+              urls,
+              locale,
+              onOpen: setLightboxIndex,
+              onSeeAll: () => router.push('/(modal)/grid'),
+              onAdd: () => setSheetOpen(true),
+            }}
           />
-
-          {/* Completeness hint */}
-          {completeness < 1 ? (
-            <Text className="text-center text-[13px] text-faint">
-              {t('profile.completeness', locale, { percent: Math.round(completeness * 100) })}
-            </Text>
-          ) : null}
-
-          {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3 */}
-          <StatLine
-            items={[
-              { value: String(statCounts?.collabsCount ?? 0), label: t('profile.stat.collabs', locale) },
-              { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
-              { value: '0', label: t('profile.stat.reviews', locale) },
-            ]}
-          />
-
-          {/* Connessioni — hub for established connections + the Richieste inbox (M5). */}
-          <View className="-mx-5 border-y border-hair">
-            <SettingsRow
-              title={t('connection.hub.title', locale)}
-              accessibilityLabel={t('connection.a11y.hub', locale)}
-              onPress={() => router.push('/connections')}
-            />
-          </View>
-
-          {/* Le Sei Stelle */}
-          <View className="gap-3">
-            <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-            <SixStarsGrid
-              stars={stars}
-              viewerIsOwner={true}
-              locale={locale}
-              onStarPress={(id: StarKey) =>
-                router.push({ pathname: '/(modal)/star', params: { starId: id } })
-              }
-            />
-            <StarProgress next={pickNextStar(stars)} locale={locale} />
-          </View>
-
-          {/* I tuoi Momenti — live identity gallery (signed thumbs + create/upload) */}
-          <View className="gap-2">
-            <MomentiGallery
-              moments={moments}
-              urls={urls}
-              locale={locale}
-              onOpen={setLightboxIndex}
-              onSeeAll={() => router.push('/(modal)/grid')}
-              onAdd={() => setSheetOpen(true)}
-            />
-          </View>
 
           {/* Il Sogno — editable quote (dream editor) + tappe CRUD (M2) */}
           <DreamCard

@@ -1,4 +1,4 @@
-import { Pressable, Text } from '@/tw';
+import { Pressable, Text, cn } from '@/tw';
 import { auraGlow } from '@/lib/glow';
 
 /**
@@ -9,6 +9,15 @@ import { auraGlow } from '@/lib/glow';
  * for moment-grade events — so `light` is flat by default; pass `glow` only when
  * the press is itself a moment (e.g. a dream igniting).
  */
+type Variant = 'primary' | 'ghost' | 'light' | 'danger';
+
+const VARIANT_CLASSES: Record<Variant, { bg: string | false; text: string }> = {
+  light: { bg: 'bg-aura', text: 'text-on-aura' },
+  primary: { bg: 'bg-foreground', text: 'text-background' },
+  danger: { bg: 'bg-error', text: 'text-on-error' },
+  ghost: { bg: false, text: 'text-muted-foreground' },
+};
+
 export function Button({
   label,
   onPress,
@@ -19,61 +28,26 @@ export function Button({
 }: {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'ghost' | 'light' | 'danger';
+  variant?: Variant;
   disabled?: boolean;
   glow?: boolean;
   accessibilityLabel?: string;
 }) {
-  const base = 'h-[52px] items-center justify-center rounded-full px-6';
-  if (variant === 'light') {
-    return (
-      <Pressable
-        className={`${base} bg-aura ${disabled ? 'opacity-40' : ''}`}
-        style={glow && !disabled ? auraGlow(1) : undefined}
-        disabled={disabled}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-      >
-        <Text className="text-[13px] font-semibold tracking-[0.14em] text-on-aura">{label}</Text>
-      </Pressable>
-    );
-  }
-  if (variant === 'primary') {
-    return (
-      <Pressable
-        className={`${base} bg-foreground ${disabled ? 'opacity-40' : ''}`}
-        disabled={disabled}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-      >
-        <Text className="text-[13px] font-semibold tracking-[0.14em] text-background">{label}</Text>
-      </Pressable>
-    );
-  }
-  if (variant === 'danger') {
-    return (
-      <Pressable
-        className={`${base} bg-error ${disabled ? 'opacity-40' : ''}`}
-        disabled={disabled}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-      >
-        <Text className="text-[13px] font-semibold tracking-[0.14em] text-on-error">{label}</Text>
-      </Pressable>
-    );
-  }
+  const { bg, text } = VARIANT_CLASSES[variant];
   return (
     <Pressable
-      className={`${base} ${disabled ? 'opacity-40' : ''}`}
+      className={cn(
+        'h-[52px] items-center justify-center rounded-full px-6',
+        bg,
+        disabled && 'opacity-40',
+      )}
+      style={variant === 'light' && glow && !disabled ? auraGlow(1) : undefined}
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <Text className="text-[13px] font-semibold tracking-[0.14em] text-muted-foreground">{label}</Text>
+      <Text className={cn('text-[13px] font-semibold tracking-[0.14em]', text)}>{label}</Text>
     </Pressable>
   );
 }

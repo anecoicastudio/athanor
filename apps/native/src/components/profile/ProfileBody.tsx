@@ -1,0 +1,78 @@
+import type { ComponentProps, ReactNode } from 'react';
+import { pickNextStar } from '@athanor/core';
+import { t } from '@athanor/i18n';
+import type { Locale, Star, StarKey } from '@athanor/schemas';
+import { View } from '@/tw';
+import { MomentiGallery } from '@/components/MomentiGallery';
+import { ProfileHero } from '@/components/ProfileHero';
+import { SectionLabel } from '@/components/SectionLabel';
+import { SixStarsGrid } from '@/components/SixStarsGrid';
+import { StatLine } from '@/components/StatLine';
+import { StarProgress } from '@/components/aura/StarProgress';
+
+/**
+ * Shared Profilo VIEW stack — hero → stat line → Sei Stelle → Momenti gallery — used by
+ * both the own tab ((tabs)/profile) and the third-person modal ((modal)/user/[id]), which
+ * frontend `02` §3.5 mandates mirror each other. Divergent blocks (completeness hint,
+ * Connessioni row, dream card, reviews, action bar) are injected via slots/children so the
+ * layout has one source. Reviews stat stays a literal 0 until Fase 3 (no vanity counts).
+ */
+export function ProfileBody({
+  locale,
+  hero,
+  statCounts,
+  afterHero,
+  afterStats,
+  stars,
+  viewerIsOwner,
+  onStarPress,
+  gallery,
+  children,
+}: {
+  locale: Locale;
+  hero: ComponentProps<typeof ProfileHero>;
+  statCounts?: { collabsCount: number; eventsCount: number };
+  /** Slot between hero and stat line (own view: completeness hint). */
+  afterHero?: ReactNode;
+  /** Slot between stat line and stars (own view: Connessioni row). */
+  afterStats?: ReactNode;
+  stars: Star[];
+  viewerIsOwner: boolean;
+  onStarPress?: (starId: StarKey) => void;
+  gallery: ComponentProps<typeof MomentiGallery>;
+  children?: ReactNode;
+}) {
+  return (
+    <>
+      <ProfileHero {...hero} />
+      {afterHero}
+
+      {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3 */}
+      <StatLine
+        items={[
+          { value: String(statCounts?.collabsCount ?? 0), label: t('profile.stat.collabs', locale) },
+          { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
+          { value: '0', label: t('profile.stat.reviews', locale) },
+        ]}
+      />
+      {afterStats}
+
+      {/* Le Sei Stelle — earned-only for others via RLS (rule #3); progress row is owner-only */}
+      <View className="gap-3">
+        <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
+        <SixStarsGrid
+          stars={stars}
+          viewerIsOwner={viewerIsOwner}
+          locale={locale}
+          onStarPress={onStarPress}
+        />
+        {viewerIsOwner ? <StarProgress next={pickNextStar(stars)} locale={locale} /> : null}
+      </View>
+
+      {/* Momenti gallery — own view passes onAdd; third-person passes label/emptyLabel overrides */}
+      <MomentiGallery {...gallery} />
+
+      {children}
+    </>
+  );
+}

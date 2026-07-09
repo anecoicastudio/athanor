@@ -5,17 +5,11 @@ import {
   type Star,
   type StarKey,
 } from '@athanor/schemas';
+import { BUCKET_ORDER } from './weights';
 
 export type BreakdownRow = { key: keyof Breakdown; value: number; width: number };
 
-const ORDER: (keyof Breakdown)[] = [
-  'contributi',
-  'eventi',
-  'collaborazioni',
-  'valore',
-  'recensioni',
-  'affidabilita',
-];
+const ORDER: readonly (keyof Breakdown)[] = BUCKET_ORDER;
 
 /** Six display rows; width = value / maxBucket (display normalization, NOT a score — spec §3.1). */
 export function breakdownRows(b: Breakdown): BreakdownRow[] {
