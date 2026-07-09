@@ -3,16 +3,15 @@
 // uploads to the private `exports` bucket, signs a time-limited URL (72h — 10 §5 open decision), emails
 // it, and sets status='ready' + download_url + expires_at. Archive assembly is server-side and is NEVER
 // bundled into the app build (09 §6). DEPLOY-DEFERRED: not deployed this slice; pg_cron scheduled at deploy-time.
+import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 
 const SIGNED_TTL_SECONDS = 72 * 60 * 60; // 72h (≤30d GDPR cap; target far sooner — 10 §5)
 
 Deno.serve(async (req) => {
-  // Caller gate: service-role only. verify_jwt=true merely proves a valid project JWT
-  // (every member has one) — assert the bearer IS the service-role key.
-  const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return new Response('unauthorized', { status: 401 });
+  // Caller gate: service-role only (see _shared/auth.ts).
+  const gate = requireServiceRole(req);
+  if (!gate.ok) return gate.response;
 
   const db = supabaseAdmin();
 

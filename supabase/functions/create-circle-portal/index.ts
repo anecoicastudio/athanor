@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { requireUser } from '../_shared/auth.ts';
 import { stripe } from '../_shared/stripe.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error, json } from '../_shared/respond.ts';
@@ -12,19 +12,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return error('method not allowed', 405);
 
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const userClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
-  );
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData.user) return error('unauthorized', 401);
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
 
-  const { data: membership, error: mErr } = await userClient
+  const { data: membership, error: mErr } = await auth.userClient
     .from('circle_memberships')
     .select('stripe_customer_id')
-    .eq('profile_id', userData.user.id)
+    .eq('profile_id', auth.user.id)
     .maybeSingle();
   if (mErr) return error('membership lookup failed', 500);
   if (!membership?.stripe_customer_id) return error('no membership', 404);

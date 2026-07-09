@@ -6,14 +6,13 @@
 //       circle_memberships) — TODO(legal-gate): retention window needs counsel (10 §5 line 383),
 //   (4) delete the auth.users row (cascades profiles), and purge any matching email_waitlist row.
 // DEPLOY-DEFERRED + LEGAL-GATED: not deployed this slice; does NOT go live until the retention gate clears.
+import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 
 Deno.serve(async (req) => {
-  // Caller gate: service-role only. verify_jwt=true merely proves a valid project JWT
-  // (every member has one) — assert the bearer IS the service-role key.
-  const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return new Response('unauthorized', { status: 401 });
+  // Caller gate: service-role only (see _shared/auth.ts).
+  const gate = requireServiceRole(req);
+  if (!gate.ok) return gate.response;
 
   const db = supabaseAdmin();
 

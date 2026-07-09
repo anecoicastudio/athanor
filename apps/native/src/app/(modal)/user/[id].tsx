@@ -37,11 +37,8 @@ import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Lightbox } from '@/components/Lightbox';
-import { MomentiGallery } from '@/components/MomentiGallery';
-import { ProfileHero } from '@/components/ProfileHero';
+import { ProfileBody } from '@/components/profile/ProfileBody';
 import { SectionLabel } from '@/components/SectionLabel';
-import { SixStarsGrid } from '@/components/SixStarsGrid';
-import { StatLine } from '@/components/StatLine';
 import { useSignedUrls } from '@/lib/media/useSignedUrls';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -288,43 +285,29 @@ export default function PersonDetailScreen() {
         contentContainerClassName="gap-8 px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
-        {/* Hero: third-person Aura label «la sua Aura» */}
-        <ProfileHero
-          handle={person.handle ?? ''}
-          bio={person.bio ?? null}
-          auraScore={aura.score}
+        {/* Shared Profilo stack in third person: hero → stat line → stelle → momenti (02 §3.5) */}
+        <ProfileBody
           locale={locale}
-          auraLabel={t('profile.aura.theirLabel', locale)}
-          founding={person.founding_member}
-        />
-
-        {/* Stat line — live collabs/events via aggregate-only RPC (P3.1); reviews Fase 3. */}
-        <StatLine
-          items={[
-            {
-              value: String(statCounts?.collabsCount ?? 0),
-              label: t('profile.stat.collabs', locale),
-            },
-            { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
-            { value: '0', label: t('profile.stat.reviews', locale) },
-          ]}
-        />
-
-        {/* Le sei stelle — earned-only for others via RLS (rule #3). */}
-        <View className="gap-3">
-          <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-          <SixStarsGrid stars={stars} viewerIsOwner={false} locale={locale} />
-        </View>
-
-        {/* I suoi Momenti — live, read-only (members-read RLS); no add affordance. */}
-        <MomentiGallery
-          moments={moments}
-          urls={urls}
-          locale={locale}
-          onOpen={setLightboxIndex}
-          onSeeAll={() => router.push({ pathname: '/(modal)/grid', params: { userId: id } })}
-          label={t('profile.moments.theirLabel', locale)}
-          emptyLabel={t('profile.moments.theirEmpty', locale)}
+          hero={{
+            handle: person.handle ?? '',
+            bio: person.bio ?? null,
+            auraScore: aura.score,
+            locale,
+            auraLabel: t('profile.aura.theirLabel', locale),
+            founding: person.founding_member,
+          }}
+          statCounts={statCounts}
+          stars={stars}
+          viewerIsOwner={false}
+          gallery={{
+            moments,
+            urls,
+            locale,
+            onOpen: setLightboxIndex,
+            onSeeAll: () => router.push({ pathname: '/(modal)/grid', params: { userId: id } }),
+            label: t('profile.moments.theirLabel', locale),
+            emptyLabel: t('profile.moments.theirEmpty', locale),
+          }}
         />
 
         {/* Il suo sogno — read-only, per-tappa «Aiuta». */}

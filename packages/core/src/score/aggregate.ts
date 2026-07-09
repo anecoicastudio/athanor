@@ -1,14 +1,5 @@
 import { clampScore } from './clamp';
-import { BUCKET_MAP, type BucketKey } from './weights';
-
-const BUCKETS: BucketKey[] = [
-  'contributi',
-  'eventi',
-  'collaborazioni',
-  'valore',
-  'recensioni',
-  'affidabilita',
-];
+import { BUCKET_MAP, BUCKET_ORDER, type BucketKey } from './weights';
 
 export interface LedgerLine {
   type: string;
@@ -30,13 +21,13 @@ export function aggregateScore(events: LedgerLine[]): {
   score: number;
   breakdown: Record<BucketKey, number>;
 } {
-  const breakdown = Object.fromEntries(BUCKETS.map((b) => [b, 0])) as Record<BucketKey, number>;
+  const breakdown = Object.fromEntries(BUCKET_ORDER.map((b) => [b, 0])) as Record<BucketKey, number>;
   let raw = 0;
   for (const e of events) {
     raw += e.points;
     const bucket = bucketOf(e.type);
     if (bucket) breakdown[bucket] += e.points;
   }
-  for (const b of BUCKETS) breakdown[b] = Math.max(0, breakdown[b]);
+  for (const b of BUCKET_ORDER) breakdown[b] = Math.max(0, breakdown[b]);
   return { score: clampScore(raw), breakdown };
 }

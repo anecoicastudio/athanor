@@ -12,6 +12,7 @@
  */
 
 import { z } from 'zod';
+import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
@@ -164,12 +165,9 @@ async function gatherStarFacts(
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Caller gate: service-role only. verify_jwt=true in config.toml admits any valid
-  // project JWT (every member has one) — additionally assert bearer IS service-role key.
-  const authz = req.headers.get('Authorization') ?? '';
-  const bearer = authz.replace(/^Bearer\s+/i, '');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!serviceKey || bearer !== serviceKey) return error('unauthorized', 401);
+  // Caller gate: service-role only (see _shared/auth.ts).
+  const gate = requireServiceRole(req);
+  if (!gate.ok) return gate.response;
 
   let rawBody: unknown;
   try {

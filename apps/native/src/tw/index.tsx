@@ -8,6 +8,12 @@ import {
   TextInput as RNTextInput,
 } from 'react-native';
 
+/** Join conditional NativeWind classes — falsy parts drop out, so call sites avoid
+ *  empty-string ternaries (`cond ? 'x' : ''`) inside template literals. */
+export function cn(...parts: (string | false | null | undefined)[]): string {
+  return parts.filter(Boolean).join(' ');
+}
+
 export type ViewProps = React.ComponentProps<typeof RNView> & { className?: string };
 export const View = (props: ViewProps) => useCssElement(RNView, props, { className: 'style' });
 View.displayName = 'CSS(View)';
