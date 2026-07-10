@@ -8,7 +8,8 @@ import { supabase } from './supabase';
  * Browser-based OAuth (the only Expo-Go-compatible path — native sign-in modules
  * need a dev build, which the SDK-54 setup deliberately avoids). PKCE flow:
  * `signInWithOAuth({ skipBrowserRedirect: true })` returns the authorize URL and
- * stashes the code-verifier in AsyncStorage → open it in the system auth browser →
+ * stashes the code-verifier through the session-storage adapter (LargeSecureStore
+ * on native) → open it in the system auth browser →
  * exchange the returned `?code` for a session. `exchangeCodeForSession` fires
  * onAuthStateChange('SIGNED_IN'), so auth-context drives routing + draft flush
  * exactly as the OTP path does — no extra wiring here.

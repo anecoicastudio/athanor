@@ -1,7 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { AppState } from 'react-native';
 import type { Database } from '@athanor/api';
+
+import { authStorage } from './session-storage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -23,12 +24,13 @@ const noopStorage = {
   removeItem: async () => {},
 };
 
-// AsyncStorage keeps the refresh token in plaintext — accepted MVP tradeoff
-// (Supabase RN quickstart default). Revisit with SecureStore LargeSecureStore
-// wrapper before store release.
+// Session storage (P1.7): native uses the LargeSecureStore adapter (AES-256
+// key in SecureStore, ciphertext in AsyncStorage — session JSON exceeds the
+// 2 KB SecureStore limit); the web build keeps AsyncStorage. Legacy plaintext
+// sessions are re-encrypted in place on first read.
 export const supabase = createClient<Database>(url, anonKey, {
   auth: {
-    storage: isServerRender ? noopStorage : AsyncStorage,
+    storage: isServerRender ? noopStorage : authStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
