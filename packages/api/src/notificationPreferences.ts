@@ -31,16 +31,15 @@ export async function setNotifPref(client: AthanorClient, input: NotifPrefInput)
   if (error) throw error;
 }
 
-/** Master «Notifiche push» — reads profiles.push_enabled (default-on when absent). */
+/**
+ * Master «Notifiche push» (default-on when absent). Reads via get_own_profile —
+ * push_enabled is column-denied to direct selects since M10 visibility scoping.
+ */
 export async function getPushEnabled(client: AthanorClient): Promise<boolean> {
   const { data: auth } = await client.auth.getUser();
   const id = auth.user?.id;
   if (!id) return true;
-  const { data, error } = await client
-    .from('profiles')
-    .select('push_enabled')
-    .eq('id', id)
-    .maybeSingle();
+  const { data, error } = await client.rpc('get_own_profile').maybeSingle();
   if (error) throw error;
   return data?.push_enabled ?? true;
 }

@@ -62,23 +62,25 @@ select is(
   (select count(*) from public.profiles
     where id in ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222')),
   2::bigint,
-  'authenticated member reads profiles'
+  'authenticated member reads profile rows (granted columns)'
 );
 
+-- M10 visibility enforcement: bio is no longer directly selectable — own reads
+-- go through get_own_profile() (0072 covers the full matrix).
 update public.profiles set bio = 'il mio sogno'
   where id = '11111111-1111-1111-1111-111111111111';
 select is(
-  (select bio from public.profiles where id = '11111111-1111-1111-1111-111111111111'),
+  (select bio from public.get_own_profile()),
   'il mio sogno',
-  'member updates own profile'
+  'member updates own profile (read back via get_own_profile)'
 );
 
 update public.profiles set bio = 'hacked'
   where id = '22222222-2222-2222-2222-222222222222';
 select is(
-  (select bio from public.profiles where id = '22222222-2222-2222-2222-222222222222'),
+  (select bio from public.get_person_profile('22222222-2222-2222-2222-222222222222')),
   null,
-  'member cannot update another profile (0 rows affected)'
+  'member cannot update another profile (peer bio unchanged/null via accessor)'
 );
 
 reset role;

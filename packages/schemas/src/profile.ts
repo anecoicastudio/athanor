@@ -34,6 +34,23 @@ export const profileUpdateSchema = profileSchema
   })
   .partial();
 
+/**
+ * Third-person profile as projected by the `get_person_profile` DEFINER RPC
+ * (M10 visibility enforcement): bio/identity_tags/seeking are NULL when the
+ * owner set that field to 'private' (absent key = 'members'). No locale,
+ * visibility, or other own-only columns.
+ */
+export const personProfileSchema = z.object({
+  id: z.string().uuid(),
+  handle: handleSchema.nullable(),
+  bio: z.string().max(500).nullable(),
+  identity_tags: z.array(z.string()).max(10).nullable(),
+  seeking: z.array(z.string()).max(10).nullable(),
+  identity_verified: z.boolean(),
+  founding_member: z.boolean(),
+});
+
 export type Locale = z.infer<typeof localeSchema>;
 export type Profile = z.infer<typeof profileSchema>;
 export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
+export type PersonProfile = z.infer<typeof personProfileSchema>;

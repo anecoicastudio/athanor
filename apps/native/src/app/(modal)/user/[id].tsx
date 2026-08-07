@@ -25,7 +25,7 @@ import {
   type Help,
   type Locale,
   type Milestone,
-  type Profile,
+  type PersonProfile,
   type Star,
   ZERO_AURA_SNAPSHOT,
 } from '@athanor/schemas';
@@ -59,7 +59,7 @@ export default function PersonDetailScreen() {
   const { session, profile } = useAuth();
   const locale: Locale = profile?.locale ?? 'it';
 
-  const [person, setPerson] = useState<Profile | null | 'missing'>(null);
+  const [person, setPerson] = useState<PersonProfile | null | 'missing'>(null);
   const [dreamText, setDreamText] = useState<string | null>(null);
   const [tappe, setTappe] = useState<Milestone[]>([]);
   const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);

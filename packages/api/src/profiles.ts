@@ -1,6 +1,7 @@
 import {
   type OnboardingAnswers,
   onboardingAnswersSchema,
+  personProfileSchema,
   type ProfileUpdate,
   profileSchema,
   profileUpdateSchema,
@@ -14,24 +15,32 @@ export const profileKeys = {
   statCounts: (id: string) => ['profiles', id, 'stat-counts'] as const,
 };
 
-export async function getOwnProfile(client: AthanorClient, userId: string) {
-  const { data, error } = await client.from('profiles').select('*').eq('id', userId).maybeSingle();
+/**
+ * Own full row via the `get_own_profile` DEFINER RPC — sensitive columns are
+ * no longer directly selectable after M10 column-scoping (role-wide grants
+ * can't distinguish own rows). `userId` kept for call-site clarity; the RPC
+ * derives identity from auth.uid().
+ */
+export async function getOwnProfile(client: AthanorClient, _userId: string) {
+  const { data, error } = await client.rpc('get_own_profile').maybeSingle();
   if (error) throw error;
   if (!data) return null;
   // profileSchema.parse validates the DB row at the trust boundary and strips extra columns.
   return profileSchema.parse(data);
 }
 
-/** Read another member's profile row (authenticated members-wide RLS). Null if unreachable. */
+/**
+ * Another member's profile via the `get_person_profile` DEFINER RPC (M10):
+ * bio/tags/seeking arrive NULL when that field is 'private'. Null result =
+ * unknown id, blocked pair, or signed-out.
+ */
 export async function getProfileById(client: AthanorClient, profileId: string) {
   const { data, error } = await client
-    .from('profiles')
-    .select('*')
-    .eq('id', profileId)
+    .rpc('get_person_profile', { p_profile_id: profileId })
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return profileSchema.parse(data);
+  return personProfileSchema.parse(data);
 }
 
 /**

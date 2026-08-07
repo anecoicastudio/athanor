@@ -42,7 +42,7 @@ export function Section({
                 key={opt}
                 small
                 label={t(`visibility.${opt}` as MessageKey, locale)}
-                selected={(visibility[field] ?? 'public') === opt}
+                selected={(visibility[field] ?? 'members') === opt}
                 onPress={() => setVis(field, opt)}
               />
             ))}

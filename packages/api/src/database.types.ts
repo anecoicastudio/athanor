@@ -2632,6 +2632,42 @@ export type Database = {
       f_unaccent: { Args: { "": string }; Returns: string }
       fund_edition_open: { Args: never; Returns: boolean }
       get_or_create_conversation: { Args: { peer_id: string }; Returns: string }
+      get_own_profile: {
+        Args: never
+        Returns: {
+          bio: string | null
+          created_at: string
+          founding_member: boolean
+          handle: string | null
+          id: string
+          identity_tags: string[]
+          identity_verified: boolean
+          locale: string
+          push_enabled: boolean
+          referral_code: string | null
+          seeking: string[]
+          updated_at: string
+          visibility: Json
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_person_profile: {
+        Args: { p_profile_id: string }
+        Returns: {
+          bio: string
+          founding_member: boolean
+          handle: string
+          id: string
+          identity_tags: string[]
+          identity_verified: boolean
+          seeking: string[]
+        }[]
+      }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }

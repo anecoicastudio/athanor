@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
-import { getProfileIdByHandle, getProfileStatCounts, profileKeys } from './profiles';
+import {
+  getOwnProfile,
+  getProfileById,
+  getProfileIdByHandle,
+  getProfileStatCounts,
+  profileKeys,
+} from './profiles';
 
 describe('profileKeys', () => {
   it('namespaces under profiles and derives stable sub-keys', () => {
@@ -25,6 +31,55 @@ function rpcStub(data: unknown) {
     } as unknown as AthanorClient,
   };
 }
+
+describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
+  const row = {
+    id: '00000000-0000-0000-0000-000000000001',
+    handle: 'alice',
+    bio: null, // 'private' field arrives NULLed by the DEFINER RPC
+    identity_tags: ['maker'],
+    seeking: null,
+    identity_verified: false,
+    founding_member: false,
+  };
+
+  it('calls the RPC and passes NULLed private fields through', async () => {
+    const { client, calls } = rpcStub(row);
+    const person = await getProfileById(client, row.id);
+    expect(calls).toEqual([{ fn: 'get_person_profile', args: { p_profile_id: row.id } }]);
+    expect(person?.bio).toBeNull();
+    expect(person?.identity_tags).toEqual(['maker']);
+    expect(person?.seeking).toBeNull();
+  });
+
+  it('returns null for unknown / blocked ids (zero rows)', async () => {
+    const { client } = rpcStub(null);
+    expect(await getProfileById(client, 'nope')).toBeNull();
+  });
+});
+
+describe('getOwnProfile (get_own_profile RPC)', () => {
+  it('reads the full own row through the RPC', async () => {
+    const own = {
+      id: '00000000-0000-0000-0000-000000000002',
+      handle: 'me_stessa',
+      bio: 'segreto',
+      locale: 'it',
+      visibility: { bio: 'private' },
+      identity_tags: [],
+      seeking: [],
+      identity_verified: false,
+      founding_member: false,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+    const { client, calls } = rpcStub(own);
+    const profile = await getOwnProfile(client, own.id);
+    expect(calls[0]?.fn).toBe('get_own_profile');
+    expect(profile?.bio).toBe('segreto');
+    expect(profile?.visibility).toEqual({ bio: 'private' });
+  });
+});
 
 describe('getProfileStatCounts', () => {
   it('maps the RPC row to camelCase counts', async () => {
