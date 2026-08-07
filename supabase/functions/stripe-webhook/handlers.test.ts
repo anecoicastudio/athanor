@@ -378,9 +378,9 @@ Deno.test('handleWebhook 500s when the idempotency ledger cannot be written', as
   assertEquals(db.calls.length, 1); // never proceeded past the ledger
 });
 
-Deno.test('handleWebhook replays / lost claims ack 200 without reprocessing', async () => {
-  // Claim update returns zero rows: processed_at already set (replay) or another
-  // concurrent delivery won the atomic claim — identical handling either way.
+Deno.test('handleWebhook replays / live leases ack 200 without reprocessing', async () => {
+  // Claim update returns zero rows: processed_at already set (replay) or a live
+  // (unexpired) claimed_at lease held by another delivery — identical handling.
   const db = makeFakeDb({
     'stripe_webhook_events.update': [{ data: [] }],
   });
@@ -393,16 +393,26 @@ Deno.test('handleWebhook replays / lost claims ack 200 without reprocessing', as
   // ledger upsert + claim update only — no ticket write
   assertEquals(db.calls.length, 2);
   assert(db.calls.every((c) => c.table === 'stripe_webhook_events'));
-  // the claim is the guarded form: eq(event_id) AND is(processed_at, null)
-  assertEquals(db.calls[1].filters, [
+  // guarded lease claim: eq(event_id) AND is(processed_at, null) AND (claimed_at null | stale)
+  const claim = db.calls[1];
+  assertEquals(claim.filters.slice(0, 2), [
     ['eq', 'event_id', 'evt_1'],
     ['is', 'processed_at', null],
   ]);
+  const orFilter = claim.filters[2];
+  assertEquals(orFilter[0], 'or');
+  assert(String(orFilter[1]).startsWith('claimed_at.is.null,claimed_at.lt.'));
+  // the claim writes the lease, not the completion marker
+  assert((claim.values as Record<string, unknown>).claimed_at);
+  assertEquals((claim.values as Record<string, unknown>).processed_at, undefined);
 });
 
-Deno.test('handleWebhook happy path claims atomically then processes', async () => {
+Deno.test('handleWebhook happy path: lease claim → process → stamp processed_at', async () => {
   const db = makeFakeDb({
-    'stripe_webhook_events.update': [{ data: [{ event_id: 'evt_1' }] }],
+    'stripe_webhook_events.update': [
+      { data: [{ event_id: 'evt_1' }] }, // lease claim won
+      { data: [{ event_id: 'evt_1' }] }, // processed_at stamp
+    ],
   });
   const res = await handleWebhook(
     webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
@@ -412,14 +422,16 @@ Deno.test('handleWebhook happy path claims atomically then processes', async () 
   const tables = db.calls.map((c) => `${c.table}.${c.op}`);
   assertEquals(tables, [
     'stripe_webhook_events.upsert',
-    'stripe_webhook_events.update', // atomic claim: processed_at stamped BEFORE processing
+    'stripe_webhook_events.update', // lease claim (claimed_at)
     'event_tickets.upsert',
+    'stripe_webhook_events.update', // completion stamp AFTER successful processing
   ]);
-  assert((db.calls[1].values as Record<string, unknown>).processed_at);
+  assert((db.calls[1].values as Record<string, unknown>).claimed_at);
+  assert((db.calls[3].values as Record<string, unknown>).processed_at);
 });
 
 Deno.test(
-  'handleWebhook processing failure releases the claim and 500s (Stripe retries)',
+  'handleWebhook processing failure releases the lease and 500s (Stripe retries)',
   async () => {
     const db = makeFakeDb({
       'stripe_webhook_events.update': [
@@ -433,12 +445,14 @@ Deno.test(
       webhookReq(),
     );
     assertEquals(res.status, 500);
-    // release update sets processed_at back to NULL so the retry can re-claim
+    // release sets claimed_at back to NULL so the retry can re-claim immediately;
+    // processed_at is never stamped on the failure path
     const updates = db.calls.filter(
       (c) => c.table === 'stripe_webhook_events' && c.op === 'update',
     );
     assertEquals(updates.length, 2);
-    assertEquals((updates[1].values as Record<string, unknown>).processed_at, null);
+    assertEquals((updates[1].values as Record<string, unknown>).claimed_at, null);
+    assert(!updates.some((u) => (u.values as Record<string, unknown>).processed_at));
   },
 );
 

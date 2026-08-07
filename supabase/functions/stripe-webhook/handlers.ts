@@ -11,6 +11,13 @@ import { signQrToken } from '../_shared/qr.ts';
 
 export type Db = SupabaseClient;
 
+/**
+ * Processing-lease window. A claim older than this with processed_at still NULL is
+ * treated as a crashed isolate and may be re-claimed by a later Stripe retry.
+ * Must comfortably exceed the edge-function wall clock (150s default).
+ */
+export const LEASE_MS = 10 * 60_000;
+
 /** The I/O boundary handleWebhook needs — index.ts wires the real Stripe SDK calls. */
 export type WebhookCtx = {
   db: Db;
@@ -322,48 +329,50 @@ export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Resp
     console.error('ledger write failed', event.id, ledgerErr);
     return new Response('ledger error', { status: 500 });
   }
-  // ATOMIC CLAIM — a single conditional UPDATE replaces the old read-then-check-then-stamp
-  // sequence, whose two round-trips let concurrent deliveries of the same event both observe
-  // processed_at NULL and both run processEvent.
-  // Residual window: if the isolate hard-crashes INSIDE processEvent (kill/timeout), the catch
-  // release never runs, the stale claim reads as processed, and Stripe's retries ack 200 — that
-  // event's effects are lost. Distinguishing "crashed claim" from "done" needs a separate
-  // claimed_at column (migration; deferred). Per-handler UNIQUE-constraint idempotency plus
-  // Stripe Dashboard replay remain the recovery path. Exactly one delivery flips NULL → now() and
-  // gets its row back; everyone else gets zero rows and acks. True replays land here too.
+  // ATOMIC LEASE CLAIM — one conditional UPDATE decides the winner: processed_at must be
+  // NULL (not done) and claimed_at NULL or stale (no live claim). Exactly one delivery per
+  // lease window gets its row back; everyone else acks 200. A hard crash inside processEvent
+  // leaves claimed_at stale with processed_at NULL, so a Stripe retry after LEASE_MS
+  // re-claims and reprocesses (at-least-once; per-handler UNIQUE constraints absorb replays).
+  const leaseCutoff = new Date(Date.now() - LEASE_MS).toISOString();
   const { data: claimed, error: claimErr } = await db
     .from('stripe_webhook_events')
-    .update({ processed_at: new Date().toISOString() })
+    .update({ claimed_at: new Date().toISOString() })
     .eq('event_id', event.id)
     .is('processed_at', null)
+    .or(`claimed_at.is.null,claimed_at.lt.${leaseCutoff}`)
     .select('event_id');
   if (claimErr) {
     console.error('ledger claim failed', event.id, claimErr);
     return new Response('ledger error', { status: 500 });
   }
   if (!claimed || claimed.length === 0) {
-    return new Response('already processed', { status: 200 }); // replay or concurrent claim
+    return new Response('already processed', { status: 200 }); // done, or a live claim holds the lease
   }
 
-  // 3) PROCESS — on failure, best-effort release the claim (processed_at → NULL) and 500 so
-  // Stripe retries. If the release itself fails the event keeps a stale claim and loses its
-  // retry — logged CRITICAL; per-handler UNIQUE-constraint idempotency remains the backstop.
+  // 3) PROCESS — on failure, release the lease (claimed_at → NULL) and 500 so Stripe's retry
+  // can re-claim immediately instead of waiting out the lease. A failed release only delays
+  // the retry until the lease expires — nothing is lost.
   try {
     await processEvent(ctx, event);
   } catch (e) {
     console.error('process failed', event.id, e);
     const { error: releaseErr } = await db
       .from('stripe_webhook_events')
-      .update({ processed_at: null })
+      .update({ claimed_at: null })
       .eq('event_id', event.id);
     if (releaseErr)
-      console.error(
-        'CRITICAL: claim release failed — event will not be retried',
-        event.id,
-        releaseErr,
-      );
+      console.error('lease release failed — retry delayed one lease', event.id, releaseErr);
     return new Response('processing error', { status: 500 });
   }
+
+  // 4) MARK PROCESSED — after successful processing. A failed stamp risks one idempotent
+  // reprocess after the lease expires, so log it but still ack 200.
+  const { error: markErr } = await db
+    .from('stripe_webhook_events')
+    .update({ processed_at: new Date().toISOString() })
+    .eq('event_id', event.id);
+  if (markErr) console.error('mark processed failed', event.id, markErr);
 
   return new Response('ok', { status: 200 });
 }

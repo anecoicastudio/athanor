@@ -93,6 +93,10 @@ export function makeFakeDb(script: Record<string, FakeResult[]> = {}) {
         call.filters.push(['not', col, operator, val]);
         return b;
       },
+      or(expr: string) {
+        call.filters.push(['or', expr]);
+        return b;
+      },
       order(col: string, opts?: unknown) {
         call.modifiers.push(['order', col, opts]);
         return b;
