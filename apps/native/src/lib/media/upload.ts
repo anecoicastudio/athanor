@@ -2,35 +2,16 @@ import * as Crypto from 'expo-crypto';
 import { uploadToBucket } from '@athanor/api';
 import { supabase } from '@/lib/supabase';
 import type { PickedMedia } from './pick';
+import type { UploadTarget } from './paths';
 import { processImage, processVideo } from './process';
 
-export type MediaBucket = 'post-media' | 'moments' | 'story-segments';
-
-export type UploadTarget = { bucket: MediaBucket; path: string };
+// Pure path builders + types live in paths.ts (unit-testable, no expo imports);
+// re-exported here so callers keep importing from './upload'.
+export * from './paths';
 
 /** A fresh UUID for a media item (post media id, moment id, …). */
 export function newMediaId(): string {
   return Crypto.randomUUID();
-}
-
-/** Storage key for a post-media item: `${uid}/${postId}/${index}.{ext}`. */
-export function postMediaPath(
-  uid: string,
-  postId: string,
-  index: number,
-  kind: PickedMedia['kind'],
-): string {
-  return `${uid}/${postId}/${index}.${kind === 'video' ? 'mp4' : 'jpg'}`;
-}
-
-/** Storage key for a moment: `${uid}/${momentId}.{ext}`. */
-export function momentPath(uid: string, momentId: string, kind: PickedMedia['kind']): string {
-  return `${uid}/${momentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
-}
-
-/** Storage key for a story segment: `${uid}/${segmentId}.{ext}`. */
-export function storyPath(uid: string, segmentId: string, kind: PickedMedia['kind']): string {
-  return `${uid}/${segmentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
 }
 
 /**
