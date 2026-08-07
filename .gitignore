@@ -33,3 +33,6 @@ deno.lock
 
 # superpowers local
 .superpowers/
+
+# local scratch notes (never committed)
+.scratch/
