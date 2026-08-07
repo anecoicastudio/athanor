@@ -77,10 +77,18 @@ describe('getMyContributions', () => {
   });
 
   it('full page → nextCursor is the last row keyset', async () => {
-    const second = { ...ROW, id: '00000000-0000-4000-8000-000000000009', created_at: '2026-06-30T10:00:00Z', updated_at: '2026-06-30T10:00:00Z' };
+    const second = {
+      ...ROW,
+      id: '00000000-0000-4000-8000-000000000009',
+      created_at: '2026-06-30T10:00:00Z',
+      updated_at: '2026-06-30T10:00:00Z',
+    };
     const client = makeContribClient([ROW, second]);
     const page = await getMyContributions(client as never, 'p1', { limit: 2 });
-    expect(page.nextCursor).toEqual({ ts: '2026-06-30T10:00:00Z', id: '00000000-0000-4000-8000-000000000009' });
+    expect(page.nextCursor).toEqual({
+      ts: '2026-06-30T10:00:00Z',
+      id: '00000000-0000-4000-8000-000000000009',
+    });
   });
 
   it('threads the keyset cursor as a lt/eq-and-lt or() filter — never offset (rule #9)', async () => {

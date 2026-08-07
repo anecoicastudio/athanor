@@ -1,5 +1,6 @@
 import { type Notification, notificationSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 // Rows are written ONLY by the `notification-fan-out` edge fn (service role) — see
@@ -34,16 +35,15 @@ export async function listNotifications(
     .order('id', { ascending: false })
     .limit(PAGE);
   if (cursor) {
-    q = q.or(
-      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
-    );
+    q = q.or(keysetFilter('created_at', 'id', cursor.createdAt, cursor.id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;
   const items = (data ?? []).map((r) => notificationSchema.parse(r));
-  const last = items[items.length - 1];
-  const nextCursor =
-    items.length === PAGE && last ? { createdAt: last.created_at, id: last.id } : null;
+  const nextCursor = nextCursorOf(items, PAGE, (last) => ({
+    createdAt: last.created_at,
+    id: last.id,
+  }));
   return { items, nextCursor };
 }
 

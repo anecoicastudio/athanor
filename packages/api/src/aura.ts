@@ -11,6 +11,7 @@ import {
 } from '@athanor/schemas';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 
 /** Read-only Aura query-key factories (api rule: per-entity). No mutation keys — rule #1. */
 export const auraKeys = {
@@ -146,7 +147,7 @@ export async function getAuraLedgerPage(
 
   if (cursor) {
     const { ts, id } = cursor;
-    q = q.or(`created_at.lt.${ts},and(created_at.eq.${ts},id.lt.${id})`);
+    q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
 
   const { data, error } = await q;
@@ -165,8 +166,7 @@ export async function getAuraLedgerPage(
   );
 
   // A full page means more rows may exist — hand back the last row as the keyset cursor.
-  const last = rows.length === limit ? rows.at(-1) : undefined;
-  const nextCursor = last ? { ts: last.createdAt, id: last.id } : null;
+  const nextCursor = nextCursorOf(rows, limit, (last) => ({ ts: last.createdAt, id: last.id }));
   return { rows, nextCursor };
 }
 

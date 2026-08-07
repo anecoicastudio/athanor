@@ -9,6 +9,7 @@ import {
   projectUpdateSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 
 export const projectKeys = {
   all: ['projects'] as const,
@@ -45,14 +46,16 @@ export async function getProjectsPage(
 
   if (opts.cursor) {
     const { created_at, id } = opts.cursor;
-    query = query.or(`created_at.lt.${created_at},and(created_at.eq.${created_at},id.lt.${id})`);
+    query = query.or(keysetFilter('created_at', 'id', created_at, id, 'lt'));
   }
 
   const { data, error } = await query;
   if (error) throw error;
   const projects = (data ?? []).map((row) => projectSchema.parse(row));
-  const last = projects.length === limit ? projects.at(-1) : undefined;
-  const nextCursor = last ? { created_at: last.created_at, id: last.id } : null;
+  const nextCursor = nextCursorOf(projects, limit, (last) => ({
+    created_at: last.created_at,
+    id: last.id,
+  }));
   return { projects, nextCursor };
 }
 

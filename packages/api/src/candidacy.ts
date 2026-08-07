@@ -7,6 +7,7 @@ import {
   dreamCandidacySchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 
 export const candidacyKeys = {
   all: ['candidacy'] as const,
@@ -93,15 +94,15 @@ export async function getCandidates(
     .limit(limit);
   if (opts.cursor) {
     const { created_at, candidacy_id } = opts.cursor;
-    query = query.or(
-      `created_at.lt.${created_at},and(created_at.eq.${created_at},candidacy_id.lt.${candidacy_id})`,
-    );
+    query = query.or(keysetFilter('created_at', 'candidacy_id', created_at, candidacy_id, 'lt'));
   }
   const { data, error } = await query;
   if (error) throw error;
   const items = (data ?? []).map((row) => candidateCardSchema.parse(row));
-  const last = items.length === limit ? items.at(-1) : undefined;
-  const nextCursor = last ? { created_at: last.created_at, candidacy_id: last.candidacy_id } : null;
+  const nextCursor = nextCursorOf(items, limit, (last) => ({
+    created_at: last.created_at,
+    candidacy_id: last.candidacy_id,
+  }));
   return { items, nextCursor };
 }
 

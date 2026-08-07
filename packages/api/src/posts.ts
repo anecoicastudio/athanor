@@ -6,6 +6,7 @@ import {
   postSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const postKeys = {
@@ -47,15 +48,17 @@ export async function getFeedPage(
   // keyset: (created_at, id) < (cursor.created_at, cursor.id), expressed for PostgREST
   if (opts.cursor) {
     const { created_at, id } = opts.cursor;
-    query = query.or(`created_at.lt.${created_at},and(created_at.eq.${created_at},id.lt.${id})`);
+    query = query.or(keysetFilter('created_at', 'id', created_at, id, 'lt'));
   }
 
   const { data, error } = await query;
   if (error) throw error;
   const posts = (data ?? []).map((row) => postSchema.parse(row));
   // A full page means more rows may exist — hand back the last row as the keyset cursor.
-  const last = posts.length === limit ? posts.at(-1) : undefined;
-  const nextCursor = last ? { created_at: last.created_at, id: last.id } : null;
+  const nextCursor = nextCursorOf(posts, limit, (last) => ({
+    created_at: last.created_at,
+    id: last.id,
+  }));
   return { posts, nextCursor };
 }
 

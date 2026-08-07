@@ -5,6 +5,7 @@ import {
   storySegmentSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const storyKeys = {
@@ -71,15 +72,18 @@ export async function getPersonStory(
     .order('id', { ascending: true })
     .limit(limit);
   if (cursor) {
-    q = q.or(
-      `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
-    );
+    q = q.or(keysetFilter('created_at', 'id', cursor.created_at, cursor.id, 'gt'));
   }
   const { data, error } = await q;
   if (error) throw error;
   const segments = (data ?? []).map((row) => storySegmentSchema.parse(row));
-  const last = segments.length === limit ? segments.at(-1) : undefined;
-  return { segments, nextCursor: last ? { created_at: last.created_at, id: last.id } : null };
+  return {
+    segments,
+    nextCursor: nextCursorOf(segments, limit, (last) => ({
+      created_at: last.created_at,
+      id: last.id,
+    })),
+  };
 }
 
 /**

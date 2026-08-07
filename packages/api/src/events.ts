@@ -18,6 +18,7 @@ import {
   ticketSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const eventKeys = {
@@ -66,14 +67,16 @@ export async function getEventsCalendar(
 
   if (cursor) {
     const { starts_at, id } = cursor;
-    query = query.or(`starts_at.gt.${starts_at},and(starts_at.eq.${starts_at},id.gt.${id})`);
+    query = query.or(keysetFilter('starts_at', 'id', starts_at, id, 'gt'));
   }
 
   const { data, error } = await query;
   if (error) throw error;
   const events = (data ?? []).map((row) => eventSchema.parse(row as unknown));
-  const last = events.length === limit ? events.at(-1) : undefined;
-  const nextCursor = last ? { starts_at: last.starts_at, id: last.id } : null;
+  const nextCursor = nextCursorOf(events, limit, (last) => ({
+    starts_at: last.starts_at,
+    id: last.id,
+  }));
   return { events, nextCursor };
 }
 
@@ -127,8 +130,10 @@ export async function getEventsNearby(
   const { data, error } = await client.rpc('events_nearby', rpcArgs);
   if (error) throw error;
   const events = (data ?? []).map((row) => eventNearbySchema.parse(row as unknown));
-  const last = events.length === limit ? events.at(-1) : undefined;
-  const nextCursor = last ? { dist: last.dist_meters, id: last.id } : null;
+  const nextCursor = nextCursorOf(events, limit, (last) => ({
+    dist: last.dist_meters,
+    id: last.id,
+  }));
   return { events, nextCursor };
 }
 

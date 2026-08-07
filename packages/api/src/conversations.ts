@@ -1,5 +1,6 @@
 import { type ConversationListItem, conversationListItem } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const conversationKeys = {
@@ -63,16 +64,16 @@ export async function getConversationsPage(
 
   if (opts.cursor) {
     const { last_message_at, id } = opts.cursor;
-    query = query.or(
-      `last_message_at.lt.${last_message_at},and(last_message_at.eq.${last_message_at},id.lt.${id})`,
-    );
+    query = query.or(keysetFilter('last_message_at', 'id', last_message_at, id, 'lt'));
   }
 
   const { data, error } = await query;
   if (error) throw error;
   const items = (data ?? []).map((r) => rowToListItem(r as unknown as ConvRow, myId));
-  const last = items.length === limit ? items.at(-1) : undefined;
-  const nextCursor = last ? { last_message_at: last.lastMessageAt, id: last.id } : null;
+  const nextCursor = nextCursorOf(items, limit, (last) => ({
+    last_message_at: last.lastMessageAt,
+    id: last.id,
+  }));
   return { items, nextCursor };
 }
 

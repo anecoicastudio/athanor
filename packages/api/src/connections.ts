@@ -6,6 +6,7 @@ import {
   type ConnectionState,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const connectionKeys = {
@@ -59,7 +60,7 @@ export async function getIncomingRequestsPage(
 
   if (opts.cursor) {
     const { created_at, id } = opts.cursor;
-    query = query.or(`created_at.lt.${created_at},and(created_at.eq.${created_at},id.lt.${id})`);
+    query = query.or(keysetFilter('created_at', 'id', created_at, id, 'lt'));
   }
 
   const { data, error } = await query;
@@ -73,8 +74,10 @@ export async function getIncomingRequestsPage(
       createdAt: row.created_at,
     });
   });
-  const last = items.length === limit ? items.at(-1) : undefined;
-  const nextCursor = last ? { created_at: last.createdAt, id: last.id } : null;
+  const nextCursor = nextCursorOf(items, limit, (last) => ({
+    created_at: last.createdAt,
+    id: last.id,
+  }));
   return { items, nextCursor };
 }
 
@@ -111,8 +114,10 @@ export async function getConnectionsPage(
       createdAt: row.created_at,
     }),
   );
-  const last = items.length === limit ? items.at(-1) : undefined;
-  const nextCursor = last ? { created_at: last.createdAt, id: last.id } : null;
+  const nextCursor = nextCursorOf(items, limit, (last) => ({
+    created_at: last.createdAt,
+    id: last.id,
+  }));
   return { items, nextCursor };
 }
 

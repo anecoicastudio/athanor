@@ -19,7 +19,10 @@ describe('waitlist api', () => {
   });
 
   it('returns duplicate:false on a fresh insert', async () => {
-    const result = await subscribeToWaitlist(clientWithError(null), { email: 'a@b.com', locale: 'it' });
+    const result = await subscribeToWaitlist(clientWithError(null), {
+      email: 'a@b.com',
+      locale: 'it',
+    });
     expect(result).toEqual({ ok: true, duplicate: false });
   });
 

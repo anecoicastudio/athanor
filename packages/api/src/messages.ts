@@ -5,6 +5,7 @@ import {
   messageSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const messageKeys = {
@@ -38,14 +39,16 @@ export async function getMessagesPage(
 
   if (opts.cursor) {
     const { created_at, id } = opts.cursor;
-    query = query.or(`created_at.lt.${created_at},and(created_at.eq.${created_at},id.lt.${id})`);
+    query = query.or(keysetFilter('created_at', 'id', created_at, id, 'lt'));
   }
 
   const { data, error } = await query;
   if (error) throw error;
   const messages = (data ?? []).map((row) => messageSchema.parse(row));
-  const last = messages.length === limit ? messages.at(-1) : undefined;
-  const nextCursor = last ? { created_at: last.created_at, id: last.id } : null;
+  const nextCursor = nextCursorOf(messages, limit, (last) => ({
+    created_at: last.created_at,
+    id: last.id,
+  }));
   return { messages, nextCursor };
 }
 

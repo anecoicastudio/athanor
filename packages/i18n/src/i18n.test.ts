@@ -17,6 +17,21 @@ describe('t', () => {
   test('returns English copy for en locale', () => {
     expect(t('moment.new', 'en')).toBe('You have a Moment');
   });
+
+  test('substitutes {var} placeholders when vars provided', () => {
+    const key = (Object.keys(it) as MessageKey[]).find((k) => /\{\w+\}/.test(it[k]));
+    expect(key).toBeDefined();
+    const name = /\{(\w+)\}/.exec(it[key!])![1]!;
+    expect(t(key!, 'it', { [name]: 'X7' })).toContain('X7');
+    expect(t(key!, 'it', { [name]: 'X7' })).not.toContain(`{${name}}`);
+  });
+
+  test('leaves unknown placeholders intact', () => {
+    const key = (Object.keys(it) as MessageKey[]).find((k) => /\{\w+\}/.test(it[k]));
+    const name = /\{(\w+)\}/.exec(it[key!])![1]!;
+    // vars provided but without the matching name — placeholder survives verbatim
+    expect(t(key!, 'it', { unrelated: 1 })).toContain(`{${name}}`);
+  });
 });
 
 describe('catalog quality', () => {

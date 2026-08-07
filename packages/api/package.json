@@ -8,7 +8,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "@athanor/core": "workspace:*",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@athanor/config": "workspace:*",
+    "@vitest/coverage-v8": "^3.1.1",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"
   }

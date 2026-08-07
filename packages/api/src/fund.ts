@@ -8,6 +8,7 @@ import {
   type ContributionSessionInput,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 export const fundKeys = {
@@ -113,15 +114,17 @@ export async function getMyContributions(
     .limit(limit);
 
   if (cursor) {
-    q = q.or(`created_at.lt.${cursor.ts},and(created_at.eq.${cursor.ts},id.lt.${cursor.id})`);
+    q = q.or(keysetFilter('created_at', 'id', cursor.ts, cursor.id, 'lt'));
   }
 
   const { data, error } = await q;
   if (error) throw error;
 
   const rows = (data ?? []).map((r) => fundContributionSchema.parse(r));
-  const last = rows.length === limit ? rows.at(-1) : undefined;
-  return { rows, nextCursor: last ? { ts: last.created_at, id: last.id } : null };
+  return {
+    rows,
+    nextCursor: nextCursorOf(rows, limit, (last) => ({ ts: last.created_at, id: last.id })),
+  };
 }
 
 export type { FundAggregate, FundContribution, FundEdition };

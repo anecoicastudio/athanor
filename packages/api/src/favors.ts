@@ -5,6 +5,7 @@ import {
   favorNeedSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 
 export const favorKeys = {
   all: ['favorOffers'] as const,
@@ -39,17 +40,23 @@ export async function listOpenNeeds(
   if (cursor) {
     const { need_created_at, need_milestone_id } = cursor;
     query = query.or(
-      `need_created_at.lt.${need_created_at},and(need_created_at.eq.${need_created_at},need_milestone_id.lt.${need_milestone_id})`,
+      keysetFilter(
+        'need_created_at',
+        'need_milestone_id',
+        need_created_at,
+        need_milestone_id,
+        'lt',
+      ),
     );
   }
 
   const { data, error } = await query;
   if (error) throw error;
   const needs = (data ?? []).map((row) => favorNeedSchema.parse(row));
-  const last = needs.length === limit ? needs.at(-1) : undefined;
-  const nextCursor = last
-    ? { need_created_at: last.need_created_at, need_milestone_id: last.need_milestone_id }
-    : null;
+  const nextCursor = nextCursorOf(needs, limit, (last) => ({
+    need_created_at: last.need_created_at,
+    need_milestone_id: last.need_milestone_id,
+  }));
   return { needs, nextCursor };
 }
 

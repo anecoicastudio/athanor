@@ -1,5 +1,6 @@
 import { type Block, blockSchema, type BlockedListItem, blockedListItem } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter } from './pagination';
 
 export const blockKeys = {
   all: ['blocks'] as const,
@@ -57,9 +58,7 @@ export async function listBlocked(
     .order('id', { ascending: false })
     .limit(PAGE);
   if (cursor) {
-    q = q.or(
-      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
-    );
+    q = q.or(keysetFilter('created_at', 'id', cursor.createdAt, cursor.id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;

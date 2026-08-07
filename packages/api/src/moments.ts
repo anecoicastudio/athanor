@@ -1,5 +1,6 @@
 import { type Moment, type MomentInsert, momentInsertSchema, momentSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 
 export const momentKeys = {
   all: ['moments'] as const,
@@ -26,15 +27,18 @@ export async function getMomentsPage(
     .order('id', { ascending: false })
     .limit(limit);
   if (cursor) {
-    q = q.or(
-      `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`,
-    );
+    q = q.or(keysetFilter('created_at', 'id', cursor.created_at, cursor.id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;
   const moments = (data ?? []).map((row) => momentSchema.parse(row));
-  const last = moments.length === limit ? moments.at(-1) : undefined;
-  return { moments, nextCursor: last ? { created_at: last.created_at, id: last.id } : null };
+  return {
+    moments,
+    nextCursor: nextCursorOf(moments, limit, (last) => ({
+      created_at: last.created_at,
+      id: last.id,
+    })),
+  };
 }
 
 /** Create a moment row (owner-only via RLS). Bytes uploaded to the moments bucket first. */
