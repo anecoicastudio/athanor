@@ -6,24 +6,30 @@ import type { Locale, Profile } from '@athanor/schemas';
 import { Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { Section, type Visibility } from '@/components/profile/Section';
 import { supabase } from '@/lib/supabase';
 
 /**
- * Edit-mode Profilo form: bio / identity / seeking / locale + per-field
+ * Edit-mode Profilo form: bio / identity / seeking / dream / locale + per-field
  * visibility. Owns the draft state internally; unmounting discards the draft
  * (cancel), a successful save persists then fires onSaved.
+ *
+ * The dream section is read-only here — the text is written in the dream editor
+ * modal; this form owns only who may see it (visibility key 'dream').
  */
 export function ProfileEditForm({
   userId,
   profile,
+  dreamText,
   refreshProfile,
   onSaved,
   onCancel,
 }: {
   userId: string;
   profile: Profile;
+  dreamText: string | null;
   refreshProfile: () => Promise<void>;
   onSaved: () => void;
   onCancel: () => void;
@@ -128,6 +134,24 @@ export function ProfileEditForm({
             />
           ))}
         </View>
+      </Section>
+
+      {/* Il mio sogno — visibility only; the text lives in the dream editor.
+          The 'dream' key gates dreams + dream_milestones reads (M10 RLS) and
+          keeps a private dreamer out of the Momenti deck (matcher gate). */}
+      <Section
+        label={t('dream.ownLabel', locale)}
+        field="dream"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        {dreamText ? (
+          <Text className="font-dream text-xl leading-relaxed text-foreground">«{dreamText}»</Text>
+        ) : (
+          <EmptyState>{t('dream.empty.title', locale)}</EmptyState>
+        )}
       </Section>
 
       {/* Lingua + actions */}

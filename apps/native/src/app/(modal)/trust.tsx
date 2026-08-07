@@ -53,7 +53,10 @@ export default function TrustScreen() {
   );
 
   // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
-  const consents = useQuery({ queryKey: gdprKeys.consent(profile?.id ?? ''), queryFn: () => getConsents(supabase) });
+  const consents = useQuery({
+    queryKey: gdprKeys.consent(profile?.id ?? ''),
+    queryFn: () => getConsents(supabase),
+  });
 
   // Live identity-verification status (M9 identity-verify slice).
   const verifyQuery = useQuery({
@@ -183,9 +186,16 @@ export default function TrustScreen() {
             {t('trust.privacy.section', locale)}
           </Text>
           <View className="rounded-card border border-hair bg-raise">
-            {/* dream visibility — navigational cross-link to the M1 inline editor (no duplicate toggle) */}
+            {/* dream visibility — navigational cross-link to the inline editor's
+                «Il mio sogno» visibility control (no duplicate toggle); `edit=1`
+                opens Profilo already in edit mode so the control is on screen.
+                dismissTo (POP_TO), not push: (modal) is a sibling of (tabs) in the
+                root Stack, so a push would stack a SECOND (tabs) instance over the
+                still-open modal — an edit form with no back affordance. */}
             <Pressable
-              onPress={() => router.push('/(tabs)/profile')}
+              onPress={() =>
+                router.dismissTo({ pathname: '/(tabs)/profile', params: { edit: '1' } })
+              }
               accessibilityRole="button"
               accessibilityLabel={t('trust.privacy.dream', locale)}
               className="flex-row items-center gap-4 border-b border-hair px-5 py-4"

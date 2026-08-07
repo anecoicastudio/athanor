@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { auraKeys, starKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Profile } from '@athanor/schemas';
@@ -19,9 +19,12 @@ import { useStarCelebration } from '@/hooks/use-star-celebration';
 /**
  * Profilo Evolutivo — own authenticated view (PRD §4.2, M1): view + inline edit
  * of bio / identity / seeking / locale + per-field visibility, dream read-only
- * (editor is M2), Six Stars grid seeded from Aura snapshot (score engine M6).
+ * (editor is M2) with its own visibility control, Six Stars grid seeded from
+ * Aura snapshot (score engine M6).
  * Per-field visibility is enforced in the DB (M10, migration 20260807170813):
- * hidden fields never leave Postgres. The 'dream' key has no toggle here yet.
+ * hidden fields never leave Postgres.
+ * `?edit=1` opens straight in edit mode — the trust modal's «Chi vede il mio
+ * sogno» row deep-links here.
  */
 export default function ProfileScreen() {
   const { profile, session, refreshProfile } = useAuth();
@@ -62,6 +65,16 @@ function ProfileEditor({
 
   const dream = useOwnDream(userId);
   const { starToast, starFlash } = useStarCelebration(userId, locale);
+
+  // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). Consumed in an
+  // effect, not a useState initializer: trust dismissTo's back to this already-
+  // mounted tab, so only the params change — an initializer would never re-run.
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  useEffect(() => {
+    if (edit !== '1') return;
+    setEditing(true);
+    router.setParams({ edit: undefined });
+  }, [edit, router]);
 
   // Invalidate Aura + Stars whenever Profilo regains focus so the grid refreshes
   // after confirmed help events (preserves focus-refetch behaviour from old useEffect).
@@ -140,6 +153,7 @@ function ProfileEditor({
         <ProfileEditForm
           userId={userId}
           profile={profile}
+          dreamText={dream.dreamText}
           refreshProfile={refreshProfile}
           onSaved={onSaved}
           onCancel={() => setEditing(false)}
