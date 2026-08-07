@@ -4,6 +4,8 @@ import { t } from '@athanor/i18n';
 import { getMomentiDeck, momentiKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
+import { deviceLocale } from '@/lib/locale';
 import {
   CommunityGlyph,
   CostellazioniGlyph,
@@ -17,6 +19,8 @@ export default function TabsLayout() {
   // numeric count (rule #3 / DESIGN §8). (tabs) renders inside the query provider.
   const deck = useQuery({ queryKey: momentiKeys.deck(), queryFn: () => getMomentiDeck(supabase) });
   const hasUnseen = (deck.data?.length ?? 0) > 0;
+  const { profile } = useAuth();
+  const locale = profile?.locale ?? deviceLocale;
 
   return (
     <Tabs
@@ -35,40 +39,40 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: t('tabs.home', 'it'),
+          title: t('tabs.home', locale),
           tabBarIcon: ({ color, size }) => <HomeGlyph color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="community"
         options={{
-          title: t('tabs.community', 'it'),
+          title: t('tabs.community', locale),
           tabBarIcon: ({ color, size }) => <CommunityGlyph color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="momenti"
         options={{
-          title: t('tabs.momenti', 'it'),
+          title: t('tabs.momenti', locale),
           tabBarIcon: ({ color, size }) => <MomentiGlyph color={color} size={size} />,
           tabBarBadge: hasUnseen ? '✦' : undefined,
           tabBarBadgeStyle: { backgroundColor: 'transparent', color: semantic.aura },
           tabBarAccessibilityLabel: hasUnseen
-            ? t('tabs.a11y.momentiUnread', 'it')
-            : t('tabs.momenti', 'it'),
+            ? t('tabs.a11y.momentiUnread', locale)
+            : t('tabs.momenti', locale),
         }}
       />
       <Tabs.Screen
         name="costellazioni"
         options={{
-          title: t('tabs.costellazioni', 'it'),
+          title: t('tabs.costellazioni', locale),
           tabBarIcon: ({ color, size }) => <CostellazioniGlyph color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: t('tabs.profile', 'it'),
+          title: t('tabs.profile', locale),
           tabBarIcon: ({ color, size }) => <ProfiloGlyph color={color} size={size} />,
         }}
       />
