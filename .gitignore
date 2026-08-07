@@ -2,7 +2,6 @@
 node_modules/
 
 # builds
-.next/
 .expo/
 dist/
 .turbo/
@@ -17,22 +16,17 @@ dist/
 supabase/.temp/
 supabase/.branches/
 
-# playwright e2e
-playwright-report/
-test-results/
-playwright/.cache/
-
 # misc
 .DS_Store
 *.log
 coverage/
 
-# claude local
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
+# internal docs & agent tooling — kept out of this repo
+/docs/
+.claude/
+CLAUDE.md
+AGENTS.md
 *.types.ts.tmp
 .gstack/
-docs/screenshot-design/
-docs/ATHANOR.pdf
 # Deno edge-function local lockfile (transient; functions pin deps in deno.json)
 deno.lock
