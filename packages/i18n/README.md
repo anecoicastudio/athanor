@@ -7,11 +7,11 @@ IT/EN message catalogs (flat dot-namespaced keys) + `t(key, locale, vars?)`.
 - **IT is canonical; EN mirrors every key** — `i18n.test.ts` `catalog parity`.
 - **Interpolation parity (I-4)** — `{var}` placeholder set matches IT↔EN per key (`catalog quality`).
 - **Athanor voice (I-3)** — no `engagement` / `utenti` / singular-vanity `notifica` in values (`catalog quality`). «Notifiche» (plural feature title) is allowed.
-- **No hardcoded strings (I-2)** — `pnpm i18n:check` scans `apps/mobile/src`; CI gate. Allowlist a line with `// i18n-ignore`.
+- **No hardcoded strings (I-2)** — `pnpm i18n:check` scans `apps/native/src`; CI gate. Allowlist a line with `// i18n-ignore`.
 
 ## Locale (I-6)
 
-Resolved at runtime from `profiles.locale` (persisted on the Settings → Lingua switch, M1 B11), falling back to the device locale (`apps/mobile/src/lib/locale.ts`) for pre-profile surfaces (auth, BrandSplash). Live switch + restart persistence verified on device.
+Resolved at runtime from `profiles.locale` (persisted on the Settings → Lingua switch, M1 B11), falling back to the device locale (`apps/native/src/lib/locale.ts`) for pre-profile surfaces (auth, BrandSplash). Live switch + restart persistence verified on device.
 
 ## RTL — out of scope (I-9)
 

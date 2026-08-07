@@ -1,4 +1,4 @@
-// apps/mobile/src/lib/a11y.ts
+// apps/native/src/lib/a11y.ts
 import { useEffect } from 'react';
 import { AccessibilityInfo } from 'react-native';
 

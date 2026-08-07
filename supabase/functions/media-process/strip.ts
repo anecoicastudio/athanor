@@ -2,7 +2,7 @@
  * media-process strip library — byte-level metadata removal, zero dependencies.
  *
  * Server-side defense-in-depth for EXIF/GPS/XMP/IPTC (backend 10 §4.1a, 11 §3.9a): the
- * client already re-encodes images (apps/mobile/src/lib/media/process.ts) and passes
+ * client already re-encodes images (apps/native/src/lib/media/process.ts) and passes
  * `exif: false` to the picker; this library is the backstop for tampered clients and
  * direct Storage API uploads. The spec's binding assertion is outcome-based ("a photo
  * carrying GPS EXIF arrives in Storage with no location metadata") — a byte-level

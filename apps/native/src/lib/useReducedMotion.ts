@@ -1,4 +1,4 @@
-// apps/mobile/src/lib/useReducedMotion.ts
+// apps/native/src/lib/useReducedMotion.ts
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 

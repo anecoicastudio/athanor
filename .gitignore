@@ -30,3 +30,6 @@ AGENTS.md
 .gstack/
 # Deno edge-function local lockfile (transient; functions pin deps in deno.json)
 deno.lock
+
+# superpowers local
+.superpowers/

@@ -19,7 +19,7 @@ export interface EntitlementView {
  * Read the caller's Circle entitlements from the server-derived `entitlements` view.
  * Maps snake_case columns → camelCase shape. staleTime 30s — invalidated on
  * Checkout/Portal return so membership state always reflects the latest webhook.
- * Mirrors the supabase + useAuth pattern from apps/mobile/src/app/(modal)/annual.tsx.
+ * Mirrors the supabase + useAuth pattern from apps/native/src/app/(modal)/annual.tsx.
  */
 export function useEntitlement() {
   return useQuery({
