@@ -3,7 +3,7 @@
 -- publication column list.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -15,6 +15,8 @@ values
 set local role service_role;
 -- A: recipient. B: matching tags, dream PRIVATE. C: matching tags, tags PRIVATE.
 -- D: matching tags, all defaults ⇒ the only legitimate proposal for A.
+-- C doubles as a recipient: she has an active dream too, so the same run scores
+-- her deck and exposes the direction asymmetry (see the C-side assertion below).
 update public.profiles set identity_tags=array['design'], seeking=array['music'], locale='it'
   where id='aaaaaaaa-0000-4000-8000-000000000073';
 update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it',
@@ -54,6 +56,22 @@ select is(
       and candidate_id='cccccccc-0000-4000-8000-000000000073'),
   0::bigint,
   'private identity_tags/seeking ⇒ affinity 0 ⇒ no match (intended privacy trade)'
+);
+-- …but the trade is ONE-DIRECTIONAL, and this is the assertion that says so.
+-- The masking lateral joins in run_momenti_matcher() apply to the candidate side
+-- (`c_tags` / `c_seek`) only; the `recipients` CTE reads `p.identity_tags` and
+-- `p.seeking` raw. So C — whose tags are private — disappears from everyone
+-- else's deck (asserted above) yet still RECEIVES proposals scored against her
+-- own private tags. Supersedes the product note in migration
+-- 20260807174758_m10_visibility_followups.sql:23-26 ("drops out of Momenti
+-- matching entirely"), which overstates it; that migration is applied and
+-- append-only, so the accurate statement lives here beside the assertion.
+select is(
+  (select count(*) from public.momento_proposals
+    where user_id='cccccccc-0000-4000-8000-000000000073'
+      and candidate_id='aaaaaaaa-0000-4000-8000-000000000073'),
+  1::bigint,
+  'private tags still match on the RECIPIENT side — C is proposed A (trade is one-directional)'
 );
 select is(
   (select count(*) from public.momento_proposals
