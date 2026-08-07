@@ -20,6 +20,10 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 
 Dependency rule: `apps → packages` only; `core` imports only `schemas`.
 
+Migrations are append-only, so a comment in one can never be corrected in place. Where the
+prose has turned out to be wrong, the correction is in **`supabase/MIGRATIONS-ERRATA.md`** —
+read it before trusting a migration's comments. The pgTAP tests are the source of truth.
+
 ## First hour
 
 ```bash

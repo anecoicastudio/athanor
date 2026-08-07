@@ -1,6 +1,9 @@
 -- M10 visibility follow-ups (migration 20260807174758): matcher privacy filtering,
 -- DEFINER helper lockdown, owner's tappe under a soft-deleted dream, realtime
 -- publication column list.
+-- That migration's prose is wrong in two places (append-only, so it cannot be
+-- fixed in situ) — see supabase/MIGRATIONS-ERRATA.md. The assertions below are
+-- the source of truth.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(15);

@@ -1,4 +1,4 @@
-# Migration errata
+# Migration errata — corrections to files in `supabase/migrations/`
 
 Migrations are append-only once applied (project rule #7): a comment that turns out to be
 wrong can never be fixed in place, and the file keeps asserting it to everyone who reads it.
@@ -6,6 +6,10 @@ wrong can never be fixed in place, and the file keeps asserting it to everyone w
 Corrections land here. One section per migration, newest first. Each entry names the lines it
 supersedes and points at the test that holds the verified behaviour — the test is the source
 of truth, this file is the signpost.
+
+It lives one level up from the migrations it annotates: the Supabase CLI treats every file in
+`supabase/migrations/` as a candidate migration and prints a "Skipping …" line for anything
+that isn't `<timestamp>_name.sql`.
 
 This is not a changelog. Only add an entry when a comment in an applied migration is
 **materially misleading** about what the SQL does.
