@@ -50,8 +50,15 @@ jobs:
         run: |
           # CLI 2.x gen types requires a platform token even for --local.
           # Add the SUPABASE_ACCESS_TOKEN repo secret to activate this gate.
+          # Fail-loud policy: a missing token soft-skips on PRs (forks have no
+          # secrets) but FAILS on pushes to main — the gate silently rotting on
+          # the mainline is how types drift ships.
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::notice::types-sync gate skipped — set SUPABASE_ACCESS_TOKEN repo secret to enable"
+            echo "::warning::types-sync gate SKIPPED — set SUPABASE_ACCESS_TOKEN repo secret to enable"
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "::error::types-sync gate cannot run on main push without SUPABASE_ACCESS_TOKEN"
+              exit 1
+            fi
             exit 0
           fi
           # The committed database.types.ts is regenerated via the Supabase MCP (hosted) per the
