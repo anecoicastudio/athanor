@@ -55,7 +55,7 @@ jobs:
           # the mainline is how types drift ships.
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::warning::types-sync gate SKIPPED — set SUPABASE_ACCESS_TOKEN repo secret to enable"
-            if [ "${{ github.event_name }}" = "push" ]; then
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
               echo "::error::types-sync gate cannot run on main push without SUPABASE_ACCESS_TOKEN"
               exit 1
             fi

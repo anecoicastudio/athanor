@@ -324,7 +324,12 @@ export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Resp
   }
   // ATOMIC CLAIM — a single conditional UPDATE replaces the old read-then-check-then-stamp
   // sequence, whose two round-trips let concurrent deliveries of the same event both observe
-  // processed_at NULL and both run processEvent. Exactly one delivery flips NULL → now() and
+  // processed_at NULL and both run processEvent.
+  // Residual window: if the isolate hard-crashes INSIDE processEvent (kill/timeout), the catch
+  // release never runs, the stale claim reads as processed, and Stripe's retries ack 200 — that
+  // event's effects are lost. Distinguishing "crashed claim" from "done" needs a separate
+  // claimed_at column (migration; deferred). Per-handler UNIQUE-constraint idempotency plus
+  // Stripe Dashboard replay remain the recovery path. Exactly one delivery flips NULL → now() and
   // gets its row back; everyone else gets zero rows and acks. True replays land here too.
   const { data: claimed, error: claimErr } = await db
     .from('stripe_webhook_events')
