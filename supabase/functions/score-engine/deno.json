@@ -2,7 +2,6 @@
   "unstable": ["sloppy-imports"],
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
-    "zod": "npm:zod@^3.23.8",
-    "@athanor/schemas": "../../../packages/schemas/src/index.ts"
+    "zod": "npm:zod@^3.23.8"
   }
 }
