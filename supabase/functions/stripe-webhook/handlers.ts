@@ -292,7 +292,7 @@ export async function processEvent(
   }
 }
 
-/** Full request pipeline: signature → idempotency ledger → process → mark processed. */
+/** Full request pipeline: signature → idempotency ledger → atomic claim → process. */
 export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Response> {
   const { db } = ctx;
   const sig = req.headers.get('stripe-signature');
@@ -322,32 +322,43 @@ export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Resp
     console.error('ledger write failed', event.id, ledgerErr);
     return new Response('ledger error', { status: 500 });
   }
-  const { data: row, error: readErr } = await db
+  // ATOMIC CLAIM — a single conditional UPDATE replaces the old read-then-check-then-stamp
+  // sequence, whose two round-trips let concurrent deliveries of the same event both observe
+  // processed_at NULL and both run processEvent. Exactly one delivery flips NULL → now() and
+  // gets its row back; everyone else gets zero rows and acks. True replays land here too.
+  const { data: claimed, error: claimErr } = await db
     .from('stripe_webhook_events')
-    .select('processed_at')
+    .update({ processed_at: new Date().toISOString() })
     .eq('event_id', event.id)
-    .single();
-  if (readErr) {
-    console.error('ledger read failed', event.id, readErr);
+    .is('processed_at', null)
+    .select('event_id');
+  if (claimErr) {
+    console.error('ledger claim failed', event.id, claimErr);
     return new Response('ledger error', { status: 500 });
   }
-  if (row?.processed_at) return new Response('already processed', { status: 200 }); // true replay
+  if (!claimed || claimed.length === 0) {
+    return new Response('already processed', { status: 200 }); // replay or concurrent claim
+  }
 
-  // 3) PROCESS — leave processed_at NULL on failure so Stripe retries
+  // 3) PROCESS — on failure, best-effort release the claim (processed_at → NULL) and 500 so
+  // Stripe retries. If the release itself fails the event keeps a stale claim and loses its
+  // retry — logged CRITICAL; per-handler UNIQUE-constraint idempotency remains the backstop.
   try {
     await processEvent(ctx, event);
   } catch (e) {
     console.error('process failed', event.id, e);
+    const { error: releaseErr } = await db
+      .from('stripe_webhook_events')
+      .update({ processed_at: null })
+      .eq('event_id', event.id);
+    if (releaseErr)
+      console.error(
+        'CRITICAL: claim release failed — event will not be retried',
+        event.id,
+        releaseErr,
+      );
     return new Response('processing error', { status: 500 });
   }
-
-  // 4) MARK PROCESSED — a failed mark just risks one idempotent reprocess on a future redelivery,
-  // so log it but still ack 200 (the ticket was already issued idempotently).
-  const { error: markErr } = await db
-    .from('stripe_webhook_events')
-    .update({ processed_at: new Date().toISOString() })
-    .eq('event_id', event.id);
-  if (markErr) console.error('mark processed failed', event.id, markErr);
 
   return new Response('ok', { status: 200 });
 }

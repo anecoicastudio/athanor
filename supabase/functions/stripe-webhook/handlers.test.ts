@@ -53,7 +53,9 @@ const subscription = (over: Record<string, unknown> = {}) =>
     status: 'active',
     customer: 'cus_1',
     metadata: { profile_id: 'prof-1' },
-    items: { data: [{ price: { recurring: { interval: 'month' } }, current_period_end: 1760000000 }] },
+    items: {
+      data: [{ price: { recurring: { interval: 'month' } }, current_period_end: 1760000000 }],
+    },
     ...over,
   }) as unknown as Stripe.Subscription;
 
@@ -141,43 +143,55 @@ Deno.test('handleContribution writes row then recomputes the aggregate', async (
   assertEquals(rpc.values, { p_edition_id: 'ed-1' });
 });
 
-Deno.test('handleContribution duplicate delivery (count 0) skips the aggregate recompute', async () => {
-  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 0 }] });
-  await handleContribution(asDb(db), contributionSession());
-  assertEquals(db.calls.length, 1); // upsert only — no rpc
-});
+Deno.test(
+  'handleContribution duplicate delivery (count 0) skips the aggregate recompute',
+  async () => {
+    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 0 }] });
+    await handleContribution(asDb(db), contributionSession());
+    assertEquals(db.calls.length, 1); // upsert only — no rpc
+  },
+);
 
 // ── W4 handleContributionRefunded ────────────────────────────────────────────
 
-Deno.test('handleContributionRefunded acks charges without payment_intent or matching row', async () => {
-  const db1 = makeFakeDb();
-  await handleContributionRefunded(asDb(db1), { payment_intent: null } as unknown as Stripe.Charge);
-  assertEquals(db1.calls.length, 0);
+Deno.test(
+  'handleContributionRefunded acks charges without payment_intent or matching row',
+  async () => {
+    const db1 = makeFakeDb();
+    await handleContributionRefunded(asDb(db1), {
+      payment_intent: null,
+    } as unknown as Stripe.Charge);
+    assertEquals(db1.calls.length, 0);
 
-  const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
-  await handleContributionRefunded(asDb(db2), { payment_intent: 'pi_x' } as unknown as Stripe.Charge);
-  assertEquals(db2.calls.length, 1); // select only — a ticket refund never touches fund rows
-});
+    const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+    await handleContributionRefunded(asDb(db2), {
+      payment_intent: 'pi_x',
+    } as unknown as Stripe.Charge);
+    assertEquals(db2.calls.length, 1); // select only — a ticket refund never touches fund rows
+  },
+);
 
-Deno.test('handleContributionRefunded flips succeeded→refunded with guard and recomputes', async () => {
-  const db = makeFakeDb({
-    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
-  });
-  await handleContributionRefunded(
-    asDb(db),
-    { payment_intent: { id: 'pi_c1' } } as unknown as Stripe.Charge,
-  );
-  const [sel, upd, rpc] = db.calls;
-  assertEquals(sel.filters, [
-    ['eq', 'stripe_payment_intent_id', 'pi_c1'],
-    ['eq', 'status', 'succeeded'],
-  ]);
-  assertEquals(upd.op, 'update');
-  assertEquals(upd.values, { status: 'refunded' });
-  // idempotency guard: re-delivered refund can't re-flip
-  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'succeeded'));
-  assertEquals(rpc.values, { p_edition_id: 'ed-9' });
-});
+Deno.test(
+  'handleContributionRefunded flips succeeded→refunded with guard and recomputes',
+  async () => {
+    const db = makeFakeDb({
+      'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+    });
+    await handleContributionRefunded(asDb(db), {
+      payment_intent: { id: 'pi_c1' },
+    } as unknown as Stripe.Charge);
+    const [sel, upd, rpc] = db.calls;
+    assertEquals(sel.filters, [
+      ['eq', 'stripe_payment_intent_id', 'pi_c1'],
+      ['eq', 'status', 'succeeded'],
+    ]);
+    assertEquals(upd.op, 'update');
+    assertEquals(upd.values, { status: 'refunded' });
+    // idempotency guard: re-delivered refund can't re-flip
+    assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'succeeded'));
+    assertEquals(rpc.values, { p_edition_id: 'ed-9' });
+  },
+);
 
 // ── W5/W6/W7/W11 handleSubscription ──────────────────────────────────────────
 
@@ -202,47 +216,53 @@ Deno.test('handleSubscription upserts one membership per profile with derived fi
   assertEquals(values.current_period_end, new Date(1760000000 * 1000).toISOString());
 });
 
-Deno.test('handleSubscription derives annual plan and falls back to sub-level period end', async () => {
-  const db = makeFakeDb();
-  await handleSubscription(
-    asDb(db),
-    subscription({
-      status: 'unpaid',
-      customer: { id: 'cus_2' },
-      items: { data: [{ price: { recurring: { interval: 'year' } } }] }, // no item period end
-      current_period_end: 1770000000,
-    }),
-  );
-  const values = db.calls[0].values as Record<string, unknown>;
-  assertEquals(values.plan, 'annual');
-  assertEquals(values.status, 'canceled'); // unpaid → canceled via mapSubStatus
-  assertEquals(values.stripe_customer_id, 'cus_2');
-  assertEquals(values.current_period_end, new Date(1770000000 * 1000).toISOString());
-});
+Deno.test(
+  'handleSubscription derives annual plan and falls back to sub-level period end',
+  async () => {
+    const db = makeFakeDb();
+    await handleSubscription(
+      asDb(db),
+      subscription({
+        status: 'unpaid',
+        customer: { id: 'cus_2' },
+        items: { data: [{ price: { recurring: { interval: 'year' } } }] }, // no item period end
+        current_period_end: 1770000000,
+      }),
+    );
+    const values = db.calls[0].values as Record<string, unknown>;
+    assertEquals(values.plan, 'annual');
+    assertEquals(values.status, 'canceled'); // unpaid → canceled via mapSubStatus
+    assertEquals(values.stripe_customer_id, 'cus_2');
+    assertEquals(values.current_period_end, new Date(1770000000 * 1000).toISOString());
+  },
+);
 
 // ── W8 handleInvoiceFailed ───────────────────────────────────────────────────
 
-Deno.test('handleInvoiceFailed acks non-subscription invoices, flags past_due otherwise', async () => {
-  const db1 = makeFakeDb();
-  await handleInvoiceFailed(asDb(db1), { subscription: null } as unknown as Stripe.Invoice);
-  assertEquals(db1.calls.length, 0);
+Deno.test(
+  'handleInvoiceFailed acks non-subscription invoices, flags past_due otherwise',
+  async () => {
+    const db1 = makeFakeDb();
+    await handleInvoiceFailed(asDb(db1), { subscription: null } as unknown as Stripe.Invoice);
+    assertEquals(db1.calls.length, 0);
 
-  const db2 = makeFakeDb();
-  await handleInvoiceFailed(asDb(db2), { subscription: 'sub_1' } as unknown as Stripe.Invoice);
-  const [call] = db2.calls;
-  assertEquals(call.table, 'circle_memberships');
-  assertEquals(call.values, { status: 'past_due' });
-  assertEquals(call.filters, [['eq', 'stripe_subscription_id', 'sub_1']]);
-});
+    const db2 = makeFakeDb();
+    await handleInvoiceFailed(asDb(db2), { subscription: 'sub_1' } as unknown as Stripe.Invoice);
+    const [call] = db2.calls;
+    assertEquals(call.table, 'circle_memberships');
+    assertEquals(call.values, { status: 'past_due' });
+    assertEquals(call.filters, [['eq', 'stripe_subscription_id', 'sub_1']]);
+  },
+);
 
 // ── W9/W10 identity handlers ─────────────────────────────────────────────────
 
 Deno.test('handleIdentityVerified caches the row and flips the profile flag', async () => {
   const db = makeFakeDb();
-  await handleIdentityVerified(
-    asDb(db),
-    { id: 'vs_1', metadata: { profile_id: 'prof-1' } } as unknown as Stripe.Identity.VerificationSession,
-  );
+  await handleIdentityVerified(asDb(db), {
+    id: 'vs_1',
+    metadata: { profile_id: 'prof-1' },
+  } as unknown as Stripe.Identity.VerificationSession);
   const [ver, prof] = db.calls;
   assertEquals(ver.table, 'verifications');
   assertEquals(ver.options, { onConflict: 'stripe_session_id' });
@@ -254,10 +274,10 @@ Deno.test('handleIdentityVerified caches the row and flips the profile flag', as
 
 Deno.test('handleIdentityFailed caches failed and never touches profiles', async () => {
   const db = makeFakeDb();
-  await handleIdentityFailed(
-    asDb(db),
-    { id: 'vs_1', metadata: { profile_id: 'prof-1' } } as unknown as Stripe.Identity.VerificationSession,
-  );
+  await handleIdentityFailed(asDb(db), {
+    id: 'vs_1',
+    metadata: { profile_id: 'prof-1' },
+  } as unknown as Stripe.Identity.VerificationSession);
   assertEquals(db.calls.length, 1);
   assertEquals(db.calls[0].table, 'verifications');
   assertEquals((db.calls[0].values as Record<string, unknown>).status, 'failed');
@@ -285,8 +305,16 @@ Deno.test('processEvent routes each event type to the right table', async () => 
     ['customer.subscription.updated', subscription(), 'circle_memberships'],
     ['customer.subscription.deleted', subscription({ status: 'canceled' }), 'circle_memberships'],
     ['invoice.payment_failed', { subscription: 'sub_1' }, 'circle_memberships'],
-    ['identity.verification_session.verified', { id: 'vs_1', metadata: { profile_id: 'p' } }, 'verifications'],
-    ['identity.verification_session.requires_input', { id: 'vs_1', metadata: { profile_id: 'p' } }, 'verifications'],
+    [
+      'identity.verification_session.verified',
+      { id: 'vs_1', metadata: { profile_id: 'p' } },
+      'verifications',
+    ],
+    [
+      'identity.verification_session.requires_input',
+      { id: 'vs_1', metadata: { profile_id: 'p' } },
+      'verifications',
+    ],
   ];
   for (const [type, object, table] of cases) {
     const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
@@ -327,8 +355,7 @@ const webhookReq = (body = '{}', sig: string | null = 'sig_ok') => {
 const webhookCtx = (db: FakeDb, event?: Stripe.Event): WebhookCtx => ({
   db: asDb(db),
   qrSecret: SECRET,
-  verifyEvent: () =>
-    event ? Promise.resolve(event) : Promise.reject(new Error('bad signature')),
+  verifyEvent: () => (event ? Promise.resolve(event) : Promise.reject(new Error('bad signature'))),
   retrieveSubscription: () => Promise.resolve(subscription()),
 });
 
@@ -351,9 +378,11 @@ Deno.test('handleWebhook 500s when the idempotency ledger cannot be written', as
   assertEquals(db.calls.length, 1); // never proceeded past the ledger
 });
 
-Deno.test('handleWebhook replays (processed_at set) ack 200 without reprocessing', async () => {
+Deno.test('handleWebhook replays / lost claims ack 200 without reprocessing', async () => {
+  // Claim update returns zero rows: processed_at already set (replay) or another
+  // concurrent delivery won the atomic claim — identical handling either way.
   const db = makeFakeDb({
-    'stripe_webhook_events.select': [{ data: { processed_at: '2026-07-01T00:00:00Z' } }],
+    'stripe_webhook_events.update': [{ data: [] }],
   });
   const res = await handleWebhook(
     webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
@@ -361,14 +390,19 @@ Deno.test('handleWebhook replays (processed_at set) ack 200 without reprocessing
   );
   assertEquals(res.status, 200);
   assertEquals(await res.text(), 'already processed');
-  // ledger upsert + processed_at read only — no ticket write, no processed_at update
+  // ledger upsert + claim update only — no ticket write
   assertEquals(db.calls.length, 2);
   assert(db.calls.every((c) => c.table === 'stripe_webhook_events'));
+  // the claim is the guarded form: eq(event_id) AND is(processed_at, null)
+  assertEquals(db.calls[1].filters, [
+    ['eq', 'event_id', 'evt_1'],
+    ['is', 'processed_at', null],
+  ]);
 });
 
-Deno.test('handleWebhook happy path processes then stamps processed_at', async () => {
+Deno.test('handleWebhook happy path claims atomically then processes', async () => {
   const db = makeFakeDb({
-    'stripe_webhook_events.select': [{ data: { processed_at: null } }],
+    'stripe_webhook_events.update': [{ data: [{ event_id: 'evt_1' }] }],
   });
   const res = await handleWebhook(
     webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
@@ -378,23 +412,44 @@ Deno.test('handleWebhook happy path processes then stamps processed_at', async (
   const tables = db.calls.map((c) => `${c.table}.${c.op}`);
   assertEquals(tables, [
     'stripe_webhook_events.upsert',
-    'stripe_webhook_events.select',
+    'stripe_webhook_events.update', // atomic claim: processed_at stamped BEFORE processing
     'event_tickets.upsert',
-    'stripe_webhook_events.update', // processed_at stamped AFTER successful processing
   ]);
-  assert((db.calls[3].values as Record<string, unknown>).processed_at);
+  assert((db.calls[1].values as Record<string, unknown>).processed_at);
 });
 
-Deno.test('handleWebhook processing failure 500s and leaves processed_at NULL (Stripe retries)', async () => {
+Deno.test(
+  'handleWebhook processing failure releases the claim and 500s (Stripe retries)',
+  async () => {
+    const db = makeFakeDb({
+      'stripe_webhook_events.update': [
+        { data: [{ event_id: 'evt_1' }] }, // claim won
+        { data: [{ event_id: 'evt_1' }] }, // release succeeds
+      ],
+      'event_tickets.upsert': [{ error: { message: 'db down' } }],
+    });
+    const res = await handleWebhook(
+      webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
+      webhookReq(),
+    );
+    assertEquals(res.status, 500);
+    // release update sets processed_at back to NULL so the retry can re-claim
+    const updates = db.calls.filter(
+      (c) => c.table === 'stripe_webhook_events' && c.op === 'update',
+    );
+    assertEquals(updates.length, 2);
+    assertEquals((updates[1].values as Record<string, unknown>).processed_at, null);
+  },
+);
+
+Deno.test('handleWebhook 500s when the claim update itself errors', async () => {
   const db = makeFakeDb({
-    'stripe_webhook_events.select': [{ data: { processed_at: null } }],
-    'event_tickets.upsert': [{ error: { message: 'db down' } }],
+    'stripe_webhook_events.update': [{ error: { message: 'boom' } }],
   });
   const res = await handleWebhook(
     webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
     webhookReq(),
   );
   assertEquals(res.status, 500);
-  // CRITICAL: no processed_at update after a failed processing attempt
-  assert(!db.calls.some((c) => c.table === 'stripe_webhook_events' && c.op === 'update'));
+  assert(!db.calls.some((c) => c.table === 'event_tickets'));
 });
