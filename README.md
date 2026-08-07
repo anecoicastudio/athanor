@@ -10,7 +10,7 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 
 | Path               | What lives there                                                                        |
 | ------------------ | --------------------------------------------------------------------------------------- |
-| `apps/mobile`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`         |
+| `apps/native`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`         |
 | `packages/core`    | Pure domain logic (score engine, badges, matching). **No I/O**                          |
 | `packages/api`     | Typed Supabase client + queries. **No business logic**                                  |
 | `packages/schemas` | Zod schemas — the single validation source                                              |
@@ -27,10 +27,10 @@ pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
 supabase start && supabase db reset         # local Postgres, full schema + seed (Docker required)
 supabase test db                            # pgTAP suite
-cd apps/mobile && npx expo start            # run the app in Expo Go (local backend)
+cd apps/native && npx expo start            # run the app in Expo Go (local backend)
 ```
 
-To run against **staging**, point `apps/mobile/.env` at the staging Supabase URL + publishable key (provided at onboarding). `EXPO_PUBLIC_*` variables only — a service-role key must never appear in this repo or the app.
+To run against **staging**, point `apps/native/.env` at the staging Supabase URL + publishable key (provided at onboarding). `EXPO_PUBLIC_*` variables only — a service-role key must never appear in this repo or the app.
 
 ## Git workflow
 
@@ -70,5 +70,5 @@ Enforced by CI and review on every PR — not style preferences.
 
 - **Native dependencies:** `npx expo install`, never `pnpm add`; then `npx expo-doctor`. The project is on **Expo SDK 54** (deliberate) — check the SDK 54 docs, not the latest.
 - **Styling:** NativeWind classNames through the wrappers in `src/tw` — plain RN components don't accept `className` here.
-- **The mobile pnpm package is named `mobile`, unscoped** — `--filter @athanor/mobile` is a silent no-op.
+- **The app pnpm package is named `native`, unscoped** — `--filter @athanor/native` is a silent no-op; use `--filter native`.
 - **Environments:** production is maintainer-only; staging is the shared workbench, seeded with fake data — never put real people's content in it. Enable MFA on your GitHub and Supabase accounts.
