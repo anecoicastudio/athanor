@@ -36,3 +36,4 @@ export { highlightMatches, type HighlightSpan } from './search/highlight';
 export * from './verify/state';
 export * from './boot/version';
 export * from './boot/gate';
+export * from './boot/decision';

@@ -3,6 +3,9 @@
  * `1.2` == `1.2.0`). FAIL-OPEN: any missing/unparseable input returns `false` so a bad
  * remote value or a missing app version can never lock a user behind the force-update gate.
  * Backs frontend 12 §10.1 (min-version gate).
+ *
+ * KEEP IN SYNC with the Deno mirror in `supabase/functions/_shared/version-gate.ts`
+ * (edge functions can't import workspace packages) — same compare, same fail-open contract.
  */
 export function isVersionBelow(
   current: string | null | undefined,

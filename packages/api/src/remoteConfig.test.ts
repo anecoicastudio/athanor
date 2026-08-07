@@ -40,4 +40,15 @@ describe('getRemoteConfig', () => {
     );
     expect(snap.minAppVersion).toBeNull();
   });
+
+  it('rejects on a PostgREST error (the last-known-good path depends on this throw)', async () => {
+    const failing = {
+      from: () => ({
+        select: async () => ({ data: null, error: { message: 'network unreachable' } }),
+      }),
+    } as unknown as AthanorClient;
+    await expect(getRemoteConfig(failing)).rejects.toMatchObject({
+      message: 'network unreachable',
+    });
+  });
 });
