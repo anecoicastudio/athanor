@@ -135,6 +135,31 @@ export function ProfileEditForm({
             />
           ))}
         </View>
+        {/* The condition is the PAIR, not either field — don't "simplify" it.
+            Affinity sums shared + seek_hit + offer_hit; offer_hit intersects the
+            recipient's identity_tags with the candidate's `seeking`, and the two
+            fields are masked by independent predicates. Hiding identity_tags
+            alone leaves offer_hit live and the member keeps matching. Only both
+            private reaches affinity 0. Pinned by persona E in
+            supabase/tests/0073_visibility_followups.test.sql. Lives under the
+            second of the two so both chip rows are already on screen.
+
+            The copy says "matched", not "you won't appear": already-issued
+            pending proposals survive the flip, and «Ti potrebbe interessare»
+            (getMomentiSuggestion) has no tag-visibility predicate at all. What
+            actually stops is new matching. Labels are interpolated from the
+            same keys the chips render, so a renamed label can't leave the
+            sentence quoting something that no longer exists. */}
+        {(visibility.identity_tags ?? 'members') === 'private' &&
+        (visibility.seeking ?? 'members') === 'private' ? (
+          <Text className="text-[13px] leading-snug text-muted-foreground">
+            {t('profile.visibility.tagsPrivateHint', locale, {
+              identity: t('profile.identity.label', locale),
+              seeking: t('profile.seeking.label', locale),
+              private: t('visibility.private', locale),
+            })}
+          </Text>
+        ) : null}
       </Section>
 
       {/* Il mio sogno — visibility only; the text lives in the dream editor.

@@ -341,6 +341,7 @@
   "profile.error": "Non siamo riusciti a salvare. Riprova.",
   "profile.identityVerified": "✓ Identità verificata",
   "profile.visibility.label": "Chi può vederlo",
+  "profile.visibility.tagsPrivateHint": "Con «{identity}» e «{seeking}» entrambi su «{private}», non verrai più abbinato a nessuno.",
   "visibility.public": "Tutti",
   "visibility.members": "Membri",
   "visibility.private": "Solo io",

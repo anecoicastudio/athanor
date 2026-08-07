@@ -341,6 +341,7 @@
   "profile.error": "We couldn't save that. Try again.",
   "profile.identityVerified": "✓ Verified identity",
   "profile.visibility.label": "Who can see this",
+  "profile.visibility.tagsPrivateHint": "With both «{identity}» and «{seeking}» set to «{private}», you'll stop being matched with anyone.",
   "visibility.public": "Everyone",
   "visibility.members": "Members",
   "visibility.private": "Only me",
