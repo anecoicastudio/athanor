@@ -47,8 +47,13 @@ All three cases are asserted next to each other in
 `supabase/tests/0073_visibility_followups.test.sql`: both-private ⇒ no match, `identity_tags`
 alone ⇒ still matched via `offer_hit`, and the recipient direction.
 
-No leak follows from the recipient direction: the derived `reasons` never leave the recipient's
-own row (`momento_proposals_select_own`, `20260619222420_m9_blocks_and_not_blocked.sql:108-111`).
+The recipient direction leaks nothing _to the candidate_: the derived `reasons` never leave the
+recipient's own row (`momento_proposals_select_own`,
+`20260619222420_m9_blocks_and_not_blocked.sql:108-111`). Read that narrowly — it is a statement
+about who can see the row, not about what the row says. `reasons` is a match-time snapshot
+naming the candidate's raw tag keys, and it survived the candidate later hiding those tags;
+`20260807201350_purge_stale_momento_proposals.sql` closes that case by deleting the pending
+proposals on the flip.
 
 ### L18-21 — Realtime does filter payload columns by privilege
 
