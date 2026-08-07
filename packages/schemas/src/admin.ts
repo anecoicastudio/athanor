@@ -6,7 +6,7 @@ export const REPORT_SEVERITIES = ['low', 'medium', 'high'] as const;
 export const reportSeverity = z.enum(REPORT_SEVERITIES);
 export type ReportSeverity = z.infer<typeof reportSeverity>;
 
-/** Verdict the admin submits from /admin/reports/[id]. MVP: dismiss | uphold. */
+/** Verdict the admin submits when resolving a report. MVP: dismiss | uphold. */
 export const resolveReportInput = z
   .object({
     reportId: z.string().uuid(),

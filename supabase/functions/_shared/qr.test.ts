@@ -1,4 +1,4 @@
-import { assertEquals } from 'jsr:@std/assert';
+import { assertEquals } from 'jsr:@std/assert@1';
 import { signQrToken, verifyQrToken } from './qr.ts';
 
 const SECRET = 'test-secret-do-not-use-in-prod';

@@ -59,11 +59,11 @@ type Visibility = 'public' | 'members' | 'private';
 const VISIBILITY_OPTIONS: Visibility[] = ['public', 'members', 'private'];
 
 /**
- * Profilo Evolutivo — own authenticated view (PRD §4.2, M1). Mobile parity with
- * apps/web/app/(app)/profile/profile-view.tsx: view + inline edit of bio /
- * identity / seeking / locale + per-field visibility, dream read-only (editor is
- * M2), Six Stars grid seeded from Aura snapshot (score engine M6). The public
- * @handle SSR page is a separate M2 deliverable.
+ * Profilo Evolutivo — own authenticated view (PRD §4.2, M1): view + inline edit
+ * of bio / identity / seeking / locale + per-field visibility, dream read-only
+ * (editor is M2), Six Stars grid seeded from Aura snapshot (score engine M6).
+ * Per-field visibility is stored but currently has no public enforcement
+ * surface — the @handle SSR reader went away with apps/web (82e9d24).
  */
 export default function ProfileScreen() {
   const { profile, session, refreshProfile } = useAuth();
@@ -286,9 +286,7 @@ function ProfileEditor({
   // tracked-referral attribution is a later milestone).
   const shareProfile = async () => {
     const handle = profile.handle;
-    const message = handle
-      ? `@${handle} — ${t('app.name', locale)}`
-      : t('app.name', locale);
+    const message = handle ? `@${handle} — ${t('app.name', locale)}` : t('app.name', locale);
     try {
       await Share.share({ message });
     } catch {
@@ -421,8 +419,14 @@ function ProfileEditor({
             >
               <Text className="text-2xl text-faint">⚙</Text>
             </Pressable>
-            <Pressable onPress={() => setEditing(true)} accessibilityRole="button" hitSlop={HIT_SLOP}>
-              <Text className="text-base font-semibold text-faint">{t('profile.edit', locale)}</Text>
+            <Pressable
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              hitSlop={HIT_SLOP}
+            >
+              <Text className="text-base font-semibold text-faint">
+                {t('profile.edit', locale)}
+              </Text>
             </Pressable>
           </View>
 

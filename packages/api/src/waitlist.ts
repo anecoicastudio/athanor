@@ -33,10 +33,9 @@ export async function subscribeToWaitlist(
  * nullable (the column is nullable; the SQL function's return type doesn't carry
  * that, so gen:types infers it as non-null).
  */
-export type WaitlistAdminRow = Omit<
-  AdminListWaitlistReturns[number],
-  'source'
-> & { source: string | null };
+export type WaitlistAdminRow = Omit<AdminListWaitlistReturns[number], 'source'> & {
+  source: string | null;
+};
 
 /**
  * Admin-only count of waitlist signups (the "how many are interested" number).
@@ -49,7 +48,7 @@ export async function getWaitlistCount(client: AthanorClient): Promise<number> {
   return data ?? 0;
 }
 
-/** Admin-only list of waitlist rows, newest first. Feeds the /admin table + CSV. */
+/** Admin-only list of waitlist rows, newest first (headless — no UI consumer yet). */
 export async function getWaitlistRows(
   client: AthanorClient,
   limit = 5000,

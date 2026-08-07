@@ -4,7 +4,7 @@ import { Pressable, Text, cn } from '@/tw';
  * Interactive selection chip (DESIGN.md §8 toggle). selected = cyan-accent fill
  * (aura-soft bg + aura-line border), idle = hairline-bordered raised surface.
  * `small` is the compact variant for visibility rows.
- * Mirrors apps/web components/chip.tsx and the onboarding inline chip.
+ * Mirrors the onboarding inline chip.
  */
 export function Chip({
   label,

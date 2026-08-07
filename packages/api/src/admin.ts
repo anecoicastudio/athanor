@@ -1,3 +1,5 @@
+// Headless moderation API. Kept intentionally with no UI consumer since the web
+// app was removed (82e9d24) — a future moderation panel will call these.
 import { reportPenaltyPoints } from '@athanor/core';
 import {
   type ResolveReportInput,
