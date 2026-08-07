@@ -1,4 +1,4 @@
-import Expo from 'expo-server-sdk';
+import { Expo } from 'expo-server-sdk';
 import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';

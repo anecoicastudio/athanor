@@ -33,7 +33,7 @@ const ctx = (
   const uploads: Ctx['uploads'] = [];
   const signs: Ctx['signs'] = [];
   return {
-    db: db as unknown as ExportJobCtx['db'],
+    db,
     storage: {
       upload:
         storage.upload ??
@@ -50,7 +50,7 @@ const ctx = (
     },
     uploads,
     signs,
-  };
+  } as unknown as Ctx;
 };
 
 const statusUpdates = (db: FakeDb) =>
