@@ -24,7 +24,13 @@ export const semantic = {
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
   error: '#E0476B', // input error ring, destructive (raspberry — rose family)
   ink2: '#C9C3DE', // body copy on dark — softer than foreground
-  faint: '#615A7E', // tertiary / quiet eyebrow labels
+  // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.98 on
+  // raise, ~4.69 on raise2 — every surface it is actually used on clears AA.
+  // (It would NOT on bandAlt/border #241B3A ≈4.44; nothing pairs them today.)
+  // Was #615A7E (3.05 / 2.84), which DESIGN.md §3 never contrast-certified while
+  // ~150 call sites used it for readable copy. Retuned at the token so they all
+  // clear at once and no new call site can regress back. See DESIGN.md §12.
+  faint: '#8781A8',
   raise: 'rgba(255,255,255,0.04)', // a lifted surface (card/list)
   raise2: 'rgba(255,255,255,0.065)', // higher surface (chips, quiet buttons)
   hair: 'rgba(176,158,222,0.10)', // translucent violet hairline
