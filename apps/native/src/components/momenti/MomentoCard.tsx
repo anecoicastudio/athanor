@@ -2,6 +2,7 @@ import { t } from '@athanor/i18n';
 import type { Locale, MomentoDeckCard } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
+import { DreamQuote } from '@/components/DreamQuote';
 import { AffinityRow } from './AffinityRow';
 
 /**
@@ -37,9 +38,7 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
             <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
               {t('momenti.theirDream', locale)}
             </Text>
-            <Text className="mt-1 font-dream text-xl leading-relaxed text-foreground">
-              «{card.dreamText}»
-            </Text>
+            <DreamQuote text={card.dreamText} className="mt-1" />
           </View>
         ) : null}
       </View>

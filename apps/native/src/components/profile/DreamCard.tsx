@@ -3,6 +3,7 @@ import { Pressable, Text, View } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Milestone } from '@athanor/schemas';
 import { Button } from '@/components/Button';
+import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
 import { MilestoneRow } from './MilestoneRow';
 
@@ -65,7 +66,7 @@ export function DreamCard({
           disabled={isRead || !onEdit}
           onPress={isRead ? undefined : onEdit}
         >
-          <Text className="font-dream text-xl leading-relaxed text-foreground">«{dream}»</Text>
+          <DreamQuote text={dream} />
         </Pressable>
       ) : (
         <View className="gap-3">

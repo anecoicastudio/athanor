@@ -3,6 +3,7 @@ import { t } from '@athanor/i18n';
 import type { Locale, MomentoSuggestion } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
+import { DreamQuote } from '@/components/DreamQuote';
 
 /**
  * «Ti potrebbe interessare» curated-lite row (frontend §2) → read-only Person Detail.
@@ -29,9 +30,7 @@ export function SuggestionRow({
           {suggestion.handle ?? '—'}
         </Text>
         {suggestion.dreamText ? (
-          <Text numberOfLines={1} className="text-[13px] text-faint">
-            «{suggestion.dreamText}»
-          </Text>
+          <DreamQuote compact numberOfLines={1} text={suggestion.dreamText} />
         ) : null}
       </View>
       <View className="rounded-full border border-aura-line bg-aura-soft px-3 py-1.5">
