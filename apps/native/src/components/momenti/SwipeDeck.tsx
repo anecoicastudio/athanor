@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder } from 'react-native';
 import type { Locale, MomentoDeckCard } from '@athanor/schemas';
 import { View } from '@/tw';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { MomentoCard } from './MomentoCard';
 import { SwipeStamp } from './SwipeStamp';
 

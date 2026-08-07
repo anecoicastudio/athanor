@@ -2,7 +2,7 @@ import { type Locale, t } from '@athanor/i18n';
 import type { ConversationListItem } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
-import { timeAgo } from '@/lib/time-ago';
+import { timeAgo } from '@/lib/time';
 
 export function ConversationRow({
   item,

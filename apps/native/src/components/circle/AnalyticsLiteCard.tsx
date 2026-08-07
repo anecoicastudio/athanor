@@ -6,7 +6,7 @@ import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { StatLine } from '@/components/StatLine';
 import { supabase } from '@/lib/supabase';
-import { fetchWeekRecap } from '@/lib/weekRecap';
+import { fetchWeekRecap } from '@/lib/week-recap';
 
 /**
  * Analytics lite card for Circle members (M8 §3.4, rule #3).

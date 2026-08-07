@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { type Href, useRouter } from 'expo-router';
-import { ScrollView } from 'react-native';
 import { auraKeys, getAuraScoreFull } from '@athanor/api';
 import { auraGlowLevel, breakdownRows } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { RuleRow } from '@/components/aura/RuleRow';
 import { AuraValue } from '@/components/AuraValue';
@@ -15,7 +14,7 @@ import { Mandorla } from '@/components/Mandorla';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
-import { useAuraRealtime } from '@/lib/aura-realtime';
+import { useAuraRealtime } from '@/hooks/use-aura-realtime';
 import { supabase } from '@/lib/supabase';
 
 const IDLE_THRESHOLD_DAYS = 30;
@@ -66,7 +65,7 @@ export default function AuraScreen() {
       {/* Header */}
       <ModalHeader title={t('aura.title', locale)} backLabel={t('common.back', locale)} />
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
+      <ScrollView contentContainerClassName="px-5 pb-12">
         {/* Hero */}
         <View className="items-center gap-3 py-8">
           <Mandorla size={96} glowLevel={glowLevel}>

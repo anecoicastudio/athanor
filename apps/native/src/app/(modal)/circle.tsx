@@ -14,7 +14,7 @@ import {
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
-import { useEntitlement } from '@/lib/useEntitlement';
+import { useEntitlement } from '@/hooks/use-entitlement';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { EmptyState } from '@/components/EmptyState';

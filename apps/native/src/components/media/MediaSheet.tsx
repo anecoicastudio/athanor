@@ -3,7 +3,7 @@ import { Modal, Platform } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import { PermissionPrimer } from '@/components/PermissionPrimer';
+import { PermissionPrimer } from '@/components/media/PermissionPrimer';
 import {
   ensureCameraPermission,
   ensureLibraryPermission,

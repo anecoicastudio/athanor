@@ -20,9 +20,9 @@ import * as Sentry from '@sentry/react-native';
 import { isProfileComplete } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { BrandSplash } from '@/components/BrandSplash';
-import { BootGate } from '@/components/BootGate';
-import { SentryConsentGate } from '@/components/SentryConsentGate';
+import { BrandSplash } from '@/components/boot/BrandSplash';
+import { BootGate } from '@/components/boot/BootGate';
+import { SentryConsentGate } from '@/components/boot/SentryConsentGate';
 import { asyncStoragePersister, queryClient } from '@/lib/query-client';
 
 SplashScreen.preventAutoHideAsync();

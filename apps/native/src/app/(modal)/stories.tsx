@@ -12,8 +12,8 @@ import {
   toggleStoryReaction,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { StoriesViewer } from '@/components/StoriesViewer';
-import { useSignedUrls } from '@/lib/media/useSignedUrls';
+import { StoriesViewer } from '@/components/stories/StoriesViewer';
+import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Text, View } from '@/tw';

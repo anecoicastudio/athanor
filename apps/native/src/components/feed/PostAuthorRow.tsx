@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Pressable, Text } from '@/tw';
 import { Avatar } from '@/components/Avatar';
-import { useProfile } from '@/lib/use-profile';
+import { useProfile } from '@/hooks/use-profile';
 
 /**
  * Post/comment author identity — Avatar + handle. Tap → person detail (M2 read view).

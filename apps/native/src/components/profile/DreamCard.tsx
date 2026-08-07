@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { Pressable, Text, View } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Milestone } from '@athanor/schemas';
-import { Button } from './Button';
-import { EmptyState } from './EmptyState';
+import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
 import { MilestoneRow } from './MilestoneRow';
 
 type HelpState = 'available' | 'offered' | 'accepted' | 'completed';

@@ -13,7 +13,7 @@ import { Avatar } from '@/components/Avatar';
  *   event   → calendar/circle glyph (◉)
  *
  * NOTE — glyph concern: the 20-glyph esoteric SVG set is a Foundation debt
- * (home/icons.tsx comment). For project/event we use Unicode stand-ins (◈ / ◉)
+ * (glyphs.tsx comment). For project/event we use Unicode stand-ins (◈ / ◉)
  * in `text-muted-foreground` until the SVG set ships. Task 8/9 can swap them.
  *
  * Highlighted title + subtitle: `highlightMatches` from `@athanor/core` splits

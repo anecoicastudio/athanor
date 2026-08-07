@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { entitlementKeys, getMyEntitlements } from '@athanor/api';
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface EntitlementView {
   isMember: boolean;

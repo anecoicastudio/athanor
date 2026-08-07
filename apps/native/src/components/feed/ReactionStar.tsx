@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text } from '@/tw';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
  * The single ✦ "light a star" (frontend §3.2). VIEWER-STATE-ONLY — never renders a

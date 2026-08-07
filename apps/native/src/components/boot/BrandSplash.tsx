@@ -5,7 +5,7 @@ import { t } from '@athanor/i18n';
 import { mandorla, semantic } from '@athanor/config';
 import { Text } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -115,7 +115,7 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
       pointerEvents="none"
       style={[
         StyleSheet.absoluteFill,
-        styles.fill,
+        fillStyle,
         { backgroundColor: semantic.background, opacity: container },
       ]}
     >
@@ -190,13 +190,13 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
       </Svg>
 
       <Animated.View style={{ opacity: wordmark, transform: [{ translateY: riseY(wordmark) }] }}>
-        <Text className="text-[22px] font-light text-foreground" style={styles.wordmark}>
+        <Text className="text-[22px] font-light text-foreground" style={wordmarkStyle}>
           {t('app.name', deviceLocale).toUpperCase()}
         </Text>
       </Animated.View>
 
       <Animated.View style={{ opacity: tagline, transform: [{ translateY: riseY(tagline) }] }}>
-        <Text className="text-[11px] uppercase text-muted-foreground" style={styles.tagline}>
+        <Text className="text-[11px] uppercase text-muted-foreground" style={taglineStyle}>
           {t('app.tagline', deviceLocale)}
         </Text>
       </Animated.View>
@@ -204,8 +204,9 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  fill: { alignItems: 'center', justifyContent: 'center', gap: 26, zIndex: 60 },
-  wordmark: { letterSpacing: 11, paddingLeft: 11 },
-  tagline: { letterSpacing: 2.5 },
-});
+// Static layout + optical-tracking constants, not themable — the root is a raw
+// RN Animated.View (no className here; the @/tw wrappers don't cover Animated).
+// letterSpacing 11 pairs with paddingLeft 11 to re-centre the tracked caps.
+const fillStyle = { alignItems: 'center', justifyContent: 'center', gap: 26, zIndex: 60 } as const;
+const wordmarkStyle = { letterSpacing: 11, paddingLeft: 11 } as const;
+const taglineStyle = { letterSpacing: 2.5 } as const;

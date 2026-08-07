@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from '@/tw';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Notification } from '@athanor/schemas';
-import { timeAgo } from '@/lib/time-ago';
+import { timeAgo } from '@/lib/time';
 import { NOTIF_VISUAL, NOTIF_LEAD } from './notifTypes';
 
 /**

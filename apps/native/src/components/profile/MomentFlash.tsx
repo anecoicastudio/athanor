@@ -4,7 +4,7 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
  * Moment flash (frontend `02` §9): the one glow moment (rule #4) — a help became real.

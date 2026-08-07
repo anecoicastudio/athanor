@@ -1,3 +1,8 @@
 {
-  "nodeModulesDir": "none"
+  "nodeModulesDir": "none",
+  "unstable": ["sloppy-imports"],
+  "imports": {
+    "zod": "npm:zod@3",
+    "@athanor/schemas": "../../packages/schemas/src/index.ts"
+  }
 }

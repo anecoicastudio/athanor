@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from '@/tw';
-import { SearchIcon } from '@/components/home/icons';
+import { SearchIcon } from '@/components/glyphs';
 import { semantic } from '@athanor/config';
 
 /**

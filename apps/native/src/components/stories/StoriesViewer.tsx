@@ -4,7 +4,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const PHOTO_MS = 5000;

@@ -6,7 +6,7 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
-import { BlockedRow } from '@/components/BlockedRow';
+import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';

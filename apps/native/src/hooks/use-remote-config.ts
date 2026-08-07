@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRemoteConfig, remoteConfigKeys, type RemoteConfigSnapshot } from '@athanor/api';
-import { supabase } from './supabase';
-import { saveConfigSnapshot } from './config-snapshot';
+import { supabase } from '@/lib/supabase';
+import { saveConfigSnapshot } from '@/lib/config-snapshot';
 
 /**
  * Boot/resume read of the remote kill-switch config (force-update / maintenance / flags).

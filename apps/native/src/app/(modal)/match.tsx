@@ -3,7 +3,7 @@ import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';

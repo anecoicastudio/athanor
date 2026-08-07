@@ -15,7 +15,7 @@ import { PrimeStelleCard } from '@/components/home/PrimeStelleCard';
 import { StarsMiniRow } from '@/components/home/StarsMiniRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { fetchWeekRecap } from '@/lib/weekRecap';
+import { fetchWeekRecap } from '@/lib/week-recap';
 
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 ships the shell + the
@@ -38,7 +38,7 @@ export default function HomeScreen() {
   });
   const aura: AuraSnapshot = auraQuery.data ?? ZERO_AURA_SNAPSHOT;
 
-  // Week recap: shared queryFn (lib/weekRecap) — same key as AnalyticsLiteCard.
+  // Week recap: shared queryFn (lib/week-recap) — same key as AnalyticsLiteCard.
   const recapQuery = useQuery({
     queryKey: auraKeys.recap(userId),
     queryFn: () => fetchWeekRecap(userId),

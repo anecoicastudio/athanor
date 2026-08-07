@@ -13,9 +13,10 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { localeTag } from '@/lib/time';
 
 function receiptDate(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', {
+  return new Date(iso).toLocaleDateString(localeTag(locale), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -71,7 +72,10 @@ export default function PaymentsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ModalHeader title={t('settings.payments.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('settings.payments.title', locale)}
+        backLabel={t('common.back', locale)}
+      />
 
       {query.isLoading ? (
         <View className="flex-1 items-center justify-center">

@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { ScrollView } from 'react-native';
 import { getStars, starKeys } from '@athanor/api';
 import { t, type MessageKey } from '@athanor/i18n';
 import { starKeySchema, type Locale } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { localeTag } from '@/lib/time';
 
 /**
  * Star detail sheet (M6 §3.2).
@@ -42,10 +42,10 @@ export default function StarScreen() {
 
   const criteriaKey = starId != null ? (`star.criteria.${starId}` as MessageKey) : null;
 
-  // Format grantedAt like live.tsx / relative-time.ts: day + month short, locale-aware.
+  // Format grantedAt like the ledger short-date: day + month short, locale-aware.
   const earnedDateStr =
     earned && row?.grantedAt
-      ? new Date(row.grantedAt).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', {
+      ? new Date(row.grantedAt).toLocaleDateString(localeTag(locale), {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
@@ -63,7 +63,7 @@ export default function StarScreen() {
       {/* Header — chevron-only (star name is the in-body header below) */}
       <ModalHeader title="" backLabel={t('common.back', locale)} />
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
+      <ScrollView contentContainerClassName="px-5 pb-12">
         {starId != null ? (
           <View className="gap-5">
             {/* Glyph + name + state chip */}

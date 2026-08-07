@@ -6,7 +6,7 @@ import { Pressable, Text, View } from '@/tw';
 import { supabase } from '@/lib/supabase';
 import { HIT_SLOP } from '@/lib/a11y';
 import { devWarn } from '@/lib/log';
-import { BellIcon, MessageIcon, SearchIcon } from './icons';
+import { BellIcon, MessageIcon, SearchIcon } from '@/components/glyphs';
 
 /**
  * Home greeting header (PRD 01-m1-identity §3.2, block 1). Time-of-day greeting

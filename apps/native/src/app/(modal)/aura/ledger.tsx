@@ -11,7 +11,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
-import { dayKey, ledgerDayLabel } from '@/lib/relative-time';
+import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ import { Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { useAuth } from '@/lib/auth-context';

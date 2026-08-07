@@ -6,7 +6,7 @@ import { getPostMedia, postMediaKeys } from '@athanor/api';
 import type { Locale, PostMedia as PostMediaRow } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { useSignedUrls } from '@/lib/media/useSignedUrls';
+import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
 /** Seconds → `M:SS` (165 → "2:45"). Null/negative → "". */

@@ -2,9 +2,9 @@ import { Text, View } from '@/tw';
 import { auraGlowLevel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Avatar } from './Avatar';
+import { Avatar } from '@/components/Avatar';
 import { AuraBlock } from './AuraBlock';
-import { Mandorla } from './Mandorla';
+import { Mandorla } from '@/components/Mandorla';
 import { FoundingBadge } from './FoundingBadge';
 
 export function ProfileHero({

@@ -1,18 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { ScrollView } from 'react-native';
 import { auraKeys, getStars, starKeys } from '@athanor/api';
 import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { fetchWeekRecap } from '@/lib/weekRecap';
+import { fetchWeekRecap } from '@/lib/week-recap';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Shimmer placeholder bar — muted rect for loading state */
@@ -31,7 +30,7 @@ export default function RecapScreen() {
   const locale: Locale = profile?.locale ?? 'it';
   const me = session?.user.id ?? '';
 
-  // Week recap: shared queryFn (lib/weekRecap) — one fetch shape per auraKeys.recap key.
+  // Week recap: shared queryFn (lib/week-recap) — one fetch shape per auraKeys.recap key.
   const recapQuery = useQuery({
     queryKey: auraKeys.recap(me),
     queryFn: () => fetchWeekRecap(me),
@@ -85,7 +84,7 @@ export default function RecapScreen() {
         {t('recap.sub' as MessageKey, locale)}
       </Text>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
+      <ScrollView contentContainerClassName="px-5 pb-12">
         {/* Error state */}
         {isError ? (
           <View className="items-center gap-4 py-8">

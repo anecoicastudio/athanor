@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import { useEntitlement } from '@/lib/useEntitlement';
+import { useEntitlement } from '@/hooks/use-entitlement';
 
 /**
  * The one reusable Circle gate (M8 §3.4).

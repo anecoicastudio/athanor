@@ -1,9 +1,9 @@
 import { t } from '@athanor/i18n';
 import type { Help, Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
-import { Avatar } from './Avatar';
-import { Button } from './Button';
-import { Tag } from './Tag';
+import { Avatar } from '@/components/Avatar';
+import { Button } from '@/components/Button';
+import { Tag } from '@/components/Tag';
 
 /**
  * One «Aiuti in arrivo» row on the owner's Profilo (frontend `02` §3.4D): who offered

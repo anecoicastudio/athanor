@@ -3,10 +3,10 @@ import { pickNextStar } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale, Star, StarKey } from '@athanor/schemas';
 import { View } from '@/tw';
-import { MomentiGallery } from '@/components/MomentiGallery';
-import { ProfileHero } from '@/components/ProfileHero';
+import { MomentiGallery } from '@/components/media/MomentiGallery';
+import { ProfileHero } from '@/components/profile/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
-import { SixStarsGrid } from '@/components/SixStarsGrid';
+import { SixStarsGrid } from '@/components/profile/SixStarsGrid';
 import { StatLine } from '@/components/StatLine';
 import { StarProgress } from '@/components/aura/StarProgress';
 

@@ -1,7 +1,7 @@
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEventType, Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
-import { timeAgo } from '@/lib/time-ago';
+import { timeAgo } from '@/lib/time';
 
 /** Glyph representing each ledger event type (esoteric set). */
 const LEDGER_GLYPH: Record<AuraEventType, string> = {

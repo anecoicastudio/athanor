@@ -1,6 +1,6 @@
 import { View, Text } from '@/tw';
 import { Avatar } from '@/components/Avatar';
-import { useProfile } from '@/lib/use-profile';
+import { useProfile } from '@/hooks/use-profile';
 import { t } from '@athanor/i18n';
 
 function AttendeeAvatar({ userId }: { userId: string }) {

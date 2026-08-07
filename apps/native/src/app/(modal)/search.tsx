@@ -7,7 +7,7 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { SearchFilters, SearchResult, SearchScope } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
-import { SearchBar } from '@/components/SearchBar';
+import { SearchBar } from '@/components/search/SearchBar';
 import { ScopeTabs } from '@/components/search/ScopeTabs';
 import { ResultRow } from '@/components/search/ResultRow';
 import { SectionLabel } from '@/components/SectionLabel';

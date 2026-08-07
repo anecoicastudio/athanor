@@ -13,15 +13,17 @@ export type FakeResult = {
 
 export type FakeCall = {
   table: string; // table name, or 'rpc'
-  op: 'select' | 'upsert' | 'update' | 'rpc';
-  /** upsert/update values, or rpc args */
+  op: 'select' | 'upsert' | 'update' | 'insert' | 'delete' | 'rpc';
+  /** upsert/update/insert values, or rpc args */
   values?: unknown;
-  /** upsert options ({ onConflict, ignoreDuplicates, count }) */
+  /** upsert options ({ onConflict, ignoreDuplicates, count }) or select options ({ count, head }) */
   options?: unknown;
   /** select() columns, or rpc name */
   columns?: string;
   /** accumulated filters, e.g. [['eq','event_id','evt_1'], ['is','deleted_at',null]] */
   filters: unknown[][];
+  /** order()/limit() modifiers, e.g. [['order','created_at',{ascending:false}], ['limit',20]] */
+  modifiers: unknown[][];
   terminal?: 'single' | 'maybeSingle';
 };
 
@@ -40,13 +42,17 @@ export function makeFakeDb(script: Record<string, FakeResult[]> = {}) {
   });
 
   function builder(table: string) {
-    const call: FakeCall = { table, op: 'select', filters: [] };
+    const call: FakeCall = { table, op: 'select', filters: [], modifiers: [] };
     let opSet = false;
     const setOp = (op: FakeCall['op']) => {
       if (!opSet) {
         call.op = op;
         opSet = true;
       }
+    };
+    const filter = (name: string) => (col: string, val: unknown) => {
+      call.filters.push([name, col, val]);
+      return b;
     };
     const b = {
       upsert(values: unknown, options?: unknown) {
@@ -60,17 +66,39 @@ export function makeFakeDb(script: Record<string, FakeResult[]> = {}) {
         call.values = values;
         return b;
       },
-      select(columns?: string) {
-        setOp('select'); // no-op when chained after upsert/update (columns still recorded)
+      insert(values: unknown) {
+        setOp('insert');
+        call.values = values;
+        return b;
+      },
+      delete() {
+        setOp('delete');
+        return b;
+      },
+      select(columns?: string, options?: unknown) {
+        setOp('select'); // no-op when chained after a write op (columns still recorded)
         call.columns = columns;
+        if (options !== undefined) call.options = options;
         return b;
       },
-      eq(col: string, val: unknown) {
-        call.filters.push(['eq', col, val]);
+      eq: filter('eq'),
+      is: filter('is'),
+      neq: filter('neq'),
+      lt: filter('lt'),
+      lte: filter('lte'),
+      gt: filter('gt'),
+      gte: filter('gte'),
+      in: filter('in'),
+      not(col: string, operator: string, val: unknown) {
+        call.filters.push(['not', col, operator, val]);
         return b;
       },
-      is(col: string, val: unknown) {
-        call.filters.push(['is', col, val]);
+      order(col: string, opts?: unknown) {
+        call.modifiers.push(['order', col, opts]);
+        return b;
+      },
+      limit(n: number) {
+        call.modifiers.push(['limit', n]);
         return b;
       },
       single() {
@@ -97,7 +125,14 @@ export function makeFakeDb(script: Record<string, FakeResult[]> = {}) {
     calls,
     from: (table: string) => builder(table),
     rpc(name: string, args?: unknown): Promise<FakeResult> {
-      calls.push({ table: 'rpc', op: 'rpc', values: args, columns: name, filters: [] });
+      calls.push({
+        table: 'rpc',
+        op: 'rpc',
+        values: args,
+        columns: name,
+        filters: [],
+        modifiers: [],
+      });
       return Promise.resolve(result(`rpc.${name}`));
     },
   };

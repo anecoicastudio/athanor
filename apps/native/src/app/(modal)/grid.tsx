@@ -6,15 +6,15 @@ import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
-import { useMomentUpload } from '@/lib/media/useMomentUpload';
-import { useSignedUrls } from '@/lib/media/useSignedUrls';
+import { useMomentUpload } from '@/lib/media/use-moment-upload';
+import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Lightbox } from '@/components/Lightbox';
-import { MediaSheet } from '@/components/MediaSheet';
-import { MomentAddTile, MomentTile } from '@/components/MomentTile';
+import { Lightbox } from '@/components/media/Lightbox';
+import { MediaSheet } from '@/components/media/MediaSheet';
+import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 
 /**
  * Full Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). Owner mode

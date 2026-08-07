@@ -34,12 +34,12 @@ import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Toast } from '@/components/Toast';
 import { ConnectButton } from '@/components/connections/ConnectButton';
-import { DreamCard } from '@/components/DreamCard';
+import { DreamCard } from '@/components/profile/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
-import { Lightbox } from '@/components/Lightbox';
+import { Lightbox } from '@/components/media/Lightbox';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useSignedUrls } from '@/lib/media/useSignedUrls';
+import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 

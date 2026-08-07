@@ -1,7 +1,7 @@
 /**
  * A personal Momento is now LIVE (M3): the canonical shape is the DB/schema
  * `Moment` (Storage-backed `media_path` + `thumb_path`, signed for render via
- * `useSignedUrls`). The M1 frame-only stub (`type`/`mediaUrl`/`MY_MOMENTS = []`)
+ * `use-signed-urls`). The M1 frame-only stub (`type`/`mediaUrl`/`MY_MOMENTS = []`)
  * is gone — consumers read live rows through `getMomentsPage` /
  * `useQuery(momentKeys.list(uid))` and create through `useMomentUpload`.
  *

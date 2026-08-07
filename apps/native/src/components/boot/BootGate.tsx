@@ -3,7 +3,7 @@ import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { resolveBootDecision, type GateSnapshot } from '@athanor/core';
 import { View } from '@/tw';
-import { useRemoteConfig } from '@/lib/useRemoteConfig';
+import { useRemoteConfig } from '@/hooks/use-remote-config';
 import { loadConfigSnapshot } from '@/lib/config-snapshot';
 import { isClientOutdated, subscribeClientOutdated } from '@/lib/outdated-client';
 import { ForceUpdateScreen } from '@/components/boot/ForceUpdateScreen';

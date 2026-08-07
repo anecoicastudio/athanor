@@ -25,7 +25,7 @@ import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
-import { useEntitlement } from '@/lib/useEntitlement';
+import { useEntitlement } from '@/hooks/use-entitlement';
 import { HIT_SLOP } from '@/lib/a11y';
 import { supabase } from '@/lib/supabase';
 

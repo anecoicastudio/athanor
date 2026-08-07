@@ -7,7 +7,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { StepDots } from '@/components/StepDots';
 import { VideoUploadTile } from '@/components/candidacy/VideoUploadTile';
-import { useCandidacyUpload } from '@/lib/media/useCandidacyUpload';
+import { useCandidacyUpload } from '@/lib/media/use-candidacy-upload';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 

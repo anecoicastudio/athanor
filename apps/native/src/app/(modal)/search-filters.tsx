@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
-import { useEntitlement } from '@/lib/useEntitlement';
+import { useEntitlement } from '@/hooks/use-entitlement';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /**

@@ -4,7 +4,7 @@ import type { Moment } from '@/types/moment';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
-import { MomentAddTile, MomentTile } from '@/components/MomentTile';
+import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 
 /**
  * "I tuoi Momenti" — the Profilo gallery section (frontend `01` §3.4 item 6).

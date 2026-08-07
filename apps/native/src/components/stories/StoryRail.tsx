@@ -1,7 +1,7 @@
 import { ScrollView } from '@/tw';
 import type { StoryRailPerson } from '@athanor/api';
 import type { Locale } from '@athanor/schemas';
-import { StoryRing } from '@/components/StoryRing';
+import { StoryRing } from '@/components/stories/StoryRing';
 
 /**
  * The horizontal story rail (frontend §3.1). Your own ring first («Il tuo passo»), then the

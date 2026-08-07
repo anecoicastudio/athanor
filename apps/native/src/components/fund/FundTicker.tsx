@@ -1,7 +1,7 @@
 import { formatFundTotal } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { auraGlow } from '@/lib/glow';
 import { ProgressBar } from '@/components/ProgressBar';
 

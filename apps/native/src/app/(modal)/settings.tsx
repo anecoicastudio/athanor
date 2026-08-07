@@ -19,13 +19,13 @@ import { ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
-import { SettingsGroup } from '@/components/SettingsGroup';
+import { SettingsGroup } from '@/components/settings/SettingsGroup';
 import { Toast } from '@/components/Toast';
-import { SettingsRow } from '@/components/SettingsRow';
+import { SettingsRow } from '@/components/settings/SettingsRow';
 import { useAuth } from '@/lib/auth-context';
 import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
-import { useEntitlement } from '@/lib/useEntitlement';
-import { useFeatureFlags } from '@/lib/useRemoteConfig';
+import { useEntitlement } from '@/hooks/use-entitlement';
+import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 

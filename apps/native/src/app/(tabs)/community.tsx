@@ -18,7 +18,7 @@ import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { EmptyState } from '@/components/EmptyState';
-import { StoryRail } from '@/components/StoryRail';
+import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 

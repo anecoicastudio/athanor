@@ -8,7 +8,7 @@ import { Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useFeatureFlags } from '@/lib/useRemoteConfig';
+import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { INVITE_URL_BASE } from '@/lib/links';
 import { supabase } from '@/lib/supabase';
 

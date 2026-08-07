@@ -10,7 +10,7 @@ import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaInsert } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
-import { MediaSheet } from '@/components/MediaSheet';
+import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
