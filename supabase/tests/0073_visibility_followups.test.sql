@@ -3,18 +3,21 @@
 -- publication column list.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(15);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000','aaaaaaaa-0000-4000-8000-000000000073','authenticated','authenticated','a73@test.athanor','{}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000','bbbbbbbb-0000-4000-8000-000000000073','authenticated','authenticated','b73@test.athanor','{}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000','cccccccc-0000-4000-8000-000000000073','authenticated','authenticated','c73@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','dddddddd-0000-4000-8000-000000000073','authenticated','authenticated','d73@test.athanor','{}'::jsonb, now(), now());
+  ('00000000-0000-0000-0000-000000000000','dddddddd-0000-4000-8000-000000000073','authenticated','authenticated','d73@test.athanor','{}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000','eeee1111-0000-4000-8000-000000000073','authenticated','authenticated','e73@test.athanor','{}'::jsonb, now(), now());
 
 set local role service_role;
--- A: recipient. B: matching tags, dream PRIVATE. C: matching tags, tags PRIVATE.
--- D: matching tags, all defaults ⇒ the only legitimate proposal for A.
+-- A: recipient. B: matching tags, dream PRIVATE. C: matching tags, BOTH tag
+-- fields PRIVATE. D: matching tags, all defaults ⇒ a legitimate proposal for A.
+-- E: identity_tags PRIVATE but seeking left at default — the case that shows
+-- hiding identity_tags ALONE does not zero affinity (offer_hit still fires).
 -- C doubles as a recipient: she has an active dream too, so the same run scores
 -- her deck and exposes the direction asymmetry (see the C-side assertion below).
 update public.profiles set identity_tags=array['design'], seeking=array['music'], locale='it'
@@ -27,18 +30,23 @@ update public.profiles set identity_tags=array['music'], seeking=array['design']
   where id='cccccccc-0000-4000-8000-000000000073';
 update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it'
   where id='dddddddd-0000-4000-8000-000000000073';
+update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it',
+  visibility='{"identity_tags":"private"}'::jsonb
+  where id='eeee1111-0000-4000-8000-000000000073';
 
 insert into public.dreams (profile_id, text) values
   ('aaaaaaaa-0000-4000-8000-000000000073','Sogno A'),
   ('bbbbbbbb-0000-4000-8000-000000000073','Sogno B'),
   ('cccccccc-0000-4000-8000-000000000073','Sogno C'),
-  ('dddddddd-0000-4000-8000-000000000073','Sogno D');
+  ('dddddddd-0000-4000-8000-000000000073','Sogno D'),
+  ('eeee1111-0000-4000-8000-000000000073','Sogno E');
 
--- Isolate the matcher's global pool to the four fixtures (0028 precedent).
+-- Isolate the matcher's global pool to the five fixtures (0028 precedent).
 update public.dreams set status='archived'
   where profile_id not in (
     'aaaaaaaa-0000-4000-8000-000000000073','bbbbbbbb-0000-4000-8000-000000000073',
-    'cccccccc-0000-4000-8000-000000000073','dddddddd-0000-4000-8000-000000000073')
+    'cccccccc-0000-4000-8000-000000000073','dddddddd-0000-4000-8000-000000000073',
+    'eeee1111-0000-4000-8000-000000000073')
     and status='active' and deleted_at is null;
 
 select ok(public.run_momenti_matcher() >= 1, 'matcher runs');
@@ -55,7 +63,19 @@ select is(
     where user_id='aaaaaaaa-0000-4000-8000-000000000073'
       and candidate_id='cccccccc-0000-4000-8000-000000000073'),
   0::bigint,
-  'private identity_tags/seeking ⇒ affinity 0 ⇒ no match (intended privacy trade)'
+  'private identity_tags AND seeking ⇒ affinity 0 ⇒ no match (intended privacy trade)'
+);
+-- Hiding identity_tags ALONE is not enough to leave the deck. `offer_hit`
+-- (migration L92) intersects the RECIPIENT's identity_tags with the candidate's
+-- `seeking`, and `seeking` is masked independently (L97-98) — so E, tags private
+-- but seeking at default, still scores 1 against A and is still proposed. Both
+-- fields must be private for the affinity-0 trade above to hold.
+select is(
+  (select count(*) from public.momento_proposals
+    where user_id='aaaaaaaa-0000-4000-8000-000000000073'
+      and candidate_id='eeee1111-0000-4000-8000-000000000073'),
+  1::bigint,
+  'private identity_tags alone still matches via offer_hit (seeking left visible)'
 );
 -- …but the trade is ONE-DIRECTIONAL, and this is the assertion that says so.
 -- The masking lateral joins in run_momenti_matcher() apply to the candidate side
