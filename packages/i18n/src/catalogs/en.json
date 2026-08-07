@@ -264,6 +264,7 @@
   "profile.identity.label": "Who you are",
   "profile.seeking.label": "What you seek",
   "dream.ownLabel": "My dream",
+  "dream.visibility.privateHint": "If you keep it to yourself, you won't appear in anyone's Moments.",
   "dream.a11y.editQuote": "Edit your dream",
   "dream.empty.title": "Your dream is waiting to be written.",
   "dream.empty.cta": "Write your dream",

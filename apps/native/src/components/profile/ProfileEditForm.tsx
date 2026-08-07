@@ -6,6 +6,7 @@ import type { Locale, Profile } from '@athanor/schemas';
 import { Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { Section, type Visibility } from '@/components/profile/Section';
@@ -148,10 +149,18 @@ export function ProfileEditForm({
         locale={locale}
       >
         {dreamText ? (
-          <Text className="font-dream text-xl leading-relaxed text-foreground">«{dreamText}»</Text>
+          <DreamQuote text={dreamText} />
         ) : (
           <EmptyState>{t('dream.empty.title', locale)}</EmptyState>
         )}
+        {/* «Solo io» costs more than privacy: the matcher drops a private-dream
+            member as a candidate, so they stop being proposed to anyone. Shown
+            only on that choice — a standing line would be noise on the others. */}
+        {(visibility.dream ?? 'members') === 'private' ? (
+          <Text className="text-[13px] leading-snug text-muted-foreground">
+            {t('dream.visibility.privateHint', locale)}
+          </Text>
+        ) : null}
       </Section>
 
       {/* Lingua + actions */}

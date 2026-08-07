@@ -264,6 +264,7 @@
   "profile.identity.label": "Chi sei",
   "profile.seeking.label": "Cosa cerchi",
   "dream.ownLabel": "Il mio sogno",
+  "dream.visibility.privateHint": "Se lo tieni solo per te, non comparirai nei Momenti di nessuno.",
   "dream.a11y.editQuote": "Modifica il tuo sogno",
   "dream.empty.title": "Il tuo sogno aspetta di essere scritto.",
   "dream.empty.cta": "Scrivi il tuo sogno",
