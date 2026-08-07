@@ -74,7 +74,7 @@ describe('getOwnProfile (get_own_profile RPC)', () => {
       updated_at: '2026-01-01T00:00:00Z',
     };
     const { client, calls } = rpcStub(own);
-    const profile = await getOwnProfile(client, own.id);
+    const profile = await getOwnProfile(client);
     expect(calls[0]?.fn).toBe('get_own_profile');
     expect(profile?.bio).toBe('segreto');
     expect(profile?.visibility).toEqual({ bio: 'private' });

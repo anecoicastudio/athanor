@@ -40,15 +40,22 @@ export const profileUpdateSchema = profileSchema
  * owner set that field to 'private' (absent key = 'members'). No locale,
  * visibility, or other own-only columns.
  */
-export const personProfileSchema = z.object({
-  id: z.string().uuid(),
-  handle: handleSchema.nullable(),
-  bio: z.string().max(500).nullable(),
-  identity_tags: z.array(z.string()).max(10).nullable(),
-  seeking: z.array(z.string()).max(10).nullable(),
-  identity_verified: z.boolean(),
-  founding_member: z.boolean(),
-});
+export const personProfileSchema = profileSchema
+  .pick({
+    id: true,
+    handle: true,
+    bio: true,
+    identity_tags: true,
+    seeking: true,
+    identity_verified: true,
+    founding_member: true,
+  })
+  // the three visibility-gated fields arrive NULL when hidden
+  .extend({
+    bio: profileSchema.shape.bio,
+    identity_tags: profileSchema.shape.identity_tags.nullable(),
+    seeking: profileSchema.shape.seeking.nullable(),
+  });
 
 export type Locale = z.infer<typeof localeSchema>;
 export type Profile = z.infer<typeof profileSchema>;

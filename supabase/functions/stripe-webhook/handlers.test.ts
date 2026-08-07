@@ -378,33 +378,63 @@ Deno.test('handleWebhook 500s when the idempotency ledger cannot be written', as
   assertEquals(db.calls.length, 1); // never proceeded past the ledger
 });
 
-Deno.test('handleWebhook replays / live leases ack 200 without reprocessing', async () => {
-  // Claim update returns zero rows: processed_at already set (replay) or a live
-  // (unexpired) claimed_at lease held by another delivery — identical handling.
+Deno.test(
+  'handleWebhook true replays (processed_at set) ack 200 without reprocessing',
+  async () => {
+    // Claim returns zero rows AND the disambiguating read shows the event is done.
+    const db = makeFakeDb({
+      'stripe_webhook_events.update': [{ data: [] }],
+      'stripe_webhook_events.select': [{ data: { processed_at: '2026-08-01T00:00:00Z' } }],
+    });
+    const res = await handleWebhook(
+      webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
+      webhookReq(),
+    );
+    assertEquals(res.status, 200);
+    assertEquals(await res.text(), 'already processed');
+    // upsert + claim + disambiguating read only — no ticket write
+    assertEquals(db.calls.length, 3);
+    assert(db.calls.every((c) => c.table === 'stripe_webhook_events'));
+    // guarded lease claim: eq(event_id) AND is(processed_at, null) AND (claimed_at null | stale)
+    const claim = db.calls[1];
+    assertEquals(claim.filters.slice(0, 2), [
+      ['eq', 'event_id', 'evt_1'],
+      ['is', 'processed_at', null],
+    ]);
+    const orFilter = claim.filters[2];
+    assertEquals(orFilter[0], 'or');
+    assert(String(orFilter[1]).startsWith('claimed_at.is.null,claimed_at.lt.'));
+    // the claim writes the lease, not the completion marker
+    assert((claim.values as Record<string, unknown>).claimed_at);
+    assertEquals((claim.values as Record<string, unknown>).processed_at, undefined);
+  },
+);
+
+Deno.test('handleWebhook 409s when a live lease holds the event (Stripe must retry)', async () => {
+  // The crash-recovery case: claim lost, processed_at still NULL. Acking here would
+  // consume Stripe's retry budget and drop the event permanently.
   const db = makeFakeDb({
     'stripe_webhook_events.update': [{ data: [] }],
+    'stripe_webhook_events.select': [{ data: { processed_at: null } }],
   });
   const res = await handleWebhook(
     webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
     webhookReq(),
   );
-  assertEquals(res.status, 200);
-  assertEquals(await res.text(), 'already processed');
-  // ledger upsert + claim update only — no ticket write
-  assertEquals(db.calls.length, 2);
-  assert(db.calls.every((c) => c.table === 'stripe_webhook_events'));
-  // guarded lease claim: eq(event_id) AND is(processed_at, null) AND (claimed_at null | stale)
-  const claim = db.calls[1];
-  assertEquals(claim.filters.slice(0, 2), [
-    ['eq', 'event_id', 'evt_1'],
-    ['is', 'processed_at', null],
-  ]);
-  const orFilter = claim.filters[2];
-  assertEquals(orFilter[0], 'or');
-  assert(String(orFilter[1]).startsWith('claimed_at.is.null,claimed_at.lt.'));
-  // the claim writes the lease, not the completion marker
-  assert((claim.values as Record<string, unknown>).claimed_at);
-  assertEquals((claim.values as Record<string, unknown>).processed_at, undefined);
+  assertEquals(res.status, 409);
+  assert(!db.calls.some((c) => c.table === 'event_tickets'));
+});
+
+Deno.test('handleWebhook 500s when the disambiguating ledger read fails', async () => {
+  const db = makeFakeDb({
+    'stripe_webhook_events.update': [{ data: [] }],
+    'stripe_webhook_events.select': [{ error: { message: 'boom' } }],
+  });
+  const res = await handleWebhook(
+    webhookCtx(db, stripeEvent('checkout.session.completed', ticketSession())),
+    webhookReq(),
+  );
+  assertEquals(res.status, 500);
 });
 
 Deno.test('handleWebhook happy path: lease claim → process → stamp processed_at', async () => {
@@ -426,8 +456,14 @@ Deno.test('handleWebhook happy path: lease claim → process → stamp processed
     'event_tickets.upsert',
     'stripe_webhook_events.update', // completion stamp AFTER successful processing
   ]);
-  assert((db.calls[1].values as Record<string, unknown>).claimed_at);
+  const ourClaim = (db.calls[1].values as Record<string, unknown>).claimed_at;
+  assert(ourClaim);
   assert((db.calls[3].values as Record<string, unknown>).processed_at);
+  // the completion stamp is guarded on OUR lease — never stamps over a re-claim
+  assertEquals(db.calls[3].filters, [
+    ['eq', 'event_id', 'evt_1'],
+    ['eq', 'claimed_at', ourClaim],
+  ]);
 });
 
 Deno.test(
@@ -453,6 +489,11 @@ Deno.test(
     assertEquals(updates.length, 2);
     assertEquals((updates[1].values as Record<string, unknown>).claimed_at, null);
     assert(!updates.some((u) => (u.values as Record<string, unknown>).processed_at));
+    // release is guarded on OUR lease — a timed-out isolate can't clear a newer claim
+    assertEquals(updates[1].filters, [
+      ['eq', 'event_id', 'evt_1'],
+      ['eq', 'claimed_at', (updates[0].values as Record<string, unknown>).claimed_at],
+    ]);
   },
 );
 

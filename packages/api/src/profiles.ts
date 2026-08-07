@@ -18,10 +18,10 @@ export const profileKeys = {
 /**
  * Own full row via the `get_own_profile` DEFINER RPC — sensitive columns are
  * no longer directly selectable after M10 column-scoping (role-wide grants
- * can't distinguish own rows). `userId` kept for call-site clarity; the RPC
- * derives identity from auth.uid().
+ * can't distinguish own rows). Takes no id: the RPC derives identity from
+ * auth.uid(), so there is no id to disagree with.
  */
-export async function getOwnProfile(client: AthanorClient, _userId: string) {
+export async function getOwnProfile(client: AthanorClient) {
   const { data, error } = await client.rpc('get_own_profile').maybeSingle();
   if (error) throw error;
   if (!data) return null;

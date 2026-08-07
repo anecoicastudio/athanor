@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const fresh = await getOwnProfile(supabase, userId);
+      const fresh = await getOwnProfile(supabase);
       if (sessionRef.current?.user.id === userId) {
         setProfile(fresh);
       }
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const p = await getOwnProfile(supabase, userId);
+        const p = await getOwnProfile(supabase);
         if (cancelled) return;
         if (p && email && !isProfileComplete(p)) {
           setFlushing(true);

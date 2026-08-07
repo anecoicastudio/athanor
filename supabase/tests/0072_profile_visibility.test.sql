@@ -2,7 +2,7 @@
 -- Personas: alice (mixed visibility), bob (plain member), carla (blocked by alice).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-0000-0000-000000000072', 'alice72@test.dev'),
@@ -19,6 +19,10 @@ update public.profiles set
   where id = 'aaaaaaaa-0000-0000-0000-000000000072';
 update public.profiles set handle = 'bob72', bio = 'bio di bob'
   where id = 'bbbbbbbb-0000-0000-0000-000000000072';
+-- carla: blocked by alice; her tags are private (read by bob, who is not blocked).
+update public.profiles set handle = 'carla72', identity_tags = array['artista'],
+  visibility = '{"identity_tags":"private"}'::jsonb
+  where id = 'cccccccc-0000-0000-0000-000000000072';
 
 insert into public.dreams (id, profile_id, text, status) values
   ('dddddddd-0000-0000-0000-000000000072', 'aaaaaaaa-0000-0000-0000-000000000072', 'sogno privato di alice', 'active'),
@@ -39,6 +43,18 @@ select throws_ok(
   $$ select visibility from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000072' $$,
   '42501', null, 'direct visibility select is column-denied for members'
 );
+select throws_ok(
+  $$ select locale from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000072' $$,
+  '42501', null, 'locale is column-denied'
+);
+select throws_ok(
+  $$ select push_enabled from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000072' $$,
+  '42501', null, 'push_enabled is column-denied'
+);
+select throws_ok(
+  $$ select referral_code from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000072' $$,
+  '42501', null, 'referral_code is column-denied'
+);
 select is(
   (select bio from public.get_person_profile('aaaaaaaa-0000-0000-0000-000000000072')),
   null,
@@ -53,6 +69,12 @@ select is(
   (select seeking from public.get_person_profile('aaaaaaaa-0000-0000-0000-000000000072')),
   array['mentore'],
   'public seeking is visible to a member'
+);
+-- private identity_tags case (alice's tags are 'members'; flip to private here)
+select is(
+  (select p.identity_tags from public.get_person_profile('cccccccc-0000-0000-0000-000000000072') p),
+  null,
+  'private identity_tags are NULLed for a member'
 );
 select is(
   (select bio from public.get_person_profile('bbbbbbbb-0000-0000-0000-000000000072')),

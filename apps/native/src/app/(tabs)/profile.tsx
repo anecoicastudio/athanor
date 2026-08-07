@@ -20,8 +20,8 @@ import { useStarCelebration } from '@/hooks/use-star-celebration';
  * Profilo Evolutivo — own authenticated view (PRD §4.2, M1): view + inline edit
  * of bio / identity / seeking / locale + per-field visibility, dream read-only
  * (editor is M2), Six Stars grid seeded from Aura snapshot (score engine M6).
- * Per-field visibility is stored but currently has no public enforcement
- * surface — the @handle SSR reader went away with apps/web (82e9d24).
+ * Per-field visibility is enforced in the DB (M10, migration 20260807170813):
+ * hidden fields never leave Postgres. The 'dream' key has no toggle here yet.
  */
 export default function ProfileScreen() {
   const { profile, session, refreshProfile } = useAuth();
