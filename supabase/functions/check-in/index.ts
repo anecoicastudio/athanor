@@ -1,4 +1,5 @@
 import { requireUser } from '../_shared/auth.ts';
+import { requireSupportedVersion } from '../_shared/version-gate.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
@@ -18,6 +19,9 @@ Deno.serve(async (req) => {
   // Identify the scanner from their JWT.
   const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
+
+  const vg = await requireSupportedVersion(req, auth.userClient);
+  if (!vg.ok) return vg.response;
 
   let eventId: string;
   let qrToken: string;
