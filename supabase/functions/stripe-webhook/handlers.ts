@@ -375,25 +375,32 @@ export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Resp
     await processEvent(ctx, event);
   } catch (e) {
     console.error('process failed', event.id, e);
-    const { error: releaseErr } = await db
+    const { data: released, error: releaseErr } = await db
       .from('stripe_webhook_events')
       .update({ claimed_at: null })
       .eq('event_id', event.id)
-      .eq('claimed_at', ourClaim);
+      .eq('claimed_at', ourClaim)
+      .select('event_id');
     if (releaseErr)
       console.error('lease release failed — retry delayed one lease', event.id, releaseErr);
+    else if (!released || released.length === 0)
+      console.warn('lease already lost at release time', event.id);
     return new Response('processing error', { status: 500 });
   }
 
   // 4) MARK PROCESSED — after successful processing, and only while we still hold the lease
-  // (same guard: never stamp over another isolate's in-flight work). A failed stamp risks one
-  // idempotent reprocess after the lease expires, so log it but still ack 200.
-  const { error: markErr } = await db
+  // (same guard: never stamp over another isolate's in-flight work). Zero rows means our lease
+  // expired mid-processing and someone re-claimed: that guarantees a duplicate reprocess, so it
+  // must be visible in logs — PostgREST reports a no-op update as success, hence the .select().
+  const { data: marked, error: markErr } = await db
     .from('stripe_webhook_events')
     .update({ processed_at: new Date().toISOString() })
     .eq('event_id', event.id)
-    .eq('claimed_at', ourClaim);
+    .eq('claimed_at', ourClaim)
+    .select('event_id');
   if (markErr) console.error('mark processed failed', event.id, markErr);
+  else if (!marked || marked.length === 0)
+    console.warn('lease lost before completion — event will be reprocessed', event.id);
 
   return new Response('ok', { status: 200 });
 }

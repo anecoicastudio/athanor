@@ -3,7 +3,7 @@
 -- publication column list.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -88,6 +88,15 @@ select throws_ok(
 );
 reset role;
 
+-- the new auth.uid() guard itself: authenticated role, no JWT claims → no caller
+set local role authenticated;
+select is(
+  (select athanor.profile_search_text('aaaaaaaa-0000-4000-8000-000000000073')),
+  null,
+  'profile_search_text returns NULL when there is no auth.uid()'
+);
+reset role;
+
 -- blocked peers get nothing from the search helpers even called directly
 set local role service_role;
 insert into public.blocks (blocker_id, blocked_id)
@@ -126,6 +135,10 @@ select is(
 reset role;
 
 -- ── realtime publication carries only the granted columns ───────────────────
+-- Defense in depth: this Realtime version DOES filter payload columns by
+-- has_column_privilege, so the column list is a second lock on the same door,
+-- not the only one (the migration header overstates the risk — see 0072 for the
+-- grant that is the primary control).
 select bag_eq(
   $$ select unnest(attnames) from pg_publication_tables
       where pubname='supabase_realtime' and schemaname='public' and tablename='profiles' $$,

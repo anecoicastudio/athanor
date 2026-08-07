@@ -39,6 +39,10 @@ export function rowToDeckCard(row: DeckRow): MomentoDeckCard {
  * Today's ≤3 pending proposals (already server-capped). `affinity` is NEVER selected (rule #1 —
  * the score is not client-readable here); the explicit column list excludes it. Bounded `.limit(3)`,
  * no offset (rule #9).
+ *
+ * Dream-less cards are dropped: the matcher skips candidates whose dream is private, but a
+ * candidate can flip `visibility.dream` (or archive the dream) AFTER the proposal row exists,
+ * and the embed is then RLS-filtered to null. A Momento without a dream has nothing to answer.
  */
 export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeckCard[]> {
   const { data, error } = await client
@@ -50,7 +54,9 @@ export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeck
     .order('daily_rank', { ascending: true })
     .limit(3);
   if (error) throw error;
-  return (data ?? []).map((r) => rowToDeckCard(r as unknown as DeckRow));
+  return (data ?? [])
+    .map((r) => rowToDeckCard(r as unknown as DeckRow))
+    .filter((card) => card.dreamText != null);
 }
 
 /**

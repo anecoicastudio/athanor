@@ -50,9 +50,8 @@ export const personProfileSchema = profileSchema
     identity_verified: true,
     founding_member: true,
   })
-  // the three visibility-gated fields arrive NULL when hidden
+  // visibility-gated fields arrive NULL when hidden (bio is already nullable)
   .extend({
-    bio: profileSchema.shape.bio,
     identity_tags: profileSchema.shape.identity_tags.nullable(),
     seeking: profileSchema.shape.seeking.nullable(),
   });
