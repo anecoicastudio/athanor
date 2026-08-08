@@ -20,6 +20,32 @@ jobs:
       - run: pnpm turbo lint typecheck test
       - run: pnpm i18n:check
 
+  e2e:
+    name: web e2e (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: e2e admin smoke
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          # The two admin smoke tests need only the Next dev server (Playwright webServer
+          # starts `pnpm dev`) + the public Supabase URL/anon key for the SSR client.
+          # Skip gracefully until the two repo secrets exist (same pattern as the types gate).
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "::notice::e2e skipped — set NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY repo secrets to enable"
+            exit 0
+          fi
+          pnpm --filter web exec playwright install --with-deps chromium
+          pnpm --filter web test:e2e
+
   edge:
     name: edge functions (deno test)
     runs-on: ubuntu-latest
