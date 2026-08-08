@@ -29,31 +29,90 @@ export type WebhookCtx = {
   retrieveSubscription: (id: string) => Promise<Stripe.Subscription>;
 };
 
-/** W1 — a paid ticket Checkout completed. Issue the ticket + sign the QR (service role). Idempotent. */
+/**
+ * True when Stripe has the money. Immediate-notification methods (card, Cartes Bancaires,
+ * Link, Apple/Google Pay, Bancontact, EPS) report 'paid' on checkout.session.completed.
+ * Delayed-notification methods — SEPA Direct Debit above all, which settles over DAYS —
+ * report 'unpaid' there and only settle later via checkout.session.async_payment_succeeded.
+ * Nothing may be fulfilled or counted until this is true.
+ */
+function isSettled(session: Stripe.Checkout.Session): boolean {
+  return session.payment_status === 'paid' || session.payment_status === 'no_payment_required';
+}
+
+/** Stripe references are `"id"` when unexpanded and `{ id }` when expanded — normalise both. */
+function refId(ref: unknown): string | null {
+  if (typeof ref === 'string') return ref;
+  return (ref as { id?: string } | null | undefined)?.id ?? null;
+}
+
+/** Deterministic per session: iat = session.created → every delivery re-signs the SAME token. */
+function ticketFields(session: Stripe.Checkout.Session) {
+  const eventId = session.metadata?.event_id;
+  const profileId = session.metadata?.profile_id;
+  if (!eventId || !profileId) throw new Error('ticket session missing metadata');
+  return { eventId, profileId, paymentIntent: refId(session.payment_intent) };
+}
+
+/** W1 — a ticket Checkout completed. Issue the ticket + sign the QR (service role). Idempotent. */
 export async function handleTicketPaid(
   db: Db,
   qrSecret: string,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
-  const eventId = session.metadata?.event_id;
-  const profileId = session.metadata?.profile_id;
-  if (!eventId || !profileId) throw new Error('ticket session missing metadata');
+  const { eventId, profileId, paymentIntent } = ticketFields(session);
+  const settled = isSettled(session);
 
-  // iat = session.created (deterministic) → a webhook retry re-issues the SAME token (no unique churn).
+  // No QR until the money is real — a signed token is a door pass, and a SEPA debit can
+  // still fail days later. The unsettled row lands as `pending` and W1b promotes it.
+  const qrToken = settled
+    ? await signQrToken({ eid: eventId, uid: profileId, iat: session.created }, qrSecret)
+    : null;
+
+  // The client has NO insert/update path — this upsert (service role) is the sole writer.
+  // ignoreDuplicates: a redelivery (or a NEW Stripe event id for the same session, which the
+  // processed_at gate can't catch) must NOT overwrite a later status — e.g. reset a Slice-B
+  // `checked_in` ticket back to `paid`. The first W1 delivery already wrote the row.
+  const { error } = await db.from('event_tickets').upsert(
+    {
+      user_id: profileId,
+      event_id: eventId,
+      status: settled ? 'paid' : 'pending',
+      stripe_payment_id: paymentIntent,
+      qr_token: qrToken,
+    },
+    { onConflict: 'user_id,event_id', ignoreDuplicates: true },
+  );
+  if (error) throw error;
+}
+
+/**
+ * W1b — checkout.session.async_payment_succeeded for a ticket. The delayed debit cleared:
+ * promote the pending row and issue its QR. Guarded on status='pending' so a redelivery can
+ * never demote a `checked_in` ticket. Falls back to an insert when settlement is delivered
+ * before checkout.session.completed (Stripe does not guarantee ordering).
+ */
+export async function handleTicketSettled(
+  db: Db,
+  qrSecret: string,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const { eventId, profileId, paymentIntent } = ticketFields(session);
   const qrToken = await signQrToken(
     { eid: eventId, uid: profileId, iat: session.created },
     qrSecret,
   );
 
-  const paymentIntent =
-    typeof session.payment_intent === 'string'
-      ? session.payment_intent
-      : (session.payment_intent?.id ?? null);
+  const { data: promoted, error: updErr } = await db
+    .from('event_tickets')
+    .update({ status: 'paid', stripe_payment_id: paymentIntent, qr_token: qrToken })
+    .eq('user_id', profileId)
+    .eq('event_id', eventId)
+    .eq('status', 'pending')
+    .select('id');
+  if (updErr) throw updErr;
+  if (promoted && promoted.length > 0) return;
 
-  // The client has NO insert/update path — this upsert (service role) is the sole writer.
-  // ignoreDuplicates: a redelivery (or a NEW Stripe event id for the same session, which the
-  // processed_at gate can't catch) must NOT overwrite a later status — e.g. reset a Slice-B
-  // `checked_in` ticket back to `paid`. The first W1 delivery already wrote paid + qr_token.
   const { error } = await db.from('event_tickets').upsert(
     {
       user_id: profileId,
@@ -67,8 +126,22 @@ export async function handleTicketPaid(
   if (error) throw error;
 }
 
-/** W3 — a contribution Checkout completed. Write the contribution + recompute the aggregate (service role). Idempotent. */
-export async function handleContribution(db: Db, session: Stripe.Checkout.Session): Promise<void> {
+/** Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change. */
+async function recomputeAggregate(db: Db, editionId: string): Promise<void> {
+  const { error } = await db.rpc('recompute_fund_aggregate', { p_edition_id: editionId });
+  if (error) throw error;
+}
+
+/**
+ * Insert the contribution row at `status`, returning how many rows were actually written.
+ * Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery inserts nothing
+ * and returns 0.
+ */
+async function upsertContribution(
+  db: Db,
+  session: Stripe.Checkout.Session,
+  status: 'pending' | 'succeeded',
+): Promise<{ editionId: string; inserted: number }> {
   const editionId = session.metadata?.edition_id;
   if (!editionId) throw new Error('contribution session missing edition_id');
   // Stripe is the source of truth for the amount. Fail loud on a missing total so Stripe retries
@@ -76,38 +149,74 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
   if (!session.amount_total) throw new Error('contribution session missing amount_total');
   const profileId = session.metadata?.profile_id ?? null; // nullable: anonymous donors allowed
 
-  const paymentIntent =
-    typeof session.payment_intent === 'string'
-      ? session.payment_intent
-      : (session.payment_intent?.id ?? null);
-
-  // Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery is a no-op insert.
-  const { error: insErr, count } = await db.from('fund_contributions').upsert(
+  const { error, count } = await db.from('fund_contributions').upsert(
     {
       edition_id: editionId,
       profile_id: profileId,
       amount_cents: session.amount_total,
       currency: (session.currency ?? 'eur').toLowerCase(),
       stripe_checkout_session_id: session.id,
-      stripe_payment_intent_id: paymentIntent,
-      status: 'succeeded',
+      stripe_payment_intent_id: refId(session.payment_intent),
+      status,
     },
     { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true, count: 'exact' },
   );
-  if (insErr) throw insErr;
-  if (count === 0) return; // true duplicate delivery — the row already exists, aggregate already current
-
-  // Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change.
-  const { error: aggErr } = await db.rpc('recompute_fund_aggregate', { p_edition_id: editionId });
-  if (aggErr) throw aggErr;
+  if (error) throw error;
+  return { editionId, inserted: count ?? 0 };
 }
 
-/** W4 — a contribution charge refunded. Flip status + recompute. Match by payment_intent; ack if not found. */
-export async function handleContributionRefunded(db: Db, charge: Stripe.Charge): Promise<void> {
-  const paymentIntent =
-    typeof charge.payment_intent === 'string'
-      ? charge.payment_intent
-      : (charge.payment_intent?.id ?? null);
+/**
+ * W3 — a contribution Checkout completed. Write the contribution (service role) and, only if
+ * the money actually landed, recompute the aggregate. An unsettled SEPA debit lands as
+ * `pending`: the ticker must never show money that has not arrived and may never.
+ * `payments.tsx` already renders `pending` as «In arrivo» rather than a settled total.
+ */
+export async function handleContribution(db: Db, session: Stripe.Checkout.Session): Promise<void> {
+  const settled = isSettled(session);
+  const { editionId, inserted } = await upsertContribution(
+    db,
+    session,
+    settled ? 'succeeded' : 'pending',
+  );
+  if (!settled) return;
+  if (inserted === 0) return; // true duplicate delivery — aggregate already current
+  await recomputeAggregate(db, editionId);
+}
+
+/**
+ * W3b — checkout.session.async_payment_succeeded for a contribution. Promote the pending row
+ * and move the ticker. Guarded on status='pending', so a redelivery matches nothing and a
+ * refunded row is never resurrected. Falls back to an insert when settlement is delivered
+ * before checkout.session.completed.
+ */
+export async function handleContributionSettled(
+  db: Db,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const { data: promoted, error: updErr } = await db
+    .from('fund_contributions')
+    .update({ status: 'succeeded' })
+    .eq('stripe_checkout_session_id', session.id)
+    .eq('status', 'pending')
+    .select('edition_id');
+  if (updErr) throw updErr;
+  if (promoted && promoted.length > 0) {
+    await recomputeAggregate(db, (promoted[0] as { edition_id: string }).edition_id);
+    return;
+  }
+
+  const { editionId, inserted } = await upsertContribution(db, session, 'succeeded');
+  if (inserted === 0) return; // already succeeded (or refunded) — nothing changed
+  await recomputeAggregate(db, editionId);
+}
+
+/**
+ * Pull a settled contribution back out of the ticker. Shared by W4 (refund) and W12 (dispute):
+ * both mean the money is going away, and both must be idempotent under redelivery.
+ * Matches by payment_intent; acks silently when the charge belongs to something else (a ticket).
+ */
+async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<void> {
+  const paymentIntent = refId(paymentIntentRef);
   if (!paymentIntent) return; // nothing to match — ack (idempotency ledger already recorded it)
 
   const { data: rows, error: selErr } = await db
@@ -122,13 +231,25 @@ export async function handleContributionRefunded(db: Db, charge: Stripe.Charge):
     .from('fund_contributions')
     .update({ status: 'refunded' })
     .eq('stripe_payment_intent_id', paymentIntent)
-    .eq('status', 'succeeded'); // idempotency guard: a re-delivered refund won't re-flip
+    .eq('status', 'succeeded'); // idempotency guard: a re-delivered reversal won't re-flip
   if (updErr) throw updErr;
 
-  const { error: aggErr } = await db.rpc('recompute_fund_aggregate', {
-    p_edition_id: rows[0].edition_id,
-  });
-  if (aggErr) throw aggErr;
+  await recomputeAggregate(db, (rows[0] as { edition_id: string }).edition_id);
+}
+
+/** W4 — a contribution charge refunded. Flip status + recompute. Match by payment_intent; ack if not found. */
+export async function handleContributionRefunded(db: Db, charge: Stripe.Charge): Promise<void> {
+  await reverseContribution(db, charge.payment_intent);
+}
+
+/**
+ * W12 — a charge disputed. Matters far more since SEPA Direct Debit went live: a debit can be
+ * returned for up to 8 weeks (13 months when unauthorised), against ~120 days for a card
+ * chargeback that at least starts from a settled state. Treat the money as gone immediately;
+ * a won dispute is rare enough to reconcile by hand.
+ */
+export async function handleDisputeCreated(db: Db, dispute: Stripe.Dispute): Promise<void> {
+  await reverseContribution(db, dispute.payment_intent);
 }
 
 /** Map a Stripe subscription status to our circle_memberships enum. */
@@ -227,12 +348,19 @@ export async function handleIdentityFailed(
   if (vErr) throw vErr;
 }
 
-/** W8 — invoice.payment_failed → mark the cached membership past_due (dunning is Stripe's; app reflects). */
+/**
+ * W8 — invoice.payment_failed → mark the cached membership past_due (dunning is Stripe's; app reflects).
+ *
+ * 2025-03-31.basil moved `invoice.subscription` to `invoice.parent.subscription_details.subscription`,
+ * and _shared/stripe.ts pins 2026-05-27.dahlia — so `parent` IS the live shape and the legacy
+ * field is only a fallback for an endpoint still rendering a pre-Basil version. Reading the
+ * legacy field alone silently acked every dunning event and no membership ever went past_due.
+ */
 export async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Promise<void> {
-  const subId =
-    typeof (invoice as { subscription?: unknown }).subscription === 'string'
-      ? ((invoice as { subscription?: string }).subscription as string)
-      : ((invoice as { subscription?: { id?: string } }).subscription?.id ?? null);
+  const parentSub = (
+    invoice as { parent?: { subscription_details?: { subscription?: unknown } } | null }
+  ).parent?.subscription_details?.subscription;
+  const subId = refId(parentSub) ?? refId((invoice as { subscription?: unknown }).subscription);
   if (!subId) return; // not a subscription invoice — ack
   const { error } = await db
     .from('circle_memberships')
@@ -266,6 +394,24 @@ export async function processEvent(
       }
       return;
     }
+    case 'checkout.session.async_payment_succeeded': {
+      // W1b/W3b — a delayed-notification debit (SEPA above all) finally cleared.
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.metadata?.kind === 'ticket') {
+        await handleTicketSettled(db, ctx.qrSecret, session);
+      } else if (session.metadata?.kind === 'contribution') {
+        await handleContributionSettled(db, session);
+      }
+      // Subscriptions need nothing here: customer.subscription.updated already carries the
+      // status transition out of `incomplete`, and handleSubscription is the single writer.
+      return;
+    }
+    case 'checkout.session.async_payment_failed': {
+      // The row is still `pending` and the ticker never counted it, so there is nothing to
+      // reverse. TODO: a terminal `failed` status needs a CHECK-constraint migration +
+      // schema/i18n change — until then a failed debit rests at «In arrivo» in payments.tsx.
+      return;
+    }
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted': {
@@ -281,6 +427,11 @@ export async function processEvent(
     case 'charge.refunded': {
       // W4: only fund contributions are handled here in M7 (ticket refunds = M8/W2).
       await handleContributionRefunded(db, event.data.object as Stripe.Charge);
+      return;
+    }
+    case 'charge.dispute.created': {
+      // W12 — SEPA return / card chargeback. Same reversal as a refund.
+      await handleDisputeCreated(db, event.data.object as Stripe.Dispute);
       return;
     }
     case 'identity.verification_session.verified': {

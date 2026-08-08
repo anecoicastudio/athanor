@@ -13,11 +13,14 @@ import {
   type WebhookCtx,
   handleContribution,
   handleContributionRefunded,
+  handleContributionSettled,
+  handleDisputeCreated,
   handleIdentityFailed,
   handleIdentityVerified,
   handleInvoiceFailed,
   handleSubscription,
   handleTicketPaid,
+  handleTicketSettled,
   handleWebhook,
   mapSubStatus,
   processEvent,
@@ -26,11 +29,15 @@ import {
 const SECRET = 'test-qr-secret';
 const asDb = (f: FakeDb) => f as unknown as Db;
 
+// payment_status: 'paid' is what an immediate-notification method (card, Bancontact, EPS,
+// Link, wallets) reports on checkout.session.completed. SEPA Direct Debit and PayPal-style
+// delayed methods report 'unpaid' here and settle later via async_payment_succeeded.
 const ticketSession = (over: Record<string, unknown> = {}) =>
   ({
     id: 'cs_1',
     created: 1751000000,
     currency: 'eur',
+    payment_status: 'paid',
     payment_intent: 'pi_1',
     metadata: { kind: 'ticket', event_id: 'evt-row-1', profile_id: 'prof-1' },
     ...over,
@@ -42,6 +49,7 @@ const contributionSession = (over: Record<string, unknown> = {}) =>
     created: 1751000000,
     currency: 'EUR',
     amount_total: 2500,
+    payment_status: 'paid',
     payment_intent: 'pi_c1',
     metadata: { kind: 'contribution', edition_id: 'ed-1', profile_id: 'prof-1' },
     ...over,
@@ -109,6 +117,46 @@ Deno.test('handleTicketPaid upserts paid ticket idempotently with deterministic 
   );
 });
 
+Deno.test('handleTicketPaid holds an unsettled ticket at pending with no QR', async () => {
+  // SEPA/PayPal: the session completes while the debit is still processing. Issuing a QR
+  // here would let someone through the door on money that may never arrive.
+  const db = makeFakeDb();
+  await handleTicketPaid(asDb(db), SECRET, ticketSession({ payment_status: 'unpaid' }));
+  const values = db.calls[0].values as Record<string, unknown>;
+  assertEquals(values.status, 'pending');
+  assertEquals(values.qr_token, null);
+  assertEquals(db.calls[0].options, { onConflict: 'user_id,event_id', ignoreDuplicates: true });
+});
+
+// ── W1b handleTicketSettled (checkout.session.async_payment_succeeded) ───────
+
+Deno.test('handleTicketSettled promotes the pending row and issues the QR', async () => {
+  const db = makeFakeDb({ 'event_tickets.update': [{ data: [{ id: 't1' }] }] });
+  await handleTicketSettled(asDb(db), SECRET, ticketSession({ payment_status: 'paid' }));
+  assertEquals(db.calls.length, 1); // guarded update won — no upsert needed
+  const [upd] = db.calls;
+  assertEquals(upd.op, 'update');
+  const values = upd.values as Record<string, unknown>;
+  assertEquals(values.status, 'paid');
+  // same deterministic iat as the completed event → identical token, no unique churn
+  assertEquals(
+    values.qr_token,
+    await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
+  );
+  // guarded on pending so a redelivery can never demote a checked_in ticket
+  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'pending'));
+});
+
+Deno.test('handleTicketSettled creates the row when settlement arrives out of order', async () => {
+  const db = makeFakeDb({ 'event_tickets.update': [{ data: [] }] });
+  await handleTicketSettled(asDb(db), SECRET, ticketSession());
+  const [upd, ups] = db.calls;
+  assertEquals(upd.op, 'update');
+  assertEquals(ups.op, 'upsert');
+  assertEquals(ups.options, { onConflict: 'user_id,event_id', ignoreDuplicates: true });
+  assertEquals((ups.values as Record<string, unknown>).status, 'paid');
+});
+
 // ── W3 handleContribution ────────────────────────────────────────────────────
 
 Deno.test('handleContribution throws on missing edition_id / amount_total', async () => {
@@ -149,6 +197,61 @@ Deno.test(
     const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 0 }] });
     await handleContribution(asDb(db), contributionSession());
     assertEquals(db.calls.length, 1); // upsert only — no rpc
+  },
+);
+
+Deno.test(
+  'handleContribution writes pending and never moves the ticker while unsettled',
+  async () => {
+    // The Dream Fund ticker is public and realtime — counting an unsettled SEPA debit
+    // would show money that has not arrived and may never.
+    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+    await handleContribution(asDb(db), contributionSession({ payment_status: 'unpaid' }));
+    assertEquals(db.calls.length, 1); // upsert only — no recompute
+    assertEquals((db.calls[0].values as Record<string, unknown>).status, 'pending');
+  },
+);
+
+// ── W3b handleContributionSettled (checkout.session.async_payment_succeeded) ─
+
+Deno.test('handleContributionSettled promotes pending→succeeded and recomputes once', async () => {
+  const db = makeFakeDb({
+    'fund_contributions.update': [{ data: [{ edition_id: 'ed-1' }] }],
+  });
+  await handleContributionSettled(asDb(db), contributionSession());
+  const [upd, rpc] = db.calls;
+  assertEquals(upd.op, 'update');
+  assertEquals(upd.values, { status: 'succeeded' });
+  assertEquals(upd.filters, [
+    ['eq', 'stripe_checkout_session_id', 'cs_c1'],
+    ['eq', 'status', 'pending'],
+  ]);
+  assertEquals(rpc.columns, 'recompute_fund_aggregate');
+  assertEquals(rpc.values, { p_edition_id: 'ed-1' });
+});
+
+Deno.test('handleContributionSettled is a no-op on a true replay', async () => {
+  // Row already succeeded → guarded update matches nothing, upsert ignores the duplicate.
+  const db = makeFakeDb({
+    'fund_contributions.update': [{ data: [] }],
+    'fund_contributions.upsert': [{ count: 0 }],
+  });
+  await handleContributionSettled(asDb(db), contributionSession());
+  assertEquals(db.calls.length, 2); // update + upsert, never the recompute
+  assert(!db.calls.some((c) => c.op === 'rpc'));
+});
+
+Deno.test(
+  'handleContributionSettled creates the row when settlement arrives out of order',
+  async () => {
+    const db = makeFakeDb({
+      'fund_contributions.update': [{ data: [] }],
+      'fund_contributions.upsert': [{ count: 1 }],
+    });
+    await handleContributionSettled(asDb(db), contributionSession());
+    const [, ups, rpc] = db.calls;
+    assertEquals((ups.values as Record<string, unknown>).status, 'succeeded');
+    assertEquals(rpc.values, { p_edition_id: 'ed-1' });
   },
 );
 
@@ -255,6 +358,55 @@ Deno.test(
   },
 );
 
+Deno.test('handleInvoiceFailed reads the post-Basil invoice.parent shape', async () => {
+  // 2025-03-31.basil moved invoice.subscription → parent.subscription_details.subscription.
+  // _shared/stripe.ts pins 2026-05-27.dahlia, so this IS the live payload shape; reading
+  // only the legacy field meant no membership was ever marked past_due.
+  const db = makeFakeDb();
+  await handleInvoiceFailed(asDb(db), {
+    parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_b' } },
+  } as unknown as Stripe.Invoice);
+  assertEquals(db.calls[0].filters, [['eq', 'stripe_subscription_id', 'sub_b']]);
+
+  // expanded object form
+  const db2 = makeFakeDb();
+  await handleInvoiceFailed(asDb(db2), {
+    parent: { subscription_details: { subscription: { id: 'sub_c' } } },
+  } as unknown as Stripe.Invoice);
+  assertEquals(db2.calls[0].filters, [['eq', 'stripe_subscription_id', 'sub_c']]);
+});
+
+// ── W12 handleDisputeCreated ─────────────────────────────────────────────────
+
+Deno.test('handleDisputeCreated acks disputes with no matching contribution', async () => {
+  const db1 = makeFakeDb();
+  await handleDisputeCreated(asDb(db1), { payment_intent: null } as unknown as Stripe.Dispute);
+  assertEquals(db1.calls.length, 0);
+
+  const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleDisputeCreated(asDb(db2), { payment_intent: 'pi_x' } as unknown as Stripe.Dispute);
+  assertEquals(db2.calls.length, 1); // a disputed ticket never touches fund rows
+});
+
+Deno.test('handleDisputeCreated pulls the contribution back out of the ticker', async () => {
+  // SEPA debits can be returned for 8 weeks (13 months if unauthorised) — far more
+  // exposure than cards, so a dispute must reverse the aggregate immediately.
+  const db = makeFakeDb({
+    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+  });
+  await handleDisputeCreated(asDb(db), {
+    payment_intent: { id: 'pi_c1' },
+  } as unknown as Stripe.Dispute);
+  const [sel, upd, rpc] = db.calls;
+  assertEquals(sel.filters, [
+    ['eq', 'stripe_payment_intent_id', 'pi_c1'],
+    ['eq', 'status', 'succeeded'],
+  ]);
+  assertEquals(upd.values, { status: 'refunded' });
+  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'succeeded'));
+  assertEquals(rpc.values, { p_edition_id: 'ed-9' });
+});
+
 // ── W9/W10 identity handlers ─────────────────────────────────────────────────
 
 Deno.test('handleIdentityVerified caches the row and flips the profile flag', async () => {
@@ -305,6 +457,10 @@ Deno.test('processEvent routes each event type to the right table', async () => 
     ['customer.subscription.updated', subscription(), 'circle_memberships'],
     ['customer.subscription.deleted', subscription({ status: 'canceled' }), 'circle_memberships'],
     ['invoice.payment_failed', { subscription: 'sub_1' }, 'circle_memberships'],
+    ['charge.refunded', { payment_intent: 'pi_c1' }, 'fund_contributions'],
+    ['charge.dispute.created', { payment_intent: 'pi_c1' }, 'fund_contributions'],
+    ['checkout.session.async_payment_succeeded', ticketSession(), 'event_tickets'],
+    ['checkout.session.async_payment_succeeded', contributionSession(), 'fund_contributions'],
     [
       'identity.verification_session.verified',
       { id: 'vs_1', metadata: { profile_id: 'p' } },
@@ -341,6 +497,30 @@ Deno.test('processEvent W11 reconcile retrieves the subscription from checkout',
 Deno.test('processEvent acknowledges unknown event types without any write', async () => {
   const db = makeFakeDb();
   await processEvent(routingCtx(db), stripeEvent('payment_intent.created', {}));
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('processEvent leaves a failed async payment at pending, writing nothing', async () => {
+  // The row stays `pending` — the receipts screen already renders that as «In arrivo»
+  // and the ticker never counted it. Nothing to reverse.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('checkout.session.async_payment_failed', contributionSession()),
+  );
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('processEvent ignores a subscription checkout that carries no subscription', async () => {
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('checkout.session.completed', {
+      id: 'cs_s2',
+      metadata: { kind: 'subscription' },
+      subscription: null,
+    }),
+  );
   assertEquals(db.calls.length, 0);
 });
 
