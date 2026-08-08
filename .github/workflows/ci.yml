@@ -30,8 +30,10 @@ jobs:
           deno-version: v2.x
       # Run from supabase/functions so its deno.json (nodeModulesDir: none) applies —
       # from the repo root, Deno finds package.json and expects npm deps in node_modules.
-      # --allow-env: _shared/auth.test.ts sets/reads SUPABASE_SERVICE_ROLE_KEY.
-      - run: deno test --allow-env .
+      # --allow-env: _shared/keys.ts reads the injected SUPABASE_* key variables.
+      # --allow-read: _shared/config-invariants.test.ts parses config.toml and the function
+      # sources to assert every function's verify_jwt posture matches its in-handler gate.
+      - run: deno test --allow-env --allow-read .
         working-directory: supabase/functions
 
   db:
