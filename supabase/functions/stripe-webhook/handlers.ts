@@ -113,6 +113,9 @@ export async function handleTicketPaid(
   // otherwise be silently discarded — charged, no QR. Repair exactly that case; a null count
   // is indeterminate and falls through to "inserted" (worst case: today's swallow, no rewrite).
   if (count !== 0) return;
+  // A repair without a PI would write a row revokeTicket can never match again. Unreachable
+  // for mode:'payment' Checkout, but the swallow is the safe failure direction.
+  if (!paymentIntent) return;
 
   const { data: existing, error: selErr } = await db
     .from('event_tickets')
