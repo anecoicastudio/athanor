@@ -1,6 +1,6 @@
-# Athanor — mobile app
+# Athanor
 
-Community platform where reputation (the **Aura** score) is earned only through real, verifiable actions — never bought. This is the **partner working repo**: the Expo mobile app plus its full Supabase backend (migrations, RLS policies, pgTAP tests, edge functions). The marketing site, the admin panel and the internal product docs live in the upstream repo.
+Community platform where reputation (the **Aura** score) is earned only through real, verifiable actions — never bought. This is the **canonical working repo**: the Expo mobile app, the web app (marketing site + admin moderation panel) and the full Supabase backend (migrations, RLS policies, pgTAP tests, edge functions). Internal product docs live in the upstream repo.
 
 ## Stack
 
@@ -11,6 +11,7 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 | Path               | What lives there                                                                        |
 | ------------------ | --------------------------------------------------------------------------------------- |
 | `apps/native`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`         |
+| `apps/web`         | Next.js 16 — marketing site, public `@handle` profiles, waitlist, **admin panel**       |
 | `packages/core`    | Pure domain logic (score engine, badges, matching). **No I/O**                          |
 | `packages/api`     | Typed Supabase client + queries. **No business logic**                                  |
 | `packages/schemas` | Zod schemas — the single validation source                                              |
@@ -32,6 +33,7 @@ pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anyt
 supabase start && supabase db reset         # local Postgres, full schema + seed (Docker required)
 supabase test db                            # pgTAP suite
 cd apps/native && npx expo start            # run the app in Expo Go (local backend)
+pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
 To run against **staging**, point `apps/native/.env` at the staging Supabase URL + publishable key (provided at onboarding). `EXPO_PUBLIC_*` variables only — a service-role key must never appear in this repo or the app.

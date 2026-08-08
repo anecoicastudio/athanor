@@ -1,0 +1,40 @@
+import { getWaitlistRows } from '@athanor/api';
+import { createAuthedClient } from '@/utils/supabase/server';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * Defense-in-depth: getUser() + app_metadata role check (never getSession), even
+ * though the proxy middleware and the DEFINER RPC both gate this too. Streams the
+ * full waitlist as a CSV download.
+ */
+function csvCell(value: string): string {
+  // Neutralize CSV/formula injection (cells starting with = + - @ tab CR), then
+  // RFC 4180-quote and escape embedded quotes.
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+export async function GET() {
+  const supabase = await createAuthedClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if ((user?.app_metadata as { role?: string } | undefined)?.role !== 'admin') {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  const rows = await getWaitlistRows(supabase);
+  const header = ['email', 'locale', 'source', 'created_at'];
+  const body = rows.map((r) =>
+    [r.email, r.locale, r.source ?? '', r.created_at].map((c) => csvCell(String(c))).join(','),
+  );
+  const csv = [header.join(','), ...body].join('\r\n');
+
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="athanor-waitlist.csv"',
+    },
+  });
+}
