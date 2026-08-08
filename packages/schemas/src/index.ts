@@ -39,3 +39,4 @@ export * from './verification';
 export * from './remoteConfig';
 export * from './admin';
 export * from './primitives';
+export * from './password';
