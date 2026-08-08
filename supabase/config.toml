@@ -158,9 +158,13 @@ enabled = true
 # in emails.
 site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# Email auth uses a 6-digit OTP code (verifyOtp), not a redirect link — so no
-# redirect allow-list is needed for it. Add entries here only if OAuth is enabled.
-additional_redirect_urls = []
+# Email auth is password-based (signInWithPassword / signUp) and needs no redirect.
+# These entries exist for browser OAuth (src/lib/oauth.ts): `athanor://auth-callback`
+# is the standalone build; the `exp://` form is Expo Go, and its host changes with
+# your LAN IP and Metro port — update it, or use a wildcard, when it moves.
+# The hosted project keeps its own copy of this list (Auth → URL Configuration);
+# this block only governs a local `supabase start` stack.
+additional_redirect_urls = ["athanor://auth-callback", "exp://127.0.0.1:8081/--/auth-callback"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -179,10 +183,13 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# Must stay in step with PASSWORD_MIN_LENGTH in packages/schemas/src/password.ts and with the
+# same two settings on the hosted project — if they drift, the signup form goes green on a
+# password the server then refuses.
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "lower_upper_letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -245,9 +252,9 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# Email login delivers a 6-digit OTP code ({{ .Token }} in the template); the
-# mobile app verifies it with verifyOtp({ email, token, type: 'email' }).
-# No magic-link redirect — the web app is a static landing with no auth.
+# Kept from the superseded OTP design. The app now signs in with email + password
+# (signInWithPassword / signUp) and calls verifyOtp nowhere, so this template is
+# only reached by flows that still mint a magic link (e.g. a future password reset).
 [auth.email.template.magic_link]
 subject = "Il tuo varco per Athanor"
 content_path = "./supabase/templates/magic_link.html"
@@ -337,6 +344,24 @@ url = ""
 skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
+
+# Google sign-in. The app path is browser OAuth (src/lib/oauth.ts) — Expo-Go-compatible,
+# no native module — so nothing in the app changes when this flips on; only the provider
+# config does. Kept `false` here because a local stack has no Google client of its own:
+# the credentials live on the hosted project (Auth → Sign In / Providers → Google), whose
+# authorized redirect URI on the Google Cloud side is the Supabase callback,
+# https://<project-ref>.supabase.co/auth/v1/callback — not the app's scheme.
+# To exercise it against a local stack, set the two env vars and flip enabled.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# Stays on. Skipping the nonce check exists for the native ID-token flow
+# (@react-native-google-signin), which this app deliberately does not use.
+skip_nonce_check = false
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
