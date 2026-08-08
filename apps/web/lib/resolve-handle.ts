@@ -6,7 +6,14 @@ import { handleSchema } from '@athanor/schemas';
  * Returns the bare, validated handle or null (caller → notFound()).
  */
 export function resolveHandle(segment: string): string | null {
-  const decoded = decodeURIComponent(segment);
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    // A malformed percent-escape (e.g. /%E0%A4%A) makes decodeURIComponent throw URIError.
+    // Unhandled that is a 500 on a public, crawler-reachable route; it is a 404.
+    return null;
+  }
   if (!decoded.startsWith('@')) return null;
   const parsed = handleSchema.safeParse(decoded.slice(1).toLowerCase());
   return parsed.success ? parsed.data : null;
