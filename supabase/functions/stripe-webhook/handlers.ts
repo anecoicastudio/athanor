@@ -146,7 +146,9 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
     { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true, count: 'exact' },
   );
   if (error) throw error;
-  if ((count ?? 0) === 0) return; // true duplicate delivery — aggregate already current
+  // Skip the recompute only on a definite duplicate (count 0). A null count is indeterminate —
+  // recompute anyway: the recompute is idempotent, an under-counted public ticker is not.
+  if (count === 0) return;
   await recomputeAggregate(db, editionId);
 }
 
