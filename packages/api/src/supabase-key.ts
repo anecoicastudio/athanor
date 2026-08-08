@@ -19,12 +19,23 @@
 
 const present = (v: string | undefined): v is string => typeof v === 'string' && v.trim() !== '';
 
+// These vars ship to the browser: refuse a pasted secret key outright rather than
+// letting the bundler inline it into a public chunk (rule 8 defense-in-depth).
+const guard = (v: string, name: string): string => {
+  if (v.startsWith('sb_secret_')) {
+    throw new Error(
+      `${name} holds an sb_secret_… key — secret keys must never reach a client app.`,
+    );
+  }
+  return v;
+};
+
 export function resolveSupabaseKey(
   env: { publishable?: string; anon?: string },
   vars: { publishable: string; anon: string },
 ): string {
-  if (present(env.publishable)) return env.publishable;
-  if (present(env.anon)) return env.anon;
+  if (present(env.publishable)) return guard(env.publishable, vars.publishable);
+  if (present(env.anon)) return guard(env.anon, vars.anon);
   throw new Error(
     `Missing Supabase API key: set ${vars.publishable} (preferred, sb_publishable_…) or ` +
       `${vars.anon} (legacy anon fallback).`,

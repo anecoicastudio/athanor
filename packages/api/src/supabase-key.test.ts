@@ -36,4 +36,13 @@ describe('resolveSupabaseKey', () => {
       /FOO_PUB.*FOO_ANON/s,
     );
   });
+
+  it('refuses a pasted secret key in either slot', () => {
+    expect(() => resolveSupabaseKey({ publishable: 'sb_secret_oops' }, WEB_VARS)).toThrow(
+      /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.*sb_secret_/s,
+    );
+    expect(() => resolveSupabaseKey({ anon: 'sb_secret_oops' }, WEB_VARS)).toThrow(
+      /NEXT_PUBLIC_SUPABASE_ANON_KEY.*sb_secret_/s,
+    );
+  });
 });
