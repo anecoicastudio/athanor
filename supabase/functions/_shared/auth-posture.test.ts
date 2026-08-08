@@ -1,0 +1,91 @@
+// deno test supabase/functions/create-verification-session/ — runs in CI (edge job) and locally.
+// Needs --allow-read (already in the documented run command).
+//
+// SPEC-FIRST. CLAUDE.md rule 8: "Edge functions are the only privileged surface." Every function
+// declares exactly one of three auth postures in supabase/config.toml — user-callable
+// (verify_jwt = true AND requireUser(req) first), internal service-role (verify_jwt = false, with
+// requireServiceRole(req) as the ONLY gate, first, before any I/O), or webhook (verify_jwt =
+// false, authenticity from the Stripe signature + the stripe_webhook_events dedupe). The rule
+// also fixes that "`profile_id` is always derived from getUser(), never taken from the request
+// body". These tests cover the user-callable create-* family, which is posture one.
+// docs/PRD.md:225 makes Identity the gate for creating paid
+// events and candidating a dream, so a spoofable profile_id here is not a nuisance — it verifies
+// the wrong person and unlocks the paid surfaces for them.
+//
+// _shared/config-invariants.test.ts already covers TWO of the three legs:
+//   :72  verify_jwt = true for every user-callable function (create-verification-session included)
+//   :113 requireUser(req) is present in every user-callable function
+// It does NOT cover the ordering leg — :99-111 asserts gate-before-parse for `internal`
+// functions only. These tests close that gap for the money-minting create-* family and add the
+// negative: identity must not be readable out of the request body at all.
+import { assert } from 'jsr:@std/assert@1';
+
+const FUNCTIONS = new URL('../', import.meta.url);
+
+const CREATE_FNS = [...Deno.readDirSync(FUNCTIONS)]
+  .filter((e) => e.isDirectory && e.name.startsWith('create-'))
+  .map((e) => e.name)
+  .sort();
+
+const src = (fn: string, file = 'index.ts') =>
+  Deno.readTextFileSync(new URL(`../${fn}/${file}`, import.meta.url));
+
+Deno.test('every session-minting function is discovered', () => {
+  // Guards the guard: a rename that empties this list would make the rest vacuously green.
+  assert(CREATE_FNS.length >= 5, `expected the create-* family, got ${JSON.stringify(CREATE_FNS)}`);
+  assert(CREATE_FNS.includes('create-verification-session'));
+});
+
+Deno.test('requireUser gates every create-* function BEFORE the body is parsed', () => {
+  // A gate after `await req.json()` still lets an unauthenticated caller drive parsing, and —
+  // worse for this family — makes it syntactically easy to reach for a body field as identity
+  // because the body is already in scope. Same rule config-invariants applies to internal
+  // functions (config-invariants.test.ts:99), applied to the user-callable money surface.
+  const BODY_READ = /\breq\.(json|text|formData|arrayBuffer)\s*\(/;
+  for (const fn of CREATE_FNS) {
+    const code = src(fn);
+    const gate = code.indexOf('requireUser(req)');
+    assert(gate > -1, `${fn}: no requireUser(req)`);
+    const parse = code.search(BODY_READ);
+    assert(parse === -1 || gate < parse, `${fn}: parses the request body before requireUser`);
+  }
+});
+
+Deno.test('no create-* function can read an identity out of the request body', () => {
+  // The rule-8 failure that costs money: `const { profile_id } = await req.json()` lets anyone
+  // with a valid JWT mint a Checkout session, a subscription, or an Identity verification
+  // *as somebody else*.
+  //
+  // Scoped to index.ts: that is the only file holding a Request. logic.ts receives an already
+  // derived args object (`input`), so a `profileId` destructured there is the SAFE shape, not
+  // the unsafe one — an earlier revision of this test flagged create-circle-checkout's
+  // `const { profileId, email, plan } = input` and was wrong to.
+  const BODY_IDENTITY = [
+    /\b(body|payload|json|parsed)\s*\.\s*(profile_?[iI]d|user_?[iI]d)\b/,
+    /\b(body|payload|json|parsed)\s*\[\s*['"](profile_id|profileId|user_id|userId)['"]/,
+    /const\s*\{[^}]*\b(profile_?[iI]d|user_?[iI]d)\b[^}]*\}\s*=\s*(await\s+)?(req\.json\(\)|body|payload|json|parsed)\b/,
+  ];
+  for (const fn of CREATE_FNS) {
+    const code = src(fn);
+    for (const re of BODY_IDENTITY) {
+      const m = code.match(re);
+      assert(!m, `${fn}/index.ts: identity taken from the request body — "${m?.[0]}"`);
+    }
+  }
+});
+
+Deno.test('no create-* function reaches for the service-role client', () => {
+  // Rule 8 confines the service-role key to _shared/supabaseAdmin.ts and server jobs. These are
+  // user-callable, so they must run under the caller's RLS — every one of them already takes a
+  // `userClient` capability (see the four logic.test.ts ctx builders). An admin client here
+  // would silently read rows the caller cannot see and price a Checkout session from them.
+  for (const fn of CREATE_FNS) {
+    for (const file of ['index.ts', 'logic.ts']) {
+      const code = src(fn, file);
+      assert(
+        !/supabaseAdmin|SERVICE_ROLE/.test(code),
+        `${fn}/${file}: user-callable function reaches for the service role`,
+      );
+    }
+  }
+});
