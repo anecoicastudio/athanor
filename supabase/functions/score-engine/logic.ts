@@ -31,6 +31,10 @@ const awardSchema = z.object({
   profileId: z.string().uuid(),
   type: z.string(), // validated as ScoringType downstream; zod enum would need duplication
   refId: z.string().uuid().optional(),
+  // The other party in a two-sided event. `.nullable()` because the enqueue trigger builds the
+  // body with jsonb_build_object, which emits JSON null rather than omitting the key when the
+  // counterparty cannot be resolved (e.g. the dream was hard-deleted).
+  counterpartyId: z.string().uuid().nullable().optional(),
   ctx: z.record(z.unknown()).optional(),
 });
 
@@ -230,7 +234,13 @@ export async function runDecay(ctx: ScoreCtx): Promise<Response> {
 
 export async function runAward(ctx: ScoreCtx, input: AwardInput): Promise<Response> {
   const { admin } = ctx;
-  const { profileId: profile_id, type, refId: ref_id, ctx: reason = {} } = input;
+  const {
+    profileId: profile_id,
+    type,
+    refId: ref_id,
+    counterpartyId: counterparty_id = null,
+    ctx: reason = {},
+  } = input;
   const awardCtx = reason as AwardContext;
 
   // ── 1. Cap check ────────────────────────────────────────────────────────────
@@ -255,14 +265,19 @@ export async function runAward(ctx: ScoreCtx, input: AwardInput): Promise<Respon
 
   // ── 2. Dampening (pairExchangeIndex) ────────────────────────────────────────
 
+  // PRD §4.9 integrity rule: "reciprocal exchanges dampened (pairwise diminishing returns)".
+  // PAIRWISE means per COUNTERPARTY. Keying this on ref_id — as it was — made it per artifact,
+  // and for milestone_help the artifact is the milestone_helps row: every help is a fresh row,
+  // so the index was permanently 1 and the dampening never fired. Two accounts confirming each
+  // other's fabricated milestones collected the full +40 forever.
   let pairExchangeIndex: number | undefined;
-  if ((type === 'milestone_help' || type === 'momento_conversation') && ref_id) {
+  if ((type === 'milestone_help' || type === 'momento_conversation') && counterparty_id) {
     const { count: priorPair } = await admin
       .from('aura_events')
       .select('id', { count: 'exact', head: true })
       .eq('profile_id', profile_id)
       .eq('type', type)
-      .eq('ref_id', ref_id);
+      .eq('counterparty_id', counterparty_id);
     pairExchangeIndex = (priorPair ?? 0) + 1;
   }
 
@@ -281,6 +296,9 @@ export async function runAward(ctx: ScoreCtx, input: AwardInput): Promise<Respon
     type,
     points,
     ref_id: ref_id ?? null,
+    // Recorded so the NEXT award against the same pair can be dampened. Without persisting it
+    // the count above always reads zero and the curve resets on every exchange.
+    counterparty_id,
     reason: awardCtx,
   });
 

@@ -124,6 +124,7 @@ export type Database = {
       }
       aura_events: {
         Row: {
+          counterparty_id: string | null
           created_at: string
           id: string
           points: number
@@ -133,6 +134,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          counterparty_id?: string | null
           created_at?: string
           id?: string
           points: number
@@ -142,6 +144,7 @@ export type Database = {
           type: string
         }
         Update: {
+          counterparty_id?: string | null
           created_at?: string
           id?: string
           points?: number
@@ -151,6 +154,20 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "aura_events_counterparty_id_fkey"
+            columns: ["counterparty_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "aura_events_counterparty_id_fkey"
+            columns: ["counterparty_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "aura_events_profile_id_fkey"
             columns: ["profile_id"]
