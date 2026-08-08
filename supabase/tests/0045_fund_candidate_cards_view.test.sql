@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(4);
+select plan(7);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- two members; handle_new_user auto-creates their profiles rows.
@@ -56,6 +56,44 @@ select is(
   (select count(*) from public.fund_candidate_cards
    where profile_id='22222222-2222-2222-2222-222222222222')::bigint,
   0::bigint, 'rejected candidacy card is private to its author'
+);
+reset role;
+
+-- ── unauthorised actor: anon ──────────────────────────────────────────────────────────
+-- The cross-member case above is the only negative this file carried. A candidacy card is a
+-- member's dream, story and video -- the whole surface is members-only, and the view is the
+-- one place that joins them into a single readable row. `20260618131250_m7_voting.sql:158`
+-- revokes all from anon; assert the door, not the intent.
+
+-- the view is not readable by anon at all (privilege, not row filtering)
+select is(
+  has_table_privilege('anon', 'public.fund_candidate_cards', 'select'),
+  false,
+  'anon holds no SELECT privilege on fund_candidate_cards'
+);
+
+-- ...and an actual anon read is refused rather than returning an empty set
+set local role anon;
+set local request.jwt.claims = '';
+select throws_ok(
+  $$ select count(*) from public.fund_candidate_cards $$,
+  '42501', null,
+  'anon cannot read fund_candidate_cards (members-only surface)'
+);
+reset role;
+
+-- security_invoker is what makes the cross-member negative above hold. Without it the view
+-- would run as its owner and bypass dream_candidacies RLS entirely, handing every rejected
+-- candidacy to every caller -- and the two assertions above would still pass.
+select ok(
+  exists (
+    select 1 from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace,
+      unnest(coalesce(c.reloptions, '{}'::text[])) as o
+     where n.nspname = 'public' and c.relname = 'fund_candidate_cards'
+       and o in ('security_invoker=true', 'security_invoker=on')
+  ),
+  'fund_candidate_cards is security_invoker (caller RLS composes, not the view owner''s)'
 );
 
 select * from finish();

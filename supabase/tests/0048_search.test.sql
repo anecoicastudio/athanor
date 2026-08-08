@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(17);
 
 -- ── seed: two users (handle_new_user trigger auto-creates public.profiles rows) ────────────────
 
@@ -196,10 +196,6 @@ select is(
   'live event present in results (events SELECT RLS passes through invoker)'
 );
 
--- TODO(M9): when blocks + is_visible_to_me land, assert (a) a members/private profile the caller
--- can't read is absent, (b) a blocked user's rows are absent — the security-invoker RPC inherits
--- both for free.
-
 -- ── assertion 7: zero Aura — search writes nothing (rule #1) ─────────────────────────────────────
 
 select is(
@@ -208,6 +204,60 @@ select is(
   'running search_all produces ZERO aura_events (search never awards points)'
 );
 
+reset role;
+
+-- ── assertion 8: blocked members are invisible to search (closes the stale TODO(M9)) ─────────────
+--
+-- The TODO that stood here said "when blocks + is_visible_to_me land, assert a blocked user's
+-- rows are absent". M9 landed — 20260619222420_m9_blocks_and_not_blocked.sql composed
+-- athanor.not_blocked(id) into profiles_select_authenticated — and the assertion was never
+-- written. Search is exactly where an unwanted contact is most likely to be looked up, so an
+-- untested block here is the highest-consequence gap in the file.
+--
+-- search_all is SECURITY INVOKER (assertion 1), so the row filter arrives for free — which is
+-- precisely why it must be proven rather than assumed: an author "optimising" the RPC to
+-- SECURITY DEFINER would restore both users to both result sets and break nothing else.
+
+set local role service_role;
+insert into public.blocks (blocker_id, blocked_id)
+  values ('a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1', 'b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2');
+reset role;
+
+set local role authenticated;
+
+-- the blocker no longer finds the member they blocked (2 matches → 1, self only)
+set local request.jwt.claims = '{"sub":"a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1","role":"authenticated"}';
+select is(
+  (select count(*)::int
+   from public.search_all('videomaker', 'people', null, null, 20, null, null, null)),
+  1,
+  'blocker does not find the blocked member in search (athanor.not_blocked composes through the invoker RPC)'
+);
+
+-- ...and invisibility is MUTUAL: the blocked member no longer finds the blocker either
+set local request.jwt.claims = '{"sub":"b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2","role":"authenticated"}';
+select is(
+  (select count(*)::int
+   from public.search_all('videomaker', 'people', null, null, 20, null, null, null)),
+  1,
+  'blocked member does not find the blocker in search (mutual invisibility, not one-directional)'
+);
+
+reset role;
+
+-- ── assertion 9: unauthorised actor — anon cannot search at all ──────────────────────────────────
+--
+-- Assertion 1 proves the grant is absent. This proves the call is REFUSED: search_all reads
+-- profiles, projects and events in one hop, so a silent fallthrough here would be a bulk
+-- member-directory leak to logged-out callers.
+
+set local role anon;
+set local request.jwt.claims = '';
+select throws_ok(
+  $$ select count(*) from public.search_all('videomaker', 'people', null, null, 20, null, null, null) $$,
+  '42501', null,
+  'anon cannot execute search_all (members-only surface)'
+);
 reset role;
 
 select * from finish();
