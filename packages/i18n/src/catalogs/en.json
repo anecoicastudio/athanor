@@ -176,6 +176,7 @@
   "story.reply.placeholder": "Write to {name}…",
   "story.react.toast": "You celebrated this step ✦",
   "story.react.a11y": "Celebrate this step",
+  "story.react.a11yLit": "Step celebrated",
   "story.makeDream": "Make their dream happen",
   "story.dream.toast": "You lit {name}'s dream ✦",
   "story.expired": "This step has already passed.",

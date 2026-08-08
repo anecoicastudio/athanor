@@ -5,9 +5,13 @@ import { Pressable, Text } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
- * The single ✦ "light a star" (frontend §3.2). VIEWER-STATE-ONLY — never renders a
- * count to anyone (rule #3). lit = `aura` glyph + burst (scale 1→1.15→1, ~380ms);
- * unlit = `faint`; pending dims; disabled = your own post.
+ * The single "light a star" (frontend §3.2). VIEWER-STATE-ONLY — never renders a
+ * count to anyone (rule #3). lit = filled ✦ in `aura` + burst (scale 1→1.15→1, ~380ms);
+ * unlit = outline ✧ in `faint`; pending dims; disabled = your own post.
+ *
+ * SHAPE carries the state, not colour alone: since `faint` was retuned for AA it no longer
+ * reads clearly "off" against `aura` at a glance, and an assertive unlit star is exactly what
+ * rule #3 doesn't want. ✦/✧ is the app's existing unlit vocabulary (StarCell, StarsMiniRow).
  * Reduced-motion → opacity cut, no transform (frontend §9; MomentFlash pattern).
  */
 export function ReactionStar({
@@ -60,7 +64,7 @@ export function ReactionStar({
           opacity: pending ? 0.5 : 1,
         }}
       >
-        <Text className={`text-[20px] ${lit ? 'text-aura' : 'text-faint'}`}>✦</Text>
+        <Text className={`text-[20px] ${lit ? 'text-aura' : 'text-faint'}`}>{lit ? '✦' : '✧'}</Text>
       </Animated.View>
     </Pressable>
   );

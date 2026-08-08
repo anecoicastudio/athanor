@@ -39,12 +39,14 @@ export function IncomingOfferRow({
         <Text className="flex-1 text-[15px] font-semibold text-foreground" numberOfLines={1}>
           {helperName}
         </Text>
-        <Tag label={t(`help.type.${help.type}`, locale)} />
+        <Tag quiet label={t(`help.type.${help.type}`, locale)} />
       </View>
 
-      {/* the helper's two lines, if any */}
+      {/* The helper's two lines, if any — `ink-2` (body copy), not `faint`. This is the row's
+          payload and has to outrank the help-type Tag beside the name, whose `quiet` tone is
+          `muted-foreground` and therefore sits ABOVE `faint`. Ladder: name > message > type. */}
       {help.message ? (
-        <Text className="text-[14px] leading-relaxed text-faint">{help.message}</Text>
+        <Text className="text-[14px] leading-relaxed text-ink-2">{help.message}</Text>
       ) : null}
 
       {/* actions by status */}

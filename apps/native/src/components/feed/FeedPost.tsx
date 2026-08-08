@@ -19,7 +19,9 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
       <View className="flex-row items-center justify-between">
         <PostAuthorRow authorId={post.author_id} size="sm" />
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{categoryLabel}</Text>
+        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          {categoryLabel}
+        </Text>
       </View>
 
       <Pressable className="gap-3" onPress={openDetail}>
@@ -36,7 +38,10 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
         />
       </Pressable>
 
-      {/* Meta row — ✦ affordance + open-thread cue; both open the detail. No public count. */}
+      {/* Meta row — star affordance + open-thread cue; both open the detail. No public count.
+          TODO(a11y): the star's label is `post.react.a11y` («Accendi una stella…») but onPress
+          navigates — it promises an action this control doesn't perform. Pre-existing; needs its
+          own key (an "open to light a star" phrasing) in IT+EN, so it's not folded in here. */}
       <View className="flex-row items-center gap-4 border-t border-hair pt-3">
         <Pressable
           className="min-h-[44px] min-w-[44px] items-center justify-center"
@@ -44,7 +49,10 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
           accessibilityLabel={t('post.react.a11y', locale)}
           onPress={openDetail}
         >
-          <Text className="text-[18px] text-faint">✦</Text>
+          {/* ✧, not ✦: this card never receives the viewer's lit state, so it renders one glyph
+              for every post. Under the ✦-lit/✧-unlit vocabulary (ReactionStar, StarCell) a
+              filled star here would claim "you lit this" on the whole feed. */}
+          <Text className="text-[18px] text-faint">✧</Text>
         </Pressable>
         <Pressable className="min-h-[44px] justify-center" onPress={openDetail}>
           <Text className="text-[13px] text-muted-foreground">{t('comment.reply', locale)}</Text>
