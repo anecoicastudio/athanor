@@ -33,6 +33,12 @@ export {
   type WeekRecap,
 } from './score/display';
 export { highlightMatches, type HighlightSpan } from './search/highlight';
+export {
+  buildStoryRail,
+  type StoryRailPerson,
+  type StoryRailProfile,
+  type StoryRailRow,
+} from './stories/rail';
 export * from './verify/state';
 export * from './boot/version';
 export * from './boot/gate';
