@@ -251,9 +251,7 @@ export default function AnnualFundScreen() {
 
         {/* 3. Hero countdown block */}
         <View className="gap-4">
-          <SectionLabel tone="muted">
-            {t('fund.countdown.label', locale)}
-          </SectionLabel>
+          <SectionLabel>{t('fund.countdown.label', locale)}</SectionLabel>
           <CountdownGrid targetMs={Date.parse(edition.target_at)} locale={locale} />
           <FundTicker
             raisedCents={raisedCents}
@@ -381,9 +379,7 @@ export default function AnnualFundScreen() {
 
         {/* 9. Il motore virale — cyan-wash card */}
         <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
-          <SectionLabel tone="aura">
-            {t('fund.viral.label', locale)}
-          </SectionLabel>
+          <SectionLabel tone="aura">{t('fund.viral.label', locale)}</SectionLabel>
           <Text className="text-[14px] leading-5 text-foreground">
             {t('fund.viral.tagline1', locale)}
           </Text>

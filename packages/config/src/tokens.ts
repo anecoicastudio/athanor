@@ -42,7 +42,13 @@ export const semantic = {
   auraSoft: 'rgba(43,208,210,0.10)', // moment fill / active accent chip
   auraLine: 'rgba(43,208,210,0.40)', // moment / accent 1px inset border
   onAura: '#04222a', // text inverted on a cyan fill
-  onError: '#F0EDF7', // text on an error-colored surface (same value as foreground)
+  // text on an error-colored surface. A dark rose ink, mirroring onAura's "near-black tinted
+  // with the accent's own hue" — 4.93:1 on `error`. Was #F0EDF7 (identical to `foreground`),
+  // which is 3.44:1 and shipped below AA on the account-deletion CTA. `error` itself can't move
+  // to fix that: darkening the fill enough for white (#C4324F, 4.64) drops `text-error` on the
+  // canvas to 3.66 and breaks the ~26 sites that use it as text. One token, two roles — the
+  // fill stays put and the ink changes. Asserted in apps/native/src/lib/contrast.test.ts.
+  onError: '#1A050D',
 } as const;
 
 /** Mandala gradient — logo + hero ring ONLY. Not a UI accent. */

@@ -11,7 +11,8 @@ const SURFACE = semantic.surface; // #100A1C — sheets
 const RAISE = over(semantic.raise, CANVAS); // #141423 — a card / list row
 const RAISE2 = over(semantic.raise2, CANVAS); // #1A1A29 — a chip on the canvas
 const NESTED = over(semantic.raise2, RAISE); // #232331 — a chip INSIDE a card ← the trap
-const AURA_SOFT = over(semantic.auraSoft, CANVAS); // #0D1E2C — accent surface
+const AURA_SOFT = over(semantic.auraSoft, CANVAS); // #0D1E2C — accent surface on the canvas
+const AURA_SOFT_ON_RAISE = over(semantic.auraSoft, RAISE); // #162734 — accent chip INSIDE a card
 
 describe('over', () => {
   it('composites a translucent layer onto an opaque backdrop', () => {
@@ -135,39 +136,75 @@ describe('the rejected inert value #615A7E', () => {
 });
 
 /**
- * Sub-AA pairs that SHIP TODAY. Not guards, not hypotheticals — these are failures this module
- * found the moment it existed, pinned so they are tracked rather than rediscovered. Each one
- * needs a token or surface decision (rule #4), which is why they are recorded here instead of
- * being quietly "fixed" inside a refactor.
+ * Forbidden pairs — ratios that exist in the palette but that NO call site may use.
  *
- * The first draft of this block called them forward-looking guards. That was the module's own
- * mistake in miniature: a claim about a TOKEN standing in for a claim about SURFACES. Audited
- * afterwards, all three are live. Don't loosen these back into hypotheticals — resolve them.
+ * Read the history before touching this block, because its framing has been wrong once. The
+ * first draft called these forward-looking guards while three call sites were live: that was
+ * this module's own mistake in miniature, a claim about a TOKEN standing in for a claim about
+ * SURFACES. They were then re-labelled as shipping failures, which was true, and finally fixed:
+ *
+ *   - MilestoneRow's kebab menu went `bg-raise-2` → opaque `bg-surface` (3.90 → 4.88), so it no
+ *     longer composites over DreamCard's `bg-raise`.
+ *   - SubscriptionStatusCard's past-due warning moved OUT of the aura-soft glow card onto the
+ *     modal canvas (4.26 → 4.93).
+ *   - `onError` went `#F0EDF7` → `#1A050D` (3.44 → 4.93); that one asserts its PASS below.
+ *   - DateBadge's month label switched to `muted-foreground` when highlighted (4.17 → 5.72) —
+ *     found only after this block existed, because `AURA_SOFT` was composed over the canvas and
+ *     nothing modelled an accent chip inside a card. Hence `AURA_SOFT_ON_RAISE`.
+ *
+ * So these are guards now — but only because the sites moved, NOT because the pairs got safe.
+ * `error` on a nested chip is still 3.90 and on aura-soft still 4.26. If a new call site puts
+ * them together it is just as broken as before. Don't read a passing test as permission.
  */
-describe('sub-AA pairs that ship today (documented, not guarded)', () => {
-  it('error clears on the canvas and on a card', () => {
-    expect(ratio(semantic.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.93 — modal bodies
+describe('forbidden pairs — no call site may use these', () => {
+  it('error clears on the canvas and on a card — the surfaces it IS used on', () => {
+    expect(ratio(semantic.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.93 — modal bodies, Circle past-due
     expect(ratio(semantic.error, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.58 — SettingsRow danger
+    expect(ratio(semantic.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.88 — MilestoneRow menu
   });
 
-  it('FAILS: MilestoneRow delete, 15px error on a chip nested in a card', () => {
-    // MilestoneRow.tsx:123 — `text-[15px] text-error` inside the kebab menu's bg-raise-2
-    // (MilestoneRow.tsx:104), itself inside DreamCard's bg-raise. Normal-size text, floor 4.5.
+  it('error on a chip nested in a card stays unusable (was MilestoneRow, now bg-surface)', () => {
     expect(ratio(semantic.error, NESTED)).toBeCloseTo(3.9, 2);
     expect(ratio(semantic.error, NESTED)).toBeLessThan(AA_NORMAL);
   });
 
-  it('FAILS: SubscriptionStatusCard past-due, 13px error on the aura-soft card', () => {
-    // SubscriptionStatusCard.tsx:89, inside the bg-aura-soft glow surface at :65.
+  it('error on aura-soft stays unusable (was the Circle past-due warning, now on the canvas)', () => {
     expect(ratio(semantic.error, AURA_SOFT)).toBeCloseTo(4.26, 2);
     expect(ratio(semantic.error, AURA_SOFT)).toBeLessThan(AA_NORMAL);
   });
 
-  it('FAILS: the danger Button — onError on its own error fill', () => {
-    // Button.tsx:17 `danger: { bg: 'bg-error', text: 'text-on-error' }`, shipped on the
-    // account-deletion CTA at (modal)/delete-account.tsx:91. onError === foreground.
-    expect(ratio(semantic.onError, semantic.error)).toBeCloseTo(3.44, 2);
-    expect(ratio(semantic.onError, semantic.error)).toBeLessThan(AA_NORMAL);
+  it('and an accent chip nested in a card is worse still', () => {
+    // The gap that let DateBadge's `faint` month label ship at 4.17: `AURA_SOFT` alone is
+    // aura-soft over the CANVAS, but an accent chip inside a card composites over `raise`.
+    // Same surface-not-token lesson as NESTED, one accent surface later.
+    // 3.84, not the 3.85 quoted while this was being investigated: that figure came from a
+    // scratch implementation using Python's round() (banker's rounding) where JS Math.round is
+    // half-up, shifting a composited channel by 1. The in-repo `over()` is authoritative.
+    expect(ratio(semantic.error, AURA_SOFT_ON_RAISE)).toBeCloseTo(3.84, 2);
+    expect(ratio(semantic.error, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
+    expect(ratio(semantic.faint, AURA_SOFT_ON_RAISE)).toBeCloseTo(4.17, 2);
+    expect(ratio(semantic.faint, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
+  });
+
+  it('muted-foreground is the tone that survives an accent chip in a card', () => {
+    // What DateBadge.tsx switches to when `highlight` is set.
+    expect(ratio(semantic.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeCloseTo(5.72, 2);
+    expect(ratio(semantic.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it('the old near-white onError stays unusable on the error fill', () => {
+    // The exact value `onError` used to hold. Pinned so the revert is visibly a regression.
+    expect(ratio(semantic.foreground, semantic.error)).toBeCloseTo(3.44, 2);
+    expect(ratio(semantic.foreground, semantic.error)).toBeLessThan(AA_NORMAL);
+  });
+
+  it('PASSES NOW: the danger Button — dark onError on its error fill', () => {
+    // Button.tsx `VARIANT_CLASSES.danger` = { bg: 'bg-error', text: 'text-on-error' }, on the
+    // account-deletion CTA in (modal)/delete-account.tsx. Every filled variant is
+    // dark-ink-on-light-fill. (Symbols, not line numbers: adding four comment lines to Button
+    // moved this one, in the very module that exists because a claim drifted from its code.)
+    expect(ratio(semantic.onError, semantic.error)).toBeCloseTo(4.93, 2);
+    expect(ratio(semantic.onError, semantic.error)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
   it('aura and onAura are comfortable everywhere they are used', () => {
@@ -197,8 +234,18 @@ describe('readable tokens × standard surfaces', () => {
     }
   });
 
-  it('but faint does NOT survive the nested chip — the one documented exclusion', () => {
-    expect(ratio(semantic.faint, NESTED)).toBeLessThan(AA_NORMAL);
+  // `faint` is the bottom rung, so it is the token that runs out first. Three surfaces above
+  // are NOT in the list, and calling any of them "the one exclusion" was wrong — there are
+  // three. Composed surfaces are where the floor gets crossed; keep this list honest.
+  it.each([
+    ['a chip nested in a card (NESTED)', () => NESTED],
+    ['an accent chip nested in a card (AURA_SOFT_ON_RAISE)', () => AURA_SOFT_ON_RAISE],
+    ['bandAlt / border', () => semantic.bandAlt],
+  ])('faint does NOT survive %s', (_label, surface) => {
+    expect(ratio(semantic.faint, surface())).toBeLessThan(AA_NORMAL);
+  });
+
+  it('…and the three tones above it do survive the nested chip', () => {
     for (const token of ['foreground', 'ink2', 'foregroundMuted'] as const) {
       expect(ratio(semantic[token], NESTED)).toBeGreaterThanOrEqual(AA_NORMAL);
     }
