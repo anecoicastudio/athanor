@@ -33,6 +33,12 @@ export default function TicketViewerScreen() {
         <View className="items-center pt-16">
           <ActivityIndicator color={semantic.aura} />
         </View>
+      ) : ticket?.status === 'refunded' ? (
+        // The webhook nulls qr_token on refund/dispute, but say WHY instead of falling
+        // through to the generic "we couldn't confirm" state below.
+        <View className="px-5 pt-16">
+          <EmptyState>{t('ticket.status.refunded', locale)}</EmptyState>
+        </View>
       ) : !ticket || !ticket.qr_token ? (
         <View className="px-5 pt-16">
           <EmptyState>{t('ticket.error.confirm', locale)}</EmptyState>

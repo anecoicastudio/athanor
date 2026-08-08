@@ -95,17 +95,49 @@ export async function handleTicketPaid(
   // ignoreDuplicates: a redelivery (or a NEW Stripe event id for the same session, which the
   // processed_at gate can't catch) must NOT overwrite a later status — e.g. reset a Slice-B
   // `checked_in` ticket back to `paid`. The first W1 delivery already wrote the row.
-  const { error } = await db.from('event_tickets').upsert(
+  const paymentIntent = refId(session.payment_intent);
+  const { error, count } = await db.from('event_tickets').upsert(
     {
       user_id: profileId,
       event_id: eventId,
       status: 'paid',
-      stripe_payment_id: refId(session.payment_intent),
+      stripe_payment_id: paymentIntent,
       qr_token: qrToken,
     },
-    { onConflict: 'user_id,event_id', ignoreDuplicates: true },
+    { onConflict: 'user_id,event_id', ignoreDuplicates: true, count: 'exact' },
   );
   if (error) throw error;
+  // count 0 = the unique(user_id,event_id) row already existed and the upsert was swallowed.
+  // One real purchase hides among the redeliveries: a re-buy after a refund (the TicketBar
+  // re-offers purchase on a refunded ticket) arrives with a NEW payment intent and would
+  // otherwise be silently discarded — charged, no QR. Repair exactly that case; a null count
+  // is indeterminate and falls through to "inserted" (worst case: today's swallow, no rewrite).
+  if (count !== 0) return;
+  // A repair without a PI would write a row revokeTicket can never match again. Unreachable
+  // for mode:'payment' Checkout, but the swallow is the safe failure direction.
+  if (!paymentIntent) return;
+
+  const { data: existing, error: selErr } = await db
+    .from('event_tickets')
+    .select('status,stripe_payment_id')
+    .eq('user_id', profileId)
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  const row = existing as { status?: string; stripe_payment_id?: string | null } | null;
+  // Live (paid/checked_in) rows are untouchable — redelivery must never reset them. And a
+  // replay of the ORIGINAL purchase session after its refund carries the SAME payment intent
+  // as the refunded row: resurrecting it would undo the revocation, so only a different PI
+  // (a genuinely new purchase) re-issues.
+  if (!row || row.status !== 'refunded' || row.stripe_payment_id === paymentIntent) return;
+
+  const { error: updErr } = await db
+    .from('event_tickets')
+    .update({ status: 'paid', stripe_payment_id: paymentIntent, qr_token: qrToken })
+    .eq('user_id', profileId)
+    .eq('event_id', eventId)
+    .eq('status', 'refunded'); // guard: a concurrent status change wins over the repair
+  if (updErr) throw updErr;
 }
 
 /** Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change. */
@@ -179,18 +211,44 @@ async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<v
   await recomputeAggregate(db, (rows[0] as { edition_id: string }).edition_id);
 }
 
-/** W4 — a contribution charge refunded. Flip status + recompute. Match by payment_intent; ack if not found. */
-export async function handleContributionRefunded(db: Db, charge: Stripe.Charge): Promise<void> {
+/**
+ * Revoke the event ticket bought by a charge that lost its money. The QR token is stateless
+ * HMAC — there is no revocation list, so this status flip IS the revocation: check-in admits
+ * only paid/checked_in, and the nulled qr_token stops the viewer rendering a door pass.
+ * A single guarded update: no match (the charge was a contribution) or a re-delivered
+ * reversal both no-op. Nothing to unwind besides access — paid tickets consume no capacity,
+ * and attendance/aura are attendance-based by design.
+ */
+async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
+  const paymentIntent = refId(paymentIntentRef);
+  if (!paymentIntent) return; // nothing to match — ack (idempotency ledger already recorded it)
+
+  const { error } = await db
+    .from('event_tickets')
+    .update({ status: 'refunded', qr_token: null })
+    .eq('stripe_payment_id', paymentIntent)
+    .in('status', ['paid', 'checked_in']); // guard: a re-delivered reversal won't re-flip
+  if (error) throw error;
+}
+
+/**
+ * W4 — a charge refunded. The payment intent belongs to exactly one of the two purchasable
+ * things (a fund contribution or an event ticket), so both reversals run and at most one
+ * matches. Match by payment_intent; ack if not found.
+ */
+export async function handleChargeRefunded(db: Db, charge: Stripe.Charge): Promise<void> {
   await reverseContribution(db, charge.payment_intent);
+  await revokeTicket(db, charge.payment_intent);
 }
 
 /**
  * W12 — a charge disputed: a card chargeback, or a PayPal dispute/claim. Treat the money as
- * gone immediately; a won dispute is rare enough to reconcile by hand. Shares
- * reverseContribution with W4 — both mean the money is leaving, both must be idempotent.
+ * gone immediately; a won dispute is rare enough to reconcile by hand. Shares the reversal
+ * pair with W4 — both mean the money is leaving, both must be idempotent.
  */
 export async function handleDisputeCreated(db: Db, dispute: Stripe.Dispute): Promise<void> {
   await reverseContribution(db, dispute.payment_intent);
+  await revokeTicket(db, dispute.payment_intent);
 }
 
 /** Map a Stripe subscription status to our circle_memberships enum. */
@@ -359,12 +417,12 @@ export async function processEvent(
       return;
     }
     case 'charge.refunded': {
-      // W4: only fund contributions are handled here in M7 (ticket refunds = M8/W2).
-      await handleContributionRefunded(db, event.data.object as Stripe.Charge);
+      // W4 — reverses whichever the charge bought: fund contribution or event ticket.
+      await handleChargeRefunded(db, event.data.object as Stripe.Charge);
       return;
     }
     case 'charge.dispute.created': {
-      // W12 — card chargeback / PayPal dispute. Same reversal as a refund.
+      // W12 — card chargeback / PayPal dispute. Same reversal pair as a refund.
       await handleDisputeCreated(db, event.data.object as Stripe.Dispute);
       return;
     }
