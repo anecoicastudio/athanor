@@ -15,6 +15,11 @@ type AuthState = {
   /** True while the pre-auth onboarding draft is being persisted post-OTP — the
    *  AuthGuard holds position so the funnel never flashes between the two reads. */
   flushing: boolean;
+  /** The profile read FAILED (network, RLS, missing RPC) — distinct from a null
+   *  profile, which is the legitimate "signed in, no row yet" state that routes
+   *  to the onboarding funnel. Only the catch paths set it, so the guard can tell
+   *  a broken read apart from a new account and show something instead of freezing. */
+  profileError: boolean;
   refreshProfile: () => Promise<void>;
 };
 
@@ -23,6 +28,7 @@ const AuthContext = createContext<AuthState>({
   profile: null,
   loading: true,
   flushing: false,
+  profileError: false,
   refreshProfile: async () => {},
 });
 
@@ -31,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [flushing, setFlushing] = useState(false);
+  const [profileError, setProfileError] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const pushTokenRef = useRef<string | null>(null);
 
@@ -44,10 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const fresh = await getOwnProfile(supabase);
       if (sessionRef.current?.user.id === userId) {
         setProfile(fresh);
+        setProfileError(false);
       }
     } catch (e) {
       devWarn('[auth] refreshProfile', e);
       // keep prior profile; next session change or manual refresh retries
+      setProfileError(true);
     }
   }, []);
 
@@ -64,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(next);
       if (!next) {
         setProfile(null); // sign-out clears profile here (event handler, not effect)
+        setProfileError(false);
         void unregisterPush(pushTokenRef.current);
         pushTokenRef.current = null;
       } else if (
@@ -97,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const p = await getOwnProfile(supabase);
         if (cancelled) return;
+        setProfileError(false);
         if (p && email && !isProfileComplete(p)) {
           setFlushing(true);
           const result = await flushOnboardingDraft(userId, email);
@@ -112,8 +123,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         devWarn('[auth] profile hydration', e);
-        // profile stays as-is; guard waits, next auth event retries
-        if (!cancelled) setFlushing(false);
+        // Profile stays as-is, but flag the failure: without it the guard sees a
+        // null profile, returns early, and the user sits on the auth screen with
+        // no error and no way forward.
+        if (!cancelled) {
+          setProfileError(true);
+          setFlushing(false);
+        }
       }
     })();
     return () => {
@@ -125,7 +141,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [userId, email, refreshProfile]);
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, flushing, refreshProfile }}>
+    <AuthContext.Provider
+      value={{ session, profile, loading, flushing, profileError, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -22,8 +22,10 @@ import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { BrandSplash } from '@/components/boot/BrandSplash';
 import { BootGate } from '@/components/boot/BootGate';
+import { ProfileErrorScreen } from '@/components/boot/ProfileErrorScreen';
 import { SentryConsentGate } from '@/components/boot/SentryConsentGate';
 import { asyncStoragePersister, queryClient } from '@/lib/query-client';
+import { supabase } from '@/lib/supabase';
 
 SplashScreen.preventAutoHideAsync();
 // Settles a dangling OAuth browser session on resume (required for the web target;
@@ -34,7 +36,7 @@ WebBrowser.maybeCompleteAuthSession();
 // (B-5). Sentry.wrap below is safe pre-init — it just captures nothing until init runs.
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading, flushing } = useAuth();
+  const { session, profile, loading, flushing, profileError, refreshProfile } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -66,6 +68,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return null;
+  }
+  // Signed in but the profile read broke. The routing effect above returns on a
+  // null profile, so without this the user is stranded on the auth screen with
+  // no error and no retry.
+  if (session && profileError && !profile) {
+    return (
+      <ProfileErrorScreen
+        onRetry={() => void refreshProfile()}
+        onSignOut={() => void supabase.auth.signOut()}
+      />
+    );
   }
   return <>{children}</>;
 }
