@@ -5,13 +5,20 @@ import type { Database } from '@athanor/api';
 
 import { authStorage } from './session-storage';
 import { markClientOutdated } from './outdated-client';
+import { resolveSupabaseKey } from './supabase-key';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!url || !anonKey) {
-  throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY');
+if (!url) {
+  throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL');
 }
+
+// Metro INLINES `process.env.EXPO_PUBLIC_*` at bundle time, so both names must appear as
+// literal member expressions here — a computed lookup silently yields undefined.
+const anonKey = resolveSupabaseKey({
+  publishable: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  anon: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+});
 
 // Expo Router renders the route tree in Node (no `window`) for `web.output:"static"`.
 // On that server pass AsyncStorage's web shim reads `window.localStorage` and throws,

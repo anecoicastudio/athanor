@@ -19,6 +19,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // is; the code path is provider-agnostic and needs no other change.
 const APPLE_ENABLED = false;
 
+// Same story for Google: the hosted project has only the Email provider enabled, so this
+// button could only ever reach «Quel modo di entrare non è ancora attivo». To flip it on,
+// configure the Google provider in Supabase → Auth → Providers AND add the redirect that
+// lib/oauth.ts builds — athanor://auth-callback, plus the exp://…/--/auth-callback form
+// for Expo Go — to Auth → URL Configuration → Redirect URLs. Missing that second step is
+// the classic "works in the browser, hangs on device".
+const GOOGLE_ENABLED = false;
+
+const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
+
 // Map a Supabase AuthError to a specific message so the cause is visible, instead
 // of a blanket "Something didn't work." signInWithPassword returns invalid_credentials
 // for both wrong password and unknown email (enumeration protection), so those collapse.
@@ -176,48 +186,62 @@ export default function WelcomeScreen() {
         <Text className="text-sm text-muted-foreground">{copy('sub')}</Text>
       </View>
 
-      {/* OAuth on top, per the prototype. Apple hidden until its provider is configured. */}
-      <View className="mt-7 gap-3">
-        {APPLE_ENABLED ? (
-          <Pressable
-            className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
-              busy ? 'opacity-40' : ''
-            }`}
-            disabled={busy}
-            onPress={() => handleOAuth('apple')}
-            accessibilityRole="button"
-            accessibilityLabel={t('auth.apple.cta', locale)}
-          >
-            {oauthBusy === 'apple' ? (
-              <ActivityIndicator color={semantic.foreground} />
-            ) : (
-              <Text className="font-semibold text-foreground">{t('auth.apple.cta', locale)}</Text>
-            )}
-          </Pressable>
-        ) : null}
+      {/* OAuth on top, per the prototype. Each provider is hidden until it is configured
+          in Supabase; with none of them on, the block AND the «oppure con email» divider
+          go too — a divider separating email from nothing reads as a broken screen. */}
+      {ANY_OAUTH ? (
+        <>
+          <View className="mt-7 gap-3">
+            {APPLE_ENABLED ? (
+              <Pressable
+                className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
+                  busy ? 'opacity-40' : ''
+                }`}
+                disabled={busy}
+                onPress={() => handleOAuth('apple')}
+                accessibilityRole="button"
+                accessibilityLabel={t('auth.apple.cta', locale)}
+              >
+                {oauthBusy === 'apple' ? (
+                  <ActivityIndicator color={semantic.foreground} />
+                ) : (
+                  <Text className="font-semibold text-foreground">
+                    {t('auth.apple.cta', locale)}
+                  </Text>
+                )}
+              </Pressable>
+            ) : null}
 
-        <Pressable
-          className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
-            busy ? 'opacity-40' : ''
-          }`}
-          disabled={busy}
-          onPress={() => handleOAuth('google')}
-          accessibilityRole="button"
-          accessibilityLabel={t('auth.google.cta', locale)}
-        >
-          {oauthBusy === 'google' ? (
-            <ActivityIndicator color={semantic.foreground} />
-          ) : (
-            <Text className="font-semibold text-foreground">{t('auth.google.cta', locale)}</Text>
-          )}
-        </Pressable>
-      </View>
+            {GOOGLE_ENABLED ? (
+              <Pressable
+                className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
+                  busy ? 'opacity-40' : ''
+                }`}
+                disabled={busy}
+                onPress={() => handleOAuth('google')}
+                accessibilityRole="button"
+                accessibilityLabel={t('auth.google.cta', locale)}
+              >
+                {oauthBusy === 'google' ? (
+                  <ActivityIndicator color={semantic.foreground} />
+                ) : (
+                  <Text className="font-semibold text-foreground">
+                    {t('auth.google.cta', locale)}
+                  </Text>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
 
-      <View className="my-6 flex-row items-center gap-3">
-        <View className="h-px flex-1 bg-hair" />
-        <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
-        <View className="h-px flex-1 bg-hair" />
-      </View>
+          <View className="my-6 flex-row items-center gap-3">
+            <View className="h-px flex-1 bg-hair" />
+            <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
+            <View className="h-px flex-1 bg-hair" />
+          </View>
+        </>
+      ) : (
+        <View className="mt-7" />
+      )}
 
       <View className="gap-4">
         {!login ? (

@@ -2,7 +2,7 @@
 // Characterization tests for the webhook money paths: per-event handlers, routing,
 // and the 3-layer idempotency pipeline. All I/O goes through the injected fake db
 // (repo convention: DI over mocks) + real signQrToken with a fixed test secret.
-import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
 // stripe pinned to major 22: deno.lock is gitignored, so CI resolves fresh on every
 // run — an unpinned specifier would typecheck against latest and redden on SDK majors.
 import type Stripe from 'npm:stripe@22';
@@ -11,8 +11,10 @@ import { signQrToken } from '../_shared/qr.ts';
 import {
   type Db,
   type WebhookCtx,
+  assertSettled,
   handleContribution,
   handleContributionRefunded,
+  handleDisputeCreated,
   handleIdentityFailed,
   handleIdentityVerified,
   handleInvoiceFailed,
@@ -26,11 +28,17 @@ import {
 const SECRET = 'test-qr-secret';
 const asDb = (f: FakeDb) => f as unknown as Db;
 
+// payment_status: 'paid' is what every payment method enabled on the account reports on
+// checkout.session.completed — card, Bancontact, EPS, Link, wallets, and PayPal (Stripe
+// permits only synchronous funding sources on PayPal unless you ask Support to enable
+// asynchronous ones). Delayed-notification methods report 'unpaid' here; none are enabled,
+// and assertSettled throws rather than trusting that to stay true.
 const ticketSession = (over: Record<string, unknown> = {}) =>
   ({
     id: 'cs_1',
     created: 1751000000,
     currency: 'eur',
+    payment_status: 'paid',
     payment_intent: 'pi_1',
     metadata: { kind: 'ticket', event_id: 'evt-row-1', profile_id: 'prof-1' },
     ...over,
@@ -42,6 +50,7 @@ const contributionSession = (over: Record<string, unknown> = {}) =>
     created: 1751000000,
     currency: 'EUR',
     amount_total: 2500,
+    payment_status: 'paid',
     payment_intent: 'pi_c1',
     metadata: { kind: 'contribution', edition_id: 'ed-1', profile_id: 'prof-1' },
     ...over,
@@ -109,6 +118,20 @@ Deno.test('handleTicketPaid upserts paid ticket idempotently with deterministic 
   );
 });
 
+Deno.test('handleTicketPaid refuses an unsettled session and writes nothing', async () => {
+  // Delayed settlement is unsupported by design. If a delayed rail is ever enabled in the
+  // Stripe Dashboard the session completes while the debit is still processing — issuing a QR
+  // there would let someone through the door on money that may never arrive. Throwing 500s the
+  // webhook, so Stripe retries and the ledger row stays at processed_at NULL.
+  const db = makeFakeDb();
+  await assertRejects(
+    () => handleTicketPaid(asDb(db), SECRET, ticketSession({ payment_status: 'unpaid' })),
+    Error,
+    'unsettled',
+  );
+  assertEquals(db.calls.length, 0);
+});
+
 // ── W3 handleContribution ────────────────────────────────────────────────────
 
 Deno.test('handleContribution throws on missing edition_id / amount_total', async () => {
@@ -151,6 +174,34 @@ Deno.test(
     assertEquals(db.calls.length, 1); // upsert only — no rpc
   },
 );
+
+Deno.test(
+  'handleContribution refuses an unsettled session and never moves the ticker',
+  async () => {
+    // The Dream Fund ticker is public and realtime — showing money that has not arrived and
+    // may never would be visible to everyone. Refuse the row outright rather than writing a
+    // pending one the aggregate would later have to un-count.
+    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+    await assertRejects(
+      () => handleContribution(asDb(db), contributionSession({ payment_status: 'unpaid' })),
+      Error,
+      'unsettled',
+    );
+    assertEquals(db.calls.length, 0);
+  },
+);
+
+// ── assertSettled (the fail-closed gate itself) ──────────────────────────────
+
+Deno.test('assertSettled passes final statuses and throws on everything else', () => {
+  assertSettled(ticketSession()); // 'paid'
+  assertSettled(ticketSession({ payment_status: 'no_payment_required' })); // 100% discount
+  assertThrows(
+    () => assertSettled(ticketSession({ payment_status: 'unpaid' })),
+    Error,
+    'unsettled',
+  );
+});
 
 // ── W4 handleContributionRefunded ────────────────────────────────────────────
 
@@ -255,6 +306,55 @@ Deno.test(
   },
 );
 
+Deno.test('handleInvoiceFailed reads the post-Basil invoice.parent shape', async () => {
+  // 2025-03-31.basil moved invoice.subscription → parent.subscription_details.subscription.
+  // _shared/stripe.ts pins 2026-05-27.dahlia, so this IS the live payload shape; reading
+  // only the legacy field meant no membership was ever marked past_due.
+  const db = makeFakeDb();
+  await handleInvoiceFailed(asDb(db), {
+    parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_b' } },
+  } as unknown as Stripe.Invoice);
+  assertEquals(db.calls[0].filters, [['eq', 'stripe_subscription_id', 'sub_b']]);
+
+  // expanded object form
+  const db2 = makeFakeDb();
+  await handleInvoiceFailed(asDb(db2), {
+    parent: { subscription_details: { subscription: { id: 'sub_c' } } },
+  } as unknown as Stripe.Invoice);
+  assertEquals(db2.calls[0].filters, [['eq', 'stripe_subscription_id', 'sub_c']]);
+});
+
+// ── W12 handleDisputeCreated ─────────────────────────────────────────────────
+
+Deno.test('handleDisputeCreated acks disputes with no matching contribution', async () => {
+  const db1 = makeFakeDb();
+  await handleDisputeCreated(asDb(db1), { payment_intent: null } as unknown as Stripe.Dispute);
+  assertEquals(db1.calls.length, 0);
+
+  const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleDisputeCreated(asDb(db2), { payment_intent: 'pi_x' } as unknown as Stripe.Dispute);
+  assertEquals(db2.calls.length, 1); // a disputed ticket never touches fund rows
+});
+
+Deno.test('handleDisputeCreated pulls the contribution back out of the ticker', async () => {
+  // A card chargeback or a PayPal claim both mean the money is leaving, so a dispute must
+  // reverse the aggregate immediately — the ticker is public and cannot hold money we lost.
+  const db = makeFakeDb({
+    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+  });
+  await handleDisputeCreated(asDb(db), {
+    payment_intent: { id: 'pi_c1' },
+  } as unknown as Stripe.Dispute);
+  const [sel, upd, rpc] = db.calls;
+  assertEquals(sel.filters, [
+    ['eq', 'stripe_payment_intent_id', 'pi_c1'],
+    ['eq', 'status', 'succeeded'],
+  ]);
+  assertEquals(upd.values, { status: 'refunded' });
+  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'succeeded'));
+  assertEquals(rpc.values, { p_edition_id: 'ed-9' });
+});
+
 // ── W9/W10 identity handlers ─────────────────────────────────────────────────
 
 Deno.test('handleIdentityVerified caches the row and flips the profile flag', async () => {
@@ -305,6 +405,8 @@ Deno.test('processEvent routes each event type to the right table', async () => 
     ['customer.subscription.updated', subscription(), 'circle_memberships'],
     ['customer.subscription.deleted', subscription({ status: 'canceled' }), 'circle_memberships'],
     ['invoice.payment_failed', { subscription: 'sub_1' }, 'circle_memberships'],
+    ['charge.refunded', { payment_intent: 'pi_c1' }, 'fund_contributions'],
+    ['charge.dispute.created', { payment_intent: 'pi_c1' }, 'fund_contributions'],
     [
       'identity.verification_session.verified',
       { id: 'vs_1', metadata: { profile_id: 'p' } },
@@ -341,6 +443,36 @@ Deno.test('processEvent W11 reconcile retrieves the subscription from checkout',
 Deno.test('processEvent acknowledges unknown event types without any write', async () => {
   const db = makeFakeDb();
   await processEvent(routingCtx(db), stripeEvent('payment_intent.created', {}));
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('processEvent refuses delayed-settlement events instead of acking them', async () => {
+  // Deleting the async_payment_* cases would drop them to `default`, which acks 200 — the
+  // misconfiguration would be silent on this half while assertSettled 500s on the other.
+  for (const type of [
+    'checkout.session.async_payment_succeeded',
+    'checkout.session.async_payment_failed',
+  ]) {
+    const db = makeFakeDb();
+    await assertRejects(
+      () => processEvent(routingCtx(db), stripeEvent(type, contributionSession())),
+      Error,
+      'no handler by design',
+    );
+    assertEquals(db.calls.length, 0);
+  }
+});
+
+Deno.test('processEvent ignores a subscription checkout that carries no subscription', async () => {
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('checkout.session.completed', {
+      id: 'cs_s2',
+      metadata: { kind: 'subscription' },
+      subscription: null,
+    }),
+  );
   assertEquals(db.calls.length, 0);
 });
 

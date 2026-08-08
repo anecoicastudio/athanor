@@ -16,10 +16,11 @@ import { processFanOut } from './logic.ts';
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Caller authorization: service-role only (see _shared/auth.ts).
+  // Caller authorization: service-role only (see _shared/auth.ts). verify_jwt is false for
+  // this function, so this gate is the only one — it must stay ahead of the body parse.
   const gate = requireServiceRole(req);
   if (!gate.ok) return gate.response;
-  const { serviceKey } = gate;
+  const { secretKey } = gate;
 
   let body: unknown;
   try {
@@ -32,10 +33,13 @@ Deno.serve(async (req) => {
   return processFanOut(
     {
       admin: supabaseAdmin(),
+      // Presents THIS function's own key on `apikey`, not the caller's replayed credential
+      // (a confused deputy, and it would break the moment the caller rotates). New-style
+      // secret keys must not ride Authorization — the platform tries to parse it as a JWT.
       invokePush: (payload) =>
         fetch(`${url}/functions/v1/push-dispatch`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+          headers: { 'Content-Type': 'application/json', apikey: secretKey },
           body: JSON.stringify(payload),
         }),
     },

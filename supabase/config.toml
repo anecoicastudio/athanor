@@ -456,26 +456,38 @@ verify_jwt = false
 [functions.check-in]
 verify_jwt = true
 
+# --- Internal, service-role only: verify_jwt = false ---
+# Not a loosening. These are reached by pg_net/pg_cron presenting a `sb_secret_…` key, which
+# is NOT a JWT — the platform's verify_jwt gate can only validate legacy JWT-based keys and
+# would reject it with "Invalid JWT" before the function ran. The gate moves into the function:
+# requireServiceRole(req) is the first statement in each of these handlers, ahead of any I/O,
+# env read, or body parse, and it is now the ONLY gate. _shared/config-invariants.test.ts
+# asserts this table so a new function cannot land with the wrong posture by accident.
 [functions.push-dispatch]
-verify_jwt = true
+verify_jwt = false
 
 [functions.score-engine]
-verify_jwt = true
+verify_jwt = false
 
 [functions.notification-fan-out]
-verify_jwt = true
+verify_jwt = false
 
 [functions.gdpr-export-job]
-verify_jwt = true
+verify_jwt = false
 
 [functions.erasure-job]
-verify_jwt = true
+verify_jwt = false
 
+[functions.media-process]
+verify_jwt = false
+
+# --- User-callable: verify_jwt = true ---
+# These keep the platform gate. supabase-js sends the caller's own access token on
+# Authorization (ES256 since the signing-key migration, verified via JWKS) and the publishable
+# key on `apikey`, so the gate still validates a real JWT. Two gates, both required:
+# requireUser(req) runs inside as well.
 [functions.create-circle-checkout]
 verify_jwt = true
 
 [functions.create-circle-portal]
-verify_jwt = true
-
-[functions.media-process]
 verify_jwt = true
