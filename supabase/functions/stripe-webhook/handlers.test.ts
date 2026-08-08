@@ -12,6 +12,7 @@ import {
   type Db,
   type WebhookCtx,
   handleContribution,
+  handleContributionFailed,
   handleContributionRefunded,
   handleContributionSettled,
   handleDisputeCreated,
@@ -254,6 +255,29 @@ Deno.test(
     assertEquals(rpc.values, { p_edition_id: 'ed-1' });
   },
 );
+
+// ── W3c handleContributionFailed (checkout.session.async_payment_failed) ────
+
+Deno.test('handleContributionFailed retires the pending row without touching the ticker', async () => {
+  // 'pending' was never counted by recompute_fund_aggregate, so there is nothing to reverse —
+  // this only stops the receipt saying «In arrivo» forever.
+  const db = makeFakeDb({ 'fund_contributions.update': [{ data: [{ id: 'c1' }] }] });
+  await handleContributionFailed(asDb(db), contributionSession());
+  assertEquals(db.calls.length, 1);
+  const [upd] = db.calls;
+  assertEquals(upd.values, { status: 'failed' });
+  assertEquals(upd.filters, [
+    ['eq', 'stripe_checkout_session_id', 'cs_c1'],
+    ['eq', 'status', 'pending'],
+  ]);
+  assert(!db.calls.some((c) => c.op === 'rpc'));
+});
+
+Deno.test('handleContributionFailed acks when there is no pending row to retire', async () => {
+  const db = makeFakeDb({ 'fund_contributions.update': [{ data: [] }] });
+  await handleContributionFailed(asDb(db), contributionSession());
+  assertEquals(db.calls.length, 1); // guarded update matched nothing — never errors
+});
 
 // ── W4 handleContributionRefunded ────────────────────────────────────────────
 
@@ -500,15 +524,14 @@ Deno.test('processEvent acknowledges unknown event types without any write', asy
   assertEquals(db.calls.length, 0);
 });
 
-Deno.test('processEvent leaves a failed async payment at pending, writing nothing', async () => {
-  // The row stays `pending` — the receipts screen already renders that as «In arrivo»
-  // and the ticker never counted it. Nothing to reverse.
+Deno.test('processEvent routes a failed async payment to the terminal state', async () => {
   const db = makeFakeDb();
   await processEvent(
     routingCtx(db),
     stripeEvent('checkout.session.async_payment_failed', contributionSession()),
   );
-  assertEquals(db.calls.length, 0);
+  assertEquals(db.calls[0].table, 'fund_contributions');
+  assertEquals(db.calls[0].values, { status: 'failed' });
 });
 
 Deno.test('processEvent ignores a subscription checkout that carries no subscription', async () => {

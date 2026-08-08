@@ -29,7 +29,9 @@ function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) 
       ? 'payments.status.succeeded'
       : row.status === 'refunded'
         ? 'payments.status.refunded'
-        : 'payments.status.pending';
+        : row.status === 'failed'
+          ? 'payments.status.failed'
+          : 'payments.status.pending';
   const settled = row.status === 'succeeded';
   return (
     <View className="flex-row items-center justify-between border-b border-hair py-4">

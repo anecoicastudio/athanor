@@ -43,7 +43,10 @@ export const fundContributionSchema = z.object({
   currency: z.string(),
   stripe_checkout_session_id: z.string(),
   stripe_payment_intent_id: z.string().nullable(),
-  status: z.enum(['pending', 'succeeded', 'refunded']),
+  // pending = authorized, not yet settled (SEPA and other delayed methods) · succeeded =
+  // settled, the only status the aggregate counts · refunded = reversed after settling ·
+  // failed = the delayed debit never cleared.
+  status: z.enum(['pending', 'succeeded', 'refunded', 'failed']),
   created_at: z.string(),
   updated_at: z.string(),
 });

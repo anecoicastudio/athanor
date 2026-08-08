@@ -211,6 +211,25 @@ export async function handleContributionSettled(
 }
 
 /**
+ * W3c — checkout.session.async_payment_failed. The delayed debit never cleared. `pending` was
+ * never counted by recompute_fund_aggregate, so there is nothing to reverse — this exists so
+ * the contributor's receipt stops saying «In arrivo» forever. Guarded on status='pending':
+ * a settled or refunded row is never retroactively failed.
+ */
+export async function handleContributionFailed(
+  db: Db,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const { error } = await db
+    .from('fund_contributions')
+    .update({ status: 'failed' })
+    .eq('stripe_checkout_session_id', session.id)
+    .eq('status', 'pending')
+    .select('id');
+  if (error) throw error;
+}
+
+/**
  * Pull a settled contribution back out of the ticker. Shared by W4 (refund) and W12 (dispute):
  * both mean the money is going away, and both must be idempotent under redelivery.
  * Matches by payment_intent; acks silently when the charge belongs to something else (a ticket).
@@ -407,9 +426,12 @@ export async function processEvent(
       return;
     }
     case 'checkout.session.async_payment_failed': {
-      // The row is still `pending` and the ticker never counted it, so there is nothing to
-      // reverse. TODO: a terminal `failed` status needs a CHECK-constraint migration +
-      // schema/i18n change — until then a failed debit rests at «In arrivo» in payments.tsx.
+      // W3c — the debit bounced. Tickets need nothing: an unsettled ticket is still `pending`
+      // with no QR, so it already grants no entry.
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.metadata?.kind === 'contribution') {
+        await handleContributionFailed(db, session);
+      }
       return;
     }
     case 'customer.subscription.created':
