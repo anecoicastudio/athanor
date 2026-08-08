@@ -30,14 +30,39 @@ export type WebhookCtx = {
 };
 
 /**
- * True when Stripe has the money. Immediate-notification methods (card, Cartes Bancaires,
- * Link, Apple/Google Pay, Bancontact, EPS) report 'paid' on checkout.session.completed.
- * Delayed-notification methods — SEPA Direct Debit above all, which settles over DAYS —
- * report 'unpaid' there and only settle later via checkout.session.async_payment_succeeded.
- * Nothing may be fulfilled or counted until this is true.
+ * Fail-closed settlement gate. Every payment method enabled on the account is an
+ * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay, Bancontact,
+ * EPS, and PayPal (Stripe permits only synchronous funding sources on PayPal unless you ask
+ * Support to enable asynchronous ones). All of them carry the final outcome on
+ * checkout.session.completed, so fulfilling there is safe.
+ *
+ * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
+ * promote/retire machinery. But nothing in this repo selects payment methods — the create-*
+ * builders pass neither payment_method_types nor payment_method_configuration — so the Stripe
+ * Dashboard's payment-method configuration is the ONLY control. If someone enables a
+ * delayed-notification rail there (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, BLIK, Boleto,
+ * OXXO, Konbini, Multibanco, bank transfers), payment_status arrives 'unpaid' and this throws:
+ * handleWebhook releases the lease and returns 500, Stripe retries, and the event stays in
+ * stripe_webhook_events with processed_at NULL — a standing, queryable alarm. No QR is signed,
+ * no money is counted, and the misconfiguration is loud.
+ *
+ * Loud has a deadline. Sustained 5xx makes Stripe disable the whole endpoint, and that stops
+ * EVERY event type — including charge.refunded and charge.dispute.created, the only two paths
+ * that pull money back out of the public Dream Fund ticker. A disabled endpoint therefore turns
+ * this fail-closed guard into a silent over-count of a number members can see. Treat Stripe's
+ * "endpoint disabled" mail as P0: fix the payment-method configuration and replay the backlog.
+ *
+ * Re-enabling a delayed method means restoring the state machine (git 0352e4c), not deleting
+ * this function.
  */
-function isSettled(session: Stripe.Checkout.Session): boolean {
-  return session.payment_status === 'paid' || session.payment_status === 'no_payment_required';
+export function assertSettled(session: Stripe.Checkout.Session): void {
+  if (session.payment_status === 'paid' || session.payment_status === 'no_payment_required') {
+    return;
+  }
+  throw new Error(
+    `unsettled checkout session ${session.id} (payment_status=${session.payment_status}): a ` +
+      'delayed-notification payment method is enabled on the Stripe account — nothing fulfilled',
+  );
 }
 
 /** Stripe references are `"id"` when unexpanded and `{ id }` when expanded — normalise both. */
@@ -46,28 +71,25 @@ function refId(ref: unknown): string | null {
   return (ref as { id?: string } | null | undefined)?.id ?? null;
 }
 
-/** Deterministic per session: iat = session.created → every delivery re-signs the SAME token. */
-function ticketFields(session: Stripe.Checkout.Session) {
-  const eventId = session.metadata?.event_id;
-  const profileId = session.metadata?.profile_id;
-  if (!eventId || !profileId) throw new Error('ticket session missing metadata');
-  return { eventId, profileId, paymentIntent: refId(session.payment_intent) };
-}
-
 /** W1 — a ticket Checkout completed. Issue the ticket + sign the QR (service role). Idempotent. */
 export async function handleTicketPaid(
   db: Db,
   qrSecret: string,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
-  const { eventId, profileId, paymentIntent } = ticketFields(session);
-  const settled = isSettled(session);
+  // A signed token is a door pass: never mint one for money that has not arrived. Throws
+  // before any metadata read or write when a delayed method slipped onto the account.
+  assertSettled(session);
 
-  // No QR until the money is real — a signed token is a door pass, and a SEPA debit can
-  // still fail days later. The unsettled row lands as `pending` and W1b promotes it.
-  const qrToken = settled
-    ? await signQrToken({ eid: eventId, uid: profileId, iat: session.created }, qrSecret)
-    : null;
+  const eventId = session.metadata?.event_id;
+  const profileId = session.metadata?.profile_id;
+  if (!eventId || !profileId) throw new Error('ticket session missing metadata');
+
+  // Deterministic per session: iat = session.created → every delivery re-signs the SAME token.
+  const qrToken = await signQrToken(
+    { eid: eventId, uid: profileId, iat: session.created },
+    qrSecret,
+  );
 
   // The client has NO insert/update path — this upsert (service role) is the sole writer.
   // ignoreDuplicates: a redelivery (or a NEW Stripe event id for the same session, which the
@@ -77,48 +99,8 @@ export async function handleTicketPaid(
     {
       user_id: profileId,
       event_id: eventId,
-      status: settled ? 'paid' : 'pending',
-      stripe_payment_id: paymentIntent,
-      qr_token: qrToken,
-    },
-    { onConflict: 'user_id,event_id', ignoreDuplicates: true },
-  );
-  if (error) throw error;
-}
-
-/**
- * W1b — checkout.session.async_payment_succeeded for a ticket. The delayed debit cleared:
- * promote the pending row and issue its QR. Guarded on status='pending' so a redelivery can
- * never demote a `checked_in` ticket. Falls back to an insert when settlement is delivered
- * before checkout.session.completed (Stripe does not guarantee ordering).
- */
-export async function handleTicketSettled(
-  db: Db,
-  qrSecret: string,
-  session: Stripe.Checkout.Session,
-): Promise<void> {
-  const { eventId, profileId, paymentIntent } = ticketFields(session);
-  const qrToken = await signQrToken(
-    { eid: eventId, uid: profileId, iat: session.created },
-    qrSecret,
-  );
-
-  const { data: promoted, error: updErr } = await db
-    .from('event_tickets')
-    .update({ status: 'paid', stripe_payment_id: paymentIntent, qr_token: qrToken })
-    .eq('user_id', profileId)
-    .eq('event_id', eventId)
-    .eq('status', 'pending')
-    .select('id');
-  if (updErr) throw updErr;
-  if (promoted && promoted.length > 0) return;
-
-  const { error } = await db.from('event_tickets').upsert(
-    {
-      user_id: profileId,
-      event_id: eventId,
       status: 'paid',
-      stripe_payment_id: paymentIntent,
+      stripe_payment_id: refId(session.payment_intent),
       qr_token: qrToken,
     },
     { onConflict: 'user_id,event_id', ignoreDuplicates: true },
@@ -133,15 +115,17 @@ async function recomputeAggregate(db: Db, editionId: string): Promise<void> {
 }
 
 /**
- * Insert the contribution row at `status`, returning how many rows were actually written.
- * Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery inserts nothing
- * and returns 0.
+ * W3 — a contribution Checkout completed. Write the contribution (service role) and move the
+ * live ticker. The ticker is public and realtime, so it must never show money that has not
+ * arrived: assertSettled throws rather than writing a row the aggregate would have to
+ * un-count later.
+ *
+ * Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery inserts nothing,
+ * count comes back 0, and the aggregate is left alone because it is already current.
  */
-async function upsertContribution(
-  db: Db,
-  session: Stripe.Checkout.Session,
-  status: 'pending' | 'succeeded',
-): Promise<{ editionId: string; inserted: number }> {
+export async function handleContribution(db: Db, session: Stripe.Checkout.Session): Promise<void> {
+  assertSettled(session);
+
   const editionId = session.metadata?.edition_id;
   if (!editionId) throw new Error('contribution session missing edition_id');
   // Stripe is the source of truth for the amount. Fail loud on a missing total so Stripe retries
@@ -157,76 +141,13 @@ async function upsertContribution(
       currency: (session.currency ?? 'eur').toLowerCase(),
       stripe_checkout_session_id: session.id,
       stripe_payment_intent_id: refId(session.payment_intent),
-      status,
+      status: 'succeeded',
     },
     { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true, count: 'exact' },
   );
   if (error) throw error;
-  return { editionId, inserted: count ?? 0 };
-}
-
-/**
- * W3 — a contribution Checkout completed. Write the contribution (service role) and, only if
- * the money actually landed, recompute the aggregate. An unsettled SEPA debit lands as
- * `pending`: the ticker must never show money that has not arrived and may never.
- * `payments.tsx` already renders `pending` as «In arrivo» rather than a settled total.
- */
-export async function handleContribution(db: Db, session: Stripe.Checkout.Session): Promise<void> {
-  const settled = isSettled(session);
-  const { editionId, inserted } = await upsertContribution(
-    db,
-    session,
-    settled ? 'succeeded' : 'pending',
-  );
-  if (!settled) return;
-  if (inserted === 0) return; // true duplicate delivery — aggregate already current
+  if ((count ?? 0) === 0) return; // true duplicate delivery — aggregate already current
   await recomputeAggregate(db, editionId);
-}
-
-/**
- * W3b — checkout.session.async_payment_succeeded for a contribution. Promote the pending row
- * and move the ticker. Guarded on status='pending', so a redelivery matches nothing and a
- * refunded row is never resurrected. Falls back to an insert when settlement is delivered
- * before checkout.session.completed.
- */
-export async function handleContributionSettled(
-  db: Db,
-  session: Stripe.Checkout.Session,
-): Promise<void> {
-  const { data: promoted, error: updErr } = await db
-    .from('fund_contributions')
-    .update({ status: 'succeeded' })
-    .eq('stripe_checkout_session_id', session.id)
-    .eq('status', 'pending')
-    .select('edition_id');
-  if (updErr) throw updErr;
-  if (promoted && promoted.length > 0) {
-    await recomputeAggregate(db, (promoted[0] as { edition_id: string }).edition_id);
-    return;
-  }
-
-  const { editionId, inserted } = await upsertContribution(db, session, 'succeeded');
-  if (inserted === 0) return; // already succeeded (or refunded) — nothing changed
-  await recomputeAggregate(db, editionId);
-}
-
-/**
- * W3c — checkout.session.async_payment_failed. The delayed debit never cleared. `pending` was
- * never counted by recompute_fund_aggregate, so there is nothing to reverse — this exists so
- * the contributor's receipt stops saying «In arrivo» forever. Guarded on status='pending':
- * a settled or refunded row is never retroactively failed.
- */
-export async function handleContributionFailed(
-  db: Db,
-  session: Stripe.Checkout.Session,
-): Promise<void> {
-  const { error } = await db
-    .from('fund_contributions')
-    .update({ status: 'failed' })
-    .eq('stripe_checkout_session_id', session.id)
-    .eq('status', 'pending')
-    .select('id');
-  if (error) throw error;
 }
 
 /**
@@ -262,10 +183,9 @@ export async function handleContributionRefunded(db: Db, charge: Stripe.Charge):
 }
 
 /**
- * W12 — a charge disputed. Matters far more since SEPA Direct Debit went live: a debit can be
- * returned for up to 8 weeks (13 months when unauthorised), against ~120 days for a card
- * chargeback that at least starts from a settled state. Treat the money as gone immediately;
- * a won dispute is rare enough to reconcile by hand.
+ * W12 — a charge disputed: a card chargeback, or a PayPal dispute/claim. Treat the money as
+ * gone immediately; a won dispute is rare enough to reconcile by hand. Shares
+ * reverseContribution with W4 — both mean the money is leaving, both must be idempotent.
  */
 export async function handleDisputeCreated(db: Db, dispute: Stripe.Dispute): Promise<void> {
   await reverseContribution(db, dispute.payment_intent);
@@ -413,26 +333,16 @@ export async function processEvent(
       }
       return;
     }
-    case 'checkout.session.async_payment_succeeded': {
-      // W1b/W3b — a delayed-notification debit (SEPA above all) finally cleared.
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (session.metadata?.kind === 'ticket') {
-        await handleTicketSettled(db, ctx.qrSecret, session);
-      } else if (session.metadata?.kind === 'contribution') {
-        await handleContributionSettled(db, session);
-      }
-      // Subscriptions need nothing here: customer.subscription.updated already carries the
-      // status transition out of `incomplete`, and handleSubscription is the single writer.
-      return;
-    }
+    case 'checkout.session.async_payment_succeeded':
     case 'checkout.session.async_payment_failed': {
-      // W3c — the debit bounced. Tickets need nothing: an unsettled ticket is still `pending`
-      // with no QR, so it already grants no entry.
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (session.metadata?.kind === 'contribution') {
-        await handleContributionFailed(db, session);
-      }
-      return;
+      // Delayed settlement is not supported (see assertSettled). Reaching here means a
+      // delayed-notification method is live on the Stripe account and the matching
+      // checkout.session.completed already 500'd. Throw rather than fall through to the
+      // `default` ack, so the second half of the misconfiguration is as loud as the first.
+      throw new Error(
+        `delayed-settlement event ${event.type} received — no handler by design; a ` +
+          'delayed-notification payment method is enabled on the Stripe account',
+      );
     }
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
@@ -452,7 +362,7 @@ export async function processEvent(
       return;
     }
     case 'charge.dispute.created': {
-      // W12 — SEPA return / card chargeback. Same reversal as a refund.
+      // W12 — card chargeback / PayPal dispute. Same reversal as a refund.
       await handleDisputeCreated(db, event.data.object as Stripe.Dispute);
       return;
     }

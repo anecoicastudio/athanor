@@ -2,7 +2,7 @@
 // Characterization tests for the webhook money paths: per-event handlers, routing,
 // and the 3-layer idempotency pipeline. All I/O goes through the injected fake db
 // (repo convention: DI over mocks) + real signQrToken with a fixed test secret.
-import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
 // stripe pinned to major 22: deno.lock is gitignored, so CI resolves fresh on every
 // run — an unpinned specifier would typecheck against latest and redden on SDK majors.
 import type Stripe from 'npm:stripe@22';
@@ -11,17 +11,15 @@ import { signQrToken } from '../_shared/qr.ts';
 import {
   type Db,
   type WebhookCtx,
+  assertSettled,
   handleContribution,
-  handleContributionFailed,
   handleContributionRefunded,
-  handleContributionSettled,
   handleDisputeCreated,
   handleIdentityFailed,
   handleIdentityVerified,
   handleInvoiceFailed,
   handleSubscription,
   handleTicketPaid,
-  handleTicketSettled,
   handleWebhook,
   mapSubStatus,
   processEvent,
@@ -30,9 +28,11 @@ import {
 const SECRET = 'test-qr-secret';
 const asDb = (f: FakeDb) => f as unknown as Db;
 
-// payment_status: 'paid' is what an immediate-notification method (card, Bancontact, EPS,
-// Link, wallets) reports on checkout.session.completed. SEPA Direct Debit and PayPal-style
-// delayed methods report 'unpaid' here and settle later via async_payment_succeeded.
+// payment_status: 'paid' is what every payment method enabled on the account reports on
+// checkout.session.completed — card, Bancontact, EPS, Link, wallets, and PayPal (Stripe
+// permits only synchronous funding sources on PayPal unless you ask Support to enable
+// asynchronous ones). Delayed-notification methods report 'unpaid' here; none are enabled,
+// and assertSettled throws rather than trusting that to stay true.
 const ticketSession = (over: Record<string, unknown> = {}) =>
   ({
     id: 'cs_1',
@@ -118,44 +118,18 @@ Deno.test('handleTicketPaid upserts paid ticket idempotently with deterministic 
   );
 });
 
-Deno.test('handleTicketPaid holds an unsettled ticket at pending with no QR', async () => {
-  // SEPA/PayPal: the session completes while the debit is still processing. Issuing a QR
-  // here would let someone through the door on money that may never arrive.
+Deno.test('handleTicketPaid refuses an unsettled session and writes nothing', async () => {
+  // Delayed settlement is unsupported by design. If a delayed rail is ever enabled in the
+  // Stripe Dashboard the session completes while the debit is still processing — issuing a QR
+  // there would let someone through the door on money that may never arrive. Throwing 500s the
+  // webhook, so Stripe retries and the ledger row stays at processed_at NULL.
   const db = makeFakeDb();
-  await handleTicketPaid(asDb(db), SECRET, ticketSession({ payment_status: 'unpaid' }));
-  const values = db.calls[0].values as Record<string, unknown>;
-  assertEquals(values.status, 'pending');
-  assertEquals(values.qr_token, null);
-  assertEquals(db.calls[0].options, { onConflict: 'user_id,event_id', ignoreDuplicates: true });
-});
-
-// ── W1b handleTicketSettled (checkout.session.async_payment_succeeded) ───────
-
-Deno.test('handleTicketSettled promotes the pending row and issues the QR', async () => {
-  const db = makeFakeDb({ 'event_tickets.update': [{ data: [{ id: 't1' }] }] });
-  await handleTicketSettled(asDb(db), SECRET, ticketSession({ payment_status: 'paid' }));
-  assertEquals(db.calls.length, 1); // guarded update won — no upsert needed
-  const [upd] = db.calls;
-  assertEquals(upd.op, 'update');
-  const values = upd.values as Record<string, unknown>;
-  assertEquals(values.status, 'paid');
-  // same deterministic iat as the completed event → identical token, no unique churn
-  assertEquals(
-    values.qr_token,
-    await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
+  await assertRejects(
+    () => handleTicketPaid(asDb(db), SECRET, ticketSession({ payment_status: 'unpaid' })),
+    Error,
+    'unsettled',
   );
-  // guarded on pending so a redelivery can never demote a checked_in ticket
-  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'pending'));
-});
-
-Deno.test('handleTicketSettled creates the row when settlement arrives out of order', async () => {
-  const db = makeFakeDb({ 'event_tickets.update': [{ data: [] }] });
-  await handleTicketSettled(asDb(db), SECRET, ticketSession());
-  const [upd, ups] = db.calls;
-  assertEquals(upd.op, 'update');
-  assertEquals(ups.op, 'upsert');
-  assertEquals(ups.options, { onConflict: 'user_id,event_id', ignoreDuplicates: true });
-  assertEquals((ups.values as Record<string, unknown>).status, 'paid');
+  assertEquals(db.calls.length, 0);
 });
 
 // ── W3 handleContribution ────────────────────────────────────────────────────
@@ -202,81 +176,31 @@ Deno.test(
 );
 
 Deno.test(
-  'handleContribution writes pending and never moves the ticker while unsettled',
+  'handleContribution refuses an unsettled session and never moves the ticker',
   async () => {
-    // The Dream Fund ticker is public and realtime — counting an unsettled SEPA debit
-    // would show money that has not arrived and may never.
+    // The Dream Fund ticker is public and realtime — showing money that has not arrived and
+    // may never would be visible to everyone. Refuse the row outright rather than writing a
+    // pending one the aggregate would later have to un-count.
     const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
-    await handleContribution(asDb(db), contributionSession({ payment_status: 'unpaid' }));
-    assertEquals(db.calls.length, 1); // upsert only — no recompute
-    assertEquals((db.calls[0].values as Record<string, unknown>).status, 'pending');
+    await assertRejects(
+      () => handleContribution(asDb(db), contributionSession({ payment_status: 'unpaid' })),
+      Error,
+      'unsettled',
+    );
+    assertEquals(db.calls.length, 0);
   },
 );
 
-// ── W3b handleContributionSettled (checkout.session.async_payment_succeeded) ─
+// ── assertSettled (the fail-closed gate itself) ──────────────────────────────
 
-Deno.test('handleContributionSettled promotes pending→succeeded and recomputes once', async () => {
-  const db = makeFakeDb({
-    'fund_contributions.update': [{ data: [{ edition_id: 'ed-1' }] }],
-  });
-  await handleContributionSettled(asDb(db), contributionSession());
-  const [upd, rpc] = db.calls;
-  assertEquals(upd.op, 'update');
-  assertEquals(upd.values, { status: 'succeeded' });
-  assertEquals(upd.filters, [
-    ['eq', 'stripe_checkout_session_id', 'cs_c1'],
-    ['eq', 'status', 'pending'],
-  ]);
-  assertEquals(rpc.columns, 'recompute_fund_aggregate');
-  assertEquals(rpc.values, { p_edition_id: 'ed-1' });
-});
-
-Deno.test('handleContributionSettled is a no-op on a true replay', async () => {
-  // Row already succeeded → guarded update matches nothing, upsert ignores the duplicate.
-  const db = makeFakeDb({
-    'fund_contributions.update': [{ data: [] }],
-    'fund_contributions.upsert': [{ count: 0 }],
-  });
-  await handleContributionSettled(asDb(db), contributionSession());
-  assertEquals(db.calls.length, 2); // update + upsert, never the recompute
-  assert(!db.calls.some((c) => c.op === 'rpc'));
-});
-
-Deno.test(
-  'handleContributionSettled creates the row when settlement arrives out of order',
-  async () => {
-    const db = makeFakeDb({
-      'fund_contributions.update': [{ data: [] }],
-      'fund_contributions.upsert': [{ count: 1 }],
-    });
-    await handleContributionSettled(asDb(db), contributionSession());
-    const [, ups, rpc] = db.calls;
-    assertEquals((ups.values as Record<string, unknown>).status, 'succeeded');
-    assertEquals(rpc.values, { p_edition_id: 'ed-1' });
-  },
-);
-
-// ── W3c handleContributionFailed (checkout.session.async_payment_failed) ────
-
-Deno.test('handleContributionFailed retires the pending row without touching the ticker', async () => {
-  // 'pending' was never counted by recompute_fund_aggregate, so there is nothing to reverse —
-  // this only stops the receipt saying «In arrivo» forever.
-  const db = makeFakeDb({ 'fund_contributions.update': [{ data: [{ id: 'c1' }] }] });
-  await handleContributionFailed(asDb(db), contributionSession());
-  assertEquals(db.calls.length, 1);
-  const [upd] = db.calls;
-  assertEquals(upd.values, { status: 'failed' });
-  assertEquals(upd.filters, [
-    ['eq', 'stripe_checkout_session_id', 'cs_c1'],
-    ['eq', 'status', 'pending'],
-  ]);
-  assert(!db.calls.some((c) => c.op === 'rpc'));
-});
-
-Deno.test('handleContributionFailed acks when there is no pending row to retire', async () => {
-  const db = makeFakeDb({ 'fund_contributions.update': [{ data: [] }] });
-  await handleContributionFailed(asDb(db), contributionSession());
-  assertEquals(db.calls.length, 1); // guarded update matched nothing — never errors
+Deno.test('assertSettled passes final statuses and throws on everything else', () => {
+  assertSettled(ticketSession()); // 'paid'
+  assertSettled(ticketSession({ payment_status: 'no_payment_required' })); // 100% discount
+  assertThrows(
+    () => assertSettled(ticketSession({ payment_status: 'unpaid' })),
+    Error,
+    'unsettled',
+  );
 });
 
 // ── W4 handleContributionRefunded ────────────────────────────────────────────
@@ -413,8 +337,8 @@ Deno.test('handleDisputeCreated acks disputes with no matching contribution', as
 });
 
 Deno.test('handleDisputeCreated pulls the contribution back out of the ticker', async () => {
-  // SEPA debits can be returned for 8 weeks (13 months if unauthorised) — far more
-  // exposure than cards, so a dispute must reverse the aggregate immediately.
+  // A card chargeback or a PayPal claim both mean the money is leaving, so a dispute must
+  // reverse the aggregate immediately — the ticker is public and cannot hold money we lost.
   const db = makeFakeDb({
     'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
   });
@@ -483,8 +407,6 @@ Deno.test('processEvent routes each event type to the right table', async () => 
     ['invoice.payment_failed', { subscription: 'sub_1' }, 'circle_memberships'],
     ['charge.refunded', { payment_intent: 'pi_c1' }, 'fund_contributions'],
     ['charge.dispute.created', { payment_intent: 'pi_c1' }, 'fund_contributions'],
-    ['checkout.session.async_payment_succeeded', ticketSession(), 'event_tickets'],
-    ['checkout.session.async_payment_succeeded', contributionSession(), 'fund_contributions'],
     [
       'identity.verification_session.verified',
       { id: 'vs_1', metadata: { profile_id: 'p' } },
@@ -524,14 +446,21 @@ Deno.test('processEvent acknowledges unknown event types without any write', asy
   assertEquals(db.calls.length, 0);
 });
 
-Deno.test('processEvent routes a failed async payment to the terminal state', async () => {
-  const db = makeFakeDb();
-  await processEvent(
-    routingCtx(db),
-    stripeEvent('checkout.session.async_payment_failed', contributionSession()),
-  );
-  assertEquals(db.calls[0].table, 'fund_contributions');
-  assertEquals(db.calls[0].values, { status: 'failed' });
+Deno.test('processEvent refuses delayed-settlement events instead of acking them', async () => {
+  // Deleting the async_payment_* cases would drop them to `default`, which acks 200 — the
+  // misconfiguration would be silent on this half while assertSettled 500s on the other.
+  for (const type of [
+    'checkout.session.async_payment_succeeded',
+    'checkout.session.async_payment_failed',
+  ]) {
+    const db = makeFakeDb();
+    await assertRejects(
+      () => processEvent(routingCtx(db), stripeEvent(type, contributionSession())),
+      Error,
+      'no handler by design',
+    );
+    assertEquals(db.calls.length, 0);
+  }
 });
 
 Deno.test('processEvent ignores a subscription checkout that carries no subscription', async () => {

@@ -16,6 +16,41 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260808075738_fund_contribution_failed_status.sql`
+
+### L3-7 + L20-23 — SEPA never stayed live, and PayPal was never a delayed method
+
+The header opens "SEPA Direct Debit went live on the Stripe account" and introduces `'failed'`
+as the terminal state for a bounced delayed debit. SEPA was turned off before any of it ran in
+anger. The whole delayed-settlement path went with it — `isSettled`, the W1b/W3b/W3c handlers,
+and the two `checkout.session.async_payment_*` router cases — so the column `comment` this
+migration set describes a state the code can no longer produce.
+
+`0352e4c`'s commit message compounds it by calling **PayPal** a delayed-notification method
+alongside SEPA. It is not. Stripe permits only synchronous funding sources on PayPal unless you
+ask Support to enable asynchronous ones, so PayPal reports its final outcome on
+`checkout.session.completed` exactly as a card does. That is why PayPal stays enabled while
+SEPA does not, and why removing the state machine costs nothing.
+
+Superseded by `20260808093013_fund_contribution_drop_failed_status.sql`, which retires any
+surviving `'failed'` row to `'refunded'`, restores the original three-status CHECK, and
+rewrites the column comment. Asserted in
+`supabase/tests/0078_fund_contribution_drop_failed_status.test.sql`: `'failed'` now raises
+`23514`, the three surviving statuses still insert, and the column DEFAULT is still one of them
+— which is the reason `'pending'` was kept rather than removed alongside `'failed'`.
+
+The replacement is fail-closed rather than absent. `assertSettled`
+(`supabase/functions/stripe-webhook/handlers.ts`) throws on any session whose `payment_status`
+is neither `paid` nor `no_payment_required`, and the two `async_payment_*` event types throw
+instead of falling through to a silent 200. Nothing in this repo selects payment methods — the
+`create-*` builders pass neither `payment_method_types` nor `payment_method_configuration` — so
+the Stripe Dashboard is the only control. Re-enabling a delayed rail there produces a 500, a
+Stripe retry, and a `stripe_webhook_events` row stuck at `processed_at is null`, instead of a
+signed QR for money that has not arrived. Reviving delayed settlement means restoring
+`0352e4c`'s state machine, not deleting the guard.
+
+---
+
 ## `20260808035852_momenti_suggestion_rpc.sql`
 
 ### L58 + L66 — "newest member" was really "most recently touched profile"

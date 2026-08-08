@@ -29,9 +29,7 @@ function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) 
       ? 'payments.status.succeeded'
       : row.status === 'refunded'
         ? 'payments.status.refunded'
-        : row.status === 'failed'
-          ? 'payments.status.failed'
-          : 'payments.status.pending';
+        : 'payments.status.pending';
   const settled = row.status === 'succeeded';
   return (
     <View className="flex-row items-center justify-between border-b border-hair py-4">
@@ -51,9 +49,11 @@ function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) 
 
 /**
  * Pagamenti — owner-only contribution receipts (P4.4; frontend 07 §deferred).
- * Read-only history: rows are written only by the Stripe webhook (rule #6);
- * `pending` renders as «In arrivo», never an optimistic total. Keyset pagination
- * on (created_at, id) — never offset (rule #9). RLS scopes rows to the owner (rule #3).
+ * Read-only history: rows are written only by the Stripe webhook (rule #6).
+ * `pending` renders as «In arrivo», never an optimistic total — unreachable in practice, since
+ * every enabled payment method settles on checkout.session.completed and assertSettled refuses
+ * the rest; kept because `pending` is still the column DEFAULT. Keyset pagination on
+ * (created_at, id) — never offset (rule #9). RLS scopes rows to the owner (rule #3).
  */
 export default function PaymentsScreen() {
   const { session, profile } = useAuth();

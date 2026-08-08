@@ -403,7 +403,6 @@
   "payments.status.pending": "On its way",
   "payments.status.succeeded": "Received",
   "payments.status.refunded": "Refunded",
-  "payments.status.failed": "Didn't go through",
   "settings.section.prefs": "Preferences",
   "settings.lang.title": "Language",
   "settings.lang.desc": "Lingua",
