@@ -7,7 +7,7 @@ describe('suggestHandle', () => {
   });
 
   test('replaces invalid characters with underscore', () => {
-    expect(suggestHandle('lucia+kaira@example.com')).toBe('lucia_kaira');
+    expect(suggestHandle('lucia+athanor@example.com')).toBe('lucia_athanor');
   });
 
   test('collapses consecutive underscores', () => {
