@@ -12,8 +12,8 @@ import {
   type Db,
   type WebhookCtx,
   assertSettled,
+  handleChargeRefunded,
   handleContribution,
-  handleContributionRefunded,
   handleDisputeCreated,
   handleIdentityFailed,
   handleIdentityVerified,
@@ -105,7 +105,11 @@ Deno.test('handleTicketPaid upserts paid ticket idempotently with deterministic 
   const [call] = db1.calls;
   assertEquals(call.table, 'event_tickets');
   assertEquals(call.op, 'upsert');
-  assertEquals(call.options, { onConflict: 'user_id,event_id', ignoreDuplicates: true });
+  assertEquals(call.options, {
+    onConflict: 'user_id,event_id',
+    ignoreDuplicates: true,
+    count: 'exact',
+  });
   const values = call.values as Record<string, unknown>;
   assertEquals(values.status, 'paid');
   assertEquals(values.stripe_payment_id, 'pi_1');
@@ -115,6 +119,60 @@ Deno.test('handleTicketPaid upserts paid ticket idempotently with deterministic 
   assertEquals(
     values.qr_token,
     await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
+  );
+});
+
+Deno.test('handleTicketPaid leaves an existing live ticket alone on a swallowed upsert', async () => {
+  // count 0 = the row already existed. Almost always a redelivery (possibly under a NEW Stripe
+  // event id, which the processed_at gate can't catch) — a paid or checked_in row must never
+  // be touched: no status reset, no QR churn.
+  for (const status of ['paid', 'checked_in']) {
+    const db = makeFakeDb({
+      'event_tickets.upsert': [{ count: 0 }],
+      'event_tickets.select': [{ data: { status, stripe_payment_id: 'pi_1' } }],
+    });
+    await handleTicketPaid(asDb(db), SECRET, ticketSession());
+    assertEquals(
+      db.calls.map((c) => c.op),
+      ['upsert', 'select'],
+      `status ${status}: no repair update expected`,
+    );
+  }
+});
+
+Deno.test('handleTicketPaid re-issues a refunded ticket on a genuine re-purchase', async () => {
+  // After a refund the TicketBar re-offers purchase; the new Checkout session carries a NEW
+  // payment intent. The unique(user_id,event_id) row exists, so the upsert is swallowed —
+  // the repair path must flip it back to paid with the new PI and a fresh QR.
+  const db = makeFakeDb({
+    'event_tickets.upsert': [{ count: 0 }],
+    'event_tickets.select': [{ data: { status: 'refunded', stripe_payment_id: 'pi_old' } }],
+  });
+  await handleTicketPaid(asDb(db), SECRET, ticketSession({ payment_intent: 'pi_2' }));
+  const upd = db.calls.find((c) => c.op === 'update');
+  assert(upd, 'expected a repair update');
+  const values = upd.values as Record<string, unknown>;
+  assertEquals(values.status, 'paid');
+  assertEquals(values.stripe_payment_id, 'pi_2');
+  assertEquals(
+    values.qr_token,
+    await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
+  );
+  // guard: only a refunded row is repairable — a concurrent check-in can't be overwritten
+  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'refunded'));
+});
+
+Deno.test('handleTicketPaid never resurrects a refunded ticket from a stale replay', async () => {
+  // A duplicate delivery of the ORIGINAL purchase session (new event id, same payment intent)
+  // arriving after the refund must not undo the revocation: same PI as the refunded row → ack.
+  const db = makeFakeDb({
+    'event_tickets.upsert': [{ count: 0 }],
+    'event_tickets.select': [{ data: { status: 'refunded', stripe_payment_id: 'pi_1' } }],
+  });
+  await handleTicketPaid(asDb(db), SECRET, ticketSession()); // session PI is pi_1
+  assertEquals(
+    db.calls.map((c) => c.op),
+    ['upsert', 'select'], // no update — the refund stands
   );
 });
 
@@ -203,46 +261,62 @@ Deno.test('assertSettled passes final statuses and throws on everything else', (
   );
 });
 
-// ── W4 handleContributionRefunded ────────────────────────────────────────────
+// ── W4 handleChargeRefunded ──────────────────────────────────────────────────
 
-Deno.test(
-  'handleContributionRefunded acks charges without payment_intent or matching row',
-  async () => {
-    const db1 = makeFakeDb();
-    await handleContributionRefunded(asDb(db1), {
-      payment_intent: null,
-    } as unknown as Stripe.Charge);
-    assertEquals(db1.calls.length, 0);
+Deno.test('handleChargeRefunded acks charges without payment_intent or matching row', async () => {
+  const db1 = makeFakeDb();
+  await handleChargeRefunded(asDb(db1), {
+    payment_intent: null,
+  } as unknown as Stripe.Charge);
+  assertEquals(db1.calls.length, 0);
 
-    const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
-    await handleContributionRefunded(asDb(db2), {
-      payment_intent: 'pi_x',
-    } as unknown as Stripe.Charge);
-    assertEquals(db2.calls.length, 1); // select only — a ticket refund never touches fund rows
-  },
-);
+  const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleChargeRefunded(asDb(db2), {
+    payment_intent: 'pi_x',
+  } as unknown as Stripe.Charge);
+  // Fund rows are never updated on a miss — only the select ran, plus the guarded ticket
+  // revocation (a no-op update when nothing matches).
+  assertEquals(
+    db2.calls.map((c) => `${c.table}.${c.op}`),
+    ['fund_contributions.select', 'event_tickets.update'],
+  );
+});
 
-Deno.test(
-  'handleContributionRefunded flips succeeded→refunded with guard and recomputes',
-  async () => {
-    const db = makeFakeDb({
-      'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
-    });
-    await handleContributionRefunded(asDb(db), {
-      payment_intent: { id: 'pi_c1' },
-    } as unknown as Stripe.Charge);
-    const [sel, upd, rpc] = db.calls;
-    assertEquals(sel.filters, [
-      ['eq', 'stripe_payment_intent_id', 'pi_c1'],
-      ['eq', 'status', 'succeeded'],
-    ]);
-    assertEquals(upd.op, 'update');
-    assertEquals(upd.values, { status: 'refunded' });
-    // idempotency guard: re-delivered refund can't re-flip
-    assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'succeeded'));
-    assertEquals(rpc.values, { p_edition_id: 'ed-9' });
-  },
-);
+Deno.test('handleChargeRefunded flips succeeded→refunded with guard and recomputes', async () => {
+  const db = makeFakeDb({
+    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+  });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: { id: 'pi_c1' },
+  } as unknown as Stripe.Charge);
+  const [sel, upd, rpc] = db.calls;
+  assertEquals(sel.filters, [
+    ['eq', 'stripe_payment_intent_id', 'pi_c1'],
+    ['eq', 'status', 'succeeded'],
+  ]);
+  assertEquals(upd.op, 'update');
+  assertEquals(upd.values, { status: 'refunded' });
+  // idempotency guard: re-delivered refund can't re-flip
+  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'succeeded'));
+  assertEquals(rpc.values, { p_edition_id: 'ed-9' });
+});
+
+Deno.test('handleChargeRefunded revokes the matching ticket at the door', async () => {
+  // The money left, so door access leaves with it: status → 'refunded' (check-in admits only
+  // paid/checked_in) and the QR token is nulled so the viewer stops rendering a door pass.
+  const db = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: { id: 'pi_1' },
+  } as unknown as Stripe.Charge);
+  const revoke = db.calls.find((c) => c.table === 'event_tickets');
+  assert(revoke, 'expected an event_tickets update');
+  assertEquals(revoke.op, 'update');
+  assertEquals(revoke.values, { status: 'refunded', qr_token: null });
+  assertEquals(revoke.filters, [
+    ['eq', 'stripe_payment_id', 'pi_1'],
+    ['in', 'status', ['paid', 'checked_in']], // guard: a re-delivered reversal can't re-flip
+  ]);
+});
 
 // ── W5/W6/W7/W11 handleSubscription ──────────────────────────────────────────
 
@@ -333,7 +407,28 @@ Deno.test('handleDisputeCreated acks disputes with no matching contribution', as
 
   const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
   await handleDisputeCreated(asDb(db2), { payment_intent: 'pi_x' } as unknown as Stripe.Dispute);
-  assertEquals(db2.calls.length, 1); // a disputed ticket never touches fund rows
+  // A disputed ticket never touches fund rows: no fund update, no aggregate recompute —
+  // just the select miss and the guarded ticket revocation.
+  assertEquals(
+    db2.calls.map((c) => `${c.table}.${c.op}`),
+    ['fund_contributions.select', 'event_tickets.update'],
+  );
+});
+
+Deno.test('handleDisputeCreated revokes the matching ticket at the door', async () => {
+  // A chargeback on a ticket purchase must not leave a live QR behind: the signed token is
+  // stateless, so the DB status flip IS the revocation mechanism.
+  const db = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleDisputeCreated(asDb(db), {
+    payment_intent: 'pi_1',
+  } as unknown as Stripe.Dispute);
+  const revoke = db.calls.find((c) => c.table === 'event_tickets');
+  assert(revoke, 'expected an event_tickets update');
+  assertEquals(revoke.values, { status: 'refunded', qr_token: null });
+  assertEquals(revoke.filters, [
+    ['eq', 'stripe_payment_id', 'pi_1'],
+    ['in', 'status', ['paid', 'checked_in']],
+  ]);
 });
 
 Deno.test('handleDisputeCreated pulls the contribution back out of the ticker', async () => {

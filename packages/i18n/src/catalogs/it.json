@@ -652,6 +652,7 @@
   "ticket.show": "Mostra questo codice all'ingresso",
   "ticket.status.valid": "Valido",
   "ticket.status.used": "Già usato ✦ Hai partecipato",
+  "ticket.status.refunded": "Questo biglietto è stato rimborsato. Non vale più per l'ingresso.",
   "ticket.checkedIn": "✓ Check-in effettuato",
   "event.checkin": "Check-in",
   "ticket.scan.title": "Check-in · {event}",

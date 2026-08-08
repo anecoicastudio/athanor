@@ -652,6 +652,7 @@
   "ticket.show": "Show this code at the entrance",
   "ticket.status.valid": "Valid",
   "ticket.status.used": "Already used ✦ You attended",
+  "ticket.status.refunded": "This ticket was refunded. It no longer opens the door.",
   "ticket.checkedIn": "✓ Checked in",
   "event.checkin": "Check-in",
   "ticket.scan.title": "Check-in · {event}",
