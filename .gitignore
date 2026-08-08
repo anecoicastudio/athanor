@@ -5,6 +5,12 @@ node_modules/
 .expo/
 dist/
 .turbo/
+.next/
+out/
+.vercel
+*.tsbuildinfo
+test-results/
+playwright-report/
 
 # env — examples only
 .env
