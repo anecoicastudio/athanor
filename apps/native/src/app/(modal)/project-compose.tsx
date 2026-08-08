@@ -10,6 +10,7 @@ import type { ProjectCategory } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -75,9 +76,9 @@ export default function ProjectComposeScreen() {
           <Text className="text-[14px] text-faint">{t('create.project.desc', locale)}</Text>
 
           <View className="gap-2">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('project.compose.titleLabel', locale)}
-            </Text>
+            </SectionLabel>
             <TextInput
               className="rounded-full border border-hair bg-raise p-4 text-[15px] text-foreground"
               placeholder={t('project.compose.titlePlaceholder', locale)}
@@ -90,9 +91,9 @@ export default function ProjectComposeScreen() {
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
           <View className="gap-2">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('project.compose.catLabel', locale)}
-            </Text>
+            </SectionLabel>
             <View className="flex-row flex-wrap gap-2">
               {CATEGORIES.map((c) => {
                 const isActive = c === category;
@@ -114,9 +115,9 @@ export default function ProjectComposeScreen() {
           </View>
 
           <View className="gap-2">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('project.compose.descLabel', locale)}
-            </Text>
+            </SectionLabel>
             <TextInput
               className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
               placeholder={t('project.compose.descPlaceholder', locale)}

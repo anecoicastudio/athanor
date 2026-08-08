@@ -7,6 +7,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -148,9 +149,9 @@ export default function SearchFiltersScreen() {
 
         {/* ── Aura minima ── */}
         <View className="gap-3">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+          <SectionLabel tone="foreground">
             {t('search.filter.section.aura', locale)}
-          </Text>
+          </SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {AURA_BUCKETS.map((bucket) => (
               <Chip
@@ -165,9 +166,9 @@ export default function SearchFiltersScreen() {
 
         {/* ── Città ── */}
         <View className="gap-3">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+          <SectionLabel tone="foreground">
             {t('search.filter.section.city', locale)}
-          </Text>
+          </SectionLabel>
           <TextInput
             className="rounded-full border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
             placeholder={t('search.filter.city.placeholder', locale)}
@@ -182,9 +183,9 @@ export default function SearchFiltersScreen() {
 
         {/* ── Stella ── */}
         <View className="gap-3">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+          <SectionLabel tone="foreground">
             {t('search.filter.section.star', locale)}
-          </Text>
+          </SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {STAR_VALUES.map((s) => (
               <Chip
@@ -200,9 +201,9 @@ export default function SearchFiltersScreen() {
         {/* ── Disponibilità (disabled — backend param not yet implemented) ── */}
         <View className="gap-3 opacity-40">
           <View className="flex-row items-center gap-2">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+            <SectionLabel tone="foreground">
               {t('search.filter.section.availability', locale)}
-            </Text>
+            </SectionLabel>
             <Text className="text-[11px] text-muted-foreground">
               ({t('circle.benefit.soon', locale)})
             </Text>

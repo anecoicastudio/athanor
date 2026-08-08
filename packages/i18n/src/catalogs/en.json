@@ -446,6 +446,7 @@
   "post.react.lit": "You lit this step ✦",
   "post.react.a11y": "Light a star for this step",
   "post.react.a11yLit": "Star lit",
+  "post.react.a11yOpen": "Open the post to light a star",
   "post.author.reactions": "{n} lit a star",
   "comment.sectionLabel": "Replies",
   "comment.placeholder": "Add a reply…",

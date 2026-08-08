@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, Text, View } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
+import { SectionLabel } from '@/components/SectionLabel';
 
 export function AuraBlock({
   score,
@@ -16,9 +17,9 @@ export function AuraBlock({
   const router = useRouter();
   return (
     <View className="items-center gap-1">
-      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+      <SectionLabel>
         {label ?? t('profile.aura.label', locale)}
-      </Text>
+      </SectionLabel>
       <Text
         className="text-[44px] font-extrabold tracking-[-0.03em] text-foreground"
         style={{ fontVariant: ['tabular-nums'] }}

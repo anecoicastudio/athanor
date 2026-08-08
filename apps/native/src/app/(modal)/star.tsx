@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { localeTag } from '@/lib/time';
+import { STAR } from '@/lib/star';
 
 /**
  * Star detail sheet (M6 §3.2).
@@ -81,7 +82,7 @@ export default function StarScreen() {
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
                   >
-                    ✦
+                    {STAR.lit}
                   </Text>
                 ) : (
                   <Text
@@ -89,7 +90,7 @@ export default function StarScreen() {
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
                   >
-                    ✧
+                    {STAR.unlit}
                   </Text>
                 )}
               </Text>

@@ -10,6 +10,7 @@ import { LedgerRow } from '@/components/aura/LedgerRow';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
@@ -184,9 +185,9 @@ export default function LedgerScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
           renderSectionHeader={({ section }) => (
             <View className="bg-background py-2">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              <SectionLabel>
                 {section.title}
-              </Text>
+              </SectionLabel>
             </View>
           )}
           renderItem={({ item }) => (

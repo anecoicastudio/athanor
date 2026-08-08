@@ -25,11 +25,11 @@ import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { SectionLabel } from '@/components/SectionLabel';
 import { AmountRow } from '@/components/fund/AmountRow';
 import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
 import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
+import { SectionLabel } from '@/components/SectionLabel';
 import { SplitBar } from '@/components/fund/SplitBar';
 import { PhaseList } from '@/components/fund/PhaseList';
 import { useAuth } from '@/lib/auth-context';
@@ -251,9 +251,7 @@ export default function AnnualFundScreen() {
 
         {/* 3. Hero countdown block */}
         <View className="gap-4">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            {t('fund.countdown.label', locale)}
-          </Text>
+          <SectionLabel>{t('fund.countdown.label', locale)}</SectionLabel>
           <CountdownGrid targetMs={Date.parse(edition.target_at)} locale={locale} />
           <FundTicker
             raisedCents={raisedCents}
@@ -381,9 +379,7 @@ export default function AnnualFundScreen() {
 
         {/* 9. Il motore virale — cyan-wash card */}
         <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
-            {t('fund.viral.label', locale)}
-          </Text>
+          <SectionLabel tone="aura">{t('fund.viral.label', locale)}</SectionLabel>
           <Text className="text-[14px] leading-5 text-foreground">
             {t('fund.viral.tagline1', locale)}
           </Text>

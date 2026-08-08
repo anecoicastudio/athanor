@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
 import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
+import { SectionLabel } from '@/components/SectionLabel';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
@@ -238,9 +239,9 @@ export default function CircleScreen() {
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+          <SectionLabel tone="aura">
             {t('circle.eyebrow', locale)}
-          </Text>
+          </SectionLabel>
 
           {/* Headline */}
           <Text className="text-[22px] font-bold text-foreground">

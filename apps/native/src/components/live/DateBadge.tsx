@@ -67,7 +67,16 @@ export function DateBadge({
       <Text className={`text-[17px] font-semibold ${highlight ? 'text-aura' : 'text-foreground'}`}>
         {d.getDate()}
       </Text>
-      <Text className="text-[10px] uppercase text-faint">{months[d.getMonth()]}</Text>
+      {/* Tone follows `highlight` like the day number above, and for a contrast reason, not
+          symmetry: when highlighted this badge is `bg-aura-soft` over EventRow's `bg-raise`
+          (= #162734), where `faint` is 4.17:1 — under the floor. `muted-foreground` is 5.72
+          there. Unhighlighted stays `faint` on plain raise (4.97), so the common row is
+          unchanged. */}
+      <Text
+        className={`text-[10px] uppercase ${highlight ? 'text-muted-foreground' : 'text-faint'}`}
+      >
+        {months[d.getMonth()]}
+      </Text>
     </View>
   );
 }

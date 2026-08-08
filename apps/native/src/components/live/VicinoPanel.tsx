@@ -13,6 +13,7 @@ import { type Locale, t } from '@athanor/i18n';
 import type { EventNearby } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
@@ -31,9 +32,9 @@ function AthanorDaysCard({
 }) {
   return (
     <View className="gap-2 rounded-hero border border-aura-line bg-aura-soft p-5">
-      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+      <SectionLabel tone="aura">
         {t('live.athanorDays.label', locale)}
-      </Text>
+      </SectionLabel>
       <Text className="text-[17px] font-semibold text-foreground">
         {t('live.athanorDays.title', locale)}
       </Text>
@@ -104,9 +105,9 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   const header = (
     <View className="gap-4 px-5 pb-2">
       <AthanorDaysCard locale={locale} notified={notified} onNotify={() => void onNotify()} />
-      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+      <SectionLabel>
         {city ? t('live.vicino.section', locale, { city }) : t('live.vicino.sectionNoCity', locale)}
-      </Text>
+      </SectionLabel>
     </View>
   );
 

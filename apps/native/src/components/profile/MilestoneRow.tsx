@@ -100,8 +100,12 @@ export function MilestoneRow({
         ) : null}
       </View>
 
+      {/* `bg-surface` on the menu below is OPAQUE, and that is load-bearing, not cosmetic. As
+          translucent `bg-raise-2` this popover inherited DreamCard's `bg-raise` beneath it,
+          compositing to #232331 — where the 15px delete label sat at 3.90:1, under the AA
+          floor. Opaque means the menu no longer depends on whatever it floats over. */}
       {menuOpen && isOwner ? (
-        <View className="ml-7 gap-1 rounded-card border border-hair bg-raise-2 p-2">
+        <View className="ml-7 gap-1 rounded-card border border-hair bg-surface p-2">
           {!done && onMarkDone ? (
             <Pressable
               accessibilityRole="button"

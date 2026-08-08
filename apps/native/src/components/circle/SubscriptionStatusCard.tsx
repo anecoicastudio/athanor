@@ -16,8 +16,8 @@ import { auraGlow } from '@/lib/glow';
  * Reduced-motion: opacity-in only, no transform — mirrors level.tsx / candidacy-success.tsx
  * pattern (AccessibilityInfo.isReduceMotionEnabled).
  *
- * Check glyph ✓ from MilestoneRow pattern; plan/renewal via i18n keys; past_due → error
- * tint; founding → cosmetic Tag badge.
+ * Check glyph ✓ from MilestoneRow pattern; plan/renewal via i18n keys; founding → cosmetic Tag
+ * badge. past_due renders BELOW the glowing card, not inside it — see the comment at that line.
  */
 export function SubscriptionStatusCard({
   plan,
@@ -83,12 +83,17 @@ export function SubscriptionStatusCard({
             {t('circle.member.renews', locale, { date: renewalDate })}
           </Text>
         ) : null}
-
-        {/* Past-due warning */}
-        {isPastDue ? (
-          <Text className="text-[13px] text-error">{t('circle.member.pastDue', locale)}</Text>
-        ) : null}
       </View>
+
+      {/* Past-due warning — OUTSIDE the glow card, deliberately. Two reasons, one move.
+          Contrast: on `bg-aura-soft` this 13px `error` was 4.26:1, under the floor; on the
+          modal's `bg-background` it is 4.93:1. Meaning: the aura-soft + aura-line + auraGlow(1)
+          recipe is what rule #4 reserves for moment-grade good news («you belong») — a failed
+          payment inside it had the surface contradicting the text.
+          Still open, not decided here: whether the card should glow AT ALL while past-due. */}
+      {isPastDue ? (
+        <Text className="mt-3 text-[13px] text-error">{t('circle.member.pastDue', locale)}</Text>
+      ) : null}
     </Animated.View>
   );
 }

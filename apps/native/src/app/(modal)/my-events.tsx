@@ -5,11 +5,12 @@ import { eventKeys, getEventsByOrganizer } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { ScrollView, Text, View } from '@/tw';
+import { ScrollView, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { EventRow } from '@/components/live/EventRow';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -66,9 +67,9 @@ export default function MyEventsScreen() {
 
         {events.length > 0 ? (
           <View className="gap-3">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('live.mine.section', locale)}
-            </Text>
+            </SectionLabel>
             {events.map((e) => (
               <EventRow
                 key={e.id}

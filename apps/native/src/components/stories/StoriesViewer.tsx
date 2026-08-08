@@ -5,6 +5,7 @@ import { t } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { star } from '@/lib/star';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const PHOTO_MS = 5000;
@@ -238,7 +239,7 @@ export function StoriesViewer({
                 {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and StarCell —
                     `faint` alone stopped reading "off" once it was retuned for AA. */}
                 <Text className={`text-[22px] ${viewerReacted ? 'text-aura' : 'text-faint'}`}>
-                  {viewerReacted ? '✦' : '✧'}
+                  {star(viewerReacted)}
                 </Text>
               </Pressable>
               <Pressable

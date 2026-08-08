@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useCalendarEvents } from '@/hooks/use-calendar-events';
 import { EventRow, toRowData } from './EventRow';
 import { PanelError } from './PanelError';
@@ -59,9 +60,9 @@ export function MapPanel({
           );
         })}
       </ScrollView>
-      <Text className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+      <SectionLabel className="px-5 pb-2">
         {t('live.map.section', locale)}
-      </Text>
+      </SectionLabel>
       <View className="gap-3 px-5">
         {listed.map((e) => (
           <EventRow

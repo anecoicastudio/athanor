@@ -24,9 +24,14 @@ export const semantic = {
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
   error: '#E0476B', // input error ring, destructive (raspberry — rose family)
   ink2: '#C9C3DE', // body copy on dark — softer than foreground
-  // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.98 on
+  // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.97 on
   // raise, ~4.69 on raise2 — every surface it is actually used on clears AA.
   // (It would NOT on bandAlt/border #241B3A ≈4.44; nothing pairs them today.)
+  // These ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts
+  // recomputes them from these values, so a retune here fails there. Note each figure
+  // names a SURFACE — `raise`/`raise2` are translucent, so a chip nested inside a card
+  // is a different (darker-backed) stack than the same chip on the canvas, and `faint`
+  // does NOT clear AA there (4.23). Compose surfaces with contrast.ts `over()`.
   // Was #615A7E (3.05 / 2.84), which DESIGN.md §3 never contrast-certified while
   // ~150 call sites used it for readable copy. Retuned at the token so they all
   // clear at once and no new call site can regress back. See DESIGN.md §12.
@@ -37,7 +42,13 @@ export const semantic = {
   auraSoft: 'rgba(43,208,210,0.10)', // moment fill / active accent chip
   auraLine: 'rgba(43,208,210,0.40)', // moment / accent 1px inset border
   onAura: '#04222a', // text inverted on a cyan fill
-  onError: '#F0EDF7', // text on an error-colored surface (same value as foreground)
+  // text on an error-colored surface. A dark rose ink, mirroring onAura's "near-black tinted
+  // with the accent's own hue" — 4.93:1 on `error`. Was #F0EDF7 (identical to `foreground`),
+  // which is 3.44:1 and shipped below AA on the account-deletion CTA. `error` itself can't move
+  // to fix that: darkening the fill enough for white (#C4324F, 4.64) drops `text-error` on the
+  // canvas to 3.66 and breaks the ~26 sites that use it as text. One token, two roles — the
+  // fill stays put and the ink changes. Asserted in apps/native/src/lib/contrast.test.ts.
+  onError: '#1A050D',
 } as const;
 
 /** Mandala gradient — logo + hero ring ONLY. Not a UI accent. */

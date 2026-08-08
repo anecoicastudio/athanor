@@ -446,6 +446,7 @@
   "post.react.lit": "Hai acceso questo passo ✦",
   "post.react.a11y": "Accendi una stella per questo passo",
   "post.react.a11yLit": "Stella accesa",
+  "post.react.a11yOpen": "Apri il post per accendere una stella",
   "post.author.reactions": "{n} hanno acceso una stella",
   "comment.sectionLabel": "Risposte",
   "comment.placeholder": "Aggiungi una risposta…",

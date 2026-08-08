@@ -9,6 +9,7 @@ import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
@@ -145,9 +146,9 @@ export default function RecapScreen() {
         {!isLoading && !isError && nextStar != null ? (
           <View className="mt-6">
             <Card>
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+              <SectionLabel tone="aura">
                 {t('recap.next.label' as MessageKey, locale)}
-              </Text>
+              </SectionLabel>
               <Text className="text-[15px] font-semibold text-foreground">
                 {t('recap.next.title' as MessageKey, locale, { star: starName, gap: gapStr })}
               </Text>

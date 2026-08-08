@@ -12,6 +12,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
 import { postMediaPath, processAndUpload } from '@/lib/media/upload';
@@ -183,9 +184,9 @@ export default function PostComposeScreen() {
           />
 
           <View className="gap-2">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('post.compose.catLabel', locale)}
-            </Text>
+            </SectionLabel>
             <View className="flex-row flex-wrap gap-2">
               {CATEGORIES.map((c) => {
                 const isActive = c === category;

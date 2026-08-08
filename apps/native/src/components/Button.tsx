@@ -8,6 +8,10 @@ import { auraGlow } from '@/lib/glow';
  * Cyan fill is fine on a `light` CTA (rule #4), but the cyan *glow* is reserved
  * for moment-grade events — so `light` is flat by default; pass `glow` only when
  * the press is itself a moment (e.g. a dream igniting).
+ *
+ * Every filled variant is DARK INK ON A LIGHT FILL: `light` = onAura on cyan, `primary` =
+ * background on foreground, `danger` = onError on error. `danger` used to be the odd one out
+ * with a near-white label, which is also how it shipped at 3.44:1 on the account-deletion CTA.
  */
 type Variant = 'primary' | 'ghost' | 'light' | 'danger';
 
