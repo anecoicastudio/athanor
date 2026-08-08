@@ -67,6 +67,11 @@ export async function listOpenNeeds(
  * Writes ONLY favor_offers — never Aura (rule #1).
  * TODO(M6): the score-engine (backend `07`) reads this row and awards the Collaboratore
  * star + points once the help is real/confirmed (service-role only).
+ *
+ * The self-target guard lives here, not in favorInsertSchema: that schema deliberately
+ * omits actor_id (it comes from auth.uid via RLS), so it cannot express the migration's
+ * `check (actor_id <> target_id)`. Without this, favoring yourself sent a doomed insert
+ * and surfaced a raw Postgres constraint error to the caller.
  */
 export async function passFavor(
   client: AthanorClient,
@@ -74,6 +79,9 @@ export async function passFavor(
   insert: FavorInsert,
 ): Promise<void> {
   const payload = favorInsertSchema.parse(insert);
+  if (payload.target_id === actorId) {
+    throw new Error('passFavor: target_id cannot be the actor — a favor goes to someone else');
+  }
   const { error } = await client.from('favor_offers').insert({
     actor_id: actorId,
     target_id: payload.target_id,

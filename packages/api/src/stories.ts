@@ -1,3 +1,4 @@
+import { buildStoryRail, type StoryRailPerson, type StoryRailRow } from '@athanor/core';
 import {
   type StorySegment,
   type StorySegmentInsert,
@@ -16,39 +17,38 @@ export const storyKeys = {
 };
 
 /** One rail entry: a person with ≥1 unexpired segment, plus their most recent activity time. */
-export type StoryRailPerson = { author_id: string; handle: string | null; latest_at: string };
+export type { StoryRailPerson } from '@athanor/core';
+
+/**
+ * Rows fetched per rail slot. The window has to exceed the rail length or a member posting
+ * several segments crowds others out. 4 keeps the default window at the 200 rows this query
+ * used before the rail length became a parameter, so the default behaviour is unchanged.
+ */
+const RAIL_WINDOW_FACTOR = 4;
 
 /**
  * The story rail — members with ≥1 UNEXPIRED (live, not merely pinned) segment, most-recent
  * first, deduped by author. The connection-graph filter ("connections only", frontend §5) is
  * deferred to M5 — until the graph exists the rail is members-wide (RLS already members-only).
- * Capped (rule #9: bounded, never offset). The caller surfaces "you" first.
+ * The caller surfaces "you" first.
+ *
+ * `people` is the rail length. The wire window is derived from it because rows and people are
+ * different quantities — the rail dedupes by author, so a member with several live segments
+ * spends several rows on one entry. Fetching exactly `people` rows would let one prolific
+ * author starve the rail, and the emptier it looked the busier the community would actually
+ * have been. Fetch + delegate only — the derivation is `buildStoryRail` in @athanor/core
+ * (api rule: no business logic here).
  */
-export async function getStoryRail(client: AthanorClient, limit = 50): Promise<StoryRailPerson[]> {
+export async function getStoryRail(client: AthanorClient, people = 50): Promise<StoryRailPerson[]> {
   const { data, error } = await client
     .from('story_segments')
     .select('author_id, created_at, profiles!story_segments_author_id_fkey(handle)')
     .is('deleted_at', null)
     .gt('expires_at', new Date().toISOString()) // live only — exclude pinned-but-expired journey artifacts
     .order('created_at', { ascending: false })
-    .limit(200);
+    .limit(people * RAIL_WINDOW_FACTOR); // bounded, never offset (rule #9)
   if (error) throw error;
-  const seen = new Set<string>();
-  const rail: StoryRailPerson[] = [];
-  for (const row of data ?? []) {
-    const r = row as {
-      author_id: string;
-      created_at: string;
-      profiles: { handle: string | null } | { handle: string | null }[] | null;
-    };
-    if (seen.has(r.author_id)) continue;
-    seen.add(r.author_id);
-    const raw = r.profiles;
-    const profile = Array.isArray(raw) ? raw[0] : raw;
-    rail.push({ author_id: r.author_id, handle: profile?.handle ?? null, latest_at: r.created_at });
-    if (rail.length >= limit) break;
-  }
-  return rail;
+  return buildStoryRail((data ?? []) as StoryRailRow[], people);
 }
 
 export type StoryCursor = { created_at: string; id: string };
@@ -127,15 +127,28 @@ export async function softDeleteStorySegment(client: AthanorClient, id: string):
   if (error) throw error;
 }
 
-/** The viewer's own ✦ state for a segment (drives lit/unlit). Own-row RLS → never a public count. */
+/**
+ * The viewer's own ✦ state for a segment (drives lit/unlit). Own-row RLS → never a public
+ * count.
+ *
+ * The `person_id` predicate is explicit rather than left to RLS: `maybeSingle()` errors on
+ * more than one row, so relying on the select policy staying own-row-only makes this query
+ * break the moment that policy widens (e.g. an author-sees-reactors surface). `personId`
+ * defaults to the current session's uid so the single-row shape holds either way; a signed-out
+ * viewer has no reaction to read.
+ */
 export async function getViewerStoryReaction(
   client: AthanorClient,
   segmentId: string,
+  personId?: string,
 ): Promise<boolean> {
+  const viewerId = personId ?? (await client.auth.getUser()).data.user?.id;
+  if (!viewerId) return false;
   const { data, error } = await client
     .from('story_reactions')
     .select('id')
     .eq('segment_id', segmentId)
+    .eq('person_id', viewerId)
     .maybeSingle();
   if (error) throw error;
   return Boolean(data);
@@ -151,7 +164,8 @@ export async function toggleStoryReaction(
   segmentId: string,
   personId: string,
 ): Promise<boolean> {
-  const reacted = await getViewerStoryReaction(client, segmentId);
+  // personId is already the caller's uid here — pass it so the read needs no session lookup.
+  const reacted = await getViewerStoryReaction(client, segmentId, personId);
   if (reacted) {
     const { error } = await client
       .from('story_reactions')
