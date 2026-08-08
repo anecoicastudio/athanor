@@ -207,6 +207,14 @@ describe('forbidden pairs — no call site may use these', () => {
     expect(ratio(semantic.onError, semantic.error)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
+  it('success clears AA where it marks a satisfied rule', () => {
+    // The signup password checklist ((auth)/welcome.tsx) is the newest call site:
+    // `success` for a met requirement, deliberately not `aura` — a form rule going
+    // green is a confirmation, not a moment (rule 4).
+    expect(ratio(semantic.success, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
+    expect(ratio(semantic.success, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
   it('aura and onAura are comfortable everywhere they are used', () => {
     for (const s of [CANVAS, SURFACE, RAISE, RAISE2, NESTED, AURA_SOFT]) {
       expect(ratio(semantic.aura, s)).toBeGreaterThanOrEqual(AA_NORMAL);

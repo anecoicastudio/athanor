@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
+import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
 import { signInWithProvider } from '@/lib/oauth';
@@ -12,7 +13,6 @@ import { SectionLabel } from '@/components/SectionLabel';
 
 // Well-formed check (UX gate only) — the real validity verdict is Supabase's.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD = 8;
 
 // Apple sign-in needs the Supabase Apple provider, which requires a paid Apple
 // Developer account (Services ID + key) — not yet configured. Flip to true once it
@@ -31,6 +31,18 @@ function authErrorKey(err: { code?: string; status?: number }): MessageKey {
   if (err.code === 'over_request_rate_limit' || err.status === 429) return 'auth.error.rateLimit';
   return 'auth.error.generic';
 }
+
+// signInWithProvider already carries the real reason (provider error, exchange
+// failure, missing code) — it used to be dropped into a dev warn, which is how
+// "Unsupported provider: provider is not enabled" stayed invisible while the
+// user read "Something didn't work."
+function oauthErrorKey(message: string): MessageKey {
+  if (/provider is not enabled|unsupported provider/i.test(message))
+    return 'auth.error.providerDisabled';
+  return 'auth.error.oauthFailed';
+}
+
+const PROVIDER_LABEL: Record<'apple' | 'google', string> = { apple: 'Apple', google: 'Google' };
 
 export default function WelcomeScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
@@ -75,6 +87,13 @@ export default function WelcomeScreen() {
     // It's retrievable via session.user.user_metadata.display_name in the meantime.
     // Referral attribution is email-signup-only for now: OAuth signups don't carry
     // this metadata, so a code stashed ahead of a Google/Apple signup is silently lost.
+    // The disabled button is a hint, not a guarantee: a password manager can fill
+    // the field and fire submit in the same frame. Parse at the boundary too.
+    if (!passwordSchema.safeParse(password).success) {
+      setSubmitting(false);
+      setError(t('auth.error.weakPassword', locale));
+      return;
+    }
     const referral = await getPendingReferral();
     const { data, error: err } = await supabase.auth.signUp({
       email: email.trim(),
@@ -93,6 +112,14 @@ export default function WelcomeScreen() {
       return;
     }
     void clearPendingReferral();
+    // With confirmations ON, a signup for an address that already exists comes
+    // back 200 with an obfuscated user rather than 422 — an empty `identities`
+    // is the only tell. Without this the user is sent to wait for a mail that
+    // is never sent.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      setError(t('auth.error.emailTaken', locale));
+      return;
+    }
     // Confirmations OFF (dev) → session is set → AuthGuard routes. Confirmations ON →
     // no session yet, so prompt the user to confirm via email.
     if (!data.session) setNotice(t('auth.confirmEmail', locale));
@@ -107,13 +134,17 @@ export default function WelcomeScreen() {
     setOauthBusy(null);
     if (outcome.status === 'error') {
       if (__DEV__) console.warn('[auth] oauth', provider, outcome.message);
-      setError(t('auth.error.generic', locale));
+      setError(t(oauthErrorKey(outcome.message), locale, { provider: PROVIDER_LABEL[provider] }));
     }
   };
 
+  // Sign-UP enforces the full policy; sign-IN only needs a non-empty field.
+  // Accounts made before the policy hold passwords that fail it, and refusing
+  // to even attempt their login would lock them out.
+  const unmet = unmetPasswordRequirements(password);
   const busy = submitting || oauthBusy !== null;
   const disabled =
-    busy || !EMAIL_RE.test(email.trim()) || password.length < MIN_PASSWORD;
+    busy || !EMAIL_RE.test(email.trim()) || (login ? password.length === 0 : unmet.length > 0);
 
   const toggleMode = () =>
     router.replace(
@@ -138,9 +169,7 @@ export default function WelcomeScreen() {
       ) : null}
 
       <View className="mt-6 gap-2">
-        <SectionLabel tone="aura">
-          {copy('eyebrow')}
-        </SectionLabel>
+        <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
         <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
           {copy('display')}
         </Text>
@@ -186,9 +215,7 @@ export default function WelcomeScreen() {
 
       <View className="my-6 flex-row items-center gap-3">
         <View className="h-px flex-1 bg-hair" />
-        <SectionLabel tone="muted">
-          {t('auth.orEmail', locale)}
-        </SectionLabel>
+        <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
         <View className="h-px flex-1 bg-hair" />
       </View>
 
@@ -237,6 +264,32 @@ export default function WelcomeScreen() {
             value={password}
             onChangeText={setPassword}
           />
+          {/* Signup only — the rule is stated once before typing, then becomes a
+              live checklist. `success`, not `aura`: a satisfied form rule is a
+              confirmation, not a moment (rule 4). Met/unmet is carried by the
+              mark and by an explicit SR label, not by colour alone (G2). */}
+          {!login && password.length === 0 ? (
+            <Text className="px-5 text-xs text-muted-foreground">
+              {t('auth.password.hint', locale)}
+            </Text>
+          ) : null}
+          {!login && password.length > 0 ? (
+            <View className="gap-1 px-5">
+              {PASSWORD_REQUIREMENTS.map((requirement) => {
+                const met = !unmet.includes(requirement);
+                const label = t(`auth.password.req.${requirement}`, locale);
+                return (
+                  <Text
+                    key={requirement}
+                    className={`text-xs ${met ? 'text-success' : 'text-muted-foreground'}`}
+                    accessibilityLabel={`${t(met ? 'a11y.req.met' : 'a11y.req.unmet', locale)} ${label}`}
+                  >
+                    {met ? '✓' : '•'} {label}
+                  </Text>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
 
         {error ? <Text className="text-sm text-error">{error}</Text> : null}
@@ -259,7 +312,12 @@ export default function WelcomeScreen() {
         )}
       </Pressable>
 
-      <Pressable className="mt-6 items-center" onPress={toggleMode} accessibilityRole="button" hitSlop={8}>
+      <Pressable
+        className="mt-6 items-center"
+        onPress={toggleMode}
+        accessibilityRole="button"
+        hitSlop={8}
+      >
         <Text className="text-[13px] text-muted-foreground">
           {t(login ? 'auth.noAccount' : 'auth.haveAccount', locale)}
         </Text>
