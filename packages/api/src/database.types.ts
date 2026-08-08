@@ -2631,6 +2631,14 @@ export type Database = {
       }
       f_unaccent: { Args: { "": string }; Returns: string }
       fund_edition_open: { Args: never; Returns: boolean }
+      get_momenti_suggestion: {
+        Args: { p_exclude?: string[] }
+        Returns: {
+          candidate_id: string
+          dream_text: string
+          handle: string
+        }[]
+      }
       get_or_create_conversation: { Args: { peer_id: string }; Returns: string }
       get_own_profile: {
         Args: never

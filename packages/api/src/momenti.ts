@@ -60,33 +60,30 @@ export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeck
 }
 
 /**
- * «Ti potrebbe interessare» — one curated-lite peer (newest other member with an active dream,
- * not in today's deck). Real affinity-ranked curation is deferred (no suggestions table in M5).
+ * «Ti potrebbe interessare» — one curated-lite peer: the most recently written visible active
+ * dream, not in today's deck. Real affinity-ranked curation is deferred (no suggestions table in
+ * M5) — this ranks by dream recency, which is why the UI chip says «Sogno nuovo», not «Alta
+ * affinità». It is NOT ordered by member recency: profiles.updated_at is a touch timestamp.
+ *
+ * Goes through the get_momenti_suggestion RPC rather than a client query: the filter has to read
+ * `profiles.visibility` to drop members who hid BOTH tag fields, and M10 column-scoped the
+ * authenticated SELECT grant so that column never reaches the client. Blocks, dream visibility
+ * and the caller's own id are re-established inside the function — see the migration.
  */
 export async function getMomentiSuggestion(
   client: AthanorClient,
   excludeIds: string[],
 ): Promise<MomentoSuggestion | null> {
-  const { data: me } = await client.auth.getUser();
-  const exclude = [me.user?.id, ...excludeIds].filter(Boolean) as string[];
-  let query = client
-    .from('profiles')
-    .select('id, handle, dreams!inner(text, status, deleted_at)')
-    .eq('dreams.status', 'active')
-    .is('dreams.deleted_at', null)
-    .order('updated_at', { ascending: false })
-    .limit(1);
-  if (exclude.length) query = query.not('id', 'in', `(${exclude.join(',')})`);
-  const { data, error } = await query;
+  // No caller id here: the RPC derives it from auth.uid() (rule #8). p_exclude carries only
+  // today's deck.
+  const { data, error } = await client.rpc('get_momenti_suggestion', { p_exclude: excludeIds });
   if (error) throw error;
-  const row = data?.[0] as
-    | { id: string; handle: string | null; dreams: { text: string }[] }
-    | undefined;
+  const row = data?.[0];
   if (!row) return null;
   return momentoSuggestion.parse({
-    candidateId: row.id,
+    candidateId: row.candidate_id,
     handle: row.handle,
-    dreamText: row.dreams?.[0]?.text ?? null,
+    dreamText: row.dream_text,
   });
 }
 
