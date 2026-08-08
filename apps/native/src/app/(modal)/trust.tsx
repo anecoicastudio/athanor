@@ -18,6 +18,7 @@ import type { Consent } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -135,9 +136,9 @@ export default function TrustScreen() {
 
         {/* Identity (read-only — verify flow is the identity-verify slice) */}
         <View className="gap-2 px-5">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <SectionLabel tone="muted">
             {t('trust.identity.section', locale)}
-          </Text>
+          </SectionLabel>
           <Pressable
             onPress={() => {
               if (verifyState !== 'verified') router.push('/(modal)/verify');
@@ -182,9 +183,9 @@ export default function TrustScreen() {
 
         {/* Privacy by design · GDPR */}
         <View className="gap-2 px-5">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <SectionLabel tone="muted">
             {t('trust.privacy.section', locale)}
-          </Text>
+          </SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
             {/* dream visibility — navigational cross-link to the inline editor's
                 «Il mio sogno» visibility control (no duplicate toggle); `edit=1`
@@ -252,9 +253,9 @@ export default function TrustScreen() {
 
         {/* Consent management (§3.5.3) — comms opt-in (default OFF) */}
         <View className="gap-2 px-5">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <SectionLabel tone="muted">
             {t('gdpr.consent.section', locale)}
-          </Text>
+          </SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
             <View className="flex-row items-center gap-4 border-b border-hair px-5 py-4">
               <View className="flex-1 gap-0.5">
@@ -293,9 +294,9 @@ export default function TrustScreen() {
 
         {/* Ethical moderation + report CTA */}
         <View className="gap-2 px-5">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <SectionLabel tone="muted">
             {t('trust.moderation.section', locale)}
-          </Text>
+          </SectionLabel>
           <View className="gap-3 rounded-card border border-hair bg-raise p-5">
             <Text className="text-[13px] leading-relaxed text-muted-foreground">
               {t('trust.moderation.intro', locale)}

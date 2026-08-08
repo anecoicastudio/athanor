@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import { FlatList } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import type { Event } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useCalendarEvents } from '@/hooks/use-calendar-events';
 import { localeTag } from '@/lib/time';
 import { EventRow, toRowData } from './EventRow';
@@ -49,9 +50,9 @@ export function CalendarPanel({
       keyExtractor={([month]) => month}
       renderItem={({ item: [month, items] }) => (
         <View className="gap-3 px-5 pb-4">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <SectionLabel>
             {month}
-          </Text>
+          </SectionLabel>
           {items.map((e) => (
             <EventRow
               key={e.id}

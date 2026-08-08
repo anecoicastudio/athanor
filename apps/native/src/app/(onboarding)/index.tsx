@@ -6,6 +6,7 @@ import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { SectionLabel } from '@/components/SectionLabel';
 import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
@@ -102,9 +103,9 @@ export default function OnboardingScreen() {
               <Text className="text-muted-foreground">←</Text>
             </Pressable>
           ) : null}
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <SectionLabel>
             {t('onboarding.eyebrow', locale)}
-          </Text>
+          </SectionLabel>
         </View>
         <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8}>
           <Text className="text-[13px] font-semibold text-aura">
@@ -121,9 +122,9 @@ export default function OnboardingScreen() {
         <View>
           {step === 0 ? (
             <View className="gap-4">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              <SectionLabel>
                 {t('onboarding.identity.eyebrow', locale)}
-              </Text>
+              </SectionLabel>
               <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.identity.title', locale)}
               </Text>
@@ -143,9 +144,9 @@ export default function OnboardingScreen() {
 
           {step === 1 ? (
             <View className="gap-4">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              <SectionLabel>
                 {t('onboarding.seeking.eyebrow', locale)}
-              </Text>
+              </SectionLabel>
               <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.seeking.title', locale)}
               </Text>
@@ -165,9 +166,9 @@ export default function OnboardingScreen() {
 
           {step === 2 ? (
             <View className="gap-4">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+              <SectionLabel tone="aura">
                 {t('onboarding.dream.eyebrow', locale)}
-              </Text>
+              </SectionLabel>
               <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.dream.title', locale)}
               </Text>

@@ -27,7 +27,11 @@ export function WeekCard({
       onPress={onPress}
       className="gap-3"
     >
-      {/* Section label row */}
+      {/* Section label row. The ONLY eyebrow still inline: this one is `text-xs` (12px), not
+          SectionLabel's `text-[11px]`. Overriding a size through SectionLabel's className would
+          lean on react-native-css's same-specificity source-order resolution, which isn't
+          something to bet a type scale on. Either fold it to 11px or give SectionLabel a real
+          size prop — both are visual decisions, so neither belongs in a no-pixel-change sweep. */}
       <View className="flex-row items-center justify-between">
         <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-aura">
           {t('recap.weekTitle' as MessageKey, locale)}

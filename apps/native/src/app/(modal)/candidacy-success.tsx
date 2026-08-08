@@ -6,6 +6,7 @@ import { Text, View } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 
@@ -57,9 +58,9 @@ export default function CandidacySuccessOverlay() {
         </Mandorla>
       </Animated.View>
 
-      <Text className="mt-6 text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+      <SectionLabel tone="aura" className="mt-6">
         {t('candidacy.success.eyebrow', locale)}
-      </Text>
+      </SectionLabel>
       <Text
         accessibilityRole="header"
         className="mt-2 text-center text-[26px] font-bold text-foreground"

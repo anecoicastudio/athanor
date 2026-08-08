@@ -8,6 +8,7 @@ import { deviceLocale } from '@/lib/locale';
 import { signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
+import { SectionLabel } from '@/components/SectionLabel';
 
 // Well-formed check (UX gate only) — the real validity verdict is Supabase's.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -137,9 +138,9 @@ export default function WelcomeScreen() {
       ) : null}
 
       <View className="mt-6 gap-2">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+        <SectionLabel tone="aura">
           {copy('eyebrow')}
-        </Text>
+        </SectionLabel>
         <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
           {copy('display')}
         </Text>
@@ -185,9 +186,9 @@ export default function WelcomeScreen() {
 
       <View className="my-6 flex-row items-center gap-3">
         <View className="h-px flex-1 bg-hair" />
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <SectionLabel tone="muted">
           {t('auth.orEmail', locale)}
-        </Text>
+        </SectionLabel>
         <View className="h-px flex-1 bg-hair" />
       </View>
 

@@ -3,6 +3,7 @@ import { Animated, Easing } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { star } from '@/lib/star';
 
 /**
  * The single "light a star" (frontend §3.2). VIEWER-STATE-ONLY — never renders a
@@ -64,7 +65,7 @@ export function ReactionStar({
           opacity: pending ? 0.5 : 1,
         }}
       >
-        <Text className={`text-[20px] ${lit ? 'text-aura' : 'text-faint'}`}>{lit ? '✦' : '✧'}</Text>
+        <Text className={`text-[20px] ${lit ? 'text-aura' : 'text-faint'}`}>{star(lit)}</Text>
       </Animated.View>
     </Pressable>
   );

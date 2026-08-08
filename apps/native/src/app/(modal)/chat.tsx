@@ -22,6 +22,7 @@ import type { Message } from '@athanor/schemas';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -214,9 +215,9 @@ export default function ChatScreen() {
         renderItem={({ item }) =>
           item.type === 'marker' ? (
             <View className="my-3 items-center">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              <SectionLabel>
                 {item.label}
-              </Text>
+              </SectionLabel>
             </View>
           ) : (
             <Bubble message={item.message} myId={myId as string} locale={locale} />

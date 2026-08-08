@@ -6,6 +6,7 @@ import { Pressable, Text, View } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 
@@ -83,9 +84,9 @@ export default function MatchOverlay() {
         </Mandorla>
       </Animated.View>
 
-      <Text className="mt-6 text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+      <SectionLabel tone="aura" className="mt-6">
         {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
-      </Text>
+      </SectionLabel>
       <Text
         accessibilityRole="header"
         className="mt-2 text-center text-[26px] font-bold text-foreground"

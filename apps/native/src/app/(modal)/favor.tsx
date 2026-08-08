@@ -16,6 +16,7 @@ import { Pressable, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { FavorRow } from '@/components/costellazioni/FavorRow';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { auraGlow } from '@/lib/glow';
@@ -104,9 +105,9 @@ export default function FavorScreen() {
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
           style={auraGlow(1)}
         >
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+          <SectionLabel tone="aura">
             {t('favor.done.eyebrow', locale)}
-          </Text>
+          </SectionLabel>
           <Text className="text-center text-2xl text-foreground">
             {t('favor.done.title', locale, { name })}
           </Text>

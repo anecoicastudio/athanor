@@ -3,6 +3,7 @@ import { STAR_KEYS, type AuraSnapshot, type Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { AuraValue } from '@/components/AuraValue';
 import { SectionLabel } from '@/components/SectionLabel';
+import { star } from '@/lib/star';
 
 /**
  * «Le tue stelle» compact row (PRD 01-m1-identity §3.2, block 7). M1 owns the
@@ -44,7 +45,7 @@ export function StarsMiniRow({
               key={key}
               className={snapshot.stars[key] ? 'text-xl text-aura' : 'text-xl text-faint'}
             >
-              {snapshot.stars[key] ? '✦' : '✧'}
+              {star(Boolean(snapshot.stars[key]))}
             </Text>
           ))}
         </View>

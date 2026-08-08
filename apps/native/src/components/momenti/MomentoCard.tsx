@@ -3,6 +3,7 @@ import type { Locale, MomentoDeckCard } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { DreamQuote } from '@/components/DreamQuote';
+import { SectionLabel } from '@/components/SectionLabel';
 import { AffinityRow } from './AffinityRow';
 
 /**
@@ -35,9 +36,9 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
 
         {card.dreamText ? (
           <View className="mt-4">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('momenti.theirDream', locale)}
-            </Text>
+            </SectionLabel>
             <DreamQuote text={card.dreamText} className="mt-1" />
           </View>
         ) : null}

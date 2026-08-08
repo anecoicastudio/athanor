@@ -13,6 +13,7 @@ import { EventCover } from '@/components/live/EventCover';
 import { DmetaRow } from '@/components/live/DmetaRow';
 import { AttendeeStack } from '@/components/live/AttendeeStack';
 import { RsvpBar } from '@/components/live/RsvpBar';
+import { SectionLabel } from '@/components/SectionLabel';
 import { TicketBar } from '@/components/live/TicketBar';
 import { CircleGate } from '@/components/circle/CircleGate';
 import { EmptyState } from '@/components/EmptyState';
@@ -163,9 +164,9 @@ export default function EventDetailScreen() {
           ) : null}
 
           <View className="gap-1">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <SectionLabel>
               {t('event.organizedBy', locale)}
-            </Text>
+            </SectionLabel>
             <PostAuthorRow authorId={event.organizer_id} size="sm" />
           </View>
 

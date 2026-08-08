@@ -12,6 +12,7 @@ import {
   type ProjectFilter,
 } from '@/components/costellazioni/ProjectFilterTabs';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -71,9 +72,9 @@ export default function CostellazioniScreen() {
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
             <View className="flex-row items-center justify-between px-5">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+              <SectionLabel>
                 {t('costellazioni.board.label', locale)}
-              </Text>
+              </SectionLabel>
               <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={8}>
                 <Text className="text-[13px] text-aura">{t('costellazioni.publish', locale)}</Text>
               </Pressable>

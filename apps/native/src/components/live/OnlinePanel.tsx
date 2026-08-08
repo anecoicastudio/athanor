@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsOnline } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type Locale, t } from '@athanor/i18n';
-import { ScrollView, Text, View } from '@/tw';
+import { ScrollView, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { supabase } from '@/lib/supabase';
 import { EventRow, toRowData } from './EventRow';
 import { LiveEventRow } from './LiveEventRow';
@@ -33,9 +34,9 @@ export function OnlinePanel({
   return (
     <ScrollView contentContainerClassName="pb-[104px] gap-4">
       <View className="gap-3 px-5">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+        <SectionLabel>
           {t('live.online.section', locale)}
-        </Text>
+        </SectionLabel>
         {liveNow.map((e) => (
           <LiveEventRow key={e.id} event={e} locale={locale} onOpen={onOpen} />
         ))}

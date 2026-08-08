@@ -5,6 +5,7 @@ import type { Locale, Milestone } from '@athanor/schemas';
 import { Button } from '@/components/Button';
 import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { MilestoneRow } from './MilestoneRow';
 
 type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
@@ -56,9 +57,9 @@ export function DreamCard({
 
   return (
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
-      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+      <SectionLabel tone="aura">
         {t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}
-      </Text>
+      </SectionLabel>
       {dream ? (
         <Pressable
           accessibilityRole="button"
@@ -79,9 +80,9 @@ export function DreamCard({
 
       {showTappe ? (
         <View className="mt-2 gap-3 border-t border-hair pt-4">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <SectionLabel>
             {t('milestone.sectionLabel', locale)}
-          </Text>
+          </SectionLabel>
 
           {milestones.length === 0 ? (
             <Text className="text-[13px] text-faint">{t('milestone.empty.hint', locale)}</Text>

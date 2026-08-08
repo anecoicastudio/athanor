@@ -4,6 +4,7 @@ import { breakdownRows } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
+import { SectionLabel } from '@/components/SectionLabel';
 import { StatLine } from '@/components/StatLine';
 import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
@@ -74,9 +75,9 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
       {/* Top-2 breakdown sources */}
       {top2.length > 0 ? (
         <View className="gap-2">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <SectionLabel>
             {t('circle.analytics.topSources', locale)}
-          </Text>
+          </SectionLabel>
           {top2.map((row) => (
             <View key={row.key} className="flex-row items-center justify-between">
               <Text className="text-[14px] text-foreground">

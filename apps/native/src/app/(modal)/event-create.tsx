@@ -11,6 +11,7 @@ import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
@@ -102,9 +103,9 @@ export default function EventCreateScreen() {
   };
 
   const label = (key: MessageKey) => (
-    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+    <SectionLabel>
       {t(key, locale)}
-    </Text>
+    </SectionLabel>
   );
 
   return (

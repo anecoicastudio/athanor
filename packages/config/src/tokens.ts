@@ -24,9 +24,14 @@ export const semantic = {
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
   error: '#E0476B', // input error ring, destructive (raspberry — rose family)
   ink2: '#C9C3DE', // body copy on dark — softer than foreground
-  // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.98 on
+  // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.97 on
   // raise, ~4.69 on raise2 — every surface it is actually used on clears AA.
   // (It would NOT on bandAlt/border #241B3A ≈4.44; nothing pairs them today.)
+  // These ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts
+  // recomputes them from these values, so a retune here fails there. Note each figure
+  // names a SURFACE — `raise`/`raise2` are translucent, so a chip nested inside a card
+  // is a different (darker-backed) stack than the same chip on the canvas, and `faint`
+  // does NOT clear AA there (4.23). Compose surfaces with contrast.ts `over()`.
   // Was #615A7E (3.05 / 2.84), which DESIGN.md §3 never contrast-certified while
   // ~150 call sites used it for readable copy. Retuned at the token so they all
   // clear at once and no new call site can regress back. See DESIGN.md §12.

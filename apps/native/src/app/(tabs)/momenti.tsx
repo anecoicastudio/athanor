@@ -12,6 +12,7 @@ import {
 import type { MomentoDeckCard } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
 import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
@@ -88,9 +89,9 @@ export default function MomentiScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="px-5 pt-4 pb-10">
-      <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+      <SectionLabel tone="aura">
         {t('momenti.eyebrow', locale)}
-      </Text>
+      </SectionLabel>
       <Text className="text-[24px] font-bold text-foreground">{t('momenti.title', locale)}</Text>
       <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
 
@@ -147,9 +148,9 @@ export default function MomentiScreen() {
 
       {suggestion.data ? (
         <View className="mt-8">
-          <Text className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <SectionLabel className="mb-2">
             {t('momenti.suggestionsTitle', locale)}
-          </Text>
+          </SectionLabel>
           <SuggestionRow suggestion={suggestion.data} locale={locale} />
         </View>
       ) : null}

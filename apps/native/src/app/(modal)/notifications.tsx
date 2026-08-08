@@ -17,6 +17,7 @@ import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
+import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
@@ -130,9 +131,9 @@ export default function NotificationsScreen() {
           if (section.kind === 'header') {
             return (
               <View className="px-5 pb-1 pt-4">
-                <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+                <SectionLabel>
                   {section.label}
-                </Text>
+                </SectionLabel>
               </View>
             );
           }

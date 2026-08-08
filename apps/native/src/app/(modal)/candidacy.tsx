@@ -5,6 +5,7 @@ import { fundKeys, getActiveEdition, submitCandidacy } from '@athanor/api';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { SectionLabel } from '@/components/SectionLabel';
 import { StepDots } from '@/components/StepDots';
 import { VideoUploadTile } from '@/components/candidacy/VideoUploadTile';
 import { useCandidacyUpload } from '@/lib/media/use-candidacy-upload';
@@ -128,9 +129,9 @@ export default function CandidacyWizard() {
         >
           <Text className="text-muted-foreground">←</Text>
         </Pressable>
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+        <SectionLabel tone="aura">
           {t('candidacy.eyebrow', locale)}
-        </Text>
+        </SectionLabel>
       </View>
 
       {/* Step dots (5 dots, current and past filled cyan) */}
@@ -140,9 +141,9 @@ export default function CandidacyWizard() {
 
       {/* Step content — vertically centred */}
       <View className="grow justify-center">
-        <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+        <SectionLabel>
           {t(stepKey('label'), locale)}
-        </Text>
+        </SectionLabel>
         <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
           {t(stepKey('q'), locale)}
         </Text>

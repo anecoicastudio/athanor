@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from '@/tw';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, StarKey } from '@athanor/schemas';
+import { STAR } from '@/lib/star';
 
 /**
  * One cell of the Six Stars grid.
@@ -35,7 +36,7 @@ export function StarCell({
         accessibilityLabel={`${name}, ${stateWord}`}
       >
         <View className="items-center justify-center rounded-full border border-aura-line bg-aura-soft p-2">
-          <Text className="text-2xl text-aura">✦</Text>
+          <Text className="text-2xl text-aura">{STAR.lit}</Text>
         </View>
         <Text className="text-[11px] tracking-wide text-aura">{name}</Text>
       </View>
@@ -51,7 +52,7 @@ export function StarCell({
       onPress={onPress}
     >
       <View className="items-center justify-center rounded-full bg-raise p-2">
-        <Text className="text-2xl text-faint">✧</Text>
+        <Text className="text-2xl text-faint">{STAR.unlit}</Text>
       </View>
       <Text className="text-[11px] tracking-wide text-faint">{name}</Text>
     </Pressable>

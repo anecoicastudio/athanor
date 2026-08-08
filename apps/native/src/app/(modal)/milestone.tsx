@@ -6,6 +6,7 @@ import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { SectionLabel } from '@/components/SectionLabel';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -63,9 +64,9 @@ export default function MilestoneScreen() {
         </Text>
 
         <View className="gap-2">
-          <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-aura">
+          <SectionLabel tone="aura">
             {t('milestone.field.label', locale)}
-          </Text>
+          </SectionLabel>
           <TextInput
             className={`rounded-hero border bg-raise px-5 py-4 text-lg text-foreground ${
               error ? 'border-error' : 'border-hair'
