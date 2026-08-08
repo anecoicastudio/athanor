@@ -7,8 +7,8 @@ export const dynamic = 'force-static';
  * opens the app instead of Safari. Must return 200 + `application/json` with no redirect.
  *
  * `<TEAMID>` is a placeholder — fill with the Apple Developer Team ID at P1.5
- * (the same value goes in `apps/mobile/eas.json` → submit.production.ios.appleTeamId).
- * Paths mirror `apps/mobile/app.json` ios.associatedDomains + android.intentFilters.
+ * (the same value goes in `apps/native/eas.json` → submit.production.ios.appleTeamId).
+ * Paths mirror `apps/native/app.json` ios.associatedDomains + android.intentFilters.
  */
 const AASA = {
   applinks: {

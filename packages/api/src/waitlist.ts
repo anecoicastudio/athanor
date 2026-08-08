@@ -48,7 +48,7 @@ export async function getWaitlistCount(client: AthanorClient): Promise<number> {
   return data ?? 0;
 }
 
-/** Admin-only list of waitlist rows, newest first (headless — no UI consumer yet). */
+/** Admin-only list of waitlist rows, newest first (consumed by /admin/waitlist in apps/web). */
 export async function getWaitlistRows(
   client: AthanorClient,
   limit = 5000,
