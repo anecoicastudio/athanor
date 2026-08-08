@@ -21,16 +21,7 @@ import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { addEventToCalendar } from '@/lib/calendar';
-
-function formatWhen(iso: string, locale: 'it' | 'en'): string {
-  const d = new Date(iso);
-  return d.toLocaleString(locale === 'it' ? 'it-IT' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { dateTime } from '@/lib/time';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -164,14 +155,12 @@ export default function EventDetailScreen() {
           ) : null}
 
           <View className="gap-1">
-            <SectionLabel>
-              {t('event.organizedBy', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('event.organizedBy', locale)}</SectionLabel>
             <PostAuthorRow authorId={event.organizer_id} size="sm" />
           </View>
 
           <View className="gap-3 rounded-card border border-hair bg-raise p-5">
-            <DmetaRow glyph="◷" value={formatWhen(event.starts_at, locale)} />
+            <DmetaRow glyph="◷" value={dateTime(event.starts_at, locale)} />
             <DmetaRow
               glyph="◎"
               value={
@@ -186,7 +175,10 @@ export default function EventDetailScreen() {
                 Attendee count is allowed (rule #3). */}
             <DmetaRow
               glyph="◇"
-              value={t('event.attendees', locale, { n: count, aura: ENGINE_WEIGHTS.EVENT_ATTENDED })}
+              value={t('event.attendees', locale, {
+                n: count,
+                aura: ENGINE_WEIGHTS.EVENT_ATTENDED,
+              })}
             />
           </View>
 

@@ -20,6 +20,7 @@ import NotificationRow from '@/components/trust/NotificationRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
+import { routeForNotification } from '@/lib/notification-route';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -66,7 +67,8 @@ export default function NotificationsScreen() {
     (n: Notification) => {
       markRead(supabase, n.id).catch((e) => devWarn('[notifications] markRead', e));
       void qc.invalidateQueries({ queryKey: notifKeys.all });
-      routeFor(n, router);
+      const href = routeForNotification(n);
+      if (href) router.push(href as Parameters<typeof router.push>[0]);
     },
     [qc, router],
   );
@@ -131,9 +133,7 @@ export default function NotificationsScreen() {
           if (section.kind === 'header') {
             return (
               <View className="px-5 pb-1 pt-4">
-                <SectionLabel>
-                  {section.label}
-                </SectionLabel>
+                <SectionLabel>{section.label}</SectionLabel>
               </View>
             );
           }
@@ -157,31 +157,4 @@ export default function NotificationsScreen() {
       />
     </View>
   );
-}
-
-/** Route to the appropriate section for a tapped notification. Best-effort — producers deferred. */
-function routeFor(n: Notification, router: ReturnType<typeof useRouter>) {
-  const ref = n.entity_ref as { kind?: string; id?: string } | null | undefined;
-  switch (n.type) {
-    case 'moment':
-      return router.push('/(modal)/match');
-    case 'review':
-      return router.push('/(tabs)/profile');
-    case 'dreamMilestone':
-      return router.push('/(tabs)/profile');
-    case 'eventReminder':
-      if (ref?.id) {
-        // event/[id]/index is the event detail route
-        return router.push(`/(modal)/event/${ref.id}` as Parameters<typeof router.push>[0]);
-      }
-      return undefined;
-    case 'fundMilestone':
-      return router.push('/(modal)/annual');
-    case 'projectResponse':
-      return router.push('/(tabs)/costellazioni');
-    case 'connection':
-      return router.push('/(modal)/connections');
-    default:
-      return undefined;
-  }
 }

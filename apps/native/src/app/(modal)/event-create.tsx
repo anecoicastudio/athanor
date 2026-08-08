@@ -15,6 +15,8 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
+import { dateTimeWithYear } from '@/lib/time';
+import { parsePriceCents } from '@/lib/price';
 
 const CATEGORIES: EventCategory[] = [
   'networking',
@@ -78,7 +80,7 @@ export default function EventCreateScreen() {
         starts_at: startsAt.toISOString(),
         ends_at: null,
         capacity: capacity ? Number(capacity) : null,
-        price_cents: paid && price ? Math.round(Number(price.replace(',', '.')) * 100) : 0,
+        price_cents: paid && price ? parsePriceCents(price) : 0,
         currency: 'eur',
       });
       return createEvent(supabase, parsed);
@@ -102,11 +104,7 @@ export default function EventCreateScreen() {
     mutation.mutate();
   };
 
-  const label = (key: MessageKey) => (
-    <SectionLabel>
-      {t(key, locale)}
-    </SectionLabel>
-  );
+  const label = (key: MessageKey) => <SectionLabel>{t(key, locale)}</SectionLabel>;
 
   return (
     <KeyboardAvoidingView
@@ -226,13 +224,7 @@ export default function EventCreateScreen() {
               className="rounded-card border border-hair bg-raise p-5"
             >
               <Text className="text-[15px] text-foreground">
-                {startsAt.toLocaleString(locale === 'it' ? 'it-IT' : 'en-GB', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {dateTimeWithYear(startsAt.toISOString(), locale)}
               </Text>
             </Pressable>
             {showPicker ? (

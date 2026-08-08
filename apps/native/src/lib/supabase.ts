@@ -6,6 +6,7 @@ import type { Database } from '@athanor/api';
 import { authStorage } from './session-storage';
 import { markClientOutdated } from './outdated-client';
 import { resolveSupabaseKey } from './supabase-key';
+import { isVersionGateRejection, requestUrlOf } from './version-gate';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 
@@ -37,7 +38,8 @@ const noopStorage = {
 // version + platform; edge functions reject unsupported builds with 426. The fetch
 // wrapper is the single interception point — on 426 it trips the sticky outdated
 // flag (BootGate pins ForceUpdateScreen) and returns the response unchanged so
-// per-call-site error handling still sees the failure.
+// per-call-site error handling still sees the failure. The 426 verdict itself lives
+// in ./version-gate (pure, node-testable); the side effect stays here.
 const versionHeaders = {
   'x-app-version': Constants.expoConfig?.version ?? '',
   'x-app-platform': Platform.OS,
@@ -45,11 +47,7 @@ const versionHeaders = {
 
 const gatedFetch: typeof fetch = async (input, init) => {
   const response = await fetch(input, init);
-  if (response.status === 426) {
-    const requestUrl =
-      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    if (requestUrl.includes('/functions/v1/')) markClientOutdated();
-  }
+  if (isVersionGateRejection(response, requestUrlOf(input))) markClientOutdated();
   return response;
 };
 
