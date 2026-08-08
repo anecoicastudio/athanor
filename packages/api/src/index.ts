@@ -36,4 +36,5 @@ export * from './gdpr';
 export * from './verifications';
 export * from './remoteConfig';
 export * from './admin';
+export * from './supabase-key';
 export type { Database, Json } from './database.types';

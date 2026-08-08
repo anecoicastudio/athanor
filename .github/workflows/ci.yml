@@ -34,13 +34,15 @@ jobs:
       - name: e2e admin smoke
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           # The two admin smoke tests need only the Next dev server (Playwright webServer
-          # starts `pnpm dev`) + the public Supabase URL/anon key for the SSR client.
-          # Skip gracefully until the two repo secrets exist (same pattern as the types gate).
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
-            echo "::notice::e2e skipped — set NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY repo secrets to enable"
+          # starts `pnpm dev`) + the public Supabase URL and one API key for the SSR client
+          # (publishable preferred, legacy anon accepted while it still exists).
+          # Skip gracefully until the secrets exist (same pattern as the types gate).
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
+            echo "::notice::e2e skipped — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
             exit 0
           fi
           pnpm --filter web exec playwright install --with-deps chromium
