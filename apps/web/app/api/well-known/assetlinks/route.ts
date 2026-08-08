@@ -3,7 +3,7 @@ export const dynamic = 'force-static';
 /**
  * Android Digital Asset Links — served at `/.well-known/assetlinks.json` via the rewrite
  * in `next.config.ts`. Google fetches this to verify Athanor owns `athanor-page.vercel.app`,
- * so `autoVerify` App Links (see `apps/mobile/app.json` android.intentFilters) open the app
+ * so `autoVerify` App Links (see `apps/native/app.json` android.intentFilters) open the app
  * directly. Must return 200 + `application/json` with no redirect.
  *
  * `<SHA256>` is a placeholder — fill with the EAS keystore SHA-256 fingerprint at P1.5
