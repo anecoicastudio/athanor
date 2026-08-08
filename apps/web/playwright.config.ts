@@ -2,13 +2,13 @@ import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { config as loadEnv } from 'dotenv';
 
-// NEXT_PUBLIC_* (hosted stack) live in .env.local; the service-role admin key for
-// auth helpers lives in .env.test (gitignored, never committed).
-// See .env.test.example for the one required secret.
+// NEXT_PUBLIC_* (hosted stack) live in .env.local. The current smoke tests need no
+// secrets; future authenticated flows seed via CI secrets, never an env file the Next
+// process can read (supabase/ENV-NOTES.md).
 loadEnv({ path: resolve(__dirname, '.env.local') });
-loadEnv({ path: resolve(__dirname, '.env.test') });
 
 const PORT = 3000;
+// E2E_BASE_URL overrides the target (e.g. a deployed preview); defaults to local dev.
 const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
