@@ -144,12 +144,15 @@ export function ProfileEditForm({
             supabase/tests/0073_visibility_followups.test.sql. Lives under the
             second of the two so both chip rows are already on screen.
 
-            The copy says "matched", not "you won't appear": already-issued
-            pending proposals survive the flip, and «Ti potrebbe interessare»
-            (getMomentiSuggestion) has no tag-visibility predicate at all. What
-            actually stops is new matching. Labels are interpolated from the
-            same keys the chips render, so a renamed label can't leave the
-            sentence quoting something that no longer exists. */}
+            The copy says "matched", not "you won't appear". Both original
+            reasons have since been closed — pending proposals are purged on the
+            flip (20260807201350) and «Ti potrebbe interessare» gained the
+            predicate (get_momenti_suggestion) — but "matched" is still the
+            accurate claim: accepted and passed rows deliberately survive, so the
+            member does not vanish from every surface. Keep the weaker promise.
+            Labels are interpolated from the same keys the chips render, so a
+            renamed label can't leave the sentence quoting something that no
+            longer exists. */}
         {(visibility.identity_tags ?? 'members') === 'private' &&
         (visibility.seeking ?? 'members') === 'private' ? (
           <Text className="text-[13px] leading-snug text-muted-foreground">

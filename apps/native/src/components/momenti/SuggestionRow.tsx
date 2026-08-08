@@ -7,8 +7,12 @@ import { DreamQuote } from '@/components/DreamQuote';
 
 /**
  * «Ti potrebbe interessare» curated-lite row (frontend §2) → read-only Person Detail.
- * A non-interactive «Alta affinità» pill (aura-soft accent, NOT the interactive Chip
- * toggle) marks the high-affinity peer; the glow stays reserved for a real match (#4).
+ * A non-interactive «Sogno nuovo» pill (aura-soft accent, NOT the interactive Chip toggle);
+ * the glow stays reserved for a real match (#4).
+ *
+ * The pill says «Sogno nuovo», not «Alta affinità», because get_momenti_suggestion ranks by
+ * the newest active dream and computes no affinity at all — a suggestions table is deferred
+ * since M5. Don't restore the affinity wording without a query that earns it.
  */
 export function SuggestionRow({
   suggestion,
