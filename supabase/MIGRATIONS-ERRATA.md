@@ -16,6 +16,29 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260808035852_momenti_suggestion_rpc.sql`
+
+### L58 + L66 — "newest member" was really "most recently touched profile"
+
+The function ordered by `p.updated_at desc` and the header (and `comment on function`)
+described that as the "newest member". `profiles_touch_updated_at` fires on every profile
+UPDATE, and server-side writes bump it too — `identity_verified` from the Stripe Identity
+webhook, `founding_member`, `push_enabled`, `referral_code`. A two-year-old account that edited
+its bio a minute ago sorted first.
+
+Superseded by `20260808041335_momenti_suggestion_rpc_ordering.sql`, which ranks by the newest
+active **dream** instead — the signal the row actually displays, and the one the «Sogno nuovo»
+chip claims. Ordering is asserted in `supabase/tests/0075_momenti_suggestion_rpc.test.sql`,
+where every filtered-out candidate deliberately holds a newer dream than the expected winner.
+
+### L6 — "they leave every deck"
+
+One-directional, same overstatement corrected below for `20260807174758`. A member who hides
+both tag fields leaves every **other** member's deck; they still receive one of their own,
+scored against their own private tags.
+
+---
+
 ## `20260807174758_m10_visibility_followups.sql`
 
 ### L23-26 — the Momenti privacy trade is neither total nor triggered by one field
