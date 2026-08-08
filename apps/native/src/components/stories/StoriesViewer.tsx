@@ -228,12 +228,17 @@ export function StoriesViewer({
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: viewerReacted }}
-                accessibilityLabel={t('story.react.a11y', locale)}
+                accessibilityLabel={t(
+                  viewerReacted ? 'story.react.a11yLit' : 'story.react.a11y',
+                  locale,
+                )}
                 onPress={() => onReact(current)}
                 className="min-h-[44px] min-w-[44px] flex-row items-center justify-center"
               >
+                {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and StarCell —
+                    `faint` alone stopped reading "off" once it was retuned for AA. */}
                 <Text className={`text-[22px] ${viewerReacted ? 'text-aura' : 'text-faint'}`}>
-                  ✦
+                  {viewerReacted ? '✦' : '✧'}
                 </Text>
               </Pressable>
               <Pressable

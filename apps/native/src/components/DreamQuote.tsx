@@ -15,12 +15,16 @@ export function DreamQuote({
   className,
 }: {
   text: string;
-  /** Row-scale preview (SuggestionRow): 13px quiet text instead of the display quote. */
+  /**
+   * Row-scale preview (SuggestionRow): 13px body-weight text instead of the display quote.
+   * `ink-2`, not `faint` — inside a row the dream is the payload and has to outrank the
+   * metadata Tag beside it, which is a bordered raise-2 pill and wins any colour tie.
+   */
   compact?: boolean;
   numberOfLines?: number;
   className?: string;
 }) {
-  const scale = compact ? 'text-[13px] text-faint' : 'text-xl leading-relaxed text-foreground';
+  const scale = compact ? 'text-[13px] text-ink-2' : 'text-xl leading-relaxed text-foreground';
   return (
     <Text numberOfLines={numberOfLines} className={cn('font-dream', scale, className)}>
       «{text}»

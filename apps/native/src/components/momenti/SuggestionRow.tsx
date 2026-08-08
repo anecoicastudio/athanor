@@ -21,6 +21,10 @@ import { Tag } from '@/components/Tag';
  * equivalent — IncomingOfferRow uses the identical Avatar + flex-1 + Tag composition.
  * Don't "restore" the cyan without resolving that.
  *
+ * The Tag is `quiet` and the dream is `ink-2`: the marker ANNOTATES the row, the dream IS the
+ * row. A default-tone Tag would put `foreground` on the metadata and leave the payload below it
+ * — the same inversion the cyan pill had. Keep the payload above the label.
+ *
  * It says «Sogno nuovo», not «Alta affinità», because get_momenti_suggestion ranks by the
  * newest active dream and computes no affinity at all — a suggestions table is deferred since
  * M5. Don't restore the affinity wording without a query that earns it.
@@ -50,7 +54,7 @@ export function SuggestionRow({
           <DreamQuote compact numberOfLines={1} text={suggestion.dreamText} />
         ) : null}
       </View>
-      <Tag label={t('momenti.suggestion.chip', locale)} />
+      <Tag quiet label={t('momenti.suggestion.chip', locale)} />
     </Pressable>
   );
 }
