@@ -18,19 +18,19 @@ Functions read keys **only** through `functions/_shared/keys.ts`
 new variables are JSON dictionaries and the legacy ones die the moment "Disable legacy
 API keys" is clicked. For `supabase functions serve` locally, use the values
 `supabase status` prints — the local stack issues its own `sb_publishable_`/`sb_secret_`
-pair.
+pair. Keep those local values in `supabase/.env.local` (separately gitignored).
 
 ## Stripe reference (sandbox, DE / EUR)
 
 Public identifiers, not secrets:
 
-| What                              | Id                                                                                                                                                   |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Account                           | `acct_1U23HsQ27ZDmslJ8`                                                                                                                              |
-| Webhook destination (live config) | `we_1U257CQ27ZDmslJ8unxgUdUC` — API version `2026-05-27.dahlia`, 10 events                                                                           |
-| Old webhook destination           | `we_1U23QwQ27ZDmslJ8EqF5ZvjO` — 2020-08-27, 3 PaymentIntent events the code never handled; disable once the new one is live                          |
-| Payment-method configuration      | `pmc_1U23I2Q27ZDmslJ8WsNgBSei`                                                                                                                       |
-| Circle product                    | `prod_V29QBE8aw9OdcL` (prices in `supabase/.env.example`; €12/€99 copy lives in `packages/i18n` keys `circle.price.monthly` / `circle.price.annual`) |
+| What                              | Id                                                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Account                           | `acct_1U23HsQ27ZDmslJ8`                                                                                                                          |
+| Webhook destination (live config) | `we_1U257CQ27ZDmslJ8unxgUdUC` — API version `2026-05-27.dahlia`, 10 events                                                                       |
+| Old webhook destination           | `we_1U23QwQ27ZDmslJ8EqF5ZvjO` — 2020-08-27, 3 PaymentIntent events the code never handled; disable once the new one is live                      |
+| Payment-method configuration      | `pmc_1U23I2Q27ZDmslJ8WsNgBSei`                                                                                                                   |
+| Circle product                    | `prod_V29QBE8aw9OdcL` (prices in `supabase/.env.example`; €12/€99 copy lives in `packages/i18n` keys `circle.cta.monthly` / `circle.cta.annual`) |
 
 **The delayed-settlement trap.** No code pins `payment_method_types`, so the
 payment-method configuration is the _sole_ control over which rails reach Checkout. The
