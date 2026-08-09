@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AURA_UNKNOWN, auraDisplayValue } from './aura-display';
+import type { AuraSnapshot } from '@athanor/schemas';
+import { AURA_UNKNOWN, auraDisplayValue, auraSnapshotOrNull } from './aura-display';
 
 describe('auraDisplayValue', () => {
   it('renders a real score as its digits', () => {
@@ -32,5 +33,47 @@ describe('auraDisplayValue', () => {
   // and that is different from a failure. Guards against "fix" the falsy check `score || '--'`.
   it('keeps a genuine zero distinguishable from unknown', () => {
     expect(auraDisplayValue(0, false)).not.toBe(AURA_UNKNOWN);
+  });
+});
+
+describe('auraSnapshotOrNull', () => {
+  const snapshot: AuraSnapshot = {
+    score: 482,
+    stars: {
+      visionario: true,
+      mentor: false,
+      collaboratore: false,
+      creatore: false,
+      innovatore: false,
+      ambasciatore: false,
+    },
+  };
+
+  it('passes a real snapshot through untouched', () => {
+    expect(auraSnapshotOrNull(snapshot, false)).toBe(snapshot);
+  });
+
+  // The whole point: surfaces used to write `query.data ?? ZERO_AURA_SNAPSHOT`, which turns
+  // "not fetched" into "earned nothing, all six stars dark".
+  it('returns null while there is no data', () => {
+    expect(auraSnapshotOrNull(undefined, false)).toBeNull();
+  });
+
+  it('returns null on a failed read', () => {
+    expect(auraSnapshotOrNull(undefined, true)).toBeNull();
+  });
+
+  // Same trade as auraDisplayValue: the query client persists to AsyncStorage with a 24h
+  // gcTime and Aura decays, so a stale snapshot presented as current is the same false
+  // confidence in slower motion.
+  it('prefers null over a stale snapshot when the read is failing', () => {
+    expect(auraSnapshotOrNull(snapshot, true)).toBeNull();
+  });
+
+  // A genuinely-zero member must still render as zero — getAuraScore returns
+  // ZERO_AURA_SNAPSHOT for an absent engine row, and that is data, not a failure.
+  it('keeps a genuine zero snapshot', () => {
+    const zero: AuraSnapshot = { ...snapshot, score: 0 };
+    expect(auraSnapshotOrNull(zero, false)).toBe(zero);
   });
 });

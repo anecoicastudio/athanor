@@ -18,7 +18,8 @@ export function ProfileHero({
 }: {
   handle: string;
   bio: string | null;
-  auraScore: number;
+  /** `null` when the Aura read failed or has not landed — see AuraBlock. */
+  auraScore: number | null;
   locale: Locale;
   /** Override the Aura heading for a third-person view (e.g. «la sua Aura»). Defaults to the owner label. */
   auraLabel?: string;
@@ -27,7 +28,9 @@ export function ProfileHero({
 }) {
   return (
     <View className="items-center gap-3">
-      <Mandorla size={116} glowLevel={auraGlowLevel(auraScore)}>
+      {/* Unknown Aura gets glow level 0: rule #4 reserves the glow for something that happened,
+          and a failed read is not an achievement. `auraGlowLevel(0)` is that level. */}
+      <Mandorla size={116} glowLevel={auraGlowLevel(auraScore ?? 0)}>
         <Avatar handle={handle} size={104} />
       </Mandorla>
       <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">@{handle}</Text>
