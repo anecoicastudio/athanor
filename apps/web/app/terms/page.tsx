@@ -1,15 +1,13 @@
 import type { Metadata } from 'next';
 import { t } from '@athanor/i18n';
-import { getLocale } from '@/lib/get-locale';
-import { LegalDocView } from '@/components/legal-doc';
+import { DEFAULT_LOCALE } from '@/lib/default-locale';
+import { LegalDocClient } from '@/components/legal-doc-client';
 import { terms } from '@/lib/legal-content';
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale();
-  return { title: `${terms[locale].title} — ${t('app.name', locale)}` };
-}
+export const metadata: Metadata = {
+  title: `${terms[DEFAULT_LOCALE].title} — ${t('app.name', DEFAULT_LOCALE)}`,
+};
 
-export default async function TermsPage() {
-  const locale = await getLocale();
-  return <LegalDocView doc={terms[locale]} locale={locale} />;
+export default function TermsPage() {
+  return <LegalDocClient doc="terms" />;
 }
