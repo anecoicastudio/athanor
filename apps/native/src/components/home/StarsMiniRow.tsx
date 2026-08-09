@@ -65,7 +65,10 @@ export function StarsMiniRow({
             </Text>
           ))}
         </View>
-        <Text className="text-[13px] text-faint">
+        <Text
+          accessibilityLabel={snapshot ? undefined : t('aura.unknown', locale)}
+          className="text-[13px] text-faint"
+        >
           {snapshot ? t('home.stars.count', locale, { lit }) : AURA_UNKNOWN}
         </Text>
       </View>

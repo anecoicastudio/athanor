@@ -187,6 +187,9 @@ export default function PersonDetailScreen() {
         } catch {
           // aura stays null, stars stay [] — the hero renders «—» rather than a false zero.
         }
+        // A rejection AFTER unmount lands in that catch rather than a `cancelled` return,
+        // so re-check before spending another request.
+        if (cancelled) return;
         // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an
         // older one on this dream and render an already-helped tappa as un-helped.
         const { rows: helps } = await listMyHelpsForMilestones(
