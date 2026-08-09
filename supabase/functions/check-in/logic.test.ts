@@ -58,7 +58,7 @@ Deno.test('token signed with a different secret → invalid', async () => {
   assertEquals(body, { result: 'invalid' });
 });
 
-Deno.test("token for another event → wrongEvent before any lookup", async () => {
+Deno.test('token for another event → wrongEvent before any lookup', async () => {
   const c = ctx();
   const { body } = await run(c, await token('evt-OTHER'));
   assertEquals(body, { result: 'wrongEvent' });
@@ -149,12 +149,15 @@ Deno.test('attendance insert RLS-denied (42501) → 403; other insert error → 
   assertEquals((await run(broken, await token())).res.status, 500);
 });
 
-Deno.test('flip failure is best-effort — scan still returns valid (attendance is the truth)', async () => {
-  const c = ctx(
-    { ...happyAdmin(), 'event_tickets.update': [{ error: { message: 'flip down' } }] },
-    { 'event_attendance.upsert': [{ data: [{ id: 'att-1' }] }] },
-  );
-  const { res, body } = await run(c, await token());
-  assertEquals(res.status, 200);
-  assertEquals(body, { result: 'valid', name: 'aurora' });
-});
+Deno.test(
+  'flip failure is best-effort — scan still returns valid (attendance is the truth)',
+  async () => {
+    const c = ctx(
+      { ...happyAdmin(), 'event_tickets.update': [{ error: { message: 'flip down' } }] },
+      { 'event_attendance.upsert': [{ data: [{ id: 'att-1' }] }] },
+    );
+    const { res, body } = await run(c, await token());
+    assertEquals(res.status, 200);
+    assertEquals(body, { result: 'valid', name: 'aurora' });
+  },
+);

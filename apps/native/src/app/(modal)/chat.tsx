@@ -23,6 +23,7 @@ import { Pressable, Text, TextInput, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
 import { SectionLabel } from '@/components/SectionLabel';
+import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -50,14 +51,16 @@ export default function ChatScreen() {
   });
   const peer = headerQuery.data;
 
-  // Peer Aura for the header (read-only; coalesces to zero until the engine is live).
+  // Peer Aura for the header (read-only).
   const peerId = peer?.peerId;
   const peerAuraQuery = useQuery({
     queryKey: auraKeys.score(peerId ?? ''),
     queryFn: () => getAuraScore(supabase, peerId as string),
     enabled: Boolean(peerId),
   });
-  const peerScore = peerAuraQuery.data?.score ?? 0;
+  // `--` rather than 0 on a failed read: the header chip sits next to the person's handle, so
+  // a coalesced zero reads as a claim about them rather than about our request.
+  const peerScore = auraDisplayValue(peerAuraQuery.data?.score, peerAuraQuery.isError);
 
   const messagesQuery = useInfiniteQuery({
     queryKey: messageKeys.thread(conversationId),
@@ -177,7 +180,14 @@ export default function ChatScreen() {
           <Text className="text-[15px] font-semibold text-foreground">
             {peer?.peerHandle ? `@${peer.peerHandle}` : '—'}
           </Text>
-          <Text className="text-[11px] text-faint">
+          <Text
+            className="text-[11px] text-faint"
+            accessibilityLabel={
+              peerScore === AURA_UNKNOWN
+                ? t('aura.unknown', locale)
+                : t('chat.peerAura', locale, { score: peerScore })
+            }
+          >
             {t('chat.peerAura', locale, { score: peerScore })}
           </Text>
         </View>
@@ -215,9 +225,7 @@ export default function ChatScreen() {
         renderItem={({ item }) =>
           item.type === 'marker' ? (
             <View className="my-3 items-center">
-              <SectionLabel>
-                {item.label}
-              </SectionLabel>
+              <SectionLabel>{item.label}</SectionLabel>
             </View>
           ) : (
             <Bubble message={item.message} myId={myId as string} locale={locale} />

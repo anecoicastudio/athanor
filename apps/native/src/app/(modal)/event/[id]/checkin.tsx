@@ -12,32 +12,13 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import type { CheckInResult } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
-
-// 'error' = the scan REQUEST failed (network/edge-fn down) — distinct from 'invalid'
-// (a verified verdict about the ticket) so a transient outage never reads as a bad ticket.
-type Verdict = CheckInResult['result'] | 'error';
-
-function verdictText(v: Verdict, name: string | undefined, locale: 'it' | 'en'): string {
-  switch (v) {
-    case 'valid':
-      return t('ticket.scan.welcome', locale, { name: name ?? t('ticket.scan.someone', locale) });
-    case 'already':
-      return t('ticket.scan.already', locale);
-    case 'wrongEvent':
-      return t('ticket.scan.wrongEvent', locale);
-    case 'error':
-      return t('ticket.scan.error', locale);
-    default:
-      return t('ticket.scan.invalid', locale);
-  }
-}
+import { type Verdict, verdictText } from '@/lib/ticket-verdict';
 
 export default function CheckinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

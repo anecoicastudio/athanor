@@ -5,7 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { searchAll, searchKeys, type SearchCursor } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import type { SearchFilters, SearchResult, SearchScope } from '@athanor/schemas';
+import type { SearchResult, SearchScope } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { SearchBar } from '@/components/search/SearchBar';
 import { ScopeTabs } from '@/components/search/ScopeTabs';
@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { CircleGate } from '@/components/circle/CircleGate';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { type SearchFilterParams, parseFilters, serializeFilters } from '@/lib/search-filters';
 
 /**
  * Search modal screen (M8 §3.3 v-search).
@@ -78,27 +79,8 @@ export default function SearchScreen() {
   const router = useRouter();
 
   // ── Filters from route params (written back by search-filters sheet, Task 9) ──
-  const params = useLocalSearchParams<{ auraMin?: string; city?: string; star?: string }>();
-  const filtersFromParams: SearchFilters | undefined = (() => {
-    const auraMin = params.auraMin ? Number(params.auraMin) : undefined;
-    const city = params.city ?? undefined;
-    // Narrow star param to the enum union; ignore invalid values (defence-in-depth)
-    const VALID_STARS: SearchFilters['star'][] = [
-      'visionario',
-      'creatore',
-      'mentor',
-      'innovatore',
-      'collaboratore',
-      'ambasciatore',
-    ];
-    const starRaw = params.star;
-    const star =
-      starRaw !== undefined && (VALID_STARS as string[]).includes(starRaw)
-        ? (starRaw as NonNullable<SearchFilters['star']>)
-        : undefined;
-    if (auraMin === undefined && city === undefined && star === undefined) return undefined;
-    return { auraMin, city, star };
-  })();
+  const params = useLocalSearchParams<SearchFilterParams>();
+  const filtersFromParams = parseFilters(params);
 
   // ── Local UI state ────────────────────────────────────────────────────────────
   const [rawInput, setRawInput] = useState('');
@@ -154,11 +136,7 @@ export default function SearchScreen() {
     filterChips.push(`★ ${t(`star.${filtersFromParams.star}` as Parameters<typeof t>[0], locale)}`);
 
   // Build params to pass into the filter sheet so it can pre-fill current values
-  const filterSheetParams = {
-    ...(filtersFromParams?.auraMin ? { auraMin: String(filtersFromParams.auraMin) } : {}),
-    ...(filtersFromParams?.city ? { city: filtersFromParams.city } : {}),
-    ...(filtersFromParams?.star ? { star: filtersFromParams.star } : {}),
-  };
+  const filterSheetParams = serializeFilters(filtersFromParams ?? {});
 
   return (
     <View className="flex-1 bg-background">

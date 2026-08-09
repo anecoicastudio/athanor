@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import {
   addMilestone,
   listMilestones,
@@ -95,5 +96,48 @@ describe('milestones api', () => {
       'created_at',
       'id',
     ]);
+  });
+});
+
+// The stub above hardcodes `error: null`, so no test here could express a database failure and
+// every `if (error) throw error` arm was unreachable. `makeFakeClient` is the shared fake that
+// exists to remove exactly that blind spot.
+
+describe('milestones — a database failure reaches the caller', () => {
+  // Resolving to [] here would render a dream as having no tappe at all, which for the owner
+  // looks like their roadmap was wiped rather than that the read failed.
+  it('listMilestones rethrows instead of reporting a dream with no tappe', async () => {
+    const fake = makeFakeClient({ 'dream_milestones.select': [{ error: DB_DOWN }] });
+    await expect(listMilestones(asClient(fake), DREAM)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('addMilestone rethrows so the composer does not clear the draft', async () => {
+    const fake = makeFakeClient({ 'dream_milestones.insert': [{ error: DB_DOWN }] });
+    await expect(
+      addMilestone(asClient(fake), { dream_id: DREAM, body: 'Trovare la sala' }),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  // A void-returning mutation that swallows its error is the worst shape of all: the UI marks
+  // the tappa done, the row never changed, and the +10 award never fires (rule #1 path).
+  it('updateMilestoneStatus rethrows rather than reporting a silent success', async () => {
+    const fake = makeFakeClient({ 'dream_milestones.update': [{ error: DB_DOWN }] });
+    await expect(updateMilestoneStatus(asClient(fake), MS, 'done')).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('softDeleteMilestone rethrows rather than reporting a silent success', async () => {
+    const fake = makeFakeClient({ 'dream_milestones.update': [{ error: DB_DOWN }] });
+    await expect(softDeleteMilestone(asClient(fake), MS)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  // Not a response PostgREST can send — a zero-match list select returns [], and after the
+  // rethrow above TypeScript has already narrowed `data` to T[]. The `?? []` is a belt-and-braces
+  // guard, and this pins it so a "simplification" that removes it fails rather than passing.
+  // arm is what stops that becoming a TypeError on `.map`.
+  it('listMilestones treats a null payload as no tappe, not a crash', async () => {
+    const fake = makeFakeClient({ 'dream_milestones.select': [{ data: null }] });
+    await expect(listMilestones(asClient(fake), DREAM)).resolves.toEqual([]);
   });
 });

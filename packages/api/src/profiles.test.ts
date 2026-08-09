@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { handleSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import {
   getOwnProfile,
@@ -6,7 +7,11 @@ import {
   getProfileIdByHandle,
   getProfileStatCounts,
   profileKeys,
+  updateOnboardingProfile,
+  updateOnboardingProfileWithHandleFallback,
+  updateProfile,
 } from './profiles';
+import { makeFakeClient, type FakeResult } from './test-support/fake-client';
 
 describe('profileKeys', () => {
   it('namespaces under profiles and derives stable sub-keys', () => {
@@ -16,20 +21,15 @@ describe('profileKeys', () => {
   });
 });
 
-/** rpc().maybeSingle() stub — resolves to { data, error }. */
-function rpcStub(data: unknown) {
-  const calls: Array<{ fn: string; args: unknown }> = [];
-  return {
-    calls,
-    client: {
-      rpc: (fn: string, args: unknown) => {
-        calls.push({ fn, args });
-        return {
-          maybeSingle: () => Promise.resolve({ data, error: null }),
-        };
-      },
-    } as unknown as AthanorClient,
-  };
+/**
+ * `rpc(name).maybeSingle()` through the shared fake. The hand-rolled stub this replaces
+ * hardcoded `error: null`, so no test could reach `if (error) throw error` in any of these
+ * three readers — the failures below are what that hid.
+ */
+function rpcFake(name: string, result: FakeResult) {
+  const fake = makeFakeClient({ [`rpc.${name}`]: [result] });
+  const calls = fake.calls;
+  return { fake, calls, client: fake as unknown as AthanorClient };
 }
 
 describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
@@ -44,17 +44,28 @@ describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
   };
 
   it('calls the RPC and passes NULLed private fields through', async () => {
-    const { client, calls } = rpcStub(row);
+    const { client, calls } = rpcFake('get_person_profile', { data: row });
     const person = await getProfileById(client, row.id);
-    expect(calls).toEqual([{ fn: 'get_person_profile', args: { p_profile_id: row.id } }]);
+    expect(calls.map((c) => ({ fn: c.columns, args: c.values }))).toEqual([
+      { fn: 'get_person_profile', args: { p_profile_id: row.id } },
+    ]);
     expect(person?.bio).toBeNull();
     expect(person?.identity_tags).toEqual(['maker']);
     expect(person?.seeking).toBeNull();
   });
 
   it('returns null for unknown / blocked ids (zero rows)', async () => {
-    const { client } = rpcStub(null);
+    const { client } = rpcFake('get_person_profile', { data: [] });
     expect(await getProfileById(client, 'nope')).toBeNull();
+  });
+
+  it('throws when the RPC errors, rather than reporting the member as missing', async () => {
+    // An RLS denial or a timeout must not be indistinguishable from "no such person" — a
+    // swallowed error renders «profilo non disponibile» and TanStack Query caches it as valid.
+    const { client } = rpcFake('get_person_profile', {
+      error: { code: '42501', message: 'permission denied' },
+    });
+    await expect(getProfileById(client, 'p1')).rejects.toMatchObject({ code: '42501' });
   });
 });
 
@@ -73,24 +84,40 @@ describe('getOwnProfile (get_own_profile RPC)', () => {
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     };
-    const { client, calls } = rpcStub(own);
+    const { client, calls } = rpcFake('get_own_profile', { data: own });
     const profile = await getOwnProfile(client);
-    expect(calls[0]?.fn).toBe('get_own_profile');
+    expect(calls[0]?.columns).toBe('get_own_profile');
     expect(profile?.bio).toBe('segreto');
     expect(profile?.visibility).toEqual({ bio: 'private' });
+  });
+
+  it('returns null when the RPC yields no row (signed out)', async () => {
+    const { client } = rpcFake('get_own_profile', { data: [] });
+    expect(await getOwnProfile(client)).toBeNull();
+  });
+
+  it('throws when the RPC errors', async () => {
+    const { client } = rpcFake('get_own_profile', {
+      error: { code: 'PGRST301', message: 'JWT expired' },
+    });
+    await expect(getOwnProfile(client)).rejects.toMatchObject({ code: 'PGRST301' });
   });
 });
 
 describe('getProfileStatCounts', () => {
   it('maps the RPC row to camelCase counts', async () => {
-    const { client, calls } = rpcStub({ collabs_count: 3, events_count: 2 });
+    const { client, calls } = rpcFake('profile_stat_counts', {
+      data: { collabs_count: 3, events_count: 2 },
+    });
     const counts = await getProfileStatCounts(client, 'p1');
     expect(counts).toEqual({ collabsCount: 3, eventsCount: 2 });
-    expect(calls).toEqual([{ fn: 'profile_stat_counts', args: { p_profile_id: 'p1' } }]);
+    expect(calls.map((c) => ({ fn: c.columns, args: c.values }))).toEqual([
+      { fn: 'profile_stat_counts', args: { p_profile_id: 'p1' } },
+    ]);
   });
 
   it('coalesces a zero-row result (blocked / unknown id) to zeros', async () => {
-    const { client } = rpcStub(null);
+    const { client } = rpcFake('profile_stat_counts', { data: [] });
     const counts = await getProfileStatCounts(client, 'p1');
     expect(counts).toEqual({ collabsCount: 0, eventsCount: 0 });
   });
@@ -137,5 +164,160 @@ describe('getProfileIdByHandle', () => {
       from: () => chainFor({ data: null, error: new Error('boom') }, []),
     } as unknown as AthanorClient;
     await expect(getProfileIdByHandle(client, 'luna')).rejects.toThrow('boom');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Writes — plumbing only (api rule): the schema is the gate, RLS is the guard.
+// ---------------------------------------------------------------------------
+
+const USER = '00000000-0000-0000-0000-0000000000aa';
+
+const db = (script: Record<string, FakeResult[]> = {}) => {
+  const fake = makeFakeClient(script);
+  return { fake, client: fake as unknown as AthanorClient };
+};
+
+const answers = {
+  handle: 'luna_rossa',
+  locale: 'it' as const,
+  identity_tags: ['maker'],
+  seeking: ['connessioni'],
+};
+
+describe('updateOnboardingProfile', () => {
+  it('updates the caller own row and nothing else', async () => {
+    const { fake, client } = db();
+    await updateOnboardingProfile(client, USER, answers);
+
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('profiles');
+    expect(call.op).toBe('update');
+    expect(call.values).toEqual(answers);
+    expect(call.filters).toEqual([['eq', 'id', USER]]);
+  });
+
+  it('strips keys the onboarding schema does not own — no privilege columns reach the wire', async () => {
+    const { fake, client } = db();
+    await updateOnboardingProfile(client, USER, {
+      ...answers,
+      identity_verified: true,
+      founding_member: true,
+      id: 'someone-else',
+    } as never);
+
+    const values = fake.calls[0]!.values as Record<string, unknown>;
+    expect(Object.keys(values).sort()).toEqual(['handle', 'identity_tags', 'locale', 'seeking']);
+  });
+
+  it('validates before touching the database', async () => {
+    const { fake, client } = db();
+    await expect(
+      updateOnboardingProfile(client, USER, { ...answers, handle: 'No Spaces!' }),
+    ).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('surfaces a database error', async () => {
+    const { client } = db({
+      'profiles.update': [{ error: { code: '42501', message: 'rls denied' } }],
+    });
+    await expect(updateOnboardingProfile(client, USER, answers)).rejects.toThrow('rls denied');
+  });
+});
+
+describe('updateOnboardingProfileWithHandleFallback', () => {
+  it('returns the requested handle when it lands first try', async () => {
+    const { fake, client } = db();
+    await expect(updateOnboardingProfileWithHandleFallback(client, USER, answers)).resolves.toBe(
+      'luna_rossa',
+    );
+    expect(fake.calls).toHaveLength(1);
+  });
+
+  it('retries a colliding handle (23505) with a suffixed one and returns what landed', async () => {
+    const { fake, client } = db({
+      'profiles.update': [{ error: { code: '23505', message: 'duplicate key' } }],
+    });
+
+    const landed = await updateOnboardingProfileWithHandleFallback(client, USER, answers);
+
+    expect(fake.calls).toHaveLength(2);
+    expect(landed).not.toBe('luna_rossa');
+    expect(landed.startsWith('luna_rossa_')).toBe(true);
+    // the retry is still a legal handle — the suffix must not push it past the schema
+    expect(handleSchema.safeParse(landed).success).toBe(true);
+    expect((fake.calls[1]!.values as { handle: string }).handle).toBe(landed);
+  });
+
+  it('keeps the suffix inside the 30-char handle limit for a maximal base', async () => {
+    const longBase = 'a'.repeat(30);
+    const { client } = db({
+      'profiles.update': [{ error: { code: '23505', message: 'duplicate key' } }],
+    });
+    const landed = await updateOnboardingProfileWithHandleFallback(client, USER, {
+      ...answers,
+      handle: longBase,
+    });
+    expect(handleSchema.safeParse(landed).success).toBe(true);
+  });
+
+  it('gives up after the attempt budget rather than looping forever', async () => {
+    const collision = { error: { code: '23505', message: 'duplicate key' } };
+    const { fake, client } = db({ 'profiles.update': [collision, collision, collision] });
+
+    await expect(
+      updateOnboardingProfileWithHandleFallback(client, USER, answers, 3),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect(fake.calls).toHaveLength(3);
+  });
+
+  it('propagates a non-collision error immediately, without burning a retry', async () => {
+    const { fake, client } = db({
+      'profiles.update': [{ error: { code: '42501', message: 'rls denied' } }],
+    });
+
+    await expect(updateOnboardingProfileWithHandleFallback(client, USER, answers)).rejects.toThrow(
+      'rls denied',
+    );
+    expect(fake.calls).toHaveLength(1);
+  });
+});
+
+describe('updateProfile', () => {
+  it('sends only the patched columns, scoped to the owner', async () => {
+    const { fake, client } = db();
+    await updateProfile(client, USER, { bio: 'ciao' });
+
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('profiles');
+    expect(call.op).toBe('update');
+    expect(call.values).toEqual({ bio: 'ciao' });
+    expect(call.filters).toEqual([['eq', 'id', USER]]);
+  });
+
+  it('strips columns the member may not set on themselves', async () => {
+    const { fake, client } = db();
+    await updateProfile(client, USER, {
+      bio: 'ciao',
+      identity_verified: true,
+      founding_member: true,
+      created_at: '2020-01-01T00:00:00Z',
+    } as never);
+
+    expect(fake.calls[0]!.values).toEqual({ bio: 'ciao' });
+  });
+
+  it('rejects an invalid patch before touching the database', async () => {
+    const { fake, client } = db();
+    await expect(updateProfile(client, USER, { handle: 'No Spaces!' })).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('surfaces a database error', async () => {
+    const { client } = db({
+      'profiles.update': [{ error: { code: '42501', message: 'rls denied' } }],
+    });
+    await expect(updateProfile(client, USER, { bio: 'ciao' })).rejects.toThrow('rls denied');
   });
 });

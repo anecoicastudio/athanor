@@ -102,7 +102,11 @@ export function AthanorWordmark({ className }: { className?: string }) {
     >
       <span aria-hidden>
         {[...name].map((ch, i) =>
-          ch === 'A' ? <LambdaA key={i} className="ml-[-0.10em] mr-[0.19em]" /> : <span key={i}>{ch}</span>,
+          ch === 'A' ? (
+            <LambdaA key={i} className="ml-[-0.10em] mr-[0.19em]" />
+          ) : (
+            <span key={i}>{ch}</span>
+          ),
         )}
       </span>
     </span>

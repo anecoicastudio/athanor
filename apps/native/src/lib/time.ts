@@ -55,10 +55,41 @@ export function dayKey(iso: string): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Short "17 giu" / "Jun 17" day+month label (star grant dates, receipts). */
-export function shortDate(iso: string, locale: Locale): string {
+/** Full "17 giugno 2026" / "17 June 2026" — renewal dates, payment receipts. */
+export function longDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleDateString(localeTag(locale), {
     day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+/** "17 giu, 18:00" / "17 Jun, 18:00" — when an event happens, within the current year. */
+export function dateTime(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleString(localeTag(locale), {
+    day: 'numeric',
     month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/** Same as {@link dateTime} plus the year — the event-create picker, where the
+ * chosen date can be far out and the year is not safe to infer. */
+export function dateTimeWithYear(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleString(localeTag(locale), {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/** "giugno 2026" / "June 2026" — calendar section headers. */
+export function monthYear(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleDateString(localeTag(locale), {
+    month: 'long',
+    year: 'numeric',
   });
 }

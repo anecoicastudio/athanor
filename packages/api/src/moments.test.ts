@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
-import { getMomentsPage, momentKeys, softDeleteMoment } from './moments';
+import { createMoment, getMomentsPage, momentKeys, softDeleteMoment } from './moments';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 
 const OWNER = '00000000-0000-0000-0000-000000000001';
 const M1 = '00000000-0000-0000-0000-0000000000a1';
@@ -127,5 +128,44 @@ describe('softDeleteMoment', () => {
     expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
       true,
     );
+  });
+});
+
+describe('moments — a database failure reaches the caller', () => {
+  it('getMomentsPage rethrows instead of rendering an empty grid', async () => {
+    const fake = makeFakeClient({ 'moments.select': [{ error: DB_DOWN }] });
+    await expect(getMomentsPage(asClient(fake), OWNER)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  // The bytes are already in the moments bucket by the time this row insert runs, so swallowing
+  // the error would leave an orphaned object that only the GDPR reaper would ever collect.
+  it('createMoment rethrows rather than orphaning the uploaded bytes', async () => {
+    const fake = makeFakeClient({ 'moments.insert': [{ error: DB_DOWN }] });
+    await expect(
+      createMoment(asClient(fake), {
+        owner_id: OWNER,
+        kind: 'photo',
+        media_path: `${OWNER}/m1.jpg`,
+        thumb_path: null,
+        caption: null,
+        duration_s: null,
+        width: null,
+        height: null,
+      }),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('softDeleteMoment rethrows rather than reporting a silent success', async () => {
+    const fake = makeFakeClient({ 'moments.update': [{ error: DB_DOWN }] });
+    await expect(softDeleteMoment(asClient(fake), M1)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('getMomentsPage holds its empty-payload guard', async () => {
+    const fake = makeFakeClient({ 'moments.select': [{ data: null }] });
+    await expect(getMomentsPage(asClient(fake), OWNER)).resolves.toMatchObject({
+      moments: [],
+    });
   });
 });

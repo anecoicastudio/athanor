@@ -7,3 +7,9 @@ coverage
 pnpm-lock.yaml
 supabase/.temp
 packages/api/src/database.types.ts
+# Tool-regenerated files: their generators emit unformatted output, so formatting
+# them makes `format:check` flap on every regeneration.
+apps/native/expo-env.d.ts
+apps/native/nativewind-env.d.ts
+apps/web/next-env.d.ts
+apps/native/assets/expo.icon/icon.json

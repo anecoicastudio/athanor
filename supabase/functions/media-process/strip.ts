@@ -252,11 +252,7 @@ function stripMp3(b: Uint8Array): StripResult {
 export function stripMetadata(bytes: Uint8Array): StripResult {
   if (bytes.length >= 4 && startsWith(bytes, 0, [0xff, 0xd8, 0xff])) return stripJpeg(bytes);
   if (bytes.length >= 16 && startsWith(bytes, 0, [0x89, 0x50, 0x4e, 0x47])) return stripPng(bytes);
-  if (
-    bytes.length >= 16 &&
-    ascii(bytes, 0, 4) === 'RIFF' &&
-    ascii(bytes, 8, 4) === 'WEBP'
-  ) {
+  if (bytes.length >= 16 && ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WEBP') {
     return stripWebp(bytes);
   }
   if (bytes.length >= 12 && ascii(bytes, 4, 4) === 'ftyp') {
@@ -271,8 +267,7 @@ export function stripMetadata(bytes: Uint8Array): StripResult {
   }
   if (
     bytes.length >= 10 &&
-    (ascii(bytes, 0, 3) === 'ID3' ||
-      (bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0))
+    (ascii(bytes, 0, 3) === 'ID3' || (bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0))
   ) {
     return stripMp3(bytes);
   }

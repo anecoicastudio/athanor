@@ -116,6 +116,7 @@ Deno.test('award: happy path → ledger row + full re-aggregation upsert + star 
     type: 'own_milestone',
     points: 10,
     ref_id: null,
+    counterparty_id: null, // solo event — own_milestone has no other party
     reason: {},
   });
 
@@ -212,3 +213,126 @@ Deno.test(
     assert(!c.db.calls.some((call) => call.op === 'insert' || call.op === 'update'));
   },
 );
+
+// ── pairwise dampening (PRD §4.9 "reciprocal exchanges dampened") ────────────
+// The rule is PAIRWISE — per counterparty. It used to be keyed on refId, which for
+// milestone_help is the milestone_helps row id: unique per help, so the exchange index never
+// advanced past 1 and the dampening never fired. Two colluding accounts confirming each
+// other's fabricated milestones collected the full +40 indefinitely and hit the 1000 clamp in
+// roughly 25 exchanges.
+
+const COUNTERPARTY = '00000000-0000-0000-0000-0000000000c1';
+
+/** Award scripting for a milestone_help that lands, with `priorPair` earlier pair events. */
+const helpCtx = (priorPair: number) =>
+  ctx({
+    // FIFO on aura_events: [0] the dampening count, [1] the re-aggregation read,
+    // [2] gatherStarFacts' ledger-type count.
+    'aura_events.select': [{ count: priorPair }, { data: [] }, { data: [] }],
+    'aura_events.insert': [{}],
+    'aura_scores.select': [{ data: { score: 0, peak_score: 0, last_qualifying_action_at: null } }],
+    'stars.select': [{ data: [] }],
+    'dreams.select': [{ data: [] }],
+    'posts.select': [{ data: [] }],
+    'invites.select': [{ count: 0 }],
+  });
+
+const awardHelp = (c: ReturnType<typeof ctx>, counterpartyId: string | null, refId = REF) =>
+  runAward(c, { mode: 'award', profileId: PROFILE, type: 'milestone_help', refId, counterpartyId });
+
+Deno.test('award: the dampening count is keyed on the counterparty, not the artifact', async () => {
+  const c = helpCtx(0);
+  await awardHelp(c, COUNTERPARTY);
+  const countRead = c.db.calls.find((call) => call.table === 'aura_events' && call.op === 'select');
+  assert(countRead, 'no dampening read was issued');
+  assert(
+    countRead.filters.some((f) => f[0] === 'eq' && f[1] === 'counterparty_id'),
+    'the dampening count does not filter on counterparty_id',
+  );
+  assert(
+    !countRead.filters.some((f) => f[0] === 'eq' && f[1] === 'ref_id'),
+    'the dampening count still filters on ref_id — a fresh artifact would reset the curve',
+  );
+});
+
+Deno.test('award: the first exchange with a counterparty is worth the full +40', async () => {
+  const c = helpCtx(0);
+  assertEquals((await awardHelp(c, COUNTERPARTY).then((r) => r.json())).awarded, 40);
+});
+
+Deno.test('award: a repeat exchange with the SAME counterparty is dampened', async () => {
+  // Two priors → third exchange → factor 1/(1+0.5·2) = 0.5 → 20.
+  const c = helpCtx(2);
+  assertEquals((await awardHelp(c, COUNTERPARTY).then((r) => r.json())).awarded, 20);
+});
+
+Deno.test('award: a NEW milestone with the same counterparty is still dampened', async () => {
+  // The collusion loop: a fresh milestone means a fresh refId. Keyed on the counterparty it
+  // no longer matters, which is the whole point of the fix.
+  const c = helpCtx(2);
+  const fresh = '00000000-0000-0000-0000-00000000f00d';
+  assertEquals((await awardHelp(c, COUNTERPARTY, fresh).then((r) => r.json())).awarded, 20);
+});
+
+Deno.test('award: a different counterparty is a fresh curve, not a penalty', async () => {
+  // Helping many different people must stay fully rewarded — the rule targets reciprocity,
+  // not generosity.
+  const c = helpCtx(0);
+  const other = '00000000-0000-0000-0000-0000000000c2';
+  assertEquals((await awardHelp(c, other).then((r) => r.json())).awarded, 40);
+});
+
+Deno.test('award: the counterparty is persisted on the ledger row', async () => {
+  // Without this the next award reads a count of zero and the curve resets every time.
+  const c = helpCtx(0);
+  await awardHelp(c, COUNTERPARTY);
+  const insert = c.db.calls.find((call) => call.table === 'aura_events' && call.op === 'insert');
+  assertEquals((insert?.values as { counterparty_id?: string }).counterparty_id, COUNTERPARTY);
+});
+
+Deno.test(
+  'award: a solo event issues no dampening read and stores a null counterparty',
+  async () => {
+    const c = ctx({
+      'aura_events.insert': [{}],
+      'aura_events.select': [{ data: [] }, { data: [] }],
+      'aura_scores.select': [
+        { data: { score: 0, peak_score: 0, last_qualifying_action_at: null } },
+      ],
+      'stars.select': [{ data: [] }],
+      'dreams.select': [{ data: [] }],
+      'posts.select': [{ data: [] }],
+      'invites.select': [{ count: 0 }],
+    });
+    await runAward(c, { mode: 'award', profileId: PROFILE, type: 'own_milestone', refId: REF });
+    const insert = c.db.calls.find((call) => call.table === 'aura_events' && call.op === 'insert');
+    assertEquals((insert?.values as { counterparty_id?: string | null }).counterparty_id, null);
+  },
+);
+
+Deno.test('award: an unresolvable counterparty falls back to the undampened award', async () => {
+  // The trigger emits JSON null when the dream was hard-deleted. Denying the helper their
+  // points because the owner's dream vanished would punish the wrong person.
+  const c = helpCtx(0);
+  assertEquals((await awardHelp(c, null).then((r) => r.json())).awarded, 40);
+});
+
+Deno.test('bodySchema accepts a null counterpartyId, as jsonb_build_object emits it', () => {
+  assert(
+    bodySchema.safeParse({
+      mode: 'award',
+      profileId: PROFILE,
+      type: 'milestone_help',
+      refId: REF,
+      counterpartyId: null,
+    }).success,
+  );
+  assert(
+    !bodySchema.safeParse({
+      mode: 'award',
+      profileId: PROFILE,
+      type: 'milestone_help',
+      counterpartyId: 'not-a-uuid',
+    }).success,
+  );
+});

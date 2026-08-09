@@ -39,9 +39,7 @@ export function DreamSection({ locale, dream }: { locale: Locale; dream: OwnDrea
       incomingSlot={
         incoming.length > 0 ? (
           <View className="mt-2 gap-3 border-t border-hair pt-4">
-            <SectionLabel>
-              {t('help.owner.sectionLabel', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('help.owner.sectionLabel', locale)}</SectionLabel>
             {incoming
               .filter((h) => h.status === 'offered' || h.status === 'accepted')
               .map((h) => (

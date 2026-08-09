@@ -62,28 +62,30 @@ select has_function('athanor', 'enqueue_score_award', array['uuid','text','uuid'
 select has_function('athanor', 'enqueue_notification', array['uuid','text','text','jsonb','jsonb'], 'enqueue_notification exists');
 select has_function('public',  'enqueue_media_process', 'enqueue_media_process exists');
 
-select is(
-  (select count(*)::int from pg_proc p
-     join pg_namespace n on n.oid = p.pronamespace
-    where (n.nspname, p.proname) in (
-            ('public','enqueue_push'), ('public','invoke_score_engine_decay'),
-            ('athanor','enqueue_score_award'), ('athanor','enqueue_notification'),
-            ('public','enqueue_media_process'))
-      and p.prosecdef),
-  5,
-  'all five are still security definer'
+-- Asserted as "none of them lacks the property" rather than "exactly N have it": these names
+-- are overloadable (enqueue_score_award gained a 5-arg counterparty form in 20260808180801),
+-- and a count would fail on a legitimate new overload while still passing if an existing one
+-- silently lost security definer and another was added.
+select is_empty(
+  $$ select n.nspname || '.' || p.proname || '/' || p.pronargs from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where (n.nspname, p.proname) in (
+              ('public','enqueue_push'), ('public','invoke_score_engine_decay'),
+              ('athanor','enqueue_score_award'), ('athanor','enqueue_notification'),
+              ('public','enqueue_media_process'))
+        and not p.prosecdef $$,
+  'every enqueue function is still security definer'
 );
 
-select is(
-  (select count(*)::int from pg_proc p
-     join pg_namespace n on n.oid = p.pronamespace
-    where (n.nspname, p.proname) in (
-            ('public','enqueue_push'), ('public','invoke_score_engine_decay'),
-            ('athanor','enqueue_score_award'), ('athanor','enqueue_notification'),
-            ('public','enqueue_media_process'))
-      and 'search_path=""' = any(p.proconfig)),
-  5,
-  'all five still have a locked (empty) search_path'
+select is_empty(
+  $$ select n.nspname || '.' || p.proname || '/' || p.pronargs from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where (n.nspname, p.proname) in (
+              ('public','enqueue_push'), ('public','invoke_score_engine_decay'),
+              ('athanor','enqueue_score_award'), ('athanor','enqueue_notification'),
+              ('public','enqueue_media_process'))
+        and 'search_path=""' <> all(coalesce(p.proconfig, array[]::text[])) $$,
+  'every enqueue function still has a locked (empty) search_path'
 );
 
 select function_privs_are(

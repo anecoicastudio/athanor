@@ -22,6 +22,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SettingsGroup } from '@/components/settings/SettingsGroup';
 import { Toast } from '@/components/Toast';
 import { SettingsRow } from '@/components/settings/SettingsRow';
+import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
 import { useEntitlement } from '@/hooks/use-entitlement';
@@ -62,15 +63,15 @@ export default function SettingsScreen() {
     queryFn: () => getMyReferralCode(supabase),
   });
 
-  // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
-  // Shares auraKeys.score + getAuraScore with profile.tsx/Home (one queryFn per key).
+  // Read-only Aura snapshot. Shares auraKeys.score + getAuraScore with profile.tsx/Home
+  // (one queryFn per key).
   const userId = session?.user.id ?? '';
-  const { data: auraSnapshot } = useQuery({
+  const { data: auraSnapshot, isError: auraIsError } = useQuery({
     queryKey: auraKeys.score(userId),
     queryFn: () => getAuraScore(supabase, userId),
     enabled: !!userId,
   });
-  const aura = auraSnapshot?.score ?? 0;
+  const aura = auraDisplayValue(auraSnapshot?.score, auraIsError);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -124,7 +125,7 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.aura.title', locale)}
             description={t('settings.aura.desc', locale)}
-            value={String(aura)}
+            value={aura}
             onPress={() => router.push('/(modal)/aura')}
           />
           <SettingsRow

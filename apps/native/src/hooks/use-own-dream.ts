@@ -45,7 +45,8 @@ export function useOwnDream(userId: string) {
             if (cancelled) return;
             setMilestones(tappe);
             // Owner-side «Aiuti in arrivo»: offers on my tappe + their helper display names.
-            const offers = await listIncomingHelps(
+            // First keyset page only — the panel lists the newest offers, not an archive.
+            const { rows: offers } = await listIncomingHelps(
               supabase,
               tappe.map((m) => m.id),
             );
@@ -93,12 +94,11 @@ export function useOwnDream(userId: string) {
   // can't diverge until the next focus. Best-effort: keeps optimistic state on error.
   const refetchIncoming = useCallback(async () => {
     try {
-      setIncoming(
-        await listIncomingHelps(
-          supabase,
-          milestones.map((m) => m.id),
-        ),
+      const { rows } = await listIncomingHelps(
+        supabase,
+        milestones.map((m) => m.id),
       );
+      setIncoming(rows);
     } catch (e) {
       devWarn('[profile] refetchIncoming', e);
       // keep the optimistic state; a later focus refetch reconciles

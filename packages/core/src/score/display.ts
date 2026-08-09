@@ -29,6 +29,15 @@ export function pickNextStar(stars: Star[]): NextStar | null {
   if (unearned.length === 0) return null;
   const ratio = (s: Star) => (s.progress.total > 0 ? s.progress.done / s.progress.total : 0);
   const order = (s: Star) => STAR_KEYS.indexOf(s.starId);
+  // Three survive in this reduce — an equivalent mutant in effect, though for reachability
+  // rather than strict logical equivalence:
+  //   - widening either epsilon comparison to `>=` / `<=` differs only at a ratio gap of
+  //     exactly ±1e-9. Integer done/total *can* produce that (1/1_000_000_000), but star totals
+  //     are 2–10 (STAR_CRITERIA), so nothing near it is reachable.
+  //   - `<=` vs `<` on the tie-break differs only for two stars sharing a starId. The unique
+  //     index `stars_one_per_profile (profile_id, star_id)` in
+  //     supabase/migrations/20260617105202_stars.sql makes that row pair impossible.
+  // Neither is worth a fixture that could not occur; both would assert the mutant, not the spec.
   const best = unearned.reduce((a, b) => {
     const d = ratio(b) - ratio(a);
     if (d > 1e-9) return b;

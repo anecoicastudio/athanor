@@ -11,13 +11,8 @@ import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
-
-/** A Postgres unique-violation (23505) — you already offered help on this tappa. */
-function isUniqueViolation(e: unknown): boolean {
-  return (
-    typeof e === 'object' && e !== null && 'code' in e && (e as { code?: string }).code === '23505'
-  );
-}
+// A unique violation here means you already offered help on this tappa.
+import { isUniqueViolation } from '@/lib/pg-error';
 
 const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
 

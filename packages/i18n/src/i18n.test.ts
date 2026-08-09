@@ -46,7 +46,8 @@ describe('catalog quality', () => {
     for (const key of Object.keys(it) as MessageKey[]) {
       const a = placeholders(it[key]);
       const b = placeholders(en[key]);
-      if (a.join(',') !== b.join(',')) mismatches.push(`${key}: IT [${a}] EN [${b}]`);
+      if (a.join(',') !== b.join(','))
+        mismatches.push(`${key}: IT [${a.join(',')}] EN [${b.join(',')}]`);
     }
     expect(mismatches).toEqual([]);
   });
@@ -62,5 +63,151 @@ describe('catalog quality', () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('catalog shape', () => {
+  // i18n.md: "Flat dot-namespaced keys (moment.new, tabs.home)". Asserted because the catalogs
+  // are hand-edited JSON: a nested object would typecheck as a MessageKey value and then render
+  // as "[object Object]" on screen.
+  test('every key is flat and dot-namespaced, in both catalogs', () => {
+    // Both, not just IT: a nested object in en.json would survive the empty-value test below
+    // (String({}) is '[object Object]', not blank) and render as that literal on screen.
+    const offenders: string[] = [];
+    for (const [name, cat] of [
+      ['it', it],
+      ['en', en],
+    ] as [string, Record<string, unknown>][]) {
+      for (const [key, value] of Object.entries(cat)) {
+        if (typeof value !== 'string' || !key.includes('.')) offenders.push(`${name}.${key}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  test('no value is empty or whitespace, in either locale', () => {
+    // An empty value renders as a blank label rather than falling back, so it is worse than a
+    // missing key — the parity test would catch the latter.
+    const offenders: string[] = [];
+    for (const [name, cat] of [
+      ['it', it],
+      ['en', en],
+    ] as [string, Record<string, string>][]) {
+      for (const [key, value] of Object.entries(cat)) {
+        if (String(value).trim() === '') offenders.push(`${name}.${key}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe('translation completeness', () => {
+  /**
+   * Keys whose IT and EN values are legitimately identical: proper nouns (Athanor Live,
+   * Momenti, App Store), format-only strings ("{n}m"), and words spelled the same in both
+   * languages (Bio, Post, Email, Password, Account, Audio).
+   *
+   * This is a RATCHET, not a description. Every entry here was checked once; the test exists so
+   * that a NEW identical pair — an EN value pasted from the IT catalog and never translated —
+   * fails instead of disappearing into the crowd. Adding a key here is a deliberate act.
+   */
+  const IDENTICAL_BY_DESIGN = new Set([
+    'admin.login.email',
+    'admin.login.password',
+    'admin.target.post',
+    'admin.waitlist.colEmail',
+    'app.name',
+    'aura.unit',
+    'auth.codePlaceholder',
+    'auth.password.label',
+    'chat.peerAura',
+    'circle.benefit.ai.t',
+    'circle.benefit.analytics.t',
+    'circle.title',
+    'costellazioni.filter.business',
+    'costellazioni.filter.startup',
+    'event.cat.business',
+    'event.cat.networking',
+    'event.checkin',
+    'event.create.online',
+    'event.create.streamUrlPlaceholder',
+    'event.streamKind',
+    'event.whereOnline',
+    'feed.audio',
+    'feed.filter.business',
+    'feed.filter.human',
+    'fund.countdown.minutes',
+    'fund.countdown.seconds',
+    'fund.split.ops',
+    'home.today.seeLive',
+    'lang.en',
+    'lang.it',
+    'landing.aura.eyebrow',
+    'landing.download.appStoreName',
+    'landing.download.googlePlayName',
+    'landing.footer.anecoica',
+    'landing.footer.copyright',
+    'landing.footer.nuovarealta',
+    'landing.footer.poweredby',
+    'landing.pillars.circle.name',
+    'landing.pillars.community.name',
+    'landing.pillars.live.name',
+    'landing.pillars.marketplace.name',
+    'legal.privacy',
+    'live.athanorDays.label',
+    'live.chip.athanorDay',
+    'live.distance',
+    'live.map.cityCount',
+    'live.online',
+    'live.tab.online',
+    'live.title',
+    'milestone.sectionLabel',
+    'momenti.title',
+    'notif.prefs.moment',
+    'post.detail.title',
+    'profile.bio.label',
+    'recap.next.title',
+    'search.filter.aura.500',
+    'search.filter.aura.700',
+    'search.filter.aura.850',
+    'search.filter.summary.aura',
+    'search.group.market',
+    'search.scope.market',
+    'settings.account.subUnverified',
+    'settings.circle.title',
+    'settings.section.account',
+    'star.mentor',
+    'star.next.progress',
+    'star.unit.momenti',
+    'star.unit.reazioni',
+    'store.name',
+    'tabs.community',
+    'tabs.home',
+    'tabs.live',
+    'tabs.momenti',
+    'tag.identity.coach',
+    'tag.identity.mentor',
+    'tag.seeking.business',
+    'tag.seeking.mentorship',
+    'ticket.scan.title',
+    'time.hours',
+    'time.minutes',
+    'trust.privacy.section',
+  ]);
+
+  test('no NEW key has an EN value identical to its IT value', () => {
+    const untranslated = (Object.keys(it) as MessageKey[]).filter(
+      (key) => it[key] === en[key] && !IDENTICAL_BY_DESIGN.has(key),
+    );
+    expect(untranslated).toEqual([]);
+  });
+
+  test('the allowlist has no stale entries', () => {
+    // A key that was translated later, or removed, must leave the list — otherwise the ratchet
+    // quietly loosens as the catalog changes underneath it.
+    const stale = [...IDENTICAL_BY_DESIGN].filter(
+      (key) => !(key in it) || it[key as MessageKey] !== en[key as MessageKey],
+    );
+    expect(stale).toEqual([]);
   });
 });

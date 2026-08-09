@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { auraKeys, getAuraScore } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
-import { type AuraSnapshot, ZERO_AURA_SNAPSHOT } from '@athanor/schemas';
+import type { AuraSnapshot } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { WeekCard } from '@/components/aura/WeekCard';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
@@ -13,6 +13,7 @@ import { HomeHeader } from '@/components/home/HomeHeader';
 import { InviteCard } from '@/components/home/InviteCard';
 import { PrimeStelleCard } from '@/components/home/PrimeStelleCard';
 import { StarsMiniRow } from '@/components/home/StarsMiniRow';
+import { auraSnapshotOrNull } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
@@ -29,14 +30,14 @@ export default function HomeScreen() {
   const router = useRouter();
   const userId = session?.user.id ?? '';
 
-  // Read-only Aura snapshot (M1 always zero; M6 score-engine fills real values).
+  // Read-only Aura snapshot (M6 score-engine fills the values; rule #1, never client-written).
   // Shares auraKeys.score + getAuraScore with profile.tsx (one queryFn per key).
   const auraQuery = useQuery({
     queryKey: auraKeys.score(userId),
     queryFn: () => getAuraScore(supabase, userId),
     enabled: !!userId,
   });
-  const aura: AuraSnapshot = auraQuery.data ?? ZERO_AURA_SNAPSHOT;
+  const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
   // Week recap: shared queryFn (lib/week-recap) — same key as AnalyticsLiteCard.
   const recapQuery = useQuery({

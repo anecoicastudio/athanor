@@ -103,7 +103,7 @@ export async function getOrCreateConversation(
 ): Promise<string> {
   const { data, error } = await client.rpc('get_or_create_conversation', { peer_id: peerId });
   if (error) throw error;
-  return data as string;
+  return data;
 }
 
 /**

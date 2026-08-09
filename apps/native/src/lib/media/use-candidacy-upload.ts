@@ -59,7 +59,8 @@ export function useCandidacyUpload(uid: string): {
         setStatus('error');
         return;
       }
-      const asset = kind === 'record' ? await recordVideo() : await pickFromLibrary({ allowVideo: true });
+      const asset =
+        kind === 'record' ? await recordVideo() : await pickFromLibrary({ allowVideo: true });
       await handle(asset);
     } catch {
       setStatus('error');

@@ -67,9 +67,7 @@ export default function MyEventsScreen() {
 
         {events.length > 0 ? (
           <View className="gap-3">
-            <SectionLabel>
-              {t('live.mine.section', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('live.mine.section', locale)}</SectionLabel>
             {events.map((e) => (
               <EventRow
                 key={e.id}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import { addPostMedia, getPostMedia } from './post-media';
 
 const POST = '00000000-0000-0000-0000-0000000000b1';
@@ -115,5 +116,53 @@ describe('addPostMedia', () => {
       ] as never),
     ).rejects.toThrow();
     expect(calls).toHaveLength(0); // stub untouched — not even from()
+  });
+});
+
+describe('post-media — a database failure reaches the caller', () => {
+  it('getPostMedia rethrows instead of rendering a post as text-only', async () => {
+    const fake = makeFakeClient({ 'post_media.select': [{ error: DB_DOWN }] });
+    await expect(getPostMedia(asClient(fake), POST)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  // The upload already succeeded by this point, so swallowing this error would leave an
+  // orphaned object in storage with no row pointing at it.
+  it('addPostMedia rethrows rather than orphaning the uploaded object', async () => {
+    const fake = makeFakeClient({ 'post_media.insert': [{ error: DB_DOWN }] });
+    await expect(
+      addPostMedia(asClient(fake), [
+        {
+          post_id: POST,
+          storage_path: 'post-media/u1/img-0.jpg',
+          kind: 'image',
+          position: 0,
+          duration_s: null,
+          width: null,
+          height: null,
+        },
+      ]),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  // Both pin a `?? []` guard against a state that cannot actually occur: a zero-match select
+  // returns [], and a returning insert of one row cannot come back with none. They are here so
+  // that deleting the guard fails rather than passes — NOT as a model of PostgREST behaviour.
+  it('the read and the write both hold their empty-payload guard', async () => {
+    const read = makeFakeClient({ 'post_media.select': [{ data: null }] });
+    await expect(getPostMedia(asClient(read), POST)).resolves.toEqual([]);
+    const write = makeFakeClient({ 'post_media.insert': [{ data: null }] });
+    await expect(
+      addPostMedia(asClient(write), [
+        {
+          post_id: POST,
+          storage_path: 'post-media/u1/img-0.jpg',
+          kind: 'image',
+          position: 0,
+          duration_s: null,
+          width: null,
+          height: null,
+        },
+      ]),
+    ).resolves.toEqual([]);
   });
 });

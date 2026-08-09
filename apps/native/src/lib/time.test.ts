@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { dayKey, ledgerDayLabel, localeTag, shortDate, timeAgo } from './time';
+import {
+  dateTime,
+  dateTimeWithYear,
+  dayKey,
+  ledgerDayLabel,
+  localeTag,
+  longDate,
+  monthYear,
+  timeAgo,
+} from './time';
 
 // Fixed reference instant so every relative computation is deterministic.
 const NOW = new Date('2026-06-17T12:00:00').getTime();
@@ -72,9 +81,95 @@ describe('dayKey', () => {
   });
 });
 
-describe('shortDate', () => {
-  it('renders a "day month" shape per locale', () => {
-    expect(shortDate('2026-06-17T12:00:00', 'en')).toMatch(/^17\s\p{L}+$/u);
-    expect(shortDate('2026-06-17T12:00:00', 'it')).toMatch(/^17\s\p{L}+$/u);
+describe('longDate', () => {
+  const iso = '2026-06-17T12:00:00';
+
+  it('renders "day month year" with a spelled-out month', () => {
+    expect(longDate(iso, 'en')).toMatch(/^17\s\p{L}+\s2026$/u);
+    expect(longDate(iso, 'it')).toMatch(/^17\s\p{L}+\s2026$/u);
+  });
+
+  it('the month name is actually localised', () => {
+    expect(longDate(iso, 'en')).not.toBe(longDate(iso, 'it'));
+  });
+
+  // Coupled to the June fixture: "June" clears 4 letters, its abbreviation "Jun" does not.
+  // A month whose short form is already ≥4 letters would not distinguish the two.
+  it('spells the month out rather than abbreviating it', () => {
+    expect(longDate(iso, 'en')).toMatch(/\p{L}{4,}/u);
+  });
+
+  it('carries no time-of-day', () => {
+    expect(longDate(iso, 'en')).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+});
+
+describe('dateTime', () => {
+  const iso = '2026-06-17T18:30:00';
+
+  it('carries day, month and a 24h clock time', () => {
+    expect(dateTime(iso, 'it')).toMatch(/17/);
+    expect(dateTime(iso, 'it')).toMatch(/18:30/);
+    expect(dateTime(iso, 'en')).toMatch(/18:30/);
+  });
+
+  it('omits the year — event detail assumes the current one', () => {
+    expect(dateTime(iso, 'it')).not.toContain('2026');
+    expect(dateTime(iso, 'en')).not.toContain('2026');
+  });
+
+  it('is locale-aware', () => {
+    expect(dateTime(iso, 'en')).not.toBe(dateTime(iso, 'it'));
+  });
+});
+
+describe('dateTimeWithYear', () => {
+  const iso = '2026-06-17T18:30:00';
+
+  it('is dateTime plus the year', () => {
+    expect(dateTimeWithYear(iso, 'it')).toContain('2026');
+    expect(dateTimeWithYear(iso, 'it')).toMatch(/18:30/);
+    expect(dateTimeWithYear(iso, 'en')).toContain('2026');
+  });
+
+  it('is strictly longer than the year-less form', () => {
+    expect(dateTimeWithYear(iso, 'it').length).toBeGreaterThan(dateTime(iso, 'it').length);
+  });
+
+  it('a Date round-tripped through toISOString formats identically', () => {
+    // event-create holds a Date, not an ISO string; the round trip must not shift it.
+    const d = new Date(iso);
+    expect(dateTimeWithYear(d.toISOString(), 'it')).toBe(
+      d.toLocaleString(localeTag('it'), {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+  });
+});
+
+describe('monthYear', () => {
+  const iso = '2026-06-17T12:00:00';
+
+  it('renders "month year" with no day', () => {
+    expect(monthYear(iso, 'en')).toMatch(/^\p{L}+\s2026$/u);
+    expect(monthYear(iso, 'it')).toMatch(/^\p{L}+\s2026$/u);
+  });
+
+  it('is locale-aware', () => {
+    expect(monthYear(iso, 'en')).not.toBe(monthYear(iso, 'it'));
+  });
+
+  it('groups every day of a month under one key', () => {
+    const first = monthYear('2026-06-01T00:00:00', 'it');
+    const last = monthYear('2026-06-30T23:59:00', 'it');
+    expect(first).toBe(last);
+  });
+
+  it('separates the same month across different years', () => {
+    expect(monthYear('2026-06-17T12:00:00', 'it')).not.toBe(monthYear('2027-06-17T12:00:00', 'it'));
   });
 });

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import type { SearchFilters } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
@@ -11,6 +10,16 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { MODAL_A11Y } from '@/lib/a11y';
+import {
+  AURA_BUCKETS,
+  type AuraBucket,
+  STAR_VALUES,
+  type StarValue,
+  auraMinFromBucket,
+  bucketFromAuraMin,
+  parseStar,
+  serializeFilters,
+} from '@/lib/search-filters';
 
 /**
  * Advanced-filter sheet (M8 §3.5, Task 9) — member-only.
@@ -35,32 +44,6 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * an active accent / selection affordance, not a glow. No literal hex below.
  */
 
-type AuraBucket = 'any' | '500' | '700' | '850';
-type StarValue = NonNullable<SearchFilters['star']>;
-
-const AURA_BUCKETS: AuraBucket[] = ['any', '500', '700', '850'];
-const STAR_VALUES: StarValue[] = [
-  'visionario',
-  'creatore',
-  'mentor',
-  'innovatore',
-  'collaboratore',
-  'ambasciatore',
-];
-
-function auraMinFromBucket(bucket: AuraBucket): number | undefined {
-  if (bucket === 'any') return undefined;
-  return Number(bucket);
-}
-
-function bucketFromAuraMin(auraMin?: string): AuraBucket {
-  if (!auraMin) return 'any';
-  if (auraMin === '500') return '500';
-  if (auraMin === '700') return '700';
-  if (auraMin === '850') return '850';
-  return 'any';
-}
-
 export default function SearchFiltersScreen() {
   const router = useRouter();
   const { profile } = useAuth();
@@ -75,12 +58,7 @@ export default function SearchFiltersScreen() {
   // ── Local draft state ─────────────────────────────────────────────────────────
   const [auraBucket, setAuraBucket] = useState<AuraBucket>(() => bucketFromAuraMin(params.auraMin));
   const [city, setCity] = useState(params.city ?? '');
-  const [star, setStar] = useState<StarValue | undefined>(() => {
-    const raw = params.star;
-    return raw !== undefined && (STAR_VALUES as string[]).includes(raw)
-      ? (raw as StarValue)
-      : undefined;
-  });
+  const [star, setStar] = useState<StarValue | undefined>(() => parseStar(params.star));
 
   // ── Guard: while loading render nothing (avoid false "lapsed" flash) ──────────
   if (entitlementLoading) {
@@ -96,12 +74,7 @@ export default function SearchFiltersScreen() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleApply = () => {
-    const auraMin = auraMinFromBucket(auraBucket);
-    const filledCity = city.trim();
-    const params: Record<string, string> = {};
-    if (auraMin !== undefined) params.auraMin = String(auraMin);
-    if (filledCity) params.city = filledCity;
-    if (star) params.star = star;
+    const params = serializeFilters({ auraMin: auraMinFromBucket(auraBucket), city, star });
 
     // dismissTo pops this sheet and returns to the already-stacked /search screen
     // with updated params, triggering an automatic re-query on that screen.
@@ -149,9 +122,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Aura minima ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">
-            {t('search.filter.section.aura', locale)}
-          </SectionLabel>
+          <SectionLabel tone="foreground">{t('search.filter.section.aura', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {AURA_BUCKETS.map((bucket) => (
               <Chip
@@ -166,9 +137,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Città ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">
-            {t('search.filter.section.city', locale)}
-          </SectionLabel>
+          <SectionLabel tone="foreground">{t('search.filter.section.city', locale)}</SectionLabel>
           <TextInput
             className="rounded-full border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
             placeholder={t('search.filter.city.placeholder', locale)}
@@ -183,9 +152,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Stella ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">
-            {t('search.filter.section.star', locale)}
-          </SectionLabel>
+          <SectionLabel tone="foreground">{t('search.filter.section.star', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {STAR_VALUES.map((s) => (
               <Chip

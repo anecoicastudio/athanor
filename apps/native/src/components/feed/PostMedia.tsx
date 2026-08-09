@@ -3,26 +3,12 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
 import { useQuery } from '@tanstack/react-query';
 import { getPostMedia, postMediaKeys } from '@athanor/api';
-import type { Locale, PostMedia as PostMediaRow } from '@athanor/schemas';
+import type { Locale } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { aspectRatio, formatDuration } from '@/lib/media/format';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
-
-/** Seconds → `M:SS` (165 → "2:45"). Null/negative → "". */
-function formatDuration(s: number | null): string {
-  if (s === null || s < 0) return '';
-  const total = Math.floor(s);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
-
-/** Aspect ratio from intrinsic dims; fallback 4:5 (portrait) when unknown. */
-function aspectRatio(media: PostMediaRow): number {
-  if (media.width && media.height && media.height > 0) return media.width / media.height;
-  return 4 / 5;
-}
 
 /** A muted box used for loading skeletons and sign-fail placeholders. */
 function MediaBox({ children, ratio }: { children?: React.ReactNode; ratio: number }) {

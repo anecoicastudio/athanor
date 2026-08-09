@@ -12,6 +12,11 @@ export const AURA_GLOW_TIERS = [
 ] as const;
 
 export function auraGlowLevel(score: number): number {
+  // The `!Number.isFinite` half is load-bearing: +Infinity clears every tier `min`, so without
+  // it the loop would light the top tier. The `score <= 0` half is not — the lowest tier starts
+  // at 1, so any score ≤ 0 already falls out of the loop at level 0. It stays because it states
+  // the intent ("no glow below 1") at the top instead of leaving the reader to derive it, and
+  // it is why two mutants on that operand survive: each is an equivalent mutant, not untested.
   if (!Number.isFinite(score) || score <= 0) return 0;
   let level = 0;
   for (const tier of AURA_GLOW_TIERS) {

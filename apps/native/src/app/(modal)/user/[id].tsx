@@ -14,21 +14,13 @@ import {
   getProfileStatCounts,
   getStars,
   listMilestones,
-  listMyHelps,
+  listMyHelpsForMilestones,
   momentKeys,
   profileKeys,
   unblockUser,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import {
-  type AuraSnapshot,
-  type Help,
-  type Locale,
-  type Milestone,
-  type PersonProfile,
-  type Star,
-  ZERO_AURA_SNAPSHOT,
-} from '@athanor/schemas';
+import type { AuraSnapshot, Help, Locale, Milestone, PersonProfile, Star } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -62,7 +54,9 @@ export default function PersonDetailScreen() {
   const [person, setPerson] = useState<PersonProfile | null | 'missing'>(null);
   const [dreamText, setDreamText] = useState<string | null>(null);
   const [tappe, setTappe] = useState<Milestone[]>([]);
-  const [aura, setAura] = useState<AuraSnapshot>(ZERO_AURA_SNAPSHOT);
+  // `null` until the read lands — a placeholder zero here would claim ANOTHER member has earned
+  // nothing, on the strength of the viewer's own connection (issue #10).
+  const [aura, setAura] = useState<AuraSnapshot | null>(null);
   const [stars, setStars] = useState<Star[]>([]);
   const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -171,19 +165,38 @@ export default function PersonDetailScreen() {
         const d = await getActiveDream(supabase, id);
         if (cancelled) return;
         setDreamText(d?.text ?? null);
+        let milestoneIds: string[] = [];
         if (d?.id) {
           const ms = await listMilestones(supabase, d.id);
           if (cancelled) return;
           setTappe(ms);
+          milestoneIds = ms.map((m) => m.id);
         }
-        const a = await getAuraScore(supabase, id);
+        // Aura + stars fail on their own terms. Folded into the outer catch, a timeout on
+        // either one marked the whole PERSON «non disponibile» — and before this branch even
+        // reached that catch it had already rendered a zero Aura with six dark stars. Their
+        // absence is a `null` snapshot («—»), not a verdict about the profile (issue #10).
+        try {
+          const a = await getAuraScore(supabase, id);
+          if (cancelled) return;
+          setAura(a);
+          // Earned-only via RLS for others' profiles (rule #3).
+          const earnedStars = await getStars(supabase, id);
+          if (cancelled) return;
+          setStars(earnedStars);
+        } catch {
+          // aura stays null, stars stay [] — the hero renders «—» rather than a false zero.
+        }
+        // A rejection AFTER unmount lands in that catch rather than a `cancelled` return,
+        // so re-check before spending another request.
         if (cancelled) return;
-        setAura(a);
-        // Earned-only via RLS for others' profiles (rule #3).
-        const earnedStars = await getStars(supabase, id);
-        if (cancelled) return;
-        setStars(earnedStars);
-        const helps = await listMyHelps(supabase, session.user.id);
+        // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an
+        // older one on this dream and render an already-helped tappa as un-helped.
+        const { rows: helps } = await listMyHelpsForMilestones(
+          supabase,
+          session.user.id,
+          milestoneIds,
+        );
         if (cancelled) return;
         setMyHelps(helps);
       } catch {
@@ -198,11 +211,15 @@ export default function PersonDetailScreen() {
   // Refetch my helps on focus so a fresh offer flips the tappa to «In attesa» after the sheet closes.
   useFocusEffect(
     useCallback(() => {
-      if (isSelf || !session) return;
+      if (isSelf || !session || tappe.length === 0) return;
       let cancelled = false;
-      listMyHelps(supabase, session.user.id)
-        .then((helps) => {
-          if (!cancelled) setMyHelps(helps);
+      listMyHelpsForMilestones(
+        supabase,
+        session.user.id,
+        tappe.map((m) => m.id),
+      )
+        .then(({ rows }) => {
+          if (!cancelled) setMyHelps(rows);
         })
         .catch(() => {
           // keep the prior helps; the next focus reconciles
@@ -210,7 +227,7 @@ export default function PersonDetailScreen() {
       return () => {
         cancelled = true;
       };
-    }, [isSelf, session]),
+    }, [isSelf, session, tappe]),
   );
 
   // Header right slot: share ✦ + kebab ⋯ overflow (shared by the missing + loaded branches).
@@ -291,7 +308,7 @@ export default function PersonDetailScreen() {
           hero={{
             handle: person.handle ?? '',
             bio: person.bio ?? null,
-            auraScore: aura.score,
+            auraScore: aura?.score ?? null,
             locale,
             auraLabel: t('profile.aura.theirLabel', locale),
             founding: person.founding_member,

@@ -32,9 +32,7 @@ function AthanorDaysCard({
 }) {
   return (
     <View className="gap-2 rounded-hero border border-aura-line bg-aura-soft p-5">
-      <SectionLabel tone="aura">
-        {t('live.athanorDays.label', locale)}
-      </SectionLabel>
+      <SectionLabel tone="aura">{t('live.athanorDays.label', locale)}</SectionLabel>
       <Text className="text-[17px] font-semibold text-foreground">
         {t('live.athanorDays.title', locale)}
       </Text>

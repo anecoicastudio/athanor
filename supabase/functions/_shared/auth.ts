@@ -13,7 +13,9 @@ import { type EnvPort, publishableKey, secretKey, secretKeys } from './keys.ts';
  */
 export async function requireUser(
   req: Request,
-): Promise<{ ok: true; user: User; userClient: SupabaseClient } | { ok: false; response: Response }> {
+): Promise<
+  { ok: true; user: User; userClient: SupabaseClient } | { ok: false; response: Response }
+> {
   const authHeader = req.headers.get('Authorization') ?? '';
   const userClient = createClient(Deno.env.get('SUPABASE_URL')!, publishableKey(), {
     global: { headers: { Authorization: authHeader } },
@@ -61,7 +63,8 @@ export function requireServiceRole(
   env?: EnvPort,
 ): { ok: true; secretKey: string } | { ok: false; response: Response } {
   const presented =
-    req.headers.get('apikey') || (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    req.headers.get('apikey') ||
+    (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   const accepted = secretKeys(env);
 
   let matched = false;

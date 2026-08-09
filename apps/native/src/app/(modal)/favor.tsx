@@ -21,13 +21,8 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { auraGlow } from '@/lib/glow';
 import { MODAL_A11Y } from '@/lib/a11y';
-
-/** A Postgres unique-violation (23505) — you already passed this favor. Treat as "done". */
-function isUniqueViolation(e: unknown): boolean {
-  return (
-    typeof e === 'object' && e !== null && 'code' in e && (e as { code?: string }).code === '23505'
-  );
-}
+// A unique violation here means you already passed this favor — treat it as "done".
+import { isUniqueViolation } from '@/lib/pg-error';
 
 /**
  * Passa il Favore sheet (M3, frontend `03` §3.6.1). A directed pay-it-forward surface:
@@ -105,9 +100,7 @@ export default function FavorScreen() {
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
           style={auraGlow(1)}
         >
-          <SectionLabel tone="aura">
-            {t('favor.done.eyebrow', locale)}
-          </SectionLabel>
+          <SectionLabel tone="aura">{t('favor.done.eyebrow', locale)}</SectionLabel>
           <Text className="text-center text-2xl text-foreground">
             {t('favor.done.title', locale, { name })}
           </Text>

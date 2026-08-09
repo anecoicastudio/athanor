@@ -27,6 +27,8 @@ export function resolveBootDecision(input: {
   timedOut: boolean;
   serverRejectedVersion: boolean;
 }): BootDecision {
+  // `input.cached !== null` is an equivalent mutant target: when cached IS null the ternary
+  // yields `input.cached`, which is that same null. Kept for symmetry with the 'loading' arm.
   const snapshot =
     input.fresh ?? (input.cached !== 'loading' && input.cached !== null ? input.cached : null);
 
@@ -38,6 +40,8 @@ export function resolveBootDecision(input: {
       maintenance: snapshot.maintenance,
     });
     if (gate === 'maintenance') {
+      // The `?.` cannot fire: this arm is only reached when maintenance.enabled is true, so
+      // maintenance is non-null here. Equivalent mutant, kept because the type is nullable.
       return { kind: 'maintenance', eta: snapshot.maintenance?.eta ?? null };
     }
     if (gate === 'force-update') return { kind: 'force-update' };

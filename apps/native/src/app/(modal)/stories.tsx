@@ -47,8 +47,8 @@ export default function StoriesScreen() {
 
   const reactionQuery = useQuery({
     queryKey: [...storyKeys.reactions(current?.id ?? 'none'), 'viewer'],
-    queryFn: () => getViewerStoryReaction(supabase, current!.id),
-    enabled: Boolean(current) && !isOwn,
+    queryFn: () => getViewerStoryReaction(supabase, current!.id, myId),
+    enabled: Boolean(current) && !isOwn && Boolean(myId),
   });
   const countQuery = useQuery({
     queryKey: [...storyKeys.reactions(current?.id ?? 'none'), 'count'],

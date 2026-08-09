@@ -23,7 +23,9 @@ describe('waitlistInsertSchema', () => {
     expect(() => waitlistInsertSchema.parse({ email: 'not-an-email' })).toThrow();
   });
   it('rejects a source over 80 chars', () => {
-    expect(() => waitlistInsertSchema.parse({ email: 'a@b.com', source: 'x'.repeat(81) })).toThrow();
+    expect(() =>
+      waitlistInsertSchema.parse({ email: 'a@b.com', source: 'x'.repeat(81) }),
+    ).toThrow();
   });
 });
 

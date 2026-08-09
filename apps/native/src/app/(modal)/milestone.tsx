@@ -64,9 +64,7 @@ export default function MilestoneScreen() {
         </Text>
 
         <View className="gap-2">
-          <SectionLabel tone="aura">
-            {t('milestone.field.label', locale)}
-          </SectionLabel>
+          <SectionLabel tone="aura">{t('milestone.field.label', locale)}</SectionLabel>
           <TextInput
             className={`rounded-hero border bg-raise px-5 py-4 text-lg text-foreground ${
               error ? 'border-error' : 'border-hair'

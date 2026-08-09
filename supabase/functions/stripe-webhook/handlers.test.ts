@@ -6,7 +6,7 @@ import { assert, assertEquals, assertRejects, assertThrows } from 'jsr:@std/asse
 // stripe pinned to major 22: deno.lock is gitignored, so CI resolves fresh on every
 // run — an unpinned specifier would typecheck against latest and redden on SDK majors.
 import type Stripe from 'npm:stripe@22';
-import { makeFakeDb, type FakeDb } from '../_shared/fake-db.ts';
+import { makeFakeDb, type FakeCall, type FakeDb } from '../_shared/fake-db.ts';
 import { signQrToken } from '../_shared/qr.ts';
 import {
   type Db,
@@ -122,23 +122,26 @@ Deno.test('handleTicketPaid upserts paid ticket idempotently with deterministic 
   );
 });
 
-Deno.test('handleTicketPaid leaves an existing live ticket alone on a swallowed upsert', async () => {
-  // count 0 = the row already existed. Almost always a redelivery (possibly under a NEW Stripe
-  // event id, which the processed_at gate can't catch) — a paid or checked_in row must never
-  // be touched: no status reset, no QR churn.
-  for (const status of ['paid', 'checked_in']) {
-    const db = makeFakeDb({
-      'event_tickets.upsert': [{ count: 0 }],
-      'event_tickets.select': [{ data: { status, stripe_payment_id: 'pi_1' } }],
-    });
-    await handleTicketPaid(asDb(db), SECRET, ticketSession());
-    assertEquals(
-      db.calls.map((c) => c.op),
-      ['upsert', 'select'],
-      `status ${status}: no repair update expected`,
-    );
-  }
-});
+Deno.test(
+  'handleTicketPaid leaves an existing live ticket alone on a swallowed upsert',
+  async () => {
+    // count 0 = the row already existed. Almost always a redelivery (possibly under a NEW Stripe
+    // event id, which the processed_at gate can't catch) — a paid or checked_in row must never
+    // be touched: no status reset, no QR churn.
+    for (const status of ['paid', 'checked_in']) {
+      const db = makeFakeDb({
+        'event_tickets.upsert': [{ count: 0 }],
+        'event_tickets.select': [{ data: { status, stripe_payment_id: 'pi_1' } }],
+      });
+      await handleTicketPaid(asDb(db), SECRET, ticketSession());
+      assertEquals(
+        db.calls.map((c) => c.op),
+        ['upsert', 'select'],
+        `status ${status}: no repair update expected`,
+      );
+    }
+  },
+);
 
 Deno.test('handleTicketPaid re-issues a refunded ticket on a genuine re-purchase', async () => {
   // After a refund the TicketBar re-offers purchase; the new Checkout session carries a NEW
@@ -734,4 +737,253 @@ Deno.test('handleWebhook 500s when the claim update itself errors', async () => 
   );
   assertEquals(res.status, 500);
   assert(!db.calls.some((c) => c.table === 'event_tickets'));
+});
+
+const subscriptionCheckout = () =>
+  ({
+    id: 'cs_s1',
+    created: 1751000000,
+    payment_status: 'paid',
+    metadata: { kind: 'subscription', profile_id: 'prof-1' },
+    subscription: 'sub_1',
+  }) as unknown as Stripe.Checkout.Session;
+
+const identitySession = () =>
+  ({
+    id: 'vs_1',
+    status: 'verified',
+    metadata: { profile_id: 'prof-1' },
+  }) as unknown as Stripe.Identity.VerificationSession;
+
+/**
+ * Every surface through which Aura can be granted. `aura_events` is the append-only ledger and
+ * `aura_scores` the projection (docs/PRD.md:394, docs/PRD.md:398); a `SECURITY DEFINER` rpc whose
+ * name mentions aura/score would be the other way in. WebhookCtx injects no score-engine
+ * capability, so a score event originating in this function has to appear here.
+ */
+const scoreWrites = (db: FakeDb): FakeCall[] =>
+  db.calls.filter((c) =>
+    c.op === 'rpc'
+      ? /aura|score/i.test(String(c.columns ?? ''))
+      : c.op !== 'select' && /^aura_(events|scores)$/.test(c.table),
+  );
+
+const MONEY_TABLES = ['event_tickets', 'fund_contributions', 'circle_memberships'];
+const moneyWrites = (db: FakeDb) =>
+  db.calls.filter((c) => c.op !== 'select' && MONEY_TABLES.includes(c.table));
+
+// ═══ A. Anti-buyability — the money side of "Aura is never purchasable" ═══════
+//
+// docs/PRD.md:191 — "Aura never purchasable. Athanor Circle membership and fund contributions
+// yield **zero** points. Enforced in engine, asserted in tests." The engine half lives in
+// packages/core; THIS is the webhook half, and it is the half where money actually arrives.
+// docs/PRD.md:386 and :387 give the fund and subscription branches exactly one destination each
+// (fund_contributions, circle_memberships) — no score event is listed for either.
+// docs/PRD.md:220 — Circle is "never: score boost".
+
+Deno.test('paying money writes ZERO score events, on every paying branch', async () => {
+  // Ticket is in the list on purpose: docs/PRD.md:153 and :181 grant +15 for *checked-in
+  // attendance*, not for the purchase. Buying a ticket and never showing up must be worth 0.
+  const cases: [string, string, unknown][] = [
+    ['fund contribution', 'checkout.session.completed', contributionSession()],
+    ['ticket purchase', 'checkout.session.completed', ticketSession()],
+    ['circle checkout', 'checkout.session.completed', subscriptionCheckout()],
+    ['circle created', 'customer.subscription.created', subscription()],
+    ['circle updated', 'customer.subscription.updated', subscription()],
+    ['circle deleted', 'customer.subscription.deleted', subscription({ status: 'canceled' })],
+    ['circle invoice failed', 'invoice.payment_failed', { subscription: 'sub_1' }],
+  ];
+  for (const [label, type, object] of cases) {
+    const db = makeFakeDb({
+      'fund_contributions.upsert': [{ count: 1 }],
+      'event_tickets.upsert': [{ count: 1 }],
+    });
+    await processEvent(routingCtx(db), stripeEvent(type, object));
+    assertEquals(
+      scoreWrites(db).map((c) => `${c.table}.${c.op}`),
+      [],
+      `${label}: money must never mint Aura (docs/PRD.md:191)`,
+    );
+  }
+});
+
+Deno.test('identity.verified produces its score event only via the profile flip', async () => {
+  // docs/PRD.md:388 — "identity.verified → verifications → badge + score event".
+  // docs/PRD.md:180 — "Identity verified +50, once".
+  //
+  // The webhook does exactly two things — cache `verifications` and flip
+  // `profiles.identity_verified`. The +50 is minted a layer down by the `profiles_aura_identity`
+  // trigger, which keeps the award unreachable from any client (rule #1) but means the one
+  // money→Aura path the PRD permits is not self-evidencing here. Its cross-layer half lives in
+  // _shared/aura-boundary.test.ts.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('identity.verification_session.verified', identitySession()),
+  );
+  assertEquals(scoreWrites(db), [], 'the webhook itself must not write the ledger directly');
+  const flip = db.calls.find((c) => c.table === 'profiles');
+  assert(flip, 'without the profiles flip there is no trigger input and the +50 never happens');
+  assertEquals((flip.values as Record<string, unknown>).identity_verified, true);
+});
+
+Deno.test('a FAILED identity check writes no score event', async () => {
+  // docs/PRD.md:388 attaches the score event to `identity.verified` alone; requires_input is
+  // the not-verified terminal state, so awarding there would make +50 retryable.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('identity.verification_session.requires_input', identitySession()),
+  );
+  assertEquals(scoreWrites(db), []);
+});
+
+// ═══ B. Branch isolation — one destination per branch ═════════════════════════
+//
+// docs/PRD.md:385-388 map each event to exactly one money table. Asserting only that the first
+// call lands on the right table would miss a branch that *also* touches another ledger, which
+// is what a `kind` typo or a fallthrough produces.
+
+Deno.test('each money branch touches its own ledger and no other', async () => {
+  const cases: [string, string, unknown, string][] = [
+    ['ticket', 'checkout.session.completed', ticketSession(), 'event_tickets'],
+    ['fund', 'checkout.session.completed', contributionSession(), 'fund_contributions'],
+    ['circle checkout', 'checkout.session.completed', subscriptionCheckout(), 'circle_memberships'],
+    ['circle sub', 'customer.subscription.updated', subscription(), 'circle_memberships'],
+  ];
+  for (const [label, type, object, own] of cases) {
+    const db = makeFakeDb({
+      'fund_contributions.upsert': [{ count: 1 }],
+      'event_tickets.upsert': [{ count: 1 }],
+    });
+    await processEvent(routingCtx(db), stripeEvent(type, object));
+    const touched = [...new Set(moneyWrites(db).map((c) => c.table))];
+    assertEquals(touched, [own], `${label}: docs/PRD.md:385-388 give this branch one destination`);
+  }
+});
+
+Deno.test('a completed checkout with an unknown kind writes to no money ledger', async () => {
+  // docs/PRD.md:385-387 enumerate three checkout kinds. A fourth means money arrived that this
+  // webhook cannot classify — it must not be guessed into one of the three books.
+  const db = makeFakeDb({
+    'fund_contributions.upsert': [{ count: 1 }],
+    'event_tickets.upsert': [{ count: 1 }],
+  });
+  await processEvent(
+    routingCtx(db),
+    stripeEvent(
+      'checkout.session.completed',
+      ticketSession({ metadata: { kind: 'merch', profile_id: 'prof-1' } }),
+    ),
+  ).catch(() => {}); // throwing is an acceptable outcome; writing to a ledger is not
+  assertEquals(moneyWrites(db), []);
+});
+
+// ═══ C. Signature verification over the RAW body ═════════════════════════════
+//
+// docs/PRD.md:406 — "Webhooks signature-verified + idempotent". The signature covers the exact
+// bytes Stripe sent, so a reserialization before verifying would check a payload that never
+// arrived — a distinct failure from the bad-signature rejection asserted above.
+
+Deno.test('handleWebhook verifies the exact bytes it received, not a reserialization', async () => {
+  const body = '{"id":"evt_1","type":"payment_intent.created","spacing":  "preserved"}';
+  const sig = 't=1751000000,v1=deadbeef';
+  const seen: unknown[][] = [];
+  const db = makeFakeDb();
+  const ctx: WebhookCtx = {
+    db: asDb(db),
+    qrSecret: SECRET,
+    verifyEvent: ((...args: unknown[]) => {
+      seen.push(args);
+      return Promise.resolve(stripeEvent('payment_intent.created', {}));
+    }) as WebhookCtx['verifyEvent'],
+    retrieveSubscription: () => Promise.resolve(subscription()),
+  };
+  const headers = new Headers({ 'stripe-signature': sig });
+  await handleWebhook(
+    ctx,
+    new Request('http://localhost/stripe-webhook', {
+      method: 'POST',
+      headers,
+      body,
+    }),
+  );
+
+  assertEquals(seen.length, 1, 'verifyEvent must be called exactly once');
+  assert(
+    seen[0].includes(body),
+    `raw body must reach the verifier byte-identical; got ${JSON.stringify(seen[0])}`,
+  );
+  assert(seen[0].includes(sig), 'the stripe-signature header value must reach the verifier');
+});
+
+// ═══ D. Idempotency keyed on Stripe's event id ═══════════════════════════════
+//
+// docs/PRD.md:358 — "stripe_webhook_events (event_id unique → idempotency)".
+// docs/PRD.md:384 — "dedup on stripe_webhook_events.event_id".
+// docs/PRD.md:155 — "webhook-confirmed, idempotent".
+
+Deno.test('the ledger row is keyed on the Stripe event id', async () => {
+  const db = makeFakeDb({
+    'stripe_webhook_events.update': [{ data: [{ event_id: 'evt_XYZ' }] }, { data: [{}] }],
+  });
+  const ctx: WebhookCtx = {
+    db: asDb(db),
+    qrSecret: SECRET,
+    verifyEvent: () =>
+      Promise.resolve(stripeEvent('checkout.session.completed', ticketSession(), 'evt_XYZ')),
+    retrieveSubscription: () => Promise.resolve(subscription()),
+  };
+  await handleWebhook(
+    ctx,
+    new Request('http://localhost/stripe-webhook', {
+      method: 'POST',
+      headers: new Headers({ 'stripe-signature': 'sig_ok' }),
+      body: '{}',
+    }),
+  );
+  const ledger = db.calls[0];
+  assertEquals(ledger.table, 'stripe_webhook_events');
+  assertEquals((ledger.values as Record<string, unknown>).event_id, 'evt_XYZ');
+  // dedupe is on the event id, never on the payment intent (one PI can produce many events)
+  assertEquals(
+    (ledger.options as Record<string, unknown> | undefined)?.onConflict ?? 'event_id',
+    'event_id',
+  );
+});
+
+Deno.test('the same event delivered twice buys exactly one ticket', async () => {
+  // The composed claim behind docs/PRD.md:384: each phase is proven in isolation above (claim
+  // won / claim lost + processed_at set); this is the money-visible consequence of running both
+  // back to back against one ledger row.
+  const db = makeFakeDb({
+    'stripe_webhook_events.update': [
+      { data: [{ event_id: 'evt_1' }] }, // delivery 1: lease claim won
+      { data: [{ event_id: 'evt_1' }] }, // delivery 1: processed_at stamp
+      { data: [] }, // delivery 2: claim lost — row already processed
+    ],
+    'stripe_webhook_events.select': [{ data: { processed_at: '2026-08-01T00:00:00Z' } }],
+    'event_tickets.upsert': [{ count: 1 }],
+  });
+  const ctx: WebhookCtx = {
+    db: asDb(db),
+    qrSecret: SECRET,
+    verifyEvent: () => Promise.resolve(stripeEvent('checkout.session.completed', ticketSession())),
+    retrieveSubscription: () => Promise.resolve(subscription()),
+  };
+  const req = () =>
+    new Request('http://localhost/stripe-webhook', {
+      method: 'POST',
+      headers: new Headers({ 'stripe-signature': 'sig_ok' }),
+      body: '{}',
+    });
+
+  const first = await handleWebhook(ctx, req());
+  const second = await handleWebhook(ctx, req());
+  assertEquals([first.status, second.status], [200, 200], 'both deliveries must be acked');
+  assertEquals(
+    db.calls.filter((c) => c.table === 'event_tickets').length,
+    1,
+    'a redelivered event must not issue a second ticket (docs/PRD.md:384)',
+  );
 });

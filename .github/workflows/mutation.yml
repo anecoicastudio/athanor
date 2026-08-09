@@ -1,0 +1,72 @@
+name: Mutation
+
+# Separate workflow rather than a job in ci.yml so it can carry a `paths` filter: Stryker
+# re-runs the suite once per surviving mutant (~90s for packages/core today), and there is no
+# reason to pay that on a PR that only touches the app or the docs.
+#
+# Scoped to the two pure packages on purpose. Both are I/O-free, so mutants are deterministic
+# and fast. packages/core holds the Aura invariant — the highest-stakes logic in the repo; its
+# first run at 90.59% surfaced four real gaps this gate now protects, including CREDITABLE_TYPES
+# entries that could be blanked with no test failing. packages/schemas is rule #2's single
+# validation source, and its first run scored 62.69% against 100% line coverage — the clearest
+# possible demonstration that a covered line is not an asserted one. That run exposed three real
+# constraint holes on its own (see its stryker.config.json).
+#
+# packages/api is deliberately absent: it is I/O-shaped and slow to mutate. Each package owns its
+# own `break` threshold in its stryker.config.json, so a ratchet is a one-file change.
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'packages/core/**'
+      - 'packages/schemas/**'
+      - '.github/workflows/mutation.yml'
+  pull_request:
+    paths:
+      - 'packages/core/**'
+      - 'packages/schemas/**'
+      - '.github/workflows/mutation.yml'
+
+jobs:
+  core:
+    name: packages/core mutation score
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The score threshold lives in packages/core/stryker.config.json (`break`), so it
+      # ratchets in the same file as the run config rather than drifting here.
+      - run: pnpm --filter @athanor/core mutation
+      - name: upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-core
+          path: packages/core/reports/mutation/
+          retention-days: 14
+
+  schemas:
+    name: packages/schemas mutation score
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Threshold lives in packages/schemas/stryker.config.json (`break`), same as core.
+      - run: pnpm --filter @athanor/schemas mutation
+      - name: upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-schemas
+          path: packages/schemas/reports/mutation/
+          retention-days: 14

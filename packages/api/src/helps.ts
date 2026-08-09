@@ -6,6 +6,7 @@ import {
   helpSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter, nextCursorOf } from './pagination';
 
 export const helpKeys = {
   all: ['milestoneHelps'] as const,
@@ -64,32 +65,79 @@ export async function confirmHelpComplete(client: AthanorClient, helpId: string)
   if (error) throw error;
 }
 
-/** Incoming offers on my dream (owner-confirm surface). Newest first by the keyset index. */
+/** Opaque keyset cursor over milestone_helps — the last (created_at, id) seen. Never an offset. */
+export type HelpCursor = { created_at: string; id: string };
+export type HelpsPage = { rows: Help[]; nextCursor: HelpCursor | null };
+
+/**
+ * Page size for both help readers. Larger than the 20 the ledger/needs lists use because
+ * both callers render the whole first page as a single list rather than an infinite feed —
+ * but bounded all the same (rule #9), so a member with hundreds of offers can no longer
+ * pull the entire table down in one request.
+ */
+const HELPS_PAGE_SIZE = 50;
+
+/** Parse a fetched page and derive its keyset cursor — the half both readers share. */
+function helpsPage(data: unknown[] | null, limit: number): HelpsPage {
+  const rows = (data ?? []).map((row) => helpSchema.parse(row));
+  return {
+    rows,
+    nextCursor: nextCursorOf(rows, limit, (last) => ({
+      created_at: last.created_at,
+      id: last.id,
+    })),
+  };
+}
+
+/**
+ * Incoming offers on my dream (owner-confirm surface). Newest first by the keyset index,
+ * one bounded page at a time (rule #9: cursor pagination, never offset).
+ */
 export async function listIncomingHelps(
   client: AthanorClient,
   milestoneIds: string[],
-): Promise<Help[]> {
-  if (milestoneIds.length === 0) return [];
-  const { data, error } = await client
+  cursor?: HelpCursor | null,
+  limit = HELPS_PAGE_SIZE,
+): Promise<HelpsPage> {
+  if (milestoneIds.length === 0) return { rows: [], nextCursor: null };
+  let q = client
     .from('milestone_helps')
     .select('*')
     .in('milestone_id', milestoneIds)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
-    .order('id', { ascending: false });
+    .order('id', { ascending: false })
+    .limit(limit);
+  if (cursor) q = q.or(keysetFilter('created_at', 'id', cursor.created_at, cursor.id, 'lt'));
+  const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((row) => helpSchema.parse(row));
+  return helpsPage(data, limit);
 }
 
-/** Offers I made (drives the per-tappa help-state on others' dreams). */
-export async function listMyHelps(client: AthanorClient, helperId: string): Promise<Help[]> {
-  const { data, error } = await client
+/**
+ * My offers on a specific set of tappe — the per-tappa help-state on someone's dream. Scoped
+ * rather than paginated-and-hoped: a dream has a handful of tappe, so one page covers them all
+ * regardless of how much the caller has helped elsewhere. An unscoped read here would show an
+ * already-helped tappa as un-helped, and re-offering hits the (milestone_id, helper_id) unique
+ * index -- a 23505 the help sheet reports as success, so the member sees nothing happen.
+ */
+export async function listMyHelpsForMilestones(
+  client: AthanorClient,
+  helperId: string,
+  milestoneIds: string[],
+  cursor?: HelpCursor | null,
+  limit = HELPS_PAGE_SIZE,
+): Promise<HelpsPage> {
+  if (milestoneIds.length === 0) return { rows: [], nextCursor: null };
+  let q = client
     .from('milestone_helps')
     .select('*')
     .eq('helper_id', helperId)
     .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false });
+    .in('milestone_id', milestoneIds);
+  q = q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
+  if (cursor) q = q.or(keysetFilter('created_at', 'id', cursor.created_at, cursor.id, 'lt'));
+  const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((row) => helpSchema.parse(row));
+  return helpsPage(data, limit);
 }

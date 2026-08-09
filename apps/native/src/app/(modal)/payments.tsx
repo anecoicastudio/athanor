@@ -13,15 +13,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { localeTag } from '@/lib/time';
-
-function receiptDate(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleDateString(localeTag(locale), {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
+import { longDate } from '@/lib/time';
 
 function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) {
   const statusKey =
@@ -34,7 +26,7 @@ function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) 
   return (
     <View className="flex-row items-center justify-between border-b border-hair py-4">
       <View className="gap-1">
-        <Text className="text-[15px] text-foreground">{receiptDate(row.created_at, locale)}</Text>
+        <Text className="text-[15px] text-foreground">{longDate(row.created_at, locale)}</Text>
         <Text className="text-[12px] text-muted-foreground">{t(statusKey, locale)}</Text>
       </View>
       <Text
