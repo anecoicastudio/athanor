@@ -8,6 +8,7 @@ import {
   type AdminReportDetail,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { keysetFilter } from './pagination';
 
 export type { AdminReportRow, AdminReportDetail } from '@athanor/schemas';
 
@@ -36,9 +37,10 @@ export async function getReportQueue(
   if (opts.status === 'resolved') q = q.in('status', ['upheld', 'dismissed']);
   else q = q.eq('status', opts.status);
   if (opts.cursor) {
+    // keyset: rows strictly "after" the cursor in (created_at desc, id desc). A cursor missing
+    // either half is ignored rather than interpolated — `id.lt.undefined` is not a filter.
     const [ts, id] = opts.cursor.split('|');
-    // keyset: rows strictly "after" the cursor in (created_at desc, id desc)
-    q = q.or(`created_at.lt.${ts},and(created_at.eq.${ts},id.lt.${id})`);
+    if (ts && id) q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;

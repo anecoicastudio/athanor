@@ -7,7 +7,6 @@ import {
   localeTag,
   longDate,
   monthYear,
-  shortDate,
   timeAgo,
 } from './time';
 
@@ -82,17 +81,6 @@ describe('dayKey', () => {
   });
 });
 
-describe('shortDate', () => {
-  it('renders a "day month" shape per locale', () => {
-    expect(shortDate('2026-06-17T12:00:00', 'en')).toMatch(/^17\s\p{L}+$/u);
-    expect(shortDate('2026-06-17T12:00:00', 'it')).toMatch(/^17\s\p{L}+$/u);
-  });
-
-  it('omits the year — it is the short form', () => {
-    expect(shortDate('2026-06-17T12:00:00', 'en')).not.toContain('2026');
-  });
-});
-
 describe('longDate', () => {
   const iso = '2026-06-17T12:00:00';
 
@@ -106,7 +94,7 @@ describe('longDate', () => {
   });
 
   it('spells the month out rather than abbreviating it', () => {
-    expect(longDate(iso, 'en').length).toBeGreaterThan(shortDate(iso, 'en').length);
+    expect(longDate(iso, 'en')).toMatch(/\p{L}{4,}/u);
   });
 
   it('carries no time-of-day', () => {

@@ -55,14 +55,6 @@ export function dayKey(iso: string): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Short "17 giu" / "Jun 17" day+month label (star grant dates, receipts). */
-export function shortDate(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleDateString(localeTag(locale), {
-    day: 'numeric',
-    month: 'short',
-  });
-}
-
 /** Full "17 giugno 2026" / "17 June 2026" — renewal dates, payment receipts. */
 export function longDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleDateString(localeTag(locale), {

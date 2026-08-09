@@ -4,7 +4,6 @@ import {
   confirmHelpComplete,
   helpKeys,
   listIncomingHelps,
-  listMyHelps,
   listMyHelpsForMilestones,
   offerHelp,
   respondToHelp,
@@ -263,30 +262,11 @@ describe('listIncomingHelps', () => {
   });
 });
 
-describe('listMyHelps', () => {
-  it('scopes to the helper, hides soft-deleted offers, and bounds the page (rule #9)', async () => {
+describe('listMyHelpsForMilestones', () => {
+  it('defaults to a bounded page rather than an unbounded read (rule #9)', async () => {
     const { fake, client } = db({ 'milestone_helps.select': [{ data: [helpRow()] }] });
-    await listMyHelps(client, HELPER);
-
-    const call = fake.calls[0]!;
-    expect(call.filters).toEqual([
-      ['eq', 'helper_id', HELPER],
-      ['is', 'deleted_at', null],
-    ]);
-    expect(call.modifiers.map((m) => m[0])).not.toContain('range');
-    expect(call.modifiers).toContainEqual(['limit', 50]);
-  });
-
-  it('walks forward on the cursor, never on an offset', async () => {
-    const { fake, client } = db({ 'milestone_helps.select': [{ data: [] }] });
-    await listMyHelps(client, HELPER, { created_at: '2026-01-01T00:00:00Z', id: HELP }, 10);
-
-    const call = fake.calls[0]!;
-    expect(call.modifiers).toContainEqual(['limit', 10]);
-    expect(call.modifiers.map((m) => m[0])).not.toContain('range');
-    expect(String(call.filters.find((f) => f[0] === 'or')?.[1])).toContain(
-      'created_at.lt.2026-01-01T00:00:00Z',
-    );
+    await listMyHelpsForMilestones(client, HELPER, [MILESTONE]);
+    expect(fake.calls[0]!.modifiers).toContainEqual(['limit', 50]);
   });
 
   it('a full page hands back the last row as the keyset cursor', async () => {
@@ -295,22 +275,18 @@ describe('listMyHelps', () => {
         { data: [helpRow(), helpRow({ id: HELP_2, created_at: '2025-12-31T00:00:00Z' })] },
       ],
     });
-    const page = await listMyHelps(client, HELPER, null, 2);
+    const page = await listMyHelpsForMilestones(client, HELPER, [MILESTONE], null, 2);
     expect(page.nextCursor).toEqual({ created_at: '2025-12-31T00:00:00Z', id: HELP_2 });
   });
 
   it('no rows → an empty page, not a throw', async () => {
     const { client } = db({ 'milestone_helps.select': [{ data: null }] });
-    await expect(listMyHelps(client, HELPER)).resolves.toEqual({ rows: [], nextCursor: null });
+    await expect(listMyHelpsForMilestones(client, HELPER, [MILESTONE])).resolves.toEqual({
+      rows: [],
+      nextCursor: null,
+    });
   });
 
-  it('surfaces a database error instead of an empty list', async () => {
-    const { client } = db({ 'milestone_helps.select': [{ error: { message: 'rls denied' } }] });
-    await expect(listMyHelps(client, HELPER)).rejects.toThrow('rls denied');
-  });
-});
-
-describe('listMyHelpsForMilestones', () => {
   it('narrows to the tappe on screen as well as the helper', async () => {
     // The per-tappa help-state has to be answered by a query, not by hoping the offer is
     // recent enough to appear in an unscoped page.
