@@ -56,6 +56,7 @@
   "landing.waitlist.duplicate": "Sei già nella lista ✦",
   "landing.waitlist.invalid": "Questa email non sembra valida.",
   "landing.waitlist.error": "Qualcosa non ha funzionato. Riprova.",
+  "landing.waitlist.rateLimited": "Troppi tentativi. Aspetta qualche minuto e riprova.",
   "landing.waitlist.privacy": "Niente spam. Solo un avviso quando apriamo.",
   "invite.landing.title": "Una stella ti ha invitato ✦",
   "invite.landing.body": "Scarica Athanor e riapri questo link dopo l'installazione: l'invito si attiva da solo.",

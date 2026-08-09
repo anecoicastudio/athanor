@@ -1,12 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const subscribeToWaitlist = vi.fn();
 const createClient = vi.fn();
 
-vi.mock('@athanor/api', () => ({
-  subscribeToWaitlist: (...a: unknown[]) => subscribeToWaitlist(...a),
+vi.mock('@athanor/api', async () => {
+  // isWaitlistRateLimited is NOT mocked: it is the thing under test on this route, and a stub
+  // would let a wrong predicate pass here while returning 500 in production.
+  const actual = await vi.importActual<typeof import('@athanor/api')>('@athanor/api');
+  return {
+    isWaitlistRateLimited: actual.isWaitlistRateLimited,
+    subscribeToWaitlist: (...a: unknown[]) => subscribeToWaitlist(...a),
+  };
+});
+vi.mock('@/utils/supabase/server', () => ({
+  createClient: (...a: unknown[]) => createClient(...a),
 }));
-vi.mock('@/utils/supabase/server', () => ({ createClient: () => createClient() }));
 vi.mock('next/server', () => ({
   NextResponse: {
     json: (body: unknown, init?: { status?: number }) =>
@@ -29,19 +37,12 @@ const postBroken = () =>
     },
   } as unknown as Request);
 
-const fetchMock = vi.fn();
+/** What the throttle trigger raises once an address is over its budget. */
+const throttled = Object.assign(new Error('waitlist_rate_limited'), { code: 'PT429' });
 
 beforeEach(() => {
   subscribeToWaitlist.mockReset().mockResolvedValue({ duplicate: false });
   createClient.mockReset().mockResolvedValue({});
-  fetchMock.mockReset().mockResolvedValue(new Response('{}'));
-  vi.stubGlobal('fetch', fetchMock);
-  vi.stubEnv('RESEND_API_KEY', '');
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
 });
 
 describe('POST /api/waitlist — honeypot', () => {
@@ -52,7 +53,6 @@ describe('POST /api/waitlist — honeypot', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, duplicate: false });
     expect(subscribeToWaitlist).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('an EMPTY honeypot field is a human and still subscribes', async () => {
@@ -110,45 +110,12 @@ describe('POST /api/waitlist — validation', () => {
   });
 });
 
-describe('POST /api/waitlist — capture and notify', () => {
+describe('POST /api/waitlist — capture', () => {
   it('reports a duplicate without failing', async () => {
     subscribeToWaitlist.mockResolvedValue({ duplicate: true });
     const res = await post({ email: 'a@b.it' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, duplicate: true });
-  });
-
-  it('does not re-notify on a duplicate', async () => {
-    vi.stubEnv('RESEND_API_KEY', 're_test');
-    subscribeToWaitlist.mockResolvedValue({ duplicate: true });
-    await post({ email: 'a@b.it' });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('skips the notify entirely when RESEND_API_KEY is unset — capture still succeeds', async () => {
-    const res = await post({ email: 'a@b.it' });
-    expect(res.status).toBe(200);
-    expect(subscribeToWaitlist).toHaveBeenCalledOnce();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('notifies through Resend when the key is set', async () => {
-    vi.stubEnv('RESEND_API_KEY', 're_test');
-    await post({ email: 'a@b.it' });
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.resend.com/emails');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_test');
-  });
-
-  it('a failing notify does not lose the capture', async () => {
-    // The signup is the product; the email is a convenience. Losing a waitlist row because
-    // Resend is down would be the wrong trade.
-    vi.stubEnv('RESEND_API_KEY', 're_test');
-    fetchMock.mockRejectedValue(new Error('resend down'));
-    const res = await post({ email: 'a@b.it' });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, duplicate: false });
   });
 
   it('a database failure is a 500, not a silent success', async () => {
@@ -161,5 +128,87 @@ describe('POST /api/waitlist — capture and notify', () => {
   it('never leaks the database error text to the caller', async () => {
     subscribeToWaitlist.mockRejectedValue(new Error('duplicate key value violates ...'));
     expect(await (await post({ email: 'a@b.it' })).text()).not.toContain('duplicate key');
+  });
+});
+
+describe('POST /api/waitlist — throttled (issue #23)', () => {
+  it('answers 429, not 500, when the trigger refuses', async () => {
+    // «Slow down» must not read as «we are broken». The route's only job in this fix is telling
+    // the two apart, so this is the assertion the whole change exists for.
+    subscribeToWaitlist.mockRejectedValue(throttled);
+    const res = await post({ email: 'a@b.it' });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: 'rate_limited' });
+  });
+
+  it('answers honestly rather than borrowing the honeypot silent-success', async () => {
+    // Pretending to store a signup we rejected is the same lie as a false zero, pointing the
+    // other way. The silent-success shape is for bots; a throttled human needs to know to retry.
+    subscribeToWaitlist.mockRejectedValue(throttled);
+    const res = await post({ email: 'a@b.it' });
+    expect(res.status).not.toBe(200);
+    expect(await res.json()).not.toEqual({ ok: true, duplicate: false });
+  });
+
+  it('leaks neither the raise token nor the trigger name to the caller', async () => {
+    subscribeToWaitlist.mockRejectedValue(
+      Object.assign(
+        new Error('waitlist_rate_limited\nCONTEXT: athanor.waitlist_throttle_check()'),
+        {
+          code: 'PT429',
+        },
+      ),
+    );
+    const body = await (await post({ email: 'a@b.it' })).text();
+    expect(body).not.toContain('waitlist_rate_limited');
+    expect(body).not.toContain('waitlist_throttle_check');
+  });
+
+  it('a plain P0001 from some other check is still a 500', async () => {
+    // Any `raise exception` without an explicit errcode is P0001, which is exactly why the
+    // trigger uses PT429 instead. Answering 429 to one of these would tell a member to slow
+    // down when nothing was too fast.
+    subscribeToWaitlist.mockRejectedValue(
+      Object.assign(new Error('waitlist_rate_limited'), { code: 'P0001' }),
+    );
+    expect((await post({ email: 'a@b.it' })).status).toBe(500);
+  });
+
+  it('forwards the visitor address so the trigger keys on them, not on this function', async () => {
+    // Without this the insert carries only the Vercel function's egress IP and the per-client
+    // budget is silently a site-wide one, with real visitors throttling each other off.
+    await POST({
+      json: async () => ({ email: 'a@b.it' }),
+      headers: { get: (k: string) => (k === 'x-forwarded-for' ? '203.0.113.7, 70.41.3.18' : null) },
+    } as unknown as Request);
+    expect(createClient).toHaveBeenCalledWith('203.0.113.7');
+  });
+
+  it('does not reach the database on a honeypot hit or a malformed body', async () => {
+    // Both return before the insert, so a bot cannot spend a real address's budget.
+    await post({ email: 'bot@spam.io', company: 'Acme Corp' });
+    await post({ email: 'not-an-email' });
+    expect(subscribeToWaitlist).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/waitlist — the operator email is gone (issue #23)', () => {
+  it('sends nothing, even with a Resend key in the environment', async () => {
+    // One send per non-duplicate signup meant a script with a fresh address each time
+    // mailbombed the inbox and burned the quota, and the duplicate check was no defence
+    // because the attacker never repeats an address. Capping it would have been weaker than
+    // removing it. This test is the guard against it coming back by reflex.
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}'));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('RESEND_API_KEY', 're_test');
+    try {
+      const res = await post({ email: 'a@b.it' });
+      expect(res.status).toBe(200);
+      expect(subscribeToWaitlist).toHaveBeenCalledOnce();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
   });
 });
