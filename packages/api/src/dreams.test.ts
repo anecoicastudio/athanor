@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
-import { dreamKeys, upsertActiveDream } from './dreams';
+import { createDream, dreamKeys, getActiveDream, upsertActiveDream } from './dreams';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 
 const UUID = '00000000-0000-0000-0000-0000000000a1';
 
@@ -58,5 +59,44 @@ describe('dreams api', () => {
     expect(calls.some((c) => c.method === 'eq' && c.arg === 'id' && c.arg2 === existing.id)).toBe(
       true,
     );
+  });
+});
+
+// `upsertActiveDream` reads then writes, so it has two failure points and two write paths;
+// only the happy ones were covered. A swallowed error on either leaves the editor believing the
+// dream was saved — the one piece of text the whole profile is built around.
+describe('dreams — a database failure reaches the caller', () => {
+  it('getActiveDream rethrows instead of reporting no dream planted', async () => {
+    const fake = makeFakeClient({ 'dreams.select': [{ error: DB_DOWN }] });
+    await expect(getActiveDream(asClient(fake), UUID)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('upsertActiveDream rethrows when updating the existing active row fails', async () => {
+    const fake = makeFakeClient({
+      'dreams.select': [
+        {
+          data: {
+            id: UUID,
+            profile_id: UUID,
+            text: 'il mio sogno',
+            status: 'active',
+            created_at: '2026-07-02T00:00:00Z',
+            updated_at: '2026-07-02T00:00:00Z',
+            deleted_at: null,
+          },
+        },
+      ],
+      'dreams.update': [{ error: DB_DOWN }],
+    });
+    await expect(upsertActiveDream(asClient(fake), UUID, 'nuovo testo')).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('createDream rethrows on the first-plant insert', async () => {
+    const fake = makeFakeClient({ 'dreams.insert': [{ error: DB_DOWN }] });
+    await expect(
+      createDream(asClient(fake), { profile_id: UUID, text: 'il mio sogno' }),
+    ).rejects.toMatchObject({ code: '57P01' });
   });
 });

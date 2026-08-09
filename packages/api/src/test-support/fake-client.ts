@@ -255,3 +255,20 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
 }
 
 export type FakeClient = ReturnType<typeof makeFakeClient>;
+
+/**
+ * Cast the fake to the client type. Structural typing cannot satisfy `SupabaseClient`'s deep
+ * generics, so every test file was writing this same line — fourteen copies before it moved here.
+ */
+export const asClient = (fake: ReturnType<typeof makeFakeClient>) =>
+  fake as unknown as import('../client').AthanorClient;
+
+/**
+ * A representative PostgREST failure to script into `{ error: … }`. `57P01` is
+ * `admin_shutdown` — an unambiguous infrastructure fault, so a test asserting it cannot be
+ * mistaken for one asserting a business rule (RLS denial, unique violation).
+ */
+export const DB_DOWN = {
+  code: '57P01',
+  message: 'terminating connection due to administrator command',
+};

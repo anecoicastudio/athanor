@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import { getInviteStats, getMyReferralCode, inviteKeys } from './invites';
 
 describe('inviteKeys', () => {
@@ -46,5 +47,26 @@ describe('getInviteStats', () => {
     expect(await getInviteStats(client, 'profile-1')).toEqual({ activated: 3 });
     expect(calls[0]).toEqual(['from', 'invites']);
     expect(calls).toContainEqual(['eq', 'inviter_id', 'profile-1']);
+  });
+});
+
+// `count ?? 0` is the one genuinely reachable coalesce in this package: PostgREST returns a null
+// count when the content-range header is absent on a `{ count: 'exact', head: true }` query.
+describe('getInviteStats', () => {
+  it('reads a null count as zero activations rather than crashing', async () => {
+    const fake = makeFakeClient({ 'invites.select': [{ data: null, count: null }] });
+    await expect(getInviteStats(asClient(fake), 'u1')).resolves.toEqual({ activated: 0 });
+  });
+
+  it('rethrows instead of reporting zero activations', async () => {
+    const fake = makeFakeClient({ 'invites.select': [{ error: DB_DOWN }] });
+    await expect(getInviteStats(asClient(fake), 'u1')).rejects.toMatchObject({ code: '57P01' });
+  });
+});
+
+describe('getMyReferralCode', () => {
+  it('rethrows rather than handing back an empty invite link', async () => {
+    const fake = makeFakeClient({ 'rpc.ensure_referral_code': [{ error: DB_DOWN }] });
+    await expect(getMyReferralCode(asClient(fake))).rejects.toMatchObject({ code: '57P01' });
   });
 });

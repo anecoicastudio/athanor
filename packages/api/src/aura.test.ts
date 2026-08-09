@@ -477,3 +477,50 @@ describe('aura key namespacing', () => {
     expect(ledgerKeys.list(P, 'all')).not.toEqual(ledgerKeys.list(EV1, 'all'));
   });
 });
+
+// These pin the `?? []` / `?? 0` guards, which are belt-and-braces rather than reachable: a
+// zero-match list select returns `[]`, and after `if (error) throw error` TypeScript has already
+// narrowed `data` to T[]. Covering them is still worth it here — this is the Aura surface, the
+// guards back the score screen, the ledger and the six stars at once, and a "simplification"
+// that deletes one should fail rather than pass.
+describe('Aura reads survive a null payload rather than crashing', () => {
+  // Not the early ZERO_AURA_SNAPSHOT return: that fires only when the score row AND the stars
+  // are both absent. These two cases each have one side present, so execution reaches the
+  // coalescing arms further down.
+  it('a score row with a null stars payload yields the score and no lit stars', async () => {
+    const fake = makeFakeClient({
+      'aura_scores.select': [{ data: { score: 482 } }],
+      'stars.select': [{ data: null }],
+    });
+    const snap = await getAuraScore(asClient(fake), P);
+    expect(snap.score).toBe(482);
+    expect(Object.values(snap.stars).every((v) => v === false)).toBe(true);
+  });
+
+  it('stars without a score row yield zero, not a crash', async () => {
+    const fake = makeFakeClient({
+      'aura_scores.select': [{ data: null }],
+      'stars.select': [{ data: [{ star_id: 'mentor', granted_at: '2026-07-01T00:00:00Z' }] }],
+    });
+    const snap = await getAuraScore(asClient(fake), P);
+    expect(snap.score).toBe(0);
+    expect(snap.stars.mentor).toBe(true);
+  });
+
+  it('getAuraLedgerPage treats a null payload as an empty ledger', async () => {
+    const fake = makeFakeClient({ 'aura_events.select': [{ data: null }] });
+    await expect(getAuraLedgerPage(asClient(fake), P)).resolves.toMatchObject({ rows: [] });
+  });
+
+  it('getAuraEventsSince treats a null payload as no events', async () => {
+    const fake = makeFakeClient({ 'aura_events.select': [{ data: null }] });
+    await expect(getAuraEventsSince(asClient(fake), P, '2026-07-01T00:00:00Z')).resolves.toEqual(
+      [],
+    );
+  });
+
+  it('getStars treats a null payload as no stars', async () => {
+    const fake = makeFakeClient({ 'stars.select': [{ data: null }] });
+    await expect(getStars(asClient(fake), P)).resolves.toEqual([]);
+  });
+});
