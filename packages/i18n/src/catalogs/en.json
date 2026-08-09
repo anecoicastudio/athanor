@@ -818,6 +818,7 @@
   "aura.decay.caption": "Idle for {days} days — your Aura is gently fading. One contribution reignites it.",
   "aura.ledger.cta": "See the ledger ›",
   "aura.error": "We couldn't read your Aura. Try again.",
+  "aura.unknown": "Aura unavailable",
   "ledger.title": "Aura ledger",
   "ledger.sub": "Every point has a story.",
   "ledger.filter.all": "All",

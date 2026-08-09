@@ -23,10 +23,10 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/lib/**', 'src/hooks/**'],
       thresholds: {
-        lines: 36,
+        lines: 37,
         branches: 89,
-        functions: 71,
-        statements: 36,
+        functions: 72,
+        statements: 37,
       },
     },
   },

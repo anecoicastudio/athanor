@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Mandorla } from '@/components/Mandorla';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { AURA_UNKNOWN } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraRealtime } from '@/hooks/use-aura-realtime';
 import { supabase } from '@/lib/supabase';
@@ -71,12 +72,21 @@ export default function AuraScreen() {
           <Mandorla size={96} glowLevel={glowLevel}>
             {null}
           </Mandorla>
-          {query.isLoading ? (
+          {/* Gate on `full === undefined`, not `isLoading`, and match the sources shimmer below.
+              `isLoading` is `isPending && isFetching` in TanStack v5, so a DISABLED query — which
+              this is until `me` resolves, since the session hydrates async — reports
+              `isLoading: false` with no data and would fall straight through to a confident 0.
+              `isError` is folded in because the EmptyState below already says the read failed,
+              and a number next to that message contradicts it.
+              Colour is `text-faint`, not `text-aura`: DESIGN §11 reserves the cyan for the Aura
+              number itself ("Aura is status, not a moment"), and a placeholder is not a number. */}
+          {full === undefined || query.isError ? (
             <Text
-              className="text-aura font-extrabold"
+              accessibilityLabel={t('aura.unknown', locale)}
+              className="text-faint font-extrabold"
               style={{ fontSize: 56, fontVariant: ['tabular-nums'] }}
             >
-              --
+              {AURA_UNKNOWN}
             </Text>
           ) : (
             <AuraValue value={score} size={56} flashOnIncrease />

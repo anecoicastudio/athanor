@@ -818,6 +818,7 @@
   "aura.decay.caption": "Ferma da {days} giorni — la tua Aura si attenua dolcemente. Un contributo la riaccende.",
   "aura.ledger.cta": "Vedi il registro ›",
   "aura.error": "Non siamo riusciti a leggere la tua Aura. Riprova.",
+  "aura.unknown": "Aura non disponibile",
   "ledger.title": "Registro Aura",
   "ledger.sub": "Ogni punto ha una storia.",
   "ledger.filter.all": "Tutti",
