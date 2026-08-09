@@ -17,7 +17,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(16);
+select plan(26);
 
 -- ── fixtures for the behavioural read assertions (postgres, before any role switch) ───
 -- A owns the segment, B is an ordinary member, C is blocked by A.
@@ -33,12 +33,51 @@ values
 insert into public.blocks (blocker_id, blocked_id)
 values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333');
 
+-- Descriptor rows for the objects below. The storage policy joins these, so an object with no
+-- row — or with a row that has expired, been unpinned, or been soft-deleted — is unreadable
+-- (issue #21). All authored by A.
+insert into public.story_segments (id, author_id, kind, storage_path, pinned, expires_at, deleted_at)
+values
+  -- live, unpinned: the ordinary case the pre-existing assertions below exercise
+  ('dddddddd-0000-0000-0000-00000000000d', '11111111-1111-1111-1111-111111111111',
+   'video', '11111111-1111-1111-1111-111111111111/dddddddd-0000-0000-0000-00000000000d.mp4',
+   false, now() + interval '12 hours', null),
+  -- past its 24h window and NOT pinned: the bug. Row vanishes, file used to stay readable.
+  ('eeeeeeee-0000-0000-0000-00000000000e', '11111111-1111-1111-1111-111111111111',
+   'video', '11111111-1111-1111-1111-111111111111/eeeeeeee-0000-0000-0000-00000000000e.mp4',
+   false, now() - interval '1 hour', null),
+  -- past the window but PINNED: «un passo del percorso» is meant to survive (PRD §4.5)
+  ('ffffffff-0000-0000-0000-00000000000f', '11111111-1111-1111-1111-111111111111',
+   'video', '11111111-1111-1111-1111-111111111111/ffffffff-0000-0000-0000-00000000000f.mp4',
+   true, now() - interval '1 hour', null),
+  -- live but soft-deleted: the author took it down, so the bytes must go with the row
+  ('cccccccc-0000-0000-0000-00000000000c', '11111111-1111-1111-1111-111111111111',
+   'video', '11111111-1111-1111-1111-111111111111/cccccccc-0000-0000-0000-00000000000c.mp4',
+   false, now() + interval '12 hours', now());
+
 -- Real upload layout (apps/native/src/lib/media/paths.ts): {uid}/{segment_id}.{ext}.
--- The second row is a malformed key the uuid-shaped guard must reject without raising.
+-- Rows 5-6 are malformed/orphaned keys the guards must reject without raising.
 insert into storage.objects (bucket_id, name, owner_id) values
   ('story-segments', '11111111-1111-1111-1111-111111111111/dddddddd-0000-0000-0000-00000000000d.mp4',
    '11111111-1111-1111-1111-111111111111'),
-  ('story-segments', 'not-a-uuid/seg.mp4', '11111111-1111-1111-1111-111111111111');
+  ('story-segments', '11111111-1111-1111-1111-111111111111/eeeeeeee-0000-0000-0000-00000000000e.mp4',
+   '11111111-1111-1111-1111-111111111111'),
+  ('story-segments', '11111111-1111-1111-1111-111111111111/ffffffff-0000-0000-0000-00000000000f.mp4',
+   '11111111-1111-1111-1111-111111111111'),
+  ('story-segments', '11111111-1111-1111-1111-111111111111/cccccccc-0000-0000-0000-00000000000c.mp4',
+   '11111111-1111-1111-1111-111111111111'),
+  ('story-segments', 'not-a-uuid/seg.mp4', '11111111-1111-1111-1111-111111111111'),
+  -- well-formed owner folder, filename that is not a uuid at all: no descriptor can match it,
+  -- and the predicate must deny rather than raise
+  ('story-segments', '11111111-1111-1111-1111-111111111111/not-a-uuid.mp4',
+   '11111111-1111-1111-1111-111111111111'),
+  -- both path parts well-formed, but no descriptor row exists: an orphaned upload
+  ('story-segments', '11111111-1111-1111-1111-111111111111/0a0a0a0a-0000-0000-0000-00000000000a.mp4',
+   '11111111-1111-1111-1111-111111111111'),
+  -- A re-uploads bytes under their own folder, naming them after a segment that is still live.
+  -- An id-parsing predicate would serve this forever; binding on storage_path denies it.
+  ('story-segments', '11111111-1111-1111-1111-111111111111/dddddddd-0000-0000-0000-00000000000d.jpg',
+   '11111111-1111-1111-1111-111111111111');
 
 -- ── bucket metadata ──────────────────────────────────────────────────────────────────
 select is(
@@ -136,12 +175,34 @@ select is_empty(
 --   2. `athanor.not_blocked` gates the TABLE policy and appeared nowhere on storage.objects, so
 --      a blocked member lost the row and kept the file.
 --
--- 20260808151808_storage_not_blocked_predicate.sql closes (2) only. (1) IS STILL OPEN and is
--- deliberately not asserted here in either direction: gating storage on expiry means joining
--- story_segments from inside a USING clause on every object read, and whether that cost is
--- acceptable -- or whether expiry should be enforced by a reaper that deletes the objects -- is
--- an open decision, not something a test should freeze. Do not read the assertions below as
--- covering expiry.
+-- 20260808151808_storage_not_blocked_predicate.sql closed (2).
+-- 20260809151111_story_segment_storage_expiry.sql closes (1) — issue #21 — by matching the
+-- object to its descriptor row on `storage_path` from inside the USING clause. The decision the
+-- earlier version of this comment left open (join-per-read vs. a reaper that deletes the
+-- objects) went to the join: a reaper leaves a window between expiry and the sweep, and PRD
+-- §4.5's 24h is a promise about the moment, not about a cron's cadence.
+--
+-- The TABLE policy it mirrors is NOT the text 20260614230531 shipped. After 20260616083015,
+-- 20260619222420 and 20260619223725 it now reads:
+--
+--   (deleted_at is null or author_id = (select auth.uid()))
+--   and (expires_at > now() or pinned)
+--   and athanor.not_blocked(author_id)
+--
+-- Note the owner arm on soft-delete — it exists so `update … set deleted_at` does not fail
+-- 42501. The storage policy deliberately does NOT carry that arm across: the author needs the
+-- ROW back to un-delete, never the bytes. The expiry arm has no owner exemption in either place.
+--
+-- Because a policy expression runs as the calling role, the subquery is additionally filtered by
+-- `story_segments_select_live` itself. The explicit predicate is therefore redundant on expiry
+-- and pinned, and kept anyway: storage visibility should not depend on another policy staying
+-- correct. All of it is asserted behaviourally at the bottom.
+--
+-- One half of expiry CANNOT be asserted from here, and it is the half that bounds the damage:
+-- an RLS predicate runs when a signed URL is MINTED, not when it is used, so a URL signed just
+-- before expiry outlives this policy by its whole TTL. That TTL is capped at 5 minutes for this
+-- bucket in `apps/native/src/lib/media/signed-url-policy.ts` and asserted in its unit test.
+-- Raising it re-opens the hole and nothing here will notice.
 --
 -- The argument matters, not just the call: not_blocked applied to the CALLER's own uid is a
 -- tautology. Assert it is applied to the object's owner, derived from the first path segment.
@@ -161,26 +222,114 @@ select is_empty(
   'read policy uuid-shape-guards the path segment before casting it'
 );
 
+-- The read policy must actually consult the descriptor row, not merely mention the table.
+select is_empty(
+  $$ select policyname::text from pg_policies
+      where schemaname = 'storage' and tablename = 'objects'
+        and policyname = 'story-segments_select_member'
+        and not ( qual like '%story_segments%'
+              and qual like '%expires_at%'
+              and qual like '%pinned%'
+              and qual like '%deleted_at%' ) $$,
+  'read policy joins story_segments and carries its expiry / pinned / soft-delete predicate'
+);
+
+-- The join must bind the object to ITS OWN descriptor. An id parsed out of the key answers
+-- «is SOME live segment called this», and since a member may write anywhere under their own uid
+-- folder (20260614230533), `{own_uid}/{someone_elses_live_segment_id}.mp4` would then stay
+-- readable — including a re-upload of their own just-expired bytes. Matching the stored key is
+-- what closes that, and it removes every cast from the predicate in passing.
+select is_empty(
+  $$ select policyname::text from pg_policies
+      where schemaname = 'storage' and tablename = 'objects'
+        and policyname = 'story-segments_select_member'
+        and qual not like '%storage_path = %name%' $$,
+  'read policy matches the object to its own descriptor by storage_path, not by a parsed id'
+);
+
 -- ── BEHAVIOUR: who can actually read the bytes ───────────────────────────────────────
 set local role authenticated;
 
+-- Seven objects sit under A's prefix: live-unpinned (d.mp4), expired-unpinned (e), expired-
+-- pinned (f), soft-deleted (c), a malformed filename, an orphan, and d.jpg — bytes named after
+-- a live segment but described by no row. Only (d.mp4) and (f) are ever readable, so the
+-- owner-prefix count is 2 for anyone not blocked. Before this change it was 7.
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select is(
   (select count(*)::int from storage.objects
-     where bucket_id = 'story-segments' and name like '11111111-%'),
-  1, 'owner reads their own story segment'
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/dddddddd-0000-0000-0000-00000000000d.mp4'),
+  1, 'owner reads their own live story segment'
+);
+-- Expiry binds the AUTHOR too. The table policy's owner exemption covers `deleted_at` only —
+-- there is none on the expiry arm, and one here would mean the author still sees a story
+-- everyone else was told had gone.
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/eeeeeeee-0000-0000-0000-00000000000e.mp4'),
+  0, 'the author cannot read their OWN expired unpinned segment either'
 );
 
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 select is(
   (select count(*)::int from storage.objects
      where bucket_id = 'story-segments' and name like '11111111-%'),
-  1, 'a member who has not been blocked reads another member''s story segment'
+  2, 'an unblocked member reads exactly the live and the pinned segment, and nothing else'
+);
+-- THE BUG (issue #21): the row disappeared at 24h and the file did not.
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/eeeeeeee-0000-0000-0000-00000000000e.mp4'),
+  0, 'an expired unpinned segment''s FILE is unreadable, not just its row'
+);
+-- The other direction, which the fix must not break: pinned survives on purpose (PRD §4.5).
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/ffffffff-0000-0000-0000-00000000000f.mp4'),
+  1, 'a PINNED segment stays readable past expires_at'
+);
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/cccccccc-0000-0000-0000-00000000000c.mp4'),
+  0, 'a soft-deleted segment''s file is unreadable while still inside its window'
 );
 select is(
   (select count(*)::int from storage.objects
      where bucket_id = 'story-segments' and name = 'not-a-uuid/seg.mp4'),
   0, 'a segment whose first path segment is not a uuid is unreadable'
+);
+-- Denies rather than raising. The predicate no longer casts the filename at all — it matches
+-- the stored key — so 22P02 is structurally impossible rather than merely guarded against; this
+-- keeps a witness that a garbage key is answered with a denial, not an aborted query.
+select lives_ok(
+  $$ select count(*) from storage.objects
+      where bucket_id = 'story-segments'
+        and name = '11111111-1111-1111-1111-111111111111/not-a-uuid.mp4' $$,
+  'a malformed FILENAME denies instead of raising inside USING'
+);
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/not-a-uuid.mp4'),
+  0, 'a segment whose filename is not a uuid is unreadable'
+);
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/0a0a0a0a-0000-0000-0000-00000000000a.mp4'),
+  0, 'an orphaned object with no descriptor row is unreadable'
+);
+-- The unbound-descriptor hole, in one assertion. `.jpg` beside the live segment's `.mp4`: the
+-- id in the key names a live segment, but no descriptor points at THIS object.
+select is(
+  (select count(*)::int from storage.objects
+     where bucket_id = 'story-segments'
+       and name = '11111111-1111-1111-1111-111111111111/dddddddd-0000-0000-0000-00000000000d.jpg'),
+  0, 'an object named after a LIVE segment but owned by no descriptor row is unreadable'
 );
 
 set local request.jwt.claims = '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
