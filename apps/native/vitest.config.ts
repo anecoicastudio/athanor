@@ -22,18 +22,23 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/lib/**', 'src/hooks/**'],
-      // Ratcheted 2026-08-09 (37/89/72/37 → 38/89/73/38) after covering locale, links and the
-      // sentry init/consent lifecycle. Each floor is a BAND, not the measured number: measured is
-      // 568/1425 lines (39.85), 75/98 functions (76.53), 291/322 branches (90.37), and a floor
-      // is only raised as far as it survives new *uncovered* code arriving — 38 lines tolerates
-      // ~69 new uncovered lines, 73 functions tolerates 4. Branches stay at 89 deliberately:
-      // the v8 branch denominator swings on test-only commits, so 90 would leave one branch of
-      // headroom and flap. Never lower a floor to make a run green.
+      // Ratcheted 2026-08-09, twice: 37/89/72/37 → 38/89/73/38 (covering locale, links and the
+      // sentry consent lifecycle) → 39/89/74/39 here, once the deletions below settled the
+      // denominator. Each floor is a BAND, not the measured number: measured is 562/1418 lines
+      // (39.63), 75/98 functions (76.53), 294/323 branches (91.02), and a floor is only raised
+      // as far as it survives new *uncovered* code arriving — 39 lines tolerates ~22 new
+      // uncovered lines, 74 functions tolerates 3. Branches stay at 89 for the third time
+      // deliberately: the v8 branch denominator swings on test-only commits (819→847 on one in
+      // packages/api), so 90 would leave two branches of headroom and flap.
+      //
+      // The headroom is thin because the denominator is dominated by ~28 modules that need a
+      // renderer or a device. A component harness is what unlocks a real ratchet here; until
+      // then these move in single points. Never lower a floor to make a run green.
       thresholds: {
-        lines: 38,
+        lines: 39,
         branches: 89,
-        functions: 73,
-        statements: 38,
+        functions: 74,
+        statements: 39,
       },
     },
   },
