@@ -778,3 +778,123 @@ describe('eventKeys namespacing', () => {
     expect(eventKeys.nearby(45.46, 9.19, 10)).not.toEqual(eventKeys.nearby(45.46, 9.19, 25));
   });
 });
+
+// ── null payloads and the arms that guard them ───────────────────────────────
+// supabase-js returns `[]` from a successful list `.select()` and `null` only alongside an
+// error, which the preceding `if (error) throw` already consumes — so these `?? []` arms are
+// type-narrowing defence rather than a shape PostgREST routinely produces. They are worth
+// pinning anyway: `head: true` counts and `.maybeSingle()` DO yield null on success, and the
+// arms were unreached, so nothing would have caught a reader that dropped one and threw on
+// `.map` of null.
+describe('events — a null payload is an empty result, not a crash', () => {
+  it('getEventsCalendar', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: null }] });
+    await expect(getEventsCalendar(asClient(fake))).resolves.toEqual({
+      events: [],
+      nextCursor: null,
+    });
+  });
+
+  it('getEventsOnline', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: null }] });
+    await expect(getEventsOnline(asClient(fake))).resolves.toEqual([]);
+  });
+
+  it('getEventsByOrganizer', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: null }] });
+    await expect(getEventsByOrganizer(asClient(fake), 'u1')).resolves.toEqual([]);
+  });
+
+  it('getEventsNearby', async () => {
+    const fake = makeFakeClient({ 'rpc.events_nearby': [{ data: null }] });
+    await expect(getEventsNearby(asClient(fake), 45.4, 9.2)).resolves.toEqual({
+      events: [],
+      nextCursor: null,
+    });
+  });
+
+  it('getEventAttendees reports zero rather than throwing on a null preview', async () => {
+    const fake = makeFakeClient({
+      'rsvps.select': [{ count: null }, { data: null }],
+    });
+    await expect(getEventAttendees(asClient(fake), 'e1')).resolves.toEqual({
+      count: 0,
+      userIds: [],
+    });
+  });
+
+  it('getEventCheckinCount reports zero when the count comes back null', async () => {
+    const fake = makeFakeClient({ 'event_attendance.select': [{ count: null }] });
+    await expect(getEventCheckinCount(asClient(fake), 'e1')).resolves.toBe(0);
+  });
+});
+
+describe('events — cursor arms carry the keyset forward (rule #9)', () => {
+  // getEventsCalendar's cursor arm is already covered above; only the RPC-shaped one is new.
+  it('getEventsNearby passes the cursor to the RPC and omits it when absent', async () => {
+    const withCursor = makeFakeClient({ 'rpc.events_nearby': [{ data: [] }] });
+    await getEventsNearby(asClient(withCursor), 45.4, 9.2, 10, { dist: 1200, id: 'e9' });
+    expect(withCursor.calls[0]!.values).toMatchObject({ cursor_dist: 1200, cursor_id: 'e9' });
+
+    const without = makeFakeClient({ 'rpc.events_nearby': [{ data: [] }] });
+    await getEventsNearby(asClient(without), 45.4, 9.2);
+    expect(without.calls[0]!.values).not.toHaveProperty('cursor_dist');
+    expect(without.calls[0]!.values).not.toHaveProperty('cursor_id');
+  });
+});
+
+describe('events — createEvent forwards only the fields that were set', () => {
+  // eventCreateSchema.superRefine requires a stream_url for an online event, so the base
+  // fixture carries one. EventCreate is the post-parse type, so every optional is present as
+  // null — the point here is which of them reach the RPC.
+  const base = {
+    title: 'Ceramica al tramonto',
+    category: 'networking' as const,
+    is_online: true,
+    venue: null,
+    city: null,
+    lat: null,
+    long: null,
+    stream_url: 'https://meet.example/abc',
+    starts_at: '2026-09-01T18:00:00Z',
+    ends_at: null,
+    capacity: null,
+    price_cents: 0,
+    currency: 'eur',
+  };
+
+  it('an online event forwards its stream url and omits the physical-venue fields', async () => {
+    const fake = makeFakeClient({
+      'rpc.create_event': [{ data: E }],
+      'events.select': [{ data: evt() }],
+    });
+    await createEvent(asClient(fake), base);
+    const args = fake.calls[0]!.values as Record<string, unknown>;
+    expect(args).toMatchObject({ p_stream_url: 'https://meet.example/abc' });
+    // Unset optionals must be absent, not sent as undefined: the RPC has its own defaults.
+    for (const k of ['p_venue', 'p_city', 'p_lat', 'p_long', 'p_ends_at', 'p_capacity']) {
+      expect(args).not.toHaveProperty(k);
+    }
+  });
+
+  it('a free event omits p_price_cents entirely', async () => {
+    // price_cents is only sent when non-zero, so a free event must carry no price at all.
+    // (`base` is already free and in eur; the currency arm is covered by the gbp case above.)
+    const fake = makeFakeClient({
+      'rpc.create_event': [{ data: E }],
+      'events.select': [{ data: evt() }],
+    });
+    await createEvent(asClient(fake), base);
+    expect(fake.calls[0]!.values).not.toHaveProperty('p_price_cents');
+  });
+
+  it('throws when the RPC reports an id the follow-up read cannot find', async () => {
+    // The RPC returning an id the caller cannot then read means RLS hid it. Returning a
+    // half-built object would put an event on screen that does not exist for this member.
+    const fake = makeFakeClient({
+      'rpc.create_event': [{ data: E }],
+      'events.select': [{ data: null }],
+    });
+    await expect(createEvent(asClient(fake), base)).rejects.toThrow('created event not found');
+  });
+});
