@@ -87,6 +87,7 @@ function makeClientReturning(fixtures: { score: unknown; stars: unknown[] }) {
 // ---------------------------------------------------------------------------
 
 const P = '00000000-0000-0000-0000-0000000000a1';
+const P2 = '00000000-0000-0000-0000-0000000000a2';
 const EV1 = '00000000-0000-0000-0000-0000000000e1';
 const EV2 = '00000000-0000-0000-0000-0000000000e2';
 
@@ -254,6 +255,20 @@ describe('getAuraLedgerPage', () => {
     expect(page.nextCursor).toEqual({ ts: '2026-07-30T10:00:00Z', id: EV2 });
     expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
     expect(fake.calls[0]!.modifiers).toEqual(expect.arrayContaining([['limit', 2]]));
+  });
+
+  // The dampening key has to survive the snake_case → camelCase mapping, not just parse as null:
+  // a reciprocal exchange is exactly the row where it carries a value.
+  it('carries the counterparty of a reciprocal exchange through to the caller', async () => {
+    const fake = makeFakeClient({
+      'aura_events.select': [
+        {
+          data: [ledgerRow({ type: 'milestone_help', points: 40, counterparty_id: P2 })],
+        },
+      ],
+    });
+    const page = await getAuraLedgerPage(asClient(fake), P);
+    expect(page.rows[0]!.counterpartyId).toBe(P2);
   });
 
   it('returns a null cursor on a short page', async () => {
