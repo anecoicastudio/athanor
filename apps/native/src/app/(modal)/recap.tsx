@@ -46,6 +46,10 @@ export default function RecapScreen() {
   });
 
   const recap = recapQuery.data;
+  // `?? []` is safe HERE and nowhere else (issue #16): the only consumer is pickNextStar, which
+  // returns null for an empty array, so a failed read hides the «Prossima stella» block instead
+  // of claiming zero progress. No star is rendered on this screen. If one ever is, switch to
+  // `starsOrNull` — the coalesce becomes a false «none earned» the moment a glyph depends on it.
   const stars = starsQuery.data ?? [];
   const nextStar = pickNextStar(stars);
 

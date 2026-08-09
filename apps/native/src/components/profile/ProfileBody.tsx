@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { pickNextStar } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale, Star, StarKey } from '@athanor/schemas';
-import { View } from '@/tw';
+import { Text, View } from '@/tw';
 import { MomentiGallery } from '@/components/media/MomentiGallery';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -36,7 +36,8 @@ export function ProfileBody({
   afterHero?: ReactNode;
   /** Slot between stat line and stars (own view: Connessioni row). */
   afterStats?: ReactNode;
-  stars: Star[];
+  /** `null` = the stars read failed or has not landed — NOT «none earned» (issue #16). */
+  stars: Star[] | null;
   viewerIsOwner: boolean;
   onStarPress?: (starId: StarKey) => void;
   gallery: ComponentProps<typeof MomentiGallery>;
@@ -69,7 +70,20 @@ export function ProfileBody({
           locale={locale}
           onStarPress={onStarPress}
         />
-        {viewerIsOwner ? <StarProgress next={pickNextStar(stars)} locale={locale} /> : null}
+        {/* Progress needs the rows to compute a ratio; with none read there is nothing truthful
+            to say, so the strip hides rather than showing 0 / N. The owner gets a sentence in
+            its place — six em dashes and a block that silently shrinks is honest but mute, and
+            unlike the third-person case there is no «—» hero beside it co-signalling why
+            (issue #16). */}
+        {viewerIsOwner ? (
+          stars != null ? (
+            <StarProgress next={pickNextStar(stars)} locale={locale} />
+          ) : (
+            <Text className="text-[12px] text-faint">
+              {t('profile.stars.yourUnavailable', locale)}
+            </Text>
+          )
+        ) : null}
       </View>
 
       {/* Momenti gallery — own view passes onAdd; third-person passes label/emptyLabel overrides */}
