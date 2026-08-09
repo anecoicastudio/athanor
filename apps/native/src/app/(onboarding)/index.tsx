@@ -103,9 +103,7 @@ export default function OnboardingScreen() {
               <Text className="text-muted-foreground">←</Text>
             </Pressable>
           ) : null}
-          <SectionLabel>
-            {t('onboarding.eyebrow', locale)}
-          </SectionLabel>
+          <SectionLabel>{t('onboarding.eyebrow', locale)}</SectionLabel>
         </View>
         <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8}>
           <Text className="text-[13px] font-semibold text-aura">
@@ -122,9 +120,7 @@ export default function OnboardingScreen() {
         <View>
           {step === 0 ? (
             <View className="gap-4">
-              <SectionLabel>
-                {t('onboarding.identity.eyebrow', locale)}
-              </SectionLabel>
+              <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
               <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.identity.title', locale)}
               </Text>
@@ -144,9 +140,7 @@ export default function OnboardingScreen() {
 
           {step === 1 ? (
             <View className="gap-4">
-              <SectionLabel>
-                {t('onboarding.seeking.eyebrow', locale)}
-              </SectionLabel>
+              <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
               <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.seeking.title', locale)}
               </Text>
@@ -166,9 +160,7 @@ export default function OnboardingScreen() {
 
           {step === 2 ? (
             <View className="gap-4">
-              <SectionLabel tone="aura">
-                {t('onboarding.dream.eyebrow', locale)}
-              </SectionLabel>
+              <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
               <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                 {t('onboarding.dream.title', locale)}
               </Text>

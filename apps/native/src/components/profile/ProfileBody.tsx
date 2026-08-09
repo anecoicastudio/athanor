@@ -50,7 +50,10 @@ export function ProfileBody({
       {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3 */}
       <StatLine
         items={[
-          { value: String(statCounts?.collabsCount ?? 0), label: t('profile.stat.collabs', locale) },
+          {
+            value: String(statCounts?.collabsCount ?? 0),
+            label: t('profile.stat.collabs', locale),
+          },
           { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
           { value: '0', label: t('profile.stat.reviews', locale) },
         ]}

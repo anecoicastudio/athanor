@@ -36,9 +36,7 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
 
         {card.dreamText ? (
           <View className="mt-4">
-            <SectionLabel>
-              {t('momenti.theirDream', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('momenti.theirDream', locale)}</SectionLabel>
             <DreamQuote text={card.dreamText} className="mt-1" />
           </View>
         ) : null}

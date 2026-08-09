@@ -19,13 +19,7 @@ import { cn } from '@/lib/utils';
  */
 const LAUNCH_AT = Date.parse('2026-09-11T00:00:00+02:00');
 
-export function LaunchCountdown({
-  locale,
-  className,
-}: {
-  locale: Locale;
-  className?: string;
-}) {
+export function LaunchCountdown({ locale, className }: { locale: Locale; className?: string }) {
   // Null until mounted: a `Date.now()`-seeded initial state would differ between
   // the server render and first client paint (hydration mismatch). Pre-mount the
   // numerals render `00` at `opacity-0` — same DOM, same height on both sides, so

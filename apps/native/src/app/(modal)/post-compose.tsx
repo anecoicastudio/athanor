@@ -184,9 +184,7 @@ export default function PostComposeScreen() {
           />
 
           <View className="gap-2">
-            <SectionLabel>
-              {t('post.compose.catLabel', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('post.compose.catLabel', locale)}</SectionLabel>
             <View className="flex-row flex-wrap gap-2">
               {CATEGORIES.map((c) => {
                 const isActive = c === category;

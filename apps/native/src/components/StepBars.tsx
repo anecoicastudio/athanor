@@ -15,7 +15,11 @@ export function StepBars({ count, current }: { count: number; current: number })
       {Array.from({ length: count }, (_, i) => (
         <View
           key={i}
-          className={i <= current ? 'h-[3px] flex-1 rounded-full bg-aura' : 'h-[3px] flex-1 rounded-full bg-raise-2'}
+          className={
+            i <= current
+              ? 'h-[3px] flex-1 rounded-full bg-aura'
+              : 'h-[3px] flex-1 rounded-full bg-raise-2'
+          }
         />
       ))}
     </View>

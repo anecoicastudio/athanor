@@ -1,6 +1,6 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 allowBuilds:
   # sentry-cli binary — needed for Hermes source-map/symbol upload during the EAS
   # build (P1.4/P1.5). Runtime SDK doesn't need it; the build hook does.
@@ -13,4 +13,4 @@ overrides:
   # expo declares `@expo/metro-runtime: "*"`, so pnpm resolves to the highest
   # semver (56.0.15 = SDK 56), which lacks the `/error-overlay` subpath that
   # SDK 54's expo-router@6.x imports. Pin the SDK-54 line (6.x has error-overlay).
-  "@expo/metro-runtime": 6.1.2
+  '@expo/metro-runtime': 6.1.2

@@ -60,9 +60,7 @@ export function MapPanel({
           );
         })}
       </ScrollView>
-      <SectionLabel className="px-5 pb-2">
-        {t('live.map.section', locale)}
-      </SectionLabel>
+      <SectionLabel className="px-5 pb-2">{t('live.map.section', locale)}</SectionLabel>
       <View className="gap-3 px-5">
         {listed.map((e) => (
           <EventRow

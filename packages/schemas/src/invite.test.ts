@@ -14,7 +14,9 @@ const ROW = {
 describe('inviteSchema', () => {
   it('parses a valid row (nullable invitee/activated)', () => {
     expect(inviteSchema.parse(ROW).code).toBe('A1B2C3D4');
-    expect(inviteSchema.parse({ ...ROW, invitee_id: null, activated_at: null }).invitee_id).toBeNull();
+    expect(
+      inviteSchema.parse({ ...ROW, invitee_id: null, activated_at: null }).invitee_id,
+    ).toBeNull();
   });
   it('rejects a non-uuid inviter', () => {
     expect(() => inviteSchema.parse({ ...ROW, inviter_id: 'nope' })).toThrow();

@@ -19,15 +19,29 @@ function jpegFixture(): Uint8Array {
 function pngChunk(type: string, data: number[]): number[] {
   const len = data.length;
   return [
-    (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff,
-    ...A(type), ...data,
-    0xde, 0xad, 0xbe, 0xef, // CRC not validated by the stripper
+    (len >>> 24) & 0xff,
+    (len >>> 16) & 0xff,
+    (len >>> 8) & 0xff,
+    len & 0xff,
+    ...A(type),
+    ...data,
+    0xde,
+    0xad,
+    0xbe,
+    0xef, // CRC not validated by the stripper
   ];
 }
 
 function pngFixture(): Uint8Array {
   return new Uint8Array([
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
     ...pngChunk('IHDR', new Array(13).fill(1)),
     ...pngChunk('tEXt', A('Comment\0made by camera')),
     ...pngChunk('eXIf', A('II*\0gpsdata')),
@@ -40,7 +54,10 @@ function webpChunk(fourcc: string, data: number[]): number[] {
   const len = data.length;
   return [
     ...A(fourcc),
-    len & 0xff, (len >>> 8) & 0xff, (len >>> 16) & 0xff, (len >>> 24) & 0xff,
+    len & 0xff,
+    (len >>> 8) & 0xff,
+    (len >>> 16) & 0xff,
+    (len >>> 24) & 0xff,
     ...data,
     ...(len & 1 ? [0] : []),
   ];
@@ -54,7 +71,10 @@ function webpFixture(): Uint8Array {
   const size = body.length + 4; // + 'WEBP'
   return new Uint8Array([
     ...A('RIFF'),
-    size & 0xff, (size >>> 8) & 0xff, (size >>> 16) & 0xff, (size >>> 24) & 0xff,
+    size & 0xff,
+    (size >>> 8) & 0xff,
+    (size >>> 16) & 0xff,
+    (size >>> 24) & 0xff,
     ...A('WEBP'),
     ...body,
   ]);
@@ -63,8 +83,12 @@ function webpFixture(): Uint8Array {
 function mp4Box(type: string, payload: number[]): number[] {
   const size = 8 + payload.length;
   return [
-    (size >>> 24) & 0xff, (size >>> 16) & 0xff, (size >>> 8) & 0xff, size & 0xff,
-    ...A(type), ...payload,
+    (size >>> 24) & 0xff,
+    (size >>> 16) & 0xff,
+    (size >>> 8) & 0xff,
+    size & 0xff,
+    ...A(type),
+    ...payload,
   ];
 }
 
@@ -88,8 +112,14 @@ function mp3Fixture(): Uint8Array {
   const body = A('TXXXsomedata\0lat=45.46');
   const size = body.length;
   const id3 = [
-    ...A('ID3'), 3, 0, 0,
-    (size >>> 21) & 0x7f, (size >>> 14) & 0x7f, (size >>> 7) & 0x7f, size & 0x7f,
+    ...A('ID3'),
+    3,
+    0,
+    0,
+    (size >>> 21) & 0x7f,
+    (size >>> 14) & 0x7f,
+    (size >>> 7) & 0x7f,
+    size & 0x7f,
     ...body,
   ];
   const frames = [0xff, 0xfb, 0x90, 0x00, 1, 2, 3, 4, 5, 6];
@@ -116,7 +146,10 @@ Deno.test('jpeg: drops APP1 EXIF + COM, keeps JFIF and scan bytes', () => {
   assertEquals(findSeq(out, A('GPSLATITUDE')), -1);
   assertEquals(findSeq(out, A('hello')), -1);
   assert(findSeq(out, A('JFIF')) >= 0, 'APP0/JFIF preserved');
-  assert(findSeq(out, [0xff, 0xda, 0x00, 0x04, 0x01, 0x02, 0xaa, 0xbb, 0xcc]) >= 0, 'SOS+scan preserved');
+  assert(
+    findSeq(out, [0xff, 0xda, 0x00, 0x04, 0x01, 0x02, 0xaa, 0xbb, 0xcc]) >= 0,
+    'SOS+scan preserved',
+  );
   assertEquals(out[out.length - 1], 0xd9, 'EOI preserved');
 });
 
@@ -207,7 +240,11 @@ Deno.test('mp3: zeroes ID3v2 body + blanks ID3v1, keeps audio frames', () => {
   assertEquals(findSeq(out, A('lat=45.46')), -1);
   assertEquals(findSeq(out, A('title')), -1, 'ID3v1 fields blanked');
   assertEquals(out.length, pristine.length, 'length unchanged');
-  assertEquals(out.subarray(frameAt, frameAt + 10), pristine.subarray(frameAt, frameAt + 10), 'audio frames untouched');
+  assertEquals(
+    out.subarray(frameAt, frameAt + 10),
+    pristine.subarray(frameAt, frameAt + 10),
+    'audio frames untouched',
+  );
   assert(findSeq(out, A('TAG')) >= 0, 'ID3v1 marker itself may remain (fields blank)');
 });
 
@@ -228,9 +265,23 @@ Deno.test('unknown format passes through unchanged', () => {
 
 Deno.test('clean jpeg (no metadata segments) reports changed=false', () => {
   const clean = new Uint8Array([
-    0xff, 0xd8,
-    0xff, 0xe0, 0x00, 0x08, ...A('JFIF\0'), 0x01,
-    0xff, 0xda, 0x00, 0x04, 0x01, 0x02, 0xaa, 0xff, 0xd9,
+    0xff,
+    0xd8,
+    0xff,
+    0xe0,
+    0x00,
+    0x08,
+    ...A('JFIF\0'),
+    0x01,
+    0xff,
+    0xda,
+    0x00,
+    0x04,
+    0x01,
+    0x02,
+    0xaa,
+    0xff,
+    0xd9,
   ]);
   const res = stripMetadata(clean.slice());
   assertEquals(res.kind, 'jpeg');
@@ -246,7 +297,10 @@ Deno.test('webp: malformed tail (missing pad byte) is preserved, never dropped',
   const size = body.length + 4;
   const src = new Uint8Array([
     ...A('RIFF'),
-    size & 0xff, (size >>> 8) & 0xff, (size >>> 16) & 0xff, (size >>> 24) & 0xff,
+    size & 0xff,
+    (size >>> 8) & 0xff,
+    (size >>> 16) & 0xff,
+    (size >>> 24) & 0xff,
     ...A('WEBP'),
     ...body,
   ]);
