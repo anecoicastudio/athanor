@@ -8,7 +8,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(23);
+select plan(26);
 
 -- fixture: three profiles (auto-created by handle_new_user) — owner (dream + tappe +
 -- event organizer + momento participant), helper (milestone help + post author + momento
@@ -193,30 +193,73 @@ select is(
   0, 'all 6 trigger bodies ran with the engine unconfigured and wrote zero aura_events for this fixture (rule #1)');
 reset role;
 
--- ⚠ TRIPWIRE — DELETE THIS ASSERT WHEN ISSUE #27 LANDS.
---
--- It asserts a DEFECT, deliberately, because nothing else in the repo goes red while it is
--- live. aura_award_post_starred selects the reactor's Aura into v_reactor_score, gates on
--- `> 300`, and then calls enqueue_score_award — which has no parameter to carry it. The
--- pg_net body sends only `severity`, so score-engine reaches core's pointsFor with
--- reviewerScore undefined, `?? 0` fails the same gate a second time, and every ✦ awards 0
--- with no ledger row. The gate is written twice and the second copy always loses.
---
--- packages/core/src/score/award.test.ts pins the CONSEQUENCE (pointsFor('post_starred', {})
--- is 0) but is required to keep passing afterwards, so it can never announce the fix. This
--- one fails the moment the parameter appears — which is what forces MIGRATIONS-ERRATA.md
--- and the weights.ts comment to be corrected in the same change instead of drifting again.
--- Overload-agnostic on purpose: two signatures coexist (the 4-arg form from
--- 20260808074301, which post_starred calls, and the 5-arg counterparty form from
--- 20260808180801, which was added without dropping the first). Whichever one grows the
--- parameter, this goes red.
+-- (K) #27 — the enqueue payload carries the reactor's Aura, so pointsFor's gate finally
+-- receives a real reviewerScore instead of failing on `?? 0`. This section replaced the
+-- tripwire that pinned the DEFECT (payload carried only `severity`; every ✦ awarded 0).
+-- The SQL `> 300` pre-gate is gone with it: the engine (core pointsFor, weights.ts
+-- REACTION_AUTHOR_MIN_SCORE) is the single authority on the threshold (rule #10), so the
+-- trigger now always enqueues and always sends the score it read.
+
+-- K1: exactly one enqueue_score_award overload carries the reactor score.
 select is(
   (select count(*)::int
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'athanor' and p.proname = 'enqueue_score_award'
       and array_to_string(p.proargnames, ',') ~* 'reviewer|reactor'),
-  0,
-  'no enqueue_score_award overload can carry the reactor score, so post_starred awards 0 (issue #27)');
+  1,
+  'exactly one enqueue_score_award overload carries the reactor score (#27)');
+
+-- Functional: configure the engine GUCs locally (rolled back with this txn). pg_net's
+-- worker never sees uncommitted queue rows, so net.http_request_queue is a safe in-txn
+-- witness of the exact payload the trigger enqueued.
+select set_config('app.settings.score_engine_url', 'http://engine.invalid/functions/v1/score-engine', true);
+select set_config('app.settings.score_engine_key', 'sb_secret_pgtap_dummy_key', true);
+
+-- Seed: the owner holds Aura 500 (above the 300 gate); a second post to react to.
+set local role service_role;
+insert into public.aura_scores (profile_id, score)
+  values (current_setting('test.owner')::uuid, 500);
+insert into public.posts (id, author_id, category, body)
+  values ('aaaaaaaa-4444-4444-4444-000000000002', current_setting('test.helper')::uuid,
+          'human', 'un secondo post (payload sanity)');
+
+-- K2+K3: the owner (Aura 500) stars the helper's post → the queued body awards the AUTHOR
+-- and carries the REACTOR's score.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+insert into public.post_reactions (post_id, person_id)
+  values ('aaaaaaaa-4444-4444-4444-000000000001', current_setting('test.owner')::uuid);
+reset role;
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb #>> '{ctx,reviewerScore}'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'post_starred'
+      and convert_from(q.body, 'utf8')::jsonb ->> 'profileId' = current_setting('test.helper')
+    order by q.id desc limit 1),
+  '500',
+  'the ✦ payload carries the reactor''s Aura in ctx.reviewerScore (#27)');
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb ->> 'profileId'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'post_starred'
+    order by q.id desc limit 1),
+  current_setting('test.helper'),
+  'the ✦ award targets the post author, never the reactor');
+
+-- K4: a reactor with NO aura_scores row still enqueues, carrying reviewerScore 0 — the
+-- engine, not the trigger, decides the sub-gate ✦ is worth nothing.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"66666666-6666-6666-6666-666666666666","role":"authenticated"}';
+insert into public.post_reactions (post_id, person_id)
+  values ('aaaaaaaa-4444-4444-4444-000000000002', current_setting('test.third')::uuid);
+reset role;
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb #>> '{ctx,reviewerScore}'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'post_starred'
+    order by q.id desc limit 1),
+  '0',
+  'a scoreless reactor enqueues with reviewerScore 0 — the engine is the only gate (#27)');
 
 select finish();
 rollback;
