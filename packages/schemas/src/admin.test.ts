@@ -19,6 +19,30 @@ describe('resolveReportInput', () => {
       }),
     ).toThrow();
   });
+  // Only the refine's REJECT arm was covered, so the predicate could have been a constant
+  // `false` — rejecting every uphold — and this suite would still be green. That is the path
+  // that mints report_upheld (−200, rule #1): if it can never be submitted the penalty can
+  // never be applied, and no test would say so.
+  it('accepts an uphold that carries a severity', () => {
+    const v = resolveReportInput.parse({
+      reportId: crypto.randomUUID(),
+      verdict: 'uphold',
+      resolution: 'selling in a dream thread',
+      severity: 'medium',
+    });
+    expect(v).toMatchObject({ verdict: 'uphold', severity: 'medium' });
+  });
+  // The refine's `path` is what a form keys its field-level error off. Nothing consumes it
+  // today, so blanking it is invisible — pin it before something does.
+  it('reports the missing severity against the severity field', () => {
+    const r = resolveReportInput.safeParse({
+      reportId: crypto.randomUUID(),
+      verdict: 'uphold',
+      resolution: 'x',
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(['severity']);
+  });
   it('rejects an over-long resolution', () => {
     expect(() =>
       resolveReportInput.parse({

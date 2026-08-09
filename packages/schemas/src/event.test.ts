@@ -100,6 +100,25 @@ describe('eventCreateSchema', () => {
   it('rejects a physical event without coordinates', () => {
     expect(() => eventCreateSchema.parse({ ...physical, lat: null, long: null })).toThrow();
   });
+  // The case above nulls BOTH coordinates, where `||` and `&&` agree — so the refine could have
+  // demanded only that they be missing *together* and this suite would pass. Half a coordinate
+  // pair is not a location: it would place the event on the equator or the prime meridian.
+  it('rejects a physical event with only one of the two coordinates', () => {
+    expect(() => eventCreateSchema.parse({ ...physical, long: null })).toThrow();
+    expect(() => eventCreateSchema.parse({ ...physical, lat: null })).toThrow();
+  });
+  // The `path` on each refine is what a create form keys its field-level error off; nothing
+  // reads it yet, so blanking it is currently invisible.
+  it('routes each refine failure to the field it is about', () => {
+    const noCoords = eventCreateSchema.safeParse({ ...physical, lat: null, long: null });
+    expect(noCoords.error?.issues[0]?.path).toEqual(['lat']);
+    const noStream = eventCreateSchema.safeParse({
+      ...physical,
+      is_online: true,
+      stream_url: null,
+    });
+    expect(noStream.error?.issues[0]?.path).toEqual(['stream_url']);
+  });
   it('rejects an online event without a stream URL', () => {
     expect(() =>
       eventCreateSchema.parse({ ...physical, is_online: true, stream_url: null }),
