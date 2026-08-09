@@ -17,9 +17,7 @@ export function AuraBlock({
   const router = useRouter();
   return (
     <View className="items-center gap-1">
-      <SectionLabel>
-        {label ?? t('profile.aura.label', locale)}
-      </SectionLabel>
+      <SectionLabel>{label ?? t('profile.aura.label', locale)}</SectionLabel>
       <Text
         className="text-[44px] font-extrabold tracking-[-0.03em] text-foreground"
         style={{ fontVariant: ['tabular-nums'] }}

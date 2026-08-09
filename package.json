@@ -12,11 +12,12 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "gen:types": "supabase gen types --lang typescript --local > packages/api/src/database.types.ts.tmp && mv packages/api/src/database.types.ts.tmp packages/api/src/database.types.ts",
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs"
   },
   "devDependencies": {
-    "prettier": "^3.5.3",
+    "prettier": "3.8.4",
     "turbo": "^2.5.0"
   }
 }

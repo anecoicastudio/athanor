@@ -80,9 +80,7 @@ export function DreamCard({
 
       {showTappe ? (
         <View className="mt-2 gap-3 border-t border-hair pt-4">
-          <SectionLabel>
-            {t('milestone.sectionLabel', locale)}
-          </SectionLabel>
+          <SectionLabel>{t('milestone.sectionLabel', locale)}</SectionLabel>
 
           {milestones.length === 0 ? (
             <Text className="text-[13px] text-faint">{t('milestone.empty.hint', locale)}</Text>

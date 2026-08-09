@@ -129,9 +129,7 @@ export default function CandidacyWizard() {
         >
           <Text className="text-muted-foreground">←</Text>
         </Pressable>
-        <SectionLabel tone="aura">
-          {t('candidacy.eyebrow', locale)}
-        </SectionLabel>
+        <SectionLabel tone="aura">{t('candidacy.eyebrow', locale)}</SectionLabel>
       </View>
 
       {/* Step dots (5 dots, current and past filled cyan) */}
@@ -141,9 +139,7 @@ export default function CandidacyWizard() {
 
       {/* Step content — vertically centred */}
       <View className="grow justify-center">
-        <SectionLabel>
-          {t(stepKey('label'), locale)}
-        </SectionLabel>
+        <SectionLabel>{t(stepKey('label'), locale)}</SectionLabel>
         <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
           {t(stepKey('q'), locale)}
         </Text>

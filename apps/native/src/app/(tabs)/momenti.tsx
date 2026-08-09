@@ -89,9 +89,7 @@ export default function MomentiScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="px-5 pt-4 pb-10">
-      <SectionLabel tone="aura">
-        {t('momenti.eyebrow', locale)}
-      </SectionLabel>
+      <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
       <Text className="text-[24px] font-bold text-foreground">{t('momenti.title', locale)}</Text>
       <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
 
@@ -148,9 +146,7 @@ export default function MomentiScreen() {
 
       {suggestion.data ? (
         <View className="mt-8">
-          <SectionLabel className="mb-2">
-            {t('momenti.suggestionsTitle', locale)}
-          </SectionLabel>
+          <SectionLabel className="mb-2">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
           <SuggestionRow suggestion={suggestion.data} locale={locale} />
         </View>
       ) : null}

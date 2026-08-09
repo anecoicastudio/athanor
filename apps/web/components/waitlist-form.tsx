@@ -61,7 +61,10 @@ export function WaitlistForm({
     <div className={`flex w-full max-w-sm flex-col gap-3 ${className ?? ''}`}>
       {done ? (
         <p className="text-base font-medium text-foreground">
-          {t(status === 'duplicate' ? 'landing.waitlist.duplicate' : 'landing.waitlist.success', locale)}
+          {t(
+            status === 'duplicate' ? 'landing.waitlist.duplicate' : 'landing.waitlist.success',
+            locale,
+          )}
         </p>
       ) : (
         <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">

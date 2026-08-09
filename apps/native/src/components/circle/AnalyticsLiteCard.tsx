@@ -75,9 +75,7 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
       {/* Top-2 breakdown sources */}
       {top2.length > 0 ? (
         <View className="gap-2">
-          <SectionLabel>
-            {t('circle.analytics.topSources', locale)}
-          </SectionLabel>
+          <SectionLabel>{t('circle.analytics.topSources', locale)}</SectionLabel>
           {top2.map((row) => (
             <View key={row.key} className="flex-row items-center justify-between">
               <Text className="text-[14px] text-foreground">

@@ -739,7 +739,6 @@ Deno.test('handleWebhook 500s when the claim update itself errors', async () => 
   assert(!db.calls.some((c) => c.table === 'event_tickets'));
 });
 
-
 const subscriptionCheckout = () =>
   ({
     id: 'cs_s1',

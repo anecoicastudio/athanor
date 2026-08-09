@@ -34,9 +34,7 @@ export function OnlinePanel({
   return (
     <ScrollView contentContainerClassName="pb-[104px] gap-4">
       <View className="gap-3 px-5">
-        <SectionLabel>
-          {t('live.online.section', locale)}
-        </SectionLabel>
+        <SectionLabel>{t('live.online.section', locale)}</SectionLabel>
         {liveNow.map((e) => (
           <LiveEventRow key={e.id} event={e} locale={locale} onOpen={onOpen} />
         ))}

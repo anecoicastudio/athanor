@@ -76,9 +76,7 @@ export default function ProjectComposeScreen() {
           <Text className="text-[14px] text-faint">{t('create.project.desc', locale)}</Text>
 
           <View className="gap-2">
-            <SectionLabel>
-              {t('project.compose.titleLabel', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('project.compose.titleLabel', locale)}</SectionLabel>
             <TextInput
               className="rounded-full border border-hair bg-raise p-4 text-[15px] text-foreground"
               placeholder={t('project.compose.titlePlaceholder', locale)}
@@ -91,9 +89,7 @@ export default function ProjectComposeScreen() {
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
           <View className="gap-2">
-            <SectionLabel>
-              {t('project.compose.catLabel', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('project.compose.catLabel', locale)}</SectionLabel>
             <View className="flex-row flex-wrap gap-2">
               {CATEGORIES.map((c) => {
                 const isActive = c === category;
@@ -115,9 +111,7 @@ export default function ProjectComposeScreen() {
           </View>
 
           <View className="gap-2">
-            <SectionLabel>
-              {t('project.compose.descLabel', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('project.compose.descLabel', locale)}</SectionLabel>
             <TextInput
               className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
               placeholder={t('project.compose.descPlaceholder', locale)}

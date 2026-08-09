@@ -21,9 +21,7 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
       <View className="flex-row items-center justify-between">
         <PostAuthorRow authorId={post.author_id} size="sm" />
-        <SectionLabel>
-          {categoryLabel}
-        </SectionLabel>
+        <SectionLabel>{categoryLabel}</SectionLabel>
       </View>
 
       <Pressable className="gap-3" onPress={openDetail}>

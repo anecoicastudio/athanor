@@ -36,9 +36,7 @@ export function Comment({
         ) : null}
         {onDelete ? (
           <Pressable className="self-start" onPress={onDelete} accessibilityRole="button">
-            <Text className="text-[12px] text-muted-foreground">
-              {t('comment.delete', locale)}
-            </Text>
+            <Text className="text-[12px] text-muted-foreground">{t('comment.delete', locale)}</Text>
           </Pressable>
         ) : null}
       </View>

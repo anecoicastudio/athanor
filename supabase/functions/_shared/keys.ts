@@ -49,7 +49,9 @@ export function parseKeyMap(raw: string | undefined | null): Record<string, stri
 /** `default` first (the name the CLI injects), then the rest by name for a stable order. */
 function orderedValues(map: Record<string, string>): string[] {
   const names = Object.keys(map).sort();
-  const ordered = names.includes('default') ? ['default', ...names.filter((n) => n !== 'default')] : names;
+  const ordered = names.includes('default')
+    ? ['default', ...names.filter((n) => n !== 'default')]
+    : names;
   return ordered.map((n) => map[n]);
 }
 

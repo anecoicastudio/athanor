@@ -146,9 +146,7 @@ export default function RecapScreen() {
         {!isLoading && !isError && nextStar != null ? (
           <View className="mt-6">
             <Card>
-              <SectionLabel tone="aura">
-                {t('recap.next.label' as MessageKey, locale)}
-              </SectionLabel>
+              <SectionLabel tone="aura">{t('recap.next.label' as MessageKey, locale)}</SectionLabel>
               <Text className="text-[15px] font-semibold text-foreground">
                 {t('recap.next.title' as MessageKey, locale, { star: starName, gap: gapStr })}
               </Text>

@@ -19,6 +19,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo lint typecheck test
       - run: pnpm i18n:check
+      - run: pnpm format:check
 
   e2e:
     name: web e2e (Playwright)

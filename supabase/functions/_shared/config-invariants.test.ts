@@ -114,6 +114,9 @@ Deno.test('every user-callable function calls requireUser', () => {
   for (const [name, posture] of Object.entries(POSTURE)) {
     if (posture !== 'user') continue;
     const src = Deno.readTextFileSync(new URL(`../${name}/index.ts`, import.meta.url));
-    assert(src.includes('requireUser(req)'), `${name} is user-callable but never calls requireUser`);
+    assert(
+      src.includes('requireUser(req)'),
+      `${name} is user-callable but never calls requireUser`,
+    );
   }
 });

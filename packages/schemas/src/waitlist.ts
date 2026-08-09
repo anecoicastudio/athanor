@@ -15,12 +15,7 @@ export const waitlistEntrySchema = z.object({
  * tags where the signup happened (e.g. 'landing-hero'). locale defaults to 'it'.
  */
 export const waitlistInsertSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email('invalid email')
-    .max(320),
+  email: z.string().trim().toLowerCase().email('invalid email').max(320),
   locale: z.enum(['it', 'en']).default('it'),
   source: z.string().max(80).optional(),
 });

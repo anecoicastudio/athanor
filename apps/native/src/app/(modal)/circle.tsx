@@ -239,9 +239,7 @@ export default function CircleScreen() {
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
-          <SectionLabel tone="aura">
-            {t('circle.eyebrow', locale)}
-          </SectionLabel>
+          <SectionLabel tone="aura">{t('circle.eyebrow', locale)}</SectionLabel>
 
           {/* Headline */}
           <Text className="text-[22px] font-bold text-foreground">
