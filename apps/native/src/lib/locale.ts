@@ -5,8 +5,8 @@ import type { Locale } from '@athanor/schemas';
  * Italian). Single source for the pre-auth screens (welcome, the onboarding
  * funnel, BrandSplash) that pick copy before a profile locale exists.
  */
-export const deviceLocale: Locale = (
-  Intl.DateTimeFormat().resolvedOptions().locale ?? 'it'
-).startsWith('en')
-  ? 'en'
-  : 'it';
+export function narrowLocale(tag: string | undefined): Locale {
+  return (tag ?? 'it').startsWith('en') ? 'en' : 'it';
+}
+
+export const deviceLocale: Locale = narrowLocale(Intl.DateTimeFormat().resolvedOptions().locale);

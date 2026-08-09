@@ -17,7 +17,7 @@
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs"
   },
   "devDependencies": {
-    "prettier": "^3.5.3",
+    "prettier": "3.8.4",
     "turbo": "^2.5.0"
   }
 }
