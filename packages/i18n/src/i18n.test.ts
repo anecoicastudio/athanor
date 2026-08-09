@@ -46,7 +46,8 @@ describe('catalog quality', () => {
     for (const key of Object.keys(it) as MessageKey[]) {
       const a = placeholders(it[key]);
       const b = placeholders(en[key]);
-      if (a.join(',') !== b.join(',')) mismatches.push(`${key}: IT [${a}] EN [${b}]`);
+      if (a.join(',') !== b.join(','))
+        mismatches.push(`${key}: IT [${a.join(',')}] EN [${b.join(',')}]`);
     }
     expect(mismatches).toEqual([]);
   });

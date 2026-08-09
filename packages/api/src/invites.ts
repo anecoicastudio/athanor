@@ -11,7 +11,7 @@ export const inviteKeys = {
 export async function getMyReferralCode(client: AthanorClient): Promise<string> {
   const { data, error } = await client.rpc('ensure_referral_code');
   if (error) throw error;
-  return data as string;
+  return data;
 }
 
 /**

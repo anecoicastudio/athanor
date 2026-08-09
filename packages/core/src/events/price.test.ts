@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { formatPrice } from './price';
 
 // Normalize the non-breaking space (U+00A0) ICU inserts around the currency symbol.
-const norm = (s: string) => s.replace(/ /g, ' ');
+// Written as an escape, not a literal: an invisible character in source reads as a plain
+// space to every reviewer, and to `no-irregular-whitespace` as a mistake.
+const norm = (s: string) => s.replace(/\u00a0/g, ' ');
 
 describe('formatPrice', () => {
   it('formats euro cents in Italian (symbol trailing)', () => {

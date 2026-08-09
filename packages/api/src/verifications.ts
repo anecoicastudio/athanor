@@ -48,11 +48,11 @@ export async function getVerificationStatus(
 export async function requestVerification(
   client: AthanorClient,
 ): Promise<{ url: string } | { clientSecret: string }> {
-  const { data, error } = await client.functions.invoke('create-verification-session', {
-    body: {},
-  });
-  if (error) throw error;
-  const result = data as { url: string } | { clientSecret: string } | null;
+  const res = await client.functions.invoke<unknown>('create-verification-session', { body: {} });
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  const result = res.data as { url: string } | { clientSecret: string } | null;
   if (!result) throw new Error('no verification session returned');
   return result;
 }

@@ -45,9 +45,11 @@ export async function getReportQueue(
   const raw = data ?? [];
   const hasMore = raw.length > limit;
   const page = hasMore ? raw.slice(0, limit) : raw;
-  const rows: AdminReportRow[] = page.map((r: any) => ({
+  const rows: AdminReportRow[] = page.map((r) => ({
     id: r.id,
-    target_type: r.target_type,
+    // `reports.target_type` is a text column; the union lives in the schema. Same narrowing
+    // `getReportDetail` below already applies — kept identical rather than diverging.
+    target_type: r.target_type as AdminReportRow['target_type'],
     target_id: r.target_id,
     category: r.category,
     status: r.status,
@@ -93,7 +95,7 @@ export async function getReportDetail(
     created_at: data.created_at,
     note: data.note,
     resolution: data.resolution,
-    reporter_handle: (data as any).reporter?.handle ?? null,
+    reporter_handle: data.reporter?.handle ?? null,
     target_handle,
     audit: (audit ?? []) as AuditLogRow[],
   };
@@ -105,14 +107,37 @@ export async function resolveReport(
   input: ResolveReportInput,
 ): Promise<void> {
   const uphold = input.verdict === 'uphold';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await client.rpc('resolve_report', {
+  // `resolveReportInput` refines severity to be mandatory on an uphold, but the inferred type
+  // leaves it optional, so this function is callable without one. Fail loudly rather than send
+  // `p_action: 'penalty'` with no points — that would write an audit_log row and enqueue a
+  // score award worth nothing, i.e. a penalty the moderator believes they applied.
+  if (uphold && !input.severity) {
+    throw new Error('resolveReport: an uphold verdict requires a severity');
+  }
+  // `p_severity`/`p_penalty_points` are `default null` in the SQL (m9_resolve_report_person_penalty),
+  // so omitting them on a dismissal is identical to passing null — and it types, which the
+  // previous `as any` casts existed to avoid. Same conditional-args shape as `createEvent`.
+  // NOTE: only one `resolve_report` signature exists (the m9 migration `create or replace`d it
+  // rather than overloading). If a second is ever added, omitted args become ambiguous to
+  // PostgREST (PGRST203) where explicit nulls would not.
+  const rpcArgs: {
+    p_report_id: string;
+    p_status: string;
+    p_resolution: string;
+    p_action: string;
+    p_severity?: string;
+    p_penalty_points?: number;
+  } = {
     p_report_id: input.reportId,
     p_status: uphold ? 'upheld' : 'dismissed',
     p_resolution: input.resolution,
     p_action: uphold ? 'penalty' : 'dismiss',
-    p_severity: (uphold ? input.severity! : null) as any,
-    p_penalty_points: (uphold ? reportPenaltyPoints(input.severity!) : null) as any,
-  });
+  };
+  if (input.severity && uphold) {
+    rpcArgs.p_severity = input.severity;
+    rpcArgs.p_penalty_points = reportPenaltyPoints(input.severity);
+  }
+
+  const { error } = await client.rpc('resolve_report', rpcArgs);
   if (error) throw error;
 }

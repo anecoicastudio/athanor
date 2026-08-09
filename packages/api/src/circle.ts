@@ -50,18 +50,22 @@ export async function startCheckout(
   client: AthanorClient,
   input: CircleCheckoutInput,
 ): Promise<CircleCheckoutResult> {
-  const { data, error } = await client.functions.invoke('create-circle-checkout', {
+  const res = await client.functions.invoke<unknown>('create-circle-checkout', {
     body: { plan: input.plan },
   });
-  if (error) throw error;
-  return circleCheckoutResultSchema.parse(data);
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  return circleCheckoutResultSchema.parse(res.data);
 }
 
 /** Open the Stripe Billing Customer Portal (plan change / card / cancel happen only there). */
 export async function openCustomerPortal(client: AthanorClient): Promise<{ url: string }> {
-  const { data, error } = await client.functions.invoke('create-circle-portal', { body: {} });
-  if (error) throw error;
-  const url = (data as { url?: string } | null)?.url;
+  const res = await client.functions.invoke<unknown>('create-circle-portal', { body: {} });
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('customer portal did not return a url');
   return { url };
 }

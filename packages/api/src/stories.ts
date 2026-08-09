@@ -1,4 +1,4 @@
-import { buildStoryRail, type StoryRailPerson, type StoryRailRow } from '@athanor/core';
+import { buildStoryRail, type StoryRailPerson } from '@athanor/core';
 import {
   type StorySegment,
   type StorySegmentInsert,
@@ -48,7 +48,7 @@ export async function getStoryRail(client: AthanorClient, people = 50): Promise<
     .order('created_at', { ascending: false })
     .limit(people * RAIL_WINDOW_FACTOR); // bounded, never offset (rule #9)
   if (error) throw error;
-  return buildStoryRail((data ?? []) as StoryRailRow[], people);
+  return buildStoryRail(data ?? [], people);
 }
 
 export type StoryCursor = { created_at: string; id: string };
