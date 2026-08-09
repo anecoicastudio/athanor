@@ -22,11 +22,18 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/lib/**', 'src/hooks/**'],
+      // Ratcheted 2026-08-09 (37/89/72/37 → 38/89/73/38) after covering locale, links and the
+      // sentry init/consent lifecycle. Each floor is a BAND, not the measured number: measured is
+      // 568/1425 lines (39.85), 75/98 functions (76.53), 291/322 branches (90.37), and a floor
+      // is only raised as far as it survives new *uncovered* code arriving — 38 lines tolerates
+      // ~69 new uncovered lines, 73 functions tolerates 4. Branches stay at 89 deliberately:
+      // the v8 branch denominator swings on test-only commits, so 90 would leave one branch of
+      // headroom and flap. Never lower a floor to make a run green.
       thresholds: {
-        lines: 37,
+        lines: 38,
         branches: 89,
-        functions: 72,
-        statements: 37,
+        functions: 73,
+        statements: 38,
       },
     },
   },
