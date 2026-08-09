@@ -27,6 +27,13 @@ supabase/.branches/
 *.log
 coverage/
 
+# mutation testing (Stryker) — .stryker-tmp is a sandbox copy of the whole package,
+# node_modules included, so it must never be committed or scanned.
+# `**/` is required on the second one: a pattern with an interior slash is anchored to this
+# file's directory, so a bare `reports/mutation/` would only match one at the repo root.
+.stryker-tmp/
+**/reports/mutation/
+
 # internal docs & agent tooling — kept out of this repo
 /docs/
 .claude/

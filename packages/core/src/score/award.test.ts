@@ -47,3 +47,17 @@ test('no path produces points for a non-scoring action (rule #1 guard)', () => {
   expect(pointsFor('circle_membership' as never, {})).toBe(0);
   expect(pointsFor('fund_contribution' as never, {})).toBe(0);
 });
+
+test('momento_conversation dampens past the first exchange, and is not divided by the factor', () => {
+  // A mutation run turned `MOMENTO_CONV * reciprocalFactor(...)` into `/` and every test still
+  // passed, because they all used pairExchangeIndex 1 where the factor is 1 and 5*1 === 5/1.
+  // Index 3 → factor 0.5 → 5*0.5 = 2.5 → 3, where division would give 10.
+  expect(pointsFor('momento_conversation', { pairExchangeIndex: 3 })).toBe(3);
+  expect(pointsFor('momento_conversation', { pairExchangeIndex: 5 })).toBe(2);
+});
+
+test('milestone_help dampening is a decreasing curve, never a growing one', () => {
+  const points = [1, 2, 3, 5, 9].map((n) => pointsFor('milestone_help', { pairExchangeIndex: n }));
+  for (let i = 1; i < points.length; i++) expect(points[i]!).toBeLessThan(points[i - 1]!);
+  expect(points[0]).toBe(40);
+});

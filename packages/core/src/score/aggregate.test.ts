@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { aggregateScore, bucketOf, type LedgerLine } from './aggregate';
+import { BUCKET_ORDER, CREDITABLE_TYPES } from './weights';
 
 test('type → bucket mapping', () => {
   expect(bucketOf('own_milestone')).toBe('contributi');
@@ -62,4 +63,25 @@ test('a ledger summing past the maximum clamps to 1000', () => {
     points: 40,
   }));
   expect(aggregateScore(events).score).toBe(1000);
+});
+
+test('a creditable type with no bucket scores without inventing a breakdown key', () => {
+  // `decay` is creditable but deliberately unbucketed, which is what the `if (bucket)` guard in
+  // aggregateScore is for. A mutation run replaced that condition with `true` and nothing
+  // failed: the guard is the only thing stopping a `null` key appearing in the breakdown.
+  const { score, breakdown } = aggregateScore([
+    { type: 'own_milestone', points: 10 },
+    { type: 'decay', points: -4 },
+  ]);
+  expect(score).toBe(6);
+  expect(Object.keys(breakdown).sort()).toEqual([...BUCKET_ORDER].sort());
+  expect(breakdown).not.toHaveProperty('null');
+});
+
+test('every creditable type moves the score, one at a time', () => {
+  // Pins CREDITABLE_TYPES membership from the aggregator's side: blanking any single entry
+  // (which a mutation run showed was undetected) makes exactly one of these fail.
+  for (const type of CREDITABLE_TYPES) {
+    expect(aggregateScore([{ type, points: 7 }]).score, type).toBe(7);
+  }
 });
