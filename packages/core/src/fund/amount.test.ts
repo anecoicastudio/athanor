@@ -23,6 +23,13 @@ describe('parseEuroToCents', () => {
     expect(parseEuroToCents('1.234')).toBeNull();
     expect(parseEuroToCents(Number.NaN)).toBeNull();
   });
+  // Every string case above is already trimmed, so dropping `.trim()` changed nothing. A user
+  // typing into a numeric field routinely leaves a trailing space, and untrimmed input fails
+  // the regex — the amount would silently read as invalid.
+  it('trims surrounding whitespace before parsing', () => {
+    expect(parseEuroToCents(' 5 ')).toBe(500);
+    expect(parseEuroToCents('\t12,50\n')).toBe(1250);
+  });
   it('MIN_CONTRIBUTION_CENTS is €1', () => {
     expect(MIN_CONTRIBUTION_CENTS).toBe(100);
   });

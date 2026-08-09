@@ -19,6 +19,15 @@ function normalize(s: string): string {
 export function highlightMatches(text: string, query: string): HighlightSpan[] {
   if (text.length === 0) return [];
 
+  // This tokenizer is deliberately belt-and-braces, and the redundancy is why six mutants in
+  // it are an equivalent mutant each: `/\s+/` already discards interior whitespace so `.trim()` is
+  // a no-op; `.filter(length > 0)` only ever drops the empty strings that a leading/trailing
+  // separator produces, and the `normalizedToken.length === 0` guard in the loop below would
+  // skip those anyway; and with an empty token list the early return produces the same single
+  // non-match span the mask walk would. Each layer masks the next here.
+  //
+  // The guard in the loop is NOT redundant, though — see its own comment. A token can be
+  // non-empty here and still normalize to nothing.
   const tokens = query
     .split(/\s+/)
     .map((t) => t.trim())
@@ -36,6 +45,9 @@ export function highlightMatches(text: string, query: string): HighlightSpan[] {
 
   for (const token of tokens) {
     const normalizedToken = normalize(token);
+    // Load-bearing, not defensive: a token of only combining marks is non-empty above and
+    // empty here. `indexOf('', searchFrom)` returns searchFrom, so the while loop below would
+    // never advance — an infinite loop on the UI thread, since this runs per keystroke.
     if (normalizedToken.length === 0) continue;
 
     let searchFrom = 0;

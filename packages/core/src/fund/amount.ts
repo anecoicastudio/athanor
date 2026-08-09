@@ -8,6 +8,8 @@ export const MIN_CONTRIBUTION_CENTS = 100;
  */
 export function parseEuroToCents(input: string | number): number | null {
   const raw = typeof input === 'number' ? String(input) : input.trim();
+  // Redundant with the regex below (`^\d+…` rejects '' anyway), kept as an explicit early exit.
+  // Both are therefore an equivalent mutant apiece — no test can distinguish them.
   if (raw === '') return null;
   // one decimal separator (dot or comma), ≤2 fractional digits, no sign/letters
   if (!/^\d+([.,]\d{1,2})?$/.test(raw)) return null;
