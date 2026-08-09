@@ -59,3 +59,23 @@ export function auraSnapshotOrNull<T>(data: T | undefined, isError: boolean): T 
   if (isError || data == null) return null;
   return data;
 }
+
+/**
+ * The same decision for the SIX STARS, which are a separate query from the score (issue #16).
+ *
+ * A named alias rather than a second implementation: the predicate is identical, and the
+ * reason it needs its own name is that the star case is the one most likely to be "fixed" back.
+ * `starsQuery.data ?? []` type-checks, reads as a harmless default, and is wrong — `[]` is the
+ * shape of «this member has earned none of the six», so the fallback does not decline to answer,
+ * it answers zero. On `ProfileView` the score and the stars are fully independent queries, so
+ * the hero could show a real 320 while the grid below claimed six unearned stars; on
+ * `user/[id].tsx` the claim is about ANOTHER member, made on the strength of the viewer's own
+ * connection.
+ *
+ * Callers pass the result straight through to `starCellState` (`lib/star.ts`), which turns
+ * `null` into the third render state. Widening the component props to `Star[] | null` is what
+ * makes the compiler find every surface that has to decide.
+ */
+export function starsOrNull<T>(data: T | undefined, isError: boolean): T | null {
+  return auraSnapshotOrNull(data, isError);
+}

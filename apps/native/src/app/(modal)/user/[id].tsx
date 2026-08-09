@@ -57,7 +57,9 @@ export default function PersonDetailScreen() {
   // `null` until the read lands — a placeholder zero here would claim ANOTHER member has earned
   // nothing, on the strength of the viewer's own connection (issue #10).
   const [aura, setAura] = useState<AuraSnapshot | null>(null);
-  const [stars, setStars] = useState<Star[]>([]);
+  // Same contract for the stars, and here it matters most: `[]` would claim ANOTHER member has
+  // earned none of the six, on the strength of the viewer's own connection (issue #16).
+  const [stars, setStars] = useState<Star[] | null>(null);
   const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -185,7 +187,8 @@ export default function PersonDetailScreen() {
           if (cancelled) return;
           setStars(earnedStars);
         } catch {
-          // aura stays null, stars stay [] — the hero renders «—» rather than a false zero.
+          // aura and stars both stay null — the hero renders «—» rather than a false zero, and
+          // the stars block a single «—» rather than a grid asserting nothing was earned.
         }
         // A rejection AFTER unmount lands in that catch rather than a `cancelled` return,
         // so re-check before spending another request.
