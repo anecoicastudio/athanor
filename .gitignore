@@ -16,7 +16,6 @@ playwright-report/
 .env
 .env.*
 !.env.example
-!.env.test.example
 
 # supabase local
 supabase/.temp/
