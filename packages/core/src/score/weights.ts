@@ -52,6 +52,24 @@ export type ScoringType =
   | 'post_starred'
   | 'report_upheld';
 
+/**
+ * The only ledger types that may move a score: the eight signed actions plus engine-internal
+ * `decay`. Rule #1 — anything else (a paid-for row such as `circle_membership` or
+ * `fund_contribution`) credits nothing no matter what `points` it carries, so the aggregator
+ * refuses it on read as well as the awarder refusing it on write.
+ */
+export const CREDITABLE_TYPES: ReadonlySet<string> = new Set<string>([
+  'identity_verified',
+  'event_attended',
+  'event_organized',
+  'momento_conversation',
+  'milestone_help',
+  'own_milestone',
+  'post_starred',
+  'report_upheld',
+  'decay',
+]);
+
 export type CapWindow = 'day' | 'week' | 'month' | 'lifetime';
 
 /** Caps as (limit, window) pairs — counted from `aura_events` in the window by the engine.

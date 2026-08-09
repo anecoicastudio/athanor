@@ -1,4 +1,10 @@
-import { type Block, blockSchema, type BlockedListItem, blockedListItem } from '@athanor/schemas';
+import {
+  type Block,
+  blockInput,
+  blockSchema,
+  type BlockedListItem,
+  blockedListItem,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { keysetFilter } from './pagination';
 
@@ -13,9 +19,10 @@ const PAGE = 30;
 
 /** Block a person. blocker_id defaults to auth.uid(); RLS WITH CHECK enforces ownership. */
 export async function blockUser(client: AthanorClient, blockedId: string): Promise<Block> {
+  const input = blockInput.parse({ blockedId });
   const { data, error } = await client
     .from('blocks')
-    .insert({ blocked_id: blockedId })
+    .insert({ blocked_id: input.blockedId })
     .select('*')
     .single();
   if (error) throw error;

@@ -6,6 +6,7 @@ import { Text, View } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Tag } from '@/components/Tag';
 import { auraGlow } from '@/lib/glow';
+import { longDate } from '@/lib/time';
 
 /**
  * Subscription status card for confirmed Circle members (M8 §3.3).
@@ -50,13 +51,7 @@ export function SubscriptionStatusCard({
         ? t('circle.member.planAnnual', locale)
         : null;
 
-  const renewalDate = currentPeriodEnd
-    ? new Intl.DateTimeFormat(locale === 'it' ? 'it-IT' : 'en-GB', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      }).format(new Date(currentPeriodEnd))
-    : null;
+  const renewalDate = currentPeriodEnd ? longDate(currentPeriodEnd, locale) : null;
 
   return (
     <Animated.View style={reduceMotion ? { opacity: 1 } : { opacity }}>

@@ -14,7 +14,7 @@ import {
   getProfileStatCounts,
   getStars,
   listMilestones,
-  listMyHelps,
+  listMyHelpsForMilestones,
   momentKeys,
   profileKeys,
   unblockUser,
@@ -171,10 +171,12 @@ export default function PersonDetailScreen() {
         const d = await getActiveDream(supabase, id);
         if (cancelled) return;
         setDreamText(d?.text ?? null);
+        let milestoneIds: string[] = [];
         if (d?.id) {
           const ms = await listMilestones(supabase, d.id);
           if (cancelled) return;
           setTappe(ms);
+          milestoneIds = ms.map((m) => m.id);
         }
         const a = await getAuraScore(supabase, id);
         if (cancelled) return;
@@ -183,7 +185,13 @@ export default function PersonDetailScreen() {
         const earnedStars = await getStars(supabase, id);
         if (cancelled) return;
         setStars(earnedStars);
-        const helps = await listMyHelps(supabase, session.user.id);
+        // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an
+        // older one on this dream and render an already-helped tappa as un-helped.
+        const { rows: helps } = await listMyHelpsForMilestones(
+          supabase,
+          session.user.id,
+          milestoneIds,
+        );
         if (cancelled) return;
         setMyHelps(helps);
       } catch {
@@ -198,11 +206,15 @@ export default function PersonDetailScreen() {
   // Refetch my helps on focus so a fresh offer flips the tappa to «In attesa» after the sheet closes.
   useFocusEffect(
     useCallback(() => {
-      if (isSelf || !session) return;
+      if (isSelf || !session || tappe.length === 0) return;
       let cancelled = false;
-      listMyHelps(supabase, session.user.id)
-        .then((helps) => {
-          if (!cancelled) setMyHelps(helps);
+      listMyHelpsForMilestones(
+        supabase,
+        session.user.id,
+        tappe.map((m) => m.id),
+      )
+        .then(({ rows }) => {
+          if (!cancelled) setMyHelps(rows);
         })
         .catch(() => {
           // keep the prior helps; the next focus reconciles
@@ -210,7 +222,7 @@ export default function PersonDetailScreen() {
       return () => {
         cancelled = true;
       };
-    }, [isSelf, session]),
+    }, [isSelf, session, tappe]),
   );
 
   // Header right slot: share ✦ + kebab ⋯ overflow (shared by the missing + loaded branches).

@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "@athanor/api": "workspace:*",
@@ -76,6 +76,7 @@
   "devDependencies": {
     "@types/aes-js": "^3.1.4",
     "@types/react": "~19.1.17",
+    "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.3",

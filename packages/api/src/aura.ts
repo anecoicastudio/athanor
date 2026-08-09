@@ -57,21 +57,28 @@ function zeroAuraScore(profileId: string): AuraScore {
  * Reads real `aura_scores` + own `stars`; a missing score row coalesces to the
  * canonical zero-snapshot (backend 07 §2.2a — NEVER null). Unchanged return type, so
  * the 4 existing mobile consumers keep working. Aura is never client-writable (rule #1).
+ *
+ * A FAILED read is not an absent row: an RLS denial, a timeout or a network error
+ * rejects, exactly as every other reader in this module does. Only a genuine null row
+ * coalesces to zero — otherwise the most visible number in the product (PRD §4.9) would
+ * render as 0 with all six stars dark, and TanStack Query would cache that as truth.
  */
 export async function getAuraScore(
   client: AthanorClient,
   profileId: string,
 ): Promise<AuraSnapshot> {
-  const { data: scoreRow } = await client
+  const { data: scoreRow, error: scoreError } = await client
     .from('aura_scores')
     .select('score')
     .eq('profile_id', profileId)
     .maybeSingle();
+  if (scoreError) throw scoreError;
 
-  const { data: starRows } = await client
+  const { data: starRows, error: starsError } = await client
     .from('stars')
     .select('star_id, granted_at')
     .eq('profile_id', profileId);
+  if (starsError) throw starsError;
 
   if (!scoreRow && (!starRows || starRows.length === 0)) return ZERO_AURA_SNAPSHOT;
 
@@ -94,16 +101,20 @@ export async function getAuraScore(
   };
 }
 
-/** The rich snapshot (breakdown / peak / computed) for the breakdown UI. Coalesces to zero. */
+/**
+ * The rich snapshot (breakdown / peak / computed) for the breakdown UI. Coalesces an
+ * absent engine row to zero; a failed read rejects rather than masquerading as one.
+ */
 export async function getAuraScoreFull(
   client: AthanorClient,
   profileId: string,
 ): Promise<AuraScore> {
-  const { data } = await client
+  const { data, error } = await client
     .from('aura_scores')
     .select('profile_id, score, breakdown, peak_score, last_qualifying_action_at, computed_at')
     .eq('profile_id', profileId)
     .maybeSingle();
+  if (error) throw error;
   if (!data) return zeroAuraScore(profileId);
   return {
     profileId: data.profile_id,
