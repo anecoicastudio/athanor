@@ -8,7 +8,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(23);
 
 -- fixture: three profiles (auto-created by handle_new_user) — owner (dream + tappe +
 -- event organizer + momento participant), helper (milestone help + post author + momento
@@ -192,6 +192,31 @@ select is(
      )),
   0, 'all 6 trigger bodies ran with the engine unconfigured and wrote zero aura_events for this fixture (rule #1)');
 reset role;
+
+-- ⚠ TRIPWIRE — DELETE THIS ASSERT WHEN ISSUE #27 LANDS.
+--
+-- It asserts a DEFECT, deliberately, because nothing else in the repo goes red while it is
+-- live. aura_award_post_starred selects the reactor's Aura into v_reactor_score, gates on
+-- `> 300`, and then calls enqueue_score_award — which has no parameter to carry it. The
+-- pg_net body sends only `severity`, so score-engine reaches core's pointsFor with
+-- reviewerScore undefined, `?? 0` fails the same gate a second time, and every ✦ awards 0
+-- with no ledger row. The gate is written twice and the second copy always loses.
+--
+-- packages/core/src/score/award.test.ts pins the CONSEQUENCE (pointsFor('post_starred', {})
+-- is 0) but is required to keep passing afterwards, so it can never announce the fix. This
+-- one fails the moment the parameter appears — which is what forces MIGRATIONS-ERRATA.md
+-- and the weights.ts comment to be corrected in the same change instead of drifting again.
+-- Overload-agnostic on purpose: two signatures coexist (the 4-arg form from
+-- 20260808074301, which post_starred calls, and the 5-arg counterparty form from
+-- 20260808180801, which was added without dropping the first). Whichever one grows the
+-- parameter, this goes red.
+select is(
+  (select count(*)::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'athanor' and p.proname = 'enqueue_score_award'
+      and array_to_string(p.proargnames, ',') ~* 'reviewer|reactor'),
+  0,
+  'no enqueue_score_award overload can carry the reactor score, so post_starred awards 0 (issue #27)');
 
 select finish();
 rollback;
