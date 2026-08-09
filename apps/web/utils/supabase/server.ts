@@ -75,7 +75,11 @@ export async function createAuthedClient() {
         try {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
-          // called from a Server Component — proxy refreshes the session instead
+          // Called from a Server Component, where cookies are read-only. Nothing
+          // refreshes the session on this path any more — proxy.ts used to, but the
+          // Cloudflare adapter cannot run Node middleware. An expired token therefore
+          // redirects to /admin/login rather than refreshing in place; components/
+          // session-keepalive.tsx covers the open-tab case from the client.
         }
       },
     },

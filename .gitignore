@@ -54,3 +54,9 @@ deno.lock
 
 # local scratch notes (never committed)
 .scratch/
+
+# Cloudflare Workers build output + local secrets (apps/web)
+.open-next/
+.wrangler/
+.dev.vars*
+apps/web/cloudflare-env.d.ts

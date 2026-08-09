@@ -16,6 +16,27 @@ describe('clientIp', () => {
     ).toBe('203.0.113.7');
   });
 
+  it('prefers cf-connecting-ip over a forged x-forwarded-for', () => {
+    // The security-relevant case on Cloudflare. The edge APPENDS the real client to
+    // x-forwarded-for, so the leftmost entry is whatever the attacker sent. Reading XFF first
+    // would make the throttle key attacker-chosen and undo issue #23; cf-connecting-ip is set
+    // by the edge from the terminated connection and cannot be spoofed.
+    expect(
+      clientIp(
+        reqWith({
+          'cf-connecting-ip': '198.51.100.4',
+          'x-forwarded-for': '203.0.113.7, 198.51.100.4',
+        }),
+      ),
+    ).toBe('198.51.100.4');
+  });
+
+  it('lets a blank cf-connecting-ip fall through instead of shadowing the rest', () => {
+    expect(clientIp(reqWith({ 'cf-connecting-ip': '', 'x-forwarded-for': '203.0.113.7' }))).toBe(
+      '203.0.113.7',
+    );
+  });
+
   it('prefers x-vercel-forwarded-for — set from the connection Vercel terminated', () => {
     // The plain header is whatever the caller sent; Vercel's own is derived from the socket, so
     // it is the less forgeable of the two where both exist.

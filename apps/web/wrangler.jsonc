@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "athanor-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-01",
+  // nodejs_compat: the Next server needs Node built-ins.
+  // global_fetch_strictly_public: makes fetch() to our own origin go back out
+  // through the edge rather than looping inside the isolate.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  // Required to see per-request CPU time in the dashboard — the whole free-plan
+  // bet is validated against p99 CPU, so this is not optional here.
+  "observability": {
+    "enabled": true,
+  },
+  // Incremental cache (see open-next.config.ts). The id is account-specific:
+  // create it once with
+  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV
+  // and paste the id below. Until then `deploy` fails fast rather than silently
+  // running without a cache.
+  // memoryQueue (open-next.config.ts) dispatches background ISR revalidation by
+  // calling the Worker back through this binding. Without it revalidation throws
+  // and is swallowed, and cached pages go stale until the next deploy.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "athanor-web",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "NEXT_INC_CACHE_KV",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID",
+    },
+  ],
+}

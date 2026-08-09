@@ -128,3 +128,53 @@ jobs:
           done < /tmp/public_tables.txt
           [ "$missing" = 0 ] || exit 1
           echo "::notice::types-sync OK — all $(wc -l < /tmp/public_tables.txt | tr -d ' ') public tables present in the committed types"
+
+  deploy:
+    name: deploy web (Cloudflare Workers)
+    # Every gate first. Workers Builds (Cloudflare's own git integration) cannot
+    # express this, which is why the deploy lives here: it would fire on push while
+    # pgTAP and the types gate were still running, or already red.
+    needs: [node, e2e, edge, db]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: build + deploy
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Next inlines NEXT_PUBLIC_* at build time, so these must exist HERE, not
+          # as Worker runtime secrets. There are no runtime secrets: the waitlist
+          # route talks to Supabase with the publishable key only.
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          # Same fail-soft-then-fail-loud shape as the types gate above: the Cloudflare
+          # account has to be provisioned by hand once (Worker, KV namespace, API token),
+          # and this job would otherwise turn the first release PR red for a reason no
+          # code change can fix.
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::deploy SKIPPED — set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets to enable"
+            exit 0
+          fi
+          # The KV id is account-specific and cannot be committed ahead of time. Catch the
+          # placeholder here, where the message is actionable, rather than as an opaque
+          # wrangler API error three minutes into a deploy.
+          if grep -q REPLACE_WITH_KV_NAMESPACE_ID wrangler.jsonc; then
+            echo "::error::wrangler.jsonc still holds the placeholder KV namespace id — run 'pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV' and commit the id"
+            exit 1
+          fi
+          # No turbo build first: the @athanor/* packages ship raw TS and are compiled
+          # by Next via transpilePackages, so `opennextjs-cloudflare build` (which runs
+          # `next build` itself) is the only build there is.
+          pnpm exec opennextjs-cloudflare build
+          pnpm exec opennextjs-cloudflare deploy

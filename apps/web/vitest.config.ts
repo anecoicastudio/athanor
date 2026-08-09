@@ -28,9 +28,9 @@ export default defineConfig({
       exclude: ['**/*.test.ts'],
       // Floor set to the measured value, 2026-08-08. What is left uncovered is the four
       // modules with no logic of their own: `lib/utils.ts` (cn = twMerge(clsx(...))),
-      // `lib/mandorla-svg.ts` (a path string), and the two `@supabase/ssr` client factories,
-      // whose only behaviour is cookie plumbing the middleware test already exercises
-      // end-to-end. Ratchet UP as tests land, never down (core.md precedent).
+      // `lib/mandorla-svg.ts` (a path string), and the `@supabase/ssr` client factories,
+      // whose only behaviour is cookie plumbing. Ratchet UP as tests land, never down
+      // (core.md precedent).
       thresholds: {
         lines: 85,
         branches: 93,
