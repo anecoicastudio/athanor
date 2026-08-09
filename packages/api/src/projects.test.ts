@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import {
   createProject,
   editProject,
@@ -208,5 +209,66 @@ describe('getProject', () => {
   it('passes null through when the row is missing or soft-deleted', async () => {
     const { client } = stub([]);
     expect(await getProject(client, P1)).toBeNull();
+  });
+});
+
+// The `stub()` above hardcodes `error: null`, so no test in this file could express a database
+// failure — every `if (error) throw error` arm was unreachable. `makeFakeClient` exists to fix
+// exactly that (it replaced fifteen such copies); these use it rather than teaching the local
+// stub a new trick.
+
+describe('projects — every write and read surfaces a database failure', () => {
+  // These must THROW rather than resolve to an empty page or a null project. A board that
+  // renders "no projects yet" when the database is unreachable is indistinguishable from a
+  // board that is genuinely empty, and the caller can never show a retry.
+  it('getProjectsPage rethrows instead of returning an empty page', async () => {
+    const fake = makeFakeClient({ 'projects.select': [{ error: DB_DOWN }] });
+    await expect(getProjectsPage(asClient(fake), { category: 'all' })).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('getProject rethrows instead of reporting the project missing', async () => {
+    const fake = makeFakeClient({ 'projects.select': [{ error: DB_DOWN }] });
+    await expect(getProject(asClient(fake), P1)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('createProject rethrows so the composer can keep the draft', async () => {
+    const fake = makeFakeClient({ 'projects.insert': [{ error: DB_DOWN }] });
+    await expect(
+      createProject(asClient(fake), {
+        author_id: AUTHOR,
+        title: 'Coro di quartiere',
+        category: 'artistic',
+        description: '',
+        terms: null,
+      }),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('editProject rethrows', async () => {
+    const fake = makeFakeClient({ 'projects.update': [{ error: DB_DOWN }] });
+    await expect(editProject(asClient(fake), P1, { title: 'nuovo' })).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('setProjectStatus rethrows rather than reporting a silent success', async () => {
+    const fake = makeFakeClient({ 'projects.update': [{ error: DB_DOWN }] });
+    await expect(setProjectStatus(asClient(fake), P1, 'closed')).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  // Not a response PostgREST can send — a zero-match list select returns [], and after the
+  // rethrow above TypeScript has already narrowed `data` to T[]. The `?? []` is a belt-and-braces
+  // guard, and this pins it so a "simplification" that removes it fails rather than passing.
+  // `?? []` arm is what keeps that from becoming a TypeError on `.map`.
+  it('getProjectsPage treats a null payload as an empty page, not a crash', async () => {
+    const fake = makeFakeClient({ 'projects.select': [{ data: null }] });
+    await expect(getProjectsPage(asClient(fake), { category: 'all' })).resolves.toEqual({
+      projects: [],
+      nextCursor: null,
+    });
   });
 });

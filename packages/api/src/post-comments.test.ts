@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import { addComment, getCommentsPage, softDeleteComment, subscribeComments } from './post-comments';
 
 const AUTHOR = '00000000-0000-0000-0000-000000000001';
@@ -199,5 +200,40 @@ describe('subscribeComments', () => {
     const cleanup = subscribeComments(rt.client, POST, () => {});
     cleanup();
     expect(rt.getRemoved()).toBe(rt.channel);
+  });
+});
+
+describe('post-comments — a database failure reaches the caller', () => {
+  it('getCommentsPage rethrows instead of showing an empty thread', async () => {
+    const fake = makeFakeClient({ 'post_comments.select': [{ error: DB_DOWN }] });
+    await expect(getCommentsPage(asClient(fake), { postId: POST })).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('addComment rethrows so the composer keeps the text', async () => {
+    const fake = makeFakeClient({ 'post_comments.insert': [{ error: DB_DOWN }] });
+    await expect(
+      addComment(asClient(fake), {
+        post_id: POST,
+        author_id: AUTHOR,
+        body: 'bello',
+        parent_id: null,
+      }),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('softDeleteComment rethrows rather than reporting a silent success', async () => {
+    const fake = makeFakeClient({ 'post_comments.update': [{ error: DB_DOWN }] });
+    await expect(softDeleteComment(asClient(fake), C1)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  // Guard test, not a model of PostgREST: a zero-match select returns [], and the rethrow above
+  // has already narrowed `data` to T[]. Pinned so deleting the `?? []` fails rather than passes.
+  it('getCommentsPage holds its empty-payload guard', async () => {
+    const fake = makeFakeClient({ 'post_comments.select': [{ data: null }] });
+    await expect(getCommentsPage(asClient(fake), { postId: POST })).resolves.toMatchObject({
+      comments: [],
+    });
   });
 });

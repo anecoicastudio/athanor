@@ -84,14 +84,18 @@ test('startCheckout sends only the plan — the server owns the price (rule #6)'
 });
 
 test('startCheckout grants no membership client-side — the webhook does (rule #6)', async () => {
-  const invoke = vi.fn().mockResolvedValue({ data: { kind: 'url', url: 'https://c' }, error: null });
+  const invoke = vi
+    .fn()
+    .mockResolvedValue({ data: { kind: 'url', url: 'https://c' }, error: null });
   const { fake, client } = withFn(invoke);
   await startCheckout(client, { plan: 'monthly' });
   expect(fake.calls).toEqual([]);
 });
 
 test('startCheckout awards no Aura — Circle membership is worth zero points (PRD §4.9)', async () => {
-  const invoke = vi.fn().mockResolvedValue({ data: { kind: 'url', url: 'https://c' }, error: null });
+  const invoke = vi
+    .fn()
+    .mockResolvedValue({ data: { kind: 'url', url: 'https://c' }, error: null });
   const { fake, client } = withFn(invoke);
   await startCheckout(client, { plan: 'monthly' });
   expect(fake.calls.filter((c) => ['aura_events', 'aura_scores'].includes(c.table))).toEqual([]);
@@ -121,7 +125,9 @@ test('startCheckout surfaces an edge-function failure', async () => {
 });
 
 test('openCustomerPortal defers plan changes and cancellation to Stripe', async () => {
-  const invoke = vi.fn().mockResolvedValue({ data: { url: 'https://billing.stripe/p' }, error: null });
+  const invoke = vi
+    .fn()
+    .mockResolvedValue({ data: { url: 'https://billing.stripe/p' }, error: null });
   const { fake, client } = withFn(invoke);
 
   await expect(openCustomerPortal(client)).resolves.toEqual({ url: 'https://billing.stripe/p' });
@@ -176,7 +182,9 @@ test('getMyEntitlements throws when the database errors', async () => {
 });
 
 test('no exported call writes the membership cache (rule #6)', async () => {
-  const invoke = vi.fn().mockResolvedValue({ data: { kind: 'url', url: 'https://c' }, error: null });
+  const invoke = vi
+    .fn()
+    .mockResolvedValue({ data: { kind: 'url', url: 'https://c' }, error: null });
   const { fake, client } = withFn(invoke, {
     'circle_memberships.select': [{ data: [membershipRow()] }],
     'entitlements.select': [{ data: [entitlementsRow()] }],

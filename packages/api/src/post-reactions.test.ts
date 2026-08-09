@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
-import { getAuthorReactionCount, togglePostReaction } from './post-reactions';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
+import { getAuthorReactionCount, getViewerReaction, togglePostReaction } from './post-reactions';
 
 const POST = '00000000-0000-0000-0000-0000000000b1';
 const PERSON = '00000000-0000-0000-0000-000000000001';
@@ -94,5 +95,43 @@ describe('getAuthorReactionCount', () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
     const client = { rpc } as unknown as AthanorClient;
     await expect(getAuthorReactionCount(client, POST)).resolves.toBe(0);
+  });
+});
+
+describe('post-reactions — a database failure reaches the caller', () => {
+  // A swallowed error here would render the ✦ unlit for someone who has already lit it, and
+  // the next tap would try to insert a duplicate against the (post, person) unique constraint.
+  it('getViewerReaction rethrows instead of reporting "not reacted"', async () => {
+    const fake = makeFakeClient({ 'post_reactions.select': [{ error: DB_DOWN }] });
+    await expect(getViewerReaction(asClient(fake), POST)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('togglePostReaction rethrows when the un-light delete fails', async () => {
+    const fake = makeFakeClient({
+      'post_reactions.select': [{ data: { id: 'r1' } }], // already lit → takes the delete path
+      'post_reactions.delete': [{ error: DB_DOWN }],
+    });
+    await expect(togglePostReaction(asClient(fake), POST, PERSON)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('togglePostReaction rethrows when the light insert fails', async () => {
+    const fake = makeFakeClient({
+      'post_reactions.select': [{ data: null }], // not lit → takes the insert path
+      'post_reactions.insert': [{ error: DB_DOWN }],
+    });
+    await expect(togglePostReaction(asClient(fake), POST, PERSON)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  // Rule #3 territory: this count is author-only. Coalescing a failure to 0 would show the
+  // author "nobody lit this" — a vanity metric that is not merely absent but wrong.
+  it('getAuthorReactionCount rethrows instead of reporting zero reactions', async () => {
+    const fake = makeFakeClient({ 'rpc.post_reaction_count': [{ error: DB_DOWN }] });
+    await expect(getAuthorReactionCount(asClient(fake), POST)).rejects.toMatchObject({
+      code: '57P01',
+    });
   });
 });

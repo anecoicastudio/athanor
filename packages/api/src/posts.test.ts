@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import { createPost, getFeedPage, getPostById, softDeletePost, subscribeNewPosts } from './posts';
 
 const AUTHOR = '00000000-0000-0000-0000-000000000001';
@@ -237,5 +238,49 @@ describe('subscribeNewPosts', () => {
     expect(typeof cleanup).toBe('function');
     cleanup();
     expect(rt.getRemoved()).toBe(rt.channel);
+  });
+});
+
+describe('posts — a database failure reaches the caller', () => {
+  // An empty feed and an unreachable database look identical to the reader. The feed is the
+  // first thing after launch, so "il flusso è vuoto" on a network blip is the whole app
+  // appearing dead.
+  it('getFeedPage rethrows instead of rendering an empty feed', async () => {
+    const fake = makeFakeClient({ 'posts.select': [{ error: DB_DOWN }] });
+    await expect(getFeedPage(asClient(fake), { category: 'all' })).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('getPostById rethrows instead of reporting the post deleted', async () => {
+    const fake = makeFakeClient({ 'posts.select': [{ error: DB_DOWN }] });
+    await expect(getPostById(asClient(fake), P1)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('createPost rethrows so the composer keeps the draft', async () => {
+    const fake = makeFakeClient({ 'posts.insert': [{ error: DB_DOWN }] });
+    await expect(
+      createPost(asClient(fake), {
+        author_id: AUTHOR,
+        category: 'evolution',
+        body: 'primo passo',
+        type: 'text',
+        is_step: false,
+        tags: [],
+      }),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('softDeletePost rethrows rather than reporting a silent success', async () => {
+    const fake = makeFakeClient({ 'posts.update': [{ error: DB_DOWN }] });
+    await expect(softDeletePost(asClient(fake), P1)).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('getFeedPage treats a null payload as an empty feed, not a crash', async () => {
+    const fake = makeFakeClient({ 'posts.select': [{ data: null }] });
+    await expect(getFeedPage(asClient(fake), { category: 'all' })).resolves.toEqual({
+      posts: [],
+      nextCursor: null,
+    });
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import {
   candidacyKeys,
   candidacyVideoPath,
@@ -189,5 +190,58 @@ describe('getCandidateById', () => {
   it('returns null when the card is not visible (screened out / absent)', async () => {
     const { client } = stub([]);
     expect(await getCandidateById(client, CAND1)).toBeNull();
+  });
+});
+
+describe('candidacy — a database failure reaches the caller', () => {
+  // Reporting "no candidacy" on a failed read would offer the submit form to someone who has
+  // already submitted, and the insert would then hit the RLS window rather than a friendly error.
+  it('getMyCandidacy rethrows instead of reporting no candidacy', async () => {
+    const fake = makeFakeClient({ 'dream_candidacies.select': [{ error: DB_DOWN }] });
+    await expect(getMyCandidacy(asClient(fake), EDITION, UID)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  // The video is already uploaded to {uid}/{id}.mp4 before this insert runs (that is why the id
+  // is client-generated), so a swallowed error would strand the object with no row.
+  it('submitCandidacy rethrows rather than stranding the uploaded video', async () => {
+    const fake = makeFakeClient({ 'dream_candidacies.insert': [{ error: DB_DOWN }] });
+    await expect(
+      submitCandidacy(asClient(fake), {
+        id: CAND1,
+        profileId: UID,
+        input: {
+          edition_id: EDITION,
+          story: 'la mia storia',
+          goal: 'il mio obiettivo',
+          impact: 'impatto',
+          plan: 'piano',
+          video_url: `${UID}/${CAND1}.mp4`,
+        },
+      }),
+    ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('getCandidates rethrows instead of showing an empty field of candidates', async () => {
+    const fake = makeFakeClient({ 'fund_candidate_cards.select': [{ error: DB_DOWN }] });
+    await expect(getCandidates(asClient(fake), { editionId: EDITION })).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('getCandidateById rethrows instead of reporting the candidate screened out', async () => {
+    const fake = makeFakeClient({ 'fund_candidate_cards.select': [{ error: DB_DOWN }] });
+    await expect(getCandidateById(asClient(fake), CAND1)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('getCandidates treats a null payload as no candidates, not a crash', async () => {
+    const fake = makeFakeClient({ 'fund_candidate_cards.select': [{ data: null }] });
+    await expect(getCandidates(asClient(fake), { editionId: EDITION })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
   });
 });
