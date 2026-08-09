@@ -37,10 +37,14 @@ export async function getReportQueue(
   if (opts.status === 'resolved') q = q.in('status', ['upheld', 'dismissed']);
   else q = q.eq('status', opts.status);
   if (opts.cursor) {
-    // keyset: rows strictly "after" the cursor in (created_at desc, id desc). A cursor missing
-    // either half is ignored rather than interpolated — `id.lt.undefined` is not a filter.
+    // keyset: rows strictly "after" the cursor in (created_at desc, id desc).
     const [ts, id] = opts.cursor.split('|');
-    if (ts && id) q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
+    // The cursor is opaque and server-issued, so a half of it missing is a caller bug. Rejecting
+    // says so; interpolating it built the literal filter `id.lt.undefined` (PostgREST then failed
+    // on the uuid), and silently dropping the predicate would restart a moderator's queue at
+    // page 1 without a word — the failure mode that looks like it worked.
+    if (!ts || !id) throw new Error(`malformed report cursor: ${opts.cursor}`);
+    q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;

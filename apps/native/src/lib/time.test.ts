@@ -93,6 +93,8 @@ describe('longDate', () => {
     expect(longDate(iso, 'en')).not.toBe(longDate(iso, 'it'));
   });
 
+  // Coupled to the June fixture: "June" clears 4 letters, its abbreviation "Jun" does not.
+  // A month whose short form is already ≥4 letters would not distinguish the two.
   it('spells the month out rather than abbreviating it', () => {
     expect(longDate(iso, 'en')).toMatch(/\p{L}{4,}/u);
   });
