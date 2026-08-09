@@ -60,8 +60,7 @@ export function windowStart(window: string, now: Date): string {
     }
     case 'month':
       return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    case 'lifetime':
-      return new Date(0).toISOString();
+    // 'lifetime' and any unknown window both mean "no lower bound".
     default:
       return new Date(0).toISOString();
   }
@@ -284,8 +283,9 @@ export async function runAward(ctx: ScoreCtx, input: AwardInput): Promise<Respon
   // ── 3. Compute points ───────────────────────────────────────────────────────
 
   const points = pointsFor(type as ScoringType, { ...awardCtx, withinCap, pairExchangeIndex });
-  if (points === 0 && withinCap) {
+  if (points === 0) {
     // Zero-point non-scoring action (circle/fund/marketplace): nothing to write.
+    // (Over-cap already returned above, so this can only be a genuinely unscored type.)
     return json({ awarded: 0, skipped: true });
   }
 

@@ -172,7 +172,22 @@ describe('getReportQueue', () => {
       cursor: `2026-08-01T10:00:00Z|${R1}`,
     });
     const or = fake.calls[0]!.filters.find((f) => f[0] === 'or');
-    expect(String(or?.[1])).toContain('created_at.lt.2026-08-01T10:00:00Z');
+    // Pin the whole disjunction, not just the first half: the tie-break arm is what stops a
+    // second report sharing a timestamp from being skipped or served twice.
+    expect(String(or?.[1])).toBe(
+      `created_at.lt.2026-08-01T10:00:00Z,and(created_at.eq.2026-08-01T10:00:00Z,id.lt.${R1})`,
+    );
+  });
+
+  it('rejects a half-parsed cursor instead of quietly restarting at page 1', async () => {
+    const fake = makeFakeClient({ 'reports.select': [{ data: [] }] });
+    await expect(
+      getReportQueue(asClient(fake), { status: 'open', cursor: 'garbage' }),
+    ).rejects.toThrow(/malformed report cursor/);
+    await expect(
+      getReportQueue(asClient(fake), { status: 'open', cursor: '2026-08-01T10:00:00Z|' }),
+    ).rejects.toThrow(/malformed report cursor/);
+    expect(fake.calls).toEqual([]);
   });
 
   it('returns a null cursor on a short page', async () => {

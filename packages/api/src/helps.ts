@@ -115,21 +115,6 @@ export async function listIncomingHelps(
 }
 
 /**
- * Offers I made, newest first. One bounded keyset page (rule #9), so this answers "my recent
- * offers" and NOT "have I ever offered on tappa X" — for that, scope the read with
- * {@link listMyHelpsForMilestones}, because a prolific helper's older offer falls out of the
- * window and reads back as "never offered".
- */
-export async function listMyHelps(
-  client: AthanorClient,
-  helperId: string,
-  cursor?: HelpCursor | null,
-  limit = HELPS_PAGE_SIZE,
-): Promise<HelpsPage> {
-  return myHelpsPage(client, helperId, null, cursor, limit);
-}
-
-/**
  * My offers on a specific set of tappe — the per-tappa help-state on someone's dream. Scoped
  * rather than paginated-and-hoped: a dream has a handful of tappe, so one page covers them all
  * regardless of how much the caller has helped elsewhere. An unscoped read here would show an
@@ -144,22 +129,12 @@ export async function listMyHelpsForMilestones(
   limit = HELPS_PAGE_SIZE,
 ): Promise<HelpsPage> {
   if (milestoneIds.length === 0) return { rows: [], nextCursor: null };
-  return myHelpsPage(client, helperId, milestoneIds, cursor, limit);
-}
-
-async function myHelpsPage(
-  client: AthanorClient,
-  helperId: string,
-  milestoneIds: string[] | null,
-  cursor: HelpCursor | null | undefined,
-  limit: number,
-): Promise<HelpsPage> {
   let q = client
     .from('milestone_helps')
     .select('*')
     .eq('helper_id', helperId)
-    .is('deleted_at', null);
-  if (milestoneIds) q = q.in('milestone_id', milestoneIds);
+    .is('deleted_at', null)
+    .in('milestone_id', milestoneIds);
   q = q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
   if (cursor) q = q.or(keysetFilter('created_at', 'id', cursor.created_at, cursor.id, 'lt'));
   const { data, error } = await q;
