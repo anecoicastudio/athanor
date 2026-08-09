@@ -175,8 +175,9 @@ describe('POST /api/waitlist — throttled (issue #23)', () => {
   });
 
   it('forwards the visitor address so the trigger keys on them, not on this function', async () => {
-    // Without this the insert carries only the Vercel function's egress IP and the per-client
-    // budget is silently a site-wide one, with real visitors throttling each other off.
+    // Without this the insert carries only the serverless function's egress IP and the
+    // per-client budget is silently a site-wide one, with real visitors throttling each
+    // other off.
     await POST({
       json: async () => ({ email: 'a@b.it' }),
       headers: { get: (k: string) => (k === 'x-forwarded-for' ? '203.0.113.7, 70.41.3.18' : null) },
