@@ -125,3 +125,41 @@ defense-in-depth on the same door.
 
 Asserted in `supabase/tests/0073_visibility_followups.test.sql` (the realtime publication
 check, with the accurate note beside it).
+
+---
+
+## `20260701124122_m6_aura_award_triggers.sql`
+
+### L38-39 — `post_starred (+2)` is wrong twice over
+
+The section header reads:
+
+```sql
+-- 3. post_starred (+2): a ✦ from a member whose Aura > 300 (REACTION_AUTHOR_MIN_SCORE,
+--    packages/core weights.ts) → award the post author. Never self-award.
+```
+
+`+2` is not the award. `ENGINE_WEIGHTS.POST_REACTION` is a **base** that `pointsFor` multiplies
+by `reviewerWeight(reactor score) = min(2, 1 + ln1p(s/1000))` before rounding, and the gate is
+`s > 300`. The lowest reactor who clears the gate already weighs ≈1.263, so the reachable band
+is **{3, 4}** — 3 from a reactor at 301, 4 from 1118 up. 2 is unreachable. The same wrong number
+stood in `packages/core/src/score/weights.ts` and PRD §4.9; both were corrected 2026-08-09.
+
+And in the shipped system the award is neither 2 nor 3–4 but **0**. This trigger selects
+`v_reactor_score`, gates on it in SQL, and then calls `athanor.enqueue_score_award(...)` — which
+has no parameter for it. The `pg_net` body carries only `severity`, so `score-engine`'s
+`awardCtx` reaches `pointsFor` with `reviewerScore` undefined, `?? 0` fails the gate a second
+time, and the function returns `{awarded: 0, skipped: true}` with no `aura_events` row. The gate
+is written twice and the second copy always loses. Tracked as **issue #27**; fixing it needs a
+new migration (append-only) that plumbs the score through the enqueue payload.
+
+Verified behaviour lives in two places. `packages/core/src/score/award.test.ts` holds the `{3, 4}`
+band across the whole qualifying range plus `pointsFor('post_starred', {})` → `0`, which pins the
+_consequence_ — but it is required to keep passing after #27 lands, so it can never announce the
+fix. `supabase/tests/0064_aura_award_triggers.test.sql` therefore also asserts that no
+`enqueue_score_award` overload carries a reactor-score parameter: that one goes red the moment the
+plumbing arrives, which is what forces this entry and the `weights.ts` comment to be corrected in
+the same change rather than drifting a third time. Delete it with #27.
+
+Note also that `300` is written as a SQL literal at L49 rather than derived
+from `REACTION_AUTHOR_MIN_SCORE`, so the two copies of the threshold can drift (rule #10).

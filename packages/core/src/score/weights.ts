@@ -8,6 +8,26 @@
 // dropped — the engine deliberately never rewards creating content (anti-gaming:
 // reward reactions earned, not volume produced; only `post_starred` exists).
 // Never re-add a UI hint that doesn't map 1:1 to a ScoringType below.
+//
+// POST_REACTION is a BASE, not an award (2026-08-09). Every other weight here IS the
+// points granted; this one alone is multiplied by `reviewerWeight(reactor score)` =
+// min(2, 1 + ln1p(s/1000)) before rounding. The gate is s > REACTION_AUTHOR_MIN_SCORE
+// (300), and the lowest reactor that clears it already weighs ≈1.263 — so the band is
+// {3, 4}: 3 from a reactor at 301, 4 from 1118 up. (1118, not 1719: the reviewer curve
+// saturates at ×2 from 1719, but rounding reaches 4 six hundred points earlier, once
+// 2·weight crosses 3.5 at s = 1000·(e^0.75 − 1) ≈ 1117.00002.) **A ✦ is never worth 2.**
+// The constant stays 2 because 2 is what the multiplier consumes; this comment and the
+// PRD §4.9 table used to state 2 as the award, a value no member could ever observe.
+//
+// ⚠ AND TODAY IT IS WORTH NEITHER — a ✦ awards 0. `athanor.aura_award_post_starred`
+// (migration 20260701124122) reads the reactor's score, gates on `> 300` in SQL, then
+// calls `enqueue_score_award` without it; the pg_net payload carries only `severity`,
+// so the engine reaches `pointsFor` with `reviewerScore` undefined → `?? 0` → 0 ≤ 300
+// → zero points and no ledger row. The gate is written twice and the second copy always
+// fails on a default. Tracked as issue #27 — plumbing it is a product change (0 → 3–4
+// on a rule #1 surface), so it is sequenced before the hosted deploy, not folded in
+// here. `award.test.ts` pins BOTH the band and the reviewerScore-absent case, so the
+// gap cannot be mistaken for intent and the band cannot drift from the engine again.
 
 export const ENGINE_WEIGHTS = {
   IDENTITY_VERIFIED: 50, //  +50 · once (lifetime)
@@ -16,7 +36,7 @@ export const ENGINE_WEIGHTS = {
   MOMENTO_CONV: 5, //        +5  · max 10 / month (≥10 msgs both sides)
   MILESTONE_HELP: 40, //     +40 · uncapped (owner-confirmed)
   OWN_MILESTONE: 10, //      +10 · per own milestone completed
-  POST_REACTION: 2, //       +2  · max 10 / day (✦ from a member with score > 300)
+  POST_REACTION: 2, //       BASE ×reviewerWeight → 3–4 (0 today, see #27 above) · max 10 / day
   REPORT_UPHELD_MIN: -50,
   REPORT_UPHELD_MAX: -200,
   // ZERO by rule #1 — never grant Aura for these:
