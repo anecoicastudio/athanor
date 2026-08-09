@@ -98,6 +98,7 @@ const ledgerRow = (over: Record<string, unknown> = {}) => ({
   type: 'event_attended',
   points: 15,
   ref_id: null,
+  counterparty_id: null,
   reason: null,
   created_at: '2026-08-01T10:00:00Z',
   ...over,

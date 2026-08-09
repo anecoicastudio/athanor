@@ -76,10 +76,34 @@ describe('aura read schemas (M6)', () => {
       type: 'decay',
       points: -12,
       refId: null,
+      counterpartyId: null,
       reason: { weeks: 3 },
       createdAt: '2026-06-17T00:00:00.000Z',
     });
     expect(ok.success).toBe(true);
+  });
+
+  // The dampening key (PRD §4.9). Nullable rather than optional: the column is on every row
+  // since the migration, but is null for solo actions and for every row written before it.
+  test('auraEventSchema carries the counterparty of a reciprocal exchange', () => {
+    const row = {
+      id: '22222222-2222-2222-2222-222222222222',
+      profileId: '11111111-1111-1111-1111-111111111111',
+      type: 'milestone_help' as const,
+      points: 40,
+      refId: '44444444-4444-4444-4444-444444444444',
+      reason: {},
+      createdAt: '2026-06-17T00:00:00.000Z',
+    };
+    expect(
+      auraEventSchema.safeParse({
+        ...row,
+        counterpartyId: '55555555-5555-4555-8555-555555555555',
+      }).success,
+    ).toBe(true);
+    // Absent is not the same as null — a row missing the column means the read is stale.
+    expect(auraEventSchema.safeParse(row).success).toBe(false);
+    expect(auraEventSchema.safeParse({ ...row, counterpartyId: 'not-a-uuid' }).success).toBe(false);
   });
   test('starSchema accepts a nullable grantedAt + progress', () => {
     const ok = starSchema.safeParse({
@@ -102,6 +126,7 @@ describe('aura read schemas (M6)', () => {
       type: 'event_attended',
       points: 25,
       refId: null,
+      counterpartyId: null,
       reason: { src: 'engine' },
       createdAt: '2026-06-20T14:35:30.72216+00:00',
     });

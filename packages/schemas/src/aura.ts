@@ -87,6 +87,12 @@ export const auraEventSchema = z.object({
   type: auraEventTypeSchema,
   points: z.number().int(),
   refId: z.string().uuid().nullable(),
+  /**
+   * The other person in a reciprocal exchange — the key pairwise dampening counts on (PRD §4.9).
+   * Null for solo actions, and null on every row written before the dampening migration, so it
+   * is nullable rather than optional: the column exists on every row, the value does not.
+   */
+  counterpartyId: z.string().uuid().nullable(),
   reason: z.record(z.unknown()).nullable(),
   createdAt: z.string().datetime({ offset: true }),
 });

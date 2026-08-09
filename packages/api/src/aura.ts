@@ -147,7 +147,7 @@ export async function getAuraLedgerPage(
 ): Promise<{ rows: AuraEvent[]; nextCursor: LedgerCursor | null }> {
   let q = client
     .from('aura_events')
-    .select('id, profile_id, type, points, ref_id, reason, created_at')
+    .select('id, profile_id, type, points, ref_id, counterparty_id, reason, created_at')
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
@@ -171,6 +171,7 @@ export async function getAuraLedgerPage(
       type: r.type,
       points: r.points,
       refId: r.ref_id,
+      counterpartyId: r.counterparty_id,
       reason: r.reason,
       createdAt: r.created_at,
     }),
@@ -193,7 +194,7 @@ export async function getAuraEventsSince(
 ): Promise<AuraEvent[]> {
   const { data, error } = await client
     .from('aura_events')
-    .select('id, profile_id, type, points, ref_id, reason, created_at')
+    .select('id, profile_id, type, points, ref_id, counterparty_id, reason, created_at')
     .eq('profile_id', profileId)
     .gte('created_at', sinceIso)
     .order('created_at', { ascending: false })
@@ -206,6 +207,7 @@ export async function getAuraEventsSince(
       type: r.type,
       points: r.points,
       refId: r.ref_id,
+      counterpartyId: r.counterparty_id,
       reason: r.reason,
       createdAt: r.created_at,
     }),
