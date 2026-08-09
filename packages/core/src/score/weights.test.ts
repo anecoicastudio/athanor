@@ -10,6 +10,8 @@ import {
   TIER_THRESHOLDS,
   STAR_CRITERIA,
   REACTION_AUTHOR_MIN_SCORE,
+  CREDITABLE_TYPES,
+  BUCKET_MAP,
 } from './weights';
 
 describe('ENGINE_WEIGHTS — canonical PRD §4.9', () => {
@@ -58,4 +60,41 @@ describe('ENGINE_WEIGHTS — canonical PRD §4.9', () => {
     });
     expect(STAR_CRITERIA.innovatore).toEqual({ evoluzionePostsStarred: 5, distinctStarrers: 10 });
   });
+});
+
+test('CREDITABLE_TYPES is exactly the PRD earning table plus engine decay (rule #1)', () => {
+  // The read-path backstop for rule #1. Asserted as an exact set, member by member, because
+  // a mutation run showed four entries could be blanked to '' with no test failing: drop
+  // 'report_upheld' and an upheld −200 penalty silently stops counting toward the score, so a
+  // member sheds it by doing nothing. Mirrors the aura_events.type CHECK constraint
+  // (20260617104046_aura_events.sql).
+  expect([...CREDITABLE_TYPES].sort()).toEqual(
+    [
+      'decay',
+      'event_attended',
+      'event_organized',
+      'identity_verified',
+      'milestone_help',
+      'momento_conversation',
+      'own_milestone',
+      'post_starred',
+      'report_upheld',
+    ].sort(),
+  );
+});
+
+test('no paid-for action is creditable (rule #1)', () => {
+  // Circle membership and fund contributions yield ZERO points. Naming them explicitly means
+  // adding one to the set fails here rather than quietly minting score on the read path.
+  for (const paid of ['circle_membership', 'fund_contribution', 'marketplace_purchase']) {
+    expect(CREDITABLE_TYPES.has(paid)).toBe(false);
+  }
+});
+
+test('every bucketed type is creditable, and decay is creditable without a bucket', () => {
+  // BUCKET_MAP and CREDITABLE_TYPES must not drift apart: a type that buckets but does not
+  // credit would show points in a breakdown that the headline score does not contain.
+  for (const type of Object.keys(BUCKET_MAP)) expect(CREDITABLE_TYPES.has(type)).toBe(true);
+  expect(CREDITABLE_TYPES.has('decay')).toBe(true);
+  expect(Object.keys(BUCKET_MAP)).not.toContain('decay');
 });

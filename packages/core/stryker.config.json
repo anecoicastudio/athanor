@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the score engine and the rest of packages/core. Coverage proves a line ran; this proves a WRONG line fails a test. packages/core is the right and only first target: it is pure TS with no I/O (core.md), so mutants are deterministic, and the Aura invariant is the highest-stakes logic in the repo. Run with `pnpm --filter @athanor/core mutation`.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "_plugins_comment": "Declared explicitly: Stryker's default plugin discovery globs node_modules and does not follow pnpm's symlinked layout, so the runner is installed and resolvable but not auto-loaded.",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "vitest.mutation.config.ts" },
+  "mutate": ["src/**/*.ts", "!src/**/*.test.ts", "!src/index.ts"],
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text", "html", "json"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "clearTextReporter": { "maxTestsToLog": 0 },
+  "tempDirName": ".stryker-tmp",
+  "thresholds": {
+    "high": 95,
+    "low": 90,
+    "break": 90
+  },
+  "_thresholds_comment": "`break` is the CI gate (.github/workflows/mutation.yml) and is set just under the measured score — 90.59% on the first run, 91.41% after killing the four Aura-path survivors it found — never aspirationally, because a threshold nobody can meet becomes a red job people learn to ignore. Ratchet UP as tests improve, never down (core.md precedent, same rule as the coverage floors)."
+}
