@@ -41,3 +41,21 @@ export function auraDisplayValue(score: number | null | undefined, isError: bool
   if (isError || score == null) return AURA_UNKNOWN;
   return String(score);
 }
+
+/**
+ * The same decision one level up, for the surfaces that need the whole snapshot (score *and*
+ * the six stars) rather than just the number.
+ *
+ * They all used to write `query.data ?? ZERO_AURA_SNAPSHOT`, which is worse than the score-only
+ * bug it mirrors: it claims a score of zero AND six dark stars, so a network blip renders another
+ * member as someone who has earned nothing at all. Returning `null` lets each surface say
+ * «non lo so» instead — and makes the compiler find every place that has to.
+ *
+ * `ZERO_AURA_SNAPSHOT` itself stays correct where `@athanor/api` returns it: `getAuraScore`
+ * hands it back only for a genuinely absent engine row, which really is a member at zero.
+ * The bug was never the constant, it was coalescing a *failure* into it.
+ */
+export function auraSnapshotOrNull<T>(data: T | undefined, isError: boolean): T | null {
+  if (isError || data == null) return null;
+  return data;
+}

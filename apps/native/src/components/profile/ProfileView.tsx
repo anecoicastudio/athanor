@@ -14,13 +14,7 @@ import {
 } from '@athanor/api';
 import { profileCompleteness } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
-import {
-  type AuraSnapshot,
-  ZERO_AURA_SNAPSHOT,
-  type Locale,
-  type Profile,
-  type StarKey,
-} from '@athanor/schemas';
+import type { AuraSnapshot, Locale, Profile, StarKey } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SettingsRow } from '@/components/settings/SettingsRow';
@@ -28,6 +22,7 @@ import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { Tag } from '@/components/Tag';
+import { auraSnapshotOrNull } from '@/lib/aura-display';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -69,13 +64,13 @@ export function ProfileView({
   const [sheetOpen, setSheetOpen] = useState(false);
   const { addMoment } = useMomentUpload(userId);
 
-  // Read-only Aura snapshot — TanStack (M6 score-engine fills real values; coalesces to zero).
+  // Read-only Aura snapshot — TanStack. `null` until it lands, never a stand-in zero.
   const auraQuery = useQuery({
     queryKey: auraKeys.score(userId),
     queryFn: () => getAuraScore(supabase, userId),
     enabled: Boolean(userId),
   });
-  const aura: AuraSnapshot = auraQuery.data ?? ZERO_AURA_SNAPSHOT;
+  const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
   // Stars for the Six Stars grid — TanStack (engine dormant → [] → all unearned).
   const starsQuery = useQuery({
@@ -116,7 +111,7 @@ export function ProfileView({
         hero={{
           handle: profile.handle ?? '',
           bio: profile.bio || null,
-          auraScore: aura.score,
+          auraScore: aura?.score ?? null,
           locale,
           verified: profile.identity_verified,
           founding: profile.founding_member,
