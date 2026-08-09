@@ -51,6 +51,41 @@ describe('highlightMatches', () => {
     expect(highlightMatches('', 'video')).toEqual([]);
   });
 
+  // With a non-empty query, empty text reaches the same `[]` by a different route (an empty
+  // mask produces no spans), so the guard on line 1 was indistinguishable from its absence.
+  // Empty text AND empty query is the pair that separates them: without the guard the
+  // empty-query branch wins and returns a bogus `[{ text: '', match: false }]` span.
+  test('empty text with an empty query is still empty, not a blank span', () => {
+    expect(highlightMatches('', '')).toEqual([]);
+  });
+
+  // The accent tests above both put the accent inside the match, where a length change in the
+  // normalized string cannot shift anything. This puts it BEFORE the match, which is the case
+  // the source's own ASSUMPTION comment is about: the mask is indexed by normalized offsets, so
+  // if stripping a combining mark changed the string's length the highlight would land wrong.
+  test('an accent before the match does not shift the highlight', () => {
+    expect(highlightMatches('Città di Milano', 'milano')).toEqual([
+      { text: 'Città di ', match: false },
+      { text: 'Milano', match: true },
+    ]);
+  });
+
+  // Same assumption, from the other side. Case folding has to be the direction that preserves
+  // length: 'ß'.toUpperCase() is 'SS', one character longer, which would both invent a match
+  // that is not there and desynchronise every offset after it. Lowercasing never does this.
+  test('case folding does not change length: ß is not a match for ss', () => {
+    expect(highlightMatches('Straße', 'strasse')).toEqual([{ text: 'Straße', match: false }]);
+  });
+
+  // A query that is nothing but a combining mark is the one input that reaches the
+  // empty-normalized-token guard: it has length 1, so `.trim()` and the `length > 0` filter both
+  // pass it through, and only normalize() empties it. Without the guard `indexOf('', n)` returns
+  // n, `searchFrom` never advances, and the while loop spins forever — on the UI thread, since
+  // this runs per keystroke in the search row. Cheap to type by accident on a mobile keyboard.
+  test('a query of only a combining mark terminates instead of spinning', () => {
+    expect(highlightMatches('Citta', '́')).toEqual([{ text: 'Citta', match: false }]);
+  });
+
   test('no false positives: query with no occurrence returns single non-match span', () => {
     expect(highlightMatches('Videomaker a Milano', 'astronauta')).toEqual([
       { text: 'Videomaker a Milano', match: false },

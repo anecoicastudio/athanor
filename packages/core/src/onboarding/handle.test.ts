@@ -14,6 +14,18 @@ describe('suggestHandle', () => {
     expect(suggestHandle('l..u@example.com')).toBe('l_u');
   });
 
+  // The case above collapses underscores the previous replace *produced*. Underscores already
+  // present in the address are the ones that reach the `/_+/g` pass as a run, and nothing
+  // covered them — so narrowing that pattern to a single `_` went unnoticed.
+  test('collapses underscores the address itself contains', () => {
+    expect(suggestHandle('l__u@example.com')).toBe('l_u');
+  });
+
+  // Nothing produced a leading or trailing underscore either, so the final trim was untested.
+  test('trims leading and trailing underscores', () => {
+    expect(suggestHandle('.lucia.@example.com')).toBe('lucia');
+  });
+
   test('pads to minimum 3 chars', () => {
     expect(suggestHandle('ab@example.com')).toBe('ab_');
   });

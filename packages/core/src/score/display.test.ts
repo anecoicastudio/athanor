@@ -72,6 +72,29 @@ describe('pickNextStar', () => {
     expect(pickNextStar([])).toBeNull();
     expect(pickNextStar([star('creatore', '2026-01-01', 2, 2)])).toBeNull();
   });
+
+  // The tie-break test above happens to put the loser first, so `reduce` reaches the winner
+  // through the `return b` path — the `return a` path was never taken, and a mutant that always
+  // returns b passed. Same tie, opposite array order.
+  it('tie-breaks on canonical order regardless of array order', () => {
+    const next = pickNextStar([star('creatore', null, 1, 2), star('innovatore', null, 1, 2)]);
+    expect(next?.starId).toBe('creatore');
+  });
+
+  // Likewise, every ratio comparison above had the better star first, so the "b is strictly
+  // better" branch never fired.
+  it('picks the better ratio when it comes second in the array', () => {
+    const next = pickNextStar([star('mentor', null, 1, 3), star('creatore', null, 1, 2)]);
+    expect(next?.starId).toBe('creatore');
+  });
+
+  // A zero `total` would make the ratio NaN, and NaN loses every comparison — the star would
+  // then win or lose by array position instead of by progress. `visionario` is first in
+  // STAR_KEYS, so if the guard were dropped the tie-break would hand it the pick.
+  it('a star with no total ranks below real progress rather than poisoning the compare', () => {
+    const next = pickNextStar([star('visionario', null, 0, 0), star('creatore', null, 1, 2)]);
+    expect(next?.starId).toBe('creatore');
+  });
 });
 
 const NOW = new Date('2026-06-17T12:00:00.000Z');
@@ -116,5 +139,50 @@ describe('summarizeWeek', () => {
       oreDonate: 0,
       streakDays: 0,
     });
+  });
+
+  // The window is inclusive at both ends and the suite only ever tested points well inside it,
+  // so shrinking either bound to a strict comparison passed. windowStart is exactly NOW − 7d.
+  it('includes an event landing exactly on the window start', () => {
+    const r = summarizeWeek([ev('own_milestone', 10, '2026-06-10T12:00:00.000Z')], NOW);
+    expect(r.auraWeek).toBe(10);
+    expect(r.contributi).toBe(1);
+  });
+  it('includes an event landing exactly on now', () => {
+    const r = summarizeWeek([ev('own_milestone', 10, '2026-06-17T12:00:00.000Z')], NOW);
+    expect(r.auraWeek).toBe(10);
+    expect(r.contributi).toBe(1);
+  });
+  // A ledger row stamped in the future is out of the window on the upper side. Nothing tested
+  // that side at all, so dropping the `at <= now` bound was invisible.
+  it('excludes an event stamped after now', () => {
+    const r = summarizeWeek([ev('own_milestone', 10, '2026-06-18T09:00:00Z')], NOW);
+    expect(r.auraWeek).toBe(0);
+    expect(r.contributi).toBe(0);
+  });
+
+  // A zero-point row is not a contribution and must not keep a streak alive. The suite had a
+  // negative row (decay) but never a zero, so `> 0` and `>= 0` were indistinguishable.
+  it('a zero-point row neither counts as a contribution nor sustains the streak', () => {
+    const r = summarizeWeek(
+      [
+        ev('own_milestone', 10, '2026-06-17T09:00:00Z'),
+        ev('post_starred', 0, '2026-06-16T09:00:00Z'),
+        ev('own_milestone', 10, '2026-06-15T09:00:00Z'),
+      ],
+      NOW,
+    );
+    expect(r.auraWeek).toBe(20);
+    expect(r.contributi).toBe(2);
+    expect(r.streakDays).toBe(1); // stops at the zero-point day, does not reach the 15th
+  });
+
+  // The cap in the title of the streak test above was never actually exercised — three days
+  // cannot reveal a loop that runs one iteration too far.
+  it('caps the streak at 7 even on an unbroken 8-day run', () => {
+    const days = ['17', '16', '15', '14', '13', '12', '11', '10'].map((d) =>
+      ev('own_milestone', 10, `2026-06-${d}T09:00:00Z`),
+    );
+    expect(summarizeWeek(days, NOW).streakDays).toBe(7);
   });
 });

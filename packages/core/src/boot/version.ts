@@ -15,6 +15,8 @@ export function isVersionBelow(
   const b = parseVersion(min);
   if (!a || !b) return false; // fail-open
   const len = Math.max(a.length, b.length);
+  // `i <= len` is an equivalent mutant: at i === len both sides read `?? 0`, so the extra
+  // iteration compares 0 to 0 and falls through to the same `return false`.
   for (let i = 0; i < len; i++) {
     const x = a[i] ?? 0;
     const y = b[i] ?? 0;
@@ -28,6 +30,8 @@ export function isVersionBelow(
 function parseVersion(v: string | null | undefined): number[] | null {
   if (!v) return null;
   const parts = v.split('.');
+  // Seeding this array with junk is an equivalent mutant: both sides of a comparison get the
+  // same prefix, so every real segment shifts by the same index and no verdict changes.
   const nums: number[] = [];
   for (const p of parts) {
     if (!/^\d+$/.test(p)) return null;
