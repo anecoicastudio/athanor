@@ -12,7 +12,8 @@
  * ingress, so a caller cannot forge it. It must be consulted FIRST: Cloudflare *appends* the
  * real client to `x-forwarded-for`, which makes the leftmost XFF entry whatever the caller
  * sent — reading that first would hand the attacker the throttle key and undo issue #23
- * entirely. `x-vercel-forwarded-for` is kept for the same reason on that platform.
+ * entirely. `x-vercel-forwarded-for` is a dormant fallback — nothing is served from Vercel
+ * any more, and Workers never set it — kept only so this stays correct if that changes.
  *
  * The remaining fallbacks are still client-supplied and forgeable, which is why the throttle is
  * a COST control and not an authorization boundary: rotating the header defeats the per-client

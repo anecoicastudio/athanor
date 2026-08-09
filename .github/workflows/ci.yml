@@ -157,6 +157,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Read by app/layout.tsx to mount the Cloudflare Web Analytics beacon.
+          # Optional: unset simply means no beacon.
+          NEXT_PUBLIC_CF_BEACON_TOKEN: ${{ secrets.NEXT_PUBLIC_CF_BEACON_TOKEN }}
         run: |
           # Same fail-soft-then-fail-loud shape as the types gate above: the Cloudflare
           # account has to be provisioned by hand once (Worker, KV namespace, API token),

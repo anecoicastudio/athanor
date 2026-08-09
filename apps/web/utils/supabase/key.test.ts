@@ -27,7 +27,7 @@ describe('supabaseKey', () => {
   it('throws when neither is set, naming both variables', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', '');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', '');
-    // The message has to name the variables: this fires in a Vercel build where the only
+    // The message has to name the variables: this fires in a CI/production build where the only
     // diagnostic anyone sees is the thrown string.
     expect(() => supabaseKey()).toThrow(/NEXT_PUBLIC_SUPABASE_(PUBLISHABLE|ANON)_KEY/);
   });

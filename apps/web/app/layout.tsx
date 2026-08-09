@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { Hanken_Grotesk, EB_Garamond } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/next';
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import { t } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
 import './globals.css';
@@ -90,8 +89,23 @@ export default function RootLayout({
           </PageReveal>
           <CookieNotice />
         </LocaleProvider>
-        <Analytics />
-        <SpeedInsights />
+        {/*
+          Cloudflare Web Analytics — cookieless and aggregate, as the privacy page
+          says. Cloudflare only auto-injects this beacon for a zone it proxies, and
+          a *.workers.dev host is not one, so it has to be mounted by hand.
+
+          The env read must be a literal member expression: the bundler substitutes
+          NEXT_PUBLIC_* by matching the source text, so a computed lookup silently
+          yields undefined (see utils/supabase/key.ts). Absent token → no beacon,
+          which is what local dev and preview builds want anyway.
+        */}
+        {process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ? (
+          <Script
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            strategy="afterInteractive"
+            data-cf-beacon={JSON.stringify({ token: process.env.NEXT_PUBLIC_CF_BEACON_TOKEN })}
+          />
+        ) : null}
       </body>
     </html>
   );

@@ -9,8 +9,8 @@ import { supabaseKey } from './key';
  * has no cookie jar and so does not force dynamic rendering.
  *
  * `forwardedFor` exists for the waitlist throttle (issue #23) and is the whole reason that
- * trigger can key on a visitor at all. This client runs INSIDE a Vercel function, so the
- * request PostgREST receives is the function's, not the browser's — `request.headers` would
+ * trigger can key on a visitor at all. This client runs INSIDE the Worker, so the
+ * request PostgREST receives is the Worker's, not the browser's — `request.headers` would
  * otherwise carry the function's egress IP and turn a per-visitor budget into a site-wide one,
  * with every regional visitor throttling the others off. Pass the address the Next route read
  * from its own request and the trigger sees the visitor.
