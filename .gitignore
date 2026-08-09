@@ -43,6 +43,12 @@ AGENTS.md
 # Deno edge-function local lockfile (transient; functions pin deps in deno.json)
 deno.lock
 
+# pnpm is the package manager (node-linker=hoisted). A stray npm/yarn lockfile is not
+# just noise: EAS Build infers the package manager from the lockfile it finds, so one of
+# these at the root can make a cloud build install with the wrong tool.
+/package-lock.json
+/yarn.lock
+
 # superpowers local
 .superpowers/
 
