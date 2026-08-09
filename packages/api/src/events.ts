@@ -147,7 +147,7 @@ export async function getEvent(client: AthanorClient, id: string): Promise<Event
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return eventSchema.parse(data as unknown);
+  return eventSchema.parse(data);
 }
 
 /** Events an organizer owns (newest first). */
@@ -203,7 +203,7 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
 
   const { data: id, error } = await client.rpc('create_event', rpcArgs);
   if (error) throw error;
-  const created = await getEvent(client, id as string);
+  const created = await getEvent(client, id);
   if (!created) throw new Error('created event not found');
   return created;
 }
@@ -301,7 +301,7 @@ export async function getEventLiveStats(
     .eq('event_id', eventId)
     .maybeSingle();
   if (error) throw error;
-  return data ? eventLiveStatsSchema.parse(data as unknown) : null;
+  return data ? eventLiveStatsSchema.parse(data) : null;
 }
 
 /**
@@ -344,11 +344,13 @@ export async function createTicketCheckout(
   client: AthanorClient,
   eventId: string,
 ): Promise<{ url: string }> {
-  const { data, error } = await client.functions.invoke('create-ticket-checkout', {
+  const res = await client.functions.invoke<unknown>('create-ticket-checkout', {
     body: { eventId },
   });
-  if (error) throw error;
-  const url = (data as { url?: string } | null)?.url;
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('checkout did not return a url');
   return { url };
 }
@@ -366,7 +368,7 @@ export async function getMyTicket(
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw error;
-  return data ? ticketSchema.parse(data as unknown) : null;
+  return data ? ticketSchema.parse(data) : null;
 }
 
 /**
@@ -413,11 +415,13 @@ export async function checkInScan(
   eventId: string,
   qrToken: string,
 ): Promise<CheckInResult> {
-  const { data, error } = await client.functions.invoke('check-in', {
+  const res = await client.functions.invoke<unknown>('check-in', {
     body: { eventId, qrToken },
   });
-  if (error) throw error;
-  return checkInResultSchema.parse(data);
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  return checkInResultSchema.parse(res.data);
 }
 
 /** Live arrived-count for an event. Organizer reads via RLS (holder-or-organizer). Head count only. */

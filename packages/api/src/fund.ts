@@ -83,11 +83,13 @@ export async function createContributionSession(
   client: AthanorClient,
   input: ContributionSessionInput,
 ): Promise<{ url: string }> {
-  const { data, error } = await client.functions.invoke('create-contribution-session', {
+  const res = await client.functions.invoke<unknown>('create-contribution-session', {
     body: { editionId: input.editionId, amountCents: input.amountCents },
   });
-  if (error) throw error;
-  const url = (data as { url?: string } | null)?.url;
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('contribution checkout did not return a url');
   return { url };
 }

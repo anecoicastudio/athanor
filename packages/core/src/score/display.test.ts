@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AuraEvent, AuraEventType, Star, StarKey } from '@athanor/schemas';
 import { breakdownRows, pickNextStar, summarizeWeek } from './display';
 
 const B = {
@@ -40,19 +41,18 @@ describe('breakdownRows', () => {
 });
 
 const star = (
-  starId: string,
+  starId: StarKey,
   granted: string | null,
   done: number,
   total: number,
   unit = 'tappe',
-) =>
-  ({
-    id: starId,
-    profileId: 'p',
-    starId,
-    grantedAt: granted,
-    progress: { done, total, unit },
-  }) as any;
+): Star => ({
+  id: starId,
+  profileId: 'p',
+  starId,
+  grantedAt: granted,
+  progress: { done, total, unit },
+});
 
 describe('pickNextStar', () => {
   it('returns the closest unearned star by ratio', () => {
@@ -75,7 +75,13 @@ describe('pickNextStar', () => {
 });
 
 const NOW = new Date('2026-06-17T12:00:00.000Z');
-const ev = (type: string, points: number, iso: string) => ({ type, points, createdAt: iso }) as any;
+// `summarizeWeek` takes the same Pick<> its signature declares — typed here rather than
+// cast, so a rename of an AuraEvent field breaks the fixture instead of silently passing.
+const ev = (
+  type: AuraEventType,
+  points: number,
+  iso: string,
+): Pick<AuraEvent, 'type' | 'points' | 'createdAt'> => ({ type, points, createdAt: iso });
 
 describe('summarizeWeek', () => {
   it('sums positive points and counts in the 7-day window', () => {

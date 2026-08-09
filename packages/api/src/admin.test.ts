@@ -7,7 +7,7 @@ import type { AthanorClient } from './client';
 describe('resolveReport', () => {
   it('calls resolve_report rpc with mapped points for an uphold', async () => {
     const rpc = vi.fn().mockResolvedValue({ error: null });
-    const client = { rpc } as any;
+    const client = { rpc } as unknown as AthanorClient;
     await resolveReport(client, {
       reportId: '00000000-0000-0000-0000-000000000001',
       verdict: 'uphold',
@@ -23,9 +23,12 @@ describe('resolveReport', () => {
       p_penalty_points: -100,
     });
   });
-  it('maps dismiss to dismiss/null', async () => {
+  // A dismissal omits p_severity/p_penalty_points rather than sending null: both are
+  // `default null` in the SQL, so the audit_log row is identical either way, and omitting
+  // is what the generated Args type actually permits.
+  it('maps dismiss to dismiss, sending no severity or penalty', async () => {
     const rpc = vi.fn().mockResolvedValue({ error: null });
-    await resolveReport({ rpc } as any, {
+    await resolveReport({ rpc } as unknown as AthanorClient, {
       reportId: '00000000-0000-0000-0000-000000000002',
       verdict: 'dismiss',
       resolution: 'not a violation',
@@ -35,9 +38,21 @@ describe('resolveReport', () => {
       p_status: 'dismissed',
       p_resolution: 'not a violation',
       p_action: 'dismiss',
-      p_severity: null,
-      p_penalty_points: null,
     });
+  });
+  // The schema's .refine makes severity mandatory on an uphold, but the inferred type marks it
+  // optional, so this call compiles. Without the guard it would send p_action:'penalty' with no
+  // points — a penalty the moderator thinks they applied that scores nothing.
+  it('refuses an uphold with no severity rather than sending a pointless penalty', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    await expect(
+      resolveReport({ rpc } as unknown as AthanorClient, {
+        reportId: '00000000-0000-0000-0000-000000000003',
+        verdict: 'uphold',
+        resolution: 'upheld but nobody said how badly',
+      }),
+    ).rejects.toThrow(/requires a severity/);
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -296,103 +311,91 @@ describe('adminReportKeys', () => {
     expect(keys.every((k) => k[0] === 'admin' && k[1] === 'reports')).toBe(true);
     expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
   });
-});// ── the arms that decide what a moderator actually sees ──────────────────────
+}); // ── the arms that decide what a moderator actually sees ──────────────────────
 // Everything below covers a branch that no earlier test reaches: the resolved-bucket
 // widening, the limit+1 probe row, the reporter/target `?? null` arms and the audit `?? []`.
-describe("getReportQueue — the resolved bucket and the page probe", () => {
+describe('getReportQueue — the resolved bucket and the page probe', () => {
   it("'resolved' widens to the two terminal statuses, not a status of its own", async () => {
     // There is no 'resolved' row in the table; asking for it must widen to upheld+dismissed
     // or the resolved tab renders permanently empty.
-    const fake = makeFakeClient({ "reports.select": [{ data: [] }] });
-    await getReportQueue(asClient(fake), { status: "resolved" });
-    expect(fake.calls[0]!.filters).toContainEqual([
-      "in",
-      "status",
-      ["upheld", "dismissed"],
-    ]);
+    const fake = makeFakeClient({ 'reports.select': [{ data: [] }] });
+    await getReportQueue(asClient(fake), { status: 'resolved' });
+    expect(fake.calls[0]!.filters).toContainEqual(['in', 'status', ['upheld', 'dismissed']]);
   });
 
-  it("a null payload is an empty queue, not a crash", async () => {
-    const fake = makeFakeClient({ "reports.select": [{ data: null }] });
-    await expect(
-      getReportQueue(asClient(fake), { status: "open" }),
-    ).resolves.toEqual({
+  it('a null payload is an empty queue, not a crash', async () => {
+    const fake = makeFakeClient({ 'reports.select': [{ data: null }] });
+    await expect(getReportQueue(asClient(fake), { status: 'open' })).resolves.toEqual({
       rows: [],
       nextCursor: null,
     });
   });
 
-  it("reads one row beyond the page to decide hasMore, and does not return it", async () => {
+  it('reads one row beyond the page to decide hasMore, and does not return it', async () => {
     // limit+1 is how the cursor is derived; leaking the probe row would show a moderator the
     // same item twice across two pages. Both fixtures share created_at, so a leak is visible
     // in the cursor as well as in the rows.
     const fake = makeFakeClient({
-      "reports.select": [
-        { data: [reportRow({ id: R1 }), reportRow({ id: R2 })] },
-      ],
+      'reports.select': [{ data: [reportRow({ id: R1 }), reportRow({ id: R2 })] }],
     });
     const page = await getReportQueue(asClient(fake), {
-      status: "open",
+      status: 'open',
       limit: 1,
     });
-    expect(fake.calls[0]!.modifiers).toContainEqual(["limit", 2]);
+    expect(fake.calls[0]!.modifiers).toContainEqual(['limit', 2]);
     expect(page.rows.map((r) => r.id)).toEqual([R1]);
     expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${R1}`);
   });
 
-  it("a report whose reporter is not joinable shows no handle rather than throwing", async () => {
+  it('a report whose reporter is not joinable shows no handle rather than throwing', async () => {
     // The reporter join comes back null when that profile is blocked or deleted.
     const fake = makeFakeClient({
-      "reports.select": [{ data: [reportRow({ reporter: null })] }],
+      'reports.select': [{ data: [reportRow({ reporter: null })] }],
     });
-    const page = await getReportQueue(asClient(fake), { status: "open" });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
     expect(page.rows[0]!.reporter_handle).toBeNull();
   });
 });
 
-describe("getReportDetail — when the target lookup is skipped", () => {
+describe('getReportDetail — when the target lookup is skipped', () => {
   const detailRow = (over: Record<string, unknown> = {}) =>
     reportRow({ note: null, resolution: null, ...over });
 
-  it("skips the profile lookup entirely for a non-person report", async () => {
+  it('skips the profile lookup entirely for a non-person report', async () => {
     // A post report has no profile to resolve; querying anyway would look the POST id up in
     // profiles, and a coincidental hit would name the wrong person in the moderation UI.
     const fake = makeFakeClient({
-      "reports.select": [{ data: [detailRow({ target_type: "post" })] }],
-      "audit_log.select": [{ data: [] }],
+      'reports.select': [{ data: [detailRow({ target_type: 'post' })] }],
+      'audit_log.select': [{ data: [] }],
     });
     const d = await getReportDetail(asClient(fake), R1);
     expect(d.target_handle).toBeNull();
-    expect(fake.calls.some((c) => c.table === "profiles")).toBe(false);
+    expect(fake.calls.some((c) => c.table === 'profiles')).toBe(false);
   });
 
-  it("skips the profile lookup when a person report has no target id", async () => {
+  it('skips the profile lookup when a person report has no target id', async () => {
     const fake = makeFakeClient({
-      "reports.select": [
-        { data: [detailRow({ target_type: "person", target_id: null })] },
-      ],
-      "audit_log.select": [{ data: [] }],
+      'reports.select': [{ data: [detailRow({ target_type: 'person', target_id: null })] }],
+      'audit_log.select': [{ data: [] }],
     });
     const d = await getReportDetail(asClient(fake), R1);
     expect(d.target_handle).toBeNull();
-    expect(fake.calls.some((c) => c.table === "profiles")).toBe(false);
+    expect(fake.calls.some((c) => c.table === 'profiles')).toBe(false);
   });
 
-  it("a vanished target profile leaves the handle null rather than throwing", async () => {
+  it('a vanished target profile leaves the handle null rather than throwing', async () => {
     const fake = makeFakeClient({
-      "reports.select": [{ data: [detailRow({ target_type: "person" })] }],
-      "profiles.select": [{ data: [] }],
-      "audit_log.select": [{ data: [] }],
+      'reports.select': [{ data: [detailRow({ target_type: 'person' })] }],
+      'profiles.select': [{ data: [] }],
+      'audit_log.select': [{ data: [] }],
     });
-    expect(
-      (await getReportDetail(asClient(fake), R1)).target_handle,
-    ).toBeNull();
+    expect((await getReportDetail(asClient(fake), R1)).target_handle).toBeNull();
   });
 
-  it("an empty audit trail is an empty array, not a crash", async () => {
+  it('an empty audit trail is an empty array, not a crash', async () => {
     const fake = makeFakeClient({
-      "reports.select": [{ data: [detailRow({ target_type: "post" })] }],
-      "audit_log.select": [{ data: null }],
+      'reports.select': [{ data: [detailRow({ target_type: 'post' })] }],
+      'audit_log.select': [{ data: null }],
     });
     expect((await getReportDetail(asClient(fake), R1)).audit).toEqual([]);
   });

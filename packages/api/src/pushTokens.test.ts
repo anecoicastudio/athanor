@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { pushTokenKeys, registerPushToken, unregisterPushToken } from './pushTokens';
+import type { AthanorClient } from './client';
 
 function mockClient() {
   const upsert = vi.fn().mockResolvedValue({ error: null });
   const del = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
   const from = vi.fn().mockReturnValue({ upsert, delete: del });
   const auth = { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'me-uuid' } } }) };
-  return { client: { from, auth } as any, from, upsert, del };
+  return { client: { from, auth } as unknown as AthanorClient, from, upsert, del };
 }
 
 describe('pushTokenKeys', () => {

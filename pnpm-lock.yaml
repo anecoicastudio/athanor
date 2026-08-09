@@ -348,6 +348,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.1.1
         version: 3.2.6(vitest@3.2.6(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.30.1)(terser@5.48.0)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.7.0)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -357,9 +360,18 @@ importers:
 
   packages/config:
     devDependencies:
+      '@eslint/js':
+        specifier: 9.39.4
+        version: 9.39.4
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.7.0)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+      typescript-eslint:
+        specifier: 8.61.0
+        version: 8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
 
   packages/core:
     dependencies:
@@ -379,6 +391,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.1.1
         version: 3.2.6(vitest@3.2.6(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.30.1)(terser@5.48.0)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.7.0)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -394,6 +409,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.1.1
         version: 3.2.6(vitest@3.2.6(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.30.1)(terser@5.48.0)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.7.0)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -413,6 +431,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.1.1
         version: 3.2.6(vitest@3.2.6(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.30.1)(terser@5.48.0)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.7.0)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -6913,6 +6934,13 @@ packages:
     resolution: {integrity: sha512-k4kX5Up6qA68D0Cby2AK+6+vM5k3qTxe+/3FqhnHRExjY5cfbOnzjQZbP/LXleF8hVoDvDqxlgk9KK83HoBZlQ==}
     engines: {node: '>= 16.0.0'}
 
+  typescript-eslint@8.61.0:
+    resolution: {integrity: sha512-8y31Rd0eGTrDKqhy6vT0HtzhN+YLjQizwX3aA3hPXP/ynSfnrBXcQY5IzsP9/DM7+klX4IUncZZjkchP0z+rUw==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
+      typescript: '>=4.8.4 <6.1.0'
+
   typescript-eslint@8.66.0:
     resolution: {integrity: sha512-QlEbBPz/RuJ1XUHj29nm3t0F/O/cSlEnntozqPOYHnnTGAXFamnMBu5i9Vn6vhUPHGAjR+Vl+5J8vPN/BMUrJw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -10078,8 +10106,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.61.0(typescript@5.9.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.61.0(typescript@5.9.3)
-      '@typescript-eslint/types': 8.61.0
+      '@typescript-eslint/tsconfig-utils': 8.66.0(typescript@5.9.3)
+      '@typescript-eslint/types': 8.66.0
       debug: 4.4.3
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -11480,7 +11508,7 @@ snapshots:
   eslint-plugin-expo@1.0.3(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3):
     dependencies:
       '@typescript-eslint/types': 8.61.0
-      '@typescript-eslint/utils': 8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      '@typescript-eslint/utils': 8.66.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       eslint: 9.39.4(jiti@2.7.0)
     transitivePeerDependencies:
       - supports-color
@@ -14901,6 +14929,17 @@ snapshots:
       qs: 6.15.1
       tunnel: 0.0.6
       underscore: 1.13.8
+
+  typescript-eslint@8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3):
+    dependencies:
+      '@typescript-eslint/eslint-plugin': 8.61.0(@typescript-eslint/parser@8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      '@typescript-eslint/parser': 8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      '@typescript-eslint/typescript-estree': 8.61.0(typescript@5.9.3)
+      '@typescript-eslint/utils': 8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      eslint: 9.39.4(jiti@2.7.0)
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - supports-color
 
   typescript-eslint@8.66.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3):
     dependencies:
