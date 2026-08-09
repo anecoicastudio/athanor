@@ -145,21 +145,25 @@ by `reviewerWeight(reactor score) = min(2, 1 + ln1p(s/1000))` before rounding, a
 is **{3, 4}** — 3 from a reactor at 301, 4 from 1118 up. 2 is unreachable. The same wrong number
 stood in `packages/core/src/score/weights.ts` and PRD §4.9; both were corrected 2026-08-09.
 
-And in the shipped system the award is neither 2 nor 3–4 but **0**. This trigger selects
-`v_reactor_score`, gates on it in SQL, and then calls `athanor.enqueue_score_award(...)` — which
-has no parameter for it. The `pg_net` body carries only `severity`, so `score-engine`'s
-`awardCtx` reaches `pointsFor` with `reviewerScore` undefined, `?? 0` fails the gate a second
-time, and the function returns `{awarded: 0, skipped: true}` with no `aura_events` row. The gate
-is written twice and the second copy always loses. Tracked as **issue #27**; fixing it needs a
-new migration (append-only) that plumbs the score through the enqueue payload.
+And as shipped by THIS migration the award was neither 2 nor 3–4 but **0**. The trigger selected
+`v_reactor_score`, gated on it in SQL, and then called `athanor.enqueue_score_award(...)` — which
+had no parameter for it. The `pg_net` body carried only `severity`, so `score-engine`'s
+`awardCtx` reached `pointsFor` with `reviewerScore` undefined, `?? 0` failed the gate a second
+time, and the function returned `{awarded: 0, skipped: true}` with no `aura_events` row. The gate
+was written twice and the second copy always lost.
 
-Verified behaviour lives in two places. `packages/core/src/score/award.test.ts` holds the `{3, 4}`
-band across the whole qualifying range plus `pointsFor('post_starred', {})` → `0`, which pins the
-_consequence_ — but it is required to keep passing after #27 lands, so it can never announce the
-fix. `supabase/tests/0064_aura_award_triggers.test.sql` therefore also asserts that no
-`enqueue_score_award` overload carries a reactor-score parameter: that one goes red the moment the
-plumbing arrives, which is what forces this entry and the `weights.ts` comment to be corrected in
-the same change rather than drifting a third time. Delete it with #27.
+**RESOLVED (issue #27) by `20260809172520_star_reviewer_score_plumbing.sql`**, sequenced before
+the hosted deploy so the ledger never has a zero-award era. A 6-arg `enqueue_score_award`
+overload carries `p_reviewer_score` into `ctx.reviewerScore`, and the replaced trigger body
+sends `coalesce(v_reactor_score, 0)` — the SQL literal `> 300` gate (L49 of this migration, the
+rule #10 drift noted below) is GONE with it: core's `pointsFor` with `REACTION_AUTHOR_MIN_SCORE`
+is the single authority on the threshold, so a sub-gate ✦ now enqueues and the engine alone
+decides it is worth nothing.
 
-Note also that `300` is written as a SQL literal at L49 rather than derived
-from `REACTION_AUTHOR_MIN_SCORE`, so the two copies of the threshold can drift (rule #10).
+Verified behaviour: `packages/core/src/score/award.test.ts` holds the `{3, 4}` band across the
+whole qualifying range plus `pointsFor('post_starred', {})` → `0` (the safety default, no longer
+the production path). `supabase/tests/0064_aura_award_triggers.test.sql` §K — which replaced the
+tripwire that pinned the defect — asserts the overload exists, the queued payload carries
+`ctx.reviewerScore`, the award targets the author, and a scoreless reactor travels as `0`.
+`supabase/functions/score-engine/logic.test.ts` pins the engine half: score 500 → 3, 1200 → 4,
+≤ 300 or absent → skipped with no ledger row.

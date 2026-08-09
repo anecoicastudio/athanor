@@ -19,15 +19,12 @@
 // The constant stays 2 because 2 is what the multiplier consumes; this comment and the
 // PRD §4.9 table used to state 2 as the award, a value no member could ever observe.
 //
-// ⚠ AND TODAY IT IS WORTH NEITHER — a ✦ awards 0. `athanor.aura_award_post_starred`
-// (migration 20260701124122) reads the reactor's score, gates on `> 300` in SQL, then
-// calls `enqueue_score_award` without it; the pg_net payload carries only `severity`,
-// so the engine reaches `pointsFor` with `reviewerScore` undefined → `?? 0` → 0 ≤ 300
-// → zero points and no ledger row. The gate is written twice and the second copy always
-// fails on a default. Tracked as issue #27 — plumbing it is a product change (0 → 3–4
-// on a rule #1 surface), so it is sequenced before the hosted deploy, not folded in
-// here. `award.test.ts` pins BOTH the band and the reviewerScore-absent case, so the
-// gap cannot be mistaken for intent and the band cannot drift from the engine again.
+// Issue #27 (RESOLVED 2026-08-09, migration 20260809172520): the enqueue payload used to
+// carry no reviewerScore at all, `?? 0` failed the gate, and every ✦ awarded 0. The
+// trigger now sends the reactor's score (a missing aura_scores row travels as 0) and no
+// longer duplicates the `> 300` gate in SQL — `pointsFor` with REACTION_AUTHOR_MIN_SCORE
+// below is the single authority (rule #10). `award.test.ts` pins the band and the
+// reviewerScore-absent case; `supabase/tests/0064` §K pins the payload itself.
 
 export const ENGINE_WEIGHTS = {
   IDENTITY_VERIFIED: 50, //  +50 · once (lifetime)
@@ -36,7 +33,7 @@ export const ENGINE_WEIGHTS = {
   MOMENTO_CONV: 5, //        +5  · max 10 / month (≥10 msgs both sides)
   MILESTONE_HELP: 40, //     +40 · uncapped (owner-confirmed)
   OWN_MILESTONE: 10, //      +10 · per own milestone completed
-  POST_REACTION: 2, //       BASE ×reviewerWeight → 3–4 (0 today, see #27 above) · max 10 / day
+  POST_REACTION: 2, //       BASE ×reviewerWeight → 3–4 (see #27 note above) · max 10 / day
   REPORT_UPHELD_MIN: -50,
   REPORT_UPHELD_MAX: -200,
   // ZERO by rule #1 — never grant Aura for these:
