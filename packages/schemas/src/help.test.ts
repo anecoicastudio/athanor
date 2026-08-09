@@ -24,6 +24,13 @@ describe('helpSchema', () => {
   it('rejects a non-http link', () => {
     expect(() => helpSchema.parse({ ...validRow, link: 'ftp://x' })).toThrow();
   });
+  // 'ftp://x' contains no "http" at all, so it is rejected with or without the `^` anchor.
+  // A scheme that merely CONTAINS http:// later in the string is what the anchor is for —
+  // without it, `javascript:...` carrying an http substring would pass a link check.
+  it('rejects a link that only contains http:// rather than starting with it', () => {
+    expect(() => helpSchema.parse({ ...validRow, link: 'ftp://x/http://y' })).toThrow();
+    expect(() => helpSchema.parse({ ...validRow, link: ' https://example.com' })).toThrow();
+  });
   it('rejects a message over 500 chars', () => {
     expect(() => helpSchema.parse({ ...validRow, message: 'x'.repeat(501) })).toThrow();
   });
