@@ -10,7 +10,9 @@ const STATE_KEY = {
 } as const;
 
 /**
- * Server Component — public @handle profile card. Dark world, no glow.
+ * Public @handle profile card. Dark world, no glow. Rendered from
+ * public-profile-client.tsx, so this and its t() calls ship to the browser —
+ * that is what lets a prerendered IT page follow the locale toggle.
  * Renders handle, bio (if public), dream quote (if public) + tappe.
  * No vanity metrics (rule #3). All copy via @athanor/i18n (rule #5).
  * Tokens via Tailwind classes mapped from globals.css @theme (rule #4).

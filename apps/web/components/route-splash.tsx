@@ -1,7 +1,9 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { t } from '@athanor/i18n';
 import { Splash } from '@/components/splash';
+import { useLocale } from '@/components/locale-provider';
 
 /**
  * Gates the splash intro to the landing route. The splash (components/splash.tsx)
@@ -12,8 +14,9 @@ import { Splash } from '@/components/splash';
  * its fixed-overlay coverage, and SSR still paints it over the first frame on home
  * (on a legal-page load the server pathname isn't '/', so nothing renders).
  */
-export function RouteSplash({ tagline }: { tagline: string }) {
+export function RouteSplash() {
   const pathname = usePathname();
+  const { locale } = useLocale();
   if (pathname !== '/') return null;
-  return <Splash tagline={tagline} />;
+  return <Splash tagline={t('app.tagline', locale)} />;
 }
