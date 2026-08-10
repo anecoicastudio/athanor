@@ -1,4 +1,4 @@
-import { TIER_THRESHOLDS, type TierId } from './weights';
+import { TIER_THRESHOLDS, type TierId } from './weights.ts';
 
 /** The highest tier band whose `min ≤ score` (display-only; never a write). */
 export function tierOf(score: number): TierId {

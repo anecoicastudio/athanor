@@ -5,6 +5,9 @@
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
+    // packages/core/src/score/* imports carry explicit .ts so the Supabase edge runtime can
+    // resolve them without sloppy-imports; Metro resolves them fine, tsc needs this flag.
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./src/*"],
       "@/assets/*": ["./assets/*"]

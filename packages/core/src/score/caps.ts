@@ -1,4 +1,4 @@
-import { AURA_CAPS } from './weights';
+import { AURA_CAPS } from './weights.ts';
 
 /**
  * Whether one more action of `type` is within its cap, given the prior count of

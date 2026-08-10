@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { reviewerWeight } from './weighting';
-import { REVIEWER_WEIGHT_CAP, REVIEWER_WEIGHT_SCALE } from './weights';
+import { reviewerWeight } from './weighting.ts';
+import { REVIEWER_WEIGHT_CAP, REVIEWER_WEIGHT_SCALE } from './weights.ts';
 
 test('zero / low score reviewer weighs 1', () => {
   expect(reviewerWeight(0)).toBe(1);

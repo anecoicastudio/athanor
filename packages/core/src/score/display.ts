@@ -5,7 +5,7 @@ import {
   type Star,
   type StarKey,
 } from '@athanor/schemas';
-import { BUCKET_ORDER } from './weights';
+import { BUCKET_ORDER } from './weights.ts';
 
 export type BreakdownRow = { key: keyof Breakdown; value: number; width: number };
 

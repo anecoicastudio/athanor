@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { evaluateStars, type StarFacts } from './stars';
+import { evaluateStars, type StarFacts } from './stars.ts';
 
 const ZERO: StarFacts = {
   dreamPublished: false,

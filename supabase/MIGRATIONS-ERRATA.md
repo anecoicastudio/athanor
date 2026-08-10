@@ -16,6 +16,44 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260617155346_aura_celebration_realtime.sql`
+
+### L7-8 — "idempotent, safe locally + hosted" is false on any project provisioned after ~2026-07
+
+The comment reads _"realtime.messages ships RLS-enabled on Supabase; assert it (idempotent, safe
+locally + hosted)"_ over `alter table realtime.messages enable row level security;`. On a current
+hosted project that statement does not no-op — it **aborts the whole migration**:
+
+```
+ERROR: must be owner of table messages (SQLSTATE 42501)
+```
+
+`realtime.messages` is owned by `supabase_realtime_admin`, and `postgres` is not a member of that
+role (`pg_has_role('postgres','supabase_realtime_admin','member')` → false). `ALTER TABLE` requires
+ownership, and Postgres checks ownership _before_ noticing the change is a no-op — so it fails even
+though `relrowsecurity` is already `true`, which is exactly what the statement wanted to assert.
+
+This only bites on a replay from zero. Projects that applied this migration when it was written
+carry the result; `supabase db reset --linked` on production hit it on 2026-08-10.
+
+**Workaround, as actually performed on production:** apply the file **minus line 8** — the rest of
+it succeeds, because `CREATE POLICY` on `realtime.messages` is permitted for `postgres` (only
+`ALTER TABLE` needs ownership) — then record it and continue:
+
+```bash
+supabase migration repair --status applied 20260617155346
+supabase db push
+```
+
+Afterwards confirm the two objects the file exists for: policy `rt_aura_owner_receive` on
+`realtime.messages`, and `public.broadcast_aura_celebration(uuid, text, text[])`. RLS on that table
+needs no action — the platform ships it enabled, which is the only reason dropping line 8 is safe.
+
+Verified behaviour lives in `supabase/tests/0039_aura_celebration_realtime.test.sql` (the policy and
+the emitter), not in the `alter table` this entry supersedes.
+
+---
+
 ## `20260808075738_fund_contribution_failed_status.sql`
 
 ### L3-7 + L20-23 — SEPA never stayed live, and PayPal was never a delayed method

@@ -12,7 +12,7 @@ import {
   REACTION_AUTHOR_MIN_SCORE,
   CREDITABLE_TYPES,
   BUCKET_MAP,
-} from './weights';
+} from './weights.ts';
 
 describe('ENGINE_WEIGHTS — canonical PRD §4.9', () => {
   test('exact v1 values', () => {
