@@ -36,21 +36,25 @@ pnpm --filter web dev                       # web app on :3000 (copy apps/web/.e
 
 **Point the app at staging**, not at a local database: put the staging Supabase URL +
 publishable key (provided at onboarding) in `apps/native/.env`. `EXPO_PUBLIC_*` variables
-only — a service-role key must never appear in this repo or the app. Staging is populated
-with twelve fake members and content across every feature (`supabase/staging-seed/`), so
-there is something to look at on first launch.
+only — a service-role key must never appear in this repo or the app.
+
+`pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
+`supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns
+the project — without those it fails on the Management API, not on Docker. Set
+`SUPABASE_TYPES_PROJECT_ID` to regenerate from a different project.
 
 A **local Postgres is optional** and no longer part of the default loop:
 
 ```bash
 supabase start && supabase db reset         # full schema + seed — needs Docker and ~6 GB
-supabase test db                            # pgTAP suite (81 files)
+supabase test db                            # pgTAP suite (81 files, 964 assertions)
 ```
 
-Skipping it costs you nothing that CI does not cover: the `db` job spins up its own stack
-on every push and runs the whole pgTAP suite there. What you give up is speed — a failure
-shows up ~3 minutes after pushing rather than immediately. Note `pnpm gen:types` reads the
-**staging** project rather than a local stack, so it works either way.
+What you give up by skipping it is mostly speed: the `db` CI job spins up its own stack and
+runs the whole suite there, so a failure surfaces ~3 minutes later instead of immediately.
+⚠️ One real gap — CI runs on pushes to `dev`/`main` and on pull requests, **not** on a push
+to a `feat/*` branch with no PR open yet. During pre-PR iteration there is no safety net at
+all, which is exactly when RLS gets broken. Open the PR early, or keep a local stack.
 
 ## Git workflow
 
