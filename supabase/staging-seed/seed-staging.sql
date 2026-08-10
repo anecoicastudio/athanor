@@ -7,7 +7,9 @@
 -- posts, conversations, a moderation queue and a fund edition.
 --
 -- HOW TO RUN — two gates, both required, see the guard below:
---     alter database postgres set app.settings.environment = 'staging';   -- once, staging only
+--     select vault.create_secret('staging', 'app.settings.environment');  -- once, staging only
+--       (NOT `alter database … set` — a hosted project rejects that with 42501 for any
+--        custom parameter, so the marker would silently never exist; see lines 70-74.)
 --     set app.settings.seed_confirm = 'yes';                              -- every session, by hand
 -- then run this file. See README.md.
 --
