@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "athanor-web",
+  "name": "www",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   // nodejs_compat: the Next server needs Node built-ins.
@@ -16,24 +16,24 @@
   "observability": {
     "enabled": true,
   },
-  // Incremental cache (see open-next.config.ts). The id is account-specific:
-  // create it once with
-  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV
-  // and paste the id below. Until then `deploy` fails fast rather than silently
-  // running without a cache.
   // memoryQueue (open-next.config.ts) dispatches background ISR revalidation by
-  // calling the Worker back through this binding. Without it revalidation throws
-  // and is swallowed, and cached pages go stale until the next deploy.
+  // calling the Worker back through this binding — so `service` must track `name`
+  // above. Without it revalidation throws, is swallowed, and cached pages go stale
+  // until the next deploy.
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "athanor-web",
+      "service": "www",
     },
   ],
+  // Incremental cache (see open-next.config.ts). Account-specific, not a secret —
+  // it names a namespace, and reaching it still needs the API token. Recreate with
+  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV
+  // if this ever points at a namespace that no longer exists.
   "kv_namespaces": [
     {
       "binding": "NEXT_INC_CACHE_KV",
-      "id": "REPLACE_WITH_KV_NAMESPACE_ID",
+      "id": "1c0ba79bbbda4e2f8b0b2459e2a0e170",
     },
   ],
 }
