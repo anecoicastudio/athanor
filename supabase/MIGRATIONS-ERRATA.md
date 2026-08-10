@@ -167,3 +167,26 @@ tripwire that pinned the defect — asserts the overload exists, the queued payl
 `ctx.reviewerScore`, the award targets the author, and a scoreless reactor travels as `0`.
 `supabase/functions/score-engine/logic.test.ts` pins the engine half: score 500 → 3, 1200 → 4,
 ≤ 300 or absent → skipped with no ledger row.
+
+---
+
+## `20260809160525_waitlist_throttle_trigger.sql` — the comment names Vercel; it is Cloudflare now
+
+The prose at L29-30 says «The insert happens inside a Vercel function, so left alone this would
+key on that function's egress IP». The mechanism it describes is exactly right and the trigger is
+unchanged — but `apps/web` was migrated off Vercel onto Cloudflare Workers on 2026-08-10, so the
+insert now happens inside a Worker. Read "Vercel function" as "the serverless function fronting
+PostgREST", whichever host that is; the reason the route must forward the visitor's address is
+identical either way.
+
+One thing did change in substance, in the route rather than the database. `apps/web/app/api/waitlist/client-ip.ts`
+now consults **`cf-connecting-ip` first**, ahead of `x-forwarded-for`. This is a security property,
+not a preference: Cloudflare _appends_ the real client to `x-forwarded-for`, so its leftmost entry
+is whatever the caller sent. Reading that first would have made the throttle key attacker-chosen
+and undone issue #23 entirely. `cf-connecting-ip` is stripped and re-set by the edge and cannot be
+forged. The trigger still keys on whatever the route forwards, so nothing here needed a new
+migration.
+
+Asserted by: `apps/web/app/api/waitlist/client-ip.test.ts` ("prefers cf-connecting-ip over a forged
+x-forwarded-for"), and the first-entry-is-the-client behaviour by
+`supabase/tests/0083_waitlist_rate_limit.test.sql`.

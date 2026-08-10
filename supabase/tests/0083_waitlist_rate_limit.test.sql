@@ -101,9 +101,9 @@ select lives_ok(
   'a different client address has its own budget');
 
 -- ── the FIRST forwarded entry is the client, not the last proxy ──────────────────────────────
--- Vercel appends its own hop. Keying on the last would put every request in a region into one
--- bucket, so real users would throttle each other off. This header shares its LAST entry with
--- the exhausted client above and differs in its first: it must be admitted.
+-- The edge appends its own hop (Cloudflare does; Vercel did). Keying on the last would put every
+-- request in a region into one bucket, so real users would throttle each other off. This header
+-- shares its LAST entry with the exhausted client above and differs in its first: it must be admitted.
 set local request.headers = '{"x-forwarded-for": "192.0.2.55, 70.41.3.18"}';
 select lives_ok(
   $$ insert into public.email_waitlist (email, locale) values ('first-hop@test.athanor', 'it') $$,
