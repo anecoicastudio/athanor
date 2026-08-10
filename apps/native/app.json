@@ -18,7 +18,7 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.athanor.app",
-      "associatedDomains": ["applinks:athanor-page.vercel.app"]
+      "associatedDomains": ["applinks:www.athanor.workers.dev"]
     },
     "android": {
       "package": "com.athanor.app",
@@ -28,11 +28,11 @@
           "autoVerify": true,
           "category": ["BROWSABLE", "DEFAULT"],
           "data": [
-            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/momento" },
-            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/event" },
-            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/post" },
-            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/invite" },
-            { "scheme": "https", "host": "athanor-page.vercel.app", "pathPrefix": "/@" }
+            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/momento" },
+            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/event" },
+            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/post" },
+            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/invite" },
+            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/@" }
           ]
         }
       ],
