@@ -30,13 +30,31 @@ read it before trusting a migration's comments. The pgTAP tests are the source o
 ```bash
 pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
-supabase start && supabase db reset         # local Postgres, full schema + seed (Docker required)
-supabase test db                            # pgTAP suite
-cd apps/native && npx expo start            # run the app in Expo Go (local backend)
+cd apps/native && npx expo start            # run the app in Expo Go
 pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
-To run against **staging**, point `apps/native/.env` at the staging Supabase URL + publishable key (provided at onboarding). `EXPO_PUBLIC_*` variables only — a service-role key must never appear in this repo or the app.
+**Point the app at staging**, not at a local database: put the staging Supabase URL +
+publishable key (provided at onboarding) in `apps/native/.env`. `EXPO_PUBLIC_*` variables
+only — a service-role key must never appear in this repo or the app.
+
+`pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
+`supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns
+the project — without those it fails on the Management API, not on Docker. Set
+`SUPABASE_TYPES_PROJECT_ID` to regenerate from a different project.
+
+A **local Postgres is optional** and no longer part of the default loop:
+
+```bash
+supabase start && supabase db reset         # full schema + seed — needs Docker and ~6 GB
+supabase test db                            # pgTAP suite (81 files, 964 assertions)
+```
+
+What you give up by skipping it is mostly speed: the `db` CI job spins up its own stack and
+runs the whole suite there, so a failure surfaces ~3 minutes later instead of immediately.
+⚠️ One real gap — CI runs on pushes to `dev`/`main` and on pull requests, **not** on a push
+to a `feat/*` branch with no PR open yet. During pre-PR iteration there is no safety net at
+all, which is exactly when RLS gets broken. Open the PR early, or keep a local stack.
 
 ## Git workflow
 
@@ -51,11 +69,15 @@ feat|fix|chore/*  --PR-->  dev  --release PR-->  main
 3. **Hotfix:** `fix/*` from `main`, PR to `main`, back-merge to `dev`.
 4. Commit style as in the history: `feat(mobile): …`, `fix(db): …` — short imperative subject.
 
-| Environment | Branch   | Supabase project | Stripe    | Access                |
-| ----------- | -------- | ---------------- | --------- | --------------------- |
-| Local       | `feat/*` | local (Docker)   | —         | each dev, own machine |
-| **Staging** | `dev`    | staging          | test mode | team                  |
-| Production  | `main`   | production       | live      | **maintainer only**   |
+| Environment | Branch   | Supabase project             | Stripe    | Access                |
+| ----------- | -------- | ---------------------------- | --------- | --------------------- |
+| Local       | `feat/*` | staging (Docker is optional) | test mode | each dev, own machine |
+| **Staging** | `dev`    | `athanor-staging`            | test mode | team                  |
+| Production  | `main`   | `athanor`                    | live      | **maintainer only**   |
+
+Migrations reach a hosted project only through `supabase db push`, staging first and
+production at release — CI pushes to neither. `supabase/.temp/linked-project.json` decides
+which one you are pushing to, so check it before every push.
 
 ## The ten non-negotiable rules
 
