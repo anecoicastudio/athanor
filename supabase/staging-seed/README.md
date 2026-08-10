@@ -1,0 +1,122 @@
+# staging-seed — a populated world on the staging project
+
+`seed-staging.sql` fills the **hosted staging project** with twelve people who have
+dreams, milestones, events, posts, conversations, Momenti, a moderation queue and a
+fund edition — enough that a real phone build has something to walk through.
+
+This is not `supabase/seed.sql`. That one is the two-user seed wired to `[db.seed]`
+in `config.toml`, it runs on `supabase db reset` against a local Docker stack, and it
+is deliberately disabled (a public demo profile polluted the anon-visibility pgTAP
+tests). The two files never run in the same place and neither replaces the other.
+
+## Why this cannot run on production
+
+**Two gates, both required**, in the first statement of the file:
+
+1. **The environment marker** — `athanor.runtime_setting('environment')` must equal
+   `staging`. That resolver reads the `app.settings.environment` GUC if one is set,
+   else the Vault secret of the same name. Staging carries the Vault secret;
+   production carries neither, so the resolver returns NULL and the file raises before
+   touching a table.
+2. **A typed confirmation** — `app.settings.seed_confirm` must be `yes` **in the
+   session running the file**.
+
+Gate 2 is not ceremony. Gate 1's marker travels: a dump, a PITR restore or a clone
+carries Vault contents with it, so restoring staging into production would silently
+make gate 1 true. A session setting cannot travel — someone has to type it, against
+the connection they are about to seed.
+
+So: **never create the `app.settings.environment` secret on the production project**,
+not even briefly. And do not weaken gate 2 into a database-level setting to save
+keystrokes; that is the one thing it exists to not be.
+
+## Running it
+
+Once per project, as the operator — a Vault secret, not a GUC:
+
+```sql
+select vault.create_secret('staging', 'app.settings.environment');
+```
+
+> A hosted project **cannot** set `app.settings.*` as a database GUC any more:
+> `alter database postgres set app.settings.environment = 'staging'` fails with
+> **42501 permission denied to set parameter**, because supautils allows only a fixed
+> list of parameters and no custom prefix is on it. That is why the marker lives in
+> Vault and the gate reads it through `athanor.runtime_setting`. On a local stack the
+> GUC still works and still wins, so `alter database … set` remains fine there.
+
+Then run the file with both gates in one session:
+
+```bash
+psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 \
+  -c "set app.settings.seed_confirm = 'yes'" \
+  -f supabase/staging-seed/seed-staging.sql
+```
+
+`-c` and `-f` share a session, which is what gate 2 needs — two separate `psql`
+invocations will fail. If you have no database password (the CLI authenticates with
+its own token and never stores one), the fallback is a **single** Management-API call
+with the `set` prepended to the file body:
+
+```
+POST https://api.supabase.com/v1/projects/<ref>/database/query
+{"query": "set app.settings.seed_confirm = 'yes';\n<contents of seed-staging.sql>"}
+```
+
+One call is one session. The endpoint takes the whole 44 KB file; a 403 with
+`error code: 1010` there is the WAF objecting to long runs of repeated characters, not
+a size limit.
+
+Order matters if you want Aura to appear: deploy the edge functions and create the
+eight `app.settings.*_url` / `*_key` **Vault secrets first** (see
+`docs/PRODUCTION-READINESS.md` Appendix A). The M6 award triggers fire on the content
+this file inserts, and they reach the score-engine over `pg_net`; unconfigured, those
+calls no-op quietly and you get a populated world with an empty `aura_events`. Seeding
+again afterwards will not retry them — the inserts are already done. To get Aura on an
+already-seeded database, act in the app instead.
+
+The engine writes asynchronously, so the summary the file prints at the end shows
+`aura_events` and `notifications` at 0 even on a healthy run. Re-count them a few
+seconds later: on the 2026-08-10 staging run they settled at 3 `aura_events`,
+3 `aura_scores` and 20 `notifications`.
+
+## Signing in
+
+Every account uses one password:
+
+|          |                                  |
+| -------- | -------------------------------- |
+| email    | `<handle>@staging.athanor.local` |
+| password | `Athanor2026!`                   |
+
+Handles: `sole_designer`, `luna_dev`, `marta_ceramica`, `gio_musica`, `ele_yoga`,
+`tino_chef`, `vera_erbe`, `rocco_film`, `sara_startup`, `dario_legno`, `nina_poeta`,
+`bea_foto`. `sole_designer` is the richest account (public profile, three milestones,
+help received, stars, invites, a conversation); start there.
+
+The addresses are on `staging.athanor.local`, which cannot receive mail — that is the
+point. If you need to test a flow that sends email, sign up a real address from the
+app instead; those accounts sit alongside the seeded ones without disturbing them.
+
+## Re-running
+
+Idempotent. Every row's id is derived from a semantic key
+(`md5('post:' || handle || ':1')::uuid`), so a second run inserts nothing.
+
+The flip side: **editing a body and re-running does not update the row**. Delete it
+first, or change the key. To start over completely, delete the twelve `auth.users`
+rows — everything else cascades — and run the file again.
+
+## What is deliberately not seeded
+
+These are the paths where a hand-written row would prove nothing, so they have to be
+walked for real in the app:
+
+| not seeded                                                                                            | why                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `aura_events`, `aura_scores`                                                                          | Rule 1 — only the score-engine writes them. The M6 triggers produce them from the seeded content, if the function and GUCs are deployed. |
+| `event_tickets`, `circle_memberships`, `fund_contributions`, `verifications`, `stripe_webhook_events` | Stripe is the source of truth. Use test mode from the app.                                                                               |
+| `event_attendance`, `event_live_stats`                                                                | Written by the `check-in` edge function.                                                                                                 |
+| `gdpr_export_jobs`                                                                                    | Written by the export job.                                                                                                               |
+| `push_tokens`                                                                                         | Needs a real device token from a real build.                                                                                             |
+| `post_media`, and the files behind `moments` / `story_segments`                                       | Need real objects in Storage. The rows point at paths that do not exist, so media will fail to load — expected.                          |
