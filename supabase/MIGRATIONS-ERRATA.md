@@ -20,8 +20,8 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ### L7-8 — "idempotent, safe locally + hosted" is false on any project provisioned after ~2026-07
 
-The comment reads *"realtime.messages ships RLS-enabled on Supabase; assert it (idempotent, safe
-locally + hosted)"* over `alter table realtime.messages enable row level security;`. On a current
+The comment reads _"realtime.messages ships RLS-enabled on Supabase; assert it (idempotent, safe
+locally + hosted)"_ over `alter table realtime.messages enable row level security;`. On a current
 hosted project that statement does not no-op — it **aborts the whole migration**:
 
 ```
@@ -30,7 +30,7 @@ ERROR: must be owner of table messages (SQLSTATE 42501)
 
 `realtime.messages` is owned by `supabase_realtime_admin`, and `postgres` is not a member of that
 role (`pg_has_role('postgres','supabase_realtime_admin','member')` → false). `ALTER TABLE` requires
-ownership, and Postgres checks ownership *before* noticing the change is a no-op — so it fails even
+ownership, and Postgres checks ownership _before_ noticing the change is a no-op — so it fails even
 though `relrowsecurity` is already `true`, which is exactly what the statement wanted to assert.
 
 This only bites on a replay from zero. Projects that applied this migration when it was written
