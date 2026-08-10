@@ -44,7 +44,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // Hold position during the initial session read and while the pre-auth
     // onboarding draft is being flushed (prevents a funnel flash post-OTP).
     if (loading || flushing) return;
-    const inAuth = segments[0] === '(auth)';
+    // auth-callback counts as auth: it is where the signup-confirmation deep link
+    // lands, and it must be left mounted long enough to exchange its ?code (the
+    // unauth branch below would otherwise bounce it straight to the funnel). Once
+    // the exchange lands, the authed branches route it onward like any auth screen.
+    const inAuth = segments[0] === '(auth)' || segments[0] === 'auth-callback';
     const inOnboarding = segments[0] === '(onboarding)';
 
     if (!session) {

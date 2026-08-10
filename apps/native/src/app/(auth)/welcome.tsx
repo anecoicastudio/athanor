@@ -7,7 +7,7 @@ import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { deviceLocale } from '@/lib/locale';
-import { signInWithProvider } from '@/lib/oauth';
+import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -87,6 +87,14 @@ export default function WelcomeScreen() {
       email: email.trim(),
       password,
       options: {
+        // Without this the confirmation mail's link falls back to the project's
+        // Site URL — the marketing site — so someone confirming from their phone
+        // lands in a browser instead of back in the app. Shares the OAuth flow's
+        // allow-list entry rather than needing its own, but that entry must exist
+        // on the HOSTED project too (Auth → URL Configuration): GoTrue answers a
+        // missing one by silently substituting Site URL. Lands on
+        // src/app/auth-callback.tsx, which exchanges the PKCE code.
+        emailRedirectTo: AUTH_REDIRECT_URL,
         data: {
           display_name: name.trim(),
           ...(referral ? { referral_code: referral } : {}),

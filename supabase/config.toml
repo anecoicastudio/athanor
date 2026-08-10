@@ -158,10 +158,14 @@ enabled = true
 # in emails.
 site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# Email auth is password-based (signInWithPassword / signUp) and needs no redirect.
-# These entries exist for browser OAuth (src/lib/oauth.ts): `athanor://auth-callback`
-# is the standalone build; the `exp://` form is Expo Go, and its host changes with
-# your LAN IP and Metro port — update it, or use a wildcard, when it moves.
+# `athanor://auth-callback` is NOT optional and NOT OAuth-only: signUp passes it as
+# emailRedirectTo (src/app/(auth)/welcome.tsx), so the confirmation mail deep-links
+# back into the app instead of falling back to site_url. Browser OAuth
+# (src/lib/oauth.ts) sends the same URL. It is the standalone-build form; the `exp://`
+# one is Expo Go, whose host changes with your LAN IP and Metro port — update it when
+# it moves. GoTrue does not error on a URL that is missing from this list; it silently
+# substitutes site_url, which is why a missing entry reads as "works in the browser,
+# hangs on device".
 # The hosted project keeps its own copy of this list (Auth → URL Configuration);
 # this block only governs a local `supabase start` stack.
 additional_redirect_urls = ["athanor://auth-callback", "exp://127.0.0.1:8081/--/auth-callback"]

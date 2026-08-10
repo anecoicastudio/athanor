@@ -24,20 +24,29 @@ export type OAuthOutcome =
 
 // Must match an entry in Supabase → Auth → Additional Redirect URLs. createURL
 // resolves to `athanor://auth-callback` standalone and `exp://…/--/auth-callback`
-// in Expo Go. It's a deep-link target only — there is no /auth-callback screen.
-const redirectTo = createURL('/auth-callback');
+// in Expo Go.
+//
+// Exported because the email signup in (auth)/welcome.tsx passes the same value as
+// emailRedirectTo — without it the confirmation mail falls back to the project's
+// Site URL, which points at the website, not at the app. OAuth normally never routes
+// to src/app/auth-callback.tsx — openAuthSessionAsync intercepts the redirect below
+// and exchanges the code here — whereas the email link always does, arriving as a
+// real OS deep link. "Normally": if the OS ever hands an OAuth redirect to the app as
+// a deep link instead, both call sites would exchange the same code and the loser
+// would surface a spurious error. Dormant while both providers are disabled.
+export const AUTH_REDIRECT_URL = createURL('/auth-callback');
 
 export async function signInWithProvider(provider: 'apple' | 'google'): Promise<OAuthOutcome> {
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider as Provider,
-      options: { redirectTo, skipBrowserRedirect: true },
+      options: { redirectTo: AUTH_REDIRECT_URL, skipBrowserRedirect: true },
     });
     if (error || !data?.url) {
       return { status: 'error', message: error?.message ?? 'no_oauth_url' };
     }
 
-    const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    const res = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT_URL);
     if (res.type === 'cancel' || res.type === 'dismiss') return { status: 'cancelled' };
     if (res.type !== 'success') return { status: 'error', message: res.type };
 
