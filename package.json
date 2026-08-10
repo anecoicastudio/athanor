@@ -13,7 +13,7 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "gen:types": "supabase gen types --lang typescript --local > packages/api/src/database.types.ts.tmp && mv packages/api/src/database.types.ts.tmp packages/api/src/database.types.ts",
+    "gen:types": "supabase gen types --lang typescript --project-id ${SUPABASE_TYPES_PROJECT_ID:-eralyiwkfrpqsawivegz} > packages/api/src/database.types.ts.tmp && mv packages/api/src/database.types.ts.tmp packages/api/src/database.types.ts",
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs"
   },
   "devDependencies": {
