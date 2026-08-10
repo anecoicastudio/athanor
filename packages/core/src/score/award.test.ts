@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { pointsFor } from './award';
-import { ENGINE_WEIGHTS, REVIEWER_WEIGHT_CAP } from './weights';
+import { pointsFor } from './award.ts';
+import { ENGINE_WEIGHTS, REVIEWER_WEIGHT_CAP } from './weights.ts';
 
 test('flat awards', () => {
   expect(pointsFor('identity_verified')).toBe(50);

@@ -1,5 +1,5 @@
-import { clampScore } from './clamp';
-import { BUCKET_MAP, BUCKET_ORDER, CREDITABLE_TYPES, type BucketKey } from './weights';
+import { clampScore } from './clamp.ts';
+import { BUCKET_MAP, BUCKET_ORDER, CREDITABLE_TYPES, type BucketKey } from './weights.ts';
 
 export interface LedgerLine {
   type: string;

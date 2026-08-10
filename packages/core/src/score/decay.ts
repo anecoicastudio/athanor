@@ -1,5 +1,5 @@
-import { clampScore } from './clamp';
-import { DECAY } from './weights';
+import { clampScore } from './clamp.ts';
+import { DECAY } from './weights.ts';
 
 /**
  * Decay (PRD §4.9): score ×0.98 per idle week, floored at 40% of lifetime peak,

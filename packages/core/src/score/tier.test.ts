@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { tierOf } from './tier';
+import { tierOf } from './tier.ts';
 
 test('tier bands (frontend §3.4)', () => {
   expect(tierOf(0)).toBe('scintilla');

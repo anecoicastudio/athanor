@@ -1,4 +1,4 @@
-import { RECIPROCAL_DAMPENING } from './weights';
+import { RECIPROCAL_DAMPENING } from './weights.ts';
 
 /**
  * Pairwise diminishing returns (PRD §4.9): the n-th reciprocal exchange between

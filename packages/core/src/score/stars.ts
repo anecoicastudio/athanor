@@ -1,5 +1,5 @@
 import type { StarKey } from '@athanor/schemas';
-import { STAR_CRITERIA } from './weights';
+import { STAR_CRITERIA } from './weights.ts';
 
 export interface StarFacts {
   dreamPublished: boolean;

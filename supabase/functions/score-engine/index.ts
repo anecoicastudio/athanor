@@ -20,9 +20,11 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
 import { bodySchema, runAward, runDecay } from './logic.ts';
 
-// Deploy-asset pins: the CLI upload walker only follows extension-suffixed imports,
-// but core reaches these three extension-less (sloppy-imports) — without the pins the
-// remote bundler 400s with "Module not found …/score/dampen" (hit at P1.1 deploy).
+// Deploy-asset pins, kept as a belt-and-braces for the CLI upload walker: it only follows
+// extension-suffixed imports. packages/core/src/score/* now carries explicit `.ts` on every
+// relative import, because the deployed edge runtime does NOT honour this function's
+// `unstable: ["sloppy-imports"]` — an extension-less specifier that resolves locally boots
+// as a 503 BOOT_ERROR on the hosted project.
 import '../../../packages/core/src/score/clamp.ts';
 import '../../../packages/core/src/score/dampen.ts';
 import '../../../packages/core/src/score/weighting.ts';

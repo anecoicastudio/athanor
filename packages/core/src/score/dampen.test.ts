@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { reciprocalFactor } from './dampen';
-import { RECIPROCAL_DAMPENING } from './weights';
+import { reciprocalFactor } from './dampen.ts';
+import { RECIPROCAL_DAMPENING } from './weights.ts';
 
 test('first exchange is full weight', () => {
   expect(reciprocalFactor(1)).toBe(1);
