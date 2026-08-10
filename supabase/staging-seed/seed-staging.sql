@@ -63,23 +63,30 @@ begin;
 -- ---------------------------------------------------------------------------------
 -- GUARD — two independent gates, both required.
 --
--- 1. `app.settings.environment` is a DATABASE-level GUC set by hand on staging.
---    On production it has never been set, so current_setting returns NULL.
+-- 1. The environment marker, read through `athanor.runtime_setting('environment')`:
+--    the `app.settings.environment` GUC if one is set (a local stack can still do
+--    that), else the Vault secret of that name. Staging carries the Vault secret;
+--    production carries neither, so the resolver returns NULL there.
+--    It is NOT read with current_setting directly: on a hosted project
+--    `alter database … set` is rejected for every custom parameter (42501, supautils
+--    allows only a fixed list), so a database-level `app.settings.environment` cannot
+--    be created at all — the gate would be unpassable on staging and, worse, would
+--    look like it was holding on production for a reason it never had.
 -- 2. `app.settings.seed_confirm` must be set in THIS session, by the person running
---    the file. A database GUC travels with a dump, a PITR restore, or a clone — so
---    if staging were ever restored into production, gate 1 alone would silently
---    become true. Gate 2 cannot travel: it has to be typed.
+--    the file. The marker in gate 1 travels with a dump, a PITR restore, or a clone —
+--    Vault contents included — so if staging were ever restored into production, gate
+--    1 alone would silently become true. Gate 2 cannot travel: it has to be typed.
 -- ---------------------------------------------------------------------------------
 do $$
 begin
-  if coalesce(current_setting('app.settings.environment', true), '') <> 'staging' then
+  if coalesce(athanor.runtime_setting('environment'), '') <> 'staging' then
     raise exception
-      'REFUSING TO SEED: app.settings.environment is %, expected ''staging''. If this really is staging: alter database postgres set app.settings.environment = ''staging''; then reconnect.',
-      coalesce(current_setting('app.settings.environment', true), '<unset>');
+      'REFUSING TO SEED: the environment marker is %, expected ''staging''. If this really is staging: select vault.create_secret(''staging'', ''app.settings.environment'');',
+      coalesce(athanor.runtime_setting('environment'), '<unset>');
   end if;
   if coalesce(current_setting('app.settings.seed_confirm', true), '') <> 'yes' then
     raise exception
-      'REFUSING TO SEED: run "set app.settings.seed_confirm = ''yes'';" in this session first. This gate exists because the environment GUC survives a restore and could follow staging into production.';
+      'REFUSING TO SEED: run "set app.settings.seed_confirm = ''yes'';" in this session first. This gate exists because the environment marker survives a restore and could follow staging into production.';
   end if;
 end $$;
 

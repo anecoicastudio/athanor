@@ -11,34 +11,74 @@ tests). The two files never run in the same place and neither replaces the other
 
 ## Why this cannot run on production
 
-The first statement aborts unless the database says it is staging:
+**Two gates, both required**, in the first statement of the file:
 
-```sql
-current_setting('app.settings.environment', true) = 'staging'
-```
+1. **The environment marker** — `athanor.runtime_setting('environment')` must equal
+   `staging`. That resolver reads the `app.settings.environment` GUC if one is set,
+   else the Vault secret of the same name. Staging carries the Vault secret;
+   production carries neither, so the resolver returns NULL and the file raises before
+   touching a table.
+2. **A typed confirmation** — `app.settings.seed_confirm` must be `yes` **in the
+   session running the file**.
 
-Production has never had that GUC set, so the file raises and exits before touching a
-table. There is no second safety net and there does not need to be — but that also
-means **the guard is only as good as the GUC**, so never set
-`app.settings.environment = 'staging'` on the production project, not even briefly.
+Gate 2 is not ceremony. Gate 1's marker travels: a dump, a PITR restore or a clone
+carries Vault contents with it, so restoring staging into production would silently
+make gate 1 true. A session setting cannot travel — someone has to type it, against
+the connection they are about to seed.
+
+So: **never create the `app.settings.environment` secret on the production project**,
+not even briefly. And do not weaken gate 2 into a database-level setting to save
+keystrokes; that is the one thing it exists to not be.
 
 ## Running it
 
-Once per project, as the operator:
+Once per project, as the operator — a Vault secret, not a GUC:
 
 ```sql
-alter database postgres set app.settings.environment = 'staging';
+select vault.create_secret('staging', 'app.settings.environment');
 ```
 
-GUCs set this way apply to _new_ sessions, so reconnect before seeding. Then run the
-file — via the SQL editor, `psql`, or the Supabase MCP.
+> A hosted project **cannot** set `app.settings.*` as a database GUC any more:
+> `alter database postgres set app.settings.environment = 'staging'` fails with
+> **42501 permission denied to set parameter**, because supautils allows only a fixed
+> list of parameters and no custom prefix is on it. That is why the marker lives in
+> Vault and the gate reads it through `athanor.runtime_setting`. On a local stack the
+> GUC still works and still wins, so `alter database … set` remains fine there.
 
-Order matters if you want Aura to appear: deploy the edge functions and set the
-`app.settings.*_url` / `*_key` GUCs **first**. The M6 award triggers fire on the
-content this file inserts, and they reach the score-engine over `pg_net`; with the
-GUCs unset those calls fail quietly and you get a populated world with an empty
-`aura_events`. Seeding again afterwards will not retry them — the inserts are already
-done. To get Aura on an already-seeded database, act in the app instead.
+Then run the file with both gates in one session:
+
+```bash
+psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 \
+  -c "set app.settings.seed_confirm = 'yes'" \
+  -f supabase/staging-seed/seed-staging.sql
+```
+
+`-c` and `-f` share a session, which is what gate 2 needs — two separate `psql`
+invocations will fail. If you have no database password (the CLI authenticates with
+its own token and never stores one), the fallback is a **single** Management-API call
+with the `set` prepended to the file body:
+
+```
+POST https://api.supabase.com/v1/projects/<ref>/database/query
+{"query": "set app.settings.seed_confirm = 'yes';\n<contents of seed-staging.sql>"}
+```
+
+One call is one session. The endpoint takes the whole 44 KB file; a 403 with
+`error code: 1010` there is the WAF objecting to long runs of repeated characters, not
+a size limit.
+
+Order matters if you want Aura to appear: deploy the edge functions and create the
+eight `app.settings.*_url` / `*_key` **Vault secrets first** (see
+`docs/PRODUCTION-READINESS.md` Appendix A). The M6 award triggers fire on the content
+this file inserts, and they reach the score-engine over `pg_net`; unconfigured, those
+calls no-op quietly and you get a populated world with an empty `aura_events`. Seeding
+again afterwards will not retry them — the inserts are already done. To get Aura on an
+already-seeded database, act in the app instead.
+
+The engine writes asynchronously, so the summary the file prints at the end shows
+`aura_events` and `notifications` at 0 even on a healthy run. Re-count them a few
+seconds later: on the 2026-08-10 staging run they settled at 3 `aura_events`,
+3 `aura_scores` and 20 `notifications`.
 
 ## Signing in
 
