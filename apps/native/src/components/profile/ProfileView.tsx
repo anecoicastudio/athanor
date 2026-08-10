@@ -22,7 +22,7 @@ import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { Tag } from '@/components/Tag';
-import { auraSnapshotOrNull } from '@/lib/aura-display';
+import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -72,13 +72,15 @@ export function ProfileView({
   });
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
-  // Stars for the Six Stars grid — TanStack (engine dormant → [] → all unearned).
+  // Stars for the Six Stars grid — TanStack (engine dormant → [] → all unearned). `null` when
+  // the read failed: this query is INDEPENDENT of the Aura one above, so `?? []` let the hero
+  // show a real score while the grid below claimed six unearned stars (issue #16).
   const starsQuery = useQuery({
     queryKey: starKeys.list(userId),
     queryFn: () => getStars(supabase, userId),
     enabled: Boolean(userId),
   });
-  const stars = starsQuery.data ?? [];
+  const stars = starsOrNull(starsQuery.data, starsQuery.isError);
 
   // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).
   const statCountsQuery = useQuery({

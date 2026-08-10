@@ -1,10 +1,10 @@
-import { t } from '@athanor/i18n';
+import { t, type MessageKey } from '@athanor/i18n';
 import { STAR_KEYS, type AuraSnapshot, type Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { AuraValue } from '@/components/AuraValue';
 import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN } from '@/lib/aura-display';
-import { star } from '@/lib/star';
+import { starGlyph } from '@/lib/star';
 
 /**
  * «Le tue stelle» compact row (PRD 01-m1-identity §3.2, block 7). M1 owns the
@@ -13,9 +13,14 @@ import { star } from '@/lib/star';
  * Tapping the whole row hands off to Profilo where the full Six Stars live.
  *
  * `snapshot === null` means we could not read it (loading, disabled, or failed) — the row
- * renders «—» and dark stars with an `aura.unknown` label rather than a confident zero, which
- * on an earned-only reputation would read as «hai guadagnato niente». `text-faint` on the
- * placeholder, never `text-aura`: DESIGN §11 reserves the cyan for a real Aura number.
+ * renders «—» for the score and the count rather than a confident zero, which on an earned-only
+ * reputation would read as «hai guadagnato niente». `text-faint` on the placeholder, never
+ * `text-aura`: DESIGN §11 reserves the cyan for a real Aura number.
+ *
+ * The six glyphs follow the same rule (issue #16): an unknown snapshot renders «—» per star, not
+ * ✧. Six unlit glyphs beside a «—» score was the row contradicting itself — the number declining
+ * to answer while the stars asserted six times that nothing had been earned, which is the more
+ * legible half of the pair and so the one a reader believes.
  */
 export function StarsMiniRow({
   snapshot,
@@ -59,9 +64,18 @@ export function StarsMiniRow({
           {STAR_KEYS.map((key) => (
             <Text
               key={key}
+              accessibilityLabel={t(
+                snapshot
+                  ? snapshot.stars[key]
+                    ? 'star.a11y.lit'
+                    : 'star.a11y.unlit'
+                  : 'star.a11y.unknown',
+                locale,
+                { star: t(`star.${key}` as MessageKey, locale) },
+              )}
               className={snapshot?.stars[key] ? 'text-xl text-aura' : 'text-xl text-faint'}
             >
-              {star(Boolean(snapshot?.stars[key]))}
+              {starGlyph(snapshot ? (snapshot.stars[key] ? 'lit' : 'unlit') : 'unknown')}
             </Text>
           ))}
         </View>

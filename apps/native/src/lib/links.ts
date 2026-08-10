@@ -3,7 +3,7 @@
  * rule #5 (i18n) covers user-facing strings only. The legal pages live on the
  * external marketing site; update here if the domain changes (P1.3).
  */
-export const LEGAL_TERMS_URL = 'https://athanor-page.vercel.app/terms';
-export const LEGAL_PRIVACY_URL = 'https://athanor-page.vercel.app/privacy';
+export const LEGAL_TERMS_URL = 'https://www.athanor.workers.dev/terms';
+export const LEGAL_PRIVACY_URL = 'https://www.athanor.workers.dev/privacy';
 export const SUPPORT_EMAIL = 'info.anecoica@gmail.com';
-export const INVITE_URL_BASE = 'https://athanor-page.vercel.app/invite';
+export const INVITE_URL_BASE = 'https://www.athanor.workers.dev/invite';

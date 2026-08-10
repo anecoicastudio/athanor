@@ -10,7 +10,8 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { localeTag } from '@/lib/time';
-import { STAR } from '@/lib/star';
+import { starsOrNull } from '@/lib/aura-display';
+import { starCellState, starGlyph } from '@/lib/star';
 
 /**
  * Star detail sheet (M6 §3.2).
@@ -36,9 +37,19 @@ export default function StarScreen() {
     enabled: !!me,
   });
 
-  const stars = query.data ?? [];
-  const row = starId != null ? stars.find((s) => s.starId === starId) : null;
-  const earned = row?.grantedAt != null;
+  // `null` = the read failed. This screen has its own query, so it can fail on its own terms
+  // even when the grid that linked here rendered fine — and `?? []` made every star look
+  // «spenta», i.e. earned-and-lost-nothing, on a network blip (issue #16). Unknown swaps the
+  // glyph and the state word and drops the progress bar; the criteria line stays, because it is
+  // static copy about how the star is earned, true whether or not we could read this member's.
+  //
+  // State via `starCellState` rather than a local `stars == null`, so this screen cannot drift
+  // from the grid that links to it — the whole reason that helper exists.
+  const stars = starsOrNull(query.data, query.isError);
+  const state = starId != null ? starCellState(stars, starId) : 'unknown';
+  const unknown = state === 'unknown';
+  const row = starId != null ? (stars?.find((s) => s.starId === starId) ?? null) : null;
+  const earned = state === 'lit';
   const starName = starId != null ? t(`star.${starId}` as MessageKey, locale) : '';
 
   const criteriaKey = starId != null ? (`star.criteria.${starId}` as MessageKey) : null;
@@ -71,28 +82,22 @@ export default function StarScreen() {
             <View
               className="items-center gap-3 py-6"
               accessible={true}
-              accessibilityLabel={t(earned ? 'star.a11y.lit' : 'star.a11y.unlit', locale, {
-                star: starName,
-              })}
+              accessibilityLabel={t(
+                unknown ? 'star.a11y.unknown' : earned ? 'star.a11y.lit' : 'star.a11y.unlit',
+                locale,
+                { star: starName },
+              )}
             >
+              {/* One glyph, three states, from lib/star.ts. DESIGN §11 (2026-08-08 (c)) named
+                  this `text-5xl` pair as the site that had already drifted once. */}
               <Text className="text-5xl">
-                {earned ? (
-                  <Text
-                    className="text-5xl text-aura"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                  >
-                    {STAR.lit}
-                  </Text>
-                ) : (
-                  <Text
-                    className="text-5xl text-faint"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                  >
-                    {STAR.unlit}
-                  </Text>
-                )}
+                <Text
+                  className={`text-5xl ${earned ? 'text-aura' : 'text-faint'}`}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {starGlyph(state)}
+                </Text>
               </Text>
               <Text
                 accessibilityRole="header"
@@ -100,9 +105,11 @@ export default function StarScreen() {
               >
                 {starName}
               </Text>
+              {/* `earned` is already false when unknown (no rows → no row → no grantedAt), so
+                  the accent branch needs no extra guard — only the WORD changes. */}
               <View className={`rounded-full px-3 py-1 ${earned ? 'bg-aura-soft' : 'bg-raise'}`}>
                 <Text className={`text-[12px] font-medium ${earned ? 'text-aura' : 'text-faint'}`}>
-                  {t(earned ? 'star.lit' : 'star.unlit', locale)}
+                  {t(unknown ? 'star.unknown' : earned ? 'star.lit' : 'star.unlit', locale)}
                 </Text>
               </View>
             </View>

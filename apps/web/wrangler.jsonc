@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "www",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-01",
+  // nodejs_compat: the Next server needs Node built-ins.
+  // global_fetch_strictly_public: makes fetch() to our own origin go back out
+  // through the edge rather than looping inside the isolate.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  // Required to see per-request CPU time in the dashboard — the whole free-plan
+  // bet is validated against p99 CPU, so this is not optional here.
+  "observability": {
+    "enabled": true,
+  },
+  // memoryQueue (open-next.config.ts) dispatches background ISR revalidation by
+  // calling the Worker back through this binding — so `service` must track `name`
+  // above. Without it revalidation throws, is swallowed, and cached pages go stale
+  // until the next deploy.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "www",
+    },
+  ],
+  // Incremental cache (see open-next.config.ts). Account-specific, not a secret —
+  // it names a namespace, and reaching it still needs the API token. Recreate with
+  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV
+  // if this ever points at a namespace that no longer exists.
+  "kv_namespaces": [
+    {
+      "binding": "NEXT_INC_CACHE_KV",
+      "id": "1c0ba79bbbda4e2f8b0b2459e2a0e170",
+    },
+  ],
+}

@@ -7,12 +7,17 @@ import { Button } from '@/components/ui/button';
 
 /**
  * Pre-launch email capture — replaces the inert "coming soon" store badges.
- * Posts to /api/waitlist (stores in Supabase + notifies athanor@gmail.com via
- * Resend). Copy is i18n; the success/duplicate state shows the ✦ mark but stays
- * in foreground — cyan is reserved for the Dai-Vita star (DESIGN.md §4). `source`
- * tags where on the page the signup happened.
+ * Posts to /api/waitlist, which stores in Supabase (no operator email — see issue #23). Copy is i18n; the
+ * success/duplicate state shows the ✦ mark but stays in foreground — cyan is
+ * reserved for the Dai-Vita star (DESIGN.md §4). `source` tags where on the page
+ * the signup happened.
+ *
+ * A 429 gets its own state (issue #23). The route answers one when the database throttle
+ * refuses, and collapsing it into `error` would tell someone the site is broken when it is
+ * asking them to wait — which is the same false claim the honest 429 exists to avoid, just
+ * moved one layer up.
  */
-type Status = 'idle' | 'loading' | 'success' | 'duplicate' | 'error' | 'invalid';
+type Status = 'idle' | 'loading' | 'success' | 'duplicate' | 'error' | 'invalid' | 'rateLimited';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function WaitlistForm({
@@ -45,7 +50,9 @@ export function WaitlistForm({
         body: JSON.stringify({ email: value, locale, source, company }),
       });
       if (!res.ok) {
-        setStatus(res.status === 400 ? 'invalid' : 'error');
+        if (res.status === 400) setStatus('invalid');
+        else if (res.status === 429) setStatus('rateLimited');
+        else setStatus('error');
         return;
       }
       const data: { duplicate?: boolean } = await res.json();
@@ -103,6 +110,9 @@ export function WaitlistForm({
       )}
       {status === 'error' && (
         <p className="text-sm text-muted-foreground">{t('landing.waitlist.error', locale)}</p>
+      )}
+      {status === 'rateLimited' && (
+        <p className="text-sm text-muted-foreground">{t('landing.waitlist.rateLimited', locale)}</p>
       )}
       {!done && (
         <p className="text-xs text-muted-foreground">

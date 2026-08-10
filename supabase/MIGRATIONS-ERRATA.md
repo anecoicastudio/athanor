@@ -125,3 +125,68 @@ defense-in-depth on the same door.
 
 Asserted in `supabase/tests/0073_visibility_followups.test.sql` (the realtime publication
 check, with the accurate note beside it).
+
+---
+
+## `20260701124122_m6_aura_award_triggers.sql`
+
+### L38-39 — `post_starred (+2)` is wrong twice over
+
+The section header reads:
+
+```sql
+-- 3. post_starred (+2): a ✦ from a member whose Aura > 300 (REACTION_AUTHOR_MIN_SCORE,
+--    packages/core weights.ts) → award the post author. Never self-award.
+```
+
+`+2` is not the award. `ENGINE_WEIGHTS.POST_REACTION` is a **base** that `pointsFor` multiplies
+by `reviewerWeight(reactor score) = min(2, 1 + ln1p(s/1000))` before rounding, and the gate is
+`s > 300`. The lowest reactor who clears the gate already weighs ≈1.263, so the reachable band
+is **{3, 4}** — 3 from a reactor at 301, 4 from 1118 up. 2 is unreachable. The same wrong number
+stood in `packages/core/src/score/weights.ts` and PRD §4.9; both were corrected 2026-08-09.
+
+And as shipped by THIS migration the award was neither 2 nor 3–4 but **0**. The trigger selected
+`v_reactor_score`, gated on it in SQL, and then called `athanor.enqueue_score_award(...)` — which
+had no parameter for it. The `pg_net` body carried only `severity`, so `score-engine`'s
+`awardCtx` reached `pointsFor` with `reviewerScore` undefined, `?? 0` failed the gate a second
+time, and the function returned `{awarded: 0, skipped: true}` with no `aura_events` row. The gate
+was written twice and the second copy always lost.
+
+**RESOLVED (issue #27) by `20260809172520_star_reviewer_score_plumbing.sql`**, sequenced before
+the hosted deploy so the ledger never has a zero-award era. A 6-arg `enqueue_score_award`
+overload carries `p_reviewer_score` into `ctx.reviewerScore`, and the replaced trigger body
+sends `coalesce(v_reactor_score, 0)` — the SQL literal `> 300` gate (L49 of this migration, the
+rule #10 drift noted below) is GONE with it: core's `pointsFor` with `REACTION_AUTHOR_MIN_SCORE`
+is the single authority on the threshold, so a sub-gate ✦ now enqueues and the engine alone
+decides it is worth nothing.
+
+Verified behaviour: `packages/core/src/score/award.test.ts` holds the `{3, 4}` band across the
+whole qualifying range plus `pointsFor('post_starred', {})` → `0` (the safety default, no longer
+the production path). `supabase/tests/0064_aura_award_triggers.test.sql` §K — which replaced the
+tripwire that pinned the defect — asserts the overload exists, the queued payload carries
+`ctx.reviewerScore`, the award targets the author, and a scoreless reactor travels as `0`.
+`supabase/functions/score-engine/logic.test.ts` pins the engine half: score 500 → 3, 1200 → 4,
+≤ 300 or absent → skipped with no ledger row.
+
+---
+
+## `20260809160525_waitlist_throttle_trigger.sql` — the comment names Vercel; it is Cloudflare now
+
+The prose at L29-30 says «The insert happens inside a Vercel function, so left alone this would
+key on that function's egress IP». The mechanism it describes is exactly right and the trigger is
+unchanged — but `apps/web` was migrated off Vercel onto Cloudflare Workers on 2026-08-10, so the
+insert now happens inside a Worker. Read "Vercel function" as "the serverless function fronting
+PostgREST", whichever host that is; the reason the route must forward the visitor's address is
+identical either way.
+
+One thing did change in substance, in the route rather than the database. `apps/web/app/api/waitlist/client-ip.ts`
+now consults **`cf-connecting-ip` first**, ahead of `x-forwarded-for`. This is a security property,
+not a preference: Cloudflare _appends_ the real client to `x-forwarded-for`, so its leftmost entry
+is whatever the caller sent. Reading that first would have made the throttle key attacker-chosen
+and undone issue #23 entirely. `cf-connecting-ip` is stripped and re-set by the edge and cannot be
+forged. The trigger still keys on whatever the route forwards, so nothing here needed a new
+migration.
+
+Asserted by: `apps/web/app/api/waitlist/client-ip.test.ts` ("prefers cf-connecting-ip over a forged
+x-forwarded-for"), and the first-entry-is-the-client behaviour by
+`supabase/tests/0083_waitlist_rate_limit.test.sql`.

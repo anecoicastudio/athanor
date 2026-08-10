@@ -4,8 +4,10 @@ import { createAuthedClient } from '@/utils/supabase/server';
 export const dynamic = 'force-dynamic';
 
 /**
- * Defense-in-depth: getUser() + app_metadata role check (never getSession), even
- * though the proxy middleware and the DEFINER RPC both gate this too. Streams the
+ * getUser() + app_metadata role check (never getSession). This is now a PRIMARY
+ * gate, not defence in depth: proxy.ts was deleted with the Cloudflare migration
+ * (the adapter cannot run Node middleware), so nothing gates this route ahead of
+ * the handler. The DEFINER RPC behind it still gates independently. Streams the
  * full waitlist as a CSV download.
  */
 function csvCell(value: string): string {

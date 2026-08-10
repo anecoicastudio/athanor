@@ -13,3 +13,6 @@ apps/native/expo-env.d.ts
 apps/native/nativewind-env.d.ts
 apps/web/next-env.d.ts
 apps/native/assets/expo.icon/icon.json
+.open-next
+.wrangler
+apps/web/cloudflare-env.d.ts

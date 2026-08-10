@@ -317,6 +317,79 @@ Deno.test('award: an unresolvable counterparty falls back to the undampened awar
   assertEquals((await awardHelp(c, null).then((r) => r.json())).awarded, 40);
 });
 
+// ── post_starred (issue #27: the payload must carry the reactor's Aura) ─────
+// pointsFor gates on ctx.reviewerScore > REACTION_AUTHOR_MIN_SCORE (300) and
+// multiplies the base 2 by reviewerWeight(s) — the reachable band is {3, 4}.
+// Until the enqueue plumbing landed, the pg_net body carried no reviewerScore
+// at all, `?? 0` failed the gate, and every ✦ awarded 0 with no ledger row.
+
+/** Award scripting for a post_starred that lands: [0] day-cap count, then the happy path. */
+const starCtx = () =>
+  ctx({
+    // FIFO on aura_events: [0] the day-cap count, [1] re-aggregation, [2] star facts.
+    'aura_events.select': [{ count: 0 }, { data: [] }, { data: [] }],
+    'aura_events.insert': [{}],
+    'aura_scores.select': [{ data: { score: 0, peak_score: 0, last_qualifying_action_at: null } }],
+    'stars.select': [{ data: [] }],
+    'dreams.select': [{ data: [] }],
+    'posts.select': [{ data: [] }],
+    'invites.select': [{ count: 0 }],
+  });
+
+Deno.test('award: a ✦ carrying the reactor score above the gate lands at 3', async () => {
+  const c = starCtx();
+  const res = await runAward(c, {
+    mode: 'award',
+    profileId: PROFILE,
+    type: 'post_starred',
+    refId: REF,
+    ctx: { reviewerScore: 500 },
+  });
+  assertEquals(((await res.json()) as { awarded: number }).awarded, 3);
+  const ins = c.db.calls.find((call) => call.table === 'aura_events' && call.op === 'insert');
+  assert(ins, 'no ledger row was inserted');
+  assertEquals((ins.values as { points: number }).points, 3);
+  // The score used is persisted in reason so the ledger explains its own numbers.
+  assertEquals((ins.values as { reason: { reviewerScore?: number } }).reason.reviewerScore, 500);
+});
+
+Deno.test('award: a high-Aura reactor (≥1118) is worth 4 — the top of the band', async () => {
+  const c = starCtx();
+  const res = await runAward(c, {
+    mode: 'award',
+    profileId: PROFILE,
+    type: 'post_starred',
+    refId: REF,
+    ctx: { reviewerScore: 1200 },
+  });
+  assertEquals(((await res.json()) as { awarded: number }).awarded, 4);
+});
+
+Deno.test('award: a sub-gate reactor score → skipped, no ledger row', async () => {
+  const c = ctx({ 'aura_events.select': [{ count: 0 }] }); // the day-cap read only
+  const res = await runAward(c, {
+    mode: 'award',
+    profileId: PROFILE,
+    type: 'post_starred',
+    refId: REF,
+    ctx: { reviewerScore: 300 }, // gate is STRICTLY above 300
+  });
+  assertEquals(await res.json(), { awarded: 0, skipped: true });
+  assert(!c.db.calls.some((call) => call.op === 'insert'));
+});
+
+Deno.test('award: a ✦ with no reviewerScore in ctx (pre-#27 payload) → skipped', async () => {
+  const c = ctx({ 'aura_events.select': [{ count: 0 }] });
+  const res = await runAward(c, {
+    mode: 'award',
+    profileId: PROFILE,
+    type: 'post_starred',
+    refId: REF,
+  });
+  assertEquals(await res.json(), { awarded: 0, skipped: true });
+  assert(!c.db.calls.some((call) => call.op === 'insert'));
+});
+
 Deno.test('bodySchema accepts a null counterpartyId, as jsonb_build_object emits it', () => {
   assert(
     bodySchema.safeParse({

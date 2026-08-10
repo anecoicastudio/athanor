@@ -20,8 +20,8 @@ const EMAIL = 'info@anecoica.net';
 export const privacy: Record<Locale, LegalDoc> = {
   it: {
     title: 'Informativa sulla privacy',
-    updated: 'Luglio 2026',
-    intro: `Questa informativa spiega come ${CONTROLLER} tratta i dati di chi visita il sito di presentazione di Athanor. Il sito non richiede la creazione di un account e non profila chi lo visita: puoi soltanto iscriverti alla lista d'attesa, e vengono conservati log tecnici minimi. Riguarda solo questo sito; l'app Athanor avrà una propria informativa al momento della pubblicazione sugli store.`,
+    updated: 'Agosto 2026',
+    intro: `Questa informativa spiega come ${CONTROLLER} tratta i dati di chi visita il sito di presentazione di Athanor. Il sito non richiede la creazione di un account e non profila chi lo visita: puoi iscriverti alla lista d'attesa, e vengono conservati log tecnici minimi. Il sito mostra anche le pagine di profilo pubblico delle persone iscritte ad Athanor, ma solo nella parte che hanno scelto di rendere pubblica: quei dati appartengono all'app e sono descritti nella sua informativa, non in questa. Riguarda solo questo sito; l'app Athanor avrà una propria informativa al momento della pubblicazione sugli store.`,
     sections: [
       {
         heading: 'Titolare del trattamento',
@@ -34,8 +34,8 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Dati che raccogliamo',
         body: [
-          'Log tecnici. Per servire le pagine, il nostro fornitore di hosting (Vercel) registra dati tecnici minimi — ad esempio gli header inviati dal browser, l’indirizzo IP e la data e ora della richiesta. La base giuridica è il legittimo interesse a far funzionare il sito e a mantenerlo sicuro; questi dati non vengono usati per profilarti.',
-          'Lista d’attesa. Se compili il modulo di iscrizione, trattiamo l’indirizzo email che inserisci (insieme alla lingua scelta e alla provenienza dal sito) al solo scopo di avvisarti quando Athanor sarà disponibile. La base giuridica è il tuo consenso. L’indirizzo è conservato su Supabase (Unione Europea, Francoforte) e l’invio del messaggio è gestito da Resend. Non lo usiamo per altre comunicazioni di marketing oltre all’avviso di lancio e non lo cediamo né vendiamo a terzi. Lo cancelliamo al più tardi dopo circa 18 mesi, oppure prima se crei un account o ci chiedi di rimuoverlo.',
+          'Log tecnici. Per servire le pagine, il nostro fornitore di hosting (Cloudflare) registra dati tecnici minimi — ad esempio gli header inviati dal browser, l’indirizzo IP e la data e ora della richiesta. La base giuridica è il legittimo interesse a far funzionare il sito e a mantenerlo sicuro; questi dati non vengono usati per profilarti.',
+          'Lista d’attesa. Se compili il modulo di iscrizione, trattiamo l’indirizzo email che inserisci (insieme alla lingua scelta e alla provenienza dal sito) al solo scopo di avvisarti quando Athanor sarà disponibile. La base giuridica è il tuo consenso. L’indirizzo è conservato su Supabase (Unione Europea, Francoforte). Non ti inviamo alcun messaggio al momento dell’iscrizione. Non lo usiamo per altre comunicazioni di marketing oltre all’avviso di lancio e non lo cediamo né vendiamo a terzi. Lo cancelliamo al più tardi dopo circa 18 mesi, oppure prima se crei un account o ci chiedi di rimuoverlo.',
         ],
       },
       {
@@ -47,7 +47,15 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Analisi del traffico',
         body: [
-          'Per capire come viene usato il sito usiamo statistiche aggregate e senza cookie (Vercel Analytics e Speed Insights), con indirizzo IP anonimizzato e server nell’Unione Europea: non identificano la singola persona e non tracciano la navigazione tra siti diversi.',
+          'Per capire come viene usato il sito usiamo statistiche aggregate e senza cookie (Cloudflare Web Analytics): non identificano la singola persona e non tracciano la navigazione tra siti diversi.',
+        ],
+      },
+      {
+        heading: 'Dove vengono trattati i dati',
+        body: [
+          'Il sito è servito dalla rete globale di Cloudflare: ogni richiesta è gestita dal nodo più vicino a chi visita, che può trovarsi fuori dall’Unione Europea. Riguarda il caricamento delle pagine, il beacon di statistiche (che raggiunge Cloudflare, Inc. indipendentemente dal nodo che ha servito la pagina), l’invio del modulo della lista d’attesa, e le pagine di profilo pubblico, la cui versione già composta resta per un breve periodo nella cache della rete.',
+          'Gli indirizzi email della lista d’attesa sono conservati nell’Unione Europea (Supabase, Francoforte).',
+          `Quando un trattamento avviene fuori dall’Unione Europea, il trasferimento si fonda sulle clausole contrattuali tipo approvate dalla Commissione europea, incluse nell’accordo sul trattamento dei dati di Cloudflare (cloudflare.com/cloudflare-customer-dpa). Cloudflare aderisce inoltre al Data Privacy Framework UE-USA. Puoi chiederne copia scrivendo a ${EMAIL}.`,
         ],
       },
       {
@@ -59,12 +67,12 @@ export const privacy: Record<Locale, LegalDoc> = {
       },
     ],
     reviewNote:
-      'I dati sono trattati nell’Unione Europea. La ragione sociale completa e i dati di registrazione sono nell’impressum su anecoica.net.',
+      'La ragione sociale completa e i dati di registrazione sono nell’impressum su anecoica.net.',
   },
   en: {
     title: 'Privacy Policy',
-    updated: 'July 2026',
-    intro: `This policy explains how ${CONTROLLER} handles the data of visitors to the Athanor presentation site. The site requires no account and does not profile visitors: you can only join the waitlist, and minimal technical logs are kept. It covers this site only; the Athanor app will have its own policy when it is published on the app stores.`,
+    updated: 'August 2026',
+    intro: `This policy explains how ${CONTROLLER} handles the data of visitors to the Athanor presentation site. The site requires no account and does not profile visitors: you can join the waitlist, and minimal technical logs are kept. The site also shows public profile pages for people who have joined Athanor, but only the part they chose to make public: that data belongs to the app and is described in the app's policy, not this one. It covers this site only; the Athanor app will have its own policy when it is published on the app stores.`,
     sections: [
       {
         heading: 'Data controller',
@@ -77,8 +85,8 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Data we collect',
         body: [
-          'Technical logs. To serve the pages, our hosting provider (Vercel) records minimal technical data — such as the headers your browser sends, your IP address and the time of the request. The legal basis is our legitimate interest in operating and securing the site; this data is not used to profile you.',
-          'Waitlist. If you submit the sign-up form, we process the email address you enter (along with your chosen language and the fact you came from the site) for the sole purpose of letting you know when Athanor is available. The legal basis is your consent. The address is stored on Supabase (European Union, Frankfurt) and message delivery is handled by Resend. We do not use it for any marketing beyond the launch notice, and we do not share or sell it. We delete it after roughly 18 months at the latest, or sooner if you create an account or ask us to remove it.',
+          'Technical logs. To serve the pages, our hosting provider (Cloudflare) records minimal technical data — such as the headers your browser sends, your IP address and the time of the request. The legal basis is our legitimate interest in operating and securing the site; this data is not used to profile you.',
+          'Waitlist. If you submit the sign-up form, we process the email address you enter (along with your chosen language and the fact you came from the site) for the sole purpose of letting you know when Athanor is available. The legal basis is your consent. The address is stored on Supabase (European Union, Frankfurt). We send you no message when you sign up. We do not use it for any marketing beyond the launch notice, and we do not share or sell it. We delete it after roughly 18 months at the latest, or sooner if you create an account or ask us to remove it.',
         ],
       },
       {
@@ -90,7 +98,15 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Traffic analytics',
         body: [
-          'To understand how the site is used we rely on aggregated, cookieless statistics (Vercel Analytics and Speed Insights), with anonymized IP addresses and EU-based servers: they do not identify individuals and do not track browsing across other sites.',
+          'To understand how the site is used we rely on aggregated, cookieless statistics (Cloudflare Web Analytics): they do not identify individuals and do not track browsing across other sites.',
+        ],
+      },
+      {
+        heading: 'Where your data is processed',
+        body: [
+          'The site is served from Cloudflare’s global network: each request is handled by the node closest to the visitor, which may sit outside the European Union. This covers page loads, the analytics beacon (which reaches Cloudflare, Inc. regardless of which node served the page), waitlist form submissions, and public profile pages, whose rendered version stays briefly in the network’s cache.',
+          'Waitlist email addresses are stored in the European Union (Supabase, Frankfurt).',
+          `Where processing happens outside the European Union, the transfer relies on the standard contractual clauses approved by the European Commission and incorporated in Cloudflare’s data processing addendum (cloudflare.com/cloudflare-customer-dpa). Cloudflare is additionally certified under the EU–US Data Privacy Framework. You can request a copy by writing to ${EMAIL}.`,
         ],
       },
       {
@@ -102,7 +118,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       },
     ],
     reviewNote:
-      'Data is processed within the European Union. Our full legal name and registration details are in the impressum at anecoica.net.',
+      'Our full legal name and registration details are in the impressum at anecoica.net.',
   },
 };
 
