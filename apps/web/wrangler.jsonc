@@ -28,12 +28,26 @@
   ],
   // Incremental cache (see open-next.config.ts). Account-specific, not a secret —
   // it names a namespace, and reaching it still needs the API token. Recreate with
-  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV
-  // if this ever points at a namespace that no longer exists.
+  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV            (prod)
+  //   pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV --preview  (preview)
+  // if either ever points at a namespace that no longer exists.
+  //
+  // `preview_id` is what `wrangler dev` binds in BOTH modes — only `--remote` makes
+  // that reach the network. `wrangler deploy` never reads it, so production always
+  // gets `id`. It is here so a remote preview cannot write into the production cache.
+  //
+  // Two consequences, both harmless but silent:
+  //  - local `pnpm cf:preview` now serves a COLD cache. populate-cache shells out
+  //    with `--preview false` (the prod id) while the dev worker binds `preview_id`,
+  //    so miniflare writes one store and reads another. Use `--remote` when you need
+  //    to exercise a populated cache.
+  //  - hand-run `wrangler kv` commands against this binding now need an explicit
+  //    `--preview false`, or wrangler refuses with "has both an id and a preview_id".
   "kv_namespaces": [
     {
       "binding": "NEXT_INC_CACHE_KV",
       "id": "1c0ba79bbbda4e2f8b0b2459e2a0e170",
+      "preview_id": "905ecdceeadf47aeaaf90cf99ba3dfdf",
     },
   ],
 }
