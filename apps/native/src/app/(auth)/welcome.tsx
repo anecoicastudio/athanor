@@ -23,9 +23,11 @@ const APPLE_ENABLED = false;
 // Same story for Google: the hosted project has only the Email provider enabled, so this
 // button could only ever reach «Quel modo di entrare non è ancora attivo». To flip it on,
 // configure the Google provider in Supabase → Auth → Providers AND add the redirect that
-// lib/oauth.ts builds — athanor://auth-callback, plus the exp://…/--/auth-callback form
-// for Expo Go — to Auth → URL Configuration → Redirect URLs. Missing that second step is
-// the classic "works in the browser, hangs on device".
+// lib/oauth.ts builds — `athanor:///auth-callback`, THREE slashes (see the note on
+// AUTH_REDIRECT_URL in lib/oauth.ts for why), plus the two-slash `athanor://auth-callback`
+// and the exp://…/--/auth-callback form for Expo Go — to Auth → URL Configuration →
+// Redirect URLs. Missing that second step is the classic "works in the browser, hangs on
+// device".
 const GOOGLE_ENABLED = false;
 
 const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;

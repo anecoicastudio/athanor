@@ -68,9 +68,25 @@ When authenticated admin flows land in Playwright, test seeding (admin user, ses
 minting) uses the `sb_secret_…` key via CI secrets or a server-side helper **only** —
 never an env file the Next process can read, never anything prefixed `NEXT_PUBLIC_`.
 
-## Postgres GUCs
+## `app.settings.*` runtime values (Vault, not GUCs)
 
-`app.settings.*` values are operator commands against the database
-(`alter database postgres set "app.settings.*"`), never set via env files and never in a
-migration — a secret in a migration is committed to git and, under rule #7 (append-only
-migrations), unrotatable. See `docs/PRODUCTION-READINESS.md`.
+The names still read `app.settings.<x>` and the pg_net callers still resolve them at call
+time, but the **storage moved to Supabase Vault** on 2026-08-10
+(`20260810103721_pg_net_config_via_vault`). The operator sets them by hand against the
+database — never via an env file, and never in a migration, because a secret in a migration is
+committed to git and, under rule #7 (append-only migrations), unrotatable.
+
+```sql
+select vault.create_secret('<value>', 'app.settings.score_engine_key');  -- rotate: vault.update_secret(id, '<new>')
+```
+
+`alter database postgres set "app.settings.<x>"` is **not** an alternative — it fails
+`42501 permission denied to set parameter` on a hosted project, whoever owns the database:
+supautils permits only the fixed list in `supautils.privileged_role_allowed_configs`, and no
+custom parameter is on it. Every caller reads through `athanor.runtime_setting(name)`, which
+tries the GUC first (so a local `supabase start` stack and pgTAP `set_config` fixtures keep
+working) and falls back to the Vault secret of the same name. Vault also confines the value
+to `postgres`/`service_role`, which a role-level GUC could not — `pg_db_role_setting` is
+world-readable. The migration's own header comment is the authoritative account (it is in the
+repo; `docs/` is gitignored, so `docs/PRODUCTION-READINESS.md` Appendix A step 3 — the full
+eight-secret deploy sequence — is visible only to the maintainer).

@@ -22,9 +22,15 @@ export type OAuthOutcome =
   | { status: 'cancelled' }
   | { status: 'error'; message: string };
 
-// Must match an entry in Supabase → Auth → Additional Redirect URLs. createURL
-// resolves to `athanor://auth-callback` standalone and `exp://…/--/auth-callback`
-// in Expo Go.
+// Must match an entry in Supabase → Auth → Additional Redirect URLs, and matching there is
+// exact. In a standalone build createURL resolves to `athanor:///auth-callback` — THREE
+// slashes, not two: it builds `<scheme>://<host><path>`, the standalone host is empty, and
+// expo-linking's `ensureLeadingSlash('', true)` turns that empty host into `/`
+// (expo-linking 8.0.12, build/createURL.js:35-44; template at :111-113). In Expo Go it
+// resolves to `exp://…/--/auth-callback`. The allow-lists on both hosted projects carry the
+// two-slash `athanor://auth-callback` as well, because that is the form the docs and every
+// dashboard entry use, and GoTrue does no URL normalisation before matching — the two forms
+// never reconcile, so whichever one is missing is simply a miss.
 //
 // Exported because the email signup in (auth)/welcome.tsx passes the same value as
 // emailRedirectTo — without it the confirmation mail falls back to the project's

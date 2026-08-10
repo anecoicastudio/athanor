@@ -60,10 +60,14 @@ function orderedValues(map: Record<string, string>): string[] {
  * with the legacy service-role key last.
  *
  * Accepting all of them (rather than one named key) is what makes rotation a dashboard-only
- * operation: create the new key → update the `app.settings.*_key` GUCs → verify → delete the
- * old key, with no redeploy and no 401 window. It costs no authority, because every secret key
- * already carries BYPASSRLS — there is no privilege separation between them. The revocation
- * boundary is deleting the key in the dashboard, which drops it from this list automatically.
+ * operation: create the new key → `vault.update_secret` the `app.settings.*_key` secrets →
+ * verify → delete the old key, with no redeploy and no 401 window. (Vault since
+ * `20260810103721_pg_net_config_via_vault`. They are not persistent GUCs: a hosted project
+ * rejects `alter database/role … set` for any custom parameter with 42501. A session-level
+ * `set_config` still works, which is what keeps the local stack and the pgTAP fixtures going.)
+ * It costs no authority, because every secret key already carries BYPASSRLS — there is no
+ * privilege separation between them. The revocation boundary is deleting the key in the
+ * dashboard, which drops it from this list automatically.
  */
 export function secretKeys(env: EnvPort = denoEnv): string[] {
   const keys = orderedValues(parseKeyMap(env.get('SUPABASE_SECRET_KEYS')));
