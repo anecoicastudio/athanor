@@ -1,6 +1,6 @@
 # Athanor
 
-Community platform where reputation (the **Aura** score) is earned only through real, verifiable actions — never bought. This is the **canonical working repo**: the Expo mobile app, the web app (marketing site + admin moderation panel) and the full Supabase backend (migrations, RLS policies, pgTAP tests, edge functions). Internal product docs live in the upstream repo.
+Community platform where reputation (the **Aura** score) is earned only through real, verifiable actions — never bought. This is the **canonical working repo**: the Expo mobile app, the web app (marketing site + admin moderation panel) and the full Supabase backend (migrations, RLS policies, pgTAP tests, edge functions), plus the four reference documents in `docs/` that this repo's source comments cite. The remaining product docs are internal and not published here.
 
 ## Stack
 
@@ -8,18 +8,36 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 
 ## Repository map
 
-| Path               | What lives there                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `apps/native`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`         |
-| `apps/web`         | Next.js 16 — marketing site, public `@handle` profiles, waitlist, **admin panel**       |
-| `packages/core`    | Pure domain logic (score engine, badges, matching). **No I/O**                          |
-| `packages/api`     | Typed Supabase client + queries. **No business logic**                                  |
-| `packages/schemas` | Zod schemas — the single validation source                                              |
-| `packages/i18n`    | IT/EN catalogues                                                                        |
-| `packages/config`  | Design tokens, tsconfig presets                                                         |
-| `supabase/`        | Migrations, RLS policies, pgTAP tests, Deno edge functions (outside the pnpm workspace) |
+| Path               | What lives there                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| `apps/native`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`            |
+| `apps/web`         | Next.js 16 — marketing site, public `@handle` profiles, waitlist, **admin panel**          |
+| `packages/core`    | Pure domain logic (score engine, badges, matching). **No I/O**                             |
+| `packages/api`     | Typed Supabase client + queries. **No business logic**                                     |
+| `packages/schemas` | Zod schemas — the single validation source                                                 |
+| `packages/i18n`    | IT/EN catalogues                                                                           |
+| `packages/config`  | Design tokens, tsconfig presets                                                            |
+| `supabase/`        | Migrations, RLS policies, pgTAP tests, Deno edge functions (outside the pnpm workspace)    |
+| `docs/`            | Four reference documents — see below. The rest of `docs/` is internal and not in this repo |
 
 Dependency rule: `apps → packages` only; `core` imports only `schemas`.
+
+### The four documents in `docs/`
+
+Source comments across this repo cite these by section number (`PRD §4.11`, `RELEASE-RUNBOOK §6`,
+`PRODUCTION-READINESS P5`), so they are tracked and you can open them:
+
+| File                           | Read it when                                                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `docs/PRD.md`                  | You need the product requirement behind a feature — scope, data model, key flows, milestone order                          |
+| `docs/DESIGN.md`               | **Before any visual or UI decision.** Layout, type scale, components, colour and logo usage. Do not deviate without asking |
+| `docs/RELEASE-RUNBOOK.md`      | You are touching release, deploy, feature flags or store submission                                                        |
+| `docs/PRODUCTION-READINESS.md` | You hit a `PARKED(...)` comment and want to know why something is unbuilt                                                  |
+
+These four sometimes cite **other** documents in `docs/` — `FUND-SPEC.md`, `MILESTONES.md`,
+`FRONTEND.md` and a few more — which are internal and deliberately not in this repo. A pointer you
+cannot follow is not a broken link; ask, and the relevant part will be moved into an issue or into
+this README. Anything you actually need to do your work belongs in one of those two places.
 
 Migrations are append-only, so a comment in one can never be corrected in place. Where the
 prose has turned out to be wrong, the correction is in **`supabase/MIGRATIONS-ERRATA.md`** —

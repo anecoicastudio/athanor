@@ -1,0 +1,336 @@
+# Athanor — Production-Readiness PRD
+
+**Status:** v1.2 · 2026-07-02 (v1.2: full dead-file/dead-doc sweep **applied** — 8 files removed, 2 doc cross-refs fixed, new P2.6 + P8 documentation map; this doc is the **single source for open tasks**. v1.1: folded second independent audit — P2.1 closed ✅, P2.3 re-opened as fix, new P5 dead-export rows, P1.2 expo-updates/.env.example additions, Appendix E verified-clean list)
+**Owner:** solo-dev (Marco)
+**Scope:** Feature-complete Fase-1 launch (fix blockers · wire stubs · fix hint-truth · build the 3 deferred features) with **zero remaining dead code**.
+**Supersedes:** `docs/superpowers/T0-parallel-tasks.md` (2026-07-01 audit — partly stale; folded in below with current status).
+**Companion docs:** `docs/MILESTONES.md` (slice tracker) · `docs/RELEASE-RUNBOOK.md` (store/ops) · `docs/PRD.md` §11 (binding build order) · `docs/DESIGN.md` · frontend/backend PRD suites under `docs/superpowers/specs/2026-06-13-*`.
+
+**Status legend:** ✅ done · 🟡 partial · ⬜ todo · ⛔ blocked (needs a decision/credential) · — N/A
+**Owner tags:** `agent` (I can do it) · `manual-you` (needs your console/credentials) · `deploy-time` (activates when P1.1 deploys, no code) · `decision` (product call needed)
+**Effort:** S (<½ day) · M (½–2 days) · L (>2 days / new slice)
+
+> **Why this doc exists:** M0–M10 code is "done", but remaining work was scattered across 4 surfaces (the stale T0 audit, RELEASE-RUNBOOK, MILESTONES Notes cells, in-code TODOs) and the codebase carries real dead/stub/inert/mismatch surfaces. This is the single authoritative list from "code-complete" to "live in the stores", reconciled against the git log and a fresh dead-code audit (2026-07-02).
+
+---
+
+## P0 — Already done (do NOT re-attempt)
+
+The pasted 2026-07-01 audit lists these as open; they are **shipped**. Reconciled against `git log`:
+
+| Audit item                                                                                     | Status                | Commit                         |
+| ---------------------------------------------------------------------------------------------- | --------------------- | ------------------------------ |
+| A1 — score-engine star facts (Visionario/Innovatore)                                           | ✅                    | `acf7bec` (+`630e07f` docs)    |
+| A2 — notification-fan-out DB producers                                                         | ✅ (INERT until P1.1) | `43098b1` (+`a919c7f` runbook) |
+| B1 — hosted-only voting-weight migration backfill                                              | ✅                    | `4a0a6bf`                      |
+| B2 — FK covering indexes                                                                       | ✅                    | `ead5c72`                      |
+| D1 — auth docs (email+password+Google, not OTP) + de-stale TODO.md                             | ✅                    | `8ba1d5c`                      |
+| Circle iOS IAP compliance (S-IAP-1) — hide subscribe+manage on iOS; register 2 Circle edge fns | ✅                    | `26d5260` / merge `8153281`    |
+
+**Stale numbers in that audit, corrected here:** edge fns → **13 deployable** (+`_shared` helper; was 12 before P2.2 added `media-process`) · GUCs → **8** (the `notification_fanout_*` pair added with A2, the `media_process_*` pair with P2.2) · "8 Stripe webhooks" → **9** (identity verified/requires_input/canceled are 3 cases).
+
+---
+
+## P1 — Launch blockers (app is not shippable / not functional without these)
+
+| ID       | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Owner              | Effort | Depends           |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------ | ----------------- |
+| **P1.1** | **T1 deploy** — turn the backend on                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | manual-you + agent | L      | credentials       |
+| **P1.2** | EAS build config — **✅ DONE 2026-07-08**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | agent              | S      | —                 |
+| **P1.3** | Universal links — **✅ DONE 2026-07-08** (agent part; TEAMID/SHA256 fill-in at P1.5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | agent + manual-you | M      | P1.2 (bundle IDs) |
+| **P1.4** | Sentry (crash reporting) — **✅ DONE 2026-07-08**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | agent              | M      | Sentry DSN/org    |
+| **P1.5** | Store submission                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | manual-you         | L      | P1.1–P1.4         |
+| **P1.6** | Auth hardening — MFA (TOTP) + password policy **🟡 done 2026-08-10**; leaked-password blocked (402, Pro only)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | manual-you         | S      | —                 |
+| **P1.7** | SecureStore session storage — **✅ DONE 2026-07-10.** LargeSecureStore shipped: pure `createLargeSecureStore` factory (`src/lib/large-secure-store.ts`, canonical Supabase crypto — fresh AES-256-CTR key per write in SecureStore, hex ciphertext in AsyncStorage) wired via platform-split `session-storage{.native,}.ts` (web keeps AsyncStorage, server render keeps noop; web bundle verified free of ExpoSecureStore). Legacy plaintext sessions re-encrypted in place on first read; corrupt/orphan entries fail safe to signed-out. `react-native-get-random-values` polyfill also upgrades auth-js PKCE verifiers off Math.random. First vitest in apps/mobile (9 tests, in turbo `test`). Original spec: move refresh token out of AsyncStorage (`src/lib/supabase.ts:29`) via LargeSecureStore (sessions exceed the 2 KB SecureStore limit). | agent              | M      | gates P1.5        |
+
+### P1.1 — T1 deploy ⭐ (the single biggest blocker) — 🟡 PARTIAL 2026-07-08
+
+**Done (agent):** all **13 edge fns deployed + ACTIVE** via CLI (`stripe-webhook` verify_jwt=false confirmed; score-engine needed sloppy-import asset pins, commit `bdef940`) · **`remote_config` seeded** (4 keys, both legal flags OFF). **Remaining (credential-gated):** Appendix A steps 1 (secrets), 3 (the 8 **Vault secrets** — was "GUCs + API restart"; GUCs never took on hosted and Vault needs no restart), 4 (Stripe webhook endpoint + `STRIPE_WEBHOOK_SECRET`), 5 (cron — after step 3), 7 (verification sweep). Payments, Aura score, push, notifications, identity, GDPR jobs are all dormant. Full exact instructions in **Appendix A**. Summary: deploy 13 edge fns (`score-engine` via CLI, rest via MCP) → set secrets → create the 8 `app.settings.*` **Vault secrets** (no API restart: the value is read per call inside the SECURITY DEFINER function, not latched at session start the way a GUC was) → schedule cron (purge + gdpr-export; erasure left unscheduled) → seed `remote_config`. **Legal gates stay inert** (`fund_contributions_enabled` OFF; `erasure-job` cascade unscheduled). Stripe wired **test-mode first**, flip to live at go-live.
+
+### P1.2 — EAS build config `[agent, ⚠ edits app.json]` — ✅ DONE 2026-07-08
+
+Shipped: `eas.json` (EAS project `@anecoica/athanor`), `app.json` bundle IDs + `extra.eas.projectId` + `owner` + `runtimeVersion` policy, `expo-updates ~29.0.18` installed, `.env.example` created. Accepted gap: dev profile needs `expo-dev-client` (not installed — Expo Go workflow retained on SDK 54). Original spec kept below for the record.
+Original spec (superseded): `apps/mobile/eas.json` was absent; `app.json` had no `ios.bundleIdentifier` / `android.package` / `extra.eas.projectId` / `owner`. Add them. Set `runtimeVersion` policy so native changes force a store build and JS-only fixes ship OTA — this requires **`npx expo install expo-updates`** (not in package.json despite RUNBOOK R-3/R-5/G3 assuming OTA rollback) + channel per EAS profile. Also **create `apps/mobile/.env.example`** (R-1 requires it current; file doesn't exist; `EXPO_PUBLIC_*` keys only — never a service key). `npx expo-doctor` after.
+
+### P1.3 — Universal links `[agent + manual-you]` — ✅ DONE 2026-07-08 (agent part)
+
+Shipped: `associatedDomains: applinks:www.athanor.workers.dev` + Android intent-filters in `app.json`; AASA + `assetlinks.json` served from `apps/web` via `next.config.ts` rewrites. Remaining manual: real TEAMID / SHA256 cert fingerprint at P1.5, entitlement check on first store build. Original spec kept below.
+Add iOS `associatedDomains` + Android intent-filters/`assetlinks` to `app.json`; publish `.well-known/apple-app-site-association` + `assetlinks.json` on the web domain (`apps/web`). Templates in **Appendix C**. Verify cold-start deep-link routing through the auth gate for Momento / event / post / `@handle` / invite (RUNBOOK S-9).
+
+### P1.4 — Sentry `[agent, ⚠ edits app.json]` — ✅ DONE 2026-07-08
+
+Shipped: `@sentry/react-native ~7.2.0` installed; `metro.config.js` uses `getSentryExpoConfig` (NativeWind wrap kept); deferred init behind `SentryConsentGate` (M9 diagnostics consent) with PII scrub; `Sentry.wrap(RootLayout)`; DSN via gitignored `.env`. Original spec kept below.
+Original spec (superseded): `@sentry/react-native` was not installed. `npx expo install @sentry/react-native`; add the `@sentry/react-native/expo` config plugin to `app.json`; swap `metro.config.js` `getDefaultConfig`→`getSentryExpoConfig` (keep the `withNativewind` wrap); in `src/app/_layout.tsx` add `Sentry.init({ dsn: process.env.EXPO_PUBLIC_SENTRY_DSN, sendDefaultPii: false, beforeSend, beforeBreadcrumb })` + `export default Sentry.wrap(RootLayout)`. **Consent-gate:** init disabled until the M9 consent flag is granted (`src/app/(modal)/trust.tsx`). `beforeSend` drops `event.user`, strips `Authorization`/`Cookie`, redacts chat/message/profile text + tokens (RUNBOOK §3.5.1). DSN as `EXPO_PUBLIC_SENTRY_DSN`; `SENTRY_AUTH_TOKEN`+org/project as EAS build secrets for symbol upload.
+
+### P1.5 — Store submission `[manual-you]`
+
+Screenshots (IT+EN, iPhone 6.9"/6.1", iPad 13", Pixel 8), privacy-nutrition (iOS) / Data-Safety (Android) forms (no tracking, no sale), age rating 12+/Teen, export-compliance, live privacy-policy URL. Exact steps in **Appendix B**. Store copy is already in i18n `store.*` (verbatim table: RELEASE-RUNBOOK §2). R-1 bundle grep: `grep -ri "service_role|sk_live|sentry_dsn"` the built JS — a `service_role`/`sk_live` hit blocks release.
+
+### P1.6 — Auth hardening `[manual-you]` — 🟡 PARTIAL 2026-08-10
+
+**MFA (TOTP)** and the **password policy** (8 + lower/upper/digit) are enabled on both hosted projects. **Leaked-password protection (HaveIBeenPwned) remains off — HTTP 402, Pro plan only.** Detail in **Appendix D**.
+
+### P1.7 — Tag-visibility authenticated smoke `[manual-you]` (recorded 2026-08-08)
+
+Signed-in, on-device check of the tag/dream visibility work merged as `ec440bf` and earlier (the former `chore/audit-tier23` branch, since deleted — **the commits are all in `main`; this row is the only remaining record that the smoke was never run**). pgTAP `0073_visibility_followups` asserts the SQL, but not the runtime path. Two directions to confirm:
+
+1. A member with **private `identity_tags`** still receives a Momenti deck of her own, scored against her own private tags — she vanishes from _other_ people's decks, but not from her own. `run_momenti_matcher()` masks the candidate side only (`c_tags`/`c_seek`); the recipients CTE reads `p.identity_tags`/`p.seeking` raw. Migration `20260807174758`'s own note overstates this as "drops out of matching entirely" — the correction lives in the pgTAP test (append-only migration, see `MIGRATIONS-ERRATA.md`).
+2. The **dream-visibility control deep-link** lands in edit mode from the trust screen.
+
+---
+
+## P2 — Security & correctness (before real users touch it)
+
+| ID       | Item                           | Disposition                                                | Owner | Effort |
+| -------- | ------------------------------ | ---------------------------------------------------------- | ----- | ------ |
+| **P2.1** | Admin-RPC guard audit          | ✅ verified clean 2026-07-02                               | agent | —      |
+| **P2.2** | Server-side EXIF strip         | ✅ 2026-07-03 `media-process` edge fn + storage trigger    | agent | M      |
+| **P2.3** | M9 `not_blocked` predicates    | ✅ 2026-07-03 (incl. `respond_to_connection` DEFINER gate) | agent | S      |
+| **P2.4** | Ticket organizer identity gate | ✅ 2026-07-03 (redeploy `create-ticket-checkout` at P1.1)  | agent | S      |
+| **P2.5** | Hint-truth mismatch            | ✅ 2026-07-03 create-hints dropped, weights converged      | agent | M      |
+| **P2.6** | Playwright e2e in CI           | ✅ 2026-07-03 (needs 2 repo secrets, see note)             | agent | S      |
+
+- **P2.1 ✅ CLOSED (audited 2026-07-02).** 26 migrations / 66 `SECURITY DEFINER` occurrences audited: **zero ungated client-callable DEFINER RPCs**. `admin_list_waitlist` / `admin_waitlist_count` / `resolve_report` re-check `athanor.is_admin()` internally (`20260622142310`, `20260630174955`); service-role/trigger fns have execute revoked from public/anon/authenticated; client-callable RPCs (`accept_momento`, `respond_to_connection`, `cast_vote`, …) are `auth.uid()`-guarded + `search_path=''`. No action.
+- **P2.2 ✅ (2026-07-03).** Server-side strip shipped as the `media-process` edge fn (byte-level metadata strip — JPEG APP1/APP13/COM, PNG text/eXIf chunks, WebP EXIF/XMP RIFF chunks, MP4 `udta`/`meta`→`free` in-place [offset-safe, no transcode], MP3 ID3) + `enqueue_media_process` storage trigger on the 4 user-media buckets (`20260703154523`, guarded GUCs `app.settings.media_process_url/_key` — inert until P1.1; pgTAP 0067; 13 deno tests). Fail-open by design (client already strips — `process.ts` re-encode + picker `exif:false`). Known coverage holes (accepted): objects >100 MB skip the strip (`too_large` — edge-isolate memory; only candidacy-videos can exceed it), HEIF-family brands pass through untouched (their `meta` box IS the image; no bucket accepts those mimes). Deploy: fn #13 + 2 GUCs in Appendix A. Storage bucket member-wide SELECT policies (`post-media`/`moments`) remain a separate deferred surface (visibility predicates, not EXIF).
+- **P2.3 ✅ (2026-07-03).** `20260703152310` wires `athanor.not_blocked()` into `connection_requests_select_party` / `connection_requests_insert_own` / `connections_select_participant` (case-expr other-party, mirrors conversations pattern); `20260703153252` also gates the `respond_to_connection` DEFINER RPC (reviewer catch: a blocked party could accept a cached request id → connection + conversation + notification to the blocker). pgTAP 0066 (9 asserts, both directions + RPC P0002); hosted-replay verified. Applied to hosted together with the three pending 2026-07-01 migrations (`m6_aura_award_triggers`, `fk_covering_indexes`, `m9_notification_producers`).
+- **P2.4 ✅ (2026-07-03).** `create-ticket-checkout` now asserts the ORGANIZER is `identity_verified` via the `is_identity_verified` DEFINER helper (fail-closed 500/403) before creating the Checkout Session. Note: until the M9 Stripe-Identity webhook flips real organizers, every paid event 403s — spec-correct fail-closed; sequence identity-verify before live paid events. Redeploy the fn at P1.1.
+- **P2.6 ✅ (2026-07-03).** `e2e` job added to `ci.yml` (chromium + `pnpm --filter web test:e2e`; Playwright webServer starts Next dev). **Skips with a ::notice until repo secrets `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set `[manual-you]`** (same pattern as the types-sync gate). `.env.test.example` added for future authed admin flows.
+- **P2.5 ✅ (2026-07-03, recommended path taken).** The three false create-hints (post +6 / comment +2 / project +4) are removed — the engine deliberately never rewards creating content (anti-gaming; only `post_starred` exists for reactions received). Legacy `AURA_WEIGHTS` + `AuraWeightKey` DELETED; `ENGINE_WEIGHTS` is the single weights table (rule #10); the event-detail «✦ +15» label (the only truthful hint) repointed to `ENGINE_WEIGHTS.EVENT_ATTENDED`. Orphan i18n keys `post.compose.auraHint`/`project.compose.auraHint` dropped IT+EN (parity green); guard test forbids create-keys from reappearing. Resolved BEFORE P1.1 deploy as required.
+
+---
+
+## P3 — Wire the visible stubs (polished UX) — ✅ COMPLETE 2026-07-04
+
+All 7 wired on `feat/p3-stub-wiring` (athanor-reviewer PASS, 0 Blockers). See MILESTONES `production-readiness-P3` row.
+
+| ID       | Item                                              | Status | Note                                                                                                                                                                                    |
+| -------- | ------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P3.1** | Profilo + user **stat-lines** (collabs / events)  | ✅     | `profile_stat_counts` DEFINER RPC (`20260704085845`, hosted-applied, pgTAP 0068) + `getProfileStatCounts`; reviews stay `0` (Fase 3).                                                   |
+| **P3.2** | **Messages "+" DM-start**                         | ✅     | new `(modal)/new-message.tsx` connections picker → `getOrCreateConversation` → `/chat`; `messages.new.toast` key dropped.                                                               |
+| **P3.3** | **Favor "Scrivi"** → message compose              | ✅     | `getOrCreateConversation(done.target_id)` → `/chat`; busy guard + `chat.openFailed`.                                                                                                    |
+| **P3.4** | **Settings** Help / Legal / Invite rows           | ✅     | Help→`mailto:` support; Legal split Termini/Privacy → web pages (`src/lib/links.ts`); Invite→native share (attribution wired by P4.1 ✅ — personal referral link in the share message). |
+| **P3.5** | **Stories reply** → send message                  | ✅     | reply opens the DM with the author (same open-or-create pattern).                                                                                                                       |
+| **P3.6** | Other-user **"see all momenti"** grid (read-only) | ✅     | `grid.tsx` `userId` param → read-only mode (no add/delete/MediaSheet).                                                                                                                  |
+| **P3.7** | **AnalyticsLite week-delta** label                | ✅     | binds real 7-day `recap.auraWeek` via shared `lib/weekRecap.ts` (one queryFn per `auraKeys.recap`).                                                                                     |
+
+---
+
+## P4 — Build the deferred features (feature-complete scope)
+
+| ID       | Item                                       | Owner         | Effort | Note                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------- | ------------------------------------------ | ------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P4.1** | **invites / referral → Ambasciatore star** | ✅ 2026-07-07 | —      | `profiles.referral_code` + `ensure_referral_code()` + `invites` (select-party RLS, server-write; pgTAP 0069) + **confirmation-gated** `handle_new_user`/`handle_user_confirmed` redemption (hosted-applied) + engine `invitesActivated` count → **Ambasciatore reachable**. Mobile deep-link stash + signup metadata + personal share links; web `/invite/[code]` landing. Deferred (tracked): OAuth signups don't carry the code (email-only attribution); no-app funnel = re-open-link after install (no manual code field).                                                           |
+| **P4.2** | **Prime Stelle** (founding cohort)         | ✅ 2026-07-07 | —      | `profiles.founding_member` (server-set cosmetic, NOT in m7 client column grants; pgTAP 0070 asserts 42501 + zero aura_events/aura_scores; hosted-applied `20260707133323`) + `FoundingBadge` on Profilo/person-detail via `ProfileHero.founding` + «Le Prime Stelle» Home card in the Esplora slot, gated `prime_stelle_enabled` (fail-closed; seeded false) — CTA shares the personal referral link (P4.1 mechanism, `isPending`-guarded). Consumed the orphan `prime.*` keys + first `useFeatureFlags()` importer. Launch ops (flag flip + cohort grant SQL) added to RELEASE-RUNBOOK. |
+| **P4.3** | **@handle mobile person-detail**           | ✅ 2026-07-07 | —      | Row's literal ask (read-only dream tappe on person-detail) had ALREADY shipped in M2 `help-flow` — audit note was stale. Real gap closed: AASA/intent-filters declared `/@*` universal links with **no mobile route catching them** → new root `[handle].tsx` catcher (leading-@ gate, auth gate, `getProfileIdByHandle` resolve → existing `(modal)/user/[id]`; unavailable state reuses `profile.unavailable`+`notFound.home`, zero new keys) + CLAUDE.md web-line drift fix (see row below). On-device link tap = P1.5 device pass (Expo Go can't register associated domains).       |
+| **P4.4** | **Fund contribution receipts**             | ✅ 2026-07-08 | —      | `getMyContributions` keyset page (wires `fundContributionSchema`) + `(modal)/payments.tsx` read-only receipts screen (ledger.tsx pattern) + Settings «Pagamenti» row gated on `useFeatureFlags().fund_contributions_enabled` (fail-closed → existing toast; legal OFF — shipped hidden). No DB change (RLS+index were M7 `20260618153032`). 6 `payments.*` keys IT+EN. Runbook flag row extended with receipts smoke. athanor-reviewer PASS.                                                                                                                                             |
+| **P4.5** | **event-create reachability**              | ✅ 2026-07-08 | —      | `(modal)/my-events.tsx` «I tuoi eventi» organizer surface (own-events list via `getEventsByOrganizer` + «Crea un evento» CTA) + Live header `right`-slot entry. event-create now reachable; both dead api exports wired. athanor-reviewer PASS. **P4 phase complete.**                                                                                                                                                                                                                                                                                                                   |
+
+Each P4 item is a `/run-prd`-style slice: `feat/<slice>` branch + TDD plan + pgTAP (where DB) + `athanor-reviewer` PASS + MILESTONES row.
+
+---
+
+## P5 — Dead-code disposition (the "no dead code" goal)
+
+Disposition = **remove orphans, keep near-term tracked**. After P2–P5, zero DEAD surfaces remain.
+
+| Surface                                                                                                                           | file:line                                                                  | Disposition                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event-create.tsx` (unreachable screen)                                                                                           | `app/(modal)/event-create.tsx`                                             | **✅ WIRED (P4.5, 2026-07-08)** — reachable via Live → «I tuoi eventi» → «Crea un evento»                                                                |
+| `prime.*` i18n keys (6, catalog-only)                                                                                             | `catalogs/{it,en}.json:103-108`                                            | **✅ WIRED (P4.2, 2026-07-07)** — all 6 consumed by `PrimeStelleCard`/`FoundingBadge`                                                                    |
+| `useFeatureFlags()` (0 importers)                                                                                                 | `lib/useRemoteConfig.ts:20`                                                | **✅ WIRED (P4.2 + P4.4)** — `PrimeStelleCard` gate + Settings «Pagamenti» gate (second consumer landed 2026-07-08)                                      |
+| `fundContributionSchema` / `FundContribution` (0 readers)                                                                         | `schemas/src/fund.ts:38`                                                   | **✅ WIRED (P4.4, 2026-07-08)** — parsed at the boundary by `getMyContributions`; rendered by `(modal)/payments.tsx`                                     |
+| `entitlement.features.analytics` (unconsumed bit)                                                                                 | `lib/useEntitlement.ts:13`                                                 | **✅ GATED (P5, 2026-07-08)** — `AnalyticsLiteCard` renders only when `entQuery.data?.features.analytics` (server-derived view stays the switch)         |
+| duplicate `AURA_WEIGHTS` table + `ENGINE_WEIGHTS.MARKETPLACE`                                                                     | `weights.ts:10,55`                                                         | **✅ RESOLVED (P2.5, 2026-07-03)** — `AURA_WEIGHTS` deleted; MARKETPLACE parked with `PARKED(Fase-2)` comment                                            |
+| Circle `iap` branch (empty)                                                                                                       | `circle.tsx:87`                                                            | **KEEP** (typed stub for the future Apple-IAP slice; documented, not dead-by-omission)                                                                   |
+| `createAthanorClient` (0 callers)                                                                                                 | `packages/api/src/client.ts:11`                                            | **✅ REMOVED (P5, 2026-07-08)** — `client.ts` keeps only the `AthanorClient` type; orphaned `profileKeys.handleAvailable` dropped in the same pass       |
+| `isHandleAvailable` (0 callers)                                                                                                   | `packages/api/src/profiles.ts:38`                                          | **✅ REMOVED (P5, 2026-07-08)** — unique constraint remains the guard                                                                                    |
+| `editProject` / `setProjectStatus` (0 callers)                                                                                    | `packages/api/src/projects.ts:88,106`                                      | **✅ PARKED (P5, 2026-07-08)** — `PARKED(project-edit)` comments; ships with the project-edit surface                                                    |
+| `softDeleteComment` / `softDeleteStorySegment` (0 callers)                                                                        | `post-comments.ts:64`, `stories.ts:114`                                    | **✅ WIRED (P5, 2026-07-08)** — own-comment «Elimina» in post detail + own story-segment delete in the viewer, confirm Alerts, error alert on story path |
+| `getMyCandidacy` / `updateCandidacy` (0 callers)                                                                                  | `packages/api/src/candidacy.ts:30,66`                                      | **✅ PARKED (P5, 2026-07-08)** — `PARKED(candidacy-edit)` comments; ships with the candidacy-edit surface                                                |
+| `getEventsByOrganizer` (0 callers)                                                                                                | `packages/api/src/events.ts:149`                                           | **✅ WIRED (P4.5, 2026-07-08)** — `(modal)/my-events.tsx` own-events list (with `eventKeys.byOrganizer`)                                                 |
+| `entitlement.features.marketReducedFee` (unconsumed bit)                                                                          | `lib/useEntitlement.ts:14`, `schemas/src/entitlements.ts:14`               | **✅ PARKED (P5, 2026-07-08)** — `PARKED(Fase-2)` comments in schema + hook                                                                              |
+| Dead `AURA_WEIGHTS` display keys `STORY_REACT`/`EVENT_ORGANIZE`/`MOMENTO_CONV`/`CIRCLE_JOIN`/`FUND_CONTRIBUTION` (0 render sites) | `weights.ts:16-32`                                                         | **✅ RESOLVED (P2.5, 2026-07-03)** — deleted with the table                                                                                              |
+| Hardcoded string `AURA` (rule #5 — only hit app-wide)                                                                             | `components/home/StarsMiniRow.tsx:35`                                      | **✅ FIXED (P5, 2026-07-08)** — consumes existing `aura.unit`; `pnpm i18n:check` now zero hardcoded app-wide                                             |
+| Orphaned assets                                                                                                                   | `apps/web/public/AN-Logo W.png`, `apps/mobile/assets/images/logo-glow.png` | **✅ REMOVED (v1.2)**                                                                                                                                    |
+| `StoreBadges` component (0 importers)                                                                                             | `apps/web/components/store-badges.tsx`                                     | **✅ REMOVED (v1.2)**                                                                                                                                    |
+| `Meridian` icon (only barrel re-export, 0 consumers)                                                                              | `apps/web/components/icons/meridian.tsx`                                   | **✅ REMOVED (v1.2)** — barrel line dropped too                                                                                                          |
+| `useStoryUpload` hook (0 importers, no story-upload wiring)                                                                       | `apps/mobile/src/lib/media/useStoryUpload.ts`                              | **✅ REMOVED (v1.2)**                                                                                                                                    |
+| Unused tsconfig presets (0 refs — web tsconfig standalone, mobile extends `expo/tsconfig.base`)                                   | `packages/config/tsconfig/{nextjs,react-native}.json`                      | **✅ REMOVED (v1.2)** — only `base.json`/`library.json` are consumed                                                                                     |
+| Root `TODO.md` (body frozen 2026-06-13, M2–M10 `[ ]`; mapping table duplicated in MILESTONES header + run-prd SKILL)              | `TODO.md`                                                                  | **✅ REMOVED (v1.2)**                                                                                                                                    |
+| Brand source SVGs (0 build/code refs — mandorla is inline SVG in code)                                                            | `packages/config/assets/*.svg` (5)                                         | **KEEP** — brand source of truth per CLAUDE.md rule #4 / DESIGN.md                                                                                       |
+| `deno.lock` (root)                                                                                                                | —                                                                          | **N/A** — already untracked + gitignored (audit claim of "tracked" was wrong; verified `git ls-files`)                                                   |
+| Unguarded `console.warn`                                                                                                          | `apps/mobile/src/lib/push.ts:42`                                           | **✅ FIXED (review, 2026-07-08)** — wrapped in `__DEV__` (the other 5 warns were already guarded)                                                        |
+| `createStorySegment` (0 callers — StoriesViewer «add» routes to profile compose)                                                  | `packages/api/src/stories.ts:90`                                           | **✅ PARKED (review, 2026-07-08)** — `PARKED(story-add)` comment; ships with the story-segment-add surface; wire or remove then                          |
+| `getInviteStats` (test-only — `InviteCard` uses `getMyReferralCode`)                                                              | `packages/api/src/invites.ts:23`                                           | **✅ PARKED (review, 2026-07-08)** — `PARKED(invite-stats)` comment; ships with an invite-stats/Ambasciatore-progress surface                            |
+| Settings «Aura ✦» row dead-end («Presto» toast while `/(modal)/aura` exists)                                                      | `app/(modal)/settings.tsx:135`                                             | **✅ FIXED (review, 2026-07-08)** — routes to `/(modal)/aura`; orphaned `settings.soon` key removed (IT+EN)                                              |
+| Circle checkout failure swallowed (no query error state exists pre-subscription)                                                  | `app/(modal)/circle.tsx:91`                                                | **✅ FIXED (review, 2026-07-08)** — inline `circle.error.title` under the join CTA                                                                       |
+| `store.*` i18n (8 keys, 0 runtime reads)                                                                                          | `catalogs/{it,en}.json:95-102`                                             | **KEEP + annotate** non-runtime — ASO copy source for P1.5 / Appendix B                                                                                  |
+| Over-exported query-key factories + page/cursor types                                                                             | `packages/api/src/*` (`dreamKeys`, `helpKeys`, `milestoneKeys`, …)         | note-only, optional de-export                                                                                                                            |
+| Root `CLAUDE.md` doc drift — "apps/web: no auth, no Supabase" contradicts shipped `/admin` + `@handle` Supabase surface           | `CLAUDE.md` monorepo map                                                   | **✅ FIXED (P4.3, 2026-07-07)** — web line now names the `@handle` SSR + `/admin` surfaces                                                               |
+
+---
+
+## P6 — Deploy-activated inert (NO code change — listed so they're not mistaken for dead)
+
+All light up when **P1.1** deploys; verify then, don't "fix":
+
+- The 12 `TODO(M6)` Aura-award writers in `packages/api/src/` (`posts, post-comments, post-reactions, projects, favors, helps, milestones, messages, stories, events`) — persist the fact, engine awards on deploy (rule #1).
+- Notifications center (empty until A2 producers + fanout GUCs live) · `level.tsx` tier-up overlay + `aura-realtime.ts` (dormant engine) · `push-dispatch` receipt-sweep · `gdpr-export` cron · `purge_email_waitlist` cron.
+
+---
+
+## P7 — Recommended execution order
+
+1. **Now, no credentials:** P1.2 → P1.3 → P1.4 (all edit `app.json`, keep **sequential**) ∥ P2 (security/correctness) ∥ P3 (stubs). Resolve **P2.5 hint-truth before deploy**.
+2. **Long pole:** P4 feature slices (P4.1 before P3.4's Invite wiring).
+3. **When credentials ready:** P1.1 deploy in **test mode** → run the Appendix A verification → flip Stripe to **live**.
+4. **Store gate:** P1.5 + P1.6 → RELEASE-RUNBOOK go/no-go gates G1–G7 → submit.
+
+---
+
+## P8 — Documentation map (single-source contract, audited 2026-07-02)
+
+**This file is the ONLY open-task list.** Everything else is either a spec, an ops checklist this file points into, or an archive. Full docs-tree audit ran 2026-07-02 (cross-reference matrix over every `.md`/`.pdf`/`.html`):
+
+| Doc                                                                                                                                | Role                                                                                    | Open items?                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `docs/PRODUCTION-READINESS.md`                                                                                                     | **THE open-task list** (P1–P6)                                                          | yes — all of them                                                                                                  |
+| `docs/MILESTONES.md`                                                                                                               | historical slice board — `run-prd` appends rows here as P2–P5 slices land               | **zero** open items (M0–M9 ✅, M10 🟢; its 6 `⬜` are legend + stale "next slice" prose inside completed sections) |
+| `docs/RELEASE-RUNBOOK.md`                                                                                                          | store/beta/ops checklists (B/S/R/G/S-IAP IDs)                                           | 24 ⬜ **ops** actions — owned there, driven from P1.5/P1.6/G-gates; referenced, never duplicated                   |
+| `docs/PRD.md` §11                                                                                                                  | binding product spec / build order                                                      | none (product scope, not tasks)                                                                                    |
+| `docs/DESIGN.md`                                                                                                                   | visual source of truth (rule #4)                                                        | none                                                                                                               |
+| `docs/FRONTEND.md` · `docs/superpowers/T0-parallel-tasks.md`                                                                       | superseded, banner'd                                                                    | archive                                                                                                            |
+| `docs/superpowers/specs/*` (backend-prd 14 · frontend-prd 14 · CONTRACT-MATRIX · 2 design specs) + `docs/superpowers/plans/*` (44) | frozen Draft spec suites + per-slice TDD build records                                  | archive (frontend-prd README now stamped SDK 56→54)                                                                |
+| `docs/adr/0001-stack.md`                                                                                                           | ADR (SDK-54 amendment current)                                                          | archive, permanent                                                                                                 |
+| `docs/athanor-prototype.html` · `docs/ATHANOR.pdf`                                                                                 | visual north star · brand source (1.4 MB tracked binary, force-added past `.gitignore`) | archive                                                                                                            |
+| root `TODO.md`                                                                                                                     | —                                                                                       | **deleted v1.2** (stale 2026-06-13 duplicate)                                                                      |
+
+---
+
+## Appendix A — P1.1 deploy, exact sequence `[manual-you + agent]`
+
+**Prerequisites you supply:** Supabase CLI (`npm i -g supabase` → `supabase login` → `supabase link --project-ref kwzeiqvrnnaagccyoose`) · a **secret key** `sb_secret_…` (Dashboard → Settings → API Keys → create one named `internal-callers`; the legacy `service_role` JWT still works but dies the moment legacy keys are disabled) · Stripe **test** secret key `sk_test_…` + a Circle product with monthly+annual prices (2 price IDs) · `EXPO_ACCESS_TOKEN` · `QR_SIGNING_SECRET` · confirm CI green on `origin/main`.
+
+**1. Secrets** (`supabase secrets set KEY=value` — no MCP tool for secrets):
+`STRIPE_SECRET_KEY` · `STRIPE_PRICE_CIRCLE_MONTHLY` · `STRIPE_PRICE_CIRCLE_ANNUAL` · `APP_DEEPLINK_BASE=athanor://` · `EXPO_ACCESS_TOKEN` · `QR_SIGNING_SECRET`. (`STRIPE_WEBHOOK_SECRET` after step 4.) Do **not** set anything prefixed `SUPABASE_` — the prefix is reserved and the platform injects `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEYS`, `SUPABASE_SECRET_KEYS`, `SUPABASE_JWKS` plus the legacy `SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` itself.
+
+**2. Deploy 13 functions.** `score-engine` via **CLI** (`supabase functions deploy score-engine` — monorepo imports, MCP can't resolve). The other 12 via MCP `deploy_edge_function` or CLI: `push-dispatch` (hidden dep of fan-out — deploy it or Momento/message pushes silently drop), `notification-fan-out`, `gdpr-export-job`, `erasure-job` (inert), `create-verification-session`, `create-ticket-checkout`, `create-contribution-session`, `check-in`, `stripe-webhook` (`verify_jwt=false`), `create-circle-checkout`, `create-circle-portal`, `media-process` (P2.2 metadata-strip backstop — 2-file fn, index.ts + strip.ts). Verify: `list_edge_functions` → 13 ACTIVE.
+
+**3. Vault secrets** (MCP `execute_sql`; was "GUCs" until 2026-08-10 — see the box below):
+
+> ⚠️ **`alter database … set` no longer works, on any project.** supautils permits only the
+> fixed list in `supautils.privileged_role_allowed_configs`, and no custom parameter is on it:
+> `alter database postgres set "app.settings.score_engine_url" = '…'` fails **42501 permission
+> denied to set parameter**, even though `postgres` owns the database. `alter role … set` and a
+> non-`app.settings` prefix fail identically. The GUCs were therefore never set on either
+> project, every `current_setting('app.settings.…', true)` read NULL, and each caller's
+> "not configured → no-op" guard turned that into silence — which is why `aura_events` did not
+> move between 2026-07-09 and 2026-08-10. Migration `20260810103721_pg_net_config_via_vault`
+> replaced the reads with `athanor.runtime_setting(name)`: GUC first (so the local stack and
+> pgTAP fixtures are unchanged), else the Vault secret of the same name.
+
+```sql
+select vault.create_secret('https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/push-dispatch',        'app.settings.push_dispatch_url');
+select vault.create_secret('<SB_SECRET_KEY>',                                                            'app.settings.push_dispatch_key');
+select vault.create_secret('https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/notification-fan-out', 'app.settings.notification_fanout_url');
+select vault.create_secret('<SB_SECRET_KEY>',                                                            'app.settings.notification_fanout_key');
+select vault.create_secret('https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/score-engine',         'app.settings.score_engine_url');
+select vault.create_secret('<SB_SECRET_KEY>',                                                            'app.settings.score_engine_key');
+select vault.create_secret('https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/media-process',        'app.settings.media_process_url');
+select vault.create_secret('<SB_SECRET_KEY>',                                                            'app.settings.media_process_key');
+```
+
+Names are unique — to rotate, `select vault.update_secret(id, '<new>')` against the id in
+`vault.secrets`. No API restart is needed: the value is read per call inside the SECURITY
+DEFINER function, not latched at session start the way a GUC was. Momento push still needs
+BOTH `push_dispatch_*` AND `notification_fanout_*`.
+
+The `<SB_SECRET_KEY>` never has to pass through a human clipboard — the CLI's own credential
+can mint the read:
+
+```bash
+TOKEN=$(security find-generic-password -s "Supabase CLI" -a supabase -w)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://api.supabase.com/v1/projects/<ref>/api-keys?reveal=true" | jq -r '.[]|select(.type=="secret").api_key'
+```
+
+(`supabase projects api-keys` masks the secret; the Management API with `reveal=true` does not.)
+
+**4. Stripe webhook** (you, Dashboard, test mode): endpoint `https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/stripe-webhook`; subscribe the **10** events: `checkout.session.completed`, `customer.subscription.created/updated/deleted`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created`, `identity.verification_session.verified/requires_input/canceled`; API version **`2026-05-27.dahlia`** (must match `_shared/stripe.ts`). Copy signing secret → `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_…`.
+
+> **Do NOT subscribe `checkout.session.async_payment_succeeded` / `…_failed`.** Delayed settlement is unsupported: `processEvent` throws on both by design, and sustained 5xx gets the endpoint disabled — which would also stop `charge.refunded` and `charge.dispute.created`, the only paths that pull money back out of the public ticker.
+>
+> **Ordering is binding.** Before deploying `stripe-webhook`, remove every delayed-notification rail from the payment-method configuration `pmc_1U23I2Q27ZDmslJ8WsNgBSei` (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, BLIK, Boleto, OXXO, Konbini, Multibanco, bank transfers) and confirm no payment sits in `Processing`. Nothing in the repo pins `payment_method_types`, so that configuration is the sole control; deploying first makes every in-flight delayed checkout 500 and starts the endpoint-disable clock. PayPal stays — it is synchronous by default, and must never have asynchronous funding sources enabled via Stripe Support.
+
+**5. Cron** (MCP `execute_sql`; migration jobs already ship — don't re-add):
+
+```sql
+select cron.schedule('purge-waitlist', '0 4 * * *', $$ select athanor.purge_email_waitlist() $$);
+select cron.schedule('gdpr-export-nightly', '25 3 * * *', $$
+  select net.http_post(url := 'https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/gdpr-export-job',
+    headers := athanor.edge_auth_headers(athanor.runtime_setting('notification_fanout_key')),
+    body := '{}'::jsonb, timeout_milliseconds := 5000); $$);
+```
+
+⚠ `athanor.runtime_setting`, **not** `current_setting('app.settings.…', true)` — this block read the GUC until 2026-08-10, and on a hosted project that resolves to NULL, so the job would have posted an empty `apikey` header and every response would have been a 401 with nothing in the job log to say why.
+
+**If `gdpr-export-nightly` already exists, re-create it.** A cron job stores its command verbatim in `cron.job.command`, so a job scheduled with the old `current_setting('app.settings.…', true)` form keeps reading NULL forever no matter what you put in Vault. The form above stores the _call_ to `athanor.runtime_setting`, which therefore re-resolves on every run — rotating the secret needs no reschedule. `select cron.unschedule('gdpr-export-nightly');` then re-create it with the block above.
+
+**Do NOT schedule `erasure-nightly`** — legal-gated inert; a cron that marks GDPR requests `failed` without deleting is a misleading audit trail. Cover the ≤30-day obligation with a documented manual process until counsel clears.
+
+**6. Seed `remote_config`** (both flags OFF, idempotent):
+
+```sql
+insert into public.remote_config (key, value) values
+  ('min_app_version',            '{"ios": "1.0.0", "android": "1.0.0"}'),
+  ('maintenance_mode',           '{"enabled": false, "eta": null}'),
+  ('fund_contributions_enabled', '{"enabled": false}'),
+  ('prime_stelle_enabled',       '{"enabled": false}')
+on conflict (key) do nothing;
+```
+
+**6b. EAS environment variables** (mobile; `.env` is gitignored and never reaches a cloud build). For each of `development` / `preview` / `production` — the environments named on the build profiles in `apps/native/eas.json`:
+
+```bash
+eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL              --value https://kwzeiqvrnnaagccyoose.supabase.co --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY  --value sb_publishable_…                        --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY         --value eyJ…                                     --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_SENTRY_DSN                --value https://…                                --visibility plaintext
+```
+
+Set BOTH the publishable and the anon key during the transition so a rollback build still boots. `eas.json` requires eas-cli **≥ 13.2.0** for the `environment` field — check `eas --version`.
+
+**7. Verify:** `select name from vault.secrets order by name;` (8 rows: four `_url`, four `_key`) and `select athanor.runtime_setting('score_engine_url');` non-null · `select jobid,command from cron.job;` shows no `Authorization` header left in any command · each internal function rejects a publishable key and an empty request with 401 (`curl -H "apikey: sb_publishable_…"` → 401) while accepting the secret key — this is what proves `verify_jwt=false` opened no hole · score-engine `net.http_post` with `{"mode":"decay"}` → logs `{decayed:N}` not 401 · real `connection_requests` insert → `public.notifications` row → `push-dispatch` log `{sent|skipped}` · `stripe trigger checkout.session.completed` → 200 + row in `stripe_webhook_events`; bad signature → 400 · `select jobname,schedule from cron.job;` (5 jobs, no erasure) · **P2.2 assertion (spec 10 §4.1a / M10):** upload a photo carrying GPS EXIF via the Storage API into `post-media`, wait ~5 s, re-download → no `Exif\0\0`/APP1 bytes (e.g. `xxd file | grep -i exif` empty) and `media-process` log shows `{stripped:true}` · `get_advisors('security'|'performance')` no new criticals.
+
+---
+
+## Appendix B — P1.5 store submission `[manual-you]`
+
+- **App Store Connect:** create app record → bundle ID (from P1.2) → upload build (`eas submit`) → Screenshots (IT+EN per device class) → App Privacy → Data Types (email, profile content, approximate location, Stripe payments-not-stored; **no tracking, no sale**) → Age Rating (12+) → Export Compliance (standard HTTPS, exempt — declare) → Support/Marketing/Privacy URLs → paste `store.*` copy (RUNBOOK §2 table).
+- **Play Console:** internal testing track → upload AAB → Store listing (IT+EN) → Data Safety form (match iOS) → Content rating (Teen) → paste `store.*` copy.
+- Pre-submit: `npx expo-doctor` clean · R-1 bundle grep (above) · deep-link cold-start + push entitlement on a release build.
+
+## Appendix C — P1.3 universal links `[agent + manual-you]`
+
+`app.json`: iOS `ios.associatedDomains: ["applinks:<domain>"]`; Android `android.intentFilters` with the domain + `autoVerify`. Host on the web domain (`apps/web/public/.well-known/`):
+
+- `apple-app-site-association` (no extension, `Content-Type: application/json`): `{"applinks":{"details":[{"appID":"<TEAMID>.<bundleId>","paths":["/momento/*","/event/*","/post/*","/@*","/invite/*"]}]}}`
+- `assetlinks.json`: `[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"<package>","sha256_cert_fingerprints":["<SHA256>"]}}]` (SHA from the EAS keystore).
+
+## Appendix D — P1.6 auth hardening — 🟡 PARTIAL 2026-08-10
+
+Supabase Dashboard (or Management API) → Authentication, **both** projects — no migration:
+
+- **MFA → TOTP: ✅ done 2026-08-10.** `mfa_totp_enroll_enabled` and `mfa_totp_verify_enabled` are `true` on `kwzeiqvrnnaagccyoose` and `eralyiwkfrpqsawivegz`. TOTP is **not** Pro-gated — the free plan took it without complaint. `supabase/config.toml [auth.mfa.totp]` mirrors this.
+- **Password policy: ✅ done 2026-08-10.** Minimum length 8 + "Lowercase, uppercase letters and digits", matching `packages/schemas/src/password.ts` and `supabase/config.toml`. No test can reach this third copy — re-verify by hand after any dashboard change.
+- **Leaked password protection (HIBP): ⬜ blocked — Pro plan only.** The Management API returns **HTTP 402** for it on the free plan. It stays `false`. This is the one item that made the old "these are Pro-plan dashboard toggles" line half-true; it was never true of TOTP.
+
+## Appendix E — Verified clean (audit 2026-07-02 — future audits can skip)
+
+96/96 mobile components imported · `packages/core` zero dead exports + purity clean (no I/O, no `Date.now()`/`Math.random()`) · no offset pagination · no `getSession()` in apps/web · no literal hex in app code · no `console.log` · i18n parity **1111/1111** keys IT/EN · no `.bak`/orphan screens except `event-create` (→ P4.5) · all client-reachable `SECURITY DEFINER` RPCs gated (→ P2.1 ✅).
+
+File-level sweep (v1.2): no committed build artifacts (`git ls-files` clean of `dist/`/`.next/`/`.expo/`/`coverage`) · no zero-byte files, no empty dirs · `scripts/check-i18n-hardcoded.mjs` + `.github/workflows/ci.yml` paths/commands all valid · `supabase/functions/_shared/*` fully imported (cors×9, respond×9, supabaseAdmin×7, stripe×6, qr×2, notif-templates×1) · all pgTAP tests CI-run · `packages/{api,schemas,core,i18n,config}` zero file-level orphans (dead _exports_ tracked in P5) · mobile `src/lib` 19/19 modules imported, `src/tw` used · web `utils/supabase/*` + Next file-conventions all live · assets clean post-v1.2 removals.
+
+---
+
+_Generated 2026-07-02 · supersedes `docs/superpowers/T0-parallel-tasks.md` · tracked slices land in `docs/MILESTONES.md`._

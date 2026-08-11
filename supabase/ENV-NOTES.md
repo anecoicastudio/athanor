@@ -87,6 +87,6 @@ custom parameter is on it. Every caller reads through `athanor.runtime_setting(n
 tries the GUC first (so a local `supabase start` stack and pgTAP `set_config` fixtures keep
 working) and falls back to the Vault secret of the same name. Vault also confines the value
 to `postgres`/`service_role`, which a role-level GUC could not — `pg_db_role_setting` is
-world-readable. The migration's own header comment is the authoritative account (it is in the
-repo; `docs/` is gitignored, so `docs/PRODUCTION-READINESS.md` Appendix A step 3 — the full
-eight-secret deploy sequence — is visible only to the maintainer).
+world-readable. The migration's own header comment is the authoritative account; the full
+eight-secret deploy sequence is `docs/PRODUCTION-READINESS.md` Appendix A step 3, which is in
+the repo.

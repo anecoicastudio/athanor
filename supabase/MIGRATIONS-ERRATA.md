@@ -55,6 +55,15 @@ share and zero every other ballot in the displayed consensus.
 `20260811100616_equal_vote_weight_constraint.sql` makes the claim true, adding
 `check (weight = 1.000)`. The claim should be read as accurate only from that migration onward.
 
+### L28 — the cited document is frozen; read `docs/FUND-SPEC.md` instead
+
+L28 says _"See docs/FUND-SPEC-AUDIT.md R-C and FUND-13."_ That file was **frozen on 2026-08-11** and
+its own header now says not to plan from it or resolve a disagreement in its favour. The requirement
+it carried was not lost — **FUND-nn numbers carry forward unchanged** — so `FUND-13` is live and
+reads the same, in `docs/FUND-SPEC.md`. The `R-C` label does not exist outside the frozen audit; its
+resolution is decision **D32** in `docs/FUND-DECISIONS.md` (Aura gates _who may vote_, never how much
+a vote counts). Same correction applied to this file's own `20260618131250` entry, which is editable.
+
 Verified behaviour lives in `supabase/tests/0044_candidacy_votes_rls.test.sql`.
 
 ---
@@ -70,8 +79,8 @@ trigger overwrites it with the server Aura snapshot… e.g. 0.700… would rejec
 voter"_), and L127 (_"trigger snapshots Aura"_).
 
 Superseded on 2026-08-11: the vote is **equal**, weight is a constant `1.000`, and Aura gates
-_eligibility to vote_ rather than the weight of a ballot (PRD §4.11; `docs/FUND-SPEC-AUDIT.md` R-C
-and FUND-13). `20260811091835` changed the trigger; `20260811094524` backfilled existing rows and
+_eligibility to vote_ rather than the weight of a ballot (PRD §4.11; `docs/FUND-SPEC.md` FUND-13).
+`20260811091835` changed the trigger; `20260811094524` backfilled existing rows and
 reverted the function to `security invoker`, since L50's stated rationale — _"DEFINER — reads
 aura_scores cross-RLS"_ — no longer applies to a body that reads nothing.
 
