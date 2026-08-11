@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  athanorDaysInterestSchema,
   attendanceSchema,
   checkInResultSchema,
   eventCreateSchema,
@@ -42,6 +43,19 @@ describe('eventSchema (read)', () => {
   });
   it('rejects an unknown category', () => {
     expect(() => eventSchema.parse({ ...baseRow, category: 'sport' })).toThrow();
+  });
+  // baseRow prices the event at 0, which satisfies a floor and a ceiling alike — so the bound
+  // could have been inverted and every test here would still pass. A paid event is the case.
+  it('accepts a paid price and rejects a negative one', () => {
+    expect(eventSchema.parse({ ...baseRow, price_cents: 2500 }).price_cents).toBe(2500);
+    expect(() => eventSchema.parse({ ...baseRow, price_cents: -1 })).toThrow();
+  });
+  // Both anchors matter: without `^` a 'xeur' passes, without `$` a 'eurx' does, and either
+  // would reach Stripe as a currency it does not recognise.
+  it('anchors currency to exactly three lowercase letters', () => {
+    for (const bad of ['xeur', 'eurx', 'EUR', 'eu', 'euro']) {
+      expect(() => eventSchema.parse({ ...baseRow, currency: bad })).toThrow();
+    }
   });
 });
 
@@ -97,6 +111,17 @@ describe('eventCreateSchema', () => {
   it('rejects a blank (whitespace-only) title', () => {
     expect(() => eventCreateSchema.parse({ ...physical, title: '   ' })).toThrow();
   });
+  // The create input re-declares price_cents and currency rather than picking them, so the read
+  // schema's bounds above say nothing about these — they are separate constraints.
+  it('accepts a paid price and rejects a negative one', () => {
+    expect(eventCreateSchema.parse({ ...physical, price_cents: 2500 }).price_cents).toBe(2500);
+    expect(() => eventCreateSchema.parse({ ...physical, price_cents: -1 })).toThrow();
+  });
+  it('anchors currency to exactly three lowercase letters', () => {
+    for (const bad of ['xeur', 'eurx', 'EUR', 'eu', 'euro']) {
+      expect(() => eventCreateSchema.parse({ ...physical, currency: bad })).toThrow();
+    }
+  });
   it('rejects a physical event without coordinates', () => {
     expect(() => eventCreateSchema.parse({ ...physical, lat: null, long: null })).toThrow();
   });
@@ -107,17 +132,23 @@ describe('eventCreateSchema', () => {
     expect(() => eventCreateSchema.parse({ ...physical, long: null })).toThrow();
     expect(() => eventCreateSchema.parse({ ...physical, lat: null })).toThrow();
   });
-  // The `path` on each refine is what a create form keys its field-level error off; nothing
-  // reads it yet, so blanking it is currently invisible.
+  // The `path` on each refine is what a create form keys its field-level error off, and the
+  // message is the token it looks the i18n copy up by — machine-readable, not user-facing prose
+  // (rule #5 keeps the copy in @athanor/i18n). Nothing reads either yet, so blanking them is
+  // currently invisible; pinned here so the day a form does read them, they still say this.
   it('routes each refine failure to the field it is about', () => {
     const noCoords = eventCreateSchema.safeParse({ ...physical, lat: null, long: null });
     expect(noCoords.error?.issues[0]?.path).toEqual(['lat']);
+    expect(noCoords.error?.issues[0]?.code).toBe('custom');
+    expect(noCoords.error?.issues[0]?.message).toBe('location_required');
     const noStream = eventCreateSchema.safeParse({
       ...physical,
       is_online: true,
       stream_url: null,
     });
     expect(noStream.error?.issues[0]?.path).toEqual(['stream_url']);
+    expect(noStream.error?.issues[0]?.code).toBe('custom');
+    expect(noStream.error?.issues[0]?.message).toBe('stream_url_required');
   });
   it('rejects an online event without a stream URL', () => {
     expect(() =>
@@ -135,6 +166,21 @@ describe('eventCreateSchema', () => {
         long: null,
       }).is_online,
     ).toBe(true);
+  });
+});
+
+describe('athanorDaysInterestSchema', () => {
+  const valid = {
+    id: '11111111-1111-1111-1111-111111111111',
+    user_id: '22222222-2222-2222-2222-222222222222',
+    edition: 'primavera-2026',
+    created_at: '2026-06-15T10:00:00.000Z',
+  };
+
+  it('parses an interest row and bounds edition to 80 chars', () => {
+    expect(athanorDaysInterestSchema.parse(valid).edition).toBe('primavera-2026');
+    expect(athanorDaysInterestSchema.parse({ ...valid, edition: null }).edition).toBeNull();
+    expect(() => athanorDaysInterestSchema.parse({ ...valid, edition: 'x'.repeat(81) })).toThrow();
   });
 });
 
