@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from './links';
+import {
+  INVITE_URL_BASE,
+  LEGAL_PRIVACY_URL,
+  LEGAL_TERMS_URL,
+  SITE_ORIGIN,
+  SUPPORT_EMAIL,
+} from './links';
 
 const URLS = [LEGAL_TERMS_URL, LEGAL_PRIVACY_URL, INVITE_URL_BASE];
 
@@ -44,6 +50,19 @@ describe('external destinations', () => {
     const host = associated!.replace(/^applinks:/, '');
     for (const url of URLS) {
       expect(new URL(url).host).toBe(host);
+    }
+  });
+
+  // The list above has to be remembered; this does not. Every destination derives from
+  // SITE_ORIGIN, so anchoring the origin itself covers constants added after this test
+  // was written — including any that nobody thought to append to URLS.
+  it('SITE_ORIGIN is the host app.json associates with, so derived destinations inherit it', () => {
+    const [associated] = appJson.ios.associatedDomains;
+    const host = associated!.replace(/^applinks:/, '');
+    expect(new URL(SITE_ORIGIN).host).toBe(host);
+    expect(new URL(SITE_ORIGIN).protocol).toBe('https:');
+    for (const url of URLS) {
+      expect(url.startsWith(`${SITE_ORIGIN}/`)).toBe(true);
     }
   });
 });

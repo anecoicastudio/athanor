@@ -13,6 +13,7 @@ import { ProfileEditForm } from '@/components/profile/ProfileEditForm';
 import { ProfileView } from '@/components/profile/ProfileView';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
+import { profileShareMessage } from '@/lib/profile-share';
 import { useOwnDream } from '@/hooks/use-own-dream';
 import { useStarCelebration } from '@/hooks/use-star-celebration';
 
@@ -85,13 +86,16 @@ function ProfileEditor({
     }, [userId, queryClient]),
   );
 
-  // Native share sheet: shares the @handle + app name (mirrors home InviteCard;
-  // tracked-referral attribution is a later milestone).
+  // Native share sheet, via the one builder both profile surfaces use (issue #110). Built at
+  // render so the ✦ can be withheld when there is nothing to share: handle is nullable and
+  // the signup trigger does not set it, so a session can reach this screen without one.
+  // Tracked-referral attribution is a later milestone.
+  const shareMessage = profileShareMessage(profile.handle, t('app.name', locale));
+
   const shareProfile = async () => {
-    const handle = profile.handle;
-    const message = handle ? `@${handle} — ${t('app.name', locale)}` : t('app.name', locale);
+    if (!shareMessage) return;
     try {
-      await Share.share({ message });
+      await Share.share({ message: shareMessage });
     } catch {
       // user dismissed or share unavailable — no-op
     }
@@ -111,17 +115,19 @@ function ProfileEditor({
     >
       {!editing ? (
         <>
-          {/* Header row: share stub + edit toggle — sized to the 24px icon scale
+          {/* Header row: share + edit toggle — sized to the 24px icon scale
               (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. */}
           <View className="flex-row items-center justify-end gap-5">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('profile.share.toast', locale)}
-              hitSlop={HIT_SLOP}
-              onPress={() => void shareProfile()}
-            >
-              <Text className="text-2xl text-aura">✦</Text>
-            </Pressable>
+            {shareMessage != null && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('profile.share.toast', locale)}
+                hitSlop={HIT_SLOP}
+                onPress={() => void shareProfile()}
+              >
+                <Text className="text-2xl text-aura">✦</Text>
+              </Pressable>
+            )}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('settings.title', locale)}
