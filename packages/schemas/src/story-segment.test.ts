@@ -25,16 +25,45 @@ describe('storySegmentSchema', () => {
   });
   it('rejects a caption over 280 chars', () => {
     expect(() => storySegmentSchema.parse({ ...valid, caption: 'x'.repeat(281) })).toThrow();
+    expect(storySegmentSchema.parse({ ...valid, caption: 'x'.repeat(280) }).caption).toHaveLength(
+      280,
+    );
+  });
+
+  // A length bound measured before trimming is a different bound: '  x  '.length is 5, not 1.
+  // The shared captionSchema trims first, and only an assertion on the parsed value says so.
+  it('trims the caption before measuring it', () => {
+    expect(storySegmentSchema.parse({ ...valid, caption: '  ok  ' }).caption).toBe('ok');
+  });
+
+  it('bounds duration_s to a ≤60s clip, integer, non-negative (mirrors the story_segments CHECK)', () => {
+    expect(storySegmentSchema.parse({ ...valid, duration_s: 60 }).duration_s).toBe(60);
+    expect(storySegmentSchema.parse({ ...valid, duration_s: 0 }).duration_s).toBe(0);
+    for (const bad of [61, -1, 12.5]) {
+      expect(() => storySegmentSchema.parse({ ...valid, duration_s: bad })).toThrow();
+    }
   });
 });
 
+const baseInsert = {
+  author_id: valid.author_id,
+  kind: 'video',
+  storage_path: '22222222/seg2.mp4',
+};
+
 describe('storySegmentInsertSchema', () => {
   it('defaults the optional fields', () => {
-    const parsed = storySegmentInsertSchema.parse({
-      author_id: valid.author_id,
-      kind: 'video',
-      storage_path: '22222222/seg2.mp4',
-    });
+    const parsed = storySegmentInsertSchema.parse(baseInsert);
     expect(parsed).toMatchObject({ is_step: false, duration_s: null, caption: null });
+  });
+
+  // The insert re-declares duration_s rather than picking it, so the row's bound proves nothing
+  // about this one — they are two separate constraints that happen to read alike.
+  it('bounds duration_s on the insert too', () => {
+    expect(storySegmentInsertSchema.parse({ ...baseInsert, duration_s: 60 }).duration_s).toBe(60);
+    expect(storySegmentInsertSchema.parse({ ...baseInsert, duration_s: 0 }).duration_s).toBe(0);
+    for (const bad of [61, -1, 12.5]) {
+      expect(() => storySegmentInsertSchema.parse({ ...baseInsert, duration_s: bad })).toThrow();
+    }
   });
 });
