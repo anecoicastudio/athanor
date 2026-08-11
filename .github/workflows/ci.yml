@@ -114,6 +114,11 @@ jobs:
               - 'supabase/**'
               - 'packages/schemas/**'
               - 'packages/api/src/database.types.ts'
+              # The job must test itself: a PR that only edits this workflow (CLI
+              # version, the types-sync script, a new step) would otherwise skip the
+              # gate it changes and first run it on the dev push. Same reason
+              # mutation.yml lists itself in its own paths.
+              - '.github/workflows/ci.yml'
       - uses: supabase/setup-cli@v1
         if: steps.db-paths.outputs.db != 'false'
         with:
