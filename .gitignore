@@ -36,7 +36,6 @@ coverage/
 /docs/
 .claude/
 CLAUDE.md
-AGENTS.md
 *.types.ts.tmp
 .gstack/
 # Deno edge-function local lockfile (transient; functions pin deps in deno.json)
