@@ -50,7 +50,7 @@ The pasted 2026-07-01 audit lists these as open; they are **shipped**. Reconcile
 ### P1.2 — EAS build config `[agent, ⚠ edits app.json]` — ✅ DONE 2026-07-08
 
 Shipped: `eas.json` (EAS project `@anecoica/athanor`), `app.json` bundle IDs + `extra.eas.projectId` + `owner` + `runtimeVersion` policy, `expo-updates ~29.0.18` installed, `.env.example` created. Accepted gap: dev profile needs `expo-dev-client` (not installed — Expo Go workflow retained on SDK 54). Original spec kept below for the record.
-Original spec (superseded): `apps/mobile/eas.json` was absent; `app.json` had no `ios.bundleIdentifier` / `android.package` / `extra.eas.projectId` / `owner`. Add them. Set `runtimeVersion` policy so native changes force a store build and JS-only fixes ship OTA — this requires **`npx expo install expo-updates`** (not in package.json despite RUNBOOK R-3/R-5/G3 assuming OTA rollback) + channel per EAS profile. Also **create `apps/mobile/.env.example`** (R-1 requires it current; file doesn't exist; `EXPO_PUBLIC_*` keys only — never a service key). `npx expo-doctor` after.
+Original spec (superseded): `apps/mobile/eas.json` was absent; `app.json` had no `ios.bundleIdentifier` / `android.package` / `extra.eas.projectId` / `owner`. Add them. Set `runtimeVersion` policy so native changes force a store build and JS-only fixes ship OTA — this requires **`pnpm exec expo install expo-updates`** (not in package.json despite RUNBOOK R-3/R-5/G3 assuming OTA rollback) + channel per EAS profile. Also **create `apps/mobile/.env.example`** (R-1 requires it current; file doesn't exist; `EXPO_PUBLIC_*` keys only — never a service key). `pnpm exec expo-doctor` after.
 
 ### P1.3 — Universal links `[agent + manual-you]` — ✅ DONE 2026-07-08 (agent part)
 
@@ -60,7 +60,7 @@ Add iOS `associatedDomains` + Android intent-filters/`assetlinks` to `app.json`;
 ### P1.4 — Sentry `[agent, ⚠ edits app.json]` — ✅ DONE 2026-07-08
 
 Shipped: `@sentry/react-native ~7.2.0` installed; `metro.config.js` uses `getSentryExpoConfig` (NativeWind wrap kept); deferred init behind `SentryConsentGate` (M9 diagnostics consent) with PII scrub; `Sentry.wrap(RootLayout)`; DSN via gitignored `.env`. Original spec kept below.
-Original spec (superseded): `@sentry/react-native` was not installed. `npx expo install @sentry/react-native`; add the `@sentry/react-native/expo` config plugin to `app.json`; swap `metro.config.js` `getDefaultConfig`→`getSentryExpoConfig` (keep the `withNativewind` wrap); in `src/app/_layout.tsx` add `Sentry.init({ dsn: process.env.EXPO_PUBLIC_SENTRY_DSN, sendDefaultPii: false, beforeSend, beforeBreadcrumb })` + `export default Sentry.wrap(RootLayout)`. **Consent-gate:** init disabled until the M9 consent flag is granted (`src/app/(modal)/trust.tsx`). `beforeSend` drops `event.user`, strips `Authorization`/`Cookie`, redacts chat/message/profile text + tokens (RUNBOOK §3.5.1). DSN as `EXPO_PUBLIC_SENTRY_DSN`; `SENTRY_AUTH_TOKEN`+org/project as EAS build secrets for symbol upload.
+Original spec (superseded): `@sentry/react-native` was not installed. `pnpm exec expo install @sentry/react-native`; add the `@sentry/react-native/expo` config plugin to `app.json`; swap `metro.config.js` `getDefaultConfig`→`getSentryExpoConfig` (keep the `withNativewind` wrap); in `src/app/_layout.tsx` add `Sentry.init({ dsn: process.env.EXPO_PUBLIC_SENTRY_DSN, sendDefaultPii: false, beforeSend, beforeBreadcrumb })` + `export default Sentry.wrap(RootLayout)`. **Consent-gate:** init disabled until the M9 consent flag is granted (`src/app/(modal)/trust.tsx`). `beforeSend` drops `event.user`, strips `Authorization`/`Cookie`, redacts chat/message/profile text + tokens (RUNBOOK §3.5.1). DSN as `EXPO_PUBLIC_SENTRY_DSN`; `SENTRY_AUTH_TOKEN`+org/project as EAS build secrets for symbol upload.
 
 ### P1.5 — Store submission `[manual-you]`
 
@@ -308,7 +308,7 @@ Set BOTH the publishable and the anon key during the transition so a rollback bu
 
 - **App Store Connect:** create app record → bundle ID (from P1.2) → upload build (`eas submit`) → Screenshots (IT+EN per device class) → App Privacy → Data Types (email, profile content, approximate location, Stripe payments-not-stored; **no tracking, no sale**) → Age Rating (12+) → Export Compliance (standard HTTPS, exempt — declare) → Support/Marketing/Privacy URLs → paste `store.*` copy (RUNBOOK §2 table).
 - **Play Console:** internal testing track → upload AAB → Store listing (IT+EN) → Data Safety form (match iOS) → Content rating (Teen) → paste `store.*` copy.
-- Pre-submit: `npx expo-doctor` clean · R-1 bundle grep (above) · deep-link cold-start + push entitlement on a release build.
+- Pre-submit: `pnpm exec expo-doctor` clean · R-1 bundle grep (above) · deep-link cold-start + push entitlement on a release build.
 
 ## Appendix C — P1.3 universal links `[agent + manual-you]`
 

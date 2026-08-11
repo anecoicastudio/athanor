@@ -48,7 +48,7 @@ read it before trusting a migration's comments. The pgTAP tests are the source o
 ```bash
 pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
-cd apps/native && npx expo start            # run the app in Expo Go
+cd apps/native && pnpm exec expo start      # run the app in Expo Go
 pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
@@ -115,7 +115,7 @@ Enforced by CI and review on every PR — not style preferences.
 
 ## Working conventions
 
-- **Native dependencies:** `npx expo install`, never `pnpm add`; then `npx expo-doctor`. The project is on **Expo SDK 54** (deliberate) — check the SDK 54 docs, not the latest.
+- **Native dependencies:** `pnpm exec expo install`, never `pnpm add`; then `pnpm exec expo-doctor`. The project is on **Expo SDK 54** (deliberate) — check the SDK 54 docs, not the latest.
 - **Styling:** NativeWind classNames through the wrappers in `src/tw` — plain RN components don't accept `className` here.
 - **The app pnpm package is named `native`, unscoped** — `--filter @athanor/native` is a silent no-op; use `--filter native`.
 - **Environments:** production is maintainer-only; staging is the shared workbench, seeded with fake data — never put real people's content in it. Enable MFA on your GitHub and Supabase accounts.
