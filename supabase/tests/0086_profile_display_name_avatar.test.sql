@@ -21,7 +21,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(38);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
 -- A owns the avatar, B is an ordinary member, C is blocked by A. The remaining four exercise
@@ -152,7 +152,35 @@ select is(
   'another member reads the name (it renders on the person card)'
 );
 
+-- READ grants, explicitly. 20260807170813 column-scoped the authenticated SELECT grant on
+-- profiles down to the non-sensitive set and routes the rest through DEFINER accessors, so a
+-- column added afterwards is unreadable by every client until it is deliberately placed in one
+-- tier or the other — and the failure is a flat 42501 on any select that so much as names it in
+-- a WHERE. These two belong in the direct tier with handle: identity surface, not profile
+-- content. Asserted as grants and not only through the behavioural read above, because the
+-- behavioural one fails for several reasons and this says which.
+select lives_ok(
+  $$ select display_name, avatar_path from public.profiles
+      where id = 'a0860000-0000-0000-0000-000000000001' $$,
+  'a member can SELECT display_name and avatar_path by name'
+);
+
 reset role;
+
+select ok(
+  has_column_privilege('authenticated', 'public.profiles', 'display_name', 'SELECT')
+  and has_column_privilege('authenticated', 'public.profiles', 'avatar_path', 'SELECT'),
+  'authenticated holds column SELECT on both new columns'
+);
+
+-- anon holds (id, handle, visibility, updated_at) for the public @handle pages. A name and a
+-- face there would publish every member's photograph to the unauthenticated internet, which
+-- needs the visibility gate first — so their absence is the assertion.
+select ok(
+  not has_column_privilege('anon', 'public.profiles', 'display_name', 'SELECT')
+  and not has_column_privilege('anon', 'public.profiles', 'avatar_path', 'SELECT'),
+  'anon holds NO select on the name or the avatar (deliberate — see 20260811074859)'
+);
 
 -- ── 4. bucket metadata ────────────────────────────────────────────────────────────────────
 select is(
