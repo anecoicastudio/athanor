@@ -21,7 +21,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(43);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
 -- A owns the avatar, B is an ordinary member, C is blocked by A. The remaining four exercise
@@ -371,13 +371,11 @@ select is(
   'a member cannot rename another member''s avatar object (UPDATE policy denies)'
 );
 
-delete from storage.objects where bucket_id = 'avatars' and name like 'a0860000-%';
-select is(
-  (select count(*)::int from storage.objects
-     where bucket_id = 'avatars' and name like 'a0860000-%'),
-  1,
-  'a member cannot delete another member''s avatar object (DELETE policy denies)'
-);
+-- The DELETE policy gets no behavioural assertion, and cannot have one: this Storage version
+-- raises `Direct deletion from storage tables is not allowed. Use the Storage API instead.`
+-- from a trigger that fires ahead of RLS, so a pgTAP DELETE aborts the file rather than being
+-- denied by the policy under test. Its shape is covered above with the other two owner-write
+-- policies (auth.uid() bound to the first path segment, wrapped form, bucket pinned).
 
 set local request.jwt.claims = '{"sub":"c0860000-0000-0000-0000-000000000003","role":"authenticated"}';
 select is(
