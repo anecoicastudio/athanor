@@ -17,7 +17,16 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo lint typecheck test
+      # Persist turbo's local cache across runs. Sound to trust since turbo.json wires
+      # cross-package edges through the `transit` node — a dependency change invalidates
+      # dependents' hashes. PR branches restore from the base branch's cache (GitHub
+      # cache scoping), so an untouched package never re-runs.
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+      - run: pnpm turbo run lint typecheck test --cache-dir=.turbo
       - run: pnpm i18n:check
       - run: pnpm format:check
 
@@ -32,6 +41,14 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Chromium is a ~150MB download per run; cache Playwright's browser store.
+      # `playwright install` below still runs (it apt-installs system deps) but skips
+      # the download when the store already holds the pinned build.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: playwright-${{ runner.os }}-
       - name: e2e admin smoke
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -70,12 +87,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # PR wall-time trim: this job spins up a full Postgres stack (~3 min) to replay
+      # migrations, so on PRs it runs only when something DB-shaped changed. Pushes to
+      # dev/main always run everything — the mainline gate never thins, so staging
+      # drift an untouched-DB PR would miss surfaces on the next dev push at latest.
+      - uses: dorny/paths-filter@v3
+        id: db-paths
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            db:
+              - 'supabase/**'
+              - 'packages/schemas/**'
+              - 'packages/api/src/database.types.ts'
       - uses: supabase/setup-cli@v1
+        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
         with:
           version: 2.106.0
       - run: supabase start
+        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
       - run: supabase test db
+        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
       - name: generated types cover the schema
+        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
