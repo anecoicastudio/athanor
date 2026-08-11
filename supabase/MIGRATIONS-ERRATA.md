@@ -41,18 +41,33 @@ The migration's SQL is correct and unaffected; only its justification was wrong,
 the urgency rather than overstating it.
 
 That header also says nothing about existing rows, because it did not backfill —
-`20260811094524_equal_vote_backfill.sql` closes that. Verified behaviour lives in
-`supabase/tests/0044_candidacy_votes_rls.test.sql` (the `weight is distinct from 1.000` invariant).
+`20260811094524_equal_vote_backfill.sql` closes that.
+
+### L37-39 — "an enforced invariant" was, at the time, only true on a fresh database
+
+Both this file and `20260811094524:56-58` claim _"pgTAP 0044 asserts every stored weight is exactly
+1.000, which turns this from a convention into an enforced invariant."_ A passing test is not a
+constraint. Those two migrations guarded only the INSERT path (the BEFORE INSERT trigger); nothing
+guarded UPDATE, and `20260618131250:25` grants `all` — including UPDATE — on `candidacy_votes` to
+`service_role`. One stray non-`1.000` row was enough to flip `consensusPercent` back to the weighted
+share and zero every other ballot in the displayed consensus.
+
+`20260811100616_equal_vote_weight_constraint.sql` makes the claim true, adding
+`check (weight = 1.000)`. The claim should be read as accurate only from that migration onward.
+
+Verified behaviour lives in `supabase/tests/0044_candidacy_votes_rls.test.sql`.
 
 ---
 
 ## `20260618131250_m7_voting.sql`
 
-### L1-2, L11, L15-16 — "Aura-weighted" is no longer how voting works
+### L1-2, L11, L15-16, L38-42, L127 — "Aura-weighted" is no longer how voting works
 
 The file describes the original design: _"M7 voting — Aura-weighted candidacy votes"_ (L1),
-_"weight = SERVER-written Aura snapshot (trigger)"_ (L2), and the column comment _"Aura snapshot —
-SERVER-written (trigger), never client"_ (L11).
+_"weight = SERVER-written Aura snapshot (trigger)"_ (L2), the column comment _"Aura snapshot —
+SERVER-written (trigger), never client"_ (L11), the RLS rationale at L38-42 (_"the BEFORE-INSERT
+trigger overwrites it with the server Aura snapshot… e.g. 0.700… would reject every Aura-holding
+voter"_), and L127 (_"trigger snapshots Aura"_).
 
 Superseded on 2026-08-11: the vote is **equal**, weight is a constant `1.000`, and Aura gates
 _eligibility to vote_ rather than the weight of a ballot (PRD §4.11; `docs/FUND-SPEC-AUDIT.md` R-C
@@ -62,8 +77,19 @@ aura_scores cross-RLS"_ — no longer applies to a body that reads nothing.
 
 The **table** comment set at L15-16 was live on staging and production and is corrected in DDL by
 `20260811094524` (`comment on` is idempotent). The file comments above cannot be, hence this entry.
+There is no `comment on column` for `weight` anywhere, so L11 left no catalog entry to fix — it is
+file prose only.
 
-Verified behaviour: `supabase/tests/0044_candidacy_votes_rls.test.sql`.
+**Signpost for anyone grepping `set_candidacy_vote_weight`:** it has four definitions across the
+tree. `20260618131250:51-76` (Aura snapshot, definer) → `20260701155919_m7_voting_weight_trigger_fix_backfill.sql:36-52`
+(re-installs the same Aura-snapshot body while fixing where the tamper guard lives) →
+`20260811091835:33` (constant `1.000`, still definer) → `20260811094524:47` (constant, **invoker**
+— the current one). `20260701155919`'s prose accurately describes its own SQL and so gets no entry
+of its own, but it is not the live body and should not be read as one.
+
+Verified behaviour: `supabase/tests/0044_candidacy_votes_rls.test.sql` — the equal-weight invariant,
+the `23514` on a service_role UPDATE off `1.000` (`20260811100616` added the CHECK), the trigger
+still being bound, and `prosecdef = false`.
 
 ---
 

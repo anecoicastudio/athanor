@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(15);
+select plan(18);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- two members. The handle_new_user trigger auto-creates their public.profiles rows.
@@ -146,12 +146,40 @@ select is(
 );
 
 -- ── equal vote (R-C) ──────────────────────────────────────────────────────────────────
--- The enforced invariant. Both members have voted by now: user_a with an aura_scores row of
--- 700, user_b with no row at all — the case the old trigger coalesced to weight 0, i.e. a
--- ballot that contributed nothing to the weighted tally. Neither is true any more.
+-- Both members have voted by now: user_a with an aura_scores row of 700, user_b with no row at
+-- all — the case the old trigger coalesced to weight 0, i.e. a ballot that contributed nothing
+-- to the weighted tally. Neither is true any more.
 select is(
   (select count(*) from public.candidacy_votes where weight is distinct from 1.000)::bigint,
   0::bigint, 'every stored weight is exactly 1.000 — Aura never tilts the tally (R-C)'
+);
+
+-- ...and it is a CONSTRAINT, not merely a convention the trigger happens to honour. service_role
+-- holds UPDATE on this table and there is no UPDATE trigger, so without the CHECK a stray write
+-- could re-introduce weighting: consensusPercent flips to the weighted share as soon as one row
+-- is non-1.000. Asserted AS service_role, the role that actually holds the UPDATE grant.
+set local role service_role;
+select throws_ok(
+  $$ update public.candidacy_votes set weight = 0.500
+      where voter_id = '11111111-1111-1111-1111-111111111111' $$,
+  '23514', null, 'weight cannot be moved off 1.000, even by service_role (CHECK)'
+);
+reset role;
+
+-- The trigger must still be bound after the create-or-replace chain (091835 → 094524). `create or
+-- replace` preserves the OID so the binding survives, but a future replace could drop it silently.
+select has_trigger(
+  'public', 'candidacy_votes', 'candidacy_votes_set_weight',
+  'the weight trigger is still bound after the equal-vote replacements'
+);
+
+-- ...and it is INVOKER now. The DEFINER rationale (20260618131250:50) was "reads aura_scores
+-- cross-RLS"; the body reads nothing, so definer would be an unneeded privilege. Pinned so a
+-- future replace cannot quietly restore it.
+select is(
+  (select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_candidacy_vote_weight'),
+  false, 'set_candidacy_vote_weight is security invoker (it reads nothing)'
 );
 
 select * from finish();
