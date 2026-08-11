@@ -15,6 +15,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Worker threads instead of forked processes — spawn dominated the run. Isolation
+    // STAYS on: these tests vi.mock next/* modules per file.
+    pool: 'threads',
     include: ['{app,lib,utils}/**/*.test.ts'],
     coverage: {
       provider: 'v8',

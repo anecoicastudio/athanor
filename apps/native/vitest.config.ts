@@ -18,6 +18,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Worker threads instead of forked processes — spawn dominated the run. Isolation
+    // STAYS on: these tests vi.mock expo modules and the Supabase client per file.
+    pool: 'threads',
     include: ['src/**/*.test.ts'],
     coverage: {
       provider: 'v8',

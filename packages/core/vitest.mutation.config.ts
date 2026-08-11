@@ -7,7 +7,9 @@ import { defineConfig } from 'vitest/config';
 // trip on nearly every run and turn a killed mutant into a runner error. Mutation score is the
 // signal here; line coverage is measured by the normal `test` script.
 //
-// Nothing else is relaxed: same environment, same test files, same assertions.
+// Nothing else is relaxed: same environment, same test files, same assertions. (Pooling does
+// differ from vitest.config.ts — Stryker's runner sets its own threads pool and default
+// isolation, so this harness is MORE isolated than `pnpm test`, never less.)
 export default defineConfig({
   test: {
     coverage: { enabled: false },

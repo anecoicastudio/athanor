@@ -35,6 +35,9 @@ import { defineConfig } from 'vitest/config';
 // tests land, never down (core.md precedent).
 export default defineConfig({
   test: {
+    // Worker threads instead of forked processes — spawn dominated the run. Isolation
+    // STAYS on: these tests vi.mock the Supabase client per file.
+    pool: 'threads',
     coverage: {
       provider: 'v8',
       include: ['src/**'],

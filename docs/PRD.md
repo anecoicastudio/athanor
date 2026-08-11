@@ -461,7 +461,7 @@ aura_events (ledger, append-only)
 - RLS: pgTAP suite — every table, every role, including "client cannot write score" assertion.
 - Web: Playwright smoke — signup → dream → feed → event ticket → Athanor Circle checkout (Stripe test mode).
 - Mobile: Maestro happy path pre-store-submission.
-- CI (GitHub Actions): typecheck · lint · unit · pgTAP on PR; Cloudflare Workers deploy on push to main (behind all CI gates); EAS Build on release tags; migrations applied via Supabase CLI in pipeline.
+- CI (GitHub Actions): typecheck · lint · unit on every PR, pgTAP when the PR touches `supabase/**`, `packages/schemas/**`, `database.types.ts` or the CI workflow itself (always on pushes to dev/main); Cloudflare Workers deploy on push to main (behind all CI gates); EAS Build on release tags; migrations applied via Supabase CLI in pipeline.
 
 ## 11. Milestones (build order)
 
