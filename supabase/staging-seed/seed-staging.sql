@@ -628,31 +628,37 @@ on conflict do nothing;
 -- handle-prefixed key (moments), the old fake URL (candidacies), or `type = 'text'` (posts) —
 -- and the upload script, which reads keys out of the DB by design, would then POST bytes to a
 -- path the bucket policy rejects. A project seeded from empty never executes any of this.
+-- The owner uid comes from the row's own FK, never from md5('user:' || handle). For a seeded row
+-- the two are identical, but for anything else the hash would write a first path segment that is
+-- not the owner's uid — a key no client could upload to and no client could read. The guards
+-- below already exclude app-written rows; taking the uid from the FK means that if one ever did
+-- slip through, the repair still produces a correct key instead of a broken one.
+--
 -- Only rows whose key is NOT already uid-prefixed, so a moment created in the app (which always
 -- writes the canonical shape) is never touched.
 update public.moments m set
-    media_path = md5('user:' || pr.handle)::uuid::text || '/' || m.id::text
+    media_path = m.owner_id::text || '/' || m.id::text
                  || (case when m.kind = 'video' then '.mp4' else '.jpg' end),
     thumb_path = case when m.kind = 'video'
-                      then md5('user:' || pr.handle)::uuid::text || '/' || m.id::text || '-thumb.jpg'
+                      then m.owner_id::text || '/' || m.id::text || '-thumb.jpg'
                       else m.thumb_path end,
     width      = case when m.kind = 'video' then 1080 else m.width end,
     height     = case when m.kind = 'video' then 1920 else m.height end
-  from public.profiles pr
- where pr.id = m.owner_id
-   and m.media_path !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/';
+ where m.media_path !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/';
 
 update public.dream_candidacies c
-   set video_url = md5('user:' || pr.handle)::uuid::text || '/' || c.id::text || '.mp4'
-  from public.profiles pr
- where pr.id = c.profile_id
-   and c.video_url like 'http%';
+   set video_url = c.profile_id::text || '/' || c.id::text || '.mp4'
+ where c.video_url like 'http%';
 
+-- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
+-- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
+-- renders an empty box — the same principle the moments guard above states.
 update public.posts p
    set type = 'image'::public.post_type
   from public.profiles pr
  where pr.id = p.author_id
    and pr.handle in ('bea_foto', 'ele_yoga', 'vera_erbe', 'nina_poeta')
+   and p.id = md5('post:' || pr.handle || ':1')::uuid
    and p.type <> 'image';
 
 -- ---------------------------------------------------------------------------------

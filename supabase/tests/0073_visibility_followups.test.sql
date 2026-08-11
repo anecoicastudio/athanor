@@ -6,7 +6,7 @@
 -- the source of truth.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -183,8 +183,24 @@ reset role;
 select bag_eq(
   $$ select unnest(attnames) from pg_publication_tables
       where pubname='supabase_realtime' and schemaname='public' and tablename='profiles' $$,
-  $$ values ('id'),('handle'),('founding_member'),('identity_verified'),('created_at'),('updated_at') $$,
+  $$ values ('id'),('handle'),('display_name'),('avatar_path'),
+            ('founding_member'),('identity_verified'),('created_at'),('updated_at') $$,
   'profiles realtime payload exposes only the authenticated-granted columns'
+);
+
+-- The literal list above says WHAT; this says WHY, and is the assertion that survives the next
+-- column. 20260807174758 §4 claims the publication "matches the authenticated grant" — a claim
+-- no test could falsify, so when 20260811074859 widened the grant for display_name/avatar_path
+-- the sentence quietly became false and everything stayed green (fixed by 20260811084600).
+-- Comparing the two sets directly means the next column added to profiles either appears in both
+-- or fails here, instead of drifting behind a comment.
+select bag_eq(
+  $$ select unnest(attnames)::text from pg_publication_tables
+      where pubname='supabase_realtime' and schemaname='public' and tablename='profiles' $$,
+  $$ select column_name::text from information_schema.column_privileges
+      where table_schema='public' and table_name='profiles'
+        and grantee='authenticated' and privilege_type='SELECT' $$,
+  'the realtime column list IS the authenticated SELECT grant, not merely similar to it'
 );
 
 select * from finish();

@@ -34,8 +34,10 @@ async function bucketsFromLatestTrigger(): Promise<Set<string>> {
 
   let latest: Set<string> | null = null;
   let source = '';
+  let lastMentioned = ''; // any file that names the trigger at all, parsed or not
   for (const name of files) {
     const sql = await Deno.readTextFile(new URL(name, MIGRATIONS));
+    if (/media_process_enqueue/i.test(sql)) lastMentioned = name;
     // `create trigger media_process_enqueue … when (new.bucket_id in ('a', 'b', …))`
     const re = /create\s+trigger\s+media_process_enqueue[\s\S]*?when\s*\(\s*new\.bucket_id\s+in\s*\(([^)]*)\)/gi;
     for (const m of sql.matchAll(re)) {
@@ -46,6 +48,18 @@ async function bucketsFromLatestTrigger(): Promise<Set<string>> {
 
   assert(latest !== null, 'no `create trigger media_process_enqueue` found in supabase/migrations');
   assert(latest.size > 0, `${source}: the WHEN clause parsed to an empty bucket list`);
+
+  // The parser only understands `in ('a', 'b')`. A later migration that rewrites the clause as
+  // `= any(array[…])`, or drops the trigger without recreating it, would leave `latest` holding
+  // an OLDER file's list — and the comparison below would pass while asserting nothing about the
+  // trigger that actually exists. A false pass is the one outcome this test must not produce, so
+  // require that the newest file mentioning the trigger is the one we parsed.
+  assert(
+    source === lastMentioned,
+    `${lastMentioned} touches media_process_enqueue but this test could not parse a bucket list ` +
+      `from it (it parsed ${source} instead). Teach the parser that file's syntax — until then ` +
+      `this test is asserting against a stale WHEN clause.`,
+  );
   return latest;
 }
 
