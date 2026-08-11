@@ -18,9 +18,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Persist turbo's local cache across runs. Sound to trust since turbo.json wires
-      # cross-package edges through the `transit` node — a dependency change invalidates
-      # dependents' hashes. PR branches restore from the base branch's cache (GitHub
-      # cache scoping), so an untouched package never re-runs.
+      # cross-package edges through the `transit` node, and the two mirror tests that
+      # read files outside every package (supabase/config.toml, apps/native/app.json)
+      # declare them as $TURBO_ROOT$ inputs in their packages' turbo.json. PR branches
+      # restore from the base branch's cache (GitHub cache scoping), so an untouched
+      # package never re-runs.
       - uses: actions/cache@v4
         with:
           path: .turbo
@@ -85,13 +87,25 @@ jobs:
   db:
     name: migrations · pgTAP · types in sync
     runs-on: ubuntu-latest
+    # The default workflow token is write-scoped org-wide; the pinned third-party
+    # filter action below only ever needs to read the PR's changed files.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       # PR wall-time trim: this job spins up a full Postgres stack (~3 min) to replay
       # migrations, so on PRs it runs only when something DB-shaped changed. Pushes to
       # dev/main always run everything — the mainline gate never thins, so staging
       # drift an untouched-DB PR would miss surfaces on the next dev push at latest.
-      - uses: dorny/paths-filter@v3
+      #
+      # The skip conditions are FAIL-CLOSED (`!= 'false'`, not `== 'true'`): if the
+      # filter step is skipped (push events), renamed, or broken, its output is empty
+      # and the job runs in full. They sit on each step rather than on the job because
+      # `deploy` has `needs: [db]` — a skipped JOB would skip the release deploy,
+      # skipped steps keep the job green. A step added below without the `if` runs
+      # against a stack that was never started: copy the condition.
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: db-paths
         if: github.event_name == 'pull_request'
         with:
@@ -101,15 +115,15 @@ jobs:
               - 'packages/schemas/**'
               - 'packages/api/src/database.types.ts'
       - uses: supabase/setup-cli@v1
-        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
+        if: steps.db-paths.outputs.db != 'false'
         with:
           version: 2.106.0
       - run: supabase start
-        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
+        if: steps.db-paths.outputs.db != 'false'
       - run: supabase test db
-        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
+        if: steps.db-paths.outputs.db != 'false'
       - name: generated types cover the schema
-        if: github.event_name != 'pull_request' || steps.db-paths.outputs.db == 'true'
+        if: steps.db-paths.outputs.db != 'false'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
