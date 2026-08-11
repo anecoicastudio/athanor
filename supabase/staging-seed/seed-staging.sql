@@ -702,7 +702,7 @@ on conflict do nothing;
 --     because cast_vote() requires 'community', which is what makes voting walkable.
 --     `candidacy_votes.weight` is NOT supplied: set_candidacy_vote_weight() is a
 --     BEFORE INSERT trigger that raises 'weight is server-written' for any non-zero
---     value, service_role included. It snapshots aura_scores — zero here, honestly.
+--     value, service_role included. It writes a constant 1.000 — equal vote (PRD §4.11).
 --     Candidacy authors are exactly the identity_verified accounts from §1, so the
 --     create/edit flow is actually walkable from the app.
 --     Contributions are NOT seeded — those are Stripe's to create, in test mode.

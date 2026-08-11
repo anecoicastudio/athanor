@@ -928,7 +928,7 @@
   "fund.vote.author": "{name} · {city} · categoria {category}",
   "fund.vote.oneOnly": "Un voto per edizione. Vuoi spostarlo su questo sogno?",
   "fund.vote.moved": "Voto spostato ✦",
-  "fund.vote.weighted": "I voti pesano in base all'Aura di chi vota.",
+  "fund.vote.equal": "Ogni voce pesa uguale.",
   "fund.candidate.playLabel": "Riproduci il video del sogno",
   "fund.howChosen.title": "Come vengono scelti",
   "fund.phase.community.t": "Valutazione della community",

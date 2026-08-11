@@ -159,7 +159,7 @@ export default function CandidacyDetailScreen() {
 
         {/* Consensus */}
         <VoteBar percent={consensus} locale={locale} />
-        <Text className="text-[12px] text-muted-foreground">{t('fund.vote.weighted', locale)}</Text>
+        <Text className="text-[12px] text-muted-foreground">{t('fund.vote.equal', locale)}</Text>
 
         {/* Action */}
         <View className="flex-row items-center justify-start">
