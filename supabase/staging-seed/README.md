@@ -107,6 +107,40 @@ The flip side: **editing a body and re-running does not update the row**. Delete
 first, or change the key. To start over completely, delete the twelve `auth.users`
 rows — everything else cascades — and run the file again.
 
+⚠ **Storage objects do NOT cascade.** Deleting the twelve users leaves every uploaded
+photo and video orphaned in its bucket, and the re-seeded rows point at fresh keys, so
+the old objects are unreachable dead weight. Empty the five buckets in the same pass.
+
+Two exceptions to "a re-run inserts nothing": the `profiles` UPDATE in §1 (documented
+below) and the story `expires_at` refresh in §6. The latter is deliberate — seeded
+stories expire after 20 hours and the daily prune soft-deletes them, so without the
+refresh a second run would produce a world with exactly one visible story.
+
+## Media
+
+The seed writes the descriptor rows and the storage **keys**; it cannot write bytes.
+Two commands finish the job:
+
+```bash
+./supabase/staging-seed/transcode-media.sh   # sources → docs/test-stories/derived/
+pnpm staging:media --confirm                 # derived/ → the five buckets
+```
+
+The upload script never composes a key. It derives each row's id the same way the SQL
+does, looks the row up, and uploads to whatever the path column literally contains — so
+the two cannot drift. It then signs and fetches every object **as a seeded member**,
+not as service role, because service role bypasses RLS and would have happily "verified"
+the old unreadable keys.
+
+Source media lives in `docs/test-stories/` and is not in the repo (`docs/` is
+gitignored). Filenames the transcode expects, and which persona each file belongs to,
+are the tables in `transcode-media.sh`.
+
+Keys are `{uid}/{id}.{ext}` — the shape the app itself uploads at. The earlier
+`<handle>/stories/<md5>.jpg` shape could never have worked: since
+`20260808151808_storage_not_blocked_predicate.sql` every private bucket's SELECT policy
+requires the first path segment to match a dashed-uuid regex, and a handle fails it.
+
 ## What is deliberately not seeded
 
 These are the paths where a hand-written row would prove nothing, so they have to be
@@ -119,4 +153,4 @@ walked for real in the app:
 | `event_attendance`, `event_live_stats`                                                                | Written by the `check-in` edge function.                                                                                                 |
 | `gdpr_export_jobs`                                                                                    | Written by the export job.                                                                                                               |
 | `push_tokens`                                                                                         | Needs a real device token from a real build.                                                                                             |
-| `post_media`, and the files behind `moments` / `story_segments`                                       | Need real objects in Storage. The rows point at paths that do not exist, so media will fail to load — expected.                          |
+| the **bytes** behind `post_media` / `moments` / `story_segments` / `dream_candidacies` / avatars       | SQL cannot write to Storage. The rows and their keys are seeded; `pnpm staging:media` puts a file at each one. See **Media** above.       |
