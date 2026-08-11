@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.15"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -1966,8 +1971,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_path: string | null
           bio: string | null
           created_at: string
+          display_name: string | null
           founding_member: boolean
           handle: string | null
           id: string
@@ -1981,8 +1988,10 @@ export type Database = {
           visibility: Json
         }
         Insert: {
+          avatar_path?: string | null
           bio?: string | null
           created_at?: string
+          display_name?: string | null
           founding_member?: boolean
           handle?: string | null
           id: string
@@ -1996,8 +2005,10 @@ export type Database = {
           visibility?: Json
         }
         Update: {
+          avatar_path?: string | null
           bio?: string | null
           created_at?: string
+          display_name?: string | null
           founding_member?: boolean
           handle?: string | null
           id?: string
@@ -2660,8 +2671,10 @@ export type Database = {
       get_own_profile: {
         Args: never
         Returns: {
+          avatar_path: string | null
           bio: string | null
           created_at: string
+          display_name: string | null
           founding_member: boolean
           handle: string | null
           id: string
@@ -2967,4 +2980,3 @@ export const Constants = {
     },
   },
 } as const
-

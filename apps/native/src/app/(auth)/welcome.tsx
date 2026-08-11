@@ -72,9 +72,10 @@ export default function WelcomeScreen() {
       void clearPendingReferral();
       return;
     }
-    // `display_name` lives in auth.users.user_metadata for now — `profiles` has no
-    // name column yet (deferred to M2's @handle page; add a column + flush then).
-    // It's retrievable via session.user.user_metadata.display_name in the meantime.
+    // `display_name` goes into auth.users.user_metadata, and handle_new_user copies it
+    // onto profiles.display_name from there (20260811072211) — normalised, so a long or
+    // blank value can never raise inside that trigger and abort the signup. Editing the
+    // name after signup needs the client surface in #76; this is the write path only.
     // Referral attribution is email-signup-only for now: OAuth signups don't carry
     // this metadata, so a code stashed ahead of a Google/Apple signup is silently lost.
     // The disabled button is a hint, not a guarantee: a password manager can fill

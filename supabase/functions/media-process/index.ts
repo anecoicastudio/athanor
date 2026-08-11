@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { json, error } from '../_shared/respond.ts';
 import { stripMetadata } from './strip.ts';
+// Must stay in step with the media_process_enqueue WHEN clause — buckets.test.ts asserts it.
+import { BUCKETS } from './buckets.ts';
 
 /**
  * POST { bucket_id, name } → { stripped, ... } — server-side metadata strip (P2.2,
@@ -16,8 +18,6 @@ import { stripMetadata } from './strip.ts';
  * the storage trigger once; that second invocation finds changed=false and stops (strip
  * convergence — no loop).
  */
-
-const BUCKETS = new Set(['post-media', 'moments', 'story-segments', 'candidacy-videos']);
 
 // Edge isolate memory is ~256 MB and download+arrayBuffer holds ~2× the file. Above this
 // the strip would OOM mid-flight; skip explicitly instead (fail-open backstop — the

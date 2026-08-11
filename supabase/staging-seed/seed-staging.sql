@@ -48,9 +48,21 @@
 --   event_attendance, event_live_stats — produced by the check-in edge function.
 --   gdpr_export_jobs           — produced by the export job.
 --   push_tokens                — needs a real device token from a real build.
---   post_media, and the files behind moments/story_segments — need real Storage
---                                objects; the rows point at paths that do not exist,
---                                so media will fail to load. Expected.
+--
+-- MEDIA. This file writes the descriptor rows and the storage KEYS; it cannot write
+-- bytes. Run `supabase/staging-seed/transcode-media.sh` and then
+-- `pnpm staging:media --confirm` after seeding — the upload script reads the keys back
+-- out of these tables and puts a file at each one, so the two can never drift.
+-- Until it runs, every image and video is a blank rectangle.
+--
+-- The keys are `{uid}/{id}.{ext}` — the same shape the app itself uploads at
+-- (apps/native/src/lib/media/paths.ts), and NOT the `<handle>/stories/<md5>.jpg` this
+-- file used to write. That older shape could never have worked: since
+-- 20260808151808_storage_not_blocked_predicate.sql every private bucket's SELECT policy
+-- requires the first path segment to match a dashed-uuid regex before it casts it, and
+-- a handle fails that regex. Bytes uploaded at the old keys were unreadable by every
+-- client, service-role reads notwithstanding — which is exactly why nobody noticed for
+-- three months: no byte was ever fetched.
 --
 -- Side effect worth knowing: `notifications` DOES fill up, because
 -- milestone_helps_notify_offer and connection_requests_notify_insert fire on the
@@ -158,6 +170,17 @@ on conflict do nothing;
 --
 -- referral_code mirrors ensure_referral_code()'s format (8 uppercase hex chars),
 -- deterministically, so invites can reference it below.
+--
+-- display_name is re-derived from auth.users rather than listed again below: handle_new_user
+-- already copied it across on insert, and re-reading the same source keeps the two in step if
+-- this file is re-run over profiles someone has since edited in the app.
+--
+-- avatar_path is set for EIGHT of the twelve. That is the point, not a shortfall: name and
+-- photo are optional (#75), so a world where every member has a face would never render the
+-- initials fallback that four-twelfths of real members will have. The four without —
+-- sara_startup, dario_legno, nina_poeta, bea_foto — are the control group. Key shape is
+-- {uid}/{uid}.jpg, matching the migration's documented convention; the upload script reads
+-- this column back rather than recomputing it.
 update public.profiles pr set
   handle = p.handle,
   bio = p.bio,
@@ -167,7 +190,16 @@ update public.profiles pr set
   visibility = p.visibility,
   identity_verified = p.identity_verified,
   founding_member = p.founding_member,
-  referral_code = upper(left(md5('ref:' || p.handle), 8))
+  referral_code = upper(left(md5('ref:' || p.handle), 8)),
+  display_name = athanor.normalize_display_name(
+    (select u.raw_user_meta_data ->> 'display_name' from auth.users u where u.id = pr.id)
+  ),
+  avatar_path = case
+    when p.handle in ('sole_designer', 'luna_dev', 'marta_ceramica', 'gio_musica',
+                      'ele_yoga', 'tino_chef', 'vera_erbe', 'rocco_film')
+      then md5('user:' || p.handle)::uuid::text || '/' || md5('user:' || p.handle)::uuid::text || '.jpg'
+    else null
+  end
 from (values
   -- handle,          bio,                                                                            locale, identity_tags,                      seeking,                                 visibility,                                  verified, founding
   ('sole_designer',  'Designer. Studio piccolo, progetti che lasciano il mondo un po'' più chiaro.',  'it', array['creativo','freelance'],       array['collaborazioni','connessioni'], '{"bio":"public","dream":"public"}'::jsonb, false, true),
@@ -334,9 +366,15 @@ on conflict do nothing;
 --    comments and reactions (counts are author-only per PRD §4.5 — that rule is about
 --    who can SEE them, so seeding them is fine).
 -- ---------------------------------------------------------------------------------
+-- `type` is not a label — PostMedia.tsx short-circuits on `postType === 'text'` and renders
+-- nothing, so a post carrying a post_media row but left at 'text' shows no image at all. The
+-- four handles below must match the post_media block that follows exactly.
 insert into public.posts (id, author_id, category, type, body, is_step, tags)
 select md5('post:' || p.handle || ':' || p.n)::uuid, md5('user:' || p.handle)::uuid,
-       p.category::public.post_category, 'text'::public.post_type, p.body, p.is_step, p.tags
+       p.category::public.post_category,
+       (case when p.handle in ('bea_foto', 'ele_yoga', 'vera_erbe', 'nina_poeta')
+             then 'image' else 'text' end)::public.post_type,
+       p.body, p.is_step, p.tags
 from (values
   ('sole_designer',  1, 'business',  'Firmato per lo spazio. Tre stanze, una finestra che vale l''affitto.',           true,  array['studio']),
   ('marta_ceramica', 1, 'creative',  'Prima infornata nel forno nuovo. Due pezzi crepati, il terzo è quello giusto.',   true,  array['ceramica']),
@@ -351,6 +389,27 @@ from (values
   ('bea_foto',       1, 'creative',  'La merceria di via Sant''Agnese chiude a dicembre. Fotografata ieri.',            false, array['ritratto']),
   ('gio_musica',     1, 'evolution', 'Trattata la stanza con dodici pannelli fatti in casa. Il riverbero è sparito.',   true,  array['audio'])
 ) as p(handle, n, category, body, is_step, tags)
+on conflict do nothing;
+
+-- Media on four of the twelve posts, so the feed is not a wall of text cards. Eight stay text
+-- on purpose: a text-only post is the common case and its layout has to keep working.
+--
+-- Key shape {uid}/{post_id}/{position}.jpg — postMediaPath() in
+-- apps/native/src/lib/media/paths.ts, and the only shape the bucket's SELECT policy can read.
+-- width/height are the transcode's card crop (transcode-media.sh, CARD_VF); they must match the
+-- file or the feed reserves a differently-shaped box and the image jumps on load.
+insert into public.post_media (id, post_id, kind, storage_path, position, width, height)
+select md5('postmedia:' || m.handle || ':0')::uuid,
+       md5('post:' || m.handle || ':1')::uuid,
+       'image'::public.media_kind,
+       md5('user:' || m.handle)::uuid::text || '/' || md5('post:' || m.handle || ':1')::uuid::text || '/0.jpg',
+       0, 1080, 1350
+from (values
+  -- bea_foto's post is «La merceria di via Sant'Agnese chiude a dicembre. Fotografata ieri.»
+  -- and the file behind it is an elderly tailor at a sewing machine — the closest caption/photo
+  -- pair in the supplied set.
+  ('bea_foto'), ('ele_yoga'), ('vera_erbe'), ('nina_poeta')
+) as m(handle)
 on conflict do nothing;
 
 insert into public.post_comments (id, post_id, author_id, body)
@@ -381,21 +440,59 @@ on conflict do nothing;
 -- ---------------------------------------------------------------------------------
 -- 6. Stories (24h segments) — expires_at in the future or they never render.
 -- ---------------------------------------------------------------------------------
+-- Nine segments over eight handles. dario_legno carries two, so the viewer's segment advance
+-- and a photo→video transition inside one rail both get walked; everyone else has one, which is
+-- the common shape. Four are video, because a photo story and a video story fail differently
+-- (StoriesViewer renders a ▶ glyph for one and nothing at all for the other) and a rail of
+-- photos would hide that.
+--
+-- duration_s is the REAL length of the transcoded file, rounded down. The column is
+-- `check (duration_s between 0 and 60)` and the viewer paces its progress bar off it, so a
+-- guessed value desynchronises the bar from the video.
 insert into public.story_segments (id, author_id, kind, storage_path, duration_s, caption, is_step, pinned, expires_at)
-select md5('story:' || s.handle)::uuid, md5('user:' || s.handle)::uuid, 'photo'::public.story_kind,
-       s.handle || '/stories/' || md5('story:' || s.handle) || '.jpg', null, s.caption, s.is_step, s.pinned,
+select md5('story:' || s.handle || ':' || s.n)::uuid, md5('user:' || s.handle)::uuid,
+       s.kind::public.story_kind,
+       md5('user:' || s.handle)::uuid::text || '/' || md5('story:' || s.handle || ':' || s.n)::uuid::text
+         || (case when s.kind = 'video' then '.mp4' else '.jpg' end),
+       s.duration_s, s.caption, s.is_step, s.pinned,
        now() + interval '20 hours'
 from (values
-  ('marta_ceramica', 'Il forno acceso alle sei.',         true,  true),
-  ('tino_chef',      'Burro, quaranta chili, tutto qui.', false, false),
-  ('bea_foto',       'Ultimo giorno di luce buona.',      false, false),
-  ('dario_legno',    'Il banco alle sette di mattina.',   true,  false)
-) as s(handle, caption, is_step, pinned)
+  -- handle,         n, kind,    dur,  caption,                                              step,  pinned
+  ('marta_ceramica', 1, 'video', 16,   'Il forno acceso alle sei.',                          true,  true),
+  ('tino_chef',      1, 'photo', null, 'Burro, quaranta chili, tutto qui.',                  false, false),
+  ('bea_foto',       1, 'photo', null, 'Ultimo giorno di luce buona.',                       false, false),
+  ('dario_legno',    1, 'photo', null, 'Il banco alle sette di mattina.',                    true,  false),
+  ('dario_legno',    2, 'video', 8,    'Il ragazzo ha finito il suo primo giunto.',          false, false),
+  ('ele_yoga',       1, 'photo', null, 'Verticale sul molo. Tre respiri, poi giù.',          false, false),
+  -- vera_erbe writes in English: her profile is the 'en' locale one.
+  ('vera_erbe',      1, 'photo', null, 'This one dries in four days. The smell comes later.', false, false),
+  ('gio_musica',     1, 'video', 12,   'La cantina alle undici di sera.',                    true,  false),
+  ('sole_designer',  1, 'video', 10,   'Primo sopralluogo. Misuro tutto due volte.',         false, false)
+) as s(handle, n, kind, duration_s, caption, is_step, pinned)
 on conflict do nothing;
+
+-- Revive the rail on a re-run. Without this the seed is a no-op the second time
+-- (`on conflict do nothing`) while `prune_expired_story_segments` has already soft-deleted
+-- everything unpinned — so a re-seeded world would come back with exactly one story, and the
+-- storage SELECT policy would hide the bytes of the rest too
+-- (20260809151111: `deleted_at is null and (expires_at > now() or pinned)`).
+-- Twenty hours, not thirty days: the 24h story is the product rule, and a seeded world that
+-- quietly kept its stories forever would stop testing the expiry it is supposed to exercise.
+update public.story_segments
+   set expires_at = now() + interval '20 hours',
+       deleted_at = null
+ where id in (
+   select md5('story:' || s.handle || ':' || s.n)::uuid
+   from (values
+     ('marta_ceramica', 1), ('tino_chef', 1), ('bea_foto', 1),
+     ('dario_legno', 1), ('dario_legno', 2), ('ele_yoga', 1),
+     ('vera_erbe', 1), ('gio_musica', 1), ('sole_designer', 1)
+   ) as s(handle, n)
+ );
 
 insert into public.story_reactions (id, segment_id, person_id)
 select md5('storyreact:' || r.reactor || ':' || r.author)::uuid,
-       md5('story:' || r.author)::uuid, md5('user:' || r.reactor)::uuid
+       md5('story:' || r.author || ':1')::uuid, md5('user:' || r.reactor)::uuid
 from (values
   ('sole_designer', 'marta_ceramica'), ('bea_foto', 'marta_ceramica'),
   ('vera_erbe',     'tino_chef'),      ('nina_poeta', 'bea_foto')
@@ -501,20 +598,68 @@ from (values
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------------------
--- 9. Moments (the 24h photo/video kind). Paths point nowhere — rows exist so the
---    grid and the waiting state render; the media itself will 404.
+-- 9. Moments (the 24h photo/video kind).
+--    marta_ceramica's is the video one, which is the only row in the seed that exercises
+--    thumb_path — the poster frame a video tile shows before playback. A grid of five photos
+--    would never touch that column.
 -- ---------------------------------------------------------------------------------
-insert into public.moments (id, owner_id, kind, media_path, caption, width, height)
-select md5('moment:' || m.handle)::uuid, md5('user:' || m.handle)::uuid, 'photo'::public.moment_kind,
-       m.handle || '/moments/' || md5('moment:' || m.handle) || '.jpg', m.caption, 1080, 1350
+insert into public.moments (id, owner_id, kind, media_path, thumb_path, duration_s, caption, width, height)
+select md5('moment:' || m.handle)::uuid, md5('user:' || m.handle)::uuid, m.kind::public.moment_kind,
+       md5('user:' || m.handle)::uuid::text || '/' || md5('moment:' || m.handle)::uuid::text
+         || (case when m.kind = 'video' then '.mp4' else '.jpg' end),
+       case when m.kind = 'video'
+            then md5('user:' || m.handle)::uuid::text || '/' || md5('moment:' || m.handle)::uuid::text || '-thumb.jpg'
+            else null end,
+       m.duration_s, m.caption, m.w, m.h
 from (values
-  ('sole_designer',  'Le chiavi.'),
-  ('marta_ceramica', 'Crepata, ma bella.'),
-  ('tino_chef',      'Il burro giusto.'),
-  ('rocco_film',     'Ottantasei anni.'),
-  ('dario_legno',    'Tiene.')
-) as m(handle, caption)
+  -- width/height describe the FILE, and transcode-media.sh encodes photos at the 4:5 card crop
+  -- and video at the 9:16 story crop. Declaring 1080x1350 for the video would make the grid
+  -- reserve a card-shaped box and then letterbox a portrait clip into it.
+  ('sole_designer',  'photo', null, 'Le chiavi.',         1080, 1350),
+  ('marta_ceramica', 'video', 9,    'Crepata, ma bella.', 1080, 1920),
+  ('tino_chef',      'photo', null, 'Il burro giusto.',   1080, 1350),
+  ('rocco_film',     'photo', null, 'Ottantasei anni.',   1080, 1350),
+  ('dario_legno',    'photo', null, 'Tiene.',             1080, 1350)
+) as m(handle, kind, duration_s, caption, w, h)
 on conflict do nothing;
+
+-- Re-run repair, same reason as the story refresh in §6. These three predate the media change,
+-- so on an already-seeded project `on conflict do nothing` leaves them holding the old
+-- handle-prefixed key (moments), the old fake URL (candidacies), or `type = 'text'` (posts) —
+-- and the upload script, which reads keys out of the DB by design, would then POST bytes to a
+-- path the bucket policy rejects. A project seeded from empty never executes any of this.
+-- The owner uid comes from the row's own FK, never from md5('user:' || handle). For a seeded row
+-- the two are identical, but for anything else the hash would write a first path segment that is
+-- not the owner's uid — a key no client could upload to and no client could read. The guards
+-- below already exclude app-written rows; taking the uid from the FK means that if one ever did
+-- slip through, the repair still produces a correct key instead of a broken one.
+--
+-- Only rows whose key is NOT already uid-prefixed, so a moment created in the app (which always
+-- writes the canonical shape) is never touched.
+update public.moments m set
+    media_path = m.owner_id::text || '/' || m.id::text
+                 || (case when m.kind = 'video' then '.mp4' else '.jpg' end),
+    thumb_path = case when m.kind = 'video'
+                      then m.owner_id::text || '/' || m.id::text || '-thumb.jpg'
+                      else m.thumb_path end,
+    width      = case when m.kind = 'video' then 1080 else m.width end,
+    height     = case when m.kind = 'video' then 1920 else m.height end
+ where m.media_path !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/';
+
+update public.dream_candidacies c
+   set video_url = c.profile_id::text || '/' || c.id::text || '.mp4'
+ where c.video_url like 'http%';
+
+-- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
+-- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
+-- renders an empty box — the same principle the moments guard above states.
+update public.posts p
+   set type = 'image'::public.post_type
+  from public.profiles pr
+ where pr.id = p.author_id
+   and pr.handle in ('bea_foto', 'ele_yoga', 'vera_erbe', 'nina_poeta')
+   and p.id = md5('post:' || pr.handle || ':1')::uuid
+   and p.type <> 'image';
 
 -- ---------------------------------------------------------------------------------
 -- 10. Invites / referral. `invites.code` is a FK to profiles.referral_code, and
@@ -568,9 +713,16 @@ values (md5('fundedition:2027')::uuid, 2027,
         5000000, 'community', true, true)
 on conflict do nothing;
 
+-- `video_url` is misnamed: it holds a STORAGE KEY in the candidacy-videos bucket, not a URL.
+-- candidacy/[id].tsx feeds it straight to signMediaUrls, and candidacy.tsx writes
+-- candidacyVideoPath(uid, candidacyId) into it — `{uid}/{candidacy_id}.mp4`
+-- (packages/api/src/candidacy.ts:26). The old 'https://example.invalid/video/<handle>' could
+-- never sign, so the candidacy detail has always shown an empty player.
 insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status, city, category)
 select md5('candidacy:' || c.handle)::uuid, md5('fundedition:2027')::uuid, md5('user:' || c.handle)::uuid,
-       c.story, c.goal, c.impact, 'https://example.invalid/video/' || c.handle, c.plan, c.status, c.city, c.category
+       c.story, c.goal, c.impact,
+       md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '.mp4',
+       c.plan, c.status, c.city, c.category
 from (values
   ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'craft'),
   ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'submitted',   'Milano', 'wellbeing'),
@@ -631,7 +783,9 @@ union all select 'rsvps', count(*) from public.rsvps
 union all select 'posts', count(*) from public.posts
 union all select 'comments', count(*) from public.post_comments
 union all select 'reactions', count(*) from public.post_reactions
+union all select 'post_media (needs the upload run)', count(*) from public.post_media
 union all select 'stories', count(*) from public.story_segments
+union all select 'avatars set (needs the upload run)', count(*) from public.profiles where avatar_path is not null
 union all select 'connections', count(*) from public.connections
 union all select 'conversations', count(*) from public.conversations
 union all select 'messages', count(*) from public.messages

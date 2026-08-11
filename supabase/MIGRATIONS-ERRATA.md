@@ -228,3 +228,42 @@ migration.
 Asserted by: `apps/web/app/api/waitlist/client-ip.test.ts` ("prefers cf-connecting-ip over a forged
 x-forwarded-for"), and the first-entry-is-the-client behaviour by
 `supabase/tests/0083_waitlist_rate_limit.test.sql`.
+
+---
+
+## `20260811072211_profile_display_name_avatar.sql` — §1 describes a CHECK that no longer exists, and a bound that was never enforced
+
+Two corrections to the prose at L15-24, both closed by
+`20260811080937_profile_identity_column_constraints.sql`.
+
+**The constraint named there is gone.** §1 shipped
+`check (display_name is null or char_length(btrim(display_name)) between 1 and 60)` as
+`profiles_display_name_check`. That constraint was dropped and replaced by
+`profiles_display_name_shape`, which adds a bound on the **raw** string and trims the whole
+whitespace class rather than spaces alone.
+
+**The stated rationale was only ever half true.** The comment says the cap exists «so a
+pathological metadata value cannot push an unbounded string into every feed row». That holds for
+the signup trigger, whose input is normalised — but the same migration granted
+`update (display_name, avatar_path)` to `authenticated`, and `btrim()` with no second argument
+strips **spaces only**. So `repeat(' ', 5000) || 'x'` trimmed to one character, passed, and stored
+5001 — precisely the unbounded string the sentence claims to prevent. A name of tabs or newlines
+likewise did not trim to empty and stored non-null, rendering as a blank where a name should be.
+
+The avatar half of the same grant had a sharper hole, and §1 does not mention it at all: the
+bucket policies bind an object's folder to its uploader, but nothing bound the **column**, and
+`avatars_select_member` is members-wide. A member could set
+`avatar_path = '<other-uid>/<other-uid>.jpg'` and wear another member's face everywhere a profile
+is rendered — no upload, no policy violation, one UPDATE of a column they legitimately own.
+`profiles_avatar_path_owned` now requires the first path segment to equal the row's own `id`.
+
+§4 of that migration needs no correction: it claimed the avatars bucket gets the server-side
+EXIF/GPS strip, which was false when written — `supabase/functions/media-process` still allowed
+four buckets, so every avatar upload answered `bucket not allowed` — and is true now that the
+function's allowlist was extended and redeployed.
+
+Asserted by: `supabase/tests/0086_profile_display_name_avatar.test.sql` — the client-write path
+for both constraints (impersonation, a space-padded 5001-character name, a whitespace-only name),
+and that `handle_new_user` still cannot be made to raise 23514 by any provider value. The
+allowlist/trigger agreement is pinned by `supabase/functions/media-process/buckets.test.ts`, which
+parses the WHEN clause out of the migrations rather than trusting a comment.

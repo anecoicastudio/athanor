@@ -9,9 +9,20 @@ export const handleSchema = z
   .max(30)
   .regex(/^[a-z0-9_]+$/, 'lowercase letters, numbers and underscore only');
 
+/**
+ * Optional human name (#75). 60 is the column CHECK; the DB additionally caps the raw string,
+ * because `btrim` in that CHECK counts a padded name as short. @handle stays the identity —
+ * this and the avatar only enrich it, so both are nullable and a profile with neither is
+ * a first-class state, not a gap.
+ */
+export const displayNameSchema = z.string().trim().min(1).max(60);
+
 export const profileSchema = z.object({
   id: z.string().uuid(),
   handle: handleSchema.nullable(),
+  display_name: displayNameSchema.nullable(),
+  /** Storage key in the private `avatars` bucket, `{uid}/{uid}.{ext}` — never a URL. */
+  avatar_path: z.string().max(512).nullable(),
   bio: z.string().max(500).nullable(),
   locale: localeSchema,
   visibility: z.record(z.enum(['public', 'members', 'private'])),
@@ -26,6 +37,8 @@ export const profileSchema = z.object({
 export const profileUpdateSchema = profileSchema
   .pick({
     handle: true,
+    display_name: true,
+    avatar_path: true,
     bio: true,
     locale: true,
     visibility: true,
