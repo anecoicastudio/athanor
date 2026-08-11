@@ -4,6 +4,8 @@ import { profileSchema, profileUpdateSchema } from './profile';
 const validRow = {
   id: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11',
   handle: 'stella_prima',
+  display_name: 'Stella Prima',
+  avatar_path: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11/3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11.jpg',
   bio: null,
   locale: 'it',
   visibility: { bio: 'public' },
@@ -27,5 +29,31 @@ describe('profileSchema — founding_member (P4.2)', () => {
   it('update schema strips founding_member (client can never write it)', () => {
     const parsed = profileUpdateSchema.parse({ bio: 'ciao', founding_member: true });
     expect(parsed).not.toHaveProperty('founding_member');
+  });
+});
+
+describe('profileSchema — display_name and avatar_path (#75)', () => {
+  it('accepts a profile carrying neither — both are optional by product decision', () => {
+    const parsed = profileSchema.parse({ ...validRow, display_name: null, avatar_path: null });
+    expect(parsed.display_name).toBeNull();
+    expect(parsed.avatar_path).toBeNull();
+  });
+
+  it('rejects a name longer than the column CHECK allows', () => {
+    expect(() => profileSchema.parse({ ...validRow, display_name: 'x'.repeat(61) })).toThrow();
+  });
+
+  it('rejects a whitespace-only name, which would render as a blank', () => {
+    // Mirrors profiles_display_name_shape: at least one non-whitespace character.
+    expect(() => profileSchema.parse({ ...validRow, display_name: '   ' })).toThrow();
+  });
+
+  it('both are client-writable, unlike founding_member', () => {
+    const parsed = profileUpdateSchema.parse({
+      display_name: 'Stella',
+      avatar_path: 'a/b.jpg',
+    });
+    expect(parsed.display_name).toBe('Stella');
+    expect(parsed.avatar_path).toBe('a/b.jpg');
   });
 });

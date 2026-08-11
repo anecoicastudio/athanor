@@ -610,15 +610,50 @@ select md5('moment:' || m.handle)::uuid, md5('user:' || m.handle)::uuid, m.kind:
        case when m.kind = 'video'
             then md5('user:' || m.handle)::uuid::text || '/' || md5('moment:' || m.handle)::uuid::text || '-thumb.jpg'
             else null end,
-       m.duration_s, m.caption, 1080, 1350
+       m.duration_s, m.caption, m.w, m.h
 from (values
-  ('sole_designer',  'photo', null, 'Le chiavi.'),
-  ('marta_ceramica', 'video', 9,    'Crepata, ma bella.'),
-  ('tino_chef',      'photo', null, 'Il burro giusto.'),
-  ('rocco_film',     'photo', null, 'Ottantasei anni.'),
-  ('dario_legno',    'photo', null, 'Tiene.')
-) as m(handle, kind, duration_s, caption)
+  -- width/height describe the FILE, and transcode-media.sh encodes photos at the 4:5 card crop
+  -- and video at the 9:16 story crop. Declaring 1080x1350 for the video would make the grid
+  -- reserve a card-shaped box and then letterbox a portrait clip into it.
+  ('sole_designer',  'photo', null, 'Le chiavi.',         1080, 1350),
+  ('marta_ceramica', 'video', 9,    'Crepata, ma bella.', 1080, 1920),
+  ('tino_chef',      'photo', null, 'Il burro giusto.',   1080, 1350),
+  ('rocco_film',     'photo', null, 'Ottantasei anni.',   1080, 1350),
+  ('dario_legno',    'photo', null, 'Tiene.',             1080, 1350)
+) as m(handle, kind, duration_s, caption, w, h)
 on conflict do nothing;
+
+-- Re-run repair, same reason as the story refresh in §6. These three predate the media change,
+-- so on an already-seeded project `on conflict do nothing` leaves them holding the old
+-- handle-prefixed key (moments), the old fake URL (candidacies), or `type = 'text'` (posts) —
+-- and the upload script, which reads keys out of the DB by design, would then POST bytes to a
+-- path the bucket policy rejects. A project seeded from empty never executes any of this.
+-- Only rows whose key is NOT already uid-prefixed, so a moment created in the app (which always
+-- writes the canonical shape) is never touched.
+update public.moments m set
+    media_path = md5('user:' || pr.handle)::uuid::text || '/' || m.id::text
+                 || (case when m.kind = 'video' then '.mp4' else '.jpg' end),
+    thumb_path = case when m.kind = 'video'
+                      then md5('user:' || pr.handle)::uuid::text || '/' || m.id::text || '-thumb.jpg'
+                      else m.thumb_path end,
+    width      = case when m.kind = 'video' then 1080 else m.width end,
+    height     = case when m.kind = 'video' then 1920 else m.height end
+  from public.profiles pr
+ where pr.id = m.owner_id
+   and m.media_path !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/';
+
+update public.dream_candidacies c
+   set video_url = md5('user:' || pr.handle)::uuid::text || '/' || c.id::text || '.mp4'
+  from public.profiles pr
+ where pr.id = c.profile_id
+   and c.video_url like 'http%';
+
+update public.posts p
+   set type = 'image'::public.post_type
+  from public.profiles pr
+ where pr.id = p.author_id
+   and pr.handle in ('bea_foto', 'ele_yoga', 'vera_erbe', 'nina_poeta')
+   and p.type <> 'image';
 
 -- ---------------------------------------------------------------------------------
 -- 10. Invites / referral. `invites.code` is a FK to profiles.referral_code, and

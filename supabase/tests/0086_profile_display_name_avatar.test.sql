@@ -21,7 +21,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(44);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
 -- A owns the avatar, B is an ordinary member, C is blocked by A. The remaining four exercise
@@ -142,6 +142,45 @@ select throws_ok(
       where id = 'a0860000-0000-0000-0000-000000000001' $$,
   '42501', null,
   'identity_verified is still client-unwritable after the new grants'
+);
+
+-- ── the client write path is the ONLY reason these constraints exist ──────────────────────
+-- The signup trigger normalises its input, so nothing it produces can violate them. The grant
+-- above lets a member write both columns directly, unnormalised — so the constraints have to
+-- hold against a hostile UPDATE, and that is what is exercised here.
+
+-- Impersonation: the bucket policies bind an object's folder to its uploader, but nothing bound
+-- the COLUMN, and the read policy is members-wide. Pointing avatar_path at another member's
+-- object would wear their face everywhere a name and photo are rendered.
+select throws_ok(
+  $$ update public.profiles
+        set avatar_path = 'b0860000-0000-0000-0000-000000000002/b0860000-0000-0000-0000-000000000002.jpg'
+      where id = 'a0860000-0000-0000-0000-000000000001' $$,
+  '23514', null,
+  'a member cannot point avatar_path at another member''s avatar object'
+);
+select lives_ok(
+  $$ update public.profiles
+        set avatar_path = 'a0860000-0000-0000-0000-000000000001/a0860000-0000-0000-0000-000000000001.jpg'
+      where id = 'a0860000-0000-0000-0000-000000000001' $$,
+  'a member can point avatar_path at their own avatar object'
+);
+
+-- btrim() defaults to stripping spaces only, so a trimmed-length bound alone lets a padded
+-- string of any size through — the unbounded name the CHECK exists to prevent.
+select throws_ok(
+  $$ update public.profiles set display_name = repeat(' ', 5000) || 'x'
+      where id = 'a0860000-0000-0000-0000-000000000001' $$,
+  '23514', null,
+  'a space-padded 5001-character name is rejected (raw length is bounded too)'
+);
+-- And a name made only of tabs/newlines does not trim to empty under the default btrim, so it
+-- would store non-null and render as a blank where a name should be.
+select throws_ok(
+  $$ update public.profiles set display_name = E'\t\n\r'
+      where id = 'a0860000-0000-0000-0000-000000000001' $$,
+  '23514', null,
+  'a whitespace-only name is rejected on the client write path'
 );
 
 set local request.jwt.claims = '{"sub":"b0860000-0000-0000-0000-000000000002","role":"authenticated"}';
@@ -308,12 +347,30 @@ select is(
   0, 'an avatar whose first path segment is not a uuid is unreadable'
 );
 
--- Writing into someone else's folder is the whole point of the owner-write predicate.
+-- Writing into someone else's folder is the whole point of the owner-write predicate. INSERT is
+-- the obvious one; UPDATE and DELETE matter just as much, because overwriting or deleting
+-- another member's face needs no read access at all.
 select throws_ok(
   $$ insert into storage.objects (bucket_id, name)
      values ('avatars', 'a0860000-0000-0000-0000-000000000001/a0860000-0000-0000-0000-000000000001.png') $$,
   '42501', null,
   'a member cannot write into another member''s avatar folder'
+);
+select is(
+  (with u as (
+     update storage.objects set name = name || '.hijacked'
+      where bucket_id = 'avatars' and name like 'a0860000-%' returning 1)
+   select count(*)::int from u),
+  0,
+  'a member cannot rename another member''s avatar object (UPDATE policy denies)'
+);
+select is(
+  (with d as (
+     delete from storage.objects
+      where bucket_id = 'avatars' and name like 'a0860000-%' returning 1)
+   select count(*)::int from d),
+  0,
+  'a member cannot delete another member''s avatar object (DELETE policy denies)'
 );
 
 set local request.jwt.claims = '{"sub":"c0860000-0000-0000-0000-000000000003","role":"authenticated"}';
