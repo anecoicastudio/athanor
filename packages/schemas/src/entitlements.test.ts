@@ -26,6 +26,15 @@ const memberRow = {
   analytics: true,
 };
 
+const BITS = [
+  'is_member',
+  'founding',
+  'advanced_filters',
+  'premium_events',
+  'analytics',
+  'market_reduced_fee',
+] as const;
+
 describe('entitlementsSchema', () => {
   it('parses a non-member row unchanged (null plan/status, every bit false)', () => {
     expect(entitlementsSchema.parse(nonMemberRow)).toEqual(nonMemberRow);
@@ -51,18 +60,33 @@ describe('entitlementsSchema', () => {
     }
   });
 
-  it('requires every feature bit — a row missing one does not parse', () => {
-    for (const bit of [
-      'is_member',
-      'founding',
-      'advanced_filters',
-      'premium_events',
-      'analytics',
-      'market_reduced_fee',
-    ] as const) {
-      const { [bit]: _dropped, ...withoutBit } = memberRow;
-      expect(() => entitlementsSchema.parse(withoutBit), bit).toThrow();
+  it('reads a null bit as false — the generated types say null is possible, so it must not throw', () => {
+    // Postgres does not track view-column nullability, so PostgREST types every column of
+    // `entitlements` as nullable. The view coalesces all of them (pgTAP 0047 asserts that),
+    // but a schema that throws on null would turn a dropped coalesce into an unusable screen
+    // instead of a member who sees the feature as off.
+    for (const bit of BITS) {
+      expect(entitlementsSchema.parse({ ...memberRow, [bit]: null })[bit], bit).toBe(false);
     }
+  });
+
+  it('reads an absent bit as false too — access is never inferred from absence', () => {
+    for (const bit of BITS) {
+      const { [bit]: _dropped, ...withoutBit } = memberRow;
+      expect(entitlementsSchema.parse(withoutBit)[bit], bit).toBe(false);
+    }
+  });
+
+  it('defaults fail closed — a member row stripped of every bit grants nothing', () => {
+    expect(entitlementsSchema.parse({ profile_id: memberRow.profile_id })).toEqual({
+      profile_id: memberRow.profile_id,
+      is_member: false,
+      founding: false,
+      advanced_filters: false,
+      premium_events: false,
+      analytics: false,
+      market_reduced_fee: false,
+    });
   });
 
   it('accepts plan/status absent as well as null — the view left-joins', () => {
