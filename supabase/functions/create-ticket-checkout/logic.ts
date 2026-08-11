@@ -17,6 +17,8 @@ export type TicketCheckoutCtx = {
   ) => Promise<Stripe.Checkout.Session>;
   /** APP_DEEPLINK_BASE (default 'athanor://') */
   appBase: string;
+  /** injected clock — the past-event guard is time-dependent (core rule: no bare Date) */
+  now: () => Date;
 };
 
 export type TicketCheckoutInput = {
@@ -64,20 +66,36 @@ export function buildTicketSessionParams(
 /**
  * Gates in order: event exists & not deleted → priced (free events never reach Stripe) →
  * organizer identity-verified (P2.4, 08 §3.1 — fail-closed on lookup error; never sell
- * for an unverifiable organizer). Then builds the session; the buyer's ticket is issued
- * by the webhook (W1), not here.
+ * for an unverifiable organizer) → caller is not the organizer → event has not ended →
+ * caller does not already hold a ticket (#116). Then builds the session; the buyer's
+ * ticket is issued by the webhook (W1), not here.
+ *
+ * Every gate is server-side on purpose. The screen hides these buttons too, but this is a
+ * public HTTP endpoint and verify_jwt only proves the caller is *a* member. The last three
+ * gates must refuse BEFORE the Stripe call, because the charge is captured at hosted
+ * Checkout and nothing downstream can decline it: the webhook's upsert is
+ * ignoreDuplicates (correct, for redelivery), so a second purchase would be swallowed at
+ * 200 with the money taken and no second ticket to show for it.
+ *
+ * The ticket gate is read-then-act, so it closes the SEQUENTIAL re-buy — a member who
+ * already holds a ticket — and not the concurrent one: two sessions started before either
+ * webhook lands both read no row, and the second charge is still swallowed. Closing that
+ * needs a pre-charge claim row, which this milestone does not have.
+ *
+ * Capacity is deliberately NOT checked here — #105 owns it end-to-end for both the RSVP
+ * and the checkout path, including the concurrency bar this function cannot meet.
  */
 export async function createTicketCheckout(
   ctx: TicketCheckoutCtx,
   input: TicketCheckoutInput,
 ): Promise<Response> {
-  const { userClient, createCheckoutSession, appBase } = ctx;
+  const { userClient, createCheckoutSession, appBase, now } = ctx;
   const { profileId, eventId } = input;
 
   // Load the event server-side (RLS lets any member read a published event).
   const { data: event, error: evErr } = await userClient
     .from('events')
-    .select('id,title,price_cents,currency,organizer_id,deleted_at')
+    .select('id,title,price_cents,currency,organizer_id,starts_at,ends_at,deleted_at')
     .eq('id', eventId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -93,6 +111,31 @@ export async function createTicketCheckout(
   });
   if (verErr) return error('organizer verification lookup failed', 500);
   if (!organizerVerified) return error('organizer not verified', 403);
+
+  // The organizer cannot buy a ticket to their own event. The screen knows this
+  // (isOrganizer) and never passed it on; decided here from the verified caller.
+  if (event.organizer_id === profileId) return error('organizer cannot buy', 403);
+
+  // Past events are refused, not merely hidden: the screen swaps the action bar for a stub,
+  // which is layout, not authorization. ends_at when set, otherwise starts_at — the same
+  // rule the screen uses, so an event under way keeps selling.
+  const endsAt = new Date(event.ends_at ?? event.starts_at).getTime();
+  if (endsAt < now().getTime()) return error('event ended', 410);
+
+  // A held ticket makes a second charge money for nothing (unique (user_id, event_id) plus the
+  // webhook's ignoreDuplicates upsert), so refuse here. 'refunded' must pass: the webhook's
+  // repair path re-issues on a new payment intent. 'pending' was never paid, so nothing is owned.
+  // Own row only — event_tickets_select_own is the RLS policy this rides on.
+  const { data: ticket, error: tErr } = await userClient
+    .from('event_tickets')
+    .select('status')
+    .eq('user_id', profileId)
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (tErr) return error('ticket lookup failed', 500); // fail-closed: never sell when unsure
+  if (ticket?.status === 'paid' || ticket?.status === 'checked_in') {
+    return error('ticket already owned', 409);
+  }
 
   // Wrap the Stripe call: an API error must return a clean {error} (never leak Stripe's raw error
   // body / a 500 with internals). No DB write or charge has happened, so failing here is money-safe.
