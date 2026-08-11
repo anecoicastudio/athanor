@@ -59,16 +59,17 @@ all, which is exactly when RLS gets broken. Open the PR early, or keep a local s
 ## Git workflow
 
 ```
-feat|fix|chore/*  --PR-->  dev  --release PR-->  main
-     (work)              (integration            (release =
-                          = staging)              production)
+feat|fix|chore|docs/*  --PR-->  dev  --release PR-->  main
+       (work)                (integration            (release =
+                              = staging)              production)
 ```
 
-1. Every change starts on a `feat/*`, `fix/*` or `chore/*` branch and reaches `dev` **only through a pull request** — CI green (lint, typecheck, unit tests, pgTAP, edge tests) + review. No direct pushes to `dev` or `main`.
-   - One exception: a **batched `chore/*` sweep** may carry several changes that alter no runtime behaviour and touch no migration, schema, RLS policy, i18n catalog, or dependency — one commit per change, so the sweep can still be reverted piecewise. Anything that changes behaviour leaves the sweep and takes its own branch.
-2. `dev` mirrors **staging**; `dev → main` is a release PR, merged only by the maintainer after the go/no-go. Store builds and production migrations come from `main`.
-3. **Hotfix:** `fix/*` from `main`, PR to `main`, back-merge to `dev`.
-4. Commit style as in the history: `feat(mobile): …`, `fix(db): …` — short imperative subject.
+1. Every change starts on a `feat/*`, `fix/*`, `chore/*` or `docs/*` branch and reaches `dev` **only through a pull request** — CI green (lint, typecheck, unit tests, formatting, i18n parity, web e2e, edge tests, pgTAP + types-in-sync, and a mutation score when you touch `packages/core` or `packages/schemas`) + review. No direct pushes to `dev` or `main`.
+   - One exception — to the one-branch-per-change rule, **never** to the pull request: a **batched `chore/*` sweep** may share **one branch and one PR** across several changes that alter no runtime behaviour and touch no migration, schema, RLS policy, i18n catalog, or dependency — one commit per change, so the sweep can still be reverted piecewise. Anything that changes behaviour leaves the sweep and takes its own branch.
+2. **Work you find beyond the issue stays in the same PR.** Implementing an issue routinely surfaces fixes it never asked for — whoever wrote the issue could not see every detail the implementation exposes. Fix them on the same branch and list them in the PR body under a `## Beyond the issue` heading. That is not scope creep, and reviewers will not treat it as such; what gets flagged is an extra that is **not** listed.
+3. `dev` mirrors **staging**; `dev → main` is a release PR, merged only by the maintainer after the go/no-go. Store builds and production migrations come from `main`.
+4. **Hotfix:** `fix/*` from `main`, PR to `main`, back-merge to `dev`.
+5. Commit style as in the history: `feat(mobile): …`, `fix(db): …` — short imperative subject.
 
 | Environment | Branch   | Supabase project             | Stripe    | Access                |
 | ----------- | -------- | ---------------------------- | --------- | --------------------- |
