@@ -327,7 +327,15 @@ Supabase Dashboard (or Management API) → Authentication, **both** projects —
 
 ## Appendix E — Verified clean (audit 2026-07-02 — future audits can skip)
 
-96/96 mobile components imported · `packages/core` zero dead exports + purity clean (no I/O, no `Date.now()`/`Math.random()`) · no offset pagination · no `getSession()` in apps/web · no literal hex in app code · no `console.log` · i18n parity **1111/1111** keys IT/EN · no `.bak`/orphan screens except `event-create` (→ P4.5) · all client-reachable `SECURITY DEFINER` RPCs gated (→ P2.1 ✅).
+> ⚠️ **`getSession()` — read this before "fixing" a call site.** The rule is about _trusting_ the
+> value for authorization, not about the string. Server-side authorization in `apps/web` must use
+> `getUser()`, which verifies the token; `getSession()` returns unverified cookie contents. A
+> `getSession()` call on the **browser** client is legitimate —
+> `apps/web/components/session-keepalive.tsx:40` is one, added after this appendix's audit date, and
+> it must not be removed. The sweep line below is a statement about authorization paths, not a
+> repo-wide grep result.
+
+96/96 mobile components imported · `packages/core` zero dead exports + purity clean (no I/O, no `Date.now()`/`Math.random()`) · no offset pagination · no `getSession()` **trusted for authorization** in apps/web (see the note below) · no literal hex in app code · no `console.log` · i18n parity **1111/1111** keys IT/EN · no `.bak`/orphan screens except `event-create` (→ P4.5) · all client-reachable `SECURITY DEFINER` RPCs gated (→ P2.1 ✅).
 
 File-level sweep (v1.2): no committed build artifacts (`git ls-files` clean of `dist/`/`.next/`/`.expo/`/`coverage`) · no zero-byte files, no empty dirs · `scripts/check-i18n-hardcoded.mjs` + `.github/workflows/ci.yml` paths/commands all valid · `supabase/functions/_shared/*` fully imported (cors×9, respond×9, supabaseAdmin×7, stripe×6, qr×2, notif-templates×1) · all pgTAP tests CI-run · `packages/{api,schemas,core,i18n,config}` zero file-level orphans (dead _exports_ tracked in P5) · mobile `src/lib` 19/19 modules imported, `src/tw` used · web `utils/supabase/*` + Next file-conventions all live · assets clean post-v1.2 removals.
 

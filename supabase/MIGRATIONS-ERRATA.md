@@ -55,14 +55,20 @@ share and zero every other ballot in the displayed consensus.
 `20260811100616_equal_vote_weight_constraint.sql` makes the claim true, adding
 `check (weight = 1.000)`. The claim should be read as accurate only from that migration onward.
 
-### L28 — the cited document is frozen; read `docs/FUND-SPEC.md` instead
+### L28 — the cited document no longer exists; read `docs/FUND-SPEC.md` instead
 
-L28 says _"See docs/FUND-SPEC-AUDIT.md R-C and FUND-13."_ That file was **frozen on 2026-08-11** and
-its own header now says not to plan from it or resolve a disagreement in its favour. The requirement
-it carried was not lost — **FUND-nn numbers carry forward unchanged** — so `FUND-13` is live and
-reads the same, in `docs/FUND-SPEC.md`. The `R-C` label does not exist outside the frozen audit; its
-resolution is decision **D32** in `docs/FUND-DECISIONS.md` (Aura gates _who may vote_, never how much
-a vote counts). Same correction applied to this file's own `20260618131250` entry, which is editable.
+L28 says _"See docs/FUND-SPEC-AUDIT.md R-C and FUND-13."_ **That file was deleted on 2026-08-11**
+(decision D54): it had been superseded as a specification and kept only for an evidence trail that
+`docs/FUND-DIVERGENCE.md` already carries with citations, and two documents disagreeing was the
+failure this fund documentation set exists to prevent.
+
+Nothing cited by L28 was lost. **FUND-nn numbers carry forward unchanged**, so `FUND-13` is live and
+reads the same, now in `docs/FUND-SPEC.md`. The `R-C` label was internal to the deleted audit and has
+no successor label; the question it tracked was resolved as decision **D32** in
+`docs/FUND-DECISIONS.md` — Aura gates _who may vote_, never how much a vote counts.
+
+The same stale citation appeared in this file's own `20260618131250` entry and was corrected there
+directly, that file being editable.
 
 Verified behaviour lives in `supabase/tests/0044_candidacy_votes_rls.test.sql`.
 
