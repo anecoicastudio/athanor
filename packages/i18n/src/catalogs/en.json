@@ -928,7 +928,7 @@
   "fund.vote.author": "{name} · {city} · {category} category",
   "fund.vote.oneOnly": "One vote per edition. Move it to this dream?",
   "fund.vote.moved": "Vote moved ✦",
-  "fund.vote.weighted": "Votes are weighted by the voter's Aura.",
+  "fund.vote.equal": "Every voice weighs the same.",
   "fund.candidate.playLabel": "Play the dream video",
   "fund.howChosen.title": "How they're chosen",
   "fund.phase.community.t": "Community evaluation",

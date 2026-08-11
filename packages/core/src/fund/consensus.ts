@@ -2,10 +2,15 @@ import type { CandidacyTallyRow } from '@athanor/schemas';
 
 /**
  * Display-only consensus percentage for one candidacy (rule #1: never a score).
- * Prefers the server's Aura-weighted share; falls back to the raw vote-count share
- * when the weighted denominator is 0 — the Aura engine is dormant pre-deploy, so
- * every snapshot weight can be 0. Both empty → 0. The app NEVER computes weighting;
- * it only turns the server `candidacy_tally` aggregates into a 0–100 bar value.
+ *
+ * Every vote now weighs exactly 1.000 — equal vote, PRD §4.11 — so `weighted_total` and
+ * `vote_count` carry the same information and the first branch is the one that fires.
+ * The weighted arm and its zero-denominator fallback are kept because this is a pure
+ * function over whatever the server's `candidacy_tally` returns: it must stay correct for
+ * any weights, rather than assume an invariant enforced two layers away in SQL.
+ *
+ * Both empty → 0. The app NEVER computes weighting; it only turns the server aggregates
+ * into a 0–100 bar value.
  */
 export function consensusPercent(input: {
   weightedTotal: number;

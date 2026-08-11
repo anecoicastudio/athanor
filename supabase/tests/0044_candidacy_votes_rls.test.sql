@@ -2,11 +2,14 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(15);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- two members. The handle_new_user trigger auto-creates their public.profiles rows.
--- user_a gets an aura_scores snapshot (score 700 → normalized weight 0.700); user_b none.
+-- user_a gets an aura_scores snapshot (score 700); user_b gets none — the asymmetry is the
+-- point. Under the old Aura-weighted trigger these two voters would have weighed 0.700 and
+-- 0.000; under equal vote (R-C) both weigh 1.000, and the seed below proves Aura is ignored
+-- in BOTH directions: having a score does not inflate a vote, lacking one does not erase it.
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
@@ -14,7 +17,8 @@ values
   ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
    'authenticated', 'authenticated', 'voter_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now());
 
--- aura snapshot for user_a only (the trigger reads score/profile_id)
+-- aura snapshot for user_a only. The trigger no longer reads it; the row stays so the
+-- "Aura does not tilt the tally" assertion below is non-vacuous.
 insert into public.aura_scores (profile_id, score)
   values ('11111111-1111-1111-1111-111111111111', 700);
 
@@ -78,12 +82,13 @@ select throws_ok(
   '42501', null, 'client cannot set a non-zero weight (trigger tamper guard)'
 );
 
--- re-insert with default weight → trigger stores the seeded snapshot (700/1000 = 0.700)
+-- re-insert with default weight → trigger writes the constant. user_a HAS an aura_scores row
+-- with score 700; the old trigger would have stored 0.700 here. Equal vote ignores it.
 insert into public.candidacy_votes (edition_id, candidacy_id, voter_id)
   values ('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1','11111111-1111-1111-1111-111111111111');
 select is(
   (select weight from public.candidacy_votes where voter_id = '11111111-1111-1111-1111-111111111111'),
-  0.700::numeric, 'weight is the server-written Aura snapshot (0.700)'
+  1.000::numeric, 'weight is server-written 1.000 — a score of 700 does not inflate a vote'
 );
 
 -- ── no per-voter leak + public aggregate tally ────────────────────────────────────────
@@ -138,6 +143,15 @@ select is(
   (select count(*) from public.aura_events
    where ref_id in ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000b1'))::bigint,
   0::bigint, 'voting awards zero Aura (no aura_events)'
+);
+
+-- ── equal vote (R-C) ──────────────────────────────────────────────────────────────────
+-- The enforced invariant. Both members have voted by now: user_a with an aura_scores row of
+-- 700, user_b with no row at all — the case the old trigger coalesced to weight 0, i.e. a
+-- ballot that contributed nothing to the weighted tally. Neither is true any more.
+select is(
+  (select count(*) from public.candidacy_votes where weight is distinct from 1.000)::bigint,
+  0::bigint, 'every stored weight is exactly 1.000 — Aura never tilts the tally (R-C)'
 );
 
 select * from finish();
