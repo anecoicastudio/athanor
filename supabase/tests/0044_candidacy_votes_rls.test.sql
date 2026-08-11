@@ -58,7 +58,7 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
--- user_a casts a direct vote (weight defaults 0 → RLS ok → trigger snapshots Aura)
+-- user_a casts a direct vote (weight defaults 0 → RLS ok → trigger writes the constant 1.000)
 select lives_ok(
   $$ insert into public.candidacy_votes (edition_id, candidacy_id, voter_id)
      values ('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1','11111111-1111-1111-1111-111111111111') $$,

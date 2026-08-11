@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Own-row read of a cast vote (backend 06 §2.5). weight = server-written Aura snapshot. */
+/** Own-row read of a cast vote (backend 06 §2.5). weight = server-written constant 1.000. */
 export const candidacyVoteSchema = z.object({
   id: z.string().uuid(),
   edition_id: z.string().uuid(),
