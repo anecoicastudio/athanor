@@ -46,19 +46,34 @@ const PASSWORD = 'Athanor2026!'; // the seed's, on a disposable project, documen
 // ── the expected world — mirrors seed-staging.sql ─────────────────────────────────────────
 // `owner` is who signs in to upload; nothing here is a storage path (those come from the DB).
 const STORIES = [
-  ['marta_ceramica', 1, 'mp4'], ['tino_chef', 1, 'jpg'], ['bea_foto', 1, 'jpg'],
-  ['dario_legno', 1, 'jpg'], ['dario_legno', 2, 'mp4'], ['ele_yoga', 1, 'jpg'],
-  ['vera_erbe', 1, 'jpg'], ['gio_musica', 1, 'mp4'], ['sole_designer', 1, 'mp4'],
+  ['marta_ceramica', 1, 'mp4'],
+  ['tino_chef', 1, 'jpg'],
+  ['bea_foto', 1, 'jpg'],
+  ['dario_legno', 1, 'jpg'],
+  ['dario_legno', 2, 'mp4'],
+  ['ele_yoga', 1, 'jpg'],
+  ['vera_erbe', 1, 'jpg'],
+  ['gio_musica', 1, 'mp4'],
+  ['sole_designer', 1, 'mp4'],
 ];
 const MOMENTS = [
-  ['sole_designer', 'jpg'], ['marta_ceramica', 'mp4'], ['tino_chef', 'jpg'],
-  ['rocco_film', 'jpg'], ['dario_legno', 'jpg'],
+  ['sole_designer', 'jpg'],
+  ['marta_ceramica', 'mp4'],
+  ['tino_chef', 'jpg'],
+  ['rocco_film', 'jpg'],
+  ['dario_legno', 'jpg'],
 ];
 const POST_MEDIA = ['bea_foto', 'ele_yoga', 'vera_erbe', 'nina_poeta'];
 const CANDIDACIES = ['marta_ceramica', 'ele_yoga', 'rocco_film'];
 const AVATARS = [
-  'sole_designer', 'luna_dev', 'marta_ceramica', 'gio_musica',
-  'ele_yoga', 'tino_chef', 'vera_erbe', 'rocco_film',
+  'sole_designer',
+  'luna_dev',
+  'marta_ceramica',
+  'gio_musica',
+  'ele_yoga',
+  'tino_chef',
+  'vera_erbe',
+  'rocco_film',
 ];
 
 /** `md5(text)::uuid` in Postgres — the same 32 hex digits, dashed. */
@@ -70,7 +85,10 @@ const rowId = (semanticKey) => {
 const contentType = (file) => (file.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
 
 // ── guards ────────────────────────────────────────────────────────────────────────────────
-const die = (msg) => { console.error(`\n✗ ${msg}\n`); process.exit(1); };
+const die = (msg) => {
+  console.error(`\n✗ ${msg}\n`);
+  process.exit(1);
+};
 
 const args = new Set(process.argv.slice(2));
 const url = (process.env.STAGING_SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -89,7 +107,8 @@ service key at all — see the header.`);
 // Two gates, mirroring the seed's own posture. The explicit production check is redundant given
 // the second, and is here anyway because this is the mistake that cannot be undone.
 if (url.includes(PRODUCTION_REF)) die(`refusing: ${url} is PRODUCTION.`);
-if (!url.includes(STAGING_REF)) die(`refusing: ${url} is not the staging project (${STAGING_REF}).`);
+if (!url.includes(STAGING_REF))
+  die(`refusing: ${url} is not the staging project (${STAGING_REF}).`);
 if (!args.has('--confirm')) die('refusing: pass --confirm to write to staging.');
 
 // ── auth ──────────────────────────────────────────────────────────────────────────────────
@@ -117,19 +136,65 @@ async function rest(token, path) {
 
 // ── 1. the plan: which row holds each key, and who owns it ────────────────────────────────
 const plan = [
-  { table: 'story_segments', bucket: 'story-segments', col: 'storage_path',
-    want: STORIES.map(([h, n, ext]) => ({ owner: h, id: rowId(`story:${h}:${n}`), file: `story__${h}__${n}.${ext}` })) },
-  { table: 'moments', bucket: 'moments', col: 'media_path',
-    want: MOMENTS.map(([h, ext]) => ({ owner: h, id: rowId(`moment:${h}`), file: `moment__${h}.${ext}` })) },
+  {
+    table: 'story_segments',
+    bucket: 'story-segments',
+    col: 'storage_path',
+    want: STORIES.map(([h, n, ext]) => ({
+      owner: h,
+      id: rowId(`story:${h}:${n}`),
+      file: `story__${h}__${n}.${ext}`,
+    })),
+  },
+  {
+    table: 'moments',
+    bucket: 'moments',
+    col: 'media_path',
+    want: MOMENTS.map(([h, ext]) => ({
+      owner: h,
+      id: rowId(`moment:${h}`),
+      file: `moment__${h}.${ext}`,
+    })),
+  },
   // The video moment's poster frame — same table, the other path column.
-  { table: 'moments', bucket: 'moments', col: 'thumb_path',
-    want: [{ owner: 'marta_ceramica', id: rowId('moment:marta_ceramica'), file: 'moment__marta_ceramica__thumb.jpg' }] },
-  { table: 'post_media', bucket: 'post-media', col: 'storage_path',
-    want: POST_MEDIA.map((h) => ({ owner: h, id: rowId(`postmedia:${h}:0`), file: `post__${h}__0.jpg` })) },
-  { table: 'dream_candidacies', bucket: 'candidacy-videos', col: 'video_url',
-    want: CANDIDACIES.map((h) => ({ owner: h, id: rowId(`candidacy:${h}`), file: `candidacy__${h}.mp4` })) },
-  { table: 'profiles', bucket: 'avatars', col: 'avatar_path',
-    want: AVATARS.map((h) => ({ owner: h, id: rowId(`user:${h}`), file: `avatar__${h}.jpg` })) },
+  {
+    table: 'moments',
+    bucket: 'moments',
+    col: 'thumb_path',
+    want: [
+      {
+        owner: 'marta_ceramica',
+        id: rowId('moment:marta_ceramica'),
+        file: 'moment__marta_ceramica__thumb.jpg',
+      },
+    ],
+  },
+  {
+    table: 'post_media',
+    bucket: 'post-media',
+    col: 'storage_path',
+    want: POST_MEDIA.map((h) => ({
+      owner: h,
+      id: rowId(`postmedia:${h}:0`),
+      file: `post__${h}__0.jpg`,
+    })),
+  },
+  {
+    table: 'dream_candidacies',
+    bucket: 'candidacy-videos',
+    col: 'video_url',
+    want: CANDIDACIES.map((h) => ({
+      owner: h,
+      id: rowId(`candidacy:${h}`),
+      file: `candidacy__${h}.mp4`,
+    })),
+  },
+  {
+    table: 'profiles',
+    bucket: 'avatars',
+    col: 'avatar_path',
+    want: AVATARS.map((h) => ({ owner: h, id: rowId(`user:${h}`), file: `avatar__${h}.jpg` })),
+  },
 ];
 
 // Missing files are reported ALL AT ONCE and then fatal. A run that uploads eleven of nineteen
@@ -137,12 +202,19 @@ const plan = [
 const missing = [];
 for (const step of plan) {
   for (const w of step.want) {
-    try { await stat(join(DERIVED, w.file)); } catch { missing.push(w.file); }
+    try {
+      await stat(join(DERIVED, w.file));
+    } catch {
+      missing.push(w.file);
+    }
   }
 }
 if (missing.length) {
-  die(`${missing.length} derived file(s) missing from docs/test-stories/derived:\n  ${
-    missing.join('\n  ')}\n\nRun ./supabase/staging-seed/transcode-media.sh first.`);
+  die(
+    `${missing.length} derived file(s) missing from docs/test-stories/derived:\n  ${missing.join(
+      '\n  ',
+    )}\n\nRun ./supabase/staging-seed/transcode-media.sh first.`,
+  );
 }
 
 // ── 2. resolve each key FROM THE DATABASE, then upload as the row's owner ─────────────────
@@ -157,19 +229,27 @@ for (const step of plan) {
   for (const w of step.want) {
     const key = byId.get(w.id);
     if (key == null) {
-      die(`${step.table} row ${w.id} (${w.file}) is missing or has a null ${step.col}.\n`
-        + `Re-run seed-staging.sql — the seed and this script are out of step.`);
+      die(
+        `${step.table} row ${w.id} (${w.file}) is missing or has a null ${step.col}.\n` +
+          `Re-run seed-staging.sql — the seed and this script are out of step.`,
+      );
     }
     const body = await readFile(join(DERIVED, w.file));
     const res = await fetch(`${url}/storage/v1/object/${step.bucket}/${key}`, {
       method: 'POST',
-      headers: { ...auth(await tokenFor(w.owner)), 'Content-Type': contentType(w.file), 'x-upsert': 'true' },
+      headers: {
+        ...auth(await tokenFor(w.owner)),
+        'Content-Type': contentType(w.file),
+        'x-upsert': 'true',
+      },
       body,
     });
     if (!res.ok) {
-      die(`upload failed (${res.status}) ${step.bucket}/${key} as ${w.owner}\n${await res.text()}\n`
-        + `A 4xx here means the bucket's own INSERT policy rejected its owner — read the policy, `
-        + `do not reach for a service key.`);
+      die(
+        `upload failed (${res.status}) ${step.bucket}/${key} as ${w.owner}\n${await res.text()}\n` +
+          `A 4xx here means the bucket's own INSERT policy rejected its owner — read the policy, ` +
+          `do not reach for a service key.`,
+      );
     }
     uploaded.push({ bucket: step.bucket, key, file: w.file, owner: w.owner });
     console.log(`  ↑ ${step.bucket}/${key}  ← ${w.file}  (as ${w.owner})`);
@@ -190,7 +270,9 @@ for (const o of uploaded) {
     body: JSON.stringify({ expiresIn: 60 }),
   });
   if (!signRes.ok) {
-    failures.push(`${o.bucket}/${o.key} — member cannot sign (${signRes.status}); the SELECT policy denies it`);
+    failures.push(
+      `${o.bucket}/${o.key} — member cannot sign (${signRes.status}); the SELECT policy denies it`,
+    );
     continue;
   }
   const { signedURL } = await signRes.json();
@@ -202,7 +284,9 @@ for (const o of uploaded) {
 }
 
 if (failures.length) {
-  console.error(`\n✗ ${failures.length}/${uploaded.length} objects are NOT readable by another member:`);
+  console.error(
+    `\n✗ ${failures.length}/${uploaded.length} objects are NOT readable by another member:`,
+  );
   for (const f of failures) console.error(`  ${f}`);
   console.error('\nThe bytes are uploaded but the app will still render blank rectangles.');
   process.exit(1);

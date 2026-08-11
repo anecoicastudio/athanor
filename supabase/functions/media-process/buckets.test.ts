@@ -39,7 +39,8 @@ async function bucketsFromLatestTrigger(): Promise<Set<string>> {
     const sql = await Deno.readTextFile(new URL(name, MIGRATIONS));
     if (/media_process_enqueue/i.test(sql)) lastMentioned = name;
     // `create trigger media_process_enqueue … when (new.bucket_id in ('a', 'b', …))`
-    const re = /create\s+trigger\s+media_process_enqueue[\s\S]*?when\s*\(\s*new\.bucket_id\s+in\s*\(([^)]*)\)/gi;
+    const re =
+      /create\s+trigger\s+media_process_enqueue[\s\S]*?when\s*\(\s*new\.bucket_id\s+in\s*\(([^)]*)\)/gi;
     for (const m of sql.matchAll(re)) {
       latest = new Set([...m[1].matchAll(/'([^']+)'/g)].map((q) => q[1]));
       source = name;

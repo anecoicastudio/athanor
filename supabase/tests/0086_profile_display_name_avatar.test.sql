@@ -356,20 +356,26 @@ select throws_ok(
   '42501', null,
   'a member cannot write into another member''s avatar folder'
 );
+-- Bare statements, then assert the object is unchanged. A data-modifying CTE cannot sit inside
+-- a scalar subquery ("WITH clause containing a data-modifying statement must be at the top
+-- level"), and RLS answers a non-matching UPDATE/DELETE by affecting zero rows rather than
+-- raising — so the evidence is that the row survived, not that the statement threw.
+-- B can already see this object (asserted above), so a surviving row is a real denial and not
+-- an invisible one.
+update storage.objects set name = name || '.hijacked'
+ where bucket_id = 'avatars' and name like 'a0860000-%';
 select is(
-  (with u as (
-     update storage.objects set name = name || '.hijacked'
-      where bucket_id = 'avatars' and name like 'a0860000-%' returning 1)
-   select count(*)::int from u),
+  (select count(*)::int from storage.objects
+     where bucket_id = 'avatars' and name like '%.hijacked'),
   0,
   'a member cannot rename another member''s avatar object (UPDATE policy denies)'
 );
+
+delete from storage.objects where bucket_id = 'avatars' and name like 'a0860000-%';
 select is(
-  (with d as (
-     delete from storage.objects
-      where bucket_id = 'avatars' and name like 'a0860000-%' returning 1)
-   select count(*)::int from d),
-  0,
+  (select count(*)::int from storage.objects
+     where bucket_id = 'avatars' and name like 'a0860000-%'),
+  1,
   'a member cannot delete another member''s avatar object (DELETE policy denies)'
 );
 
