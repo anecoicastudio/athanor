@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale, MilestoneStatus } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import type { HelpState } from '@/lib/help-picker';
 
 const STATE_KEY = {
   open: 'milestone.state.open',
@@ -14,9 +15,10 @@ const HELP_LABEL_KEY = {
   offered: 'help.state.offered',
   accepted: 'help.state.accepted',
   completed: 'help.state.completed',
+  // A declined offer is terminal for this helper: the (milestone_id, helper_id) unique index
+  // has no deleted_at partial, so «Aiuta» could never succeed a second time.
+  declined: 'help.state.declined',
 } as const;
-
-type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
 
 /**
  * One tappa row (frontend `02` §3.1/§4): leading check-glyph + the need + trailing

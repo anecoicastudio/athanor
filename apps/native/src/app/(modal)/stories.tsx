@@ -100,7 +100,13 @@ export default function StoriesScreen() {
           Alert.alert(t('chat.openFailed', locale));
         }
       }}
-      onMakeDream={() => Alert.alert(t('story.dream.toast', locale, { name }))}
+      onMakeDream={() => {
+        // Same sheet the dream card opens (PRD §132) — pick a tappa, then offer. Ungated:
+        // prefetching a dream per story view is not worth it, and a target with no dream
+        // lands on the picker's honest empty state rather than a toast (issue #109).
+        if (isOwn || !targetId) return;
+        router.push({ pathname: '/(modal)/help', params: { userId: targetId } });
+      }}
       onAddMoment={() => {
         router.back();
         router.push('/(tabs)/profile');

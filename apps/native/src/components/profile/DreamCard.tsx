@@ -6,9 +6,8 @@ import { Button } from '@/components/Button';
 import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
+import type { HelpState } from '@/lib/help-picker';
 import { MilestoneRow } from './MilestoneRow';
-
-type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
 
 /**
  * Il Sogno — the one active dream (frontend `02` §3.1). Two variants:
