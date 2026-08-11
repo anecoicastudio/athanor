@@ -65,6 +65,7 @@ feat|fix|chore/*  --PR-->  dev  --release PR-->  main
 ```
 
 1. Every change starts on a `feat/*`, `fix/*` or `chore/*` branch and reaches `dev` **only through a pull request** — CI green (lint, typecheck, unit tests, pgTAP, edge tests) + review. No direct pushes to `dev` or `main`.
+   - One exception: a **batched `chore/*` sweep** may carry several changes that alter no runtime behaviour and touch no migration, schema, RLS policy, i18n catalog, or dependency — one commit per change, so the sweep can still be reverted piecewise. Anything that changes behaviour leaves the sweep and takes its own branch.
 2. `dev` mirrors **staging**; `dev → main` is a release PR, merged only by the maintainer after the go/no-go. Store builds and production migrations come from `main`.
 3. **Hotfix:** `fix/*` from `main`, PR to `main`, back-merge to `dev`.
 4. Commit style as in the history: `feat(mobile): …`, `fix(db): …` — short imperative subject.
