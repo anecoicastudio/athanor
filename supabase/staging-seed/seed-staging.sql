@@ -650,9 +650,15 @@ update public.dream_candidacies c
    set video_url = c.profile_id::text || '/' || c.id::text || '.mp4'
  where c.video_url like 'http%';
 
--- Same storage-key convention as candidacyThumbPath(uid, candidacyId) — `{uid}/{id}-thumb.jpg`.
--- Set unconditionally: unlike video_url there is no legacy https:// value to guard against, and
--- scripts/upload-staging-media.mjs is what puts the matching object in the bucket.
+-- Repairs rows seeded before thumb_path existed (the column shipped in
+-- 20260812120121_candidacy_thumb_path.sql) — the same role the video_url normalizer above plays
+-- for its own pre-migration rows. The INSERT below now sets thumb_path directly, so on a fresh
+-- seed this matches zero rows; on staging's three already-seeded candidacies it backfills them,
+-- which is the only reason this UPDATE is still here.
+-- Unconditional, not gated like video_url's `like 'http%'`, because there is no valid prior
+-- value to protect: a row either has thumb_path null (needs the repair) or already has the
+-- correct string (re-setting it to the same value is a no-op), never a legacy value worth
+-- preserving.
 update public.dream_candidacies c
    set thumb_path = c.profile_id::text || '/' || c.id::text || '-thumb.jpg';
 
@@ -724,10 +730,13 @@ on conflict do nothing;
 -- candidacyVideoPath(uid, candidacyId) into it — `{uid}/{candidacy_id}.mp4`
 -- (packages/api/src/candidacy.ts:26). The old 'https://example.invalid/video/<handle>' could
 -- never sign, so the candidacy detail has always shown an empty player.
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status, city, category)
+-- `thumb_path` is set here too, from the same two ids, so a fresh seed is correct on its own —
+-- the standalone UPDATE further up only exists to backfill rows inserted before this column did.
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category)
 select md5('candidacy:' || c.handle)::uuid, md5('fundedition:2027')::uuid, md5('user:' || c.handle)::uuid,
        c.story, c.goal, c.impact,
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '.mp4',
+       md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '-thumb.jpg',
        c.plan, c.status, c.city, c.category
 from (values
   ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'craft'),
