@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { momentPath, postMediaPath, storyPath } from './paths';
+import { momentPath, momentThumbPath, postMediaPath, storyPath } from './paths';
 
 describe('postMediaPath', () => {
   it('builds `${uid}/${postId}/${index}.{ext}` per kind', () => {
@@ -12,6 +12,25 @@ describe('momentPath', () => {
   it('builds `${uid}/${momentId}.{ext}` per kind', () => {
     expect(momentPath('u1', 'm1', 'image')).toBe('u1/m1.jpg');
     expect(momentPath('u1', 'm1', 'video')).toBe('u1/m1.mp4');
+  });
+});
+
+describe('momentThumbPath', () => {
+  it('builds `${uid}/${momentId}-thumb.jpg`', () => {
+    expect(momentThumbPath('u1', 'm1')).toBe('u1/m1-thumb.jpg');
+  });
+
+  it('keeps the uid first so the storage owner predicate still matches', () => {
+    // moments_insert_own checks (storage.foldername(name))[1] = auth.uid(); a poster written
+    // anywhere else is denied.
+    expect(momentThumbPath('u1', 'm1').split('/')[0]).toBe('u1');
+  });
+
+  it('never collides with the moment media object it posters', () => {
+    expect(momentThumbPath('u1', 'm1')).not.toBe(momentPath('u1', 'm1', 'video'));
+    // A photo moment is `u1/m1.jpg` — the poster suffix keeps the two apart even though both
+    // are JPEGs in the same folder.
+    expect(momentThumbPath('u1', 'm1')).not.toBe(momentPath('u1', 'm1', 'image'));
   });
 });
 

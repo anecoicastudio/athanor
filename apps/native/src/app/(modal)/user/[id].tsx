@@ -31,6 +31,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Lightbox } from '@/components/media/Lightbox';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { SectionLabel } from '@/components/SectionLabel';
+import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
@@ -149,10 +150,9 @@ export default function PersonDetailScreen() {
     enabled: Boolean(id) && !isSelf,
     staleTime: 60_000,
   }).data;
-  const { urls, isLoading: urlsLoading } = useSignedUrls(
-    'moments',
-    moments.map((m) => m.media_path),
-  );
+  // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
+  // video itself, and both read this one map (#131).
+  const { urls, isLoading: urlsLoading } = useSignedUrls('moments', momentSignPaths(moments));
   useEffect(() => {
     if (isSelf) router.replace('/(tabs)/profile');
   }, [isSelf, router]);

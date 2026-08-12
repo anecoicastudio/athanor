@@ -25,6 +25,7 @@ import { Tag } from '@/components/Tag';
 import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { listState } from '@/lib/list-state';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
+import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
@@ -57,10 +58,9 @@ export function ProfileView({
     enabled: Boolean(userId),
   });
   const moments = momentsQuery.data?.moments ?? [];
-  const { urls, isLoading: urlsLoading } = useSignedUrls(
-    'moments',
-    moments.map((m) => m.media_path),
-  );
+  // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
+  // video itself, and both read this one map (#131).
+  const { urls, isLoading: urlsLoading } = useSignedUrls('moments', momentSignPaths(moments));
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const { addMoment } = useMomentUpload(userId);

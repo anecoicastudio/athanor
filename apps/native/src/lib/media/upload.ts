@@ -15,12 +15,33 @@ export function newMediaId(): string {
 }
 
 /**
+ * Read a local file and put it in a bucket.
+ *
+ * Reads via `fetch(uri).arrayBuffer()` — RN supports this for `file://` URIs returned by the
+ * picker/manipulator — and hands the bytes to the shared `uploadToBucket` helper (which upserts,
+ * so a retry overwrites cleanly). Throws on failure.
+ *
+ * Split out of `processAndUpload` because a video Momento uploads twice: the video itself, then
+ * the poster frame `extractVideoPoster` saved (#131). Same bytes-to-Storage tail, one copy.
+ */
+export async function uploadLocalFile(
+  localUri: string,
+  target: UploadTarget,
+  contentType: string,
+): Promise<void> {
+  const res = await fetch(localUri);
+  const bytes = await res.arrayBuffer();
+  await uploadToBucket(supabase, target.bucket, target.path, bytes, contentType);
+}
+
+/**
  * Process one picked item and upload it to its target. Images are EXIF-stripped
  * + resized first; videos pass through (see process.ts for the honest video gap).
  *
- * Reads the local file via `fetch(uri).arrayBuffer()` — RN supports this for
- * `file://` URIs returned by the picker/manipulator — and hands the bytes to the
- * shared `uploadToBucket` helper (which upserts, so a retry overwrites cleanly).
+ * Returns the processed `localUri` alongside the storage path: for a video that is the file a
+ * poster frame must be extracted from, and it is not always `item.uri` — `processVideo` is a
+ * passthrough today, but the moment it transcodes, a poster taken from the picked file would be
+ * a frame of a video nobody uploaded.
  *
  * Awaitable and throws on failure so the caller can surface `media.failed` +
  * offer retry. TODO(later): upload progress + cancellation (XHR/AbortController);
@@ -31,6 +52,7 @@ export async function processAndUpload(
   target: UploadTarget,
 ): Promise<{
   storage_path: string;
+  localUri: string;
   width?: number;
   height?: number;
   duration_s?: number;
@@ -55,13 +77,11 @@ export async function processAndUpload(
     contentType = 'video/mp4';
   }
 
-  const res = await fetch(localUri);
-  const bytes = await res.arrayBuffer();
-
-  await uploadToBucket(supabase, target.bucket, target.path, bytes, contentType);
+  await uploadLocalFile(localUri, target, contentType);
 
   return {
     storage_path: target.path,
+    localUri,
     width,
     height,
     duration_s: item.duration_s,

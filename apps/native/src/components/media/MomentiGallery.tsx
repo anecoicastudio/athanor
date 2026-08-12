@@ -10,8 +10,9 @@ import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 /**
  * "I tuoi Momenti" — the Profilo gallery section (frontend `01` §3.4 item 6).
  * Header + "Vedi tutti" → full grid; a 3-col gallery of live momenti + the
- * trailing add tile. Media renders from signed URLs (`urls`, path→url); a tile
- * with no URL yet shows the quiet placeholder. Empty for a brand-new user.
+ * trailing add tile. Media renders from signed URLs (`urls`, path→url); each tile picks its own
+ * path out of the map (a video's poster, a photo's own bytes) and shows the quiet placeholder
+ * while there is no URL yet. Empty for a brand-new user.
  */
 export function MomentiGallery({
   moments,
@@ -27,7 +28,7 @@ export function MomentiGallery({
   onRetry,
 }: {
   moments: Moment[];
-  /** Signed URLs by storage path (from `useSignedUrls('moments', …)`). */
+  /** Signed URLs by storage path (from `useSignedUrls('moments', momentSignPaths(…))`). */
   urls: Record<string, string>;
   /** That hook's `isLoading`, passed straight through to each tile — see #135. */
   urlsLoading: boolean;
@@ -71,7 +72,7 @@ export function MomentiGallery({
               moment={m}
               variant="gallery"
               locale={locale}
-              url={urls[m.media_path]}
+              urls={urls}
               isLoading={urlsLoading}
               onPress={() => onOpen(i)}
             />
