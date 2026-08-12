@@ -28,8 +28,9 @@ export type NotificationType = z.infer<typeof notificationType>;
 export const entityRefSchema = z.object({ kind: z.string(), id: z.string() }).nullish();
 export type EntityRef = z.infer<typeof entityRefSchema>;
 
-// The notif.tpl.* keys the fan-out writes (mirrored in @athanor/i18n catalogs and
-// supabase/functions/_shared/notif-templates.ts; parity asserted by an i18n test).
+// The notif.tpl.* keys the fan-out writes. Mirrored in @athanor/i18n catalogs (that half
+// is asserted by an i18n test) and in supabase/functions/_shared/notif-templates.ts (manual
+// sync — Deno, not importable from Vitest, so no test covers that half).
 // `notif.tpl.generic` is client-only: the degrade target, never written server-side.
 export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.moment',
