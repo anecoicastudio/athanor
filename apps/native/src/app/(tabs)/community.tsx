@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, RefreshControl } from 'react-native';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
@@ -13,7 +13,7 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';

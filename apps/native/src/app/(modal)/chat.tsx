@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, type FlatList as RNFlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -19,7 +19,7 @@ import { dayBucket, memberLabel } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -39,7 +39,7 @@ export default function ChatScreen() {
   const myId = session?.user.id;
   const router = useRouter();
   const queryClient = useQueryClient();
-  const listRef = useRef<FlatList<Row>>(null);
+  const listRef = useRef<RNFlatList<Row>>(null);
   // Whether the viewport is pinned to the newest message — gates auto-scroll so loading
   // older history (scroll-up pagination) doesn't yank the reader back to the bottom.
   const atBottomRef = useRef(true);

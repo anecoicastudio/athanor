@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { FlatList } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import type { Event } from '@athanor/schemas';
-import { View } from '@/tw';
+import { FlatList, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useCalendarEvents } from '@/hooks/use-calendar-events';

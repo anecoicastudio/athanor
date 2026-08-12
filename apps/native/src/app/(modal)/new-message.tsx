@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
@@ -10,7 +9,7 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { TextInput, View } from '@/tw';
+import { FlatList, TextInput, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Toast } from '@/components/Toast';

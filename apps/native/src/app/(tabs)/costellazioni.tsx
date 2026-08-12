@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { FlatList, RefreshControl } from 'react-native';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProjectsPage, type ProjectCursor, projectKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { ProjectCard } from '@/components/costellazioni/ProjectCard';
 import {
   ProjectFilterTabs,

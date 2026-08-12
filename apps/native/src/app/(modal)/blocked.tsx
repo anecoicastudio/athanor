@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Alert, FlatList } from 'react-native';
+import { Alert } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, listBlocked, unblockUser } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { View } from '@/tw';
+import { FlatList, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';

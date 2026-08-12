@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
 import * as Location from 'expo-location';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
@@ -11,7 +10,7 @@ import {
 import { metersToKm } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { EventNearby } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';

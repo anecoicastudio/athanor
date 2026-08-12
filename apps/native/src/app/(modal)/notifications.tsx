@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl } from 'react-native';
+import { ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { semantic } from '@athanor/config';
@@ -13,7 +13,7 @@ import {
 } from '@athanor/api';
 import type { NotifCursor } from '@athanor/api';
 import type { Notification } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';

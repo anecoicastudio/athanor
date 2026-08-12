@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -17,7 +17,7 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Comment } from '@/components/feed/Comment';
