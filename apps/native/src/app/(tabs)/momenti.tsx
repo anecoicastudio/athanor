@@ -10,8 +10,9 @@ import {
   passMoment,
 } from '@athanor/api';
 import type { MomentoDeckCard } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
 import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
@@ -95,16 +96,16 @@ export default function MomentiScreen() {
         {deck.isLoading ? (
           <View className="flex-1 rounded-card border border-hair bg-raise opacity-60" />
         ) : deck.isError ? (
-          <View className="flex-1 items-center justify-center gap-4">
-            <EmptyState>{t('momenti.empty.title', locale)}</EmptyState>
-            <Pressable
-              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-              onPress={() => void deck.refetch()}
-              accessibilityRole="button"
-            >
-              <Text className="text-[13px] text-aura">{t('common.retry', locale)}</Text>
-            </Pressable>
-          </View>
+          // `momenti.error`, not `momenti.empty.title` — the error branch used to borrow the
+          // empty state's sentence, so a failed deck read said «Nessun Momento per ora» over a
+          // retry button that contradicted it (#111).
+          <ListState
+            state="error"
+            locale={locale}
+            errorLabel={t('momenti.error', locale)}
+            onRetry={() => void deck.refetch()}
+            className="flex-1 justify-center px-5"
+          />
         ) : exhausted ? (
           <View className="flex-1 items-center justify-center">
             <EmptyState>

@@ -18,6 +18,7 @@ import {
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
@@ -189,8 +190,16 @@ export default function PostDetailScreen() {
             <Text className="pt-2 text-[14px] font-semibold text-foreground">
               {t('comment.sectionLabel', locale)}
             </Text>
+            {/* Was a bare line of text with no way out — the member could see that the replies
+                failed and could do nothing about it (#111). */}
             {commentsQuery.isError ? (
-              <Text className="text-[13px] text-foreground">{t('comment.error', locale)}</Text>
+              <ListState
+                state="error"
+                locale={locale}
+                errorLabel={t('comment.error', locale)}
+                onRetry={() => void commentsQuery.refetch()}
+                className="py-4"
+              />
             ) : null}
           </View>
         }
