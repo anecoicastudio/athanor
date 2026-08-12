@@ -26,6 +26,17 @@ export function candidacyVideoPath(uid: string, candidacyId: string): string {
 }
 
 /**
+ * Storage key for a candidacy's poster frame: `${uid}/${candidacyId}-thumb.jpg`.
+ *
+ * Same folder as `candidacyVideoPath`, deliberately: every `candidacy_videos_*` policy gates on
+ * the first path segment matching the caller's uid, so a poster written here is covered by the
+ * video's policies and needs none of its own.
+ */
+export function candidacyThumbPath(uid: string, candidacyId: string): string {
+  return `${uid}/${candidacyId}-thumb.jpg`;
+}
+
+/**
  * Submit a candidacy. `id` is generated client-side so the video can be uploaded
  * to `{uid}/{id}.mp4` BEFORE the row exists; profile_id + status are server-pinned
  * by RLS WITH CHECK (status must be 'submitted'; insert requires identity_verified).

@@ -3,6 +3,7 @@ import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import {
   candidacyKeys,
+  candidacyThumbPath,
   candidacyVideoPath,
   getCandidateById,
   getCandidates,
@@ -22,6 +23,7 @@ const CANDIDACY_ROW = {
   goal: 'il mio obiettivo',
   impact: 'impatto',
   video_url: `${UID}/${CAND1}.mp4`,
+  thumb_path: null,
   plan: 'piano',
   status: 'submitted' as const,
   city: null,
@@ -41,6 +43,7 @@ const CARD_ROW = {
   category: null,
   status: 'submitted' as const,
   video_url: `${UID}/${CAND1}.mp4`,
+  thumb_path: null,
   created_at: '2026-07-02T00:00:00Z',
 };
 
@@ -96,6 +99,18 @@ describe('candidacyVideoPath', () => {
   });
 });
 
+describe('candidacyThumbPath', () => {
+  it('is the pure `{uid}/{candidacy_id}-thumb.jpg` storage convention', () => {
+    expect(candidacyThumbPath(UID, CAND1)).toBe(`${UID}/${CAND1}-thumb.jpg`);
+  });
+  it('puts the poster in the uploader own folder, which is what the storage policies gate on', () => {
+    expect(candidacyThumbPath(UID, CAND1).split('/')[0]).toBe(UID);
+  });
+  it('never collides with the video it is a frame of', () => {
+    expect(candidacyThumbPath(UID, CAND1)).not.toBe(candidacyVideoPath(UID, CAND1));
+  });
+});
+
 describe('submitCandidacy', () => {
   it('sends the client-generated id, pinned profile_id and status=submitted', async () => {
     const { client, calls } = stub([CANDIDACY_ROW]);
@@ -105,6 +120,7 @@ describe('submitCandidacy', () => {
       goal: CANDIDACY_ROW.goal,
       impact: CANDIDACY_ROW.impact,
       video_url: CANDIDACY_ROW.video_url,
+      thumb_path: CANDIDACY_ROW.thumb_path,
       plan: CANDIDACY_ROW.plan,
     };
     const created = await submitCandidacy(client, { id: CAND1, profileId: UID, input });
@@ -184,6 +200,7 @@ describe('candidacy — a database failure reaches the caller', () => {
           impact: 'impatto',
           plan: 'piano',
           video_url: `${UID}/${CAND1}.mp4`,
+          thumb_path: null,
         },
       }),
     ).rejects.toMatchObject({ code: '57P01' });
