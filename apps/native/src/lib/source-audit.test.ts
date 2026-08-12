@@ -3,15 +3,15 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Static audit of the `apps/native/src` tree — six invariants from CLAUDE.md that no
+ * Static audit of the `apps/native/src` tree — seven invariants from CLAUDE.md that no
  * compiler, linter or runtime test can see, because each one fails SILENTLY.
  *
  * Why a test and not a hook: the hex guard in `.claude/settings.json` only *warns*, only
  * inspects Edit/Write payloads, and never sees code arriving via `git pull`, a merge, or a
  * branch someone else wrote. This runs in CI on the tree as it actually is.
  *
- * All six pass on the tree as of writing. The point is not to find something today, it is to
- * make the next regression loud.
+ * All seven pass on the tree as of writing. The point is not to find something today, it is
+ * to make the next regression loud.
  *
  * `.href` (a string), not the URL object: this app's lib resolves `URL` to the DOM one, which
  * isn't assignable to node's `fileURLToPath` parameter — same idiom as `tokens-mirror.test.ts`.
@@ -267,7 +267,93 @@ describe('no literal hex colours in app code', () => {
 });
 
 // ---------------------------------------------------------------------------------------
-// 6 — rule 3: reaction counts are author-only
+// 6 — class-shaped props only on components that resolve them
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `metro.config.js` sets `globalClassNamePolyfill: false`, so a `className` (or
+ * `contentContainerClassName`, …) prop is resolved ONLY by components that go through
+ * `useCssElement` — the `src/tw` wrappers, `react-native-css/components`, and `styled()`.
+ * On a component imported from `react-native` the prop is an unknown extra: TypeScript stays
+ * quiet because `react-native-css/types` widens the RN prop types globally, and native drops
+ * the prop without a warning — the element renders, just unstyled (#49, #165 were exactly
+ * this, eleven and fourteen sites respectively).
+ */
+
+/** Local names bound by value imports from 'react-native' (aliases and `* as` included). */
+function rnValueImports(src: string): Set<string> {
+  const names = new Set<string>();
+  for (const m of src.matchAll(/import\s+([^;]*?)\s+from\s+'react-native'/g)) {
+    const clause = m[1] as string;
+    if (/^type\s/.test(clause)) continue; // `import type {…}` — types cannot be JSX tags
+    for (const part of (clause.match(/{([^}]*)}/)?.[1] ?? '').split(',')) {
+      const p = part.trim();
+      if (!p || p.startsWith('type ')) continue;
+      names.add((p.includes(' as ') ? (p.split(' as ')[1] as string) : p).trim());
+    }
+    const ns = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/)?.[1];
+    if (ns) names.add(ns);
+  }
+  return names;
+}
+
+/**
+ * Every JSX opening tag with its attribute text, found by walking from `<Tag` to the matching
+ * `>` while tracking quotes and brace depth. Naive about nested template-literal edge cases,
+ * which at worst widens an attribute window — that can only over-report, never hide a hit.
+ */
+function jsxOpeningTags(src: string): { base: string; attrs: string; line: number }[] {
+  const tags: { base: string; attrs: string; line: number }[] = [];
+  const re = /<([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)(?=[\s/>])/g;
+  for (const m of src.matchAll(re)) {
+    // matchAll iterates on a CLONE, so `re.lastIndex` never advances — walk from the
+    // match itself. Only depth-0 characters land in `attrs`: a render-prop's nested JSX
+    // (`renderItem={() => <View className=…>}`) lives inside braces and belongs to the
+    // nested tag's own scan, not to this one.
+    let i = (m.index as number) + m[0].length;
+    let depth = 0;
+    let quote = '';
+    let attrs = '';
+    while (i < src.length) {
+      const c = src[i] as string;
+      if (quote) {
+        if (c === quote) quote = '';
+      } else if (c === '"' || c === "'" || c === '`') quote = c;
+      else if (c === '{') depth += 1;
+      else if (c === '}') depth -= 1;
+      else if (c === '>' && depth === 0) break;
+      attrs += depth === 0 && !quote ? c : ' ';
+      i += 1;
+    }
+    tags.push({
+      base: (m[1] as string).split('.')[0] as string,
+      attrs,
+      line: src.slice(0, m.index).split('\n').length,
+    });
+  }
+  return tags;
+}
+
+describe('class-shaped props reach only components that resolve them', () => {
+  it('no className-like prop on a JSX tag imported from react-native', () => {
+    const hits = FILES.filter((p) => !isTest(p)).flatMap((p) => {
+      const src = stripComments(read(p));
+      const rn = rnValueImports(src);
+      if (rn.size === 0) return [];
+      return jsxOpeningTags(src)
+        .filter(({ base }) => rn.has(base))
+        .filter(({ attrs }) => /\b[A-Za-z]*[cC]lassName\s*=/.test(attrs))
+        .map(({ base, line }) => `${rel(p)}:${line}  <${base} …>`);
+    });
+    expect(
+      hits,
+      'the prop is silently dropped — use a src/tw wrapper or hoist onto a child',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 7 — rule 3: reaction counts are author-only
 // ---------------------------------------------------------------------------------------
 
 /**

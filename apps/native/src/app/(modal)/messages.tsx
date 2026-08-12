@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,7 +8,7 @@ import {
   subscribeConversations,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConversationRow } from '@/components/chat/ConversationRow';

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -15,7 +14,7 @@ import {
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { ConnectionRequestListItem } from '@athanor/schemas';
-import { TextInput, View } from '@/tw';
+import { FlatList, TextInput, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConnectionRequestRow } from '@/components/connections/ConnectionRequestRow';

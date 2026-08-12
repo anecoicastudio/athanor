@@ -63,56 +63,54 @@ export default function MatchOverlay() {
   useAnnounceOnMount(headline);
 
   return (
-    <Animated.View
-      {...MODAL_A11Y}
-      style={{ opacity }}
-      className="flex-1 items-center justify-center bg-background px-8"
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('common.close', locale)}
-        onPress={() => router.back()}
-        className="absolute right-5 top-12 h-11 w-11 items-center justify-center"
-      >
-        <Text className="text-2xl text-faint">×</Text>
-      </Pressable>
-
-      <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-        {/* glowing Mandorla burst — high glow (glowLevel 1), ✦ mark inside (rule #4) */}
-        <Mandorla size={140} glowLevel={1}>
-          <Text className="text-4xl text-aura">✦</Text>
-        </Mandorla>
-      </Animated.View>
-
-      <SectionLabel tone="aura" className="mt-6">
-        {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
-      </SectionLabel>
-      <Text
-        accessibilityRole="header"
-        className="mt-2 text-center text-[26px] font-bold text-foreground"
-      >
-        {headline}
-      </Text>
-      <Text className="mt-3 text-center text-[15px] leading-[22px] text-faint">
-        {accepted ? fill('match.accepted.sub') : t('match.sub', locale)}
-      </Text>
-      <Text className="mt-3 text-[12px] text-faint">✦ Aura 0</Text>
-
-      <View className="mt-8 w-full gap-3">
-        <Button
-          variant="light"
-          glow
-          label={accepted ? fill('match.accepted.writeCta') : t('match.openCta', locale)}
-          onPress={() => {
-            if (conversationId) router.replace(`/chat?conversationId=${conversationId}`);
-            else router.back();
-          }}
-        />
-        <Button
-          variant="ghost"
-          label={accepted ? t('match.accepted.keepCta', locale) : t('match.laterCta', locale)}
+    <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
+      <View className="flex-1 items-center justify-center bg-background px-8">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close', locale)}
           onPress={() => router.back()}
-        />
+          className="absolute right-5 top-12 h-11 w-11 items-center justify-center"
+        >
+          <Text className="text-2xl text-faint">×</Text>
+        </Pressable>
+
+        <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
+          {/* glowing Mandorla burst — high glow (glowLevel 1), ✦ mark inside (rule #4) */}
+          <Mandorla size={140} glowLevel={1}>
+            <Text className="text-4xl text-aura">✦</Text>
+          </Mandorla>
+        </Animated.View>
+
+        <SectionLabel tone="aura" className="mt-6">
+          {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
+        </SectionLabel>
+        <Text
+          accessibilityRole="header"
+          className="mt-2 text-center text-[26px] font-bold text-foreground"
+        >
+          {headline}
+        </Text>
+        <Text className="mt-3 text-center text-[15px] leading-[22px] text-faint">
+          {accepted ? fill('match.accepted.sub') : t('match.sub', locale)}
+        </Text>
+        <Text className="mt-3 text-[12px] text-faint">✦ Aura 0</Text>
+
+        <View className="mt-8 w-full gap-3">
+          <Button
+            variant="light"
+            glow
+            label={accepted ? fill('match.accepted.writeCta') : t('match.openCta', locale)}
+            onPress={() => {
+              if (conversationId) router.replace(`/chat?conversationId=${conversationId}`);
+              else router.back();
+            }}
+          />
+          <Button
+            variant="ghost"
+            label={accepted ? t('match.accepted.keepCta', locale) : t('match.laterCta', locale)}
+            onPress={() => router.back()}
+          />
+        </View>
       </View>
     </Animated.View>
   );

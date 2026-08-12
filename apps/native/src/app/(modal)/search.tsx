@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { searchAll, searchKeys, type SearchCursor } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { SearchResult, SearchScope } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
 import { SearchBar } from '@/components/search/SearchBar';
 import { ScopeTabs } from '@/components/search/ScopeTabs';
 import { ResultRow } from '@/components/search/ResultRow';

@@ -6,6 +6,8 @@ import {
   Pressable as RNPressable,
   ScrollView as RNScrollView,
   TextInput as RNTextInput,
+  FlatList as RNFlatList,
+  type FlatListProps as RNFlatListProps,
 } from 'react-native';
 
 /** Join conditional NativeWind classes — falsy parts drop out, so call sites avoid
@@ -51,6 +53,20 @@ export const ScrollView = (props: ScrollViewProps) =>
     contentContainerClassName: 'contentContainerStyle',
   });
 ScrollView.displayName = 'CSS(ScrollView)';
+
+export type FlatListProps<ItemT> = RNFlatListProps<ItemT> & {
+  ref?: React.Ref<RNFlatList<ItemT>>;
+  className?: string;
+  contentContainerClassName?: string;
+};
+const FlatListImpl = RNFlatList as unknown as React.ComponentType<Record<string, unknown>>;
+export function FlatList<ItemT>(props: FlatListProps<ItemT>) {
+  return useCssElement(FlatListImpl, props as unknown as Record<string, unknown>, {
+    className: 'style',
+    contentContainerClassName: 'contentContainerStyle',
+  });
+}
+FlatList.displayName = 'CSS(FlatList)';
 
 export type TextInputProps = React.ComponentProps<typeof RNTextInput> & { className?: string };
 export const TextInput = (props: TextInputProps) =>

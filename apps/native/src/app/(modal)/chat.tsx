@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, type FlatList as RNFlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -19,7 +19,7 @@ import { dayBucket, memberLabel } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -39,7 +39,7 @@ export default function ChatScreen() {
   const myId = session?.user.id;
   const router = useRouter();
   const queryClient = useQueryClient();
-  const listRef = useRef<FlatList<Row>>(null);
+  const listRef = useRef<RNFlatList<Row>>(null);
   // Whether the viewport is pinned to the newest message — gates auto-scroll so loading
   // older history (scroll-up pagination) doesn't yank the reader back to the bottom.
   const atBottomRef = useRef(true);
@@ -177,126 +177,128 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-background"
+      style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* header */}
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <Avatar
-          handle={peer?.peerHandle ?? null}
-          displayName={peer?.peerDisplayName ?? null}
-          avatarPath={peer?.peerAvatarPath ?? null}
-          size={36}
-        />
-        <View className="flex-1">
-          <Text className="text-[15px] font-semibold text-foreground">
-            {memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—'}
-          </Text>
-          <Text
-            className="text-[11px] text-faint"
-            accessibilityLabel={
-              peerScore === AURA_UNKNOWN
-                ? t('aura.unknown', locale)
-                : t('chat.peerAura', locale, { score: peerScore })
-            }
-          >
-            {t('chat.peerAura', locale, { score: peerScore })}
-          </Text>
-        </View>
-        {peer?.peerId ? (
+      <View className="flex-1 bg-background">
+        {/* header */}
+        <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('chat.a11y.profile', locale)}
+            accessibilityLabel={t('common.back', locale)}
             hitSlop={8}
-            onPress={() => router.push(`/user/${peer.peerId}`)}
+            onPress={() => router.back()}
           >
-            <Text className="text-xl text-faint">↗</Text>
+            <Text className="text-2xl text-foreground">‹</Text>
           </Pressable>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('chat.a11y.menu', locale)}
-          hitSlop={8}
-          onPress={openMenu}
-        >
-          <Text className="text-xl text-faint">⋯</Text>
-        </Pressable>
-      </View>
+          <Avatar
+            handle={peer?.peerHandle ?? null}
+            displayName={peer?.peerDisplayName ?? null}
+            avatarPath={peer?.peerAvatarPath ?? null}
+            size={36}
+          />
+          <View className="flex-1">
+            <Text className="text-[15px] font-semibold text-foreground">
+              {memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—'}
+            </Text>
+            <Text
+              className="text-[11px] text-faint"
+              accessibilityLabel={
+                peerScore === AURA_UNKNOWN
+                  ? t('aura.unknown', locale)
+                  : t('chat.peerAura', locale, { score: peerScore })
+              }
+            >
+              {t('chat.peerAura', locale, { score: peerScore })}
+            </Text>
+          </View>
+          {peer?.peerId ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('chat.a11y.profile', locale)}
+              hitSlop={8}
+              onPress={() => router.push(`/user/${peer.peerId}`)}
+            >
+              <Text className="text-xl text-faint">↗</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.a11y.menu', locale)}
+            hitSlop={8}
+            onPress={openMenu}
+          >
+            <Text className="text-xl text-faint">⋯</Text>
+          </Pressable>
+        </View>
 
-      <FlatList
-        ref={listRef}
-        data={rows}
-        keyExtractor={(r) => r.key}
-        contentContainerClassName="px-4 py-3"
-        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-        onContentSizeChange={() => {
-          // Auto-scroll to the newest message only when the reader is already at the bottom;
-          // prepending older history (scroll-up pagination) must not bounce them down.
-          if (atBottomRef.current) listRef.current?.scrollToEnd({ animated: false });
-        }}
-        renderItem={({ item, index }) =>
-          item.type === 'marker' ? (
-            <View className="my-3 items-center">
-              <SectionLabel>{item.label}</SectionLabel>
-            </View>
-          ) : (
-            <Bubble
-              message={item.message}
-              myId={myId as string}
-              locale={locale}
-              peer={peerIdentity}
-              // The face sits on the LAST bubble of a run, beside the row it is bottom-aligned
-              // to. A run ends when the next row is a day marker, the end of the thread, or a
-              // message from anyone else.
-              showPeerAvatar={isRunEnd(rows, index)}
-            />
-          )
-        }
-        onScroll={(e) => {
-          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-          atBottomRef.current =
-            contentSize.height - (contentOffset.y + layoutMeasurement.height) < 120;
-          if (
-            contentOffset.y < 80 &&
-            messagesQuery.hasNextPage &&
-            !messagesQuery.isFetchingNextPage
-          ) {
-            void messagesQuery.fetchNextPage();
+        <FlatList
+          ref={listRef}
+          data={rows}
+          keyExtractor={(r) => r.key}
+          contentContainerClassName="px-4 py-3"
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          onContentSizeChange={() => {
+            // Auto-scroll to the newest message only when the reader is already at the bottom;
+            // prepending older history (scroll-up pagination) must not bounce them down.
+            if (atBottomRef.current) listRef.current?.scrollToEnd({ animated: false });
+          }}
+          renderItem={({ item, index }) =>
+            item.type === 'marker' ? (
+              <View className="my-3 items-center">
+                <SectionLabel>{item.label}</SectionLabel>
+              </View>
+            ) : (
+              <Bubble
+                message={item.message}
+                myId={myId as string}
+                locale={locale}
+                peer={peerIdentity}
+                // The face sits on the LAST bubble of a run, beside the row it is bottom-aligned
+                // to. A run ends when the next row is a day marker, the end of the thread, or a
+                // message from anyone else.
+                showPeerAvatar={isRunEnd(rows, index)}
+              />
+            )
           }
-        }}
-        scrollEventThrottle={64}
-      />
-
-      {/* chat bar — send is a FLAT cyan surface (rule #4: cyan is allowed on the send button,
-          but the glow is reserved for moment-grade events; a routine send is not one). */}
-      <View className="flex-row items-end gap-2 border-t border-hair bg-background px-4 py-3">
-        <TextInput
-          className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
-          placeholder={t('chat.input.placeholder', locale)}
-          placeholderTextColor={semantic.faint}
-          value={draft}
-          onChangeText={setDraft}
-          multiline
+          onScroll={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            atBottomRef.current =
+              contentSize.height - (contentOffset.y + layoutMeasurement.height) < 120;
+            if (
+              contentOffset.y < 80 &&
+              messagesQuery.hasNextPage &&
+              !messagesQuery.isFetchingNextPage
+            ) {
+              void messagesQuery.fetchNextPage();
+            }
+          }}
+          scrollEventThrottle={64}
         />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('chat.a11y.send', locale)}
-          disabled={!canSend}
-          onPress={() => send.mutate(trimmed)}
-          className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
-            canSend ? '' : 'opacity-40'
-          }`}
-        >
-          <Text className="text-[20px] text-on-aura">›</Text>
-        </Pressable>
+
+        {/* chat bar — send is a FLAT cyan surface (rule #4: cyan is allowed on the send button,
+          but the glow is reserved for moment-grade events; a routine send is not one). */}
+        <View className="flex-row items-end gap-2 border-t border-hair bg-background px-4 py-3">
+          <TextInput
+            className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
+            placeholder={t('chat.input.placeholder', locale)}
+            placeholderTextColor={semantic.faint}
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.a11y.send', locale)}
+            disabled={!canSend}
+            onPress={() => send.mutate(trimmed)}
+            className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
+              canSend ? '' : 'opacity-40'
+            }`}
+          >
+            <Text className="text-[20px] text-on-aura">›</Text>
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );

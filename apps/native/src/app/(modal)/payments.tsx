@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, FlatList } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type ContributionCursor, fundKeys, getMyContributions } from '@athanor/api';
 import { formatPrice } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FundContribution, Locale } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { FlatList, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';

@@ -46,42 +46,40 @@ export default function CandidacySuccessOverlay() {
   useAnnounceOnMount(headline);
 
   return (
-    <Animated.View
-      {...MODAL_A11Y}
-      style={{ opacity }}
-      className="flex-1 items-center justify-center bg-background px-8"
-    >
-      <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-        {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
-        <Mandorla size={96} glowLevel={1}>
-          <Text className="text-3xl text-aura">✦</Text>
-        </Mandorla>
-      </Animated.View>
+    <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
+      <View className="flex-1 items-center justify-center bg-background px-8">
+        <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
+          {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
+          <Mandorla size={96} glowLevel={1}>
+            <Text className="text-3xl text-aura">✦</Text>
+          </Mandorla>
+        </Animated.View>
 
-      <SectionLabel tone="aura" className="mt-6">
-        {t('candidacy.success.eyebrow', locale)}
-      </SectionLabel>
-      <Text
-        accessibilityRole="header"
-        className="mt-2 text-center text-[26px] font-bold text-foreground"
-      >
-        {headline}
-      </Text>
-      <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
-        {t('candidacy.success.sub', locale)}
-      </Text>
+        <SectionLabel tone="aura" className="mt-6">
+          {t('candidacy.success.eyebrow', locale)}
+        </SectionLabel>
+        <Text
+          accessibilityRole="header"
+          className="mt-2 text-center text-[26px] font-bold text-foreground"
+        >
+          {headline}
+        </Text>
+        <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
+          {t('candidacy.success.sub', locale)}
+        </Text>
 
-      <View className="mt-8 w-full gap-3">
-        <Button
-          variant="light"
-          label={t('candidacy.success.toFund', locale)}
-          onPress={() => router.replace('/(modal)/annual')}
-        />
-        <Button
-          variant="ghost"
-          label={t('candidacy.success.toHome', locale)}
-          onPress={() => router.replace('/(tabs)')}
-        />
+        <View className="mt-8 w-full gap-3">
+          <Button
+            variant="light"
+            label={t('candidacy.success.toFund', locale)}
+            onPress={() => router.replace('/(modal)/annual')}
+          />
+          <Button
+            variant="ghost"
+            label={t('candidacy.success.toHome', locale)}
+            onPress={() => router.replace('/(tabs)')}
+          />
+        </View>
       </View>
     </Animated.View>
   );

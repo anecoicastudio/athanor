@@ -129,8 +129,8 @@ export function StoriesViewer({
         {segments.map((seg, i) => (
           <View key={seg.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-hair">
             <Animated.View
-              className="h-full bg-aura"
               style={{
+                height: '100%',
                 width:
                   i < si
                     ? '100%'
@@ -138,7 +138,9 @@ export function StoriesViewer({
                       ? progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
                       : '0%',
               }}
-            />
+            >
+              <View className="h-full bg-aura" />
+            </Animated.View>
           </View>
         ))}
       </View>

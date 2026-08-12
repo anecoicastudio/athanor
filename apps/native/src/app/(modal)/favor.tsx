@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { favorKeys, getOrCreateConversation, passFavor } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed, Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';

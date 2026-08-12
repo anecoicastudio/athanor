@@ -53,37 +53,35 @@ export default function LevelOverlay() {
   useAnnounceOnMount(headline);
 
   return (
-    <Animated.View
-      {...MODAL_A11Y}
-      style={{ opacity }}
-      className="flex-1 items-center justify-center bg-background px-8"
-    >
-      <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-        {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
-        <Mandorla size={96} glowLevel={1}>
-          <Text className="text-3xl text-aura">✦</Text>
-        </Mandorla>
-      </Animated.View>
+    <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
+      <View className="flex-1 items-center justify-center bg-background px-8">
+        <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
+          {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
+          <Mandorla size={96} glowLevel={1}>
+            <Text className="text-3xl text-aura">✦</Text>
+          </Mandorla>
+        </Animated.View>
 
-      <SectionLabel tone="aura" className="mt-6">
-        {t('tier.up.eyebrow', locale)}
-      </SectionLabel>
-      <Text
-        accessibilityRole="header"
-        className="mt-2 text-center text-[26px] font-bold text-foreground"
-      >
-        {headline}
-      </Text>
-      <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
-        {t('tier.up.sub', locale)}
-      </Text>
+        <SectionLabel tone="aura" className="mt-6">
+          {t('tier.up.eyebrow', locale)}
+        </SectionLabel>
+        <Text
+          accessibilityRole="header"
+          className="mt-2 text-center text-[26px] font-bold text-foreground"
+        >
+          {headline}
+        </Text>
+        <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
+          {t('tier.up.sub', locale)}
+        </Text>
 
-      <View className="mt-8 w-full">
-        <Button
-          variant="light"
-          label={t('common.continue', locale)}
-          onPress={() => router.back()}
-        />
+        <View className="mt-8 w-full">
+          <Button
+            variant="light"
+            label={t('common.continue', locale)}
+            onPress={() => router.back()}
+          />
+        </View>
       </View>
     </Animated.View>
   );
