@@ -120,7 +120,9 @@ describe('summarizeWeek', () => {
     expect(r.auraWeek).toBe(50);
     expect(r.contributi).toBe(2);
     expect(r.sogniAiutati).toBe(1);
-    expect(r.oreDonate).toBe(0);
+    // #51: no `oreDonate` — the engine has no hours-donated signal (Tempo Bank is Fase 2),
+    // and a structurally-always-zero stat must not exist in the shape at all.
+    expect(r).not.toHaveProperty('oreDonate');
   });
   it('streak counts consecutive days ending today, capped at 7', () => {
     const days = ['17', '16', '15'].map((d) => ev('own_milestone', 10, `2026-06-${d}T09:00:00Z`));
@@ -136,7 +138,6 @@ describe('summarizeWeek', () => {
       auraWeek: 0,
       contributi: 0,
       sogniAiutati: 0,
-      oreDonate: 0,
       streakDays: 0,
     });
   });

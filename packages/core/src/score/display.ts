@@ -56,7 +56,6 @@ export type WeekRecap = {
   auraWeek: number;
   contributi: number;
   sogniAiutati: number;
-  oreDonate: number;
   streakDays: number;
 };
 
@@ -94,5 +93,5 @@ export function summarizeWeek(events: WeekEvent[], now: Date): WeekRecap {
     else break;
   }
 
-  return { auraWeek, contributi, sogniAiutati, oreDonate: 0, streakDays };
+  return { auraWeek, contributi, sogniAiutati, streakDays };
 }
