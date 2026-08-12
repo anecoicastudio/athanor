@@ -8,8 +8,9 @@ export const NOTIFICATION_TYPES = [
   'dreamMilestone',
   // PARKED(reviews): nothing emits this — human reviews are Fase 3. The profile section
   // renders a literal em-dash ((modal)/user/[id].tsx) and the `recensioni` Aura bucket has no
-  // BUCKET_MAP entry, so it is structurally 0. There is no prefs toggle either: PREF_ROWS
-  // lists 6 of these 7. Ships with the reviews surface (PRODUCTION-READINESS P5).
+  // BUCKET_MAP entry, so it is structurally 0. The prefs toggle for it already exists in
+  // PREF_ROWS (inert until a producer lands — don't rebuild it with the surface).
+  // Ships with the reviews surface (PRODUCTION-READINESS P5).
   'review',
   'eventReminder',
   'fundMilestone',

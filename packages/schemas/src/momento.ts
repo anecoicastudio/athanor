@@ -8,13 +8,15 @@ export type MomentoStatus = z.infer<typeof momentoStatus>;
 /**
  * The wire shape of the deck select, parsed at the boundary. `candidate` is an aliased embed
  * carrying a nested `dreams` embed, which supabase-js infers as an array and cannot type
- * through the alias — hence a schema rather than a cast. `candidate` is nullable because RLS
- * filters the embed to null when the peer hides their dream after the proposal is written.
+ * through the alias — hence a schema rather than a cast. `candidate` is nullable because the
+ * profiles SELECT policy (not_blocked) filters the embed to null when either side blocks
+ * after the proposal row is written; hiding the dream only empties the nested `dreams`.
+ * `reasons` mirrors the column: text[] not null default '{}'.
  */
 export const momentoDeckRow = z.object({
   id: z.string().uuid(),
   candidate_id: z.string().uuid(),
-  reasons: z.array(z.string()).nullable(),
+  reasons: z.array(z.string()),
   status: momentoStatus,
   candidate: z
     .object({

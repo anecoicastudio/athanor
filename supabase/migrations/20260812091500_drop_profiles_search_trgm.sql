@@ -11,8 +11,8 @@
 --
 -- The cost is write-side and ongoing: profiles is written on every onboarding step, handle
 -- change, avatar change and verification transition, and each of those still maintains a
--- GIN index that serves no read. Production has no rows yet, so this is the cheapest
--- possible moment to drop it.
+-- GIN index that serves no read. Verified 2026-08-12: production profiles has 0 rows and
+-- the index is present there — this is the cheapest possible moment to drop it.
 --
 -- This does NOT resolve the m10 note. If people-search needs to scale past a sequential
 -- scan, the fix is materializing profile_search_text into a column (or an IMMUTABLE

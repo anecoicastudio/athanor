@@ -23,7 +23,7 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
     id: row.id,
     candidateId: row.candidate_id,
     handle: row.candidate?.handle ?? null,
-    reasons: row.reasons ?? [],
+    reasons: row.reasons,
     dreamText: row.candidate?.dreams?.[0]?.text ?? null,
     status: row.status,
   });
