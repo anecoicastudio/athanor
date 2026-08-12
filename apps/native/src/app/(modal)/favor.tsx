@@ -1,14 +1,8 @@
 import { useState } from 'react';
 import { ActivityIndicator, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  type NeedCursor,
-  favorKeys,
-  getOrCreateConversation,
-  listOpenNeeds,
-  passFavor,
-} from '@athanor/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { favorKeys, getOrCreateConversation, passFavor } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed, Locale } from '@athanor/schemas';
@@ -17,6 +11,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { FavorRow } from '@/components/costellazioni/FavorRow';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useOpenNeeds } from '@/hooks/use-open-needs';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { auraGlow } from '@/lib/glow';
@@ -58,12 +53,8 @@ export default function FavorScreen() {
     }
   };
 
-  const query = useInfiniteQuery({
-    queryKey: favorKeys.openNeeds,
-    queryFn: ({ pageParam }) => listOpenNeeds(supabase, pageParam as NeedCursor | null),
-    initialPageParam: null as NeedCursor | null,
-    getNextPageParam: (last) => last.nextCursor,
-  });
+  // Shared with Home's FavorNudgeCard — one shape per key (`hooks/use-open-needs`).
+  const query = useOpenNeeds();
 
   const needs = query.data?.pages.flatMap((p) => p.needs) ?? [];
 

@@ -14,6 +14,7 @@ import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
+import { weekRecapIsEmpty } from '@/lib/week-slot';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /**
@@ -51,7 +52,10 @@ export default function RecapScreen() {
 
   const isLoading = recapQuery.isLoading;
   const isError = recapQuery.isError;
-  const isEmptyWeek = recap != null && recap.auraWeek === 0 && recap.contributi === 0;
+  // Shared with Home's WeekSlot — one definition of a quiet week. Inlining the old two-field test
+  // here while Home widened it would manufacture a disagreement: a zero-point `milestone_help`
+  // would show a WeekCard on Home that opens this sheet saying «Una settimana tranquilla».
+  const isEmptyWeek = recap != null && weekRecapIsEmpty(recap);
 
   // «Prossima stella» {gap}: localized via recap.next.gap to avoid Italian "a" leaking into EN.
   const gapStr = (() => {
