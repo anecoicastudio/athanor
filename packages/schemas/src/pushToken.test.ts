@@ -9,9 +9,11 @@ const valid = {
 };
 
 describe('pushTokenInsertSchema', () => {
-  it('parses a valid upsert payload; device_id may be null', () => {
+  it('parses a valid upsert payload; device_id may be null or absent (column has no default)', () => {
     expect(pushTokenInsertSchema.parse(valid)).toEqual(valid);
     expect(pushTokenInsertSchema.parse({ ...valid, device_id: 'd1' }).device_id).toBe('d1');
+    const { device_id: _omitted, ...withoutDevice } = valid;
+    expect(pushTokenInsertSchema.parse(withoutDevice).device_id).toBeUndefined();
   });
 
   it('bounds token to the CHECK constraint (1–512 chars)', () => {

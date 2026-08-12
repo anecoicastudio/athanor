@@ -10,6 +10,6 @@ export const pushTokenInsertSchema = z.object({
   profile_id: z.string().uuid(),
   token: z.string().min(1).max(512), // mirrors the char_length(token) between 1 and 512 CHECK
   platform: pushPlatformSchema,
-  device_id: z.string().nullable(), // text, no bound in the migration
+  device_id: z.string().nullish(), // text, no bound; the column tolerates an absent key too
 });
 export type PushTokenInsert = z.infer<typeof pushTokenInsertSchema>;
