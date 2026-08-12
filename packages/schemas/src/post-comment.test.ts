@@ -37,4 +37,19 @@ describe('postCommentInsertSchema', () => {
       }),
     ).toThrow();
   });
+
+  // #101: the composer supplies its optimistic row's uuid as the insert's PK, so a retried
+  // insert whose first response was lost conflicts on the key instead of double-posting.
+  test('passes a client-generated id through, and stays valid without one', () => {
+    const base = {
+      post_id: '22222222-2222-2222-2222-222222222222',
+      author_id: '33333333-3333-3333-3333-333333333333',
+      body: 'ciao',
+    };
+    expect(
+      postCommentInsertSchema.parse({ ...base, id: '44444444-4444-4444-4444-444444444444' }).id,
+    ).toBe('44444444-4444-4444-4444-444444444444');
+    expect(postCommentInsertSchema.parse(base).id).toBeUndefined();
+    expect(() => postCommentInsertSchema.parse({ ...base, id: 'not-a-uuid' })).toThrow();
+  });
 });
