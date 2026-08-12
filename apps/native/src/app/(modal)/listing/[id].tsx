@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { getProject, projectKeys } from '@athanor/api';
+import { getOrCreateConversation, getProject, projectKeys } from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -14,10 +14,11 @@ import { supabase } from '@/lib/supabase';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile } = useAuth();
+  const { session, profile } = useAuth();
   const router = useRouter();
   const locale = profile?.locale ?? 'it';
-  const [toast, setToast] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [openFailed, setOpenFailed] = useState(false);
 
   const query = useQuery({
     queryKey: projectKeys.detail(id),
@@ -25,12 +26,28 @@ export default function ProjectDetailScreen() {
     enabled: !!id,
   });
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
+  const project = query.data;
+  // The board does not filter your own projects out, so «Rispondi» has to: the RPC raises
+  // `cannot open a conversation with oneself`, and that would surface as `chat.openFailed`
+  // — an error message for something that is not an error.
+  const isOwn = Boolean(session && project && project.author_id === session.user.id);
+
+  // «Rispondi» — open-or-create the DM with whoever posted the project (P3.3), the same
+  // open-or-create path as the favor sheet, person detail and the story reply.
+  const respond = async () => {
+    if (!project || opening) return;
+    setOpening(true);
+    setOpenFailed(false);
+    try {
+      const conversationId = await getOrCreateConversation(supabase, project.author_id);
+      router.push(`/chat?conversationId=${conversationId}`);
+    } catch {
+      setOpenFailed(true);
+    } finally {
+      setOpening(false);
+    }
   };
 
-  const project = query.data;
   // `staleWins`: a project page a few minutes old is still that project.
   const detailState = listState({
     status: query.status,
@@ -83,18 +100,20 @@ export default function ProjectDetailScreen() {
               </Pressable>
             </View>
 
-            <Button
-              label={t('project.respond', locale)}
-              onPress={() => showToast(t('project.respond.soon', locale))}
-              variant="light"
-            />
+            {isOwn ? null : (
+              <>
+                {openFailed ? (
+                  <Text className="text-[13px] text-error">{t('chat.openFailed', locale)}</Text>
+                ) : null}
+                <Button
+                  label={t('project.respond', locale)}
+                  onPress={() => void respond()}
+                  variant="light"
+                  disabled={opening}
+                />
+              </>
+            )}
           </>
-        ) : null}
-
-        {toast ? (
-          <View className="rounded-ctl bg-aura-soft px-4 py-3">
-            <Text className="text-center text-[13px] text-aura">{toast}</Text>
-          </View>
         ) : null}
       </ScrollView>
     </View>
