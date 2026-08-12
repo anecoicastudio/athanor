@@ -130,7 +130,7 @@ export default function CostellazioniScreen() {
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
-        contentContainerClassName="pb-[104px]"
+        contentContainerClassName="pb-12"
       />
     </Screen>
   );

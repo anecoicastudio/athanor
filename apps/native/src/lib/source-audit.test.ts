@@ -3,15 +3,15 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Static audit of the `apps/native/src` tree — seven invariants from CLAUDE.md that no
- * compiler, linter or runtime test can see, because each one fails SILENTLY.
+ * Static audit of the `apps/native/src` tree — invariants from CLAUDE.md and closed issues
+ * that no compiler, linter or runtime test can see, because each one fails SILENTLY.
  *
  * Why a test and not a hook: the hex guard in `.claude/settings.json` only *warns*, only
  * inspects Edit/Write payloads, and never sees code arriving via `git pull`, a merge, or a
  * branch someone else wrote. This runs in CI on the tree as it actually is.
  *
- * All seven pass on the tree as of writing. The point is not to find something today, it is
- * to make the next regression loud.
+ * All of them pass on the tree as of writing. The point is not to find something today, it
+ * is to make the next regression loud.
  *
  * `.href` (a string), not the URL object: this app's lib resolves `URL` to the DOM one, which
  * isn't assignable to node's `fileURLToPath` parameter — same idiom as `tokens-mirror.test.ts`.
@@ -421,5 +421,40 @@ describe('author-only reaction counts (rule 3)', () => {
     expect(window, `${key} is not visibly behind an ownership check`).toMatch(
       new RegExp(`${AUTHOR_GUARD.source}\\s*(\\?|&&)`),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 8 — keyboard avoidance goes through the one wrapper (#163)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Five composers had each copied `behavior={Platform.OS === 'ios' ? 'padding' : undefined}`
+ * — overshooting inside an iOS sheet (no measured offset) and inert on Android, where an
+ * undefined behavior disables the component entirely. The fix is the one measured wrapper,
+ * `components/KeyboardAvoiding.tsx`. StoriesViewer keeps a local copy because its chrome is
+ * an absolute overlay rather than a flex column, but it must still branch to a real Android
+ * behavior — which the second assertion checks for every file, allowlisted or not.
+ */
+describe('keyboard avoidance goes through the one wrapper (#163)', () => {
+  const ALLOWED = ['components/KeyboardAvoiding.tsx', 'components/stories/StoriesViewer.tsx'];
+
+  it('KeyboardAvoidingView is referenced only in the wrapper and the stories overlay', () => {
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => stripComments(read(p)).includes('KeyboardAvoidingView'))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(users).toEqual([...ALLOWED].sort());
+  });
+
+  it('no Android-inert keyboard behavior (a `: undefined` branch) anywhere', () => {
+    // Comment-stripped: the wrapper's own docblock quotes the forbidden pattern to explain it.
+    const hits = CODE_LINES.flatMap(([p, stripped]) =>
+      stripped
+        .map((text, i) => [`${rel(p)}:${i + 1}`, text] as const)
+        .filter(([, t]) => /behavior=\{[^}]*\?\s*'padding'\s*:\s*undefined\}/.test(t))
+        .map(([where]) => where),
+    );
+    expect(hits).toEqual([]);
   });
 });

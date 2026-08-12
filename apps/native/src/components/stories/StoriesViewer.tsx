@@ -238,7 +238,10 @@ export function StoriesViewer({
 
       <KeyboardAvoidingView
         style={styles.chrome}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // `height`, not `undefined`: an undefined behavior leaves the component inert on
+        // Android (#163). The chrome is an absolute overlay, so it cannot take the shared
+        // KeyboardAvoiding wrapper's flex-column shape — same recipe, local copy.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={kbOffset}
       >
         <SafeAreaView edges={['top']} className="bg-background/70">

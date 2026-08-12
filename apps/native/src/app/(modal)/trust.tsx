@@ -129,7 +129,7 @@ export default function TrustScreen() {
   return (
     <Screen {...MODAL_A11Y}>
       <ModalHeader title={t('trust.title', locale)} backLabel={t('common.back', locale)} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-[104px] pt-2">
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-12 pt-2">
         {/* Quote — the single cyan statement (rule #4) */}
         <Text className="px-5 text-base font-semibold italic text-aura">
           {t('trust.quote', locale)}

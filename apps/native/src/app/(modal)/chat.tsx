@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, type FlatList as RNFlatList } from 'react-native';
+import { Alert, type FlatList as RNFlatList } from 'react-native';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -179,10 +180,7 @@ export default function ChatScreen() {
     ]);
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoiding>
       <Screen>
         <ModalHeader
           backLabel={t('common.back', locale)}
@@ -299,6 +297,6 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </Screen>
-    </KeyboardAvoidingView>
+    </KeyboardAvoiding>
   );
 }

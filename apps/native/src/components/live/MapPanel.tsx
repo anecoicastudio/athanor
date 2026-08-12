@@ -37,7 +37,7 @@ export function MapPanel({
   if (query.isError) return <PanelError locale={locale} onRetry={() => void query.refetch()} />;
 
   return (
-    <ScrollView contentContainerClassName="pb-[104px]">
+    <ScrollView contentContainerClassName="pb-12">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

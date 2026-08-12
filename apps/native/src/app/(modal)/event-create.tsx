@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -107,10 +108,7 @@ export default function EventCreateScreen() {
   const label = (key: MessageKey) => <SectionLabel>{t(key, locale)}</SectionLabel>;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoiding>
       <Screen>
         <ModalHeader title={t('event.create.title', locale)} backLabel={t('common.back', locale)} />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
@@ -297,6 +295,6 @@ export default function EventCreateScreen() {
           />
         </ScrollView>
       </Screen>
-    </KeyboardAvoidingView>
+    </KeyboardAvoiding>
   );
 }

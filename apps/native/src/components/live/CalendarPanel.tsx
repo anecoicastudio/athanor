@@ -64,7 +64,7 @@ export function CalendarPanel({
       onEndReached={() => {
         if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
       }}
-      contentContainerClassName="pt-2 pb-[104px]"
+      contentContainerClassName="pt-2 pb-12"
     />
   );
 }

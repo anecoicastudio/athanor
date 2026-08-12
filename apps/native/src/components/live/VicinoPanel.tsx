@@ -110,7 +110,7 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
 
   if (denied) {
     return (
-      <ScrollView contentContainerClassName="pb-[104px]">
+      <ScrollView contentContainerClassName="pb-12">
         {header}
         <View className="items-center gap-4 px-5 pt-8">
           <EmptyState>{t('live.map.locationDenied', locale)}</EmptyState>
@@ -160,7 +160,7 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
       onEndReached={() => {
         if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
       }}
-      contentContainerClassName="pb-[104px]"
+      contentContainerClassName="pb-12"
     />
   );
 }

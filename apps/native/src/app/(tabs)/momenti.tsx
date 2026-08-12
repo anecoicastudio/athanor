@@ -89,7 +89,7 @@ export default function MomentiScreen() {
 
   return (
     <Screen>
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-10">
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-12">
         <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
         {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">

@@ -59,7 +59,7 @@ export default function DeleteAccountScreen() {
   return (
     <Screen {...MODAL_A11Y}>
       <ModalHeader title={t('account.delete.title', locale)} backLabel={t('common.back', locale)} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
         <Text className="text-[15px] leading-relaxed text-muted-foreground">
           {t('account.delete.body', locale)}
         </Text>
