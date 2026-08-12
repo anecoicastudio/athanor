@@ -27,14 +27,14 @@ import { topOpenNeeds } from '@/lib/favor-home';
  * #111 is about a false claim — «you have nothing» asserted on the strength of a network error.
  * An absent block asserts nothing. The week slot beside this one gets the opposite treatment
  * (`WeekSlot.tsx`) because it reports the member's OWN Aura, where silence and a wrong number are
- * both claims about their worth; `(modal)/favor.tsx:123-135` owns the error copy and the retry.
+ * both claims about their worth; `(modal)/favor.tsx:118-130` owns the error copy and the retry.
  *
  * ROUTE-ONLY, per `MomentiCard.tsx:28-33`. `FavorRow` is deliberately NOT reused: its «Aiuta»
  * chip calls `passFavor`, and a stray tap on a scrolling Home must not be able to write. The
  * rows here are read-only; deciding happens in the sheet.
  *
  * Flat `Card`, no glow — navigation into a sheet is not a moment (rule #4). `costellazioni.tsx:101`
- * carries the same note on the same destination, and `favor.tsx:98-101` shows where the one glow
+ * carries the same note on the same destination, and `favor.tsx:89-92` shows where the one glow
  * belongs: the completion overlay, after a favor is actually lit. The CTA is flat cyan text,
  * which rule #4 allows.
  *

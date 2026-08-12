@@ -23,7 +23,7 @@ import { weekSlotState } from '@/lib/week-slot';
  * reputation the message landed exactly wrong: a member who had a quiet week was told the
  * scoreboard did not exist rather than that they had not lit it yet.
  *
- * `(modal)/recap.tsx:52-114` already held the correct four-state shape for the same query; this
+ * `(modal)/recap.tsx:53-118` already held the correct four-state shape for the same query; this
  * is that shape moved into the slot. #111 will likely extract a shared list-state component
  * across the ten screens with this defect — this is written to be lifted, not to pre-empt it.
  *
@@ -40,7 +40,7 @@ import { weekSlotState } from '@/lib/week-slot';
  * #111. Adding a fourth setting on one key would only deepen it.
  *
  * The retry is `Button variant="ghost"`, NOT the `border-aura-line bg-aura-soft` pill that
- * `favor.tsx:131-136` and `costellazioni.tsx:43-48` use. That pill is the framed cyan surface
+ * `favor.tsx:122-127` and `costellazioni.tsx:43-48` use. That pill is the framed cyan surface
  * rule #4 reserves for moment-grade events, and #119 already counts nine copies of it as a
  * defect. A failed fetch is not a moment.
  *
@@ -73,7 +73,7 @@ export function WeekSlot({ locale }: { locale: Locale }) {
       <Card>
         {state === 'pending' ? (
           // `bg-raise-2` ghosts, NOT `ShimmerBar` — that component is `bg-raise` and so is
-          // `Card`, so a bar inside a card is invisible. `recap.tsx:104-109` gets away with
+          // `Card`, so a bar inside a card is invisible. `recap.tsx:109-113` gets away with
           // ShimmerBar because its bars sit on `bg-background`; `FeedSkeleton.tsx:9-11` is the
           // in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
           // reusable here: no props, three hardcoded cards, and it bakes a `px-5` that would
@@ -93,7 +93,7 @@ export function WeekSlot({ locale }: { locale: Locale }) {
           </View>
         ) : (
           // A real quiet week. Same sentence the sheet says about the same seven days
-          // (`recap.tsx:112`) — one week, one claim, and no new key for copy that exists.
+          // (`recap.tsx:116`) — one week, one claim, and no new key for copy that exists.
           <EmptyState>{t('recap.emptyWeek', locale)}</EmptyState>
         )}
       </Card>
