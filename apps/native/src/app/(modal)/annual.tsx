@@ -33,6 +33,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { SplitBar } from '@/components/fund/SplitBar';
 import { PhaseList } from '@/components/fund/PhaseList';
 import { useAuth } from '@/lib/auth-context';
+import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
 export default function AnnualFundScreen() {
@@ -161,6 +162,15 @@ export default function AnnualFundScreen() {
   );
 
   const candidates = candidatesQuery.data?.items ?? [];
+
+  // One signing call for the whole ballot, not one per card: `useSignedUrls` keys on the sorted
+  // path list, so N cards signing themselves would be N requests and N cache entries for one
+  // screen. Posterless candidacies contribute nothing to sign.
+  const posterPaths = candidates.map((c) => c.thumb_path).filter((p): p is string => !!p);
+  const { urls: posterUrls, isLoading: postersLoading } = useSignedUrls(
+    'candidacy-videos',
+    posterPaths,
+  );
 
   const voteStateFor = (card: CandidateCardModel): VoteState => {
     if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
@@ -360,6 +370,8 @@ export default function AnnualFundScreen() {
                 <CandidateCard
                   key={card.candidacy_id}
                   card={card}
+                  posterUrl={card.thumb_path ? posterUrls[card.thumb_path] : undefined}
+                  isLoadingPoster={postersLoading}
                   consensus={consensusForCandidacy(tally, card.candidacy_id)}
                   voteState={voteStateFor(card)}
                   locale={locale}
