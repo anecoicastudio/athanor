@@ -9,10 +9,11 @@ import type { MomentoDeckCard } from '@athanor/schemas';
  * the card rather than a boolean is what keeps that impossible to write by accident: the caller
  * never holds the array.
  *
- * The order is the server's `daily_rank` (`packages/api/src/momenti.ts:53-54`), already capped at
- * 3 and filtered to `pending` + dream-bearing. Home does NOT re-rank: it reads the same cache
- * entry the tab deals its swipe deck from (`momentiKeys.deck()`), and any client sort here would
- * make the card you tap on Home differ from the card the tab hands you.
+ * The order is the server's — `(proposed_on desc, daily_rank asc)` inside `get_momenti_deck()`
+ * since #273, already capped at 3 and filtered to `pending` + dream-bearing + not-blocked. Home
+ * does NOT re-rank: it reads the same cache entry the tab deals its swipe deck from
+ * (`momentiKeys.deck()`), and any client sort here would make the card you tap on Home differ
+ * from the card the tab hands you.
  *
  * `undefined` covers all three non-answers — loading, idle, and a cold error with no cached
  * data — and collapses with `[]` into the same `null`. That is deliberate, not a shortcut: the

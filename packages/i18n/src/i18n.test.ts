@@ -1,11 +1,26 @@
 import { describe, expect, test } from 'vitest';
 import en from './catalogs/en.json';
 import it from './catalogs/it.json';
-import { t, type MessageKey } from './t';
+import { t, tagLabel, type MessageKey } from './t';
 
 describe('catalog parity', () => {
   test('EN mirrors every IT key (IT is canonical)', () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(it).sort());
+  });
+});
+
+describe('tagLabel', () => {
+  // The Momenti deck localizes tag KEYS returned by get_momenti_deck (#273 D), so the key
+  // is built from data at runtime and cannot be a literal MessageKey.
+  test('resolves an onboarding tag key to its label in each locale', () => {
+    expect(tagLabel('identity', 'artista', 'it')).toBe('Artista');
+    expect(tagLabel('identity', 'artista', 'en')).toBe('Artist');
+    expect(tagLabel('seeking', 'mentorship', 'it')).toBe('Mentorship');
+  });
+
+  test('falls back to the raw key rather than rendering "undefined"', () => {
+    // A tag added to the DB before the catalogs must degrade to something legible.
+    expect(tagLabel('identity', 'astronauta', 'it')).toBe('astronauta');
   });
 });
 

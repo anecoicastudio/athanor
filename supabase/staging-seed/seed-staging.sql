@@ -578,23 +578,28 @@ on conflict do nothing;
 --    bare `on conflict do nothing` is what stops this raising.
 --    On a real run you can skip this block and use: select public.run_momenti_matcher();
 -- ---------------------------------------------------------------------------------
-insert into public.momento_proposals (id, user_id, candidate_id, reasons, affinity, status, proposed_on, daily_rank)
+--    No `reasons` column: it is retired (#273 D). The deck computes each card's terms at read
+--    time from the candidate's CURRENT, visibility-masked tags, so a hand-written string here
+--    would render nothing and mislead the next reader. The affinity values below are what the
+--    matcher would score for these pairs; anything under 2 is a card the matcher itself would
+--    no longer propose, kept here only as an already-swiped (passed) row.
+insert into public.momento_proposals (id, user_id, candidate_id, affinity, status, proposed_on, daily_rank)
 select md5('momento:' || m.a || ':' || m.b)::uuid,
-       md5('user:' || m.a)::uuid, md5('user:' || m.b)::uuid, m.reasons, m.affinity,
+       md5('user:' || m.a)::uuid, md5('user:' || m.b)::uuid, m.affinity,
        m.status::public.momento_status, current_date, m.rank
 from (values
-  ('sole_designer',  'gio_musica',    array['Cerchi: collaborazioni','Potrebbe cercare ciò che offri'], 2.0, 'pending',  1),
-  ('gio_musica',     'sole_designer', array['Cerchi: collaborazioni','Potrebbe cercare ciò che offri'], 2.0, 'pending',  1),
-  ('marta_ceramica', 'sara_startup',  array['Cerchi: business'],                                        1.0, 'pending',  2),
-  ('ele_yoga',       'bea_foto',      array['Cerchi: eventi'],                                          1.0, 'pending',  1),
-  ('bea_foto',       'nina_poeta',    array['Cerchi: collaborazioni'],                                  1.0, 'pending',  2),
-  ('vera_erbe',      'nina_poeta',    array['You''re seeking: connessioni'],                            1.0, 'passed',   1),
+  ('sole_designer',  'gio_musica',    2.0, 'pending',  1),
+  ('gio_musica',     'sole_designer', 2.0, 'pending',  1),
+  ('marta_ceramica', 'sara_startup',  2.0, 'pending',  2),
+  ('ele_yoga',       'bea_foto',      2.0, 'pending',  1),
+  ('bea_foto',       'nina_poeta',    2.0, 'pending',  2),
+  ('vera_erbe',      'nina_poeta',    1.0, 'passed',   1),
   -- reciprocal accepted pairs → mutual match, and the two conversations in §7
-  ('sole_designer',  'luna_dev',      array['Cerchi: collaborazioni'],                                  2.0, 'accepted', 2),
-  ('luna_dev',       'sole_designer', array['You''re seeking: collaborazioni'],                         2.0, 'accepted', 1),
-  ('rocco_film',     'gio_musica',    array['Cerchi: collaborazioni'],                                  2.0, 'accepted', 2),
-  ('gio_musica',     'rocco_film',    array['Cerchi: eventi'],                                          2.0, 'accepted', 2)
-) as m(a, b, reasons, affinity, status, rank)
+  ('sole_designer',  'luna_dev',      2.0, 'accepted', 2),
+  ('luna_dev',       'sole_designer', 2.0, 'accepted', 1),
+  ('rocco_film',     'gio_musica',    2.0, 'accepted', 2),
+  ('gio_musica',     'rocco_film',    2.0, 'accepted', 2)
+) as m(a, b, affinity, status, rank)
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------------------

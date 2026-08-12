@@ -35,11 +35,17 @@ insert into public.dream_milestones (dream_id, body, position)
 -- (seed.sql is local-only; on hosted, run select public.run_momenti_matcher();)
 -- Give both members tags + an active dream so they are real matcher-eligible profiles, then
 -- hand-author two reciprocal pending proposals (sole↔luna) — the deck has cards from the first run.
+--
+-- The tags come from the curated vocabularies (packages/core/src/onboarding/tags.ts) and are
+-- COMPLEMENTARY, not identical: since #273 the matcher expands `seeking` through
+-- athanor.seeking_to_identity() and the deck renders the resulting terms, so an off-list tag
+-- ('design', 'music' — what this seed used to carry) scores nothing and renders a card with no
+-- affinity lines. sole is what luna seeks and vice versa.
 update public.profiles
-  set identity_tags = array['design'], seeking = array['music']
+  set identity_tags = array['creativo','freelance'], seeking = array['mentorship']
   where handle = 'sole';
 update public.profiles
-  set identity_tags = array['music'], seeking = array['design']
+  set identity_tags = array['coach','mentor'], seeking = array['collaborazioni']
   where handle = 'luna';
 
 insert into public.dreams (profile_id, text, status)
@@ -47,16 +53,19 @@ insert into public.dreams (profile_id, text, status)
   from public.profiles where handle = 'luna'
   on conflict do nothing;
 
--- sole sees luna (sole seeks music, luna is music)
-insert into public.momento_proposals (user_id, candidate_id, reasons, affinity, daily_rank)
-select a.id, b.id, array['Cerchi: music','Potrebbe cercare ciò che offri: design'], 2, 1
+-- No `reasons`: the column is retired (#273 D). get_momenti_deck() computes the terms from the
+-- candidate's current tags on every read, so a seeded string would be dead weight.
+
+-- sole sees luna (sole seeks mentorship, luna is coach+mentor)
+insert into public.momento_proposals (user_id, candidate_id, affinity, daily_rank)
+select a.id, b.id, 4, 1
 from public.profiles a, public.profiles b
 where a.handle = 'sole' and b.handle = 'luna'
 on conflict do nothing;
 
--- luna sees sole (luna seeks design, sole is design)
-insert into public.momento_proposals (user_id, candidate_id, reasons, affinity, daily_rank)
-select a.id, b.id, array['You''re seeking: design','May seek what you offer: music'], 2, 1
+-- luna sees sole (luna seeks collaborazioni, sole is creativo+freelance)
+insert into public.momento_proposals (user_id, candidate_id, affinity, daily_rank)
+select a.id, b.id, 4, 1
 from public.profiles a, public.profiles b
 where a.handle = 'luna' and b.handle = 'sole'
 on conflict do nothing;

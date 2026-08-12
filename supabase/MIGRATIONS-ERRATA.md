@@ -238,10 +238,20 @@ alone ⇒ still matched via `offer_hit`, and the recipient direction.
 The recipient direction leaks nothing _to the candidate_: the derived `reasons` never leave the
 recipient's own row (`momento_proposals_select_own`,
 `20260619222420_m9_blocks_and_not_blocked.sql:108-111`). Read that narrowly — it is a statement
-about who can see the row, not about what the row says. `reasons` is a match-time snapshot
+about who can see the row, not about what the row says. `reasons` was a match-time snapshot
 naming the candidate's raw tag keys, and it survived the candidate later hiding those tags;
-`20260807201350_purge_stale_momento_proposals.sql` closes that case by deleting the pending
+`20260807201350_purge_stale_momento_proposals.sql` closed that case by deleting the pending
 proposals on the flip.
+
+**Superseded (2026-08-12, #273 D).** `20260812145446_momenti_affinity_and_deck.sql` removed the
+cause rather than the symptom: `public.get_momenti_deck()` recomputes the affinity terms from
+the candidate's CURRENT, visibility-masked tags on every read, so no snapshot exists to go
+stale. `momento_reasons()`, the `profiles_purge_momenti` trigger and
+`athanor.purge_stale_momento_proposals()` are all dropped, the `reasons` column is blanked and
+retired, and hiding a tag now MASKS a pending card instead of deleting it — the trade recorded
+in `20260807203343`'s closing note (a hidden candidate being re-proposed with a fresh push) goes
+away with it. Asserted in `supabase/tests/0074_purge_stale_momento_proposals.test.sql`, which is
+now the inverse of what it used to assert.
 
 ### L18-21 — Realtime does filter payload columns by privilege
 

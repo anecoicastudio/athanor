@@ -11,6 +11,7 @@ export * from './score/award';
 export * from './score/aggregate';
 export * from './score/stars';
 export * from './onboarding/tags';
+export * from './onboarding/affinity';
 export * from './onboarding/complete';
 export * from './onboarding/handle';
 export * from './onboarding/validate';

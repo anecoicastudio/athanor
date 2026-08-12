@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
-import { getMomentiSuggestion, momentiKeys, rowToDeckCard } from './momenti';
+import { getMomentiDeck, getMomentiSuggestion, momentiKeys, rowToDeckCard } from './momenti';
 
 describe('momentiKeys', () => {
   it('builds stable keys', () => {
@@ -10,55 +10,59 @@ describe('momentiKeys', () => {
 });
 
 describe('rowToDeckCard', () => {
-  it('maps a joined proposal row to a deck card', () => {
-    const card = rowToDeckCard({
-      id: '11111111-1111-1111-1111-111111111111',
-      candidate_id: '33333333-3333-3333-3333-333333333333',
-      reasons: ['Condividete: design'],
-      status: 'pending',
-      candidate: {
-        handle: 'maria',
-        display_name: 'Maria Neri',
-        avatar_path: 'ma/ma.jpg',
-        dreams: [{ text: 'Aprire uno studio' }],
-      },
-    });
-    expect(card).toEqual({
+  const row = {
+    proposal_id: '11111111-1111-1111-1111-111111111111',
+    candidate_id: '33333333-3333-3333-3333-333333333333',
+    handle: 'maria',
+    display_name: 'Maria Neri',
+    avatar_path: 'ma/ma.jpg',
+    dream_text: 'Aprire uno studio',
+    reason_kind: 'affinity',
+    shared: ['creativo'],
+    seek_hit: ['mentor'],
+    offer_hit: ['investitore'],
+  };
+
+  it('maps an RPC row to a deck card of structured reasons', () => {
+    expect(rowToDeckCard(row)).toEqual({
       id: '11111111-1111-1111-1111-111111111111',
       candidateId: '33333333-3333-3333-3333-333333333333',
       handle: 'maria',
       displayName: 'Maria Neri',
       avatarPath: 'ma/ma.jpg',
-      reasons: ['Condividete: design'],
       dreamText: 'Aprire uno studio',
-      status: 'pending',
+      reasons: [
+        { kind: 'shared', tags: ['creativo'] },
+        { kind: 'seeking', tags: ['mentor'] },
+        { kind: 'offering', tags: ['investitore'] },
+      ],
     });
   });
 
-  it('tolerates a peer with no active dream', () => {
-    const card = rowToDeckCard({
-      id: '11111111-1111-1111-1111-111111111111',
-      candidate_id: '33333333-3333-3333-3333-333333333333',
-      reasons: [],
-      status: 'pending',
-      candidate: { handle: 'leo', display_name: null, avatar_path: null, dreams: [] },
-    });
-    expect(card.dreamText).toBeNull();
+  // The reasons are TAG KEYS now, not prose (#273 D) — the card localizes them. A term
+  // that survived the server's masking as [] must not render an empty «Condividete:».
+  it('drops a term the candidate has masked to nothing', () => {
+    const card = rowToDeckCard({ ...row, seek_hit: [], offer_hit: [] });
+    expect(card.reasons).toEqual([{ kind: 'shared', tags: ['creativo'] }]);
   });
 
-  // The profiles SELECT policy nulls the whole embed when either side blocks after the
-  // proposal row exists. The boundary parse must accept that shape, not throw — the card
-  // comes out dream-less and getMomentiDeck drops it.
-  it('tolerates an RLS-nulled candidate embed (block after proposal)', () => {
-    const card = rowToDeckCard({
-      id: '11111111-1111-1111-1111-111111111111',
-      candidate_id: '33333333-3333-3333-3333-333333333333',
-      reasons: ['Condividete: design'],
-      status: 'pending',
-      candidate: null,
-    });
-    expect(card.handle).toBeNull();
-    expect(card.dreamText).toBeNull();
+  it('leaves no reason at all when every term is masked', () => {
+    const card = rowToDeckCard({ ...row, shared: [], seek_hit: [], offer_hit: [] });
+    expect(card.reasons).toEqual([]);
+  });
+
+  // #273 E: the dream-recency fallback claims no affinity, so it says «Sogno nuovo» —
+  // the honest label, following get_momenti_suggestion's precedent.
+  it('renders a fallback card as a single new-dream reason', () => {
+    const card = rowToDeckCard({ ...row, reason_kind: 'new_dream' });
+    expect(card.reasons).toEqual([{ kind: 'newDream', tags: [] }]);
+  });
+
+  it('never carries an affinity score (rule #1)', () => {
+    // The RPC returns a KIND, never the number; if a future row ever ships `affinity`,
+    // the parse must not pass it through to a client that could render it.
+    const card = rowToDeckCard({ ...row, affinity: 7 });
+    expect(Object.keys(card)).not.toContain('affinity');
   });
 });
 
@@ -83,6 +87,44 @@ function rpcStub(data: unknown, error: unknown = null) {
     } as unknown as AthanorClient,
   };
 }
+
+describe('getMomentiDeck (get_momenti_deck RPC)', () => {
+  const row = {
+    proposal_id: '11111111-1111-1111-1111-111111111111',
+    candidate_id: '33333333-3333-3333-3333-333333333333',
+    handle: 'maria',
+    display_name: null,
+    avatar_path: null,
+    dream_text: 'Aprire uno studio',
+    reason_kind: 'affinity',
+    shared: ['creativo'],
+    seek_hit: [],
+    offer_hit: [],
+  };
+
+  it('takes no argument — the caller comes from auth.uid() (rule #8)', async () => {
+    const { client, calls } = rpcStub([row]);
+    await getMomentiDeck(client);
+    expect(calls).toEqual([{ fn: 'get_momenti_deck', args: undefined }]);
+  });
+
+  it('keeps the server order — Home and the tab must deal the same top card', async () => {
+    const second = { ...row, proposal_id: '22222222-2222-2222-2222-222222222222' };
+    const { client } = rpcStub([row, second]);
+    const cards = await getMomentiDeck(client);
+    expect(cards.map((c) => c.id)).toEqual([row.proposal_id, second.proposal_id]);
+  });
+
+  it('returns an empty deck rather than null when nothing waits', async () => {
+    const { client } = rpcStub(null);
+    expect(await getMomentiDeck(client)).toEqual([]);
+  });
+
+  it('throws the RPC error rather than showing an empty deck', async () => {
+    const { client } = rpcStub(null, { message: 'permission denied' });
+    await expect(getMomentiDeck(client)).rejects.toEqual({ message: 'permission denied' });
+  });
+});
 
 describe('getMomentiSuggestion (get_momenti_suggestion RPC)', () => {
   const row = {
