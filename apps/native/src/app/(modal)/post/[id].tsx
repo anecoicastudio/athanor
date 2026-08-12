@@ -268,26 +268,31 @@ export default function PostDetailScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <Comment
-              comment={item}
-              locale={locale}
-              pending={sendComment.isPending && sendComment.variables?.id === item.id}
-              onDelete={
-                item.author_id === myId
-                  ? () =>
-                      Alert.alert(t('comment.delete.confirm', locale), undefined, [
-                        { text: t('common.cancel', locale), style: 'cancel' },
-                        {
-                          text: t('comment.delete', locale),
-                          style: 'destructive',
-                          onPress: () => deleteComment.mutate(item.id),
-                        },
-                      ])
-                  : undefined
-              }
-            />
-          )}
+          renderItem={({ item }) => {
+            const isOptimistic = sendComment.isPending && sendComment.variables?.id === item.id;
+            return (
+              <Comment
+                comment={item}
+                locale={locale}
+                pending={isOptimistic}
+                onDelete={
+                  // No delete while in flight: the row's uuid isn't on the server yet, so the
+                  // soft-delete would match nothing and the row would "survive" its own deletion.
+                  item.author_id === myId && !isOptimistic
+                    ? () =>
+                        Alert.alert(t('comment.delete.confirm', locale), undefined, [
+                          { text: t('common.cancel', locale), style: 'cancel' },
+                          {
+                            text: t('comment.delete', locale),
+                            style: 'destructive',
+                            onPress: () => deleteComment.mutate(item.id),
+                          },
+                        ])
+                    : undefined
+                }
+              />
+            );
+          }}
           ListEmptyComponent={
             // ONE answer about the replies, not two. `comment.error` used to be a bare line in the
             // header with no way out, while this slot separately claimed «Nessun commento» off
