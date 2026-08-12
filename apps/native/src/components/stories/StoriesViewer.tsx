@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, PanResponder, StyleSheet } from 'react-native';
+import { Animated, Dimensions, PanResponder, StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { MediaFrame } from '@/components/media/MediaFrame';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { star } from '@/lib/star';
 
@@ -25,6 +26,7 @@ function segmentMs(seg: StorySegment): number {
 export function StoriesViewer({
   segments,
   urls,
+  urlsLoading,
   name,
   isOwn,
   viewerReacted,
@@ -41,6 +43,8 @@ export function StoriesViewer({
 }: {
   segments: StorySegment[];
   urls: Record<string, string>;
+  /** `useSignedUrls().isLoading` — without it a signing round-trip looks like lost media. */
+  urlsLoading: boolean;
   name: string;
   isOwn: boolean;
   viewerReacted: boolean;
@@ -155,20 +159,24 @@ export function StoriesViewer({
         <View className="flex-1 items-center justify-center px-4">
           <View className="aspect-[9/16] w-full overflow-hidden rounded-card bg-raise">
             {current.kind === 'video' ? (
-              currentUrl ? (
-                <ViewerVideo key={current.id} uri={currentUrl} paused={paused} />
-              ) : (
-                <View className="absolute inset-0 items-center justify-center">
-                  <Text className="text-4xl text-foreground">▶</Text>
-                </View>
-              )
-            ) : currentUrl ? (
-              <Image
-                source={{ uri: currentUrl }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
+              <MediaFrame
+                kind="video"
+                url={currentUrl}
+                isLoading={urlsLoading}
+                locale={locale}
+                className="absolute inset-0"
+              >
+                {(uri) => <ViewerVideo key={current.id} uri={uri} paused={paused} />}
+              </MediaFrame>
+            ) : (
+              <MediaFrame
+                kind="photo"
+                url={currentUrl}
+                isLoading={urlsLoading}
+                locale={locale}
+                className="absolute inset-0"
               />
-            ) : null}
+            )}
           </View>
         </View>
       </View>

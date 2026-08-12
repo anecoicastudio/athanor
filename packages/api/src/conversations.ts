@@ -1,4 +1,9 @@
-import { type ConversationListItem, conversationListItem } from '@athanor/schemas';
+import {
+  type ConversationListItem,
+  type ConversationPeerRow,
+  conversationListItem,
+  conversationPeerRow,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
@@ -18,27 +23,22 @@ export type ConversationListPage = {
 
 const CONV_PAGE_SIZE = 20;
 
-// Raw row with both participant handles joined; the peer is whichever isn't me.
-type ConvRow = {
-  id: string;
-  participant_a: string;
-  participant_b: string;
-  last_message_at: string;
-  last_message_preview: string | null;
-  a: { handle: string | null } | null;
-  b: { handle: string | null } | null;
-};
-
 const PEER_SELECT =
   'id, participant_a, participant_b, last_message_at, last_message_preview, ' +
-  'a:profiles!conversations_participant_a_fkey(handle), b:profiles!conversations_participant_b_fkey(handle)';
+  'a:profiles!conversations_participant_a_fkey(handle, display_name, avatar_path), ' +
+  'b:profiles!conversations_participant_b_fkey(handle, display_name, avatar_path)';
 
-function rowToListItem(row: ConvRow, myId: string): ConversationListItem {
+/** Parse one wire row, then resolve it to the peer (the participant that isn't me). */
+function rowToListItem(raw: unknown, myId: string): ConversationListItem {
+  const row: ConversationPeerRow = conversationPeerRow.parse(raw);
   const peerIsA = row.participant_a !== myId;
+  const peer = peerIsA ? row.a : row.b;
   return conversationListItem.parse({
     id: row.id,
     peerId: peerIsA ? row.participant_a : row.participant_b,
-    peerHandle: (peerIsA ? row.a?.handle : row.b?.handle) ?? null,
+    peerHandle: peer?.handle ?? null,
+    peerDisplayName: peer?.display_name ?? null,
+    peerAvatarPath: peer?.avatar_path ?? null,
     lastMessageAt: row.last_message_at,
     lastMessagePreview: row.last_message_preview,
   });
@@ -69,7 +69,7 @@ export async function getConversationsPage(
 
   const { data, error } = await query;
   if (error) throw error;
-  const items = (data ?? []).map((r) => rowToListItem(r as unknown as ConvRow, myId));
+  const items = (data ?? []).map((r) => rowToListItem(r, myId));
   const nextCursor = nextCursorOf(items, limit, (last) => ({
     last_message_at: last.lastMessageAt,
     id: last.id,
@@ -90,7 +90,7 @@ export async function getConversation(
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
-  return data ? rowToListItem(data as unknown as ConvRow, myId) : null;
+  return data ? rowToListItem(data, myId) : null;
 }
 
 /**

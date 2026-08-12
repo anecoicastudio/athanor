@@ -12,7 +12,7 @@ select plan(10);
 
 select ok((select not public from storage.buckets where id='candidacy-videos'), 'bucket is private');
 select is((select file_size_limit from storage.buckets where id='candidacy-videos'), 209715200::bigint, '200MB limit');
-select is((select allowed_mime_types from storage.buckets where id='candidacy-videos'), array['video/mp4'], 'mp4 only');
+select is((select allowed_mime_types from storage.buckets where id='candidacy-videos'), array['video/mp4','image/jpeg'], 'mp4 video + jpeg poster');
 select ok(exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='candidacy_videos_insert_own'), 'insert-own policy');
 
 -- The insert gate must match the candidacy precondition (no orphan blobs): the video write

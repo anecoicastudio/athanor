@@ -13,6 +13,8 @@ describe('search schemas', () => {
       id: '00000000-0000-0000-0000-000000000001',
       title: 'elena',
       subtitle: 'bio snippet',
+      display_name: 'Elena Conti',
+      avatar_path: 'e/e.jpg',
       rank: 0.8,
     };
     expect(searchResultSchema.parse(row).entity_type).toBe('person');

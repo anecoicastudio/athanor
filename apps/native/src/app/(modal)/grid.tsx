@@ -6,11 +6,13 @@ import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
+import { momentSignPaths } from '@/lib/media/moment-media';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Pressable, ScrollView, Text, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
@@ -38,11 +40,18 @@ export default function GridScreen() {
     enabled: Boolean(ownerId),
   });
   const moments = momentsQuery.data?.moments ?? [];
-  const { urls } = useSignedUrls(
-    'moments',
-    moments.map((m) => m.media_path),
-  );
+  // Posters as well as media: the tiles draw a video's poster, the Lightbox plays the video
+  // itself, and both read this one map (#131).
+  const { urls, isLoading: urlsLoading } = useSignedUrls('moments', momentSignPaths(moments));
   const empty = moments.length === 0;
+  // `empty` alone drove the sentence below, so a failed read told the owner their journey
+  // starts here and told a visitor this person has no Momenti (#111).
+  const gridState = listState({
+    status: momentsQuery.status,
+    fetchStatus: momentsQuery.fetchStatus,
+    isEmpty: empty,
+    staleWins: true,
+  });
 
   const [index, setIndex] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -60,7 +69,11 @@ export default function GridScreen() {
           softDeleteMoment(supabase, m.id)
             .then(() => {
               // best-effort byte removal (owner storage-delete policy); M9 GDPR job is the backstop.
-              void supabase.storage.from('moments').remove([m.media_path]);
+              // The poster goes with it — it is a second object in the same bucket, and leaving
+              // it behind orphans bytes the row no longer points at (#131).
+              void supabase.storage
+                .from('moments')
+                .remove(m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path]);
               if (uid) return queryClient.invalidateQueries({ queryKey: momentKeys.list(uid) });
             })
             .catch(() => setError(t('media.failed', locale)));
@@ -105,7 +118,8 @@ export default function GridScreen() {
                 moment={m}
                 variant="full"
                 locale={locale}
-                url={urls[m.media_path]}
+                urls={urls}
+                isLoading={urlsLoading}
                 onPress={() => setIndex(i)}
                 onLongPress={readOnly ? undefined : () => confirmDelete(m)}
               />
@@ -122,17 +136,22 @@ export default function GridScreen() {
           ) : null}
         </View>
 
-        {empty ? (
-          <View className="mt-2">
-            <EmptyState>
-              {t(readOnly ? 'profile.moments.theirEmpty' : 'moment.empty', locale)}
-            </EmptyState>
-          </View>
-        ) : null}
+        {/* The add tile above stays through every arm for the owner: putting a Momento up does
+            not depend on the read that failed. Only the sentence changes. */}
+        <ListState
+          state={gridState}
+          locale={locale}
+          errorLabel={t('profile.moments.error', locale)}
+          emptyLabel={t(readOnly ? 'profile.moments.theirEmpty' : 'moment.empty', locale)}
+          onRetry={() => void momentsQuery.refetch()}
+          className="mt-2"
+          loading={null}
+        />
 
         <Lightbox
           moments={moments}
           urls={urls}
+          urlsLoading={urlsLoading}
           index={index}
           locale={locale}
           onClose={() => setIndex(null)}

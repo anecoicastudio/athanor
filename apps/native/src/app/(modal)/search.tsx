@@ -12,8 +12,10 @@ import { ScopeTabs } from '@/components/search/ScopeTabs';
 import { ResultRow } from '@/components/search/ResultRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { CircleGate } from '@/components/circle/CircleGate';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { type SearchFilterParams, parseFilters, serializeFilters } from '@/lib/search-filters';
 
@@ -24,7 +26,7 @@ import { type SearchFilterParams, parseFilters, serializeFilters } from '@/lib/s
  *   1. Header row: back chevron + SearchBar (controlled, screen owns debounce)
  *   2. ScopeTabs (all/people/projects/events/marketplace)
  *   3. CircleGate pill: non-member → quiet locked pill; member → «Filtri avanzati» opener
- *   4. Results area: idle prompt | loading spinner | grouped sections | no-results
+ *   4. Results area: idle prompt | ListState (loading / error+retry / no-results) | sections
  *
  * Filters are round-tripped through route params (contract with Task 9 search-filters sheet).
  * The sheet navigates back to /search with updated auraMin/city/star params → this screen
@@ -121,10 +123,18 @@ export default function SearchScreen() {
   const sections = buildSections(allRows);
 
   // ── Derived state ─────────────────────────────────────────────────────────────
+  // `isIdle` is the pre-query prompt («cerca una persona…»), not an empty result, so it stays
+  // the caller's and is checked first. Everything after it goes through `listState`: the guard
+  // here used to be `query.isFetched`, which is TRUE after a throw — so a search that failed
+  // rendered «Nessun risultato per «{q}»», a claim about the world made from a broken pipe.
   const isIdle = !enabled;
-  const isLoading = enabled && query.isLoading;
   const hasResults = allRows.length > 0;
-  const isNoResults = enabled && !query.isLoading && !hasResults && query.isFetched;
+  const resultsState = listState({
+    status: query.status,
+    fetchStatus: query.fetchStatus,
+    isEmpty: !hasResults,
+    staleWins: true,
+  });
 
   // ── Applied filter chips (summary row when filters are set) ──────────────────
   const hasFilters = filtersFromParams !== undefined;
@@ -177,11 +187,7 @@ export default function SearchScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('search.filters.open', locale)}
             onPress={() => {
-              // /search-filters is Task 9's route — cast until typed routes regen
-              router.push({
-                pathname: '/search-filters',
-                params: filterSheetParams,
-              } as unknown as Parameters<typeof router.push>[0]);
+              router.push({ pathname: '/search-filters', params: filterSheetParams });
             }}
           >
             <Text className="text-[14px] text-foreground">{t('search.filters.open', locale)}</Text>
@@ -213,17 +219,21 @@ export default function SearchScreen() {
             {t('search.empty.sub', locale)}
           </Text>
         </View>
-      ) : isLoading ? (
-        <View className="flex-1 items-center pt-20">
-          <ActivityIndicator color={semantic.aura} />
-        </View>
-      ) : isNoResults ? (
-        <View className="flex-1 items-center px-8 pt-20">
-          <EmptyState>{t('search.noResults.title', locale, { q })}</EmptyState>
-          <Text className="mt-1 text-center text-[13px] text-faint">
-            {t('search.noResults.sub', locale)}
-          </Text>
-        </View>
+      ) : resultsState !== 'ready' ? (
+        <ListState
+          state={resultsState}
+          locale={locale}
+          errorLabel={t('search.error', locale)}
+          emptyLabel={t('search.noResults.title', locale, { q })}
+          emptyBody={t('search.noResults.sub', locale)}
+          onRetry={() => void query.refetch()}
+          className="flex-1 px-8 pt-20"
+          loading={
+            <View className="flex-1 items-center pt-20">
+              <ActivityIndicator color={semantic.aura} />
+            </View>
+          }
+        />
       ) : (
         <FlatList
           data={sections}

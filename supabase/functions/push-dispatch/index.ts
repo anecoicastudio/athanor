@@ -9,6 +9,10 @@ import { processPushDispatch } from './logic.ts';
 /**
  * Transport shell only — the preference gate + build/send pipeline live in ./logic.ts
  * (unit-tested); this file wires auth, body parse, env, and the Expo SDK closures.
+ *
+ * Two modes on one function (#128): the default send, and `{ mode: 'sweep' }` from the hourly
+ * invoke_push_receipt_sweep() cron, which reads Expo receipts and prunes dead tokens. Same
+ * access token, same service-role posture — hence no second function and no new config.toml row.
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -36,6 +40,9 @@ Deno.serve(async (req) => {
       isExpoPushToken: (t) => Expo.isExpoPushToken(t),
       chunk: (msgs) => expo.chunkPushNotifications(msgs) as ExpoMessage[][],
       send: (chunk) => expo.sendPushNotificationsAsync(chunk),
+      chunkReceiptIds: (ids) => expo.chunkPushNotificationReceiptIds(ids),
+      getReceipts: (ids) => expo.getPushNotificationReceiptsAsync(ids),
+      now: () => new Date(),
     },
     body,
   );

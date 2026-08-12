@@ -23,7 +23,9 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { Tag } from '@/components/Tag';
 import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
+import { listState } from '@/lib/list-state';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
+import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
@@ -56,10 +58,9 @@ export function ProfileView({
     enabled: Boolean(userId),
   });
   const moments = momentsQuery.data?.moments ?? [];
-  const { urls } = useSignedUrls(
-    'moments',
-    moments.map((m) => m.media_path),
-  );
+  // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
+  // video itself, and both read this one map (#131).
+  const { urls, isLoading: urlsLoading } = useSignedUrls('moments', momentSignPaths(moments));
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const { addMoment } = useMomentUpload(userId);
@@ -112,6 +113,8 @@ export function ProfileView({
         locale={locale}
         hero={{
           handle: profile.handle ?? '',
+          displayName: profile.display_name,
+          avatarPath: profile.avatar_path,
           bio: profile.bio || null,
           auraScore: aura?.score ?? null,
           locale,
@@ -144,7 +147,15 @@ export function ProfileView({
         gallery={{
           moments,
           urls,
+          urlsLoading,
           locale,
+          state: listState({
+            status: momentsQuery.status,
+            fetchStatus: momentsQuery.fetchStatus,
+            isEmpty: moments.length === 0,
+            staleWins: true,
+          }),
+          onRetry: () => void momentsQuery.refetch(),
           onOpen: setLightboxIndex,
           onSeeAll: () => router.push('/(modal)/grid'),
           onAdd: () => setSheetOpen(true),
@@ -183,6 +194,7 @@ export function ProfileView({
       <Lightbox
         moments={moments}
         urls={urls}
+        urlsLoading={urlsLoading}
         index={lightboxIndex}
         locale={locale}
         onClose={() => setLightboxIndex(null)}

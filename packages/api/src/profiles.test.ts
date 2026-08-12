@@ -36,6 +36,8 @@ describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
   const row = {
     id: '00000000-0000-0000-0000-000000000001',
     handle: 'alice',
+    display_name: 'Alice Rossi',
+    avatar_path: '00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000001.jpg',
     bio: null, // 'private' field arrives NULLed by the DEFINER RPC
     identity_tags: ['maker'],
     seeking: null,

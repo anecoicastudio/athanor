@@ -16,12 +16,19 @@ describe('rowToDeckCard', () => {
       candidate_id: '33333333-3333-3333-3333-333333333333',
       reasons: ['Condividete: design'],
       status: 'pending',
-      candidate: { handle: 'maria', dreams: [{ text: 'Aprire uno studio' }] },
+      candidate: {
+        handle: 'maria',
+        display_name: 'Maria Neri',
+        avatar_path: 'ma/ma.jpg',
+        dreams: [{ text: 'Aprire uno studio' }],
+      },
     });
     expect(card).toEqual({
       id: '11111111-1111-1111-1111-111111111111',
       candidateId: '33333333-3333-3333-3333-333333333333',
       handle: 'maria',
+      displayName: 'Maria Neri',
+      avatarPath: 'ma/ma.jpg',
       reasons: ['Condividete: design'],
       dreamText: 'Aprire uno studio',
       status: 'pending',
@@ -34,8 +41,23 @@ describe('rowToDeckCard', () => {
       candidate_id: '33333333-3333-3333-3333-333333333333',
       reasons: [],
       status: 'pending',
-      candidate: { handle: 'leo', dreams: [] },
+      candidate: { handle: 'leo', display_name: null, avatar_path: null, dreams: [] },
     });
+    expect(card.dreamText).toBeNull();
+  });
+
+  // The profiles SELECT policy nulls the whole embed when either side blocks after the
+  // proposal row exists. The boundary parse must accept that shape, not throw — the card
+  // comes out dream-less and getMomentiDeck drops it.
+  it('tolerates an RLS-nulled candidate embed (block after proposal)', () => {
+    const card = rowToDeckCard({
+      id: '11111111-1111-1111-1111-111111111111',
+      candidate_id: '33333333-3333-3333-3333-333333333333',
+      reasons: ['Condividete: design'],
+      status: 'pending',
+      candidate: null,
+    });
+    expect(card.handle).toBeNull();
     expect(card.dreamText).toBeNull();
   });
 });
@@ -66,6 +88,8 @@ describe('getMomentiSuggestion (get_momenti_suggestion RPC)', () => {
   const row = {
     candidate_id: '44444444-4444-4444-4444-444444444444',
     handle: 'giulia',
+    display_name: 'Giulia Sole',
+    avatar_path: 'g/g.jpg',
     dream_text: 'Aprire una scuola di liuteria',
   };
 
@@ -82,6 +106,8 @@ describe('getMomentiSuggestion (get_momenti_suggestion RPC)', () => {
     expect(await getMomentiSuggestion(client, [])).toEqual({
       candidateId: row.candidate_id,
       handle: row.handle,
+      displayName: row.display_name,
+      avatarPath: row.avatar_path,
       dreamText: row.dream_text,
     });
   });

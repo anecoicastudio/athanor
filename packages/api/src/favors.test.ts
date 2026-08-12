@@ -19,14 +19,14 @@ const need = (n: number) => ({
   need_created_at: `2026-01-0${n}T00:00:00Z`,
   target_id: TARGET,
   target_handle: 'luce',
+  target_display_name: 'Luce Chiara',
+  target_avatar_path: 'l/l.jpg',
 });
 
 describe('favorKeys', () => {
-  it('namespaces openNeeds + incoming + mine distinctly', () => {
+  it('namespaces openNeeds under the favorOffers root', () => {
     expect(favorKeys.all).toEqual(['favorOffers']);
     expect(favorKeys.openNeeds).toEqual(['favorOffers', 'openNeeds']);
-    expect(favorKeys.incoming('t1')).toEqual(['favorOffers', 'incoming', 't1']);
-    expect(favorKeys.mine('a1')).toEqual(['favorOffers', 'mine', 'a1']);
   });
 });
 

@@ -4,8 +4,10 @@ import { breakdownRows } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
+import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { StatLine } from '@/components/StatLine';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
 
@@ -18,7 +20,8 @@ import { fetchWeekRecap } from '@/lib/week-recap';
  *
  * Uses getAuraScoreFull (breakdownSchema: contributi, eventi, collaborazioni,
  * valore, recensioni, affidabilita) + breakdownRows from @athanor/core for
- * display-normalized sorting. top-2 by raw value; honest «Presto qui» when empty.
+ * display-normalized sorting. top-2 by raw value; «Presto qui» ONLY when the read
+ * came back empty — a failed read gets its own arm and a retry (#111).
  *
  * Supabase client: module-level `supabase` singleton (annual.tsx pattern).
  */
@@ -50,6 +53,23 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
           .slice(0, 2)
       : [];
 
+  // «Presto qui» is a claim that the feature is not built yet, and it used to cover a failed
+  // read as well as a genuinely quiet ledger (#111) — so a paying member whose request failed
+  // was told the analytics they are paying for do not exist. The week-delta stat above never
+  // had this bug: it degrades to «—», which is the pattern #100 cites as the right one.
+  //
+  // `staleWins: false` — this is the member's own Aura, so it takes the week slot's side of
+  // the line `MomentiCard.tsx:41-44` draws: a stale breakdown is a claim about what they
+  // earned, and the query client persists to AsyncStorage for 24h while Aura decays. Showing
+  // yesterday's sources as today's is the false confidence `aura-display.ts` already refused
+  // for the score itself.
+  const sourcesState = listState({
+    status: query.status,
+    fetchStatus: query.fetchStatus,
+    isEmpty: top2.length === 0,
+    staleWins: false,
+  });
+
   return (
     <View className="rounded-card border border-hair bg-raise p-5 gap-4">
       {/* Header */}
@@ -73,7 +93,7 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
       />
 
       {/* Top-2 breakdown sources */}
-      {top2.length > 0 ? (
+      {sourcesState === 'ready' ? (
         <View className="gap-2">
           <SectionLabel>{t('circle.analytics.topSources', locale)}</SectionLabel>
           {top2.map((row) => (
@@ -86,9 +106,14 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
           ))}
         </View>
       ) : (
-        <Text className="text-[13px] text-muted-foreground">
-          {t('circle.analytics.empty', locale)}
-        </Text>
+        <ListState
+          state={sourcesState}
+          locale={locale}
+          errorLabel={t('aura.error', locale)}
+          emptyLabel={t('circle.analytics.empty', locale)}
+          onRetry={() => void query.refetch()}
+          className="py-1"
+        />
       )}
     </View>
   );

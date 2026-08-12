@@ -26,8 +26,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   participant_b: PEER,
   last_message_at: '2026-01-02T10:00:00.000Z',
   last_message_preview: 'ci vediamo',
-  a: { handle: 'me' },
-  b: { handle: 'peer' },
+  a: { handle: 'me', display_name: 'Io Stessa', avatar_path: 'me/me.jpg' },
+  b: { handle: 'peer', display_name: 'Peer Uno', avatar_path: 'p/p.jpg' },
   ...over,
 });
 
@@ -103,6 +103,19 @@ describe('getConversationsPage', () => {
     await expect(getConversationsPage(as(short), { limit: 2 })).resolves.toMatchObject({
       nextCursor: null,
     });
+  });
+
+  test('an RLS-nulled handle embed parses to a null peerHandle, not a throw', async () => {
+    // The profiles SELECT policy can null either handle embed (e.g. a block raised after the
+    // conversation row exists). The boundary parse must accept that shape.
+    const client = makeFakeClient({
+      'auth.getUser': session(),
+      'conversations.select': [{ data: [row({ a: null, b: null })] }],
+    });
+
+    const page = await getConversationsPage(as(client));
+
+    expect(page.items[0]).toMatchObject({ id: CONV, peerId: PEER, peerHandle: null });
   });
 
   test('a thread with a blocked person reads as empty in either direction', async () => {

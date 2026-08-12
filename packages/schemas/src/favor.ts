@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { nonBlankString } from './primitives';
+import { avatarPathSchema, displayNameSchema } from './profile';
 
 /** Mirrors supabase/migrations favor_offers. Update both together. */
 export const favorOfferSchema = z.object({
@@ -28,6 +29,8 @@ export const favorNeedSchema = z.object({
   need_created_at: z.string(),
   target_id: z.string().uuid(),
   target_handle: z.string().nullable(),
+  target_display_name: displayNameSchema.nullable(),
+  target_avatar_path: avatarPathSchema.nullable(),
 });
 
 export type FavorOffer = z.infer<typeof favorOfferSchema>;

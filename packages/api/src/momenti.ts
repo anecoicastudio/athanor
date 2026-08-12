@@ -1,9 +1,11 @@
 import {
   type AcceptMomentResult,
   type MomentoDeckCard,
+  type MomentoDeckRow,
   type MomentoSuggestion,
   acceptMomentResult,
   momentoDeckCard,
+  momentoDeckRow,
   momentoSuggestion,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
@@ -14,22 +16,16 @@ export const momentiKeys = {
   suggestions: () => [...momentiKeys.all, 'suggestions'] as const,
 };
 
-/** Shape of one `momento_proposals` row joined to the peer profile + active dream quote. */
-type DeckRow = {
-  id: string;
-  candidate_id: string;
-  reasons: string[];
-  status: 'pending' | 'accepted' | 'passed';
-  candidate: { handle: string | null; dreams: { text: string }[] } | null;
-};
-
-/** Map a joined proposal row to the deck-card read model. `affinity` is never selected/exposed. */
-export function rowToDeckCard(row: DeckRow): MomentoDeckCard {
+/** Parse a joined proposal row, then map it to the deck card. `affinity` is never selected/exposed. */
+export function rowToDeckCard(raw: unknown): MomentoDeckCard {
+  const row: MomentoDeckRow = momentoDeckRow.parse(raw);
   return momentoDeckCard.parse({
     id: row.id,
     candidateId: row.candidate_id,
     handle: row.candidate?.handle ?? null,
-    reasons: row.reasons ?? [],
+    displayName: row.candidate?.display_name ?? null,
+    avatarPath: row.candidate?.avatar_path ?? null,
+    reasons: row.reasons,
     dreamText: row.candidate?.dreams?.[0]?.text ?? null,
     status: row.status,
   });
@@ -48,15 +44,14 @@ export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeck
   const { data, error } = await client
     .from('momento_proposals')
     .select(
-      'id, candidate_id, reasons, status, candidate:profiles!momento_proposals_candidate_id_fkey(handle, dreams(text))',
+      'id, candidate_id, reasons, status, ' +
+        'candidate:profiles!momento_proposals_candidate_id_fkey(handle, display_name, avatar_path, dreams(text))',
     )
     .eq('status', 'pending')
     .order('daily_rank', { ascending: true })
     .limit(3);
   if (error) throw error;
-  return (data ?? [])
-    .map((r) => rowToDeckCard(r as unknown as DeckRow))
-    .filter((card) => card.dreamText != null);
+  return (data ?? []).map((r) => rowToDeckCard(r)).filter((card) => card.dreamText != null);
 }
 
 /**
@@ -83,6 +78,8 @@ export async function getMomentiSuggestion(
   return momentoSuggestion.parse({
     candidateId: row.candidate_id,
     handle: row.handle,
+    displayName: row.display_name,
+    avatarPath: row.avatar_path,
     dreamText: row.dream_text,
   });
 }

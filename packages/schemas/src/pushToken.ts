@@ -1,42 +1,15 @@
 import { z } from 'zod';
 
+// Mirrors supabase/migrations/20260617082135_push_tokens.sql (schemas mirror migrations).
+// Write-boundary shape only: the payload registerPushToken upserts. The full row model was
+// deleted unread in #272 — derive a row schema from the migration if a reader ever appears.
 export const pushPlatformSchema = z.enum(['ios', 'android']);
+export type PushPlatform = z.infer<typeof pushPlatformSchema>;
 
-export const pushTokenSchema = z.object({
-  id: z.string().uuid(),
-  profileId: z.string().uuid(),
-  token: z.string().min(1).max(512),
+export const pushTokenInsertSchema = z.object({
+  profile_id: z.string().uuid(),
+  token: z.string().min(1).max(512), // mirrors the char_length(token) between 1 and 512 CHECK
   platform: pushPlatformSchema,
-  deviceId: z.string().nullable().optional(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  device_id: z.string().nullish(), // text, no bound; the column tolerates an absent key too
 });
-
-// derive — never duplicate the shape (schemas rule)
-export const pushTokenInsertSchema = pushTokenSchema.pick({
-  profileId: true,
-  token: true,
-  platform: true,
-  deviceId: true,
-});
-
-/** Push `data` deep-link payload (09 §3/§6.1). Handling wiring lands at M10; the shape is fixed here.
- * Keep in sync with packages/i18n/src/catalogs/{it,en}.json. */
-export const pushData = z.object({
-  type: z.enum([
-    'moment',
-    'message',
-    'dreamMilestone',
-    'review',
-    'eventReminder',
-    'fundMilestone',
-    'projectResponse',
-    'connection',
-  ]),
-  route: z.string(),
-  entity_ref: z.string(),
-});
-
-export type PushToken = z.infer<typeof pushTokenSchema>;
 export type PushTokenInsert = z.infer<typeof pushTokenInsertSchema>;
-export type PushData = z.infer<typeof pushData>;

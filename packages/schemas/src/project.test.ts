@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { projectInsertSchema, projectSchema, projectUpdateSchema } from './project';
+import { projectInsertSchema, projectSchema } from './project';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -89,26 +89,5 @@ describe('projectInsertSchema', () => {
       '50/50 sui ricavi',
     );
     expect(() => projectInsertSchema.parse({ ...base, terms: 'x'.repeat(501) })).toThrow();
-  });
-});
-
-// The update variant re-declares description and terms rather than deriving them, so it carries
-// its own copies of both bounds — untested here until now, and nothing else covers them.
-describe('projectUpdateSchema', () => {
-  test('accepts a partial edit', () => {
-    expect(projectUpdateSchema.parse({ status: 'closed' })).toEqual({ status: 'closed' });
-    expect(projectUpdateSchema.parse({})).toEqual({});
-  });
-
-  test('bounds description to 4000 chars', () => {
-    expect(projectUpdateSchema.parse({ description: 'x'.repeat(4000) }).description).toHaveLength(
-      4000,
-    );
-    expect(() => projectUpdateSchema.parse({ description: 'x'.repeat(4001) })).toThrow();
-  });
-
-  test('bounds terms to 500 chars', () => {
-    expect(projectUpdateSchema.parse({ terms: '50/50 sui ricavi' }).terms).toBe('50/50 sui ricavi');
-    expect(() => projectUpdateSchema.parse({ terms: 'x'.repeat(501) })).toThrow();
   });
 });

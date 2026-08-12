@@ -641,6 +641,7 @@ export type Database = {
           profile_id: string
           status: string
           story: string
+          thumb_path: string | null
           updated_at: string
           video_url: string
         }
@@ -657,6 +658,7 @@ export type Database = {
           profile_id: string
           status?: string
           story: string
+          thumb_path?: string | null
           updated_at?: string
           video_url: string
         }
@@ -673,6 +675,7 @@ export type Database = {
           profile_id?: string
           status?: string
           story?: string
+          thumb_path?: string | null
           updated_at?: string
           video_url?: string
         }
@@ -2077,6 +2080,48 @@ export type Database = {
           },
         ]
       }
+      push_receipts: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          receipt_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          receipt_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          receipt_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "push_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           created_at: string
@@ -2498,6 +2543,8 @@ export type Database = {
           need: string | null
           need_created_at: string | null
           need_milestone_id: string | null
+          target_avatar_path: string | null
+          target_display_name: string | null
           target_handle: string | null
           target_id: string | null
         }
@@ -2528,6 +2575,7 @@ export type Database = {
           handle: string | null
           profile_id: string | null
           status: string | null
+          thumb_path: string | null
           title: string | null
           video_url: string | null
         }
@@ -2662,7 +2710,9 @@ export type Database = {
       get_momenti_suggestion: {
         Args: { p_exclude?: string[] }
         Returns: {
+          avatar_path: string
           candidate_id: string
+          display_name: string
           dream_text: string
           handle: string
         }[]
@@ -2697,7 +2747,9 @@ export type Database = {
       get_person_profile: {
         Args: { p_profile_id: string }
         Returns: {
+          avatar_path: string
           bio: string
+          display_name: string
           founding_member: boolean
           handle: string
           id: string
@@ -2707,6 +2759,7 @@ export type Database = {
         }[]
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
       momento_reasons: {
@@ -2763,6 +2816,8 @@ export type Database = {
           scope?: string
         }
         Returns: {
+          avatar_path: string
+          display_name: string
           entity_type: string
           id: string
           rank: number
@@ -2780,6 +2835,8 @@ export type Database = {
         Returns: {
           connection_id: string
           created_at: string
+          peer_avatar_path: string
+          peer_display_name: string
           peer_handle: string
           peer_id: string
         }[]

@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import {
-  createProject,
-  editProject,
-  getProject,
-  getProjectsPage,
-  projectKeys,
-  setProjectStatus,
-} from './projects';
+import { createProject, getProject, getProjectsPage, projectKeys } from './projects';
 
 const AUTHOR = '00000000-0000-4000-8000-000000000001';
 const P1 = '00000000-0000-4000-8000-0000000000d1';
@@ -167,33 +160,6 @@ describe('createProject', () => {
   });
 });
 
-describe('editProject', () => {
-  it('updates the parsed patch scoped by id and not soft-deleted', async () => {
-    const { client, calls } = stub([{ ...PROJECT_ROW, title: 'Coro nuovo' }]);
-    const updated = await editProject(client, P1, { title: 'Coro nuovo' });
-    const update = calls.find((c) => c.method === 'update');
-    expect(update?.arg).toEqual({ title: 'Coro nuovo' });
-    expect(calls.some((c) => c.method === 'eq' && c.arg === 'id' && c.arg2 === P1)).toBe(true);
-    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
-      true,
-    );
-    expect(updated.title).toBe('Coro nuovo');
-  });
-});
-
-describe('setProjectStatus', () => {
-  it('updates only the status, scoped by id and not soft-deleted', async () => {
-    const { client, calls } = stub();
-    await setProjectStatus(client, P1, 'closed');
-    const update = calls.find((c) => c.method === 'update');
-    expect(update?.arg).toEqual({ status: 'closed' });
-    expect(calls.some((c) => c.method === 'eq' && c.arg === 'id' && c.arg2 === P1)).toBe(true);
-    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
-      true,
-    );
-  });
-});
-
 describe('getProject', () => {
   it('reads by id excluding soft-deleted via maybeSingle', async () => {
     const { client, calls } = stub([PROJECT_ROW]);
@@ -244,20 +210,6 @@ describe('projects — every write and read surfaces a database failure', () => 
         terms: null,
       }),
     ).rejects.toMatchObject({ code: '57P01' });
-  });
-
-  it('editProject rethrows', async () => {
-    const fake = makeFakeClient({ 'projects.update': [{ error: DB_DOWN }] });
-    await expect(editProject(asClient(fake), P1, { title: 'nuovo' })).rejects.toMatchObject({
-      code: '57P01',
-    });
-  });
-
-  it('setProjectStatus rethrows rather than reporting a silent success', async () => {
-    const fake = makeFakeClient({ 'projects.update': [{ error: DB_DOWN }] });
-    await expect(setProjectStatus(asClient(fake), P1, 'closed')).rejects.toMatchObject({
-      code: '57P01',
-    });
   });
 
   // Not a response PostgREST can send — a zero-match list select returns [], and after the

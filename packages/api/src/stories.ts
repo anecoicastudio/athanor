@@ -42,7 +42,9 @@ const RAIL_WINDOW_FACTOR = 4;
 export async function getStoryRail(client: AthanorClient, people = 50): Promise<StoryRailPerson[]> {
   const { data, error } = await client
     .from('story_segments')
-    .select('author_id, created_at, profiles!story_segments_author_id_fkey(handle)')
+    .select(
+      'author_id, created_at, profiles!story_segments_author_id_fkey(handle, display_name, avatar_path)',
+    )
     .is('deleted_at', null)
     .gt('expires_at', new Date().toISOString()) // live only — exclude pinned-but-expired journey artifacts
     .order('created_at', { ascending: false })
@@ -88,11 +90,16 @@ export async function getPersonStory(
 
 /**
  * Create a story segment (owner-only via RLS; expires_at defaults to now()+24h server-side).
- * Bytes are uploaded to the story-segments bucket first. Writes ONLY story_segments — never any
- * Aura/score event (rule #1). TODO(M6): the engine awards points from this domain event.
+ * Writes ONLY story_segments — never any Aura/score event (rule #1). TODO(M6): the engine
+ * awards points from this domain event.
  *
  * PARKED(story-add): 0 callers — the StoriesViewer "add" button routes to profile compose, not
  * here. Ships with the story-segment-add surface; wire or remove then.
+ *
+ * When that surface ships, the upload order must be row-first, then bytes (#272 / #31): the
+ * storage SELECT policy hides an object until its descriptor row exists, and storage-api's
+ * insert returns the object row, so INSERT … RETURNING is subject to SELECT policies. The
+ * bytes-then-row order this function was written for fails under that policy.
  */
 export async function createStorySegment(
   client: AthanorClient,

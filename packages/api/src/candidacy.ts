@@ -1,6 +1,5 @@
 import {
   type CandidacyInsert,
-  type CandidacyUpdate,
   type CandidateCard,
   candidateCardSchema,
   type DreamCandidacy,
@@ -11,7 +10,6 @@ import { keysetFilter, nextCursorOf } from './pagination';
 
 export const candidacyKeys = {
   all: ['candidacy'] as const,
-  mine: (editionId: string) => [...candidacyKeys.all, 'mine', editionId] as const,
   detail: (id: string) => [...candidacyKeys.all, 'detail', id] as const,
   list: (editionId: string, cursor?: string | null) =>
     [...candidacyKeys.all, 'list', editionId, cursor ?? null] as const,
@@ -27,21 +25,15 @@ export function candidacyVideoPath(uid: string, candidacyId: string): string {
   return `${uid}/${candidacyId}.mp4`;
 }
 
-/** PARKED(candidacy-edit): the caller's own candidacy for an edition (one-per-edition unique row). 0 callers — candidacy-edit UI is a tracked follow-up (PRODUCTION-READINESS P5). */
-export async function getMyCandidacy(
-  client: AthanorClient,
-  editionId: string,
-  profileId: string,
-): Promise<DreamCandidacy | null> {
-  const { data, error } = await client
-    .from('dream_candidacies')
-    .select('*')
-    .eq('edition_id', editionId)
-    .eq('profile_id', profileId)
-    .is('deleted_at', null)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? dreamCandidacySchema.parse(data) : null;
+/**
+ * Storage key for a candidacy's poster frame: `${uid}/${candidacyId}-thumb.jpg`.
+ *
+ * Same folder as `candidacyVideoPath`, deliberately: every `candidacy_videos_*` policy gates on
+ * the first path segment matching the caller's uid, so a poster written here is covered by the
+ * video's policies and needs none of its own.
+ */
+export function candidacyThumbPath(uid: string, candidacyId: string): string {
+  return `${uid}/${candidacyId}-thumb.jpg`;
 }
 
 /**
@@ -57,22 +49,6 @@ export async function submitCandidacy(
   const { data, error } = await client
     .from('dream_candidacies')
     .insert({ ...input, id, profile_id: profileId, status: 'submitted' })
-    .select('*')
-    .single();
-  if (error) throw error;
-  return dreamCandidacySchema.parse(data);
-}
-
-/** PARKED(candidacy-edit): edit an own candidacy while still 'submitted' (RLS pins the window). 0 callers — ships with the candidacy-edit surface (PRODUCTION-READINESS P5). */
-export async function updateCandidacy(
-  client: AthanorClient,
-  id: string,
-  patch: CandidacyUpdate,
-): Promise<DreamCandidacy> {
-  const { data, error } = await client
-    .from('dream_candidacies')
-    .update(patch)
-    .eq('id', id)
     .select('*')
     .single();
   if (error) throw error;

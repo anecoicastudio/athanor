@@ -2,11 +2,8 @@ import {
   type Project,
   type ProjectCategory,
   type ProjectInsert,
-  type ProjectStatus,
-  type ProjectUpdate,
   projectInsertSchema,
   projectSchema,
-  projectUpdateSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { keysetFilter, nextCursorOf } from './pagination';
@@ -85,36 +82,4 @@ export async function createProject(
   const { data, error } = await client.from('projects').insert(payload).select('*').single();
   if (error) throw error;
   return projectSchema.parse(data);
-}
-
-/** PARKED(project-edit): edit an own project (owner UPDATE policy). 0 callers — project-edit UI is a tracked follow-up (PRODUCTION-READINESS P5). */
-export async function editProject(
-  client: AthanorClient,
-  id: string,
-  patch: ProjectUpdate,
-): Promise<Project> {
-  const payload = projectUpdateSchema.parse(patch);
-  const { data, error } = await client
-    .from('projects')
-    .update(payload)
-    .eq('id', id)
-    .is('deleted_at', null)
-    .select('*')
-    .single();
-  if (error) throw error;
-  return projectSchema.parse(data);
-}
-
-/** PARKED(project-edit): toggle a project open/closed (owner UPDATE policy). 0 callers — ships with the project-edit surface (PRODUCTION-READINESS P5). */
-export async function setProjectStatus(
-  client: AthanorClient,
-  id: string,
-  status: ProjectStatus,
-): Promise<void> {
-  const { error } = await client
-    .from('projects')
-    .update({ status })
-    .eq('id', id)
-    .is('deleted_at', null);
-  if (error) throw error;
 }

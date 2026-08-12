@@ -1,6 +1,11 @@
 import type { PickedMedia } from './pick';
 
-export type MediaBucket = 'post-media' | 'moments' | 'story-segments';
+export type MediaBucket =
+  | 'post-media'
+  | 'moments'
+  | 'story-segments'
+  | 'avatars'
+  | 'candidacy-videos';
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
 
@@ -17,6 +22,37 @@ export function postMediaPath(
 /** Storage key for a moment: `${uid}/${momentId}.{ext}`. */
 export function momentPath(uid: string, momentId: string, kind: PickedMedia['kind']): string {
   return `${uid}/${momentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+}
+
+/**
+ * Storage key for a moment's video poster: `${uid}/${momentId}-thumb.jpg`.
+ *
+ * Same folder as the moment it posters, because the uid-first segment is what every
+ * `moments` storage policy keys on — owner insert/update/delete and the members-read
+ * `not_blocked` predicate all read `(storage.foldername(name))[1]`. A poster written
+ * anywhere else would be denied on write and unreadable on read.
+ *
+ * The `-thumb` suffix rather than a bare `.jpg` extension: a *photo* moment already owns
+ * `${uid}/${momentId}.jpg`, so the extension alone does not separate the two.
+ */
+export function momentThumbPath(uid: string, momentId: string): string {
+  return `${uid}/${momentId}-thumb.jpg`;
+}
+
+/**
+ * Storage key for a member's avatar: `${uid}/${uid}.jpg` (#75's convention, and the seed
+ * computes the same key in SQL).
+ *
+ * Deterministic on purpose — a profile's entity id IS its uid, so there is no second id to
+ * hang a fresh key on. The cost is that replacing a photo reuses the key, so a client image
+ * cache can serve the previous bytes until the signed URL it was fetched with expires; the
+ * uploader busts that by re-signing (`useAvatarUpload`).
+ *
+ * Always `.jpg`: `processImage` re-encodes every picked image to JPEG for the EXIF strip, so
+ * the source extension never survives to reach this.
+ */
+export function avatarPath(uid: string): string {
+  return `${uid}/${uid}.jpg`;
 }
 
 /** Storage key for a story segment: `${uid}/${segmentId}.{ext}`. */

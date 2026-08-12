@@ -1,35 +1,30 @@
 import { z } from 'zod';
+import { avatarPathSchema, displayNameSchema, peerIdentityFields } from './profile';
 
-// Mirrors supabase/migrations/<ts>_connection_requests.sql (schemas mirror migrations).
-export const connectionStatus = z.enum(['pending', 'accepted', 'declined']);
-export type ConnectionStatus = z.infer<typeof connectionStatus>;
-
-// Raw-row models (snake_case): parsed off select('*') / realtime payload.new.
-export const connectionRequestSchema = z.object({
+/**
+ * The wire shape of the incoming-requests select, parsed at the boundary. The aliased embed
+ * (requester → profiles via the requester FK) defeats supabase-js's row inference, so this
+ * schema is what types the row.
+ */
+export const connectionRequestRow = z.object({
   id: z.string().uuid(),
   requester_id: z.string().uuid(),
-  addressee_id: z.string().uuid(),
-  status: connectionStatus,
-  responded_at: z.string().nullable(),
   created_at: z.string(),
-  updated_at: z.string(),
+  requester: z
+    .object({
+      handle: z.string().nullable(),
+      display_name: displayNameSchema.nullable(),
+      avatar_path: avatarPathSchema.nullable(),
+    })
+    .nullable(),
 });
-export type ConnectionRequest = z.infer<typeof connectionRequestSchema>;
-
-export const connectionSchema = z.object({
-  id: z.string().uuid(),
-  profile_a: z.string().uuid(),
-  profile_b: z.string().uuid(),
-  source_request_id: z.string().uuid().nullable(),
-  created_at: z.string(),
-});
-export type Connection = z.infer<typeof connectionSchema>;
+export type ConnectionRequestRow = z.infer<typeof connectionRequestRow>;
 
 // Incoming-request inbox read model (camelCase): the row resolved to the requester (peer).
 export const connectionRequestListItem = z.object({
   id: z.string().uuid(), // the request id — feeds respond_to_connection
   peerId: z.string().uuid(), // the requester
-  peerHandle: z.string().nullable(),
+  ...peerIdentityFields,
   createdAt: z.string(),
 });
 export type ConnectionRequestListItem = z.infer<typeof connectionRequestListItem>;
@@ -38,7 +33,7 @@ export type ConnectionRequestListItem = z.infer<typeof connectionRequestListItem
 export const connectionListItem = z.object({
   id: z.string().uuid(), // the connection id
   peerId: z.string().uuid(),
-  peerHandle: z.string().nullable(),
+  ...peerIdentityFields,
   createdAt: z.string(),
 });
 export type ConnectionListItem = z.infer<typeof connectionListItem>;

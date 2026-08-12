@@ -3,6 +3,7 @@ import {
   connectionListItem,
   type ConnectionRequestListItem,
   connectionRequestListItem,
+  connectionRequestRow,
   type ConnectionState,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
@@ -26,16 +27,9 @@ export type IncomingRequestsPage = {
   nextCursor: RequestCursor | null;
 };
 
-type ReqRow = {
-  id: string;
-  requester_id: string;
-  created_at: string;
-  requester: { handle: string | null } | null;
-};
-
 const REQ_SELECT =
   'id, requester_id, created_at, ' +
-  'requester:profiles!connection_requests_requester_id_fkey(handle)';
+  'requester:profiles!connection_requests_requester_id_fkey(handle, display_name, avatar_path)';
 
 /**
  * One page of the caller's incoming pending requests, newest first by the (created_at, id)
@@ -66,11 +60,13 @@ export async function getIncomingRequestsPage(
   const { data, error } = await query;
   if (error) throw error;
   const items = (data ?? []).map((r) => {
-    const row = r as unknown as ReqRow;
+    const row = connectionRequestRow.parse(r);
     return connectionRequestListItem.parse({
       id: row.id,
       peerId: row.requester_id,
       peerHandle: row.requester?.handle ?? null,
+      peerDisplayName: row.requester?.display_name ?? null,
+      peerAvatarPath: row.requester?.avatar_path ?? null,
       createdAt: row.created_at,
     });
   });
@@ -111,6 +107,8 @@ export async function getConnectionsPage(
       id: row.connection_id,
       peerId: row.peer_id,
       peerHandle: row.peer_handle,
+      peerDisplayName: row.peer_display_name,
+      peerAvatarPath: row.peer_avatar_path,
       createdAt: row.created_at,
     }),
   );

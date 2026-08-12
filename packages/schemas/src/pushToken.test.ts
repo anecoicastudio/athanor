@@ -1,49 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { pushData, pushTokenInsertSchema, pushTokenSchema } from './pushToken';
+import { pushPlatformSchema, pushTokenInsertSchema } from './pushToken';
 
-describe('pushTokenSchema', () => {
-  it('parses a valid row', () => {
-    const row = {
-      id: '11111111-1111-1111-1111-111111111111',
-      profileId: '22222222-2222-2222-2222-222222222222',
-      token: 'ExponentPushToken[abc123]',
-      platform: 'ios',
-      deviceId: null,
-      createdAt: '2026-06-17T00:00:00.000Z',
-      updatedAt: '2026-06-17T00:00:00.000Z',
-    };
-    expect(pushTokenSchema.parse(row).platform).toBe('ios');
+const valid = {
+  profile_id: '11111111-1111-1111-1111-111111111111',
+  token: 'ExponentPushToken[abc123]',
+  platform: 'ios' as const,
+  device_id: null,
+};
+
+describe('pushTokenInsertSchema', () => {
+  it('parses a valid upsert payload; device_id may be null or absent (column has no default)', () => {
+    expect(pushTokenInsertSchema.parse(valid)).toEqual(valid);
+    expect(pushTokenInsertSchema.parse({ ...valid, device_id: 'd1' }).device_id).toBe('d1');
+    const { device_id: _omitted, ...withoutDevice } = valid;
+    expect(pushTokenInsertSchema.parse(withoutDevice).device_id).toBeUndefined();
   });
 
-  it('rejects an invalid platform', () => {
-    expect(() =>
-      pushTokenInsertSchema.parse({ profileId: 'x', token: 't', platform: 'web' }),
-    ).toThrow();
-  });
-
-  it('rejects an over-long token', () => {
-    expect(() =>
-      pushTokenInsertSchema.parse({
-        profileId: '22222222-2222-2222-2222-222222222222',
-        token: 'x'.repeat(513),
-        platform: 'ios',
-      }),
-    ).toThrow();
-  });
-});
-
-describe('pushData', () => {
-  it('accepts the moment deep-link payload', () => {
-    expect(pushData.parse({ type: 'moment', route: 'momenti', entity_ref: 'abc' }).type).toBe(
-      'moment',
+  it('bounds token to the CHECK constraint (1–512 chars)', () => {
+    expect(pushTokenInsertSchema.parse({ ...valid, token: 'x'.repeat(512) }).token).toHaveLength(
+      512,
     );
+    expect(() => pushTokenInsertSchema.parse({ ...valid, token: 'x'.repeat(513) })).toThrow();
+    expect(() => pushTokenInsertSchema.parse({ ...valid, token: '' })).toThrow();
   });
-  it('accepts the message deep-link payload', () => {
-    expect(pushData.parse({ type: 'message', route: 'chat', entity_ref: 'c1' }).type).toBe(
-      'message',
-    );
+
+  it('rejects a non-uuid profile_id and an unknown platform', () => {
+    expect(() => pushTokenInsertSchema.parse({ ...valid, profile_id: 'me' })).toThrow();
+    expect(() => pushTokenInsertSchema.parse({ ...valid, platform: 'web' })).toThrow();
   });
-  it('rejects an unknown type', () => {
-    expect(() => pushData.parse({ type: 'spam', route: 'x', entity_ref: 'y' })).toThrow();
+
+  it('the platform enum is closed (mirrors the CHECK)', () => {
+    expect(pushPlatformSchema.options).toEqual(['ios', 'android']);
   });
 });

@@ -1,12 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { type PushPlatform, pushTokenInsertSchema } from '@athanor/schemas';
 import type { Database } from './database.types';
 
-export const pushTokenKeys = {
-  all: ['push_tokens'] as const,
-  mine: () => [...pushTokenKeys.all, 'mine'] as const,
-};
-
-type RegisterArgs = { token: string; platform: 'ios' | 'android'; deviceId?: string | null };
+type RegisterArgs = { token: string; platform: PushPlatform; deviceId?: string | null };
 
 /**
  * Idempotent upsert of the caller's Expo push token on the (profile_id, token) unique
@@ -20,12 +16,15 @@ export async function registerPushToken(
   const { data } = await supabase.auth.getUser();
   const profileId = data.user?.id;
   if (!profileId) return; // no session → nothing to register
+  const payload = pushTokenInsertSchema.parse({
+    profile_id: profileId,
+    token,
+    platform,
+    device_id: deviceId,
+  });
   const { error } = await supabase
     .from('push_tokens')
-    .upsert(
-      { profile_id: profileId, token, platform, device_id: deviceId },
-      { onConflict: 'profile_id,token' },
-    );
+    .upsert(payload, { onConflict: 'profile_id,token' });
   if (error) throw error;
 }
 

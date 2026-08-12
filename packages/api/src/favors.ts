@@ -10,8 +10,6 @@ import { keysetFilter, nextCursorOf } from './pagination';
 export const favorKeys = {
   all: ['favorOffers'] as const,
   openNeeds: ['favorOffers', 'openNeeds'] as const, // the Passa il Favore list
-  incoming: (targetId: string) => ['favorOffers', 'incoming', targetId] as const,
-  mine: (actorId: string) => ['favorOffers', 'mine', actorId] as const,
 };
 
 /** Opaque keyset cursor over favor_needs — the last (need_created_at, need_milestone_id) seen. Never an offset. */

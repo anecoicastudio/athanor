@@ -44,6 +44,8 @@ const hit = (over: Record<string, unknown> = {}) => ({
   id: ID1,
   title: 'Elena',
   subtitle: 'designer · Milano',
+  display_name: 'Elena Conti',
+  avatar_path: 'e/e.jpg',
   rank: 0.9,
   ...over,
 });

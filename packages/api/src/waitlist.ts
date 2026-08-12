@@ -4,10 +4,6 @@ import type { Database } from './database.types';
 
 type AdminListWaitlistReturns = Database['public']['Functions']['admin_list_waitlist']['Returns'];
 
-export const waitlistKeys = {
-  all: ['waitlist'] as const,
-};
-
 /**
  * The SQLSTATE the `email_waitlist_throttle` trigger raises when an address is over its budget.
  *

@@ -5,36 +5,50 @@ import { greetingFor } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
-import { WeekCard } from '@/components/aura/WeekCard';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { DreamHeroCard } from '@/components/home/DreamHeroCard';
+import { FavorNudgeCard } from '@/components/home/FavorNudgeCard';
 import { TodaySection } from '@/components/home/TodaySection';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { InviteCard } from '@/components/home/InviteCard';
 import { MomentiCard } from '@/components/home/MomentiCard';
 import { PrimeStelleCard } from '@/components/home/PrimeStelleCard';
 import { StarsMiniRow } from '@/components/home/StarsMiniRow';
+import { WeekSlot } from '@/components/home/WeekSlot';
 import { auraSnapshotOrNull } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { fetchWeekRecap } from '@/lib/week-recap';
 
 /**
- * Home — the assembly host (PRD 01-m1-identity §3.2). M1 ships the shell + the
- * blocks that have real data today (greeting, stars-mini → Profilo, invite);
- * the later-milestone blocks (countdown M7, Esplora Fase2/M8, week M6, nudge M3,
- * Oggi M4) render as honest «Presto qui» placeholders in prototype order and get
- * swapped for the real block when their milestone lands.
+ * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
+ * prototype order and each milestone swaps its «Presto qui» placeholder for the
+ * real block. TWO placeholders remain, both as `fallback` props: countdown M7
+ * (`DreamHeroCard`) and Esplora Fase2/M8 (`PrimeStelleCard`). Everything else on
+ * this screen has landed and renders real data.
  *
- * «Hai un Momento» (#185) is the one block with NO placeholder: it collapses to
- * nothing when no proposal waits. A placeholder promises a milestone, and this
- * one has landed — an empty deck is a fact about today, not a missing feature.
- * The tab-bar ✦ (`_layout.tsx:18-21`) is already the one-waits/none-waits signal,
- * and #177 settled that a short honest Home beats a full one made of promises.
+ * A placeholder promises a MILESTONE, so it belongs only to those two. The blocks
+ * whose milestone has landed say something true about today instead, and there are
+ * two shapes of that, which is deliberate:
  *
- * It sits SECOND, right after the dream hero, per DESIGN §8.2's mockup (CLAUDE.md
- * rule 4: DESIGN governs visual decisions) — not at PRD §4.4's position, which is
- * a contents list this screen has never followed for any block.
+ * - «Hai un Momento» (#185), «Passa il favore» (#99) and «Oggi» (#111) COLLAPSE to
+ *   nothing. An empty deck / no open need / no event today is a fact about today,
+ *   not a missing feature, and silence asserts nothing. #177 settled that a short
+ *   honest Home beats a full one made of promises. For Momenti the tab-bar ✦
+ *   (`_layout.tsx:18-21`) is already the one-waits/none-waits signal; for the other
+ *   two the modal behind the slot keeps the copy and the retry.
+ * - «La tua settimana» (#100) does NOT collapse: it names which of loading, error
+ *   and a genuinely quiet week it is looking at, and offers a retry on the error.
+ *   It reports the member's own Aura, where a wrong or missing answer is a claim
+ *   about what they have earned — see `WeekSlot.tsx` for why that reads
+ *   differently from the three above.
+ *
+ * The dividing line, settled on #177 and recorded in DESIGN §11 2026-08-12: would a
+ * missing answer say something ABOUT THE PERSON? If yes, name the state; if no,
+ * collapse. Read it before adding a slot here.
+ *
+ * «Hai un Momento» sits SECOND, right after the dream hero, per DESIGN §8.2's mockup
+ * (CLAUDE.md rule 4: DESIGN governs visual decisions) — not at PRD §4.4's position,
+ * which is a contents list this screen has never followed for any block.
  */
 export default function HomeScreen() {
   const { profile, session } = useAuth();
@@ -49,13 +63,6 @@ export default function HomeScreen() {
     enabled: !!userId,
   });
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
-
-  // Week recap: shared queryFn (lib/week-recap) — same key as AnalyticsLiteCard.
-  const recapQuery = useQuery({
-    queryKey: auraKeys.recap(userId),
-    queryFn: () => fetchWeekRecap(userId),
-    enabled: !!userId,
-  });
 
   if (!profile) {
     return (
@@ -92,8 +99,6 @@ export default function HomeScreen() {
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 py-12">
       <HomeHeader greeting={greeting} handle={profile.handle} locale={locale} onAction={onAction} />
-      {/* Blocks 2–6: honest placeholders until their milestone fills them in — except 2b,
-          which has landed and therefore has none. */}
       {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
           active edition exists, so we show exactly one element in this slot. */}
       <DreamHeroCard
@@ -108,13 +113,15 @@ export default function HomeScreen() {
         locale={locale}
         fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
       />
-      {recapQuery.data != null &&
-      !(recapQuery.data.auraWeek === 0 && recapQuery.data.contributi === 0) ? (
-        <WeekCard recap={recapQuery.data} locale={locale} onPress={() => router.push('/recap')} />
-      ) : (
-        <ComingSoonSection title={t('home.week.title', locale)} locale={locale} />
-      )}
-      <ComingSoonSection title={t('home.nudge.title', locale)} locale={locale} />
+      {/* Block 4: «La tua settimana» — the card owns the recap query and says which of its four
+          states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
+          week alike, over a feature that shipped in M6. */}
+      <WeekSlot locale={locale} />
+      {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
+          nothing when no need is open, like block 2b and for the same reason (#99). */}
+      <FavorNudgeCard locale={locale} />
+      {/* Block 6: «Oggi» — M4 has landed. Collapses on loading, error and no events alike
+          (#111), the deliberate half of that sort; `(modal)/live` owns the copy and the retry. */}
       <TodaySection locale={locale} />
 
       {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}

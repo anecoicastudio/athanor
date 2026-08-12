@@ -1,3 +1,4 @@
+import { postReactionInsertSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 /**
@@ -36,9 +37,8 @@ export async function togglePostReaction(
     if (error) throw error;
     return false;
   }
-  const { error } = await client
-    .from('post_reactions')
-    .insert({ post_id: postId, person_id: personId });
+  const payload = postReactionInsertSchema.parse({ post_id: postId, person_id: personId });
+  const { error } = await client.from('post_reactions').insert(payload);
   if (error) throw error;
   return true;
 }

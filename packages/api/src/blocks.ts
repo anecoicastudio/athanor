@@ -8,6 +8,12 @@ import {
 import type { AthanorClient } from './client';
 import { keysetFilter } from './pagination';
 
+/**
+ * What the aliased `profiles` embed returns. supabase-js cannot infer a row through an alias,
+ * which is why this select has always needed a cast; the cast is now three fields wide.
+ */
+type PeerEmbed = { handle: string | null; display_name: string | null; avatar_path: string | null };
+
 export const blockKeys = {
   all: ['blocks'] as const,
   list: () => [...blockKeys.all, 'list'] as const,
@@ -60,7 +66,9 @@ export async function listBlocked(
 ): Promise<BlockedListItem[]> {
   let q = client
     .from('blocks')
-    .select('id, blocked_id, created_at, blocked:profiles!blocks_blocked_id_fkey(handle)')
+    .select(
+      'id, blocked_id, created_at, blocked:profiles!blocks_blocked_id_fkey(handle, display_name, avatar_path)',
+    )
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(PAGE);
@@ -69,14 +77,17 @@ export async function listBlocked(
   }
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((r) =>
-    blockedListItem.parse({
+  return (data ?? []).map((r) => {
+    const blocked = r.blocked as PeerEmbed | null;
+    return blockedListItem.parse({
       id: r.id,
       peerId: r.blocked_id,
-      peerHandle: (r.blocked as { handle: string | null } | null)?.handle ?? null,
+      peerHandle: blocked?.handle ?? null,
+      peerDisplayName: blocked?.display_name ?? null,
+      peerAvatarPath: blocked?.avatar_path ?? null,
       createdAt: r.created_at,
-    }),
-  );
+    });
+  });
 }
 
 export type { Block, BlockedListItem };

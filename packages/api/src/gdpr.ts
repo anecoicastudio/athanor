@@ -1,4 +1,4 @@
-import { type GdprExportJob, gdprExportJobSchema } from '@athanor/schemas';
+import { type GdprExportJob, gdprExportJobSchema, gdprRequestInsertSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 /**
@@ -27,7 +27,8 @@ export async function requestExport(client: AthanorClient): Promise<void> {
   const { data: auth } = await client.auth.getUser();
   const profile_id = auth.user?.id;
   if (!profile_id) throw new Error('not authenticated');
-  const { error } = await client.from('gdpr_export_jobs').insert({ profile_id });
+  const payload = gdprRequestInsertSchema.parse({ profile_id });
+  const { error } = await client.from('gdpr_export_jobs').insert(payload);
   if (error) throw error;
 }
 
@@ -40,6 +41,7 @@ export async function requestErasure(client: AthanorClient): Promise<void> {
   const { data: auth } = await client.auth.getUser();
   const profile_id = auth.user?.id;
   if (!profile_id) throw new Error('not authenticated');
-  const { error } = await client.from('gdpr_erasure_requests').insert({ profile_id });
+  const payload = gdprRequestInsertSchema.parse({ profile_id });
+  const { error } = await client.from('gdpr_erasure_requests').insert(payload);
   if (error) throw error;
 }

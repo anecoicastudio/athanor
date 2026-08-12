@@ -1,31 +1,23 @@
-import { describe, expect, test } from 'vitest';
-import { postReactionInsertSchema, postReactionSchema } from './post-reaction';
+import { describe, expect, it } from 'vitest';
+import { postReactionInsertSchema } from './post-reaction';
 
-describe('postReactionSchema', () => {
-  test('parses a valid reaction row', () => {
-    const row = {
-      id: '11111111-1111-1111-1111-111111111111',
-      post_id: '22222222-2222-2222-2222-222222222222',
-      person_id: '33333333-3333-3333-3333-333333333333',
-      created_at: '2026-06-14T00:00:00Z',
-    };
-    expect(postReactionSchema.parse(row)).toMatchObject({ post_id: row.post_id });
-  });
-});
+const valid = {
+  post_id: '11111111-1111-1111-1111-111111111111',
+  person_id: '22222222-2222-2222-2222-222222222222',
+};
 
 describe('postReactionInsertSchema', () => {
-  test('keeps post_id and person_id only', () => {
-    const parsed = postReactionInsertSchema.parse({
-      post_id: '22222222-2222-2222-2222-222222222222',
-      person_id: '33333333-3333-3333-3333-333333333333',
-    });
-    expect(parsed).toEqual({
-      post_id: '22222222-2222-2222-2222-222222222222',
-      person_id: '33333333-3333-3333-3333-333333333333',
-    });
+  it('parses the ✦ insert pair', () => {
+    expect(postReactionInsertSchema.parse(valid)).toEqual(valid);
   });
 
-  test('rejects a non-uuid post_id', () => {
-    expect(() => postReactionInsertSchema.parse({ post_id: 'nope', person_id: 'nope' })).toThrow();
+  it('rejects a non-uuid in either slot', () => {
+    expect(() => postReactionInsertSchema.parse({ ...valid, post_id: 'p1' })).toThrow();
+    expect(() => postReactionInsertSchema.parse({ ...valid, person_id: 'me' })).toThrow();
+  });
+
+  it('strips unknown keys so a widened caller cannot smuggle columns', () => {
+    const parsed = postReactionInsertSchema.parse({ ...valid, created_at: '2026-01-01' });
+    expect(parsed).toEqual(valid);
   });
 });

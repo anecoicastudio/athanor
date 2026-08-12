@@ -1,30 +1,37 @@
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
+import type { ListState as State } from '@/lib/list-state';
 import { Pressable, Text, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 
 /**
  * "I tuoi Momenti" — the Profilo gallery section (frontend `01` §3.4 item 6).
  * Header + "Vedi tutti" → full grid; a 3-col gallery of live momenti + the
- * trailing add tile. Media renders from signed URLs (`urls`, path→url); a tile
- * with no URL yet shows the quiet placeholder. Empty for a brand-new user.
+ * trailing add tile. Media renders from signed URLs (`urls`, path→url); each tile picks its own
+ * path out of the map (a video's poster, a photo's own bytes) and shows the quiet placeholder
+ * while there is no URL yet. Empty for a brand-new user.
  */
 export function MomentiGallery({
   moments,
   urls,
+  urlsLoading,
   locale,
   onOpen,
   onSeeAll,
   onAdd,
   label,
   emptyLabel,
+  state,
+  onRetry,
 }: {
   moments: Moment[];
-  /** Signed URLs by storage path (from `useSignedUrls('moments', …)`). */
+  /** Signed URLs by storage path (from `useSignedUrls('moments', momentSignPaths(…))`). */
   urls: Record<string, string>;
+  /** That hook's `isLoading`, passed straight through to each tile — see #135. */
+  urlsLoading: boolean;
   locale: Locale;
   onOpen: (index: number) => void;
   onSeeAll: () => void;
@@ -34,8 +41,16 @@ export function MomentiGallery({
   label?: string;
   /** Override the empty-state body (e.g. third-person «Ancora nessun Momento»). Defaults to the owner copy. */
   emptyLabel?: string;
+  /**
+   * `listState(...)` for the query that produced `moments`, from the caller — the gallery is
+   * props-driven and cannot see it. Threaded rather than derived because `moments.length === 0`
+   * was the whole bug: a failed read told both the owner and a visitor the person has none
+   * (#111). Same reason `urlsLoading` is threaded rather than assumed (#135).
+   */
+  state: State;
+  /** `query.refetch()` for that query. */
+  onRetry: () => void;
 }) {
-  const empty = moments.length === 0;
   return (
     <View className="gap-3">
       <View className="flex-row items-center justify-between">
@@ -57,7 +72,8 @@ export function MomentiGallery({
               moment={m}
               variant="gallery"
               locale={locale}
-              url={urls[m.media_path]}
+              urls={urls}
+              isLoading={urlsLoading}
               onPress={() => onOpen(i)}
             />
           </View>
@@ -69,7 +85,15 @@ export function MomentiGallery({
         ) : null}
       </View>
 
-      {empty ? <EmptyState>{emptyLabel ?? t('profile.moments.empty', locale)}</EmptyState> : null}
+      <ListState
+        state={state}
+        locale={locale}
+        errorLabel={t('profile.moments.error', locale)}
+        emptyLabel={emptyLabel ?? t('profile.moments.empty', locale)}
+        onRetry={onRetry}
+        className=""
+        loading={null}
+      />
     </View>
   );
 }

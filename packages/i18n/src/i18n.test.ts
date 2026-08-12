@@ -138,7 +138,6 @@ describe('translation completeness', () => {
     'feed.filter.human',
     'fund.countdown.minutes',
     'fund.countdown.seconds',
-    'fund.split.ops',
     'home.today.seeLive',
     'lang.en',
     'lang.it',

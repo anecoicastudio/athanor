@@ -18,8 +18,10 @@ import { t } from '@athanor/i18n';
 import type { VoteState } from '@/components/fund/CandidateCard';
 import { VoteBar } from '@/components/fund/VoteBar';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -103,23 +105,32 @@ export default function CandidacyDetailScreen() {
     }
   }, [card, myVote, locale, vote]);
 
-  // ── Loading / not-found ───────────────────────────────────────────────────
-  if (cardQuery.isLoading) {
+  // ── Loading / error / not-found ───────────────────────────────────────────
+  // `!card` used to be all three at once, and the sentence it rendered was
+  // `fund.candidates.empty` — «I sogni candidati appariranno qui», a LIST's empty state on a
+  // DETAIL screen, said equally to someone whose network dropped and someone who followed a
+  // dead deep link (#111). Three situations, three answers.
+  const detailState = listState({
+    status: cardQuery.status,
+    fetchStatus: cardQuery.fetchStatus,
+    isEmpty: card == null,
+    staleWins: true,
+  });
+  // The `card == null` half is what narrows `card` for everything below; `listState` only
+  // returns 'ready' when `isEmpty` is false, but the compiler cannot see that through the call.
+  if (detailState !== 'ready' || card == null) {
     return (
       <Screen locale={locale}>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={semantic.aura} />
-        </View>
-      </Screen>
-    );
-  }
-  if (!card) {
-    return (
-      <Screen locale={locale}>
-        <View className="flex-1 items-center justify-center px-5">
-          <Text className="text-center text-[15px] text-muted-foreground">
-            {t('fund.candidates.empty', locale)}
-          </Text>
+          <ListState
+            state={detailState}
+            locale={locale}
+            errorLabel={t('fund.candidacy.error', locale)}
+            emptyLabel={t('fund.candidacy.notFound', locale)}
+            onRetry={() => void cardQuery.refetch()}
+            className="px-5"
+            loading={<ActivityIndicator color={semantic.aura} />}
+          />
         </View>
       </Screen>
     );

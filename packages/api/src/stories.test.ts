@@ -85,17 +85,41 @@ describe('getStoryRail', () => {
       'story_segments.select': [
         {
           data: [
-            railRow(AUTHOR, '2026-01-03T00:00:00Z', { handle: 'sole' }),
-            railRow(AUTHOR, '2026-01-02T00:00:00Z', { handle: 'sole' }),
-            railRow(OTHER, '2026-01-01T00:00:00Z', { handle: 'luna' }),
+            railRow(AUTHOR, '2026-01-03T00:00:00Z', {
+              handle: 'sole',
+              display_name: 'Sole Mattina',
+              avatar_path: 'sole/sole.jpg',
+            }),
+            railRow(AUTHOR, '2026-01-02T00:00:00Z', {
+              handle: 'sole',
+              display_name: 'Sole Mattina',
+              avatar_path: 'sole/sole.jpg',
+            }),
+            railRow(OTHER, '2026-01-01T00:00:00Z', {
+              handle: 'luna',
+              display_name: null,
+              avatar_path: null,
+            }),
           ],
         },
       ],
     });
 
     await expect(getStoryRail(client)).resolves.toEqual([
-      { author_id: AUTHOR, handle: 'sole', latest_at: '2026-01-03T00:00:00Z' },
-      { author_id: OTHER, handle: 'luna', latest_at: '2026-01-01T00:00:00Z' },
+      {
+        author_id: AUTHOR,
+        handle: 'sole',
+        display_name: 'Sole Mattina',
+        avatar_path: 'sole/sole.jpg',
+        latest_at: '2026-01-03T00:00:00Z',
+      },
+      {
+        author_id: OTHER,
+        handle: 'luna',
+        display_name: null,
+        avatar_path: null,
+        latest_at: '2026-01-01T00:00:00Z',
+      },
     ]);
   });
 

@@ -650,6 +650,25 @@ update public.dream_candidacies c
    set video_url = c.profile_id::text || '/' || c.id::text || '.mp4'
  where c.video_url like 'http%';
 
+-- Repairs rows seeded before thumb_path existed (the column shipped in
+-- 20260812120121_candidacy_thumb_path.sql) — the same role the video_url normalizer above plays
+-- for its own pre-migration rows. The INSERT below now sets thumb_path directly, so on a fresh
+-- seed this matches zero rows; on staging's three already-seeded candidacies it backfills them,
+-- which is the only reason this UPDATE is still here.
+-- Scoped to those three seeded ids, not every row, unlike video_url's `like 'http%'` guard being
+-- the only one that looked needed: candidacy_window_open = true and the seed's three candidacy
+-- authors are identity_verified (§12), so a tester can submit a real candidacy through the
+-- wizard — the exact create/edit flow this PR's poster extraction covers. That candidacy's
+-- thumb_path may legitimately be null (extraction is best-effort and can fail, by design), and
+-- an unscoped UPDATE would stamp it with a key the uploader manifest never populated for it —
+-- turning an honest null into the state-confusion this PR exists to eliminate. The id filter
+-- mirrors the INSERT's own derivation below, so it can never drift from the rows that seeds.
+update public.dream_candidacies c
+   set thumb_path = c.profile_id::text || '/' || c.id::text || '-thumb.jpg'
+ where c.id in (md5('candidacy:marta_ceramica')::uuid,
+                md5('candidacy:ele_yoga')::uuid,
+                md5('candidacy:rocco_film')::uuid);
+
 -- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
 -- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
 -- renders an empty box — the same principle the moments guard above states.
@@ -718,10 +737,13 @@ on conflict do nothing;
 -- candidacyVideoPath(uid, candidacyId) into it — `{uid}/{candidacy_id}.mp4`
 -- (packages/api/src/candidacy.ts:26). The old 'https://example.invalid/video/<handle>' could
 -- never sign, so the candidacy detail has always shown an empty player.
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status, city, category)
+-- `thumb_path` is set here too, from the same two ids, so a fresh seed is correct on its own —
+-- the standalone UPDATE further up only exists to backfill rows inserted before this column did.
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category)
 select md5('candidacy:' || c.handle)::uuid, md5('fundedition:2027')::uuid, md5('user:' || c.handle)::uuid,
        c.story, c.goal, c.impact,
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '.mp4',
+       md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '-thumb.jpg',
        c.plan, c.status, c.city, c.category
 from (values
   ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'craft'),

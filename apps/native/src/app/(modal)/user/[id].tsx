@@ -31,9 +31,11 @@ import { EmptyState } from '@/components/EmptyState';
 import { Lightbox } from '@/components/media/Lightbox';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { SectionLabel } from '@/components/SectionLabel';
+import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
+import { listState } from '@/lib/list-state';
 import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
 
@@ -148,10 +150,9 @@ export default function PersonDetailScreen() {
     enabled: Boolean(id) && !isSelf,
     staleTime: 60_000,
   }).data;
-  const { urls } = useSignedUrls(
-    'moments',
-    moments.map((m) => m.media_path),
-  );
+  // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
+  // video itself, and both read this one map (#131).
+  const { urls, isLoading: urlsLoading } = useSignedUrls('moments', momentSignPaths(moments));
   useEffect(() => {
     if (isSelf) router.replace('/(tabs)/profile');
   }, [isSelf, router]);
@@ -334,6 +335,8 @@ export default function PersonDetailScreen() {
           locale={locale}
           hero={{
             handle: person.handle ?? '',
+            displayName: person.display_name,
+            avatarPath: person.avatar_path,
             bio: person.bio ?? null,
             auraScore: aura?.score ?? null,
             locale,
@@ -346,7 +349,17 @@ export default function PersonDetailScreen() {
           gallery={{
             moments,
             urls,
+            urlsLoading,
             locale,
+            // «Ancora nessun Momento» is a claim about ANOTHER member, made on the strength of
+            // the viewer's own connection — the same shape #10 fixed for their Aura (#111).
+            state: listState({
+              status: momentsQuery.status,
+              fetchStatus: momentsQuery.fetchStatus,
+              isEmpty: moments.length === 0,
+              staleWins: true,
+            }),
+            onRetry: () => void momentsQuery.refetch(),
             onOpen: setLightboxIndex,
             onSeeAll: () => router.push({ pathname: '/(modal)/grid', params: { userId: id } }),
             label: t('profile.moments.theirLabel', locale),
@@ -401,6 +414,7 @@ export default function PersonDetailScreen() {
         <Lightbox
           moments={moments}
           urls={urls}
+          urlsLoading={urlsLoading}
           index={lightboxIndex}
           locale={locale}
           onClose={() => setLightboxIndex(null)}

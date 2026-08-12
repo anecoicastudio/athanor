@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { gdprExportJobSchema, GDPR_EXPORT_STATUSES } from './gdprExportJob';
+import {
+  gdprExportJobSchema,
+  gdprRequestInsertSchema,
+  GDPR_EXPORT_STATUSES,
+} from './gdprExportJob';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -30,5 +34,22 @@ describe('gdprExportJobSchema', () => {
   });
   it('lists exactly the three statuses', () => {
     expect(GDPR_EXPORT_STATUSES).toEqual(['requested', 'processing', 'ready']);
+  });
+});
+
+describe('gdprRequestInsertSchema', () => {
+  it('parses the owner-enqueue payload and nothing more', () => {
+    expect(gdprRequestInsertSchema.parse({ profile_id: validRow.profile_id })).toEqual({
+      profile_id: validRow.profile_id,
+    });
+    // status is server-pinned by RLS WITH CHECK — a smuggled value must not survive the parse
+    expect(
+      gdprRequestInsertSchema.parse({ profile_id: validRow.profile_id, status: 'done' }),
+    ).toEqual({ profile_id: validRow.profile_id });
+  });
+
+  it('rejects a non-uuid profile_id', () => {
+    expect(() => gdprRequestInsertSchema.parse({ profile_id: 'me' })).toThrow();
+    expect(() => gdprRequestInsertSchema.parse({})).toThrow();
   });
 });

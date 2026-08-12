@@ -5,15 +5,17 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
+import { MediaFrame } from '@/components/media/MediaFrame';
 import { VoteBar } from './VoteBar';
 
 export type VoteState = 'notVoted' | 'voting' | 'voted' | 'votingClosed' | 'winner';
 
 /**
  * One candidate in the «Sogni candidati» list (M7 §3.2). A calm dark card:
- * a 16:9 video-thumb tile (poster frame deferred → centered ▶ glyph, like a
- * null `thumb_path`), the dream title, a muted author line, the consensus
- * <VoteBar>, and a right-side action driven by `voteState`.
+ * a 16:9 poster tile drawn from the candidacy's own video (`thumb_path`;
+ * null → the faint ▶ of a genuinely poster-less application), the dream
+ * title, a muted author line, the consensus <VoteBar>, and a right-side
+ * action driven by `voteState`.
  *
  * Glow discipline (rule #4): the ONLY glow here is the `winner` ribbon «Sogno
  * scelto ✦» — a moment happened. «Vota» is FLAT aura cyan; «Votato ✦» /
@@ -22,6 +24,8 @@ export type VoteState = 'notVoted' | 'voting' | 'voted' | 'votingClosed' | 'winn
  */
 export function CandidateCard({
   card,
+  posterUrl,
+  isLoadingPoster,
   consensus,
   voteState,
   locale,
@@ -29,6 +33,10 @@ export function CandidateCard({
   onOpen,
 }: {
   card: CandidateCardModel;
+  /** Signed URL for `card.thumb_path`, from the screen's one `useSignedUrls` call. */
+  posterUrl?: string;
+  /** That signing query's `isLoading`. Thread it — see the tile body for why. */
+  isLoadingPoster: boolean;
   consensus: number;
   voteState: VoteState;
   locale: Locale;
@@ -46,7 +54,38 @@ export function CandidateCard({
         accessibilityRole="button"
         accessibilityLabel={t('fund.candidate.playLabel', locale)}
       >
-        <Text className="text-4xl text-foreground">▶</Text>
+        {card.thumb_path === null ? (
+          // A candidacy with no poster is a STATE, not a failure: the video plays fine in the
+          // detail, it just has no still. `media.unavailable.video` would be a lie here, which
+          // is why this branch stays hand-rolled instead of becoming a fourth MediaFrame state.
+          <View
+            className="absolute inset-0 items-center justify-center"
+            accessible
+            accessibilityLabel={t('media.noPoster.video', locale)}
+          >
+            <Text
+              className="text-4xl text-faint"
+              // Decorative: the wrapper above already announces the sentence.
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ▶
+            </Text>
+          </View>
+        ) : (
+          // Three states, not two. A `posterUrl ? <Image/> : ▶` ternary would render "still
+          // signing" and "never coming" as the same pixel — issue #135, rebuilt on a new
+          // surface — and would announce "video with no preview" about a poster that is 200ms
+          // from appearing. `compact` is omitted deliberately: it is for tile-sized surfaces,
+          // and this tile is full-width 16:9, so the sentence fits and should be read.
+          <MediaFrame
+            kind="video"
+            url={posterUrl}
+            isLoading={isLoadingPoster}
+            locale={locale}
+            className="absolute inset-0"
+          />
+        )}
       </Pressable>
 
       {/* Title + author */}

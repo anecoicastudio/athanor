@@ -1,21 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pushTokenKeys, registerPushToken, unregisterPushToken } from './pushTokens';
+import { registerPushToken, unregisterPushToken } from './pushTokens';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
+
+const ME = '00000000-0000-4000-8000-000000000001';
 
 function mockClient() {
   const upsert = vi.fn().mockResolvedValue({ error: null });
   const del = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
   const from = vi.fn().mockReturnValue({ upsert, delete: del });
-  const auth = { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'me-uuid' } } }) };
+  const auth = { getUser: vi.fn().mockResolvedValue({ data: { user: { id: ME } } }) };
   return { client: { from, auth } as unknown as AthanorClient, from, upsert, del };
 }
-
-describe('pushTokenKeys', () => {
-  it('exposes a stable mine() key', () => {
-    expect(pushTokenKeys.mine()).toEqual(['push_tokens', 'mine']);
-  });
-});
 
 describe('registerPushToken', () => {
   it('upserts on the (profile_id, token) conflict target with the session profile_id', async () => {
@@ -27,9 +23,19 @@ describe('registerPushToken', () => {
     });
     expect(from).toHaveBeenCalledWith('push_tokens');
     expect(upsert).toHaveBeenCalledWith(
-      { profile_id: 'me-uuid', token: 'ExponentPushToken[a]', platform: 'ios', device_id: 'd1' },
+      { profile_id: ME, token: 'ExponentPushToken[a]', platform: 'ios', device_id: 'd1' },
       { onConflict: 'profile_id,token' },
     );
+  });
+
+  // The parse is the write boundary (#274): an out-of-contract payload throws before any
+  // network call, instead of surfacing later as an opaque CHECK-constraint violation.
+  it('rejects a token over the 512-char CHECK bound before writing anything', async () => {
+    const { client, upsert } = mockClient();
+    await expect(
+      registerPushToken(client, { token: 'x'.repeat(513), platform: 'ios' }),
+    ).rejects.toThrow();
+    expect(upsert).not.toHaveBeenCalled();
   });
 });
 
@@ -58,7 +64,10 @@ describe('registerPushToken — the no-session branch', () => {
   });
 
   it('rethrows an upsert failure rather than reporting the device registered', async () => {
-    const fake = makeFakeClient({ 'push_tokens.upsert': [{ error: DB_DOWN }] });
+    const fake = makeFakeClient({
+      'auth.getUser': [{ data: { user: { id: ME } }, error: null }],
+      'push_tokens.upsert': [{ error: DB_DOWN }],
+    });
     await expect(
       registerPushToken(asClient(fake) as never, {
         token: 'ExponentPushToken[x]',

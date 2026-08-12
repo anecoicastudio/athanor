@@ -13,11 +13,11 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
 import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
@@ -90,8 +90,12 @@ export default function CircleScreen() {
         qc.invalidateQueries({ queryKey: entitlementKeys.me() });
         qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
       } else if (result.kind === 'iap') {
-        // TODO(M10 S-IAP-1): StoreKit IAP path — unreachable in M8
-        // The edge function currently only returns { kind: 'url' }
+        // TODO(M10 S-IAP-1): StoreKit IAP path — unreachable in M8, the edge function only
+        // returns { kind: 'url' }. Loud rather than empty: if an `iap` result ever arrives
+        // before the StoreKit flow exists, the member gets an error instead of a spinner
+        // that stops with nothing having happened.
+        devWarn('[circle] startCheckout', 'returned kind=iap — StoreKit path not implemented');
+        setCheckoutError(true);
       }
     } catch {
       // Checkout-session failure happens before any subscription exists, so the query
@@ -140,15 +144,17 @@ export default function CircleScreen() {
     return (
       <View {...MODAL_A11Y} className="flex-1 bg-background">
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
-        <View className="flex-1 items-center justify-center px-5">
-          <EmptyState>
-            {t('circle.error.title', locale)}
-            {'\n'}
-            <Pressable onPress={() => void entQuery.refetch()}>
-              <Text className="text-aura">{t('circle.error.retry', locale)}</Text>
-            </Pressable>
-          </EmptyState>
-        </View>
+        {/* The retry used to be a `Pressable` nested inside `EmptyState`'s `<Text>` children —
+            a touchable inside a text node, with no accessibilityRole, reached by a literal
+            '\n'. `ListState` gives it the same ghost Button every other error arm uses (#111).
+            `circle.error.retry` is now unused: `common.retry` says the same word. */}
+        <ListState
+          state="error"
+          locale={locale}
+          errorLabel={t('circle.error.title', locale)}
+          onRetry={() => void entQuery.refetch()}
+          className="flex-1 justify-center px-5"
+        />
       </View>
     );
   }

@@ -16,9 +16,10 @@ import { RsvpBar } from '@/components/live/RsvpBar';
 import { SectionLabel } from '@/components/SectionLabel';
 import { TicketBar } from '@/components/live/TicketBar';
 import { CircleGate } from '@/components/circle/CircleGate';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { addEventToCalendar } from '@/lib/calendar';
 import { dateTime } from '@/lib/time';
@@ -44,6 +45,14 @@ export default function EventDetailScreen() {
     enabled: !!id,
   });
   const event = query.data;
+  // `staleWins`: an event card an hour old is still that event, and the detail screen is where
+  // a member lands from a push or a deep link — blanking it on a lost refresh helps nobody.
+  const detailState = listState({
+    status: query.status,
+    fetchStatus: query.fetchStatus,
+    isEmpty: event == null,
+    staleWins: true,
+  });
 
   const attendees = useQuery({
     queryKey: eventKeys.attendees(id),
@@ -132,20 +141,23 @@ export default function EventDetailScreen() {
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
       <ModalHeader title={t('event.title', locale)} backLabel={t('common.back', locale)} />
 
-      {query.isLoading ? (
-        <View className="items-center pt-16">
-          <ActivityIndicator color={semantic.aura} />
-        </View>
-      ) : query.isError || !event ? (
-        <View className="items-center gap-4 px-5 pt-16">
-          <EmptyState>{t('event.error', locale)}</EmptyState>
-          <Pressable
-            className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-            onPress={() => void query.refetch()}
-          >
-            <Text className="text-[13px] text-aura">{t('common.retry', locale)}</Text>
-          </Pressable>
-        </View>
+      {detailState !== 'ready' || !event ? (
+        // `query.isError || !event` used to be one branch saying «Non siamo riusciti a caricare
+        // l'evento», so a deep link to an event that no longer exists asked the member to retry
+        // forever (#111). Same split `candidacy/[id]` needed.
+        <ListState
+          state={detailState}
+          locale={locale}
+          errorLabel={t('event.error', locale)}
+          emptyLabel={t('event.notFound', locale)}
+          onRetry={() => void query.refetch()}
+          className="px-5 pt-16"
+          loading={
+            <View className="items-center pt-16">
+              <ActivityIndicator color={semantic.aura} />
+            </View>
+          }
+        />
       ) : (
         <View className="gap-5 px-5">
           <EventCover event={event} locale={locale} />

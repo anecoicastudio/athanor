@@ -10,12 +10,13 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Text, TextInput, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { TextInput, View } from '@/tw';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Toast } from '@/components/Toast';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -83,22 +84,24 @@ export default function NewMessageScreen() {
           <ConnectionRow item={item} locale={locale} onPress={() => void pick(item.peerId)} />
         )}
         ListEmptyComponent={
-          !connectionsQuery.isLoading ? (
-            <View className="items-center px-8 pt-24">
-              {search.trim() ? (
-                <Text className="text-center text-faint">
-                  {t('connection.list.noMatch', locale)}
-                </Text>
-              ) : (
-                <>
-                  <EmptyState>{t('connection.list.empty', locale)}</EmptyState>
-                  <Text className="mt-1 text-center text-[13px] text-faint">
-                    {t('connection.list.emptyBody', locale)}
-                  </Text>
-                </>
-              )}
-            </View>
-          ) : null
+          <ListState
+            state={listState({
+              status: connectionsQuery.status,
+              fetchStatus: connectionsQuery.fetchStatus,
+              isEmpty: connections.length === 0,
+              staleWins: true,
+            })}
+            locale={locale}
+            errorLabel={t('connection.list.error', locale)}
+            emptyLabel={
+              search.trim()
+                ? t('connection.list.noMatch', locale)
+                : t('connection.list.empty', locale)
+            }
+            emptyBody={search.trim() ? undefined : t('connection.list.emptyBody', locale)}
+            onRetry={() => void connectionsQuery.refetch()}
+            loading={null}
+          />
         }
         onEndReachedThreshold={0.5}
         onEndReached={() => {

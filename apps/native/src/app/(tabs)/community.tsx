@@ -18,6 +18,7 @@ import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -98,14 +99,14 @@ export default function CommunityScreen() {
 
   if (query.isError) {
     return (
-      <View className="flex-1 items-center justify-center gap-4 bg-background px-5">
-        <EmptyState>{t('feed.error', locale)}</EmptyState>
-        <Pressable
-          className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-          onPress={onRefresh}
-        >
-          <Text className="text-[13px] text-aura">{t('feed.retry', locale)}</Text>
-        </Pressable>
+      <View className="flex-1 bg-background">
+        <ListState
+          state="error"
+          locale={locale}
+          errorLabel={t('feed.error', locale)}
+          onRetry={onRefresh}
+          className="flex-1 justify-center px-5"
+        />
       </View>
     );
   }
@@ -144,7 +145,12 @@ export default function CommunityScreen() {
             </Pressable>
             {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
               <StoryRail
-                you={{ handle: profile?.handle ?? null, hasStory: false }}
+                you={{
+                  handle: profile?.handle ?? null,
+                  displayName: profile?.display_name ?? null,
+                  avatarPath: profile?.avatar_path ?? null,
+                  hasStory: false,
+                }}
                 people={railQuery.data ?? []}
                 seenIds={seenIds}
                 locale={locale}

@@ -9,12 +9,10 @@ import { ScrollView, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { EventRow } from '@/components/live/EventRow';
+import { EVENT_HREF, EventRow } from '@/components/live/EventRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-
-const EVENT_HREF = (id: string) => `/(modal)/event/${id}` as const;
 
 /**
  * I tuoi eventi — organizer surface (P4.5; frontend 04 §3.7 Live entry).

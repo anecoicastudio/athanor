@@ -13,8 +13,8 @@
  * literal member expressions — both Metro and Next inline their public env vars at bundle
  * time, so a computed lookup silently yields undefined.
  *
- * apps/native/src/lib/supabase-key.ts predates this module and keeps its own copy with an
- * EAS-specific error message; folding it into this one is a pending dedup.
+ * `vars.hint` carries the caller's own "where do I set this" sentence, which differs per
+ * app (a native cloud build reads EAS environment variables, never the gitignored .env).
  */
 
 const present = (v: string | undefined): v is string => typeof v === 'string' && v.trim() !== '';
@@ -32,12 +32,12 @@ const guard = (v: string, name: string): string => {
 
 export function resolveSupabaseKey(
   env: { publishable?: string; anon?: string },
-  vars: { publishable: string; anon: string },
+  vars: { publishable: string; anon: string; hint?: string },
 ): string {
   if (present(env.publishable)) return guard(env.publishable, vars.publishable);
   if (present(env.anon)) return guard(env.anon, vars.anon);
   throw new Error(
     `Missing Supabase API key: set ${vars.publishable} (preferred, sb_publishable_…) or ` +
-      `${vars.anon} (legacy anon fallback).`,
+      `${vars.anon} (legacy anon fallback).${vars.hint ? ` ${vars.hint}` : ''}`,
   );
 }

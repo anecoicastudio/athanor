@@ -34,19 +34,6 @@ export const projectInsertSchema = projectSchema.pick({ author_id: true, categor
   terms: z.string().max(500).nullable().default(null),
 });
 
-/** Editing an own project — any of title/category/description/terms/status. */
-export const projectUpdateSchema = z
-  .object({
-    title: projectTitleSchema,
-    category: projectCategorySchema,
-    description: z.string().max(4000),
-    terms: z.string().max(500).nullable(),
-    status: projectStatusSchema,
-  })
-  .partial();
-
 export type Project = z.infer<typeof projectSchema>;
 export type ProjectCategory = z.infer<typeof projectCategorySchema>;
-export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 export type ProjectInsert = z.infer<typeof projectInsertSchema>;
-export type ProjectUpdate = z.infer<typeof projectUpdateSchema>;

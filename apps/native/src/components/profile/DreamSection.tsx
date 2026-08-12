@@ -46,7 +46,7 @@ export function DreamSection({ locale, dream }: { locale: Locale; dream: OwnDrea
                 <IncomingOfferRow
                   key={h.id}
                   help={h}
-                  helperName={helperNames[h.helper_id] ?? '—'}
+                  helper={helperNames[h.helper_id] ?? null}
                   locale={locale}
                   mutating={mutatingHelpId === h.id}
                   onAccept={() => handleRespond(h.id, 'accepted')}
