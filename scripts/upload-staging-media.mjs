@@ -189,6 +189,18 @@ const plan = [
       file: `candidacy__${h}.mp4`,
     })),
   },
+  // The candidacy video's poster frame — same table, the other path column, exactly like the
+  // moments/thumb_path pair above.
+  {
+    table: 'dream_candidacies',
+    bucket: 'candidacy-videos',
+    col: 'thumb_path',
+    want: CANDIDACIES.map((h) => ({
+      owner: h,
+      id: rowId(`candidacy:${h}`),
+      file: `candidacy__${h}__thumb.jpg`,
+    })),
+  },
   {
     table: 'profiles',
     bucket: 'avatars',

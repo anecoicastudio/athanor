@@ -18,7 +18,8 @@ export const dreamCandidacySchema = z.object({
   story: z.string().min(1).max(4000),
   goal: z.string().min(1).max(2000),
   impact: z.string().min(1).max(2000),
-  video_url: z.string().min(1), // Storage path in `candidacy-videos`
+  video_url: z.string().min(1), // Storage path in `candidacy-videos` — NOT a URL
+  thumb_path: z.string().nullable(), // Poster frame beside it, `{uid}/{id}-thumb.jpg`; null = none
   plan: z.string().min(1).max(4000),
   status: candidacyStatusSchema,
   city: z.string().nullable(),
@@ -30,14 +31,20 @@ export const dreamCandidacySchema = z.object({
 export type DreamCandidacy = z.infer<typeof dreamCandidacySchema>;
 
 /** Author-supplied fields on submit; the api injects id, profile_id, status='submitted'. */
-export const candidacyInsertSchema = dreamCandidacySchema.pick({
-  edition_id: true,
-  story: true,
-  goal: true,
-  impact: true,
-  video_url: true,
-  plan: true,
-});
+export const candidacyInsertSchema = dreamCandidacySchema
+  .pick({
+    edition_id: true,
+    story: true,
+    goal: true,
+    impact: true,
+    video_url: true,
+    plan: true,
+  })
+  .extend({
+    // Defaulted rather than required: poster extraction is best-effort and must never be able
+    // to block a submission the member already waited on a video upload for.
+    thumb_path: z.string().nullable().default(null),
+  });
 export type CandidacyInsert = z.infer<typeof candidacyInsertSchema>;
 
 /** The `fund_candidate_cards` view read-model — candidacy + author handle + dream-text title. */
@@ -51,6 +58,7 @@ export const candidateCardSchema = z.object({
   category: z.string().nullable(),
   status: candidacyStatusSchema,
   video_url: z.string().min(1),
+  thumb_path: z.string().nullable(),
   created_at: z.string(),
 });
 export type CandidateCard = z.infer<typeof candidateCardSchema>;

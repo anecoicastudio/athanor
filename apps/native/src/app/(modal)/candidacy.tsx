@@ -98,6 +98,7 @@ export default function CandidacyWizard() {
           goal: goal.trim(),
           impact: impact.trim(),
           video_url: upload.videoPath,
+          thumb_path: upload.thumbPath,
           plan: planText.trim(),
         },
       });

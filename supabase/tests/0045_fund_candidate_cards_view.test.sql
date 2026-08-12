@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(7);
+select plan(8);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- two members; handle_new_user auto-creates their profiles rows.
@@ -22,12 +22,14 @@ insert into public.dreams (profile_id, text, status)
 set local role service_role;
 insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
   values ('00000000-0000-0000-0000-0000000000ed', 2027, now() + interval '30 days', 1000000, 'community', true, false);
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status)
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status)
 values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000ed',
-   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','submitted'),
+   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4',
+   '11111111-1111-1111-1111-111111111111/a-thumb.jpg','p','submitted'),
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000ed',
-   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','rejected');
+   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4',
+   null,'p','rejected');
 reset role;
 
 -- ── schema ────────────────────────────────────────────────────────────────────────────
@@ -40,6 +42,15 @@ set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","r
 select is(
   (select title from public.fund_candidate_cards where candidacy_id='00000000-0000-0000-0000-0000000000a1'),
   'Una casa-laboratorio', 'title is the author active dream text'
+);
+
+-- The bug was a poster column no reader could reach. A column that exists on the table but
+-- never made it into the view is the same blank card, so assert the view, not the table.
+select is(
+  (select thumb_path from public.fund_candidate_cards
+    where candidacy_id='00000000-0000-0000-0000-0000000000a1'),
+  '11111111-1111-1111-1111-111111111111/a-thumb.jpg',
+  'fund_candidate_cards exposes thumb_path'
 );
 
 -- ── visibility: own rejected card visible to author only ──────────────────────────────
