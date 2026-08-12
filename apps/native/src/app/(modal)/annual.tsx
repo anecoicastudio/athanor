@@ -30,7 +30,6 @@ import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
 import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
 import { SectionLabel } from '@/components/SectionLabel';
-import { SplitBar } from '@/components/fund/SplitBar';
 import { PhaseList } from '@/components/fund/PhaseList';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -272,16 +271,7 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 5. Come si divide il fondo */}
-        <View className="gap-3">
-          <SectionLabel>{t('fund.split.title', locale)}</SectionLabel>
-          <SplitBar locale={locale} />
-          <Text className="text-[14px] leading-5 text-muted-foreground">
-            {t('fund.split.body', locale)}
-          </Text>
-        </View>
-
-        {/* 6. Partecipa */}
+        {/* 5. Partecipa */}
         <View className="gap-3">
           <SectionLabel>{t('fund.contribute.title', locale)}</SectionLabel>
           <Text className="text-[14px] leading-5 text-foreground">
@@ -343,7 +333,7 @@ export default function AnnualFundScreen() {
           )}
         </View>
 
-        {/* 7. Sogni candidati — live candidate cards (voting slice).
+        {/* 6. Sogni candidati — live candidate cards (voting slice).
             Realtime tally is DEFERRED (own-row RLS can't stream others' votes);
             the consensus % refreshes on focus + after a vote. */}
         <View className="gap-3">
@@ -371,13 +361,13 @@ export default function AnnualFundScreen() {
           )}
         </View>
 
-        {/* 8. Come vengono scelti */}
+        {/* 7. Come vengono scelti */}
         <View className="gap-3">
           <SectionLabel>{t('fund.howChosen.title', locale)}</SectionLabel>
           <PhaseList current={edition.phase} locale={locale} />
         </View>
 
-        {/* 9. Il motore virale — cyan-wash card */}
+        {/* 8. Il motore virale — cyan-wash card */}
         <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
           <SectionLabel tone="aura">{t('fund.viral.label', locale)}</SectionLabel>
           <Text className="text-[14px] leading-5 text-foreground">

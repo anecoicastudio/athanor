@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatFundTotal, FUND_SPLIT } from './format';
+import { formatFundTotal } from './format';
 
 describe('formatFundTotal', () => {
   it('formats whole euros with it-IT grouping (dot thousands)', () => {
@@ -24,13 +24,5 @@ describe('formatFundTotal', () => {
   it('groups at four digits, where it-IT Intl would not by default', () => {
     expect(formatFundTotal(100000, 'it')).toBe('€ 1.000');
     expect(formatFundTotal(100000, 'en')).toBe('€ 1,000');
-  });
-});
-
-describe('FUND_SPLIT', () => {
-  it('is the fixed 90/10 split (PRD §4.11)', () => {
-    expect(FUND_SPLIT.dreamPct).toBe(90);
-    expect(FUND_SPLIT.opsPct).toBe(10);
-    expect(FUND_SPLIT.dreamPct + FUND_SPLIT.opsPct).toBe(100);
   });
 });
