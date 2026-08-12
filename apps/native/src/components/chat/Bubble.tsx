@@ -16,7 +16,8 @@ const AVATAR_SIZE = 28;
  * agreed for #76, not an inference from the table. It is one-sided on purpose: an avatar beside
  * your OWN bubble tells you nothing you don't know, and the pair would halve the usable width.
  * The gutter is reserved on every incoming bubble so a run of consecutive messages stays
- * left-aligned with itself while only the first of the run shows the face.
+ * left-aligned with itself while only the LAST of the run shows the face — last, not first,
+ * because the gutter is bottom-aligned and that is the row the face lines up with.
  */
 export function Bubble({
   message,
@@ -30,7 +31,7 @@ export function Bubble({
   locale: Locale;
   /** The other party's identity (#76) — absent while the conversation row is still loading. */
   peer?: { handle: string | null; displayName: string | null; avatarPath: string | null } | null;
-  /** True on the first bubble of a run from the peer; the rest keep the gutter and skip the face. */
+  /** True on the LAST bubble of a run from the peer; the rest keep the gutter and skip the face. */
   showPeerAvatar?: boolean;
 }) {
   if (message.kind === 'system' || message.kind === 'prompt') {
@@ -58,7 +59,7 @@ export function Bubble({
   }
   return (
     <View className="my-1 max-w-[80%] flex-row items-end gap-2 self-start">
-      {/* The gutter is always AVATAR_SIZE wide; only the first bubble of a run fills it. */}
+      {/* The gutter is always AVATAR_SIZE wide; only the last bubble of a run fills it. */}
       <View style={{ width: AVATAR_SIZE }}>
         {showPeerAvatar ? (
           <Avatar
