@@ -42,6 +42,9 @@ update public.profiles set handle='prv89', identity_tags=array['mentor'], visibi
   where id='abababab-0000-4000-8000-000000000089';
 
 insert into public.dreams (profile_id, text) values
+  -- ME needs a dream too: ME is the CANDIDATE of X's proposal, and the scoped-to-the-caller
+  -- assertion below can only return that row if the deck's dream join finds one.
+  ('11111111-0000-4000-8000-000000000089','Sogno ME'),
   ('aaaaaaaa-0000-4000-8000-000000000089','Sogno X'),
   ('bbbbbbbb-0000-4000-8000-000000000089','Sogno Y'),
   ('cccccccc-0000-4000-8000-000000000089','Sogno Z'),
