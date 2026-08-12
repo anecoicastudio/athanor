@@ -15,6 +15,15 @@
 @theme {
   --color-aura: #2bd0d2;
   --color-on-aura: #04222a;
+  /*
+   * The two framed-surface tokens of the glow recipe (rule 4), mirroring
+   * packages/config/src/tokens.ts auraSoft/auraLine exactly — apps/native has had them
+   * as bg-aura-soft / border-aura-line all along. Web went without until the first
+   * moment-grade surface here (the Kairos / Athanor-Day frame on /event/{id}), which
+   * would otherwise have had to invent an opacity and drift from the real value.
+   */
+  --color-aura-soft: rgba(43, 208, 210, 0.1);
+  --color-aura-line: rgba(43, 208, 210, 0.4);
   --color-gradient-1: #7d236e;
   --color-gradient-2: #672088;
   --color-gradient-3: #223d86;

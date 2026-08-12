@@ -36,7 +36,10 @@ export default defineConfig({
       // (core.md precedent).
       thresholds: {
         lines: 85,
-        branches: 93,
+        // 93 → 95 with the /event/{id} helpers (2026-08-12, issue #159): both are fully
+        // covered, so the measured branch figure moved to 95.95. Ratcheted, per the note
+        // above — a floor left below what the suite already achieves stops being a floor.
+        branches: 95,
         functions: 72,
         statements: 85,
       },
