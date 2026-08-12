@@ -34,6 +34,7 @@ export const eventKeys = {
   attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
   liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
   ticket: (eventId: string) => [...eventKeys.all, 'ticket', eventId] as const,
+  seats: (eventId: string) => [...eventKeys.all, 'seats', eventId] as const,
   checkin: (eventId: string) => [...eventKeys.all, 'checkin', eventId] as const,
 };
 
@@ -336,6 +337,21 @@ export function subscribeEventLive(
 }
 
 /**
+ * A refusal from create-ticket-checkout. `code` is the server's `{error}` string — those
+ * strings are the stable contract (#103); the screen maps them to copy. Plumbing only:
+ * no message mapping here (rule api.md).
+ */
+export class TicketCheckoutError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(`create-ticket-checkout refused: ${code} (${status})`);
+    this.name = 'TicketCheckoutError';
+  }
+}
+
+/**
  * Start a Stripe Checkout for a paid event via the create-ticket-checkout edge fn.
  * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only
  * (rule #6) — the ticket is issued by the webhook (W1) and arrives via subscribeTicket.
@@ -347,12 +363,39 @@ export async function createTicketCheckout(
   const res = await client.functions.invoke<unknown>('create-ticket-checkout', {
     body: { eventId },
   });
-  // supabase-js types FunctionsResponse.error as `any`; every concrete case
-  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
-  if (res.error) throw res.error as Error;
+  if (res.error) {
+    // On a non-2xx, FunctionsHttpError hangs the Response off `.context` — the JSON body is
+    // the only place the server's reason survives. Read it before rethrowing; an unreadable
+    // body (relay/network failure, non-JSON) falls back to the raw error unchanged.
+    const ctx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } })
+      .context;
+    if (ctx && typeof ctx.json === 'function' && typeof ctx.status === 'number') {
+      let code: unknown;
+      try {
+        code = ((await ctx.json()) as { error?: unknown } | null)?.error;
+      } catch {
+        // body unreadable — rethrow the raw error below
+      }
+      if (typeof code === 'string') throw new TicketCheckoutError(code, ctx.status);
+    }
+    // supabase-js types FunctionsResponse.error as `any`; every concrete case
+    // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+    throw res.error as Error;
+  }
   const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('checkout did not return a url');
   return { url };
+}
+
+/**
+ * Seats currently held on the paid path — paid + checked_in + unexpired pending claims
+ * (#105). A definer count RPC because ticket rows are owner-only under RLS; feeds the
+ * sold-out state on the event screen next to `event.capacity`.
+ */
+export async function getEventSeatsTaken(client: AthanorClient, eventId: string): Promise<number> {
+  const { data, error } = await client.rpc('event_seats_taken', { p_event_id: eventId });
+  if (error) throw error;
+  return data ?? 0;
 }
 
 /** The viewer's own ticket for an event (null if they never bought one). Owner-reads-own RLS. */
@@ -363,7 +406,9 @@ export async function getMyTicket(
 ): Promise<Ticket | null> {
   const { data, error } = await client
     .from('event_tickets')
-    .select('id,user_id,event_id,stripe_payment_id,qr_token,status,created_at,updated_at')
+    .select(
+      'id,user_id,event_id,stripe_payment_id,qr_token,status,expires_at,created_at,updated_at',
+    )
     .eq('event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();

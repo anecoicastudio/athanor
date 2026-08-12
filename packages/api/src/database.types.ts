@@ -902,6 +902,7 @@ export type Database = {
         Row: {
           created_at: string
           event_id: string
+          expires_at: string | null
           id: string
           qr_token: string | null
           status: string
@@ -912,6 +913,7 @@ export type Database = {
         Insert: {
           created_at?: string
           event_id: string
+          expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
@@ -922,6 +924,7 @@ export type Database = {
         Update: {
           created_at?: string
           event_id?: string
+          expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
@@ -2636,6 +2639,7 @@ export type Database = {
         Args: { p_candidacy_id: string; p_edition_id: string }
         Returns: undefined
       }
+      claim_event_seat: { Args: { p_event_id: string }; Returns: string }
       confirm_milestone_help: {
         Args: { p_help_id: string }
         Returns: undefined
@@ -2677,6 +2681,7 @@ export type Database = {
         Returns: undefined
       }
       ensure_referral_code: { Args: never; Returns: string }
+      event_seats_taken: { Args: { p_event_id: string }; Returns: number }
       events_nearby: {
         Args: {
           cursor_dist?: number
@@ -2795,6 +2800,7 @@ export type Database = {
         Args: { p_edition_id: string }
         Returns: undefined
       }
+      release_event_seat: { Args: { p_event_id: string }; Returns: undefined }
       resolve_report: {
         Args: {
           p_action: string

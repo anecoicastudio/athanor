@@ -91,10 +91,12 @@ export async function handleTicketPaid(
     qrSecret,
   );
 
-  // The client has NO insert/update path — this upsert (service role) is the sole writer.
-  // ignoreDuplicates: a redelivery (or a NEW Stripe event id for the same session, which the
-  // processed_at gate can't catch) must NOT overwrite a later status — e.g. reset a Slice-B
-  // `checked_in` ticket back to `paid`. The first W1 delivery already wrote the row.
+  // The buyer's row normally ALREADY EXISTS as a pending seat claim (claim_event_seat, #105)
+  // written before the Session was minted, so the common path is the flip below, not this
+  // insert. The upsert stays for sessions minted before claims existed and as the fallback
+  // when a claim vanished. ignoreDuplicates: a redelivery (or a NEW Stripe event id for the
+  // same session, which the processed_at gate can't catch) must NOT overwrite a later
+  // status — e.g. reset a Slice-B `checked_in` ticket back to `paid`.
   const paymentIntent = refId(session.payment_intent);
   const { error, count } = await db.from('event_tickets').upsert(
     {
@@ -108,10 +110,11 @@ export async function handleTicketPaid(
   );
   if (error) throw error;
   // count 0 = the unique(user_id,event_id) row already existed and the upsert was swallowed.
-  // One real purchase hides among the redeliveries: a re-buy after a refund (the TicketBar
-  // re-offers purchase on a refunded ticket) arrives with a NEW payment intent and would
-  // otherwise be silently discarded — charged, no QR. Repair exactly that case; a null count
-  // is indeterminate and falls through to "inserted" (worst case: today's swallow, no rewrite).
+  // Two real purchases hide among the redeliveries: the buyer's own pending seat claim
+  // (#105 — every claimed checkout lands here), and a re-buy after a refund arriving with a
+  // NEW payment intent. Both would otherwise be silently discarded — charged, no QR. Pay
+  // exactly those; a null count is indeterminate and falls through to "inserted" (worst
+  // case: the old swallow, no rewrite).
   if (count !== 0) return;
   // A repair without a PI would write a row revokeTicket can never match again. Unreachable
   // for mode:'payment' Checkout, but the swallow is the safe failure direction.
@@ -125,18 +128,26 @@ export async function handleTicketPaid(
     .maybeSingle();
   if (selErr) throw selErr;
   const row = existing as { status?: string; stripe_payment_id?: string | null } | null;
-  // Live (paid/checked_in) rows are untouchable — redelivery must never reset them. And a
-  // replay of the ORIGINAL purchase session after its refund carries the SAME payment intent
-  // as the refunded row: resurrecting it would undo the revocation, so only a different PI
-  // (a genuinely new purchase) re-issues.
-  if (!row || row.status !== 'refunded' || row.stripe_payment_id === paymentIntent) return;
+  // Live (paid/checked_in) rows are untouchable — redelivery must never reset them. A
+  // pending claim (stripe_payment_id null) is paid here; that flip must land even when the
+  // claim's 35-minute TTL has lapsed — the money moved, so the ticket exists (capacity was
+  // enforced at claim time, not here). And a replay of the ORIGINAL purchase session after
+  // its refund carries the SAME payment intent as the refunded row: resurrecting it would
+  // undo the revocation, so only a different PI (a genuinely new purchase) re-issues.
+  if (!row || (row.status !== 'refunded' && row.status !== 'pending')) return;
+  if (row.stripe_payment_id === paymentIntent) return;
 
   const { error: updErr } = await db
     .from('event_tickets')
-    .update({ status: 'paid', stripe_payment_id: paymentIntent, qr_token: qrToken })
+    .update({
+      status: 'paid',
+      stripe_payment_id: paymentIntent,
+      qr_token: qrToken,
+      expires_at: null,
+    })
     .eq('user_id', profileId)
     .eq('event_id', eventId)
-    .eq('status', 'refunded'); // guard: a concurrent status change wins over the repair
+    .in('status', ['pending', 'refunded']); // guard: a concurrent status change wins over the flip
   if (updErr) throw updErr;
 }
 
@@ -216,8 +227,9 @@ async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<v
  * HMAC — there is no revocation list, so this status flip IS the revocation: check-in admits
  * only paid/checked_in, and the nulled qr_token stops the viewer rendering a door pass.
  * A single guarded update: no match (the charge was a contribution) or a re-delivered
- * reversal both no-op. Nothing to unwind besides access — paid tickets consume no capacity,
- * and attendance/aura are attendance-based by design.
+ * reversal both no-op. The status flip is also the capacity unwind (#105 reversed the old
+ * "paid tickets consume no capacity" design): a refunded row stops counting as a held
+ * seat, so the seat frees itself. Attendance/aura stay attendance-based by design.
  */
 async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
   const paymentIntent = refId(paymentIntentRef);
