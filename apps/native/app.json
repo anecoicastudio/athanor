@@ -18,7 +18,13 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.athanor.app",
-      "associatedDomains": ["applinks:www.athanor.workers.dev"]
+      "associatedDomains": [
+        "applinks:www.athanor.workers.dev",
+        "applinks:www.athanor.workers.dev"
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.athanor.app",
@@ -26,13 +32,36 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": [
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/momento" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/event" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/post" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/invite" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/@" }
+            {
+              "scheme": "https",
+              "host": "www.athanor.workers.dev",
+              "pathPrefix": "/momento"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.workers.dev",
+              "pathPrefix": "/event"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.workers.dev",
+              "pathPrefix": "/post"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.workers.dev",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.workers.dev",
+              "pathPrefix": "/@"
+            }
           ]
         }
       ],
