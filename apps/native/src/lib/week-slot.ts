@@ -16,15 +16,15 @@ import type { WeekRecap } from '@athanor/core';
 /**
  * Did nothing happen this week?
  *
- * Three fields, not the type's five, and the two omissions are deliberate:
+ * Three fields, not the type's four, and the omission is deliberate:
  *
  * - `streakDays` is IMPLIED by `auraWeek`. `packages/core/src/score/display.ts:90-95` walks back
  *   from TODAY and breaks at the first day with no positive event, so a non-zero streak requires
  *   a positive event today, which is inside the 7-day window, which makes `auraWeek` non-zero.
  *   #100 claims a member with a 7–8-day-old event "has a real streak and still gets the
  *   placeholder" — they do not; their streak is 0. Adding the term would be dead weight.
- * - `oreDonate` is hardcoded `0` in that same return (`display.ts:97`) and is never derived. That
- *   is #51. Testing it would assert the constant, not the week.
+ *   (`oreDonate`, the other omission this docblock used to argue, left the type entirely under
+ *   #51 — the engine has no hours signal, Tempo Bank is Fase 2.)
  *
  * `sogniAiutati` DOES earn its place, though narrowly: `display.ts:86` counts a `milestone_help`
  * without checking its sign, and `pointsFor` yields `40 × 1/(1+0.5(n−1))` (`score/award.ts:37-40`),

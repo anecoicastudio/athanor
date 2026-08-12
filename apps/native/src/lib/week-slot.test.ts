@@ -10,7 +10,6 @@ const recap = (over: Partial<WeekRecap> = {}): WeekRecap => ({
   auraWeek: 0,
   contributi: 0,
   sogniAiutati: 0,
-  oreDonate: 0,
   streakDays: 0,
   ...over,
 });
@@ -41,11 +40,5 @@ describe('weekRecapIsEmpty', () => {
   // and so is correctly read as empty if it were ever hand-built.
   it('ignores streakDays, which cannot be positive while auraWeek is zero', () => {
     expect(weekRecapIsEmpty(recap({ streakDays: 3 }))).toBe(true);
-  });
-
-  // `oreDonate` is hardcoded `0` in `display.ts:97` and never derived — that is #51. Until it is
-  // real, including it would assert a constant.
-  it('ignores oreDonate, which the engine never populates', () => {
-    expect(weekRecapIsEmpty(recap({ oreDonate: 8 }))).toBe(true);
   });
 });
