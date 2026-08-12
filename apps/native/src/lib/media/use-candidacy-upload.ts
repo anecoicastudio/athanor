@@ -98,8 +98,11 @@ export function useCandidacyUpload(uid: string): {
  * submission for a missing one. A null lands in `thumb_path` and the ballot card draws its own
  * no-poster state instead.
  *
- * Extraction reads the *picked* local URI, not the uploaded object — nothing is downloaded back,
- * and it is the same input `use-moment-upload` feeds `extractVideoPoster`.
+ * Extraction reads the *picked* local URI, not the uploaded object — nothing is downloaded back.
+ * That's safe here specifically because `handle` above uploads that same `asset.uri` raw, with no
+ * processing step in between; unlike `use-moment-upload`, which extracts from `processAndUpload`'s
+ * *processed* `localUri` because a future video transcode would otherwise leave the poster reading
+ * a frame of a video nobody uploaded (see the caution in `upload.ts`'s `processAndUpload`).
  *
  * The poster shares the video's `{uid}/…` folder, so it is covered by the same candidacy-videos
  * policies (including the identity-verified + open-window insert gate, which the video just

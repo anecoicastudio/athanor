@@ -655,12 +655,19 @@ update public.dream_candidacies c
 -- for its own pre-migration rows. The INSERT below now sets thumb_path directly, so on a fresh
 -- seed this matches zero rows; on staging's three already-seeded candidacies it backfills them,
 -- which is the only reason this UPDATE is still here.
--- Unconditional, not gated like video_url's `like 'http%'`, because there is no valid prior
--- value to protect: a row either has thumb_path null (needs the repair) or already has the
--- correct string (re-setting it to the same value is a no-op), never a legacy value worth
--- preserving.
+-- Scoped to those three seeded ids, not every row, unlike video_url's `like 'http%'` guard being
+-- the only one that looked needed: candidacy_window_open = true and the seed's three candidacy
+-- authors are identity_verified (§12), so a tester can submit a real candidacy through the
+-- wizard — the exact create/edit flow this PR's poster extraction covers. That candidacy's
+-- thumb_path may legitimately be null (extraction is best-effort and can fail, by design), and
+-- an unscoped UPDATE would stamp it with a key the uploader manifest never populated for it —
+-- turning an honest null into the state-confusion this PR exists to eliminate. The id filter
+-- mirrors the INSERT's own derivation below, so it can never drift from the rows that seeds.
 update public.dream_candidacies c
-   set thumb_path = c.profile_id::text || '/' || c.id::text || '-thumb.jpg';
+   set thumb_path = c.profile_id::text || '/' || c.id::text || '-thumb.jpg'
+ where c.id in (md5('candidacy:marta_ceramica')::uuid,
+                md5('candidacy:ele_yoga')::uuid,
+                md5('candidacy:rocco_film')::uuid);
 
 -- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
 -- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
