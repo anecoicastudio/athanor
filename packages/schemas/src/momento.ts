@@ -5,6 +5,26 @@ import { z } from 'zod';
 export const momentoStatus = z.enum(['pending', 'accepted', 'passed']);
 export type MomentoStatus = z.infer<typeof momentoStatus>;
 
+/**
+ * The wire shape of the deck select, parsed at the boundary. `candidate` is an aliased embed
+ * carrying a nested `dreams` embed, which supabase-js infers as an array and cannot type
+ * through the alias — hence a schema rather than a cast. `candidate` is nullable because RLS
+ * filters the embed to null when the peer hides their dream after the proposal is written.
+ */
+export const momentoDeckRow = z.object({
+  id: z.string().uuid(),
+  candidate_id: z.string().uuid(),
+  reasons: z.array(z.string()).nullable(),
+  status: momentoStatus,
+  candidate: z
+    .object({
+      handle: z.string().nullable(),
+      dreams: z.array(z.object({ text: z.string() })).nullish(),
+    })
+    .nullable(),
+});
+export type MomentoDeckRow = z.infer<typeof momentoDeckRow>;
+
 // The deck-card read model (proposal joined to the peer profile + active dream quote).
 export const momentoDeckCard = z.object({
   id: z.string().uuid(),

@@ -1,9 +1,11 @@
 import {
   type AcceptMomentResult,
   type MomentoDeckCard,
+  type MomentoDeckRow,
   type MomentoSuggestion,
   acceptMomentResult,
   momentoDeckCard,
+  momentoDeckRow,
   momentoSuggestion,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
@@ -14,17 +16,9 @@ export const momentiKeys = {
   suggestions: () => [...momentiKeys.all, 'suggestions'] as const,
 };
 
-/** Shape of one `momento_proposals` row joined to the peer profile + active dream quote. */
-type DeckRow = {
-  id: string;
-  candidate_id: string;
-  reasons: string[];
-  status: 'pending' | 'accepted' | 'passed';
-  candidate: { handle: string | null; dreams: { text: string }[] } | null;
-};
-
-/** Map a joined proposal row to the deck-card read model. `affinity` is never selected/exposed. */
-export function rowToDeckCard(row: DeckRow): MomentoDeckCard {
+/** Parse a joined proposal row, then map it to the deck card. `affinity` is never selected/exposed. */
+export function rowToDeckCard(raw: unknown): MomentoDeckCard {
+  const row: MomentoDeckRow = momentoDeckRow.parse(raw);
   return momentoDeckCard.parse({
     id: row.id,
     candidateId: row.candidate_id,
@@ -54,9 +48,7 @@ export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeck
     .order('daily_rank', { ascending: true })
     .limit(3);
   if (error) throw error;
-  return (data ?? [])
-    .map((r) => rowToDeckCard(r as unknown as DeckRow))
-    .filter((card) => card.dreamText != null);
+  return (data ?? []).map((r) => rowToDeckCard(r)).filter((card) => card.dreamText != null);
 }
 
 /**

@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+/**
+ * The wire shape of the incoming-requests select, parsed at the boundary. The aliased embed
+ * (requester → profiles via the requester FK) defeats supabase-js's row inference, so this
+ * schema is what types the row.
+ */
+export const connectionRequestRow = z.object({
+  id: z.string().uuid(),
+  requester_id: z.string().uuid(),
+  created_at: z.string(),
+  requester: z.object({ handle: z.string().nullable() }).nullable(),
+});
+export type ConnectionRequestRow = z.infer<typeof connectionRequestRow>;
+
 // Incoming-request inbox read model (camelCase): the row resolved to the requester (peer).
 export const connectionRequestListItem = z.object({
   id: z.string().uuid(), // the request id — feeds respond_to_connection
