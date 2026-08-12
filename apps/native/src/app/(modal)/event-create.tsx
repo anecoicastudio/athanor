@@ -18,6 +18,7 @@ import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { dateTimeWithYear } from '@/lib/time';
 import { parsePriceCents } from '@/lib/price';
+import { Screen } from '@/components/Screen';
 
 const CATEGORIES: EventCategory[] = [
   'networking',
@@ -110,7 +111,7 @@ export default function EventCreateScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title={t('event.create.title', locale)} backLabel={t('common.back', locale)} />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
           <View className="gap-2">
@@ -295,7 +296,7 @@ export default function EventCreateScreen() {
             variant="light"
           />
         </ScrollView>
-      </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }

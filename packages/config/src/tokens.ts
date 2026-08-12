@@ -77,6 +77,8 @@ export const spacing = {
   lg: 24,
   xl: 40,
   '2xl': 64,
+  /** Screen horizontal padding, DESIGN.md §6 — the one mobile spacing rule the doc states. */
+  gutter: 20,
 } as const;
 
 export const radius = {

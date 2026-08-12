@@ -13,6 +13,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 const CATEGORIES: ProjectCategory[] = [
   'startup',
@@ -67,7 +68,7 @@ export default function ProjectComposeScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader
           title={t('create.project.title', locale)}
           backLabel={t('common.back', locale)}
@@ -131,7 +132,7 @@ export default function ProjectComposeScreen() {
             variant="light"
           />
         </ScrollView>
-      </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }

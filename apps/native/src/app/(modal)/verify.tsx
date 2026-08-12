@@ -16,6 +16,7 @@ import { Mandorla } from '@/components/Mandorla';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Identity verify sheet (M9 §3.2). Starts a server-created Stripe Identity session, opens the
@@ -99,7 +100,7 @@ export default function VerifyScreen() {
   const verified = state === 'verified';
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-10 pt-6">
         {/* grab handle */}
         <View className="mx-auto h-1 w-10 rounded-full bg-hair" />
@@ -173,6 +174,6 @@ export default function VerifyScreen() {
       </ScrollView>
 
       {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

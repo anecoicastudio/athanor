@@ -17,6 +17,7 @@ import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
 import { postMediaPath, processAndUpload } from '@/lib/media/upload';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 const CATEGORIES: PostCategory[] = ['business', 'human', 'creative', 'evolution'];
 
@@ -98,7 +99,7 @@ export default function PostComposeScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
@@ -226,7 +227,7 @@ export default function PostComposeScreen() {
             variant="light"
           />
         </ScrollView>
-      </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }

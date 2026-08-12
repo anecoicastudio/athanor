@@ -34,6 +34,7 @@ import { PhaseList } from '@/components/fund/PhaseList';
 import { useAuth } from '@/lib/auth-context';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
@@ -220,21 +221,21 @@ export default function AnnualFundScreen() {
   // ── Loading state ────────────────────────────────────────────────────────────
   if (editionQuery.isLoading) {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Skeleton / quiet placeholder */}
         <View className="flex-1 items-center justify-center gap-4 px-5">
           <ActivityIndicator color={semantic.aura} />
           <Text className="text-[13px] text-muted-foreground">— — —</Text>
         </View>
-      </View>
+      </Screen>
     );
   }
 
   // ── No active edition ────────────────────────────────────────────────────────
   if (!edition) {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Calm empty state */}
         <View className="flex-1 items-center justify-center px-5">
@@ -242,13 +243,13 @@ export default function AnnualFundScreen() {
             {t('fund.empty', locale)}
           </Text>
         </View>
-      </View>
+      </Screen>
     );
   }
 
   // ── Live screen (full composition) ──────────────────────────────────────────
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* 1. Header — back chevron + fund.title */}
       <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
 
@@ -393,6 +394,6 @@ export default function AnnualFundScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

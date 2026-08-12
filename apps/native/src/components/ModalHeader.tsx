@@ -25,7 +25,9 @@ export function ModalHeader({
 }) {
   const router = useRouter();
   return (
-    <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
+    // Top inset is the parent Screen's job (#161) — pt here is breathing room off the
+    // sheet edge (or the inset), pb is the one header→content gap every screen shares.
+    <View className="flex-row items-center gap-3 px-gutter pb-4 pt-3">
       <Pressable
         onPress={onBack ?? (() => router.back())}
         hitSlop={HIT_SLOP}

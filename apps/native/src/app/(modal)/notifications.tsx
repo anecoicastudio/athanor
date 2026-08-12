@@ -23,6 +23,7 @@ import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
 import { routeForNotification } from '@/lib/notification-route';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * In-app notification center (M9 §3.6). Grouped into Nuove (unread) + Prima (read).
@@ -87,7 +88,7 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header: back + title + «Segna lette» + gear → prefs */}
       <ModalHeader
         title={t('notif.title', locale)}
@@ -166,6 +167,6 @@ export default function NotificationsScreen() {
           />
         }
       />
-    </View>
+    </Screen>
   );
 }

@@ -19,6 +19,7 @@ import { auraGlow } from '@/lib/glow';
 import { MODAL_A11Y } from '@/lib/a11y';
 // A unique violation here means you already passed this favor — treat it as "done".
 import { isUniqueViolation } from '@/lib/pg-error';
+import { Screen } from '@/components/Screen';
 
 /**
  * Passa il Favore sheet (M3, frontend `03` §3.6.1). A directed pay-it-forward surface:
@@ -86,7 +87,7 @@ export default function FavorScreen() {
   if (done) {
     const name = done.target_handle ?? '—';
     return (
-      <View {...MODAL_A11Y} className="flex-1 items-center justify-center gap-6 bg-background px-8">
+      <Screen {...MODAL_A11Y} className="items-center justify-center gap-6 px-8">
         {/* The one glow (rule #4): a favor was lit — a moment. Shows NO Aura number (rule #1). */}
         <View
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
@@ -112,13 +113,13 @@ export default function FavorScreen() {
             <Text className="text-[14px] text-faint">{t('favor.done.dismiss', locale)}</Text>
           </Pressable>
         </View>
-      </View>
+      </Screen>
     );
   }
 
   if (query.isError) {
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         <ListState
           state="error"
           locale={locale}
@@ -126,17 +127,17 @@ export default function FavorScreen() {
           onRetry={() => void query.refetch()}
           className="flex-1 justify-center px-8"
         />
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <FlatList
         data={needs}
         keyExtractor={(item) => item.need_milestone_id}
         ListHeaderComponent={
-          <View className="gap-3 px-5 pb-2 pt-14">
+          <View className="gap-3 px-5 pb-2 pt-3">
             <View className="flex-row items-start justify-between">
               <View className="flex-1 gap-1 pr-4">
                 <Text accessibilityRole="header" className="text-2xl text-foreground">
@@ -188,6 +189,6 @@ export default function FavorScreen() {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
       />
-    </View>
+    </Screen>
   );
 }

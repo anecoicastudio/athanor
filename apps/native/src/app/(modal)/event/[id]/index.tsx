@@ -23,6 +23,7 @@ import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { addEventToCalendar } from '@/lib/calendar';
 import { dateTime } from '@/lib/time';
+import { Screen } from '@/components/Screen';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -138,110 +139,118 @@ export default function EventDetailScreen() {
   );
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 pb-12">
-      <ModalHeader title={t('event.title', locale)} backLabel={t('common.back', locale)} />
+    <Screen>
+      <ScrollView className="flex-1" contentContainerClassName="gap-5 pb-12">
+        <ModalHeader title={t('event.title', locale)} backLabel={t('common.back', locale)} />
 
-      {detailState !== 'ready' || !event ? (
-        // `query.isError || !event` used to be one branch saying «Non siamo riusciti a caricare
-        // l'evento», so a deep link to an event that no longer exists asked the member to retry
-        // forever (#111). Same split `candidacy/[id]` needed.
-        <ListState
-          state={detailState}
-          locale={locale}
-          errorLabel={t('event.error', locale)}
-          emptyLabel={t('event.notFound', locale)}
-          onRetry={() => void query.refetch()}
-          className="px-5 pt-16"
-          loading={
-            <View className="items-center pt-16">
-              <ActivityIndicator color={semantic.aura} />
+        {detailState !== 'ready' || !event ? (
+          // `query.isError || !event` used to be one branch saying «Non siamo riusciti a caricare
+          // l'evento», so a deep link to an event that no longer exists asked the member to retry
+          // forever (#111). Same split `candidacy/[id]` needed.
+          <ListState
+            state={detailState}
+            locale={locale}
+            errorLabel={t('event.error', locale)}
+            emptyLabel={t('event.notFound', locale)}
+            onRetry={() => void query.refetch()}
+            className="px-5 pt-16"
+            loading={
+              <View className="items-center pt-16">
+                <ActivityIndicator color={semantic.aura} />
+              </View>
+            }
+          />
+        ) : (
+          <View className="gap-5 px-5">
+            <EventCover event={event} locale={locale} />
+
+            {count > 0 ? (
+              <AttendeeStack
+                userIds={attendees.data?.userIds ?? []}
+                count={count}
+                locale={locale}
+              />
+            ) : null}
+
+            <View className="gap-1">
+              <SectionLabel>{t('event.organizedBy', locale)}</SectionLabel>
+              <PostAuthorRow authorId={event.organizer_id} size="sm" />
             </View>
-          }
-        />
-      ) : (
-        <View className="gap-5 px-5">
-          <EventCover event={event} locale={locale} />
 
-          {count > 0 ? (
-            <AttendeeStack userIds={attendees.data?.userIds ?? []} count={count} locale={locale} />
-          ) : null}
-
-          <View className="gap-1">
-            <SectionLabel>{t('event.organizedBy', locale)}</SectionLabel>
-            <PostAuthorRow authorId={event.organizer_id} size="sm" />
-          </View>
-
-          <View className="gap-3 rounded-card border border-hair bg-raise p-5">
-            <DmetaRow glyph="◷" value={dateTime(event.starts_at, locale)} />
-            <DmetaRow
-              glyph="◎"
-              value={
-                event.is_online
-                  ? t('event.whereOnline', locale, { kind: t('event.streamKind', locale) })
-                  : [event.venue, event.city].filter(Boolean).join(' · ') ||
-                    t('event.whereLabel', locale)
-              }
-            />
-            {/* Attendees + read-only Aura-worth label — aura from ENGINE_WEIGHTS (rule #1/#10),
+            <View className="gap-3 rounded-card border border-hair bg-raise p-5">
+              <DmetaRow glyph="◷" value={dateTime(event.starts_at, locale)} />
+              <DmetaRow
+                glyph="◎"
+                value={
+                  event.is_online
+                    ? t('event.whereOnline', locale, { kind: t('event.streamKind', locale) })
+                    : [event.venue, event.city].filter(Boolean).join(' · ') ||
+                      t('event.whereLabel', locale)
+                }
+              />
+              {/* Attendees + read-only Aura-worth label — aura from ENGINE_WEIGHTS (rule #1/#10),
                 truthful: maps 1:1 to the engine's `event_attended` award (P2.5 hint-truth).
                 Attendee count is allowed (rule #3). */}
-            <DmetaRow
-              glyph="◇"
-              value={t('event.attendees', locale, {
-                n: count,
-                aura: ENGINE_WEIGHTS.EVENT_ATTENDED,
-              })}
-            />
-          </View>
-
-          <Text className="text-[15px] leading-6 text-ink-2">
-            {t('event.descFallback', locale)}
-          </Text>
-
-          {event.is_kairos_day || event.is_athanor_day ? (
-            <View className="rounded-card border border-aura-line bg-aura-soft p-4">
-              <Text className="text-[13px] text-aura">{t('event.kairos.banner', locale)}</Text>
+              <DmetaRow
+                glyph="◇"
+                value={t('event.attendees', locale, {
+                  n: count,
+                  aura: ENGINE_WEIGHTS.EVENT_ATTENDED,
+                })}
+              />
             </View>
-          ) : null}
 
-          {event.is_online ? (
-            <View className="rounded-full border border-aura-line bg-aura-soft px-5 py-3">
-              <Text className="text-center text-[14px] text-aura">
-                {t('event.watchLive', locale)}
-              </Text>
-            </View>
-          ) : null}
+            <Text className="text-[15px] leading-6 text-ink-2">
+              {t('event.descFallback', locale)}
+            </Text>
 
-          {isOrganizer && isPaid ? (
-            <Pressable
-              className="rounded-full border border-aura-line bg-aura-soft px-5 py-3"
-              onPress={() => router.push(`/event/${id}/checkin`)}
-              accessibilityRole="button"
-              accessibilityLabel={t('event.checkin', locale)}
-            >
-              <Text className="text-center text-[14px] text-aura">
-                {t('event.checkin', locale)}
-              </Text>
-            </Pressable>
-          ) : null}
+            {event.is_kairos_day || event.is_athanor_day ? (
+              <View className="rounded-card border border-aura-line bg-aura-soft p-4">
+                <Text className="text-[13px] text-aura">{t('event.kairos.banner', locale)}</Text>
+              </View>
+            ) : null}
 
-          {/* Type-aware action bar. Premium (Kairos/Athanor-Day) events gate the
+            {event.is_online ? (
+              <View className="rounded-full border border-aura-line bg-aura-soft px-5 py-3">
+                <Text className="text-center text-[14px] text-aura">
+                  {t('event.watchLive', locale)}
+                </Text>
+              </View>
+            ) : null}
+
+            {isOrganizer && isPaid ? (
+              <Pressable
+                className="rounded-full border border-aura-line bg-aura-soft px-5 py-3"
+                onPress={() => router.push(`/event/${id}/checkin`)}
+                accessibilityRole="button"
+                accessibilityLabel={t('event.checkin', locale)}
+              >
+                <Text className="text-center text-[14px] text-aura">
+                  {t('event.checkin', locale)}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {/* Type-aware action bar. Premium (Kairos/Athanor-Day) events gate the
               action behind Circle membership for non-members (M8 §3.4). The gate
               renders the real action bar for members, the upsell banner otherwise.
               Past events are over → no gate, just the past stub. */}
-          {isPast ? (
-            <View className="rounded-card border border-hair bg-surface-muted p-4">
-              <Text className="text-center text-[13px] text-faint">{t('event.past', locale)}</Text>
-            </View>
-          ) : isPremium ? (
-            <CircleGate feature="premiumEvents" variant="banner" locale={locale}>
-              {actionBar}
-            </CircleGate>
-          ) : (
-            actionBar
-          )}
-        </View>
-      )}
-    </ScrollView>
+            {isPast ? (
+              <View className="rounded-card border border-hair bg-surface-muted p-4">
+                <Text className="text-center text-[13px] text-faint">
+                  {t('event.past', locale)}
+                </Text>
+              </View>
+            ) : isPremium ? (
+              <CircleGate feature="premiumEvents" variant="banner" locale={locale}>
+                {actionBar}
+              </CircleGate>
+            ) : (
+              actionBar
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </Screen>
   );
 }

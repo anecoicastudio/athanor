@@ -27,6 +27,7 @@ import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 type Row =
   | { type: 'marker'; key: string; label: string }
@@ -180,9 +181,9 @@ export default function ChatScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 bg-background">
+      <Screen>
         {/* header */}
-        <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
+        <View className="flex-row items-center gap-3 px-5 pb-3 pt-3">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('common.back', locale)}
@@ -299,7 +300,7 @@ export default function ChatScreen() {
             <Text className="text-[20px] text-on-aura">›</Text>
           </Pressable>
         </View>
-      </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }

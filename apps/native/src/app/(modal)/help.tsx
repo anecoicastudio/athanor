@@ -27,6 +27,7 @@ import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 // A unique violation here means you already offered help on this tappa.
 import { isUniqueViolation } from '@/lib/pg-error';
+import { Screen } from '@/components/Screen';
 
 const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
 
@@ -156,7 +157,7 @@ export default function HelpScreen() {
   // through to the very same type / message / submit the per-tappa entry point uses.
   if (pickerMode && !picked) {
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('help.pick.title', locale)} backLabel={t('common.back', locale)} />
         {pickerLoading ? (
           <View className="flex-1 items-center justify-center">
@@ -195,7 +196,7 @@ export default function HelpScreen() {
             )}
           </ScrollView>
         )}
-      </View>
+      </Screen>
     );
   }
 
@@ -203,7 +204,7 @@ export default function HelpScreen() {
   const needEcho = need ?? picked?.body;
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader
         title={t('help.sheet.title', locale)}
         backLabel={t('common.back', locale)}
@@ -265,6 +266,6 @@ export default function HelpScreen() {
         />
       </ScrollView>
       {toast ? <Toast label={t('help.toast.offered', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

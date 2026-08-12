@@ -110,7 +110,7 @@ function ProfileEditor({
   return (
     <ScrollView
       className="flex-1 bg-background"
-      contentContainerClassName="gap-8 px-5 py-12"
+      contentContainerClassName="gap-8 px-5 pb-12 pt-4"
       keyboardShouldPersistTaps="handled"
     >
       {!editing ? (

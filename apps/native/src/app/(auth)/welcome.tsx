@@ -11,6 +11,7 @@ import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
 import { SectionLabel } from '@/components/SectionLabel';
+import { Screen } from '@/components/Screen';
 
 // Well-formed check (UX gate only) — the real validity verdict is Supabase's.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -151,190 +152,192 @@ export default function WelcomeScreen() {
     );
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="grow px-7 pb-9 pt-16"
-      keyboardShouldPersistTaps="handled"
-    >
-      {router.canGoBack() ? (
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={12}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-      ) : null}
+    <Screen>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow px-7 pb-9 pt-4"
+        keyboardShouldPersistTaps="handled"
+      >
+        {router.canGoBack() ? (
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', locale)}
+            hitSlop={12}
+          >
+            <Text className="text-2xl text-foreground">‹</Text>
+          </Pressable>
+        ) : null}
 
-      <View className="mt-6 gap-2">
-        <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
-        <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
-          {copy('display')}
-        </Text>
-        <Text className="text-sm text-muted-foreground">{copy('sub')}</Text>
-      </View>
+        <View className="mt-6 gap-2">
+          <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
+          <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+            {copy('display')}
+          </Text>
+          <Text className="text-sm text-muted-foreground">{copy('sub')}</Text>
+        </View>
 
-      {/* OAuth on top, per the prototype. Each provider is hidden until it is configured
+        {/* OAuth on top, per the prototype. Each provider is hidden until it is configured
           in Supabase; with none of them on, the block AND the «oppure con email» divider
           go too — a divider separating email from nothing reads as a broken screen. */}
-      {ANY_OAUTH ? (
-        <>
-          <View className="mt-7 gap-3">
-            {APPLE_ENABLED ? (
-              <Pressable
-                className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
-                  busy ? 'opacity-40' : ''
-                }`}
-                disabled={busy}
-                onPress={() => handleOAuth('apple')}
-                accessibilityRole="button"
-                accessibilityLabel={t('auth.apple.cta', locale)}
-              >
-                {oauthBusy === 'apple' ? (
-                  <ActivityIndicator color={semantic.foreground} />
-                ) : (
-                  <Text className="font-semibold text-foreground">
-                    {t('auth.apple.cta', locale)}
-                  </Text>
-                )}
-              </Pressable>
-            ) : null}
+        {ANY_OAUTH ? (
+          <>
+            <View className="mt-7 gap-3">
+              {APPLE_ENABLED ? (
+                <Pressable
+                  className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
+                    busy ? 'opacity-40' : ''
+                  }`}
+                  disabled={busy}
+                  onPress={() => handleOAuth('apple')}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('auth.apple.cta', locale)}
+                >
+                  {oauthBusy === 'apple' ? (
+                    <ActivityIndicator color={semantic.foreground} />
+                  ) : (
+                    <Text className="font-semibold text-foreground">
+                      {t('auth.apple.cta', locale)}
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
 
-            {GOOGLE_ENABLED ? (
-              <Pressable
-                className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
-                  busy ? 'opacity-40' : ''
-                }`}
-                disabled={busy}
-                onPress={() => handleOAuth('google')}
-                accessibilityRole="button"
-                accessibilityLabel={t('auth.google.cta', locale)}
-              >
-                {oauthBusy === 'google' ? (
-                  <ActivityIndicator color={semantic.foreground} />
-                ) : (
-                  <Text className="font-semibold text-foreground">
-                    {t('auth.google.cta', locale)}
-                  </Text>
-                )}
-              </Pressable>
-            ) : null}
-          </View>
+              {GOOGLE_ENABLED ? (
+                <Pressable
+                  className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
+                    busy ? 'opacity-40' : ''
+                  }`}
+                  disabled={busy}
+                  onPress={() => handleOAuth('google')}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('auth.google.cta', locale)}
+                >
+                  {oauthBusy === 'google' ? (
+                    <ActivityIndicator color={semantic.foreground} />
+                  ) : (
+                    <Text className="font-semibold text-foreground">
+                      {t('auth.google.cta', locale)}
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
+            </View>
 
-          <View className="my-6 flex-row items-center gap-3">
-            <View className="h-px flex-1 bg-hair" />
-            <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
-            <View className="h-px flex-1 bg-hair" />
-          </View>
-        </>
-      ) : (
-        <View className="mt-7" />
-      )}
+            <View className="my-6 flex-row items-center gap-3">
+              <View className="h-px flex-1 bg-hair" />
+              <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
+              <View className="h-px flex-1 bg-hair" />
+            </View>
+          </>
+        ) : (
+          <View className="mt-7" />
+        )}
 
-      <View className="gap-4">
-        {!login ? (
+        <View className="gap-4">
+          {!login ? (
+            <View className="gap-2">
+              <Text className="text-xs font-medium text-muted-foreground">
+                {t('auth.name.label', locale)}
+              </Text>
+              <TextInput
+                className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+                autoCapitalize="words"
+                autoComplete="name"
+                placeholder={t('auth.name.placeholder', locale)}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
+          ) : null}
+
           <View className="gap-2">
             <Text className="text-xs font-medium text-muted-foreground">
-              {t('auth.name.label', locale)}
+              {t('auth.email.label', locale)}
             </Text>
             <TextInput
               className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
-              autoCapitalize="words"
-              autoComplete="name"
-              placeholder={t('auth.name.placeholder', locale)}
-              value={name}
-              onChangeText={setName}
+              autoCapitalize="none"
+              autoComplete="email"
+              inputMode="email"
+              placeholder={t('auth.email.placeholder', locale)}
+              value={email}
+              onChangeText={setEmail}
             />
           </View>
-        ) : null}
 
-        <View className="gap-2">
-          <Text className="text-xs font-medium text-muted-foreground">
-            {t('auth.email.label', locale)}
-          </Text>
-          <TextInput
-            className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
-            autoCapitalize="none"
-            autoComplete="email"
-            inputMode="email"
-            placeholder={t('auth.email.placeholder', locale)}
-            value={email}
-            onChangeText={setEmail}
-          />
-        </View>
-
-        <View className="gap-2">
-          <Text className="text-xs font-medium text-muted-foreground">
-            {t('auth.password.label', locale)}
-          </Text>
-          <TextInput
-            className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
-            autoCapitalize="none"
-            autoComplete={login ? 'current-password' : 'new-password'}
-            secureTextEntry
-            placeholder={t('auth.password.placeholder', locale)}
-            value={password}
-            onChangeText={setPassword}
-          />
-          {/* Signup only — the rule is stated once before typing, then becomes a
+          <View className="gap-2">
+            <Text className="text-xs font-medium text-muted-foreground">
+              {t('auth.password.label', locale)}
+            </Text>
+            <TextInput
+              className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+              autoCapitalize="none"
+              autoComplete={login ? 'current-password' : 'new-password'}
+              secureTextEntry
+              placeholder={t('auth.password.placeholder', locale)}
+              value={password}
+              onChangeText={setPassword}
+            />
+            {/* Signup only — the rule is stated once before typing, then becomes a
               live checklist. `success`, not `aura`: a satisfied form rule is a
               confirmation, not a moment (rule 4). Met/unmet is carried by the
               mark and by an explicit SR label, not by colour alone (G2). */}
-          {!login && password.length === 0 ? (
-            <Text className="px-5 text-xs text-muted-foreground">
-              {t('auth.password.hint', locale)}
-            </Text>
-          ) : null}
-          {!login && password.length > 0 ? (
-            <View className="gap-1 px-5">
-              {PASSWORD_REQUIREMENTS.map((requirement) => {
-                const met = !unmet.includes(requirement);
-                const label = t(`auth.password.req.${requirement}`, locale);
-                return (
-                  <Text
-                    key={requirement}
-                    className={`text-xs ${met ? 'text-success' : 'text-muted-foreground'}`}
-                    accessibilityLabel={`${t(met ? 'a11y.req.met' : 'a11y.req.unmet', locale)} ${label}`}
-                  >
-                    {met ? '✓' : '•'} {label}
-                  </Text>
-                );
-              })}
-            </View>
-          ) : null}
+            {!login && password.length === 0 ? (
+              <Text className="px-5 text-xs text-muted-foreground">
+                {t('auth.password.hint', locale)}
+              </Text>
+            ) : null}
+            {!login && password.length > 0 ? (
+              <View className="gap-1 px-5">
+                {PASSWORD_REQUIREMENTS.map((requirement) => {
+                  const met = !unmet.includes(requirement);
+                  const label = t(`auth.password.req.${requirement}`, locale);
+                  return (
+                    <Text
+                      key={requirement}
+                      className={`text-xs ${met ? 'text-success' : 'text-muted-foreground'}`}
+                      accessibilityLabel={`${t(met ? 'a11y.req.met' : 'a11y.req.unmet', locale)} ${label}`}
+                    >
+                      {met ? '✓' : '•'} {label}
+                    </Text>
+                  );
+                })}
+              </View>
+            ) : null}
+          </View>
+
+          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+          {notice ? <Text className="text-sm text-aura">{notice}</Text> : null}
         </View>
 
-        {error ? <Text className="text-sm text-error">{error}</Text> : null}
-        {notice ? <Text className="text-sm text-aura">{notice}</Text> : null}
-      </View>
+        <Pressable
+          className={`mt-7 h-[52px] items-center justify-center rounded-full bg-aura ${disabled ? 'opacity-40' : ''}`}
+          disabled={disabled}
+          onPress={submit}
+          accessibilityRole="button"
+          accessibilityLabel={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
+        >
+          {submitting ? (
+            <ActivityIndicator color={semantic.onAura} />
+          ) : (
+            <Text className="text-[13px] font-semibold tracking-[0.14em] text-on-aura">
+              {t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
+            </Text>
+          )}
+        </Pressable>
 
-      <Pressable
-        className={`mt-7 h-[52px] items-center justify-center rounded-full bg-aura ${disabled ? 'opacity-40' : ''}`}
-        disabled={disabled}
-        onPress={submit}
-        accessibilityRole="button"
-        accessibilityLabel={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
-      >
-        {submitting ? (
-          <ActivityIndicator color={semantic.onAura} />
-        ) : (
-          <Text className="text-[13px] font-semibold tracking-[0.14em] text-on-aura">
-            {t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
+        <Pressable
+          className="mt-6 items-center"
+          onPress={toggleMode}
+          accessibilityRole="button"
+          hitSlop={8}
+        >
+          <Text className="text-[13px] text-muted-foreground">
+            {t(login ? 'auth.noAccount' : 'auth.haveAccount', locale)}
           </Text>
-        )}
-      </Pressable>
-
-      <Pressable
-        className="mt-6 items-center"
-        onPress={toggleMode}
-        accessibilityRole="button"
-        hitSlop={8}
-      >
-        <Text className="text-[13px] text-muted-foreground">
-          {t(login ? 'auth.noAccount' : 'auth.haveAccount', locale)}
-        </Text>
-      </Pressable>
-    </ScrollView>
+        </Pressable>
+      </ScrollView>
+    </Screen>
   );
 }

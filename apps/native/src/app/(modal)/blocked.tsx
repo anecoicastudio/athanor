@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, listBlocked, unblockUser } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { FlatList, View } from '@/tw';
+import { FlatList } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -11,6 +11,7 @@ import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Blocked-profiles list screen (M9 §3.1). Keyset pagination (rule #9); neutral
@@ -68,7 +69,7 @@ export default function BlockedScreen() {
     ]);
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header */}
       <ModalHeader title={t('block.list.title', locale)} backLabel={t('common.back', locale)} />
 
@@ -106,6 +107,6 @@ export default function BlockedScreen() {
 
       {/* Inline toast — no global host (rule: no global Sheet/Overlay/Toast) */}
       {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

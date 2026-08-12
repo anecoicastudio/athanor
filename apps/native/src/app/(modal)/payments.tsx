@@ -14,6 +14,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { longDate } from '@/lib/time';
+import { Screen } from '@/components/Screen';
 
 function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) {
   const statusKey =
@@ -65,7 +66,7 @@ export default function PaymentsScreen() {
   const isEmpty = !query.isLoading && !query.isError && rows.length === 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader
         title={t('settings.payments.title', locale)}
         backLabel={t('common.back', locale)}
@@ -119,6 +120,6 @@ export default function PaymentsScreen() {
           }
         />
       ) : null}
-    </View>
+    </Screen>
   );
 }

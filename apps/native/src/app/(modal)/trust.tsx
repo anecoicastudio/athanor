@@ -23,6 +23,7 @@ import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Trust & safety (M9 §3.1 + §3.5.3). Quote (the one cyan statement) · read-only Identity card
@@ -126,7 +127,7 @@ export default function TrustScreen() {
   });
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader title={t('trust.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-[104px] pt-2">
         {/* Quote — the single cyan statement (rule #4) */}
@@ -316,6 +317,6 @@ export default function TrustScreen() {
       </ScrollView>
 
       {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

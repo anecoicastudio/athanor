@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { type Verdict, verdictText } from '@/lib/ticket-verdict';
+import { Screen } from '@/components/Screen';
 
 export default function CheckinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -77,15 +78,15 @@ export default function CheckinScreen() {
 
   if (!permission) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <ActivityIndicator color={semantic.aura} />
-      </View>
+      </Screen>
     );
   }
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 items-center justify-center gap-5 bg-background px-8">
+      <Screen className="items-center justify-center gap-5 px-8">
         <EmptyState>{t('ticket.scan.permission', locale)}</EmptyState>
         <Pressable
           className="rounded-full bg-aura px-6 py-3"
@@ -97,7 +98,7 @@ export default function CheckinScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Text className="text-[13px] text-faint">{t('common.back', locale)}</Text>
         </Pressable>
-      </View>
+      </Screen>
     );
   }
 
@@ -109,7 +110,7 @@ export default function CheckinScreen() {
         : 'border-aura-line';
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <CameraView
         style={{ flex: 1 }}
         facing="back"
@@ -146,6 +147,6 @@ export default function CheckinScreen() {
           </Text>
         </View>
       ) : null}
-    </View>
+    </Screen>
   );
 }

@@ -16,6 +16,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Report sheet (M9, frontend `09` §3.3). One sheet parameterized by targetType ∈
@@ -71,7 +72,7 @@ export default function ReportScreen() {
   });
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* head — back + title + close x */}
       <ModalHeader
         title={t('report.title', locale)}
@@ -157,6 +158,6 @@ export default function ReportScreen() {
           </>
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

@@ -17,6 +17,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
+import { Screen } from '@/components/Screen';
 
 /**
  * Full Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). Owner mode
@@ -83,7 +84,7 @@ export default function GridScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* head */}
       <ModalHeader
         title={t(readOnly ? 'profile.moments.theirLabel' : 'moment.gallery.title', locale)}
@@ -171,6 +172,6 @@ export default function GridScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

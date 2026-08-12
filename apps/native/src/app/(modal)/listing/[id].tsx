@@ -11,6 +11,7 @@ import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -57,7 +58,7 @@ export default function ProjectDetailScreen() {
   });
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('project.detail.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
         {/* One branch used to cover a failed read AND a project that no longer exists, with no
@@ -116,6 +117,6 @@ export default function ProjectDetailScreen() {
           </>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

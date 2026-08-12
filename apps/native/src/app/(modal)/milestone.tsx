@@ -11,6 +11,7 @@ import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Milestone composer (M2, frontend `02` §3.3 — sheet-milestone). Adds one tappa
@@ -48,7 +49,7 @@ export default function MilestoneScreen() {
   };
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader
         title={t('milestone.sheet.title', locale)}
         backLabel={t('common.back', locale)}
@@ -94,6 +95,6 @@ export default function MilestoneScreen() {
       </ScrollView>
 
       {toast ? <Toast label={t('milestone.toast.added', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

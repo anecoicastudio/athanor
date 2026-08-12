@@ -169,8 +169,10 @@ From the brand doc: the mark is born from the **vesica piscis** — two perfect 
 ### Mobile app
 
 - 5-tab bar on `surfaceMuted`: Home · Community · Live · Momenti · Profilo. Active tab: foreground icon + `micro` label; inactive: foregroundMuted. **No badge counts on tabs** except Momenti when a Momento waits — a single `aura` ✦, never a number.
-- Screen padding 20pt horizontal. Cards on `surface`, radius `lg` (20).
+- Screen padding 20pt horizontal (`spacing.gutter` token). Cards on `surface`, radius `lg` (20).
 - One scroll axis per screen. Horizontal carousels only for event cards on Home.
+- **Safe area:** the top inset (status bar / notch / Dynamic Island / Android edge-to-edge) comes from `react-native-safe-area-context` through the `Screen` primitive (`apps/native/src/components/Screen.tsx`) — never a hardcoded `pt-*`. `Screen` measures per view, so it is 0 inside an iOS sheet (the sheet already cleared the status bar) and status-bar height on full-screen pushes and Android modals. Screens under a React Navigation header (the tabs) don't add an inset at all — the header owns it.
+- Header→content gap: 16pt, owned by `ModalHeader` (`pb-4`) — screens don't re-add it.
 
 ### Thin-line illustration vocabulary
 

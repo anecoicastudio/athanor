@@ -9,6 +9,7 @@ import { Mandorla } from '@/components/Mandorla';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Contribution thank-you overlay (M7 §3.6). A moment happened — your contribution
@@ -47,7 +48,7 @@ export default function ContributionThanksOverlay() {
 
   return (
     <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
-      <View className="flex-1 items-center justify-center bg-background px-8">
+      <Screen className="items-center justify-center px-8">
         <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
           {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
           <Mandorla size={96} glowLevel={1}>
@@ -75,7 +76,7 @@ export default function ContributionThanksOverlay() {
             onPress={() => router.back()}
           />
         </View>
-      </View>
+      </Screen>
     </Animated.View>
   );
 }

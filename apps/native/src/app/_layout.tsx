@@ -15,6 +15,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import * as Sentry from '@sentry/react-native';
 import { isProfileComplete } from '@athanor/core';
@@ -113,33 +114,38 @@ function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{ persister: asyncStoragePersister }}
-      >
-        <StatusBar style="light" />
-        {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
-        <SentryConsentGate />
-        <BootGate>
-          <AuthGuard>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: semantic.background },
-              }}
-            >
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(onboarding)" />
-              <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
-            </Stack>
-          </AuthGuard>
-        </BootGate>
-        {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
-        {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
-      </PersistQueryClientProvider>
-    </AuthProvider>
+    // Root inset context (#161). React Navigation mounts its own compat provider inside the
+    // navigator, so this one exists for the trees OUTSIDE it (BrandSplash, ProfileErrorScreen)
+    // and to kill the first-frame inset flash via initialWindowMetrics.
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AuthProvider>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{ persister: asyncStoragePersister }}
+        >
+          <StatusBar style="light" />
+          {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
+          <SentryConsentGate />
+          <BootGate>
+            <AuthGuard>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: semantic.background },
+                }}
+              >
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(onboarding)" />
+                <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
+              </Stack>
+            </AuthGuard>
+          </BootGate>
+          {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
+          {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
+        </PersistQueryClientProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

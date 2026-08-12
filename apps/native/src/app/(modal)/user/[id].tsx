@@ -38,6 +38,7 @@ import { helpableMilestones, type HelpState } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
 import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Person Detail — read-only third-person profile (M2, frontend `02` §3.5). Mirrors the own
@@ -283,22 +284,22 @@ export default function PersonDetailScreen() {
   // Loading.
   if (person === null) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <Text className="text-2xl text-muted-foreground">✦</Text>
-      </View>
+      </Screen>
     );
   }
 
   // Unavailable / not found.
   if (person === 'missing') {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title="" backLabel={t('common.back', locale)} right={headerRight} />
         <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
           <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
         </ScrollView>
         {toast ? <Toast label={toast} /> : null}
-      </View>
+      </Screen>
     );
   }
 
@@ -319,7 +320,7 @@ export default function PersonDetailScreen() {
   const hasHelpableTappa = helpableMilestones(tappe, myHelps).length > 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader
         title={person.handle ?? ''}
         backLabel={t('common.back', locale)}
@@ -422,6 +423,6 @@ export default function PersonDetailScreen() {
         />
       </ScrollView>
       {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }
