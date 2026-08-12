@@ -62,3 +62,21 @@ export function buildStoryRail(rows: readonly StoryRailRow[], limit: number): St
   }
   return rail;
 }
+
+/**
+ * Order a rail into a play session (#298): the tapped person first, then the unseen people in
+ * rail order, then the seen people in rail order — seen people go to the back but still play,
+ * never skipped. The entry plays first regardless of its own seen state (the member asked for
+ * it). An entry no longer in the rail (a refetch race) degrades to unseen-then-seen.
+ */
+export function buildStorySession<P extends { author_id: string }>(
+  rail: readonly P[],
+  entryAuthorId: string,
+  seenIds: ReadonlySet<string>,
+): P[] {
+  const entry = rail.find((p) => p.author_id === entryAuthorId);
+  const rest = rail.filter((p) => p.author_id !== entryAuthorId);
+  const unseen = rest.filter((p) => !seenIds.has(p.author_id));
+  const seen = rest.filter((p) => seenIds.has(p.author_id));
+  return entry ? [entry, ...unseen, ...seen] : [...unseen, ...seen];
+}

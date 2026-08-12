@@ -29,9 +29,15 @@ function segmentMs(seg: StorySegment): number {
 
 /**
  * Plays one person's story (frontend §3.4). Segments auto-advance (photo 5s, video by duration);
- * tap right two-thirds → next, left third → prev, hold → pause, swipe down → close. `isOwn` swaps
- * the action set. `count` (author-only celebration total) renders only when `isOwn`. All counts
- * are owner-only (rule #3); the ✦ react is viewer-state only.
+ * tap right two-thirds → next, left third → prev, hold → pause, swipe down → close, swipe
+ * horizontally → jump person (#298). `isOwn` swaps the action set. `count` (author-only
+ * celebration total) renders only when `isOwn`. All counts are owner-only (rule #3); the ✦
+ * react is viewer-state only.
+ *
+ * Person chaining (#298) lives in the HOST: this component knows one person's segments and
+ * reports the edges — `onAdvanceEnd` (finished past the last segment), `onAdvanceStart`
+ * (tap-left on the first), `onJumpNext`/`onJumpPrev` (horizontal swipe). `startAt` says which
+ * end to open on when the segments identity changes ('last' when arriving backwards).
  *
  * Layout (#297): the media fills the screen (`absolute inset-0`, cover) and all chrome floats
  * above it in two `bg-background/70` scrim bands — DESIGN.md §6 "Full-bleed media + overlay
@@ -40,6 +46,10 @@ function segmentMs(seg: StorySegment): number {
  *
  * The reply composer is real (#297): sending goes through `onSendReply` in the background — the
  * viewer is never left. Focus pauses the segment, blur resumes it.
+ *
+ * Gestures stay on PanResponder: SwipeDeck's docblock claims reanimated/gesture-handler crash
+ * unimported; static evidence says the claim is stale, but it is unverified on device either
+ * way (#298), and this gesture needs nothing PanResponder lacks.
  */
 export function StoriesViewer({
   segments,
@@ -52,6 +62,10 @@ export function StoriesViewer({
   locale,
   onClose,
   onAdvanceEnd,
+  onAdvanceStart,
+  onJumpNext,
+  onJumpPrev,
+  startAt = 'first',
   onReact,
   onSendReply,
   onMakeDream,
@@ -69,7 +83,15 @@ export function StoriesViewer({
   count: number;
   locale: Locale;
   onClose: () => void;
+  /** Advanced past the last segment — the person's story FINISHED. */
   onAdvanceEnd: () => void;
+  /** Tapped left on the first segment — the host may step to the previous person (#298). */
+  onAdvanceStart: () => void;
+  /** Horizontal swipe — person jump without finishing (#298). */
+  onJumpNext: () => void;
+  onJumpPrev: () => void;
+  /** Which end to open on when `segments` changes person ('last' when arriving backwards). */
+  startAt?: 'first' | 'last';
   onReact: (segment: StorySegment) => void;
   /** Sends the reply into the DM without leaving the viewer; rejects on failure. */
   onSendReply: (body: string) => Promise<void>;
@@ -96,7 +118,10 @@ export function StoriesViewer({
   const currentUrl = current ? urls[current.storage_path] : undefined;
 
   useEffect(() => {
-    setSi(0);
+    // A new segments identity is a person change (#298): open at the end `startAt` names.
+    // `startAt` is deliberately not a dependency — it only means something with new segments.
+    setSi(startAt === 'last' ? Math.max(0, segments.length - 1) : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [segments]);
 
   useEffect(() => {
@@ -111,6 +136,7 @@ export function StoriesViewer({
   };
   const goPrev = () => {
     if (si > 0) setSi(si - 1);
+    else onAdvanceStart();
   };
 
   useEffect(() => {
@@ -137,12 +163,18 @@ export function StoriesViewer({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 8,
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 8 || Math.abs(g.dx) > 8,
         onPanResponderGrant: () => setPaused(true),
         onPanResponderRelease: (e, g) => {
           setPaused(false);
           if (g.dy > 100) {
             onClose();
+            return;
+          }
+          // Horizontal swipe = person jump (#298), in either direction.
+          if (Math.abs(g.dx) > 60 && Math.abs(g.dx) > Math.abs(g.dy)) {
+            if (g.dx < 0) onJumpNext();
+            else onJumpPrev();
             return;
           }
           if (Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10 && zoneW > 0) {
@@ -152,8 +184,9 @@ export function StoriesViewer({
         },
         onPanResponderTerminate: () => setPaused(false),
       }),
+    // Host callbacks are in the deps so the responder never fires a stale author cursor (#298).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [si, segments.length, zoneW],
+    [si, segments.length, zoneW, onClose, onAdvanceEnd, onAdvanceStart, onJumpNext, onJumpPrev],
   );
 
   const trimmed = reply.trim();

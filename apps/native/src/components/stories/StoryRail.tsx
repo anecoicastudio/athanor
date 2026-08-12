@@ -22,6 +22,8 @@ export function StoryRail({
     displayName: string | null;
     avatarPath: string | null;
     hasStory: boolean;
+    /** Watched state for the own ring (#298) — the caller derives it; no story reads as seen. */
+    seen: boolean;
   };
   people: StoryRailPerson[];
   seenIds: Set<string>;
@@ -40,7 +42,7 @@ export function StoryRail({
         displayName={you.displayName}
         avatarPath={you.avatarPath}
         isYou
-        seen={!you.hasStory}
+        seen={you.seen}
         locale={locale}
         onPress={() => (you.hasStory ? onOpenPerson('me') : onAddYours())}
       />
