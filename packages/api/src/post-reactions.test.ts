@@ -42,6 +42,14 @@ function stub(rows: Array<Record<string, unknown>> = []) {
 }
 
 describe('togglePostReaction', () => {
+  // The parse is the write boundary (#274): a malformed id throws before the insert is
+  // attempted (the own-row read has already happened — reads are RLS's job, not the schema's).
+  it('rejects a non-uuid id before inserting anything', async () => {
+    const { client, calls } = stub([]);
+    await expect(togglePostReaction(client, 'not-a-post', PERSON)).rejects.toThrow();
+    expect(calls.map((c) => c.method)).not.toContain('insert');
+  });
+
   it('already reacted → deletes the own row and returns false (exact sequence)', async () => {
     const { client, calls } = stub([{ id: '00000000-0000-0000-0000-0000000000r1' }]);
     const lit = await togglePostReaction(client, POST, PERSON);

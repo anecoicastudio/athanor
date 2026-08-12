@@ -109,4 +109,13 @@ describe('requestErasure', () => {
     const { client } = insertStub({ id: ME }, new Error('rls denied'));
     await expect(requestErasure(client)).rejects.toThrow('rls denied');
   });
+
+  // The parse is the write boundary (#274): a session whose id is not a uuid (impossible from
+  // Supabase auth, possible from a bug) throws before any network call, for both GDPR enqueues.
+  it('rejects a malformed session id before inserting', async () => {
+    const bad = insertStub({ id: 'not-a-uuid' });
+    await expect(requestErasure(bad.client)).rejects.toThrow();
+    await expect(requestExport(bad.client)).rejects.toThrow();
+    expect(bad.insert).not.toHaveBeenCalled();
+  });
 });
