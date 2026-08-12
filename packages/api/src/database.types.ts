@@ -641,6 +641,7 @@ export type Database = {
           profile_id: string
           status: string
           story: string
+          thumb_path: string | null
           updated_at: string
           video_url: string
         }
@@ -657,6 +658,7 @@ export type Database = {
           profile_id: string
           status?: string
           story: string
+          thumb_path?: string | null
           updated_at?: string
           video_url: string
         }
@@ -673,6 +675,7 @@ export type Database = {
           profile_id?: string
           status?: string
           story?: string
+          thumb_path?: string | null
           updated_at?: string
           video_url?: string
         }
@@ -2077,6 +2080,48 @@ export type Database = {
           },
         ]
       }
+      push_receipts: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          receipt_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          receipt_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          receipt_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "push_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           created_at: string
@@ -2530,6 +2575,7 @@ export type Database = {
           handle: string | null
           profile_id: string | null
           status: string | null
+          thumb_path: string | null
           title: string | null
           video_url: string | null
         }
@@ -2713,6 +2759,7 @@ export type Database = {
         }[]
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
       momento_reasons: {
