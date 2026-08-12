@@ -7,7 +7,7 @@
 -- an invented tag cannot exercise.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(17);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -46,6 +46,13 @@ update public.dreams set status = 'archived'
 -- ── the map itself (#273 A) ─────────────────────────────────────────────────
 -- Mirrored in packages/core/src/onboarding/affinity.ts; affinity.mirror.test.ts compares the
 -- two, this asserts the SQL half actually answers.
+--
+-- As the OWNER, not service_role: athanor.seeking_to_identity is an implementation detail of
+-- the matcher, execute is revoked from everyone else, and the matcher reaches it only because
+-- it is DEFINER. Calling it under `set local role service_role` is what made this file fail
+-- with 42501 the first time it ran in CI — hosted auto-grants execute to service_role through
+-- default privileges and a fresh CI Postgres does not (20260616071318, 20260812155833).
+reset role;
 select is(
   athanor.seeking_to_identity(array['mentorship']),
   array['coach','mentor'],
@@ -56,6 +63,16 @@ select is(
   '{}'::text[],
   'the two generic intents expand to nothing (they name no profession)'
 );
+-- Both halves of 20260812155833, which exists because a hosted project auto-grants execute on
+-- new functions to service_role and a fresh CI Postgres does not — so "who may call this" has
+-- to be written down, not inherited.
+select ok(
+  not has_function_privilege('service_role', 'athanor.seeking_to_identity(text[])', 'execute'),
+  'service_role cannot execute the matcher''s internal helper');
+select ok(
+  has_function_privilege('service_role', 'public.expire_momento_proposals()', 'execute'),
+  'service_role CAN run the expiry (the ops-callable half, like the matcher itself)');
+set local role service_role;
 
 select ok(public.run_momenti_matcher() >= 2, 'matcher inserts at least the A↔B pair and C''s fallback');
 
