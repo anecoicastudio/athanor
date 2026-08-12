@@ -641,6 +641,7 @@ export type Database = {
           profile_id: string
           status: string
           story: string
+          thumb_path: string | null
           updated_at: string
           video_url: string
         }
@@ -657,6 +658,7 @@ export type Database = {
           profile_id: string
           status?: string
           story: string
+          thumb_path?: string | null
           updated_at?: string
           video_url: string
         }
@@ -673,6 +675,7 @@ export type Database = {
           profile_id?: string
           status?: string
           story?: string
+          thumb_path?: string | null
           updated_at?: string
           video_url?: string
         }
@@ -2530,6 +2533,7 @@ export type Database = {
           handle: string | null
           profile_id: string | null
           status: string | null
+          thumb_path: string | null
           title: string | null
           video_url: string | null
         }
