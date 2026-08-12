@@ -8,9 +8,15 @@ import { EmptyState } from '@/components/EmptyState';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { mediaState } from '@/lib/media/media-state';
 
-export type MediaKind = 'photo' | 'video' | 'audio';
+/**
+ * Which sentence the unavailable state uses. Deliberately NOT `@athanor/schemas`' `MediaKind`:
+ * that one is the `post_media.kind` column and says `image`, while the copy here says `photo`
+ * because that is the word a member reads. Same three concepts, two vocabularies, so they get
+ * two names rather than one name that silently means either.
+ */
+export type MediaFrameKind = 'photo' | 'video' | 'audio';
 
-const UNAVAILABLE: Record<MediaKind, MessageKey> = {
+const UNAVAILABLE: Record<MediaFrameKind, MessageKey> = {
   photo: 'media.unavailable.photo',
   video: 'media.unavailable.video',
   audio: 'media.unavailable.audio',
@@ -22,7 +28,7 @@ type Props = {
   /** The signing query's `isLoading`. Thread it — dropping it is the bug this fixes (#135). */
   isLoading: boolean;
   /** What the member is missing — picks the copy, not the renderer. */
-  kind: MediaKind;
+  kind: MediaFrameKind;
   locale: Locale;
   /** Tile-sized surfaces: the glyph alone, sentence moved to the a11y label. */
   compact?: boolean;
@@ -55,7 +61,10 @@ type Props = {
  *
  * Photos render through `expo-image` for one reason above the fade: it has a real `onError`, so
  * a URL that signs fine and then 404s — a deleted object, a TTL that lapsed mid-view — becomes
- * the unavailable state instead of silence.
+ * the unavailable state instead of silence. That recovery is photo-only for now: the video and
+ * audio players arrive through `children` and own their own error surface, so a dead *video* URL
+ * still fails the way every URL used to. Closing that gap means an error callback on each player,
+ * which is a separate change from this one.
  *
  * `kind` picks the copy and nothing else, because the two can disagree: a video Momento's tile
  * draws a *thumbnail*, so what renders is an image while what the member is missing is a video.
@@ -122,7 +131,15 @@ export function MediaFrame({
             // clip, so the ✦ carries it visually (same glyph and `faint` weight as EmptyState)
             // and the label carries the sentence for a screen reader.
             <View accessible accessibilityLabel={t(UNAVAILABLE[kind], locale)}>
-              <Text className="text-2xl text-faint">✦</Text>
+              <Text
+                className="text-2xl text-faint"
+                // Decorative: the wrapper above already announces the sentence, and without this
+                // the glyph is read as a second element (same pairing as EmptyState).
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                ✦
+              </Text>
             </View>
           ) : (
             <EmptyState>{t(UNAVAILABLE[kind], locale)}</EmptyState>

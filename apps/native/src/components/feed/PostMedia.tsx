@@ -3,16 +3,17 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
 import { useQuery } from '@tanstack/react-query';
 import { getPostMedia, postMediaKeys } from '@athanor/api';
-import type { Locale } from '@athanor/schemas';
+import type { Locale, MediaKind } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { MediaFrame, type MediaKind } from '@/components/media/MediaFrame';
+import { MediaFrame, type MediaFrameKind } from '@/components/media/MediaFrame';
 import { aspectRatio, formatDuration } from '@/lib/media/format';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
-/** Post rows call their still image `image`; `MediaFrame` calls it `photo`. */
-const MEDIA_KIND: Record<'image' | 'video' | 'audio', MediaKind> = {
+/** `post_media.kind` (schema vocabulary) → the word the copy uses. `image` is a column, `photo`
+ *  is what a member reads. */
+const MEDIA_KIND: Record<MediaKind, MediaFrameKind> = {
   image: 'photo',
   video: 'video',
   audio: 'audio',
