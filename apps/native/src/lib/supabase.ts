@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import type { Database } from '@athanor/api';
+import { type Database, resolveSupabaseKey } from '@athanor/api';
 
 import { authStorage } from './session-storage';
 import { markClientOutdated } from './outdated-client';
-import { resolveSupabaseKey } from './supabase-key';
 import { isVersionGateRejection, requestUrlOf } from './version-gate';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -16,10 +15,19 @@ if (!url) {
 
 // Metro INLINES `process.env.EXPO_PUBLIC_*` at bundle time, so both names must appear as
 // literal member expressions here — a computed lookup silently yields undefined.
-const anonKey = resolveSupabaseKey({
-  publishable: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  anon: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-});
+const anonKey = resolveSupabaseKey(
+  {
+    publishable: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    anon: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  },
+  {
+    publishable: 'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    anon: 'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+    hint:
+      'Local runs read apps/native/.env; EAS cloud builds do NOT — they read EAS ' +
+      'environment variables for the profile named in eas.json.',
+  },
+);
 
 // Expo Router renders the route tree in Node (no `window`) for `web.output:"static"`.
 // On that server pass AsyncStorage's web shim reads `window.localStorage` and throws,

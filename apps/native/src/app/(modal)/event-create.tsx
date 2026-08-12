@@ -10,6 +10,7 @@ import { type MessageKey, t } from '@athanor/i18n';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { EVENT_HREF } from '@/components/live/EventRow';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
@@ -29,8 +30,6 @@ const CATEGORIES: EventCategory[] = [
   'arte',
   'evoluzione',
 ];
-
-const EVENT_HREF = (id: string) => `/(modal)/event/${id}` as const;
 
 export default function EventCreateScreen() {
   const { profile } = useAuth();

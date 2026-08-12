@@ -6,6 +6,14 @@ const WEB_VARS = {
   anon: 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
 };
 
+// apps/native passes this shape; the hint is the only reason the app kept its own copy
+// of this function until #272 folded the two together.
+const NATIVE_VARS = {
+  publishable: 'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+  anon: 'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+  hint: 'Local runs read apps/native/.env; EAS cloud builds do NOT.',
+};
+
 describe('resolveSupabaseKey', () => {
   it('prefers the publishable key when both are present', () => {
     expect(
@@ -44,5 +52,18 @@ describe('resolveSupabaseKey', () => {
     expect(() => resolveSupabaseKey({ anon: 'sb_secret_oops' }, WEB_VARS)).toThrow(
       /NEXT_PUBLIC_SUPABASE_ANON_KEY.*sb_secret_/s,
     );
+  });
+
+  // A cloud build reads EAS environment variables, never the gitignored .env — the most
+  // likely way to hit this error is a build profile with no environment configured, so the
+  // native caller's hint has to survive into the message.
+  it('appends the caller hint to the missing-key failure', () => {
+    expect(() => resolveSupabaseKey({}, NATIVE_VARS)).toThrow(
+      /EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.*EXPO_PUBLIC_SUPABASE_ANON_KEY.*EAS/s,
+    );
+  });
+
+  it('omits the trailing space when no hint is given', () => {
+    expect(() => resolveSupabaseKey({}, WEB_VARS)).toThrow(/fallback\)\.$/);
   });
 });

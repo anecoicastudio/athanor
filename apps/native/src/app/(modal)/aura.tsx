@@ -10,6 +10,7 @@ import { RuleRow } from '@/components/aura/RuleRow';
 import { AuraValue } from '@/components/AuraValue';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { ShimmerBar } from '@/components/ShimmerBar';
 import { Mandorla } from '@/components/Mandorla';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -20,11 +21,6 @@ import { supabase } from '@/lib/supabase';
 
 const IDLE_THRESHOLD_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** Shimmer placeholder bar — muted rect for loading state */
-function ShimmerBar({ width = 'w-full' }: { width?: string }) {
-  return <View className={`h-5 rounded-sm bg-raise ${width}`} />;
-}
 
 /**
  * Aura breakdown modal (M6 §3.1).
