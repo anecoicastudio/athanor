@@ -114,6 +114,7 @@ export default function CandidacyDetailScreen() {
     status: cardQuery.status,
     fetchStatus: cardQuery.fetchStatus,
     isEmpty: card == null,
+    staleWins: true,
   });
   // The `card == null` half is what narrows `card` for everything below; `listState` only
   // returns 'ready' when `isEmpty` is false, but the compiler cannot see that through the call.

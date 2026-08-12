@@ -133,6 +133,7 @@ export default function SearchScreen() {
     status: query.status,
     fetchStatus: query.fetchStatus,
     isEmpty: !hasResults,
+    staleWins: true,
   });
 
   // ── Applied filter chips (summary row when filters are set) ──────────────────

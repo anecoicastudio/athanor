@@ -115,6 +115,7 @@ export default function HelpScreen() {
     status: pickerFailed ? 'error' : dreamQuery.status,
     fetchStatus: dreamQuery.fetchStatus,
     isEmpty: dreamQuery.data == null,
+    staleWins: true,
   });
   const retryPicker = () => {
     void dreamQuery.refetch();

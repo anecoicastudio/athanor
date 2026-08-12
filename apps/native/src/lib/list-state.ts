@@ -15,13 +15,17 @@
  *    isFetching`: a query with `enabled: !!userId` reports `isLoading: false` with no data
  *    while the session hydrates, which is exactly the hole #10 found in the Aura surfaces.
  *    Only the `status`/`fetchStatus` pair distinguishes "not started" from "in flight".
- * 3. Rows in hand outrank both error and loading, the same precedence `mediaState` gives a
- *    cached URL: a background refetch that loses the network must not blank a list the member
- *    is reading.
+ * 3. Content in hand outranks a spinner always, and outranks an *error* only when the caller
+ *    says so — see `staleWins`.
  *
  * `isEmpty` is the caller's, not ours, because the shape differs per screen — `rows.length ===
  * 0` on a flat query, `data?.pages.flatMap(...)` on an infinite one, `card == null` on a
- * detail screen. What must NOT differ is what that emptiness is allowed to mean.
+ * detail screen, `weekRecapIsEmpty(recap)` on the Home week slot. What must NOT differ is what
+ * that emptiness is allowed to mean.
+ *
+ * This subsumes `weekSlotState` (#279, issue #100), whose docblock asked for exactly that:
+ * "#111 will likely extract a shared list-state component — this is written to be lifted."
+ * Its four states map on: `pending` → `loading` | `idle`, `data` → `ready`.
  */
 export type ListState = 'idle' | 'loading' | 'error' | 'empty' | 'ready';
 
@@ -29,6 +33,7 @@ export function listState({
   status,
   fetchStatus,
   isEmpty,
+  staleWins,
 }: {
   /** `query.status` — pending until the first settle, then error or success. */
   status: 'pending' | 'error' | 'success';
@@ -36,9 +41,26 @@ export function listState({
   fetchStatus: 'fetching' | 'paused' | 'idle';
   /** Caller-derived: does the query's data amount to nothing to render? */
   isEmpty: boolean;
+  /**
+   * When a refetch fails over cached content, does the content stay?
+   *
+   * The one axis the app's two prior answers disagreed on, and both were deliberate.
+   * `MomentiCard.tsx:41-44` draws the line: *a stale Aura number is a claim about a person's
+   * worth, a stale proposal costs one wasted tap.*
+   *
+   * - `true` for lists — blanking rows the member is reading is worse than showing them a
+   *   minute stale, and the destination screen can always refresh.
+   * - `false` for anything reporting the member's own Aura. The query client persists to
+   *   AsyncStorage with a 24h `gcTime` and Aura decays, so yesterday's number presented as
+   *   today's is the false confidence `aura-display.ts` already refused for the score.
+   *
+   * Required rather than defaulted: a caller that has not thought about it should not
+   * silently inherit either answer.
+   */
+  staleWins: boolean;
 }): ListState {
-  // Content outranks everything. A stale list beats an error screen, and beats a spinner.
-  if (!isEmpty) return 'ready';
+  // Content outranks a spinner unconditionally; whether it outranks an error is the caller's.
+  if (!isEmpty && (staleWins || status !== 'error')) return 'ready';
   if (status === 'error') return 'error';
   // `paused` is offline-with-intent: the read has neither failed nor returned nothing, so it
   // is still loading. Saying either of the other two here would be a false claim.

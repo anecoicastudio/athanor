@@ -97,6 +97,7 @@ export default function MessagesScreen() {
               status: query.status,
               fetchStatus: query.fetchStatus,
               isEmpty: items.length === 0,
+              staleWins: true,
             })}
             locale={locale}
             errorLabel={t('messages.error', locale)}

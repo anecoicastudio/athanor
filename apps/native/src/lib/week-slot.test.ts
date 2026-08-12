@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { WeekRecap } from '@athanor/core';
-import { weekRecapIsEmpty, weekSlotState } from './week-slot';
+import { weekRecapIsEmpty } from './week-slot';
+
+// `weekSlotState`'s cases moved to `list-state.test.ts` when it folded into `listState` (#111).
+// What is left here is the domain question — what counts as a quiet week — which never was
+// about queries.
 
 const recap = (over: Partial<WeekRecap> = {}): WeekRecap => ({
   auraWeek: 0,
@@ -43,45 +47,5 @@ describe('weekRecapIsEmpty', () => {
   // real, including it would assert a constant.
   it('ignores oreDonate, which the engine never populates', () => {
     expect(weekRecapIsEmpty(recap({ oreDonate: 8 }))).toBe(true);
-  });
-});
-
-describe('weekSlotState', () => {
-  // The bug this whole module exists for: all three of these used to render «Presto qui», a
-  // claim that the week recap had not been built. It shipped in M6.
-  it('separates the three non-answers that used to share one card', () => {
-    expect(weekSlotState({ isPending: true, isError: false, data: undefined })).toBe('pending');
-    expect(weekSlotState({ isPending: false, isError: true, data: undefined })).toBe('error');
-    expect(weekSlotState({ isPending: false, isError: false, data: recap() })).toBe('empty');
-  });
-
-  it('renders the card once there is something to show', () => {
-    expect(weekSlotState({ isPending: false, isError: false, data: recap({ auraWeek: 50 }) })).toBe(
-      'data',
-    );
-  });
-
-  // `enabled: !!userId` holds the query while the session hydrates. TanStack reports that as
-  // `isPending: true, isError: false, data: undefined` — the same shape as in-flight, which is
-  // why the branch keys on `isPending` and not `isLoading` (`isLoading` is false when idle, and
-  // an idle query would fall through every branch).
-  it('treats an idle, never-started query as pending rather than as an answer', () => {
-    expect(weekSlotState({ isPending: true, isError: false, data: undefined })).toBe('pending');
-  });
-
-  // Deliberate, and the opposite of what `MomentiCard.tsx:41-44` chose for the deck. A stale week
-  // is a claim about what this member earned; the query client persists to AsyncStorage for 24h
-  // and Aura decays, so showing yesterday's number as today's is the false confidence
-  // `aura-display.ts` already refused for the score.
-  it('lets an error win over cached data', () => {
-    expect(weekSlotState({ isPending: false, isError: true, data: recap({ auraWeek: 50 }) })).toBe(
-      'error',
-    );
-  });
-
-  // Defensive: a settled query with no data has no week to describe, so it must not fall through
-  // to `weekRecapIsEmpty` and assert a quiet week on the strength of nothing.
-  it('never reads absent data as a quiet week', () => {
-    expect(weekSlotState({ isPending: false, isError: false, data: undefined })).toBe('pending');
   });
 });

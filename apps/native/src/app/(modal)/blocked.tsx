@@ -94,6 +94,7 @@ export default function BlockedScreen() {
               status: query.status,
               fetchStatus: query.fetchStatus,
               isEmpty: rows.length === 0,
+              staleWins: true,
             })}
             locale={locale}
             errorLabel={t('block.list.error', locale)}

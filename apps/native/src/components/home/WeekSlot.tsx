@@ -5,13 +5,13 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { View } from '@/tw';
 import { WeekCard } from '@/components/aura/WeekCard';
-import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { fetchWeekRecap } from '@/lib/week-recap';
-import { weekSlotState } from '@/lib/week-slot';
+import { weekRecapIsEmpty } from '@/lib/week-slot';
 
 /**
  * Home block «La tua settimana» — the week recap, in the four states it actually has (#100).
@@ -24,8 +24,16 @@ import { weekSlotState } from '@/lib/week-slot';
  * scoreboard did not exist rather than that they had not lit it yet.
  *
  * `(modal)/recap.tsx:53-118` already held the correct four-state shape for the same query; this
- * is that shape moved into the slot. #111 will likely extract a shared list-state component
- * across the ten screens with this defect — this is written to be lifted, not to pre-empt it.
+ * is that shape moved into the slot. It has since been lifted, as that note anticipated: the
+ * branch rule is `listState` (`lib/list-state.ts`) and the arms are `ListState`, both #111.
+ * `weekSlotState` is gone; `weekRecapIsEmpty` survives it as the `isEmpty` argument, because
+ * what counts as a quiet week was never a question about queries.
+ *
+ * `staleWins: false` is this slot's half of that shared rule. `MomentiCard.tsx:41-44` decides
+ * the OPPOSITE for the deck and states the line: a stale Aura number is a claim about a
+ * person's worth, a stale proposal costs one wasted tap. This is the first kind — the query
+ * client persists to AsyncStorage with a 24h `gcTime` and Aura decays, so a stale week
+ * presented as this week is the false confidence `aura-display.ts` refused for the score.
  *
  * THE EYEBROW IS FAINT, NOT `tone="aura"`, even though `WeekCard.tsx:36` renders the data state's
  * eyebrow in cyan. That is not an oversight and not a thing to harmonise here: `SectionLabel.tsx:11-12`
@@ -58,12 +66,26 @@ export function WeekSlot({ locale }: { locale: Locale }) {
     enabled: !!userId,
   });
 
-  const state = weekSlotState(recapQuery);
   const recap = recapQuery.data;
+  const queryState = listState({
+    status: recapQuery.status,
+    fetchStatus: recapQuery.fetchStatus,
+    // A settled query with no recap has no week to describe, so it must not reach
+    // `weekRecapIsEmpty` and assert a quiet week on the strength of nothing.
+    isEmpty: recap == null || weekRecapIsEmpty(recap),
+    staleWins: false,
+  });
 
-  // `state === 'data'` already implies `recap != null`, but that is a fact about `weekSlotState`
+  // `enabled: !!userId` holds this query while the session hydrates, which `listState` reports
+  // as 'idle' and `ListState` renders as nothing — right for a list, wrong here, because the
+  // section header is already on screen and would sit over an empty card. `weekSlotState` folded
+  // idle into 'pending' for exactly this reason; the fold keeps the behaviour and makes the
+  // choice visible instead of baking it into the predicate for every caller.
+  const state = queryState === 'idle' ? 'loading' : queryState;
+
+  // `state === 'ready'` already implies `recap != null`, but that is a fact about `listState`
   // and not one the compiler can see through a string return. The guard is for tsc, not for us.
-  if (state === 'data' && recap) {
+  if (state === 'ready' && recap) {
     return <WeekCard recap={recap} locale={locale} onPress={() => router.push('/recap')} />;
   }
 
@@ -71,31 +93,31 @@ export function WeekSlot({ locale }: { locale: Locale }) {
     <View className="gap-3">
       <SectionLabel>{t('home.week.title', locale)}</SectionLabel>
       <Card>
-        {state === 'pending' ? (
-          // `bg-raise-2` ghosts, NOT `ShimmerBar` — that component is `bg-raise` and so is
-          // `Card`, so a bar inside a card is invisible. `recap.tsx:109-113` gets away with
-          // ShimmerBar because its bars sit on `bg-background`; `FeedSkeleton.tsx:9-11` is the
-          // in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
-          // reusable here: no props, three hardcoded cards, and it bakes a `px-5` that would
-          // double inside Home's own `px-5` ScrollView.) Static, so reduced-motion safe.
-          <View className="gap-3">
-            <View className="h-5 w-full rounded-sm bg-raise-2" />
-            <View className="h-5 w-2/3 rounded-sm bg-raise-2" />
-          </View>
-        ) : state === 'error' ? (
-          <View className="items-center gap-2">
-            <EmptyState>{t('aura.error', locale)}</EmptyState>
-            <Button
-              variant="ghost"
-              label={t('common.retry', locale)}
-              onPress={() => void recapQuery.refetch()}
-            />
-          </View>
-        ) : (
+        <ListState
+          state={state}
+          locale={locale}
+          errorLabel={t('aura.error', locale)}
           // A real quiet week. Same sentence the sheet says about the same seven days
           // (`recap.tsx:116`) — one week, one claim, and no new key for copy that exists.
-          <EmptyState>{t('recap.emptyWeek', locale)}</EmptyState>
-        )}
+          emptyLabel={t('recap.emptyWeek', locale)}
+          onRetry={() => void recapQuery.refetch()}
+          // Empty, not omitted: `Card` already owns the padding, and the default `px-8 pt-24`
+          // would push a Home slot down a third of the screen.
+          className=""
+          loading={
+            // `bg-raise-2` ghosts, NOT `ShimmerBar` — that component is `bg-raise` and so is
+            // `Card`, so a bar inside a card is invisible. `recap.tsx:109-113` gets away with
+            // ShimmerBar because its bars sit on `bg-background`; `FeedSkeleton.tsx:9-11` is the
+            // in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
+            // reusable here: no props, three hardcoded cards, and it bakes a `px-5` that would
+            // double inside Home's own `px-5` ScrollView.) Static, so reduced-motion safe.
+            //
+            <View className="gap-3">
+              <View className="h-5 w-full rounded-sm bg-raise-2" />
+              <View className="h-5 w-2/3 rounded-sm bg-raise-2" />
+            </View>
+          }
+        />
       </Card>
     </View>
   );

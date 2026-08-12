@@ -355,6 +355,7 @@ export default function PersonDetailScreen() {
               status: momentsQuery.status,
               fetchStatus: momentsQuery.fetchStatus,
               isEmpty: moments.length === 0,
+              staleWins: true,
             }),
             onRetry: () => void momentsQuery.refetch(),
             onOpen: setLightboxIndex,

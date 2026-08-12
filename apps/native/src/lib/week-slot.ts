@@ -1,17 +1,17 @@
 import type { WeekRecap } from '@athanor/core';
 
 /**
- * Which of FOUR things the Home week slot is looking at (issue #100).
+ * Domain emptiness for the Home week slot (issue #100).
  *
- * It used to be two — `data != null && !empty` or «Presto qui» — so a failed read, a read still
- * in flight, a read that never started, and a genuinely quiet week were one pixel-identical card
- * claiming the feature had not shipped. It shipped in M6; `(modal)/recap.tsx` renders it in full.
+ * The QUERY-state half of this module — `weekSlotState`, which collapsed a TanStack query into
+ * pending / error / empty / data — folded into `lib/list-state.ts` under #111, which is the
+ * lift its own docblock asked for. What stays here is the part that was never about queries:
+ * what counts as a quiet week. `listState` takes it as the `isEmpty` argument.
  *
  * Extracted from the .tsx for the same reason as `momenti-home.ts` and `aura-display.ts`: this
  * app's vitest harness is `environment: 'node'` with a `*.test.ts` glob, so a rule left inside a
  * component is structurally unassertable.
  */
-export type WeekSlotState = 'pending' | 'error' | 'empty' | 'data';
 
 /**
  * Did nothing happen this week?
@@ -34,30 +34,4 @@ export type WeekSlotState = 'pending' | 'error' | 'empty' | 'data';
  */
 export function weekRecapIsEmpty(recap: WeekRecap): boolean {
   return recap.auraWeek === 0 && recap.contributi === 0 && recap.sogniAiutati === 0;
-}
-
-/**
- * Collapse a TanStack query into the branch the slot should render.
- *
- * `isPending`, NOT `isLoading` — `aura-display.ts` documents the trap and this is the same one:
- * in TanStack v5 `isLoading` is `isPending && isFetching`, so a query held by `enabled: !!userId`
- * while the session hydrates reports `isLoading: false, isError: false, data: undefined` and falls
- * straight through every branch. `isPending` covers in-flight AND idle, which is #100's "the query
- * can be idle, not just pending" edge. The `data == null` guard behind it is belt-and-braces and
- * keeps the return type honest for the caller's non-null access.
- *
- * `isError` wins over cached data, deliberately. The query client persists to AsyncStorage with a
- * 24h `gcTime` and Aura decays, so a stale week presented as this week is the false-confidence
- * problem `aura-display.ts` refused for the score. Note `MomentiCard.tsx:41-44` decides the
- * OPPOSITE for the deck, and states the dividing line: a stale Aura number is a claim about a
- * person's worth, a stale proposal costs one wasted tap. This is the first kind.
- */
-export function weekSlotState(query: {
-  isPending: boolean;
-  isError: boolean;
-  data: WeekRecap | undefined;
-}): WeekSlotState {
-  if (query.isError) return 'error';
-  if (query.isPending || query.data == null) return 'pending';
-  return weekRecapIsEmpty(query.data) ? 'empty' : 'data';
 }

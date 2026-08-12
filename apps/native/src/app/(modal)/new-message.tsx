@@ -89,6 +89,7 @@ export default function NewMessageScreen() {
               status: connectionsQuery.status,
               fetchStatus: connectionsQuery.fetchStatus,
               isEmpty: connections.length === 0,
+              staleWins: true,
             })}
             locale={locale}
             errorLabel={t('connection.list.error', locale)}

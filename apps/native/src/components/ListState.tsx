@@ -9,7 +9,11 @@ import { EmptyState } from '@/components/EmptyState';
 import type { ListState as State } from '@/lib/list-state';
 
 type Props = {
-  /** From `listState({ status, fetchStatus, isEmpty })` — never hand-assembled. */
+  /**
+   * From `listState({ status, fetchStatus, isEmpty })`. A screen that already branched on
+   * `query.isError` upstream may pass `'error'` directly — it has made the same decision, it
+   * just made it earlier.
+   */
   state: State;
   locale: Locale;
   /** What failed, in this screen's own words: «Non siamo riusciti a caricare i messaggi.» */
@@ -55,6 +59,23 @@ const DEFAULT_PADDING = 'px-8 pt-24';
  * `idle` and `ready` render nothing. `idle` is the disabled query — a screen waiting on a
  * hydrating session says nothing rather than asserting emptiness — and `ready` means the
  * caller is drawing its rows.
+ *
+ * ── WHICH SURFACES BELONG HERE ────────────────────────────────────────────────────────────
+ *
+ * Absence sorts into two treatments, and this component is only the first:
+ *
+ * - **Named** (this component) — absence is a claim about the person, so say which absence it
+ *   is and offer a way out. A false «you have nothing» is the harm #111 exists for. Every
+ *   list, every detail screen, anything reporting the member's own Aura.
+ * - **Collapse** — absence asserts nothing, so the slot vanishes and the destination screen
+ *   owns the copy and the retry. That treatment is a bare `return null` at the caller, not a
+ *   prop here, because what has to disappear is the whole section — its eyebrow and its link
+ *   included — and a child cannot unmount its parent. `FavorNudgeCard.tsx:19-30`,
+ *   `MomentiCard.tsx:20-27` and `TodaySection.tsx` are the three, and each carries the
+ *   reasoning in its own docblock.
+ *
+ * Named is the default: reach for collapse only when a member losing the block entirely costs
+ * them nothing, and say so in the caller's docblock.
  */
 export function ListState({
   state,

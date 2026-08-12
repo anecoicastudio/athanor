@@ -636,7 +636,6 @@
   "event.rsvp.calendarToast": "Added to your calendar ✦",
   "event.rsvp.error": "We couldn't save that. Try again.",
   "home.today.title": "Today",
-  "home.today.empty": "Nothing scheduled. Explore Athanor Live.",
   "home.today.seeLive": "Athanor Live ›",
   "common.retry": "Try again",
   "common.allow": "Allow",

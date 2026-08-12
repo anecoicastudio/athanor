@@ -150,6 +150,7 @@ export default function NotificationsScreen() {
               status: query.status,
               fetchStatus: query.fetchStatus,
               isEmpty: sections.length === 0,
+              staleWins: true,
             })}
             locale={locale}
             errorLabel={t('notif.error', locale)}

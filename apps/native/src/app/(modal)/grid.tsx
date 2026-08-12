@@ -50,6 +50,7 @@ export default function GridScreen() {
     status: momentsQuery.status,
     fetchStatus: momentsQuery.fetchStatus,
     isEmpty: empty,
+    staleWins: true,
   });
 
   const [index, setIndex] = useState<number | null>(null);

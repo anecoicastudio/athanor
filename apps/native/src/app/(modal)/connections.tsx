@@ -125,6 +125,7 @@ export default function ConnectionsScreen() {
                 status: requestsQuery.status,
                 fetchStatus: requestsQuery.fetchStatus,
                 isEmpty: requests.length === 0,
+                staleWins: true,
               })}
               locale={locale}
               errorLabel={t('connection.inbox.error', locale)}
@@ -175,6 +176,7 @@ export default function ConnectionsScreen() {
                   status: connectionsQuery.status,
                   fetchStatus: connectionsQuery.fetchStatus,
                   isEmpty: connections.length === 0,
+                  staleWins: true,
                 })}
                 locale={locale}
                 errorLabel={t('connection.list.error', locale)}
