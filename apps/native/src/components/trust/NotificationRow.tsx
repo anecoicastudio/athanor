@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from '@/tw';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t } from '@athanor/i18n';
 import type { Locale, Notification } from '@athanor/schemas';
 import { timeAgo } from '@/lib/time';
 import { NOTIF_VISUAL, NOTIF_LEAD } from './notifTypes';
@@ -25,14 +25,11 @@ export default function NotificationRow({
 }) {
   const v = NOTIF_VISUAL[item.type];
   const unread = item.read_at == null;
-  const lead = t(NOTIF_LEAD[item.type] as MessageKey, locale);
+  const lead = t(NOTIF_LEAD[item.type], locale);
   // Template tail: interpolate `{name}`, `{count}`, `{title}`, `{amount}` etc. from params.
-  // params values are `unknown`; cast to Record<string,string|number> for t().
-  const tail = t(
-    item.template_key as MessageKey,
-    locale,
-    item.params as Record<string, string | number>,
-  );
+  // template_key is schema-validated (unknown keys degrade to notif.tpl.generic — #113), so
+  // no cast; params values are `unknown`, cast to Record<string,string|number> for t().
+  const tail = t(item.template_key, locale, item.params as Record<string, string | number>);
 
   return (
     <Pressable

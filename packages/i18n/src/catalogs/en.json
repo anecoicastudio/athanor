@@ -829,6 +829,7 @@
   "notif.tpl.projectResponse": "{name} responded to your search «{title}».",
   "notif.tpl.connection": "{name} wants to connect with you.",
   "notif.tpl.connectionAccepted": "{name} accepted your request ✦",
+  "notif.tpl.generic": "There's something new for you.",
   "aura.title": "Your Aura",
   "aura.tagline": "It can't be bought, inflated, or faked.",
   "aura.unit": "AURA",

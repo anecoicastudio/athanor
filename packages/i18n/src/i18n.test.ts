@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { NOTIFICATION_TEMPLATE_KEYS } from '@athanor/schemas';
 import en from './catalogs/en.json';
 import it from './catalogs/it.json';
 import { t, tagLabel, type MessageKey } from './t';
@@ -46,6 +47,42 @@ describe('t', () => {
     const name = /\{(\w+)\}/.exec(it[key!])![1]!;
     // vars provided but without the matching name — placeholder survives verbatim
     expect(t(key!, 'it', { unrelated: 1 })).toContain(`{${name}}`);
+  });
+
+  // #113: callers cast server-supplied strings into MessageKey (notifications.template_key),
+  // so a key outside the catalog is reachable at runtime and must degrade, never throw.
+  test('missing key returns the key itself instead of throwing', () => {
+    const missing = 'nope.absent' as MessageKey;
+    expect(t(missing, 'it')).toBe('nope.absent');
+    expect(t(missing, 'en')).toBe('nope.absent');
+  });
+
+  test('missing key with vars does not throw on interpolation', () => {
+    const missing = 'nope.absent' as MessageKey;
+    expect(t(missing, 'it', { name: 'X7' })).toBe('nope.absent');
+  });
+
+  test('missing key warns outside production', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      t('nope.absent' as MessageKey, 'it');
+      expect(warn).toHaveBeenCalledWith('[i18n] missing key "nope.absent" (it)');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('notification template contract', () => {
+  // Compile-time half: every key the schema admits is a real catalog key — a template added
+  // to NOTIFICATION_TEMPLATE_KEYS without catalog copy fails typecheck here.
+  const templateKeys: readonly MessageKey[] = NOTIFICATION_TEMPLATE_KEYS;
+
+  test('every schema template key has copy in both catalogs', () => {
+    for (const key of templateKeys) {
+      expect(it[key], `it.${key}`).toBeTypeOf('string');
+      expect(en[key], `en.${key}`).toBeTypeOf('string');
+    }
   });
 });
 
