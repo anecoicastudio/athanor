@@ -22,9 +22,17 @@ type Props = {
   onRetry: () => void;
   /** Replaces the default spinner — a shimmer, a ghost card, or `null` for a silent load. */
   loading?: ReactNode;
-  /** The caller's own positioning. Defaults to the shape ~10 of these screens already use. */
+  /**
+   * REPLACES the default padding, never appends to it. Two Tailwind paddings on one element
+   * resolve by stylesheet source order rather than by string order, so `cn('pt-24', 'pt-20')`
+   * silently keeps whichever the sheet declares last. Structural classes (`items-center`,
+   * the error arm's `gap-4`) are always applied and are not overridable.
+   */
   className?: string;
 };
+
+/** What the ~10 screens migrating onto this already spell by hand. */
+const DEFAULT_PADDING = 'px-8 pt-24';
 
 /**
  * The states a list-backed surface can be in, in one place (issue #111).
@@ -60,11 +68,13 @@ export function ListState({
 }: Props) {
   if (state === 'idle' || state === 'ready') return null;
 
+  const padding = className ?? DEFAULT_PADDING;
+
   if (state === 'loading') {
     return loading !== undefined ? (
       <>{loading}</>
     ) : (
-      <View className={cn('items-center pt-24', className)}>
+      <View className={cn('items-center', padding)}>
         <ActivityIndicator color={semantic.faint} />
       </View>
     );
@@ -72,7 +82,7 @@ export function ListState({
 
   if (state === 'error') {
     return (
-      <View className={cn('items-center gap-4 px-8 pt-24', className)}>
+      <View className={cn('items-center gap-4', padding)}>
         <EmptyState>{errorLabel}</EmptyState>
         <Button label={t('common.retry', locale)} variant="ghost" onPress={onRetry} />
       </View>
@@ -80,7 +90,7 @@ export function ListState({
   }
 
   return (
-    <View className={cn('items-center px-8 pt-24', className)}>
+    <View className={cn('items-center', padding)}>
       {emptyLabel != null ? <EmptyState>{emptyLabel}</EmptyState> : null}
       {emptyBody != null ? (
         <Text className="mt-1 text-center text-[13px] text-faint">{emptyBody}</Text>
