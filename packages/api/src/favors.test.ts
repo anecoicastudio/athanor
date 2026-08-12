@@ -19,6 +19,8 @@ const need = (n: number) => ({
   need_created_at: `2026-01-0${n}T00:00:00Z`,
   target_id: TARGET,
   target_handle: 'luce',
+  target_display_name: 'Luce Chiara',
+  target_avatar_path: 'l/l.jpg',
 });
 
 describe('favorKeys', () => {

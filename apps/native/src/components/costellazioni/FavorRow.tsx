@@ -1,3 +1,4 @@
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { FavorNeed, Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -22,9 +23,16 @@ export function FavorRow({
 }) {
   return (
     <View className="flex-row items-center gap-3 rounded-card bg-surface-muted px-4 py-3">
-      <Avatar handle={need.target_handle} size={40} />
+      <Avatar
+        handle={need.target_handle}
+        displayName={need.target_display_name}
+        avatarPath={need.target_avatar_path}
+        size={40}
+      />
       <View className="flex-1 gap-0.5">
-        <Text className="text-[14px] text-foreground">{need.target_handle ?? '—'}</Text>
+        <Text className="text-[14px] text-foreground">
+          {memberLabel(need.target_display_name, need.target_handle) ?? '—'}
+        </Text>
         <Text className="text-[13px] text-faint" numberOfLines={2}>
           {need.need}
         </Text>

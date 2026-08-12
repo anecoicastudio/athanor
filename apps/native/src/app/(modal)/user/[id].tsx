@@ -335,6 +335,8 @@ export default function PersonDetailScreen() {
           locale={locale}
           hero={{
             handle: person.handle ?? '',
+            displayName: person.display_name,
+            avatarPath: person.avatar_path,
             bio: person.bio ?? null,
             auraScore: aura?.score ?? null,
             locale,

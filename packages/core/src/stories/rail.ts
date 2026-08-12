@@ -9,7 +9,13 @@
  * relationship, a one-element array when it infers to-many, and null when the join found
  * nothing. All three reach the client, so all three are part of the contract.
  */
-export type StoryRailProfile = { handle: string | null } | { handle: string | null }[] | null;
+export type StoryRailEmbeddedProfile = {
+  handle: string | null;
+  display_name: string | null;
+  avatar_path: string | null;
+};
+
+export type StoryRailProfile = StoryRailEmbeddedProfile | StoryRailEmbeddedProfile[] | null;
 
 /** One fetched story_segments row, narrowed to the columns the rail derives from. */
 export type StoryRailRow = {
@@ -19,7 +25,14 @@ export type StoryRailRow = {
 };
 
 /** One rail entry: a person with ≥1 unexpired segment, plus their most recent activity time. */
-export type StoryRailPerson = { author_id: string; handle: string | null; latest_at: string };
+export type StoryRailPerson = {
+  author_id: string;
+  handle: string | null;
+  /** Optional name and avatar key (#76) — null for a member who set neither, which is a first-class state. */
+  display_name: string | null;
+  avatar_path: string | null;
+  latest_at: string;
+};
 
 /**
  * Collapse a newest-first window of segments into at most `limit` PEOPLE: first row per
@@ -41,6 +54,8 @@ export function buildStoryRail(rows: readonly StoryRailRow[], limit: number): St
     rail.push({
       author_id: row.author_id,
       handle: embedded?.handle ?? null,
+      display_name: embedded?.display_name ?? null,
+      avatar_path: embedded?.avatar_path ?? null,
       latest_at: row.created_at,
     });
     if (rail.length >= limit) break;

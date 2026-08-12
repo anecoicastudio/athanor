@@ -6,6 +6,8 @@ const card = (id: string, handle: string): MomentoDeckCard => ({
   id,
   candidateId: `${id}-candidate`,
   handle,
+  displayName: null,
+  avatarPath: null,
   reasons: ['Stesso sogno'],
   dreamText: 'Aprire uno studio di ceramica',
   status: 'pending',

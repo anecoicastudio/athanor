@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { memberLabel } from '@athanor/core';
 import { Pressable, Text } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { useProfile } from '@/hooks/use-profile';
@@ -12,6 +13,7 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
   const router = useRouter();
   const { data: profile } = useProfile(authorId);
   const handle = profile?.handle ?? null;
+  const label = memberLabel(profile?.display_name, handle);
   const avatarSize = size === 'sm' ? 28 : 36;
   const nameClass = size === 'sm' ? 'text-[13px]' : 'text-[14px]';
   return (
@@ -19,10 +21,13 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
       className="flex-row items-center gap-3"
       onPress={() => router.push(`/(modal)/user/${authorId}`)}
     >
-      <Avatar handle={handle} size={avatarSize} />
-      <Text className={`${nameClass} font-semibold text-foreground`}>
-        {handle ? `@${handle}` : '·'}
-      </Text>
+      <Avatar
+        handle={handle}
+        displayName={profile?.display_name ?? null}
+        avatarPath={profile?.avatar_path ?? null}
+        size={avatarSize}
+      />
+      <Text className={`${nameClass} font-semibold text-foreground`}>{label ?? '·'}</Text>
     </Pressable>
   );
 }

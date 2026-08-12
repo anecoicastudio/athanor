@@ -113,6 +113,8 @@ export function ProfileView({
         locale={locale}
         hero={{
           handle: profile.handle ?? '',
+          displayName: profile.display_name,
+          avatarPath: profile.avatar_path,
           bio: profile.bio || null,
           auraScore: aura?.score ?? null,
           locale,

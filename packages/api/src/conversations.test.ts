@@ -26,8 +26,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   participant_b: PEER,
   last_message_at: '2026-01-02T10:00:00.000Z',
   last_message_preview: 'ci vediamo',
-  a: { handle: 'me' },
-  b: { handle: 'peer' },
+  a: { handle: 'me', display_name: 'Io Stessa', avatar_path: 'me/me.jpg' },
+  b: { handle: 'peer', display_name: 'Peer Uno', avatar_path: 'p/p.jpg' },
   ...over,
 });
 

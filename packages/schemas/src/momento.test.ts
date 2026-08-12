@@ -7,6 +7,8 @@ describe('momento schemas', () => {
       id: '11111111-1111-1111-1111-111111111111',
       candidateId: '33333333-3333-3333-3333-333333333333',
       handle: 'maria',
+      displayName: 'Maria Neri',
+      avatarPath: 'ma/ma.jpg',
       reasons: ['Condividete: design', 'Cerchi: musica'],
       dreamText: 'Aprire uno studio',
       status: 'pending',

@@ -10,7 +10,9 @@ import { devWarn } from '@/lib/log';
  * the OTP round-trip + app backgrounding because AsyncStorage is on disk.
  */
 const KEY = 'athanor.onboarding.draft';
-const VERSION = 1 as const;
+// v2 adds `avatar_uri` (#76). Bumping invalidates any v1 draft in flight rather than migrating
+// it — a draft lives minutes, and `loadDraft` already treats an unknown version as no draft.
+const VERSION = 2 as const;
 
 export type OnboardingDraft = {
   v: typeof VERSION;
@@ -18,6 +20,14 @@ export type OnboardingDraft = {
   identity_tags: string[];
   seeking: string[];
   dream: string;
+  /**
+   * LOCAL file:// uri of the photo picked during onboarding (#76), not a storage key.
+   *
+   * The funnel runs before the account exists, and every `avatars` storage policy keys on
+   * auth.uid() — so there is nobody to upload as yet. The flush uploads it once the session
+   * lands. It is a cache path, so it can be gone by then; the flush treats that as no photo.
+   */
+  avatar_uri: string | null;
 };
 
 export async function saveDraft(draft: Omit<OnboardingDraft, 'v'>): Promise<void> {
@@ -42,6 +52,7 @@ export async function loadDraft(): Promise<OnboardingDraft | null> {
       identity_tags: Array.isArray(parsed.identity_tags) ? parsed.identity_tags : [],
       seeking: Array.isArray(parsed.seeking) ? parsed.seeking : [],
       dream: typeof parsed.dream === 'string' ? parsed.dream : '',
+      avatar_uri: typeof parsed.avatar_uri === 'string' ? parsed.avatar_uri : null,
     };
   } catch (e) {
     devWarn('[onboarding-draft] loadDraft', e);

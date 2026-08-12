@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale, MomentoSuggestion } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -43,12 +44,17 @@ export function SuggestionRow({
       onPress={() => router.push(`/(modal)/user/${suggestion.candidateId}`)}
       className="min-h-[56px] flex-row items-center gap-3 rounded-card border border-hair bg-raise px-4 py-3"
     >
-      <Avatar handle={suggestion.handle} size={48} />
+      <Avatar
+        handle={suggestion.handle}
+        displayName={suggestion.displayName}
+        avatarPath={suggestion.avatarPath}
+        size={48}
+      />
       <View className="flex-1">
         {/* numberOfLines: Tag is wider than the pill it replaced, and handles run to 30 chars
             (handleSchema) — without this a long one wraps and breaks the min-h-[56px] rhythm. */}
         <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">
-          {suggestion.handle ?? '—'}
+          {memberLabel(suggestion.displayName, suggestion.handle) ?? '—'}
         </Text>
         {suggestion.dreamText ? (
           <DreamQuote compact numberOfLines={1} text={suggestion.dreamText} />

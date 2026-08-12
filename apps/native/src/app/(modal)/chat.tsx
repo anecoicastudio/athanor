@@ -15,7 +15,7 @@ import {
   sendMessage,
   subscribeMessages,
 } from '@athanor/api';
-import { dayBucket } from '@athanor/core';
+import { dayBucket, memberLabel } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
@@ -24,6 +24,7 @@ import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
 import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
+import { isRunEnd } from '@/lib/chat-runs';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -108,6 +109,20 @@ export default function ChatScreen() {
     return out;
   }, [chrono, locale]);
 
+  // One object rather than three props threaded through every bubble; memoised so a re-render
+  // of the thread does not hand `<Bubble>` a new identity object on every keystroke.
+  const peerIdentity = useMemo(
+    () =>
+      peer
+        ? {
+            handle: peer.peerHandle,
+            displayName: peer.peerDisplayName,
+            avatarPath: peer.peerAvatarPath,
+          }
+        : null,
+    [peer],
+  );
+
   const send = useMutation({
     mutationFn: (body: string) =>
       sendMessage(supabase, { conversationId, senderId: myId as string, body }),
@@ -175,10 +190,15 @@ export default function ChatScreen() {
         >
           <Text className="text-2xl text-foreground">‹</Text>
         </Pressable>
-        <Avatar handle={peer?.peerHandle ?? null} size={36} />
+        <Avatar
+          handle={peer?.peerHandle ?? null}
+          displayName={peer?.peerDisplayName ?? null}
+          avatarPath={peer?.peerAvatarPath ?? null}
+          size={36}
+        />
         <View className="flex-1">
           <Text className="text-[15px] font-semibold text-foreground">
-            {peer?.peerHandle ? `@${peer.peerHandle}` : '—'}
+            {memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—'}
           </Text>
           <Text
             className="text-[11px] text-faint"
@@ -222,13 +242,22 @@ export default function ChatScreen() {
           // prepending older history (scroll-up pagination) must not bounce them down.
           if (atBottomRef.current) listRef.current?.scrollToEnd({ animated: false });
         }}
-        renderItem={({ item }) =>
+        renderItem={({ item, index }) =>
           item.type === 'marker' ? (
             <View className="my-3 items-center">
               <SectionLabel>{item.label}</SectionLabel>
             </View>
           ) : (
-            <Bubble message={item.message} myId={myId as string} locale={locale} />
+            <Bubble
+              message={item.message}
+              myId={myId as string}
+              locale={locale}
+              peer={peerIdentity}
+              // The face sits on the LAST bubble of a run, beside the row it is bottom-aligned
+              // to. A run ends when the next row is a day marker, the end of the thread, or a
+              // message from anyone else.
+              showPeerAvatar={isRunEnd(rows, index)}
+            />
           )
         }
         onScroll={(e) => {

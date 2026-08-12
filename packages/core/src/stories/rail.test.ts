@@ -12,17 +12,77 @@ const row = (author: string, at: string, profiles: StoryRailRow['profiles']): St
 });
 
 describe('buildStoryRail', () => {
+  it('carries the author name and avatar the ring renders (#76)', () => {
+    const rail = buildStoryRail(
+      [
+        row(AUTHOR, '2026-01-03T00:00:00Z', {
+          handle: 'sole',
+          display_name: 'Sole Mattina',
+          avatar_path: 'sole/sole.jpg',
+        }),
+      ],
+      50,
+    );
+    expect(rail[0]).toEqual({
+      author_id: AUTHOR,
+      handle: 'sole',
+      display_name: 'Sole Mattina',
+      avatar_path: 'sole/sole.jpg',
+      latest_at: '2026-01-03T00:00:00Z',
+    });
+  });
+
+  it('leaves both null for an author who set neither — the ring still renders an initial', () => {
+    const rail = buildStoryRail(
+      [
+        row(AUTHOR, '2026-01-03T00:00:00Z', {
+          handle: 'sole',
+          display_name: null,
+          avatar_path: null,
+        }),
+      ],
+      50,
+    );
+    expect(rail[0]?.display_name).toBeNull();
+    expect(rail[0]?.avatar_path).toBeNull();
+  });
+
+  it('leaves both null when the embed itself is RLS-nulled, rather than throwing', () => {
+    const rail = buildStoryRail([row(AUTHOR, '2026-01-03T00:00:00Z', null)], 50);
+    expect(rail[0]).toEqual({
+      author_id: AUTHOR,
+      handle: null,
+      display_name: null,
+      avatar_path: null,
+      latest_at: '2026-01-03T00:00:00Z',
+    });
+  });
+
   it('gives one entry per author, keeping their most recent activity time', () => {
     const rail = buildStoryRail(
       [
-        row(AUTHOR, '2026-01-03T00:00:00Z', { handle: 'sole' }),
-        row(AUTHOR, '2026-01-02T00:00:00Z', { handle: 'sole' }),
-        row(OTHER, '2026-01-01T00:00:00Z', { handle: 'luna' }),
+        row(AUTHOR, '2026-01-03T00:00:00Z', {
+          handle: 'sole',
+          display_name: null,
+          avatar_path: null,
+        }),
+        row(AUTHOR, '2026-01-02T00:00:00Z', {
+          handle: 'sole',
+          display_name: null,
+          avatar_path: null,
+        }),
+        row(OTHER, '2026-01-01T00:00:00Z', {
+          handle: 'luna',
+          display_name: null,
+          avatar_path: null,
+        }),
       ],
       50,
     );
 
-    expect(rail).toEqual([
+    expect(
+      rail.map((p) => ({ author_id: p.author_id, handle: p.handle, latest_at: p.latest_at })),
+    ).toEqual([
       { author_id: AUTHOR, handle: 'sole', latest_at: '2026-01-03T00:00:00Z' },
       { author_id: OTHER, handle: 'luna', latest_at: '2026-01-01T00:00:00Z' },
     ]);
@@ -31,8 +91,16 @@ describe('buildStoryRail', () => {
   it('preserves the order the rows arrive in — the query, not this function, sorts', () => {
     const rail = buildStoryRail(
       [
-        row(OTHER, '2026-01-01T00:00:00Z', { handle: 'luna' }),
-        row(AUTHOR, '2026-01-09T00:00:00Z', { handle: 'sole' }),
+        row(OTHER, '2026-01-01T00:00:00Z', {
+          handle: 'luna',
+          display_name: null,
+          avatar_path: null,
+        }),
+        row(AUTHOR, '2026-01-09T00:00:00Z', {
+          handle: 'sole',
+          display_name: null,
+          avatar_path: null,
+        }),
       ],
       50,
     );
@@ -43,8 +111,14 @@ describe('buildStoryRail', () => {
     const rail = buildStoryRail(
       [
         row(AUTHOR, '2026-01-03T00:00:00Z', null),
-        row(OTHER, '2026-01-02T00:00:00Z', [{ handle: 'luna' }]),
-        row(THIRD, '2026-01-01T00:00:00Z', { handle: 'stella' }),
+        row(OTHER, '2026-01-02T00:00:00Z', [
+          { handle: 'luna', display_name: null, avatar_path: null },
+        ]),
+        row(THIRD, '2026-01-01T00:00:00Z', {
+          handle: 'stella',
+          display_name: null,
+          avatar_path: null,
+        }),
       ],
       50,
     );
@@ -55,7 +129,7 @@ describe('buildStoryRail', () => {
     const rail = buildStoryRail(
       [
         row(AUTHOR, '2026-01-03T00:00:00Z', []),
-        row(OTHER, '2026-01-02T00:00:00Z', { handle: null }),
+        row(OTHER, '2026-01-02T00:00:00Z', { handle: null, display_name: null, avatar_path: null }),
       ],
       50,
     );
@@ -65,10 +139,26 @@ describe('buildStoryRail', () => {
   it('caps the rail at the requested number of PEOPLE, not rows', () => {
     const rail = buildStoryRail(
       [
-        row(AUTHOR, '2026-01-05T00:00:00Z', { handle: 'sole' }),
-        row(AUTHOR, '2026-01-04T00:00:00Z', { handle: 'sole' }),
-        row(OTHER, '2026-01-03T00:00:00Z', { handle: 'luna' }),
-        row(THIRD, '2026-01-02T00:00:00Z', { handle: 'stella' }),
+        row(AUTHOR, '2026-01-05T00:00:00Z', {
+          handle: 'sole',
+          display_name: null,
+          avatar_path: null,
+        }),
+        row(AUTHOR, '2026-01-04T00:00:00Z', {
+          handle: 'sole',
+          display_name: null,
+          avatar_path: null,
+        }),
+        row(OTHER, '2026-01-03T00:00:00Z', {
+          handle: 'luna',
+          display_name: null,
+          avatar_path: null,
+        }),
+        row(THIRD, '2026-01-02T00:00:00Z', {
+          handle: 'stella',
+          display_name: null,
+          avatar_path: null,
+        }),
       ],
       2,
     );
@@ -76,7 +166,13 @@ describe('buildStoryRail', () => {
   });
 
   it('returns nothing for a non-positive cap rather than the whole window', () => {
-    const rows = [row(AUTHOR, '2026-01-03T00:00:00Z', { handle: 'sole' })];
+    const rows = [
+      row(AUTHOR, '2026-01-03T00:00:00Z', {
+        handle: 'sole',
+        display_name: null,
+        avatar_path: null,
+      }),
+    ];
     expect(buildStoryRail(rows, 0)).toEqual([]);
     expect(buildStoryRail(rows, -1)).toEqual([]);
   });
@@ -86,7 +182,13 @@ describe('buildStoryRail', () => {
   });
 
   it('does not mutate the rows it is given', () => {
-    const rows = [row(AUTHOR, '2026-01-03T00:00:00Z', { handle: 'sole' })];
+    const rows = [
+      row(AUTHOR, '2026-01-03T00:00:00Z', {
+        handle: 'sole',
+        display_name: null,
+        avatar_path: null,
+      }),
+    ];
     const snapshot = JSON.stringify(rows);
     buildStoryRail(rows, 1);
     expect(JSON.stringify(rows)).toBe(snapshot);

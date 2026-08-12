@@ -7,7 +7,12 @@ function AttendeeAvatar({ userId }: { userId: string }) {
   const { data } = useProfile(userId);
   return (
     <View className="rounded-full border border-background">
-      <Avatar handle={data?.handle ?? null} size={28} />
+      <Avatar
+        handle={data?.handle ?? null}
+        displayName={data?.display_name ?? null}
+        avatarPath={data?.avatar_path ?? null}
+        size={28}
+      />
     </View>
   );
 }

@@ -145,7 +145,12 @@ export default function CommunityScreen() {
             </Pressable>
             {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
               <StoryRail
-                you={{ handle: profile?.handle ?? null, hasStory: false }}
+                you={{
+                  handle: profile?.handle ?? null,
+                  displayName: profile?.display_name ?? null,
+                  avatarPath: profile?.avatar_path ?? null,
+                  hasStory: false,
+                }}
                 people={railQuery.data ?? []}
                 seenIds={seenIds}
                 locale={locale}

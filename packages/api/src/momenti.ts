@@ -23,6 +23,8 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
     id: row.id,
     candidateId: row.candidate_id,
     handle: row.candidate?.handle ?? null,
+    displayName: row.candidate?.display_name ?? null,
+    avatarPath: row.candidate?.avatar_path ?? null,
     reasons: row.reasons,
     dreamText: row.candidate?.dreams?.[0]?.text ?? null,
     status: row.status,
@@ -42,7 +44,8 @@ export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeck
   const { data, error } = await client
     .from('momento_proposals')
     .select(
-      'id, candidate_id, reasons, status, candidate:profiles!momento_proposals_candidate_id_fkey(handle, dreams(text))',
+      'id, candidate_id, reasons, status, ' +
+        'candidate:profiles!momento_proposals_candidate_id_fkey(handle, display_name, avatar_path, dreams(text))',
     )
     .eq('status', 'pending')
     .order('daily_rank', { ascending: true })
@@ -75,6 +78,8 @@ export async function getMomentiSuggestion(
   return momentoSuggestion.parse({
     candidateId: row.candidate_id,
     handle: row.handle,
+    displayName: row.display_name,
+    avatarPath: row.avatar_path,
     dreamText: row.dream_text,
   });
 }

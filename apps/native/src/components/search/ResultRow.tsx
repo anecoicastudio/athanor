@@ -50,12 +50,19 @@ function HighlightedText({
 function EntityIcon({
   entityType,
   title,
+  displayName,
+  avatarPath,
 }: {
   entityType: SearchResult['entity_type'];
   title: string;
+  /** Person arm only — NULL on a project or an event (#76). */
+  displayName: string | null;
+  avatarPath: string | null;
 }) {
   if (entityType === 'person') {
-    return <Avatar handle={title} size={40} />;
+    // `title` IS the handle on this arm — the search matched on it, and the result list keeps
+    // highlighting it, so the name enters through the avatar rather than replacing the label.
+    return <Avatar handle={title} displayName={displayName} avatarPath={avatarPath} size={40} />;
   }
 
   // project → ◈ (diamond with centre dot — closest esoteric-set approximation)
@@ -91,7 +98,12 @@ export function ResultRow({
       accessibilityLabel={`${result.title}, ${result.subtitle}`}
     >
       {/* Leading icon */}
-      <EntityIcon entityType={result.entity_type} title={result.title} />
+      <EntityIcon
+        entityType={result.entity_type}
+        title={result.title}
+        displayName={result.display_name}
+        avatarPath={result.avatar_path}
+      />
 
       {/* Title + subtitle with highlighted matches */}
       <View className="flex-1 gap-0.5">

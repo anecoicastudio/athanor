@@ -17,7 +17,12 @@ export function StoryRail({
   onAddYours,
 }: {
   /** The viewer's own handle (the leading ring). */
-  you: { handle: string | null; hasStory: boolean };
+  you: {
+    handle: string | null;
+    displayName: string | null;
+    avatarPath: string | null;
+    hasStory: boolean;
+  };
   people: StoryRailPerson[];
   seenIds: Set<string>;
   locale: Locale;
@@ -32,6 +37,8 @@ export function StoryRail({
     >
       <StoryRing
         handle={you.handle}
+        displayName={you.displayName}
+        avatarPath={you.avatarPath}
         isYou
         seen={!you.hasStory}
         locale={locale}
@@ -41,6 +48,8 @@ export function StoryRail({
         <StoryRing
           key={p.author_id}
           handle={p.handle}
+          displayName={p.display_name}
+          avatarPath={p.avatar_path}
           seen={seenIds.has(p.author_id)}
           locale={locale}
           onPress={() => onOpenPerson(p.author_id)}

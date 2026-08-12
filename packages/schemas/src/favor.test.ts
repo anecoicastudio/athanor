@@ -45,6 +45,8 @@ describe('favorNeedSchema', () => {
       need_created_at: '2026-06-15T00:00:00Z',
       target_id: '33333333-3333-3333-3333-333333333333',
       target_handle: null,
+      target_display_name: null,
+      target_avatar_path: null,
     };
     expect(favorNeedSchema.parse(row)).toMatchObject({ need: 'Un mentor', target_handle: null });
   });

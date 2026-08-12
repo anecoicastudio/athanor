@@ -1,3 +1,4 @@
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Avatar } from '@/components/Avatar';
@@ -10,6 +11,8 @@ import { HIT_SLOP } from '@/lib/a11y';
  */
 export function StoryRing({
   handle,
+  displayName = null,
+  avatarPath = null,
   label,
   seen = false,
   isYou = false,
@@ -17,7 +20,10 @@ export function StoryRing({
   onPress,
 }: {
   handle: string | null;
-  /** Name under the ring; defaults to the handle. */
+  /** Optional name and avatar key (#76). */
+  displayName?: string | null;
+  avatarPath?: string | null;
+  /** Name under the ring; defaults to the member's name, then the handle. */
   label?: string;
   seen?: boolean;
   isYou?: boolean;
@@ -25,7 +31,9 @@ export function StoryRing({
   onPress: () => void;
 }) {
   const ring = seen ? 'border-hair' : 'border-aura';
-  const name = isYou ? t('story.rail.you', locale) : (label ?? handle ?? '—');
+  const name = isYou
+    ? t('story.rail.you', locale)
+    : (label ?? memberLabel(displayName, handle) ?? '—');
   return (
     <Pressable
       accessibilityRole="button"
@@ -35,7 +43,7 @@ export function StoryRing({
       className="w-[76px] items-center gap-1.5"
     >
       <View className={`rounded-full border-2 p-0.5 ${ring}`}>
-        <Avatar handle={handle} size={60} />
+        <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={60} />
       </View>
       <Text numberOfLines={1} className={`text-[11px] ${seen ? 'text-faint' : 'text-foreground'}`}>
         {name}

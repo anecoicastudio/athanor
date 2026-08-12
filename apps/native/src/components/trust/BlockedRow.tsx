@@ -1,3 +1,4 @@
+import { memberLabel } from '@athanor/core';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
@@ -22,8 +23,15 @@ export function BlockedRow({
 }) {
   return (
     <View className="flex-row items-center gap-3 py-3" style={{ opacity: mutating ? 0.5 : 1 }}>
-      <Avatar handle={item.peerHandle} size={40} />
-      <Text className="flex-1 text-foreground">{item.peerHandle ?? '—'}</Text>
+      <Avatar
+        handle={item.peerHandle}
+        displayName={item.peerDisplayName}
+        avatarPath={item.peerAvatarPath}
+        size={40}
+      />
+      <Text className="flex-1 text-foreground">
+        {memberLabel(item.peerDisplayName, item.peerHandle) ?? '—'}
+      </Text>
       <Pressable
         onPress={onUnblock}
         disabled={mutating}

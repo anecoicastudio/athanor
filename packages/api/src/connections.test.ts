@@ -41,7 +41,7 @@ const REQ_ROW = {
   id: R1,
   requester_id: PEER,
   created_at: '2026-07-02T00:00:00Z',
-  requester: { handle: 'mara' },
+  requester: { handle: 'mara', display_name: 'Mara Verdi', avatar_path: 'm/m.jpg' },
 };
 
 describe('connectionKeys', () => {
@@ -78,6 +78,8 @@ describe('getIncomingRequestsPage', () => {
       id: R1,
       peerId: PEER,
       peerHandle: 'mara',
+      peerDisplayName: 'Mara Verdi',
+      peerAvatarPath: 'm/m.jpg',
       createdAt: '2026-07-02T00:00:00Z',
     });
     expect(page.items[1]!.peerHandle).toBeNull();
@@ -145,6 +147,8 @@ describe('getConnectionsPage', () => {
     connection_id: C1,
     peer_id: PEER,
     peer_handle: 'mara',
+    peer_display_name: 'Mara Verdi',
+    peer_avatar_path: 'm/m.jpg',
     created_at: '2026-07-01T00:00:00Z',
   };
 
@@ -158,6 +162,8 @@ describe('getConnectionsPage', () => {
       id: C1,
       peerId: PEER,
       peerHandle: 'mara',
+      peerDisplayName: 'Mara Verdi',
+      peerAvatarPath: 'm/m.jpg',
       createdAt: '2026-07-01T00:00:00Z',
     });
   });

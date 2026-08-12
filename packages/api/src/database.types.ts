@@ -2498,6 +2498,8 @@ export type Database = {
           need: string | null
           need_created_at: string | null
           need_milestone_id: string | null
+          target_avatar_path: string | null
+          target_display_name: string | null
           target_handle: string | null
           target_id: string | null
         }
@@ -2662,7 +2664,9 @@ export type Database = {
       get_momenti_suggestion: {
         Args: { p_exclude?: string[] }
         Returns: {
+          avatar_path: string
           candidate_id: string
+          display_name: string
           dream_text: string
           handle: string
         }[]
@@ -2697,7 +2701,9 @@ export type Database = {
       get_person_profile: {
         Args: { p_profile_id: string }
         Returns: {
+          avatar_path: string
           bio: string
+          display_name: string
           founding_member: boolean
           handle: string
           id: string
@@ -2763,6 +2769,8 @@ export type Database = {
           scope?: string
         }
         Returns: {
+          avatar_path: string
+          display_name: string
           entity_type: string
           id: string
           rank: number
@@ -2780,6 +2788,8 @@ export type Database = {
         Returns: {
           connection_id: string
           created_at: string
+          peer_avatar_path: string
+          peer_display_name: string
           peer_handle: string
           peer_id: string
         }[]

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarPathSchema, displayNameSchema } from './profile';
 
 export const searchScopeSchema = z.enum(['all', 'people', 'projects', 'events', 'marketplace']);
 export type SearchScope = z.infer<typeof searchScopeSchema>;
@@ -11,6 +12,9 @@ export const searchResultSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
   subtitle: z.string(),
+  /** Person arm only — a project and an event have no face (#76). */
+  display_name: displayNameSchema.nullable(),
+  avatar_path: avatarPathSchema.nullable(),
   rank: z.number(),
 });
 export type SearchResult = z.infer<typeof searchResultSchema>;

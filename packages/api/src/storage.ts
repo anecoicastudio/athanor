@@ -1,7 +1,12 @@
 import type { AthanorClient } from './client';
 
-/** The four private media buckets. */
-export type MediaBucketName = 'post-media' | 'moments' | 'story-segments' | 'candidacy-videos';
+/** The private media buckets. */
+export type MediaBucketName =
+  | 'post-media'
+  | 'moments'
+  | 'story-segments'
+  | 'candidacy-videos'
+  | 'avatars';
 
 /** Upload bytes to a private bucket at an exact key. `upsert` replaces on retry. */
 export async function uploadToBucket(
@@ -41,6 +46,10 @@ export const BUCKET_URL_TTL = {
   moments: 3600,
   'story-segments': 300,
   'candidacy-videos': 3600,
+  // An avatar is on screen in every list the member appears in, and its key is deterministic
+  // (`{uid}/{uid}.{ext}`), so one signed URL is reused across screens for the whole hour rather
+  // than re-minted per row. Nothing expires in this bucket, so the TTL bounds no deletion.
+  avatars: 3600,
 } as const satisfies Record<MediaBucketName, number>;
 
 /**

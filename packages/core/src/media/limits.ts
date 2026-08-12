@@ -21,6 +21,15 @@ export const MEDIA_LIMITS = {
    * a lens cap or an auto-exposure ramp lives, and a black poster is the bug this replaces.
    */
   VIDEO_POSTER_SECONDS: 0.5,
+  /**
+   * Long edge of a processed avatar (#76). The largest an avatar is ever drawn is the 104pt
+   * profile hero, so even a 3× screen asks for ~312px; 512 leaves headroom without paying for
+   * a camera original that every list row would then downscale on the fly. The bucket's own
+   * 5 MiB ceiling is the backstop, not the target.
+   */
+  AVATAR_MAX_EDGE: 512,
+  /** JPEG quality for the avatar encode (0–1). A face at 512px, not a photograph to zoom into. */
+  AVATAR_QUALITY: 0.8,
   /** Hard cap on a personal/post video length. */
   MAX_VIDEO_SECONDS: 60,
   /** Max media items attached to one post (multi-image). */
