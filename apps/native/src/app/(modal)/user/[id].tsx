@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -33,9 +33,9 @@ import { ProfileBody } from '@/components/profile/ProfileBody';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
+import { helpableMilestones, type HelpState } from '@/lib/help-picker';
+import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
-
-type HelpState = 'available' | 'offered' | 'accepted' | 'completed';
 
 /**
  * Person Detail — read-only third-person profile (M2, frontend `02` §3.5). Mirrors the own
@@ -98,8 +98,13 @@ export default function PersonDetailScreen() {
     },
   });
 
+  // Derived once: the `missing` branch renders the header too, so every consumer of the
+  // handle needs the same guard. Two copies of this expression drift the moment
+  // PersonProfile grows another sentinel alongside 'missing'.
+  const personHandle = person != null && person !== 'missing' ? person.handle : null;
+
   const openMenu = () => {
-    const handle = person != null && person !== 'missing' ? (person.handle ?? '') : '';
+    const handle = personHandle ?? '';
     Alert.alert(handle, undefined, [
       isBlocked
         ? { text: t('block.unblock', locale), onPress: () => unblockMutation.mutate() }
@@ -233,17 +238,33 @@ export default function PersonDetailScreen() {
     }, [isSelf, session, tappe]),
   );
 
+  // Native share sheet, via the one builder both profile surfaces use. Built at render so
+  // the control can be withheld when there is nothing to share — the `missing` branch
+  // renders headerRight too, and a button that silently no-ops is the defect #110 is about.
+  const shareMessage = profileShareMessage(personHandle, t('app.name', locale));
+
+  const shareProfile = async () => {
+    if (!shareMessage) return;
+    try {
+      await Share.share({ message: shareMessage });
+    } catch {
+      // user dismissed or share unavailable — no-op
+    }
+  };
+
   // Header right slot: share ✦ + kebab ⋯ overflow (shared by the missing + loaded branches).
   const headerRight = (
     <View className="flex-row items-center gap-4">
-      <Pressable
-        onPress={() => showToast(t('profile.share.toast', locale))}
-        accessibilityRole="button"
-        accessibilityLabel={t('profile.share.toast', locale)}
-        hitSlop={8}
-      >
-        <Text className="text-xl text-aura">✦</Text>
-      </Pressable>
+      {shareMessage != null && (
+        <Pressable
+          onPress={() => void shareProfile()}
+          accessibilityRole="button"
+          accessibilityLabel={t('profile.share.toast', locale)}
+          hitSlop={8}
+        >
+          <Text className="text-xl text-aura">✦</Text>
+        </Pressable>
+      )}
       <Pressable
         onPress={openMenu}
         accessibilityRole="button"
@@ -280,18 +301,21 @@ export default function PersonDetailScreen() {
     );
   }
 
-  // Map my prior offers onto each tappa (declined re-opens «Aiuta»).
+  // Map my prior offers onto each tappa. A declined offer stays declined: the
+  // (milestone_id, helper_id) unique index has no deleted_at partial, so re-offering is a
+  // 23505 the sheet can only report as «Hai già offerto aiuto» — «Aiuta» here would be a
+  // dead end, and would disagree with what the picker lists.
   const helpStateById = Object.fromEntries(
     tappe.map((m) => {
       const mine = myHelps.find((h) => h.milestone_id === m.id);
-      const state: HelpState = mine
-        ? mine.status === 'declined'
-          ? 'available'
-          : mine.status
-        : 'available';
+      const state: HelpState = mine ? mine.status : 'available';
       return [m.id, state];
     }),
   ) as Record<string, HelpState>;
+
+  // The rally CTA is withheld when there is nothing left to pick — the picker would open on
+  // its own empty state, and a button that leads nowhere is the defect #108 is about.
+  const hasHelpableTappa = helpableMilestones(tappe, myHelps).length > 0;
 
   return (
     <View className="flex-1 bg-background">
@@ -341,7 +365,11 @@ export default function PersonDetailScreen() {
             const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
             router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
           }}
-          onMakeHappen={() => showToast(t('dream.toast.saved', locale))}
+          onMakeHappen={
+            dreamText != null && hasHelpableTappa
+              ? () => router.push({ pathname: '/(modal)/help', params: { userId: id } })
+              : undefined
+          }
         />
 
         {/* Recensioni umane — Fase 3, no backend. Label only, no vanity count. */}

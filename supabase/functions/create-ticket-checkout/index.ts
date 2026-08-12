@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
       userClient: auth.userClient,
       createCheckoutSession: (params) => stripe.checkout.sessions.create(params),
       appBase: Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://',
+      now: () => new Date(),
     },
     { profileId: auth.user.id, eventId },
   );

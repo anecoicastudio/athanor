@@ -31,6 +31,13 @@ describe('helpSchema', () => {
     expect(() => helpSchema.parse({ ...validRow, link: 'ftp://x/http://y' })).toThrow();
     expect(() => helpSchema.parse({ ...validRow, link: ' https://example.com' })).toThrow();
   });
+  // Every other link in this file is https://, so the `s?` could be dropped unnoticed and
+  // plain http:// links — still the majority of the small web — would stop parsing.
+  it('accepts a plain http:// link, not only https://', () => {
+    expect(helpSchema.parse({ ...validRow, link: 'http://example.com/portfolio' }).link).toBe(
+      'http://example.com/portfolio',
+    );
+  });
   it('rejects a message over 500 chars', () => {
     expect(() => helpSchema.parse({ ...validRow, message: 'x'.repeat(501) })).toThrow();
   });

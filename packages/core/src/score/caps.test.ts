@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { applyCap } from './caps';
-import { pointsFor, type AwardContext } from './award';
-import type { ScoringType } from './weights';
+import { applyCap } from './caps.ts';
+import { pointsFor, type AwardContext } from './award.ts';
+import type { ScoringType } from './weights.ts';
 
 // Walk N qualifying events of one type, asking the cap whether the i-th is still inside
 // the allowance and summing what is awarded. Deliberately timestamp-free: the window

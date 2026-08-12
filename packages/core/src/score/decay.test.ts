@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { applyDecay } from './decay';
+import { applyDecay } from './decay.ts';
 
 test('no idle weeks → unchanged', () => {
   expect(applyDecay({ score: 800, peak: 900, idleWeeks: 0 })).toBe(800);

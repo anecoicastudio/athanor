@@ -2,6 +2,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Worker threads instead of forked processes (spawn dominated the run: ~64s
+    // cumulative "prepare" vs ~2s of tests), and no per-file isolation — these tests
+    // are pure functions of their inputs: no vi.mock, no globals, no shared state.
+    pool: 'threads',
+    isolate: false,
     coverage: {
       provider: 'v8',
       include: ['src/**'],

@@ -158,13 +158,32 @@ enabled = true
 # in emails.
 site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# Email auth is password-based (signInWithPassword / signUp) and needs no redirect.
-# These entries exist for browser OAuth (src/lib/oauth.ts): `athanor://auth-callback`
-# is the standalone build; the `exp://` form is Expo Go, and its host changes with
-# your LAN IP and Metro port — update it, or use a wildcard, when it moves.
-# The hosted project keeps its own copy of this list (Auth → URL Configuration);
-# this block only governs a local `supabase start` stack.
-additional_redirect_urls = ["athanor://auth-callback", "exp://127.0.0.1:8081/--/auth-callback"]
+# The app callback is NOT optional and NOT OAuth-only: signUp passes it as emailRedirectTo
+# (src/app/(auth)/welcome.tsx), so the confirmation mail deep-links back into the app instead
+# of falling back to site_url. Browser OAuth (src/lib/oauth.ts) sends the same URL.
+#
+# BOTH scheme forms are listed on purpose. What the app actually emits is the THREE-slash
+# `athanor:///auth-callback`: `createURL('/auth-callback')` builds `<scheme>://<host><path>`
+# with an empty standalone host, and expo-linking's `ensureLeadingSlash('', true)` returns
+# `/` — so the empty host contributes a third slash (expo-linking 8.0.12,
+# build/createURL.js:35-44 and the template at :111-113). The two-slash
+# `athanor://auth-callback` is kept because it is the form every doc and dashboard entry uses,
+# and GoTrue does no URL normalisation before matching — the two forms never reconcile, so
+# whichever one is missing is simply a miss. The `exp://` one is Expo Go, whose host changes
+# with your LAN IP and Metro port — update it when it moves.
+#
+# GoTrue does not error on a URL that is missing from this list; it silently substitutes
+# site_url, which is why a missing entry reads as "works in the browser, hangs on device".
+# The hosted projects keep their own copy of this list (Auth → URL Configuration), and both
+# carry both callback forms as of 2026-08-10. Nothing in this repo's workflow pushes this
+# block to them — but `supabase config push` would, and it would take `site_url` below with
+# it, so never run it while linked to production (the link is the global
+# supabase/.temp/linked-project.json).
+additional_redirect_urls = [
+  "athanor:///auth-callback",
+  "athanor://auth-callback",
+  "exp://127.0.0.1:8081/--/auth-callback",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -305,14 +324,21 @@ message_service_sid = ""
 auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
+# ⚠ Not true of TOTP: enrol+verify were accepted on the free plan on both hosted projects on
+# 2026-08-10 (see [auth.mfa.totp] below). The stock line is left standing for the phone and
+# WebAuthn factors below, which have not been tested on free.
 [auth.mfa]
 # Control how many MFA factors can be enrolled at once per user.
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
+# Enabled on both hosted projects on 2026-08-10 — TOTP enrol/verify is accepted on the free
+# plan (the Management API took it without complaint; it is leaked-password protection that
+# is Pro-only, and that request came back HTTP 402). Mirrored here so a local stack behaves
+# like hosted.
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]

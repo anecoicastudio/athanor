@@ -28,7 +28,10 @@ export async function getMyVote(
   return data ? candidacyVoteSchema.parse(data) : null;
 }
 
-/** Aura-weighted aggregate per candidacy (server fn — aggregates only, no voter_id). */
+/**
+ * Aggregate per candidacy (server fn — aggregates only, never a voter_id).
+ * `weighted_total` mirrors `vote_count` under equal vote: every weight is 1.000 (PRD §4.11).
+ */
 export async function getEditionTally(
   client: AthanorClient,
   editionId: string,

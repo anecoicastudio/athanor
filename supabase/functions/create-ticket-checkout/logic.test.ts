@@ -11,6 +11,8 @@ import { buildTicketSessionParams, createTicketCheckout, type TicketCheckoutCtx 
 const PROFILE = 'prof-1';
 const EVENT = 'evt-1';
 const APP = 'athanor://';
+/** Fixed clock — the past-event guard is time-dependent, so it is injected, never read. */
+const NOW = new Date('2026-08-11T12:00:00Z');
 
 const eventRow = (over: Record<string, unknown> = {}) => ({
   id: EVENT,
@@ -18,8 +20,16 @@ const eventRow = (over: Record<string, unknown> = {}) => ({
   price_cents: 1500,
   currency: 'eur',
   organizer_id: 'org-1',
+  starts_at: '2026-08-20T18:00:00Z', // future relative to NOW
+  ends_at: null,
   deleted_at: null,
   ...over,
+});
+
+/** Event loaded + organizer verified — the state the three added guards run in. */
+const sellable = (over: Record<string, unknown> = {}): Record<string, FakeResult[]> => ({
+  'events.select': [{ data: eventRow(over) }],
+  'rpc.is_identity_verified': [{ data: true }],
 });
 
 type Ctx = TicketCheckoutCtx & {
@@ -43,6 +53,7 @@ const ctx = (
       } as Stripe.Checkout.Session);
     },
     appBase: APP,
+    now: () => NOW,
     db,
     created,
   };
@@ -122,6 +133,85 @@ Deno.test('rpc is called with the event organizer uid, not the caller', async ()
   assert(rpc);
   assertEquals(rpc.columns, 'is_identity_verified');
   assertEquals(rpc.values, { uid: 'org-1' });
+});
+
+// ── self-purchase guard (#116) ───────────────────────────────────────────────
+
+Deno.test('organizer buying their own event → 403, Stripe never called', async () => {
+  const c = ctx(sellable({ organizer_id: PROFILE }));
+  const { res, body } = await run(c);
+  assertEquals(res.status, 403);
+  assertEquals(body, { error: 'organizer cannot buy' });
+  assertEquals(c.created.length, 0);
+  // Refused from the row already in hand — no ticket lookup spent on it.
+  assert(!c.db.calls.some((call) => call.table === 'event_tickets'));
+});
+
+// ── past-event guard (#116) ──────────────────────────────────────────────────
+
+Deno.test('event already ended → 410, Stripe never called', async () => {
+  const ended = [
+    { starts_at: '2026-08-01T18:00:00Z', ends_at: '2026-08-01T22:00:00Z' }, // ends_at is past
+    { starts_at: '2026-08-10T18:00:00Z', ends_at: null }, // no ends_at → starts_at decides
+  ];
+  for (const over of ended) {
+    const c = ctx(sellable(over));
+    const { res, body } = await run(c);
+    assertEquals(res.status, 410);
+    assertEquals(body, { error: 'event ended' });
+    assertEquals(c.created.length, 0);
+  }
+});
+
+Deno.test('an event under way (started, not ended) still sells', async () => {
+  const c = ctx(sellable({ starts_at: '2026-08-11T10:00:00Z', ends_at: '2026-08-11T23:00:00Z' }));
+  const { res } = await run(c);
+  assertEquals(res.status, 200);
+  assertEquals(c.created.length, 1);
+});
+
+// ── duplicate-purchase guard (#116) ──────────────────────────────────────────
+
+Deno.test(
+  'caller already holds a paid / checked_in ticket → 409, Stripe never called',
+  async () => {
+    for (const status of ['paid', 'checked_in']) {
+      const c = ctx({ ...sellable(), 'event_tickets.select': [{ data: { status } }] });
+      const { res, body } = await run(c);
+      assertEquals(res.status, 409);
+      assertEquals(body, { error: 'ticket already owned' });
+      assertEquals(c.created.length, 0);
+    }
+  },
+);
+
+Deno.test('a refunded or pending row is not a held ticket — checkout proceeds', async () => {
+  // refunded: the webhook's repair path (handlers.ts) re-issues on a NEW payment intent.
+  // pending: never paid, so nothing was owned.
+  for (const status of ['refunded', 'pending']) {
+    const c = ctx({ ...sellable(), 'event_tickets.select': [{ data: { status } }] });
+    const { res } = await run(c);
+    assertEquals(res.status, 200);
+    assertEquals(c.created.length, 1);
+  }
+});
+
+Deno.test('ticket lookup error → 500 fail-closed, Stripe never called', async () => {
+  const c = ctx({ ...sellable(), 'event_tickets.select': [{ error: { message: 'boom' } }] });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 500);
+  assertEquals(body, { error: 'ticket lookup failed' });
+  assertEquals(c.created.length, 0);
+});
+
+Deno.test('ticket lookup is scoped to the verified caller and this event', async () => {
+  const c = ctx(sellable());
+  await run(c);
+  const q = c.db.calls.find((call) => call.table === 'event_tickets');
+  assert(q);
+  // user_id is the verified profileId (getUser), never anything from the body.
+  assert(q.filters.some(([f, col, v]) => f === 'eq' && col === 'user_id' && v === PROFILE));
+  assert(q.filters.some(([f, col, v]) => f === 'eq' && col === 'event_id' && v === EVENT));
 });
 
 // ── session params + happy path ──────────────────────────────────────────────

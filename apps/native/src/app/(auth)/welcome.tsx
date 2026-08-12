@@ -7,7 +7,7 @@ import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { deviceLocale } from '@/lib/locale';
-import { signInWithProvider } from '@/lib/oauth';
+import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -23,9 +23,11 @@ const APPLE_ENABLED = false;
 // Same story for Google: the hosted project has only the Email provider enabled, so this
 // button could only ever reach «Quel modo di entrare non è ancora attivo». To flip it on,
 // configure the Google provider in Supabase → Auth → Providers AND add the redirect that
-// lib/oauth.ts builds — athanor://auth-callback, plus the exp://…/--/auth-callback form
-// for Expo Go — to Auth → URL Configuration → Redirect URLs. Missing that second step is
-// the classic "works in the browser, hangs on device".
+// lib/oauth.ts builds — `athanor:///auth-callback`, THREE slashes (see the note on
+// AUTH_REDIRECT_URL in lib/oauth.ts for why), plus the two-slash `athanor://auth-callback`
+// and the exp://…/--/auth-callback form for Expo Go — to Auth → URL Configuration →
+// Redirect URLs. Missing that second step is the classic "works in the browser, hangs on
+// device".
 const GOOGLE_ENABLED = false;
 
 const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
@@ -70,9 +72,10 @@ export default function WelcomeScreen() {
       void clearPendingReferral();
       return;
     }
-    // `display_name` lives in auth.users.user_metadata for now — `profiles` has no
-    // name column yet (deferred to M2's @handle page; add a column + flush then).
-    // It's retrievable via session.user.user_metadata.display_name in the meantime.
+    // `display_name` goes into auth.users.user_metadata, and handle_new_user copies it
+    // onto profiles.display_name from there (20260811072211) — normalised, so a long or
+    // blank value can never raise inside that trigger and abort the signup. Editing the
+    // name after signup needs the client surface in #76; this is the write path only.
     // Referral attribution is email-signup-only for now: OAuth signups don't carry
     // this metadata, so a code stashed ahead of a Google/Apple signup is silently lost.
     // The disabled button is a hint, not a guarantee: a password manager can fill
@@ -87,6 +90,14 @@ export default function WelcomeScreen() {
       email: email.trim(),
       password,
       options: {
+        // Without this the confirmation mail's link falls back to the project's
+        // Site URL — the marketing site — so someone confirming from their phone
+        // lands in a browser instead of back in the app. Shares the OAuth flow's
+        // allow-list entry rather than needing its own, but that entry must exist
+        // on the HOSTED project too (Auth → URL Configuration): GoTrue answers a
+        // missing one by silently substituting Site URL. Lands on
+        // src/app/auth-callback.tsx, which exchanges the PKCE code.
+        emailRedirectTo: AUTH_REDIRECT_URL,
         data: {
           display_name: name.trim(),
           ...(referral ? { referral_code: referral } : {}),

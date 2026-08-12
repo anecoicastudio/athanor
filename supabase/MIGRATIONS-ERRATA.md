@@ -16,6 +16,136 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260811091835_equal_vote_weight.sql`
+
+### L20-23 — "not a live bug … the Aura engine is dormant" was false when written
+
+The header argues the change is pre-emptive: _"Not a live bug — every weight is 0 today because the
+Aura engine is dormant, so the fallback yields the count share… The day the engine's Vault secrets
+are set, the displayed consensus would change meaning with no code change"_.
+
+The engine was **already live** when that was written. Production carries all 8 Vault secrets and 5
+cron jobs including `aura-nightly-decay`; staging had produced 3 `aura_events` and held 3
+`aura_scores` rows against 14 profiles. The premise came from an earlier survey that read the
+absence of rows on production as an unconfigured engine — production is empty because it was
+replayed from zero on 2026-08-10, not because nothing runs.
+
+What was actually true at that moment on staging: 7 votes, all at `0.000`, the active edition in the
+`community` phase, and **all 3 scored members yet to vote** (scores 50, 50, 50). Because
+`consensusPercent` switches to the weighted share as soon as `sumWeighted` is non-zero, the first of
+those three to vote would have taken **100%** of the displayed consensus while the other seven
+ballots read 0%. One vote away, not one deploy away — and the failure total rather than
+proportional.
+
+The migration's SQL is correct and unaffected; only its justification was wrong, and it understated
+the urgency rather than overstating it.
+
+That header also says nothing about existing rows, because it did not backfill —
+`20260811094524_equal_vote_backfill.sql` closes that.
+
+### L37-39 — "an enforced invariant" was, at the time, only true on a fresh database
+
+Both this file and `20260811094524:56-58` claim _"pgTAP 0044 asserts every stored weight is exactly
+1.000, which turns this from a convention into an enforced invariant."_ A passing test is not a
+constraint. Those two migrations guarded only the INSERT path (the BEFORE INSERT trigger); nothing
+guarded UPDATE, and `20260618131250:25` grants `all` — including UPDATE — on `candidacy_votes` to
+`service_role`. One stray non-`1.000` row was enough to flip `consensusPercent` back to the weighted
+share and zero every other ballot in the displayed consensus.
+
+`20260811100616_equal_vote_weight_constraint.sql` makes the claim true, adding
+`check (weight = 1.000)`. The claim should be read as accurate only from that migration onward.
+
+### L28 — the cited document no longer exists; read `docs/FUND-SPEC.md` instead
+
+L28 says _"See docs/FUND-SPEC-AUDIT.md R-C and FUND-13."_ **That file was deleted on 2026-08-11**
+(decision D54): it had been superseded as a specification and kept only for an evidence trail that
+`docs/FUND-DIVERGENCE.md` already carries with citations, and two documents disagreeing was the
+failure this fund documentation set exists to prevent.
+
+Nothing cited by L28 was lost. **FUND-nn numbers carry forward unchanged**, so `FUND-13` is live and
+reads the same, now in `docs/FUND-SPEC.md`. The `R-C` label was internal to the deleted audit and has
+no successor label; the question it tracked was resolved as decision **D32** in
+`docs/FUND-DECISIONS.md` — Aura gates _who may vote_, never how much a vote counts.
+
+The same stale citation appeared in this file's own `20260618131250` entry and was corrected there
+directly, that file being editable.
+
+Verified behaviour lives in `supabase/tests/0044_candidacy_votes_rls.test.sql`.
+
+---
+
+## `20260618131250_m7_voting.sql`
+
+### L1-2, L11, L15-16, L38-42, L127 — "Aura-weighted" is no longer how voting works
+
+The file describes the original design: _"M7 voting — Aura-weighted candidacy votes"_ (L1),
+_"weight = SERVER-written Aura snapshot (trigger)"_ (L2), the column comment _"Aura snapshot —
+SERVER-written (trigger), never client"_ (L11), the RLS rationale at L38-42 (_"the BEFORE-INSERT
+trigger overwrites it with the server Aura snapshot… e.g. 0.700… would reject every Aura-holding
+voter"_), and L127 (_"trigger snapshots Aura"_).
+
+Superseded on 2026-08-11: the vote is **equal**, weight is a constant `1.000`, and Aura gates
+_eligibility to vote_ rather than the weight of a ballot (PRD §4.11; `docs/FUND-SPEC.md` FUND-13).
+`20260811091835` changed the trigger; `20260811094524` backfilled existing rows and
+reverted the function to `security invoker`, since L50's stated rationale — _"DEFINER — reads
+aura_scores cross-RLS"_ — no longer applies to a body that reads nothing.
+
+The **table** comment set at L15-16 was live on staging and production and is corrected in DDL by
+`20260811094524` (`comment on` is idempotent). The file comments above cannot be, hence this entry.
+There is no `comment on column` for `weight` anywhere, so L11 left no catalog entry to fix — it is
+file prose only.
+
+**Signpost for anyone grepping `set_candidacy_vote_weight`:** it has four definitions across the
+tree. `20260618131250:51-76` (Aura snapshot, definer) → `20260701155919_m7_voting_weight_trigger_fix_backfill.sql:36-52`
+(re-installs the same Aura-snapshot body while fixing where the tamper guard lives) →
+`20260811091835:33` (constant `1.000`, still definer) → `20260811094524:47` (constant, **invoker**
+— the current one). `20260701155919`'s prose accurately describes its own SQL and so gets no entry
+of its own, but it is not the live body and should not be read as one.
+
+Verified behaviour: `supabase/tests/0044_candidacy_votes_rls.test.sql` — the equal-weight invariant,
+the `23514` on a service_role UPDATE off `1.000` (`20260811100616` added the CHECK), the trigger
+still being bound, and `prosecdef = false`.
+
+---
+
+## `20260617155346_aura_celebration_realtime.sql`
+
+### L7-8 — "idempotent, safe locally + hosted" is false on any project provisioned after ~2026-07
+
+The comment reads _"realtime.messages ships RLS-enabled on Supabase; assert it (idempotent, safe
+locally + hosted)"_ over `alter table realtime.messages enable row level security;`. On a current
+hosted project that statement does not no-op — it **aborts the whole migration**:
+
+```
+ERROR: must be owner of table messages (SQLSTATE 42501)
+```
+
+`realtime.messages` is owned by `supabase_realtime_admin`, and `postgres` is not a member of that
+role (`pg_has_role('postgres','supabase_realtime_admin','member')` → false). `ALTER TABLE` requires
+ownership, and Postgres checks ownership _before_ noticing the change is a no-op — so it fails even
+though `relrowsecurity` is already `true`, which is exactly what the statement wanted to assert.
+
+This only bites on a replay from zero. Projects that applied this migration when it was written
+carry the result; `supabase db reset --linked` on production hit it on 2026-08-10.
+
+**Workaround, as actually performed on production:** apply the file **minus line 8** — the rest of
+it succeeds, because `CREATE POLICY` on `realtime.messages` is permitted for `postgres` (only
+`ALTER TABLE` needs ownership) — then record it and continue:
+
+```bash
+supabase migration repair --status applied 20260617155346
+supabase db push
+```
+
+Afterwards confirm the two objects the file exists for: policy `rt_aura_owner_receive` on
+`realtime.messages`, and `public.broadcast_aura_celebration(uuid, text, text[])`. RLS on that table
+needs no action — the platform ships it enabled, which is the only reason dropping line 8 is safe.
+
+Verified behaviour lives in `supabase/tests/0039_aura_celebration_realtime.test.sql` (the policy and
+the emitter), not in the `alter table` this entry supersedes.
+
+---
+
 ## `20260808075738_fund_contribution_failed_status.sql`
 
 ### L3-7 + L20-23 — SEPA never stayed live, and PayPal was never a delayed method
@@ -190,3 +320,42 @@ migration.
 Asserted by: `apps/web/app/api/waitlist/client-ip.test.ts` ("prefers cf-connecting-ip over a forged
 x-forwarded-for"), and the first-entry-is-the-client behaviour by
 `supabase/tests/0083_waitlist_rate_limit.test.sql`.
+
+---
+
+## `20260811072211_profile_display_name_avatar.sql` — §1 describes a CHECK that no longer exists, and a bound that was never enforced
+
+Two corrections to the prose at L15-24, both closed by
+`20260811080937_profile_identity_column_constraints.sql`.
+
+**The constraint named there is gone.** §1 shipped
+`check (display_name is null or char_length(btrim(display_name)) between 1 and 60)` as
+`profiles_display_name_check`. That constraint was dropped and replaced by
+`profiles_display_name_shape`, which adds a bound on the **raw** string and trims the whole
+whitespace class rather than spaces alone.
+
+**The stated rationale was only ever half true.** The comment says the cap exists «so a
+pathological metadata value cannot push an unbounded string into every feed row». That holds for
+the signup trigger, whose input is normalised — but the same migration granted
+`update (display_name, avatar_path)` to `authenticated`, and `btrim()` with no second argument
+strips **spaces only**. So `repeat(' ', 5000) || 'x'` trimmed to one character, passed, and stored
+5001 — precisely the unbounded string the sentence claims to prevent. A name of tabs or newlines
+likewise did not trim to empty and stored non-null, rendering as a blank where a name should be.
+
+The avatar half of the same grant had a sharper hole, and §1 does not mention it at all: the
+bucket policies bind an object's folder to its uploader, but nothing bound the **column**, and
+`avatars_select_member` is members-wide. A member could set
+`avatar_path = '<other-uid>/<other-uid>.jpg'` and wear another member's face everywhere a profile
+is rendered — no upload, no policy violation, one UPDATE of a column they legitimately own.
+`profiles_avatar_path_owned` now requires the first path segment to equal the row's own `id`.
+
+§4 of that migration needs no correction: it claimed the avatars bucket gets the server-side
+EXIF/GPS strip, which was false when written — `supabase/functions/media-process` still allowed
+four buckets, so every avatar upload answered `bucket not allowed` — and is true now that the
+function's allowlist was extended and redeployed.
+
+Asserted by: `supabase/tests/0086_profile_display_name_avatar.test.sql` — the client-write path
+for both constraints (impersonation, a space-padded 5001-character name, a whitespace-only name),
+and that `handle_new_user` still cannot be made to raise 23514 by any provider value. The
+allowlist/trigger agreement is pinned by `supabase/functions/media-process/buckets.test.ts`, which
+parses the WHEN clause out of the migrations rather than trusting a comment.

@@ -74,6 +74,10 @@ describe('getOwnProfile (get_own_profile RPC)', () => {
     const own = {
       id: '00000000-0000-0000-0000-000000000002',
       handle: 'me_stessa',
+      // get_own_profile is `returns setof public.profiles`, so it carries every column —
+      // including the two #75 added. profileSchema requires both (nullable, not optional).
+      display_name: 'Me Stessa',
+      avatar_path: null,
       bio: 'segreto',
       locale: 'it',
       visibility: { bio: 'private' },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reportPenaltyPoints } from './weights';
+import { reportPenaltyPoints } from './weights.ts';
 
 describe('reportPenaltyPoints', () => {
   it('maps severities to REPORT_PENALTY', () => {

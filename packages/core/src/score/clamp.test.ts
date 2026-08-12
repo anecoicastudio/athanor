@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { clampScore, SCORE_MAX, SCORE_MIN } from './clamp';
+import { clampScore, SCORE_MAX, SCORE_MIN } from './clamp.ts';
 
 describe('clampScore', () => {
   test('returns value unchanged when within 0..1000', () => {

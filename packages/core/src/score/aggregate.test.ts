@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { aggregateScore, bucketOf, type LedgerLine } from './aggregate';
-import { BUCKET_ORDER, CREDITABLE_TYPES } from './weights';
+import { aggregateScore, bucketOf, type LedgerLine } from './aggregate.ts';
+import { BUCKET_ORDER, CREDITABLE_TYPES } from './weights.ts';
 
 test('type → bucket mapping', () => {
   expect(bucketOf('own_milestone')).toBe('contributi');

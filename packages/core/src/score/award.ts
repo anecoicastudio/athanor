@@ -1,11 +1,11 @@
-import { reciprocalFactor } from './dampen';
-import { reviewerWeight } from './weighting';
+import { reciprocalFactor } from './dampen.ts';
+import { reviewerWeight } from './weighting.ts';
 import {
   ENGINE_WEIGHTS,
   REACTION_AUTHOR_MIN_SCORE,
   REPORT_PENALTY,
   type ScoringType,
-} from './weights';
+} from './weights.ts';
 
 export interface AwardContext {
   /** Engine-computed from the ledger window; default true (uncapped or within cap). */

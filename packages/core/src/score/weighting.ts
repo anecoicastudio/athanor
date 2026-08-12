@@ -1,4 +1,4 @@
-import { REVIEWER_WEIGHT_CAP, REVIEWER_WEIGHT_SCALE } from './weights';
+import { REVIEWER_WEIGHT_CAP, REVIEWER_WEIGHT_SCALE } from './weights.ts';
 
 /**
  * High-Aura reviewers weigh more (PRD §4.9): weight = 1 + ln1p(score/SCALE),

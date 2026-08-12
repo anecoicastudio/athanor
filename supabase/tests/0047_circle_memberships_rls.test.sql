@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(16);
+select plan(18);
 
 -- two users (the handle_new_user trigger auto-creates their public.profiles rows)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -64,6 +64,15 @@ select is(
 -- user_b: no membership → is_member=false, features=false
 select is((select is_member from public.entitlements), false, 'non-member entitlements.is_member=false');
 select is((select advanced_filters from public.entitlements), false, 'non-member advanced_filters=false');
+-- The left join is what could leak a null here; every bit is coalesced precisely so it cannot.
+-- packages/schemas entitlementsSchema reads a null bit as false rather than throwing, so this
+-- assertion is the half that notices a dropped coalesce instead of silently degrading.
+select is(
+  (select count(*) from public.entitlements
+   where profile_id is null or is_member is null or founding is null
+      or advanced_filters is null or premium_events is null
+      or analytics is null or market_reduced_fee is null),
+  0::bigint, 'non-member row: the view emits no null column');
 -- user_a: active founding member → is_member=true, Fase-1 features=true, Fase-2=false
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select is((select is_member from public.entitlements), true, 'member entitlements.is_member=true');
@@ -73,6 +82,12 @@ select is(
 select is(
   (select market_reduced_fee from public.entitlements),
   false, 'Fase-2 market_reduced_fee=false even for member');
+select is(
+  (select count(*) from public.entitlements
+   where profile_id is null or is_member is null or founding is null
+      or advanced_filters is null or premium_events is null
+      or analytics is null or market_reduced_fee is null),
+  0::bigint, 'member row: the view emits no null column');
 reset role;
 
 -- ── ZERO AURA: membership + founding badge emit no score event (rule #1) ──

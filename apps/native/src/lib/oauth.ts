@@ -22,22 +22,37 @@ export type OAuthOutcome =
   | { status: 'cancelled' }
   | { status: 'error'; message: string };
 
-// Must match an entry in Supabase → Auth → Additional Redirect URLs. createURL
-// resolves to `athanor://auth-callback` standalone and `exp://…/--/auth-callback`
-// in Expo Go. It's a deep-link target only — there is no /auth-callback screen.
-const redirectTo = createURL('/auth-callback');
+// Must match an entry in Supabase → Auth → Additional Redirect URLs, and matching there is
+// exact. In a standalone build createURL resolves to `athanor:///auth-callback` — THREE
+// slashes, not two: it builds `<scheme>://<host><path>`, the standalone host is empty, and
+// expo-linking's `ensureLeadingSlash('', true)` turns that empty host into `/`
+// (expo-linking 8.0.12, build/createURL.js:35-44; template at :111-113). In Expo Go it
+// resolves to `exp://…/--/auth-callback`. The allow-lists on both hosted projects carry the
+// two-slash `athanor://auth-callback` as well, because that is the form the docs and every
+// dashboard entry use, and GoTrue does no URL normalisation before matching — the two forms
+// never reconcile, so whichever one is missing is simply a miss.
+//
+// Exported because the email signup in (auth)/welcome.tsx passes the same value as
+// emailRedirectTo — without it the confirmation mail falls back to the project's
+// Site URL, which points at the website, not at the app. OAuth normally never routes
+// to src/app/auth-callback.tsx — openAuthSessionAsync intercepts the redirect below
+// and exchanges the code here — whereas the email link always does, arriving as a
+// real OS deep link. "Normally": if the OS ever hands an OAuth redirect to the app as
+// a deep link instead, both call sites would exchange the same code and the loser
+// would surface a spurious error. Dormant while both providers are disabled.
+export const AUTH_REDIRECT_URL = createURL('/auth-callback');
 
 export async function signInWithProvider(provider: 'apple' | 'google'): Promise<OAuthOutcome> {
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider as Provider,
-      options: { redirectTo, skipBrowserRedirect: true },
+      options: { redirectTo: AUTH_REDIRECT_URL, skipBrowserRedirect: true },
     });
     if (error || !data?.url) {
       return { status: 'error', message: error?.message ?? 'no_oauth_url' };
     }
 
-    const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    const res = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT_URL);
     if (res.type === 'cancel' || res.type === 'dismiss') return { status: 'cancelled' };
     if (res.type !== 'success') return { status: 'error', message: res.type };
 

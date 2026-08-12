@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AuraEvent, AuraEventType, Star, StarKey } from '@athanor/schemas';
-import { breakdownRows, pickNextStar, summarizeWeek } from './display';
+import { breakdownRows, pickNextStar, summarizeWeek } from './display.ts';
 
 const B = {
   contributi: 188,

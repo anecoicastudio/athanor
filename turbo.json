@@ -10,8 +10,18 @@
       "persistent": true,
       "cache": false
     },
-    "lint": {},
-    "typecheck": {},
-    "test": {}
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "lint": {
+      "dependsOn": ["transit"]
+    },
+    "typecheck": {
+      "dependsOn": ["transit"]
+    },
+    "test": {
+      "dependsOn": ["transit"],
+      "outputs": ["coverage/**"]
+    }
   }
 }
