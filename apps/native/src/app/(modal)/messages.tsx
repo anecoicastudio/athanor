@@ -15,6 +15,7 @@ import { ConversationRow } from '@/components/chat/ConversationRow';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 export default function MessagesScreen() {
   const { profile } = useAuth();
@@ -44,7 +45,7 @@ export default function MessagesScreen() {
   }, [queryClient]);
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader
         title={t('messages.title', locale)}
         backLabel={t('common.back', locale)}
@@ -111,6 +112,6 @@ export default function MessagesScreen() {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
       />
-    </View>
+    </Screen>
   );
 }

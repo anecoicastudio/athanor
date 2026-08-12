@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { weekRecapIsEmpty } from '@/lib/week-slot';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Week recap sheet (M6 §3.4).
@@ -68,9 +69,9 @@ export default function RecapScreen() {
   const starName = nextStar ? t(`star.${nextStar.starId}` as MessageKey, locale) : '';
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 pb-3 pt-14">
+      <View className="flex-row items-center justify-between px-5 pb-3 pt-3">
         <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
           {t('recap.title' as MessageKey, locale)}
         </Text>
@@ -161,6 +162,6 @@ export default function RecapScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

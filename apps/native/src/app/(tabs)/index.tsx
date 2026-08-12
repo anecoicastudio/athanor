@@ -97,7 +97,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 py-12">
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
       <HomeHeader greeting={greeting} handle={profile.handle} locale={locale} onAction={onAction} />
       {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
           active edition exists, so we show exactly one element in this slot. */}

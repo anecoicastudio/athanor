@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Match overlay — fired on a MUTUAL Momento match (the deck navigates here on a
@@ -64,7 +65,7 @@ export default function MatchOverlay() {
 
   return (
     <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
-      <View className="flex-1 items-center justify-center bg-background px-8">
+      <Screen className="items-center justify-center px-8">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('common.close', locale)}
@@ -111,7 +112,7 @@ export default function MatchOverlay() {
             onPress={() => router.back()}
           />
         </View>
-      </View>
+      </Screen>
     </Animated.View>
   );
 }

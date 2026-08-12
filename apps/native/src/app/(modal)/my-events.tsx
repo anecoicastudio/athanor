@@ -13,6 +13,7 @@ import { EVENT_HREF, EventRow } from '@/components/live/EventRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * I tuoi eventi — organizer surface (P4.5; frontend 04 §3.7 Live entry).
@@ -35,7 +36,7 @@ export default function MyEventsScreen() {
   const events = query.data ?? [];
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('live.mine.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-4 px-5 pb-16">
         <Button
@@ -89,6 +90,6 @@ export default function MyEventsScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

@@ -15,6 +15,7 @@ import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -142,7 +143,7 @@ export default function LedgerScreen() {
   const isEmpty = !query.isLoading && !query.isError && rows.length === 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header */}
       <ModalHeader title={t('ledger.title', locale)} backLabel={t('common.back', locale)} />
       <Text className="px-5 text-[12px] text-faint">{t('ledger.sub', locale)}</Text>
@@ -205,6 +206,6 @@ export default function LedgerScreen() {
           }
         />
       ) : null}
-    </View>
+    </Screen>
   );
 }

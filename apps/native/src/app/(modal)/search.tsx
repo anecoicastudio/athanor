@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { type SearchFilterParams, parseFilters, serializeFilters } from '@/lib/search-filters';
+import { Screen } from '@/components/Screen';
 
 /**
  * Search modal screen (M8 §3.3 v-search).
@@ -149,9 +150,9 @@ export default function SearchScreen() {
   const filterSheetParams = serializeFilters(filtersFromParams ?? {});
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* ── Header row ── */}
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
+      <View className="flex-row items-center gap-3 px-5 pb-3 pt-3">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('common.back', locale)}
@@ -262,6 +263,6 @@ export default function SearchScreen() {
           }}
         />
       )}
-    </View>
+    </Screen>
   );
 }

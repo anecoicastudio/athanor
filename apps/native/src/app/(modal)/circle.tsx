@@ -27,6 +27,7 @@ import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 // ── Benefit data (6 rows: 3 Fase-1, 3 Fase-2 soon) ─────────────────────────
 const BENEFITS = [
@@ -130,19 +131,19 @@ export default function CircleScreen() {
   // ── Loading state ────────────────────────────────────────────────────────────
   if (entQuery.isLoading) {
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center gap-4 px-5">
           <ActivityIndicator color={semantic.aura} />
         </View>
-      </View>
+      </Screen>
     );
   }
 
   // ── Error state ──────────────────────────────────────────────────────────────
   if (entQuery.isError) {
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         {/* The retry used to be a `Pressable` nested inside `EmptyState`'s `<Text>` children —
             a touchable inside a text node, with no accessibilityRole, reached by a literal
@@ -155,7 +156,7 @@ export default function CircleScreen() {
           onRetry={() => void entQuery.refetch()}
           className="flex-1 justify-center px-5"
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -188,7 +189,7 @@ export default function CircleScreen() {
   if (isMember) {
     const membership = memberQuery.data ?? null;
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         {header}
         <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
           {/* 1. Subscription status card (moment glow — belonging is moment-grade) */}
@@ -233,13 +234,13 @@ export default function CircleScreen() {
           {/* 5. Zero-Aura assurance — REQUIRED for member state too (rule #1) */}
           {zeroAuraNote}
         </ScrollView>
-      </View>
+      </Screen>
     );
   }
 
   // ── NON-MEMBER STATE ─────────────────────────────────────────────────────────
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {header}
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
         {/* 1. FeatureCard violet — pitch block */}
@@ -309,6 +310,6 @@ export default function CircleScreen() {
         {/* 5. Zero-Aura assurance footnote — REQUIRED on non-member state (rule #1) */}
         {zeroAuraNote}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

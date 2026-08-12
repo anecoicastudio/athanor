@@ -11,6 +11,7 @@ import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * GDPR right-to-erasure / store-mandated in-app account deletion (09 §3.5.2, 12 §3.3, Apple 5.1.1(v)).
@@ -56,7 +57,7 @@ export default function DeleteAccountScreen() {
   });
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader title={t('account.delete.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
         <Text className="text-[15px] leading-relaxed text-muted-foreground">
@@ -95,6 +96,6 @@ export default function DeleteAccountScreen() {
         />
       </ScrollView>
       {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

@@ -38,6 +38,8 @@
     --radius-ctl: 14px;
     --radius-card: 20px;
     --radius-hero: 26px;
+    /* spacing.gutter — screen horizontal padding (DESIGN.md §6). px-gutter etc. */
+    --spacing-gutter: 20px;
 
     /*
      * RN selects fonts by exact loaded family name (one file = one family),

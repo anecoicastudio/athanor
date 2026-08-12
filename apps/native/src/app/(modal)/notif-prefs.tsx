@@ -16,6 +16,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Notification preferences (M9 §3.7). 6 per-type push toggles + master push toggle.
@@ -111,53 +112,52 @@ export default function NotifPrefsScreen() {
   });
 
   return (
-    <ScrollView
-      {...MODAL_A11Y}
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-6 pb-12"
-    >
-      {/* Header */}
+    <Screen {...MODAL_A11Y}>
+      {/* Header — outside the ScrollView so it can't scroll away (#161). */}
       <ModalHeader title={t('notif.prefs.title', locale)} backLabel={t('common.back', locale)} />
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-12">
+        {/* Subtitle */}
+        <Text className="px-5 text-[14px] leading-relaxed text-faint">
+          {t('notif.prefs.sub', locale)}
+        </Text>
 
-      {/* Subtitle */}
-      <Text className="px-5 text-[14px] leading-relaxed text-faint">
-        {t('notif.prefs.sub', locale)}
-      </Text>
+        {/* Per-type toggle rows */}
+        <View className="rounded-card border border-hair bg-raise mx-5">
+          {PREF_ROWS.map(({ key, type }, idx) => (
+            <View
+              key={type}
+              className={`flex-row items-center justify-between gap-4 px-5 py-4 ${
+                idx < PREF_ROWS.length - 1 ? 'border-b border-hair' : ''
+              }`}
+            >
+              <Text className="flex-1 text-base text-foreground">
+                {t(key as MessageKey, locale)}
+              </Text>
+              <Switch
+                value={enabledFor(type)}
+                onValueChange={(v) => setPref.mutate({ type, channel: 'push', enabled: v })}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
+          ))}
+        </View>
 
-      {/* Per-type toggle rows */}
-      <View className="rounded-card border border-hair bg-raise mx-5">
-        {PREF_ROWS.map(({ key, type }, idx) => (
-          <View
-            key={type}
-            className={`flex-row items-center justify-between gap-4 px-5 py-4 ${
-              idx < PREF_ROWS.length - 1 ? 'border-b border-hair' : ''
-            }`}
-          >
-            <Text className="flex-1 text-base text-foreground">{t(key as MessageKey, locale)}</Text>
+        {/* Master push toggle — profiles.push_enabled */}
+        <View className="rounded-card border border-hair bg-raise mx-5">
+          <View className="flex-row items-center justify-between gap-4 px-5 py-4">
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base text-foreground">{t('notif.prefs.push', locale)}</Text>
+            </View>
             <Switch
-              value={enabledFor(type)}
-              onValueChange={(v) => setPref.mutate({ type, channel: 'push', enabled: v })}
+              value={pushQuery.data ?? true}
+              onValueChange={(v) => setMaster.mutate(v)}
               trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
               thumbColor={semantic.foreground}
             />
           </View>
-        ))}
-      </View>
-
-      {/* Master push toggle — profiles.push_enabled */}
-      <View className="rounded-card border border-hair bg-raise mx-5">
-        <View className="flex-row items-center justify-between gap-4 px-5 py-4">
-          <View className="flex-1 gap-0.5">
-            <Text className="text-base text-foreground">{t('notif.prefs.push', locale)}</Text>
-          </View>
-          <Switch
-            value={pushQuery.data ?? true}
-            onValueChange={(v) => setMaster.mutate(v)}
-            trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-            thumbColor={semantic.foreground}
-          />
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </Screen>
   );
 }

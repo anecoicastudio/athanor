@@ -11,6 +11,7 @@ import { VideoUploadTile } from '@/components/candidacy/VideoUploadTile';
 import { useCandidacyUpload } from '@/lib/media/use-candidacy-upload';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * 5-step candidacy wizard (07 §3.4).
@@ -54,14 +55,14 @@ export default function CandidacyWizard() {
   // window-closed: no open edition or window shut → empty-state instead of the wizard.
   if (windowClosed) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-8">
+      <Screen className="items-center justify-center px-8">
         <Text className="text-center text-[15px] text-muted-foreground">
           {t('candidacy.windowClosed', locale)}
         </Text>
         <View className="mt-6 w-full">
           <Button variant="ghost" label={t('common.back', locale)} onPress={() => router.back()} />
         </View>
-      </View>
+      </Screen>
     );
   }
 
@@ -115,129 +116,131 @@ export default function CandidacyWizard() {
   const stepKey = (part: string) => `candidacy.step${stepNum}.${part}` as MessageKey;
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="grow px-7 pb-9 pt-16"
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Header: back chevron + eyebrow */}
-      <View className="flex-row items-center gap-3">
-        <Pressable
-          onPress={() => (step > 0 ? setStep((s) => s - 1) : router.back())}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-        >
-          <Text className="text-muted-foreground">←</Text>
-        </Pressable>
-        <SectionLabel tone="aura">{t('candidacy.eyebrow', locale)}</SectionLabel>
-      </View>
+    <Screen>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow px-7 pb-9 pt-4"
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header: back chevron + eyebrow */}
+        <View className="flex-row items-center gap-3">
+          <Pressable
+            onPress={() => (step > 0 ? setStep((s) => s - 1) : router.back())}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', locale)}
+          >
+            <Text className="text-muted-foreground">←</Text>
+          </Pressable>
+          <SectionLabel tone="aura">{t('candidacy.eyebrow', locale)}</SectionLabel>
+        </View>
 
-      {/* Step dots (5 dots, current and past filled cyan) */}
-      <View className="mt-3">
-        <StepDots count={5} current={step} />
-      </View>
+        {/* Step dots (5 dots, current and past filled cyan) */}
+        <View className="mt-3">
+          <StepDots count={5} current={step} />
+        </View>
 
-      {/* Step content — vertically centred */}
-      <View className="grow justify-center">
-        <SectionLabel>{t(stepKey('label'), locale)}</SectionLabel>
-        <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
-          {t(stepKey('q'), locale)}
-        </Text>
-        <Text className="mt-2 text-muted-foreground">{t(stepKey('sub'), locale)}</Text>
+        {/* Step content — vertically centred */}
+        <View className="grow justify-center">
+          <SectionLabel>{t(stepKey('label'), locale)}</SectionLabel>
+          <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
+            {t(stepKey('q'), locale)}
+          </Text>
+          <Text className="mt-2 text-muted-foreground">{t(stepKey('sub'), locale)}</Text>
 
-        <View className="mt-5">
-          {step === 0 ? (
-            <TextInput
-              className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-              multiline
-              maxLength={4000}
-              placeholder={t('candidacy.step1.placeholder', locale)}
-              value={story}
-              onChangeText={(v) => {
-                setStory(v);
-                setError(null);
-              }}
-            />
-          ) : null}
-          {step === 1 ? (
-            <TextInput
-              className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-              multiline
-              maxLength={2000}
-              placeholder={t('candidacy.step2.placeholder', locale)}
-              value={goal}
-              onChangeText={(v) => {
-                setGoal(v);
-                setError(null);
-              }}
-            />
-          ) : null}
-          {step === 2 ? (
-            <TextInput
-              className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-              multiline
-              maxLength={2000}
-              placeholder={t('candidacy.step3.placeholder', locale)}
-              value={impact}
-              onChangeText={(v) => {
-                setImpact(v);
-                setError(null);
-              }}
-            />
-          ) : null}
-          {step === 3 ? (
-            <VideoUploadTile
-              locale={locale}
-              status={upload.status}
-              onPick={upload.pick}
-              onRecord={upload.record}
-            />
-          ) : null}
-          {step === 4 ? (
-            <TextInput
-              className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-              multiline
-              maxLength={4000}
-              placeholder={t('candidacy.step5.placeholder', locale)}
-              value={planText}
-              onChangeText={(v) => {
-                setPlanText(v);
-                setError(null);
-              }}
-            />
+          <View className="mt-5">
+            {step === 0 ? (
+              <TextInput
+                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+                multiline
+                maxLength={4000}
+                placeholder={t('candidacy.step1.placeholder', locale)}
+                value={story}
+                onChangeText={(v) => {
+                  setStory(v);
+                  setError(null);
+                }}
+              />
+            ) : null}
+            {step === 1 ? (
+              <TextInput
+                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+                multiline
+                maxLength={2000}
+                placeholder={t('candidacy.step2.placeholder', locale)}
+                value={goal}
+                onChangeText={(v) => {
+                  setGoal(v);
+                  setError(null);
+                }}
+              />
+            ) : null}
+            {step === 2 ? (
+              <TextInput
+                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+                multiline
+                maxLength={2000}
+                placeholder={t('candidacy.step3.placeholder', locale)}
+                value={impact}
+                onChangeText={(v) => {
+                  setImpact(v);
+                  setError(null);
+                }}
+              />
+            ) : null}
+            {step === 3 ? (
+              <VideoUploadTile
+                locale={locale}
+                status={upload.status}
+                onPick={upload.pick}
+                onRecord={upload.record}
+              />
+            ) : null}
+            {step === 4 ? (
+              <TextInput
+                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+                multiline
+                maxLength={4000}
+                placeholder={t('candidacy.step5.placeholder', locale)}
+                value={planText}
+                onChangeText={(v) => {
+                  setPlanText(v);
+                  setError(null);
+                }}
+              />
+            ) : null}
+          </View>
+
+          {/* Error caption */}
+          {error ? <Text className="mt-3 text-[13px] text-error">{error}</Text> : null}
+
+          {/* id-gate CTA stub (step 5 only, unverified identity) */}
+          {isLast && !profile?.identity_verified ? (
+            <Pressable
+              className="mt-4"
+              onPress={() => router.push('/(modal)/verify')}
+              accessibilityRole="button"
+            >
+              <Text className="text-[13px] font-semibold text-aura">
+                {t('candidacy.idGate.cta', locale)}
+              </Text>
+            </Pressable>
           ) : null}
         </View>
 
-        {/* Error caption */}
-        {error ? <Text className="mt-3 text-[13px] text-error">{error}</Text> : null}
-
-        {/* id-gate CTA stub (step 5 only, unverified identity) */}
-        {isLast && !profile?.identity_verified ? (
-          <Pressable
-            className="mt-4"
-            onPress={() => router.push('/(modal)/verify')}
-            accessibilityRole="button"
-          >
-            <Text className="text-[13px] font-semibold text-aura">
-              {t('candidacy.idGate.cta', locale)}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {/* Footer: primary CTA + legal note */}
-      <View className="mt-6 gap-3">
-        <Button
-          variant="light"
-          label={isLast ? t('candidacy.submit', locale) : t('candidacy.continue', locale)}
-          disabled={submitting || upload.status === 'uploading'}
-          onPress={isLast ? () => void onSubmit() : advance}
-        />
-        <Text className="text-center text-[12px] leading-[18px] text-faint">
-          {t('candidacy.legal', locale)}
-        </Text>
-      </View>
-    </ScrollView>
+        {/* Footer: primary CTA + legal note */}
+        <View className="mt-6 gap-3">
+          <Button
+            variant="light"
+            label={isLast ? t('candidacy.submit', locale) : t('candidacy.continue', locale)}
+            disabled={submitting || upload.status === 'uploading'}
+            onPress={isLast ? () => void onSubmit() : advance}
+          />
+          <Text className="text-center text-[12px] leading-[18px] text-faint">
+            {t('candidacy.legal', locale)}
+          </Text>
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }

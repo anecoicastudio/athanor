@@ -16,7 +16,8 @@ import { StoriesViewer } from '@/components/stories/StoriesViewer';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { Text, View } from '@/tw';
+import { Text } from '@/tw';
+import { Screen } from '@/components/Screen';
 
 export default function StoriesScreen() {
   const { authorId, handle } = useLocalSearchParams<{ authorId: string; handle?: string }>();
@@ -58,16 +59,16 @@ export default function StoriesScreen() {
 
   if (personQuery.isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <Text className="text-2xl text-faint">✦</Text>
-      </View>
+      </Screen>
     );
   }
   if (segments.length === 0 || !first) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-6">
+      <Screen className="items-center justify-center px-6">
         <Text className="text-center text-[15px] text-faint">{t('story.expired', locale)}</Text>
-      </View>
+      </Screen>
     );
   }
 

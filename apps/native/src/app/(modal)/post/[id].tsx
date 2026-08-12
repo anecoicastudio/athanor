@@ -27,6 +27,7 @@ import { ReactionStar } from '@/components/feed/ReactionStar';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -122,16 +123,16 @@ export default function PostDetailScreen() {
 
   if (postQuery.isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <Text className="text-2xl text-faint">✦</Text>
-      </View>
+      </Screen>
     );
   }
   if (!post) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-5">
+      <Screen className="items-center justify-center px-5">
         <Text className="text-[15px] text-foreground">{t('feed.error', locale)}</Text>
-      </View>
+      </Screen>
     );
   }
 
@@ -142,7 +143,7 @@ export default function PostDetailScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader
           title={categoryLabel}
           backLabel={t('common.back', locale)}
@@ -261,7 +262,7 @@ export default function PostDetailScreen() {
             <Text className="text-[20px] text-background">✦</Text>
           </Pressable>
         </View>
-      </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }

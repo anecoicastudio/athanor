@@ -23,6 +23,7 @@ import { SegmentedToggle } from '@/components/connections/SegmentedToggle';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 type Segment = 'requests' | 'connections';
 
@@ -90,7 +91,7 @@ export default function ConnectionsScreen() {
   const connections = connectionsQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('connection.hub.title', locale)} backLabel={t('common.back', locale)} />
 
       <View className="px-5 pb-4">
@@ -197,6 +198,6 @@ export default function ConnectionsScreen() {
           />
         </View>
       )}
-    </View>
+    </Screen>
   );
 }

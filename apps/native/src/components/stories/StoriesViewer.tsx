@@ -5,6 +5,7 @@ import { t } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
+import { Screen } from '@/components/Screen';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { star } from '@/lib/star';
 
@@ -124,8 +125,8 @@ export function StoriesViewer({
   if (!current) return null;
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row gap-1 px-3 pt-14">
+    <Screen>
+      <View className="flex-row gap-1 px-3 pt-3">
         {segments.map((seg, i) => (
           <View key={seg.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-hair">
             <Animated.View
@@ -263,7 +264,7 @@ export function StoriesViewer({
           </View>
         )}
       </View>
-    </View>
+    </Screen>
   );
 }
 

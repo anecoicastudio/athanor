@@ -30,6 +30,7 @@ import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Settings (PRD §4, M1 §3.4) — account hub. M1 ships full chrome; most rows
@@ -105,11 +106,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* Header: back + title */}
       <ModalHeader title={t('settings.title', locale)} backLabel={t('common.back', locale)} />
 
-      <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
+      <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12">
         {/* Account card */}
         <View className="flex-row items-center gap-4 rounded-card border border-hair bg-raise p-5">
           <Avatar
@@ -291,6 +292,6 @@ export default function SettingsScreen() {
       </ScrollView>
 
       {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

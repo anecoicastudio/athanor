@@ -23,6 +23,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Candidate detail (M7 §3.4). Honest MVP: a signed-URL video player + title +
@@ -120,7 +121,7 @@ export default function CandidacyDetailScreen() {
   // returns 'ready' when `isEmpty` is false, but the compiler cannot see that through the call.
   if (detailState !== 'ready' || card == null) {
     return (
-      <Screen locale={locale}>
+      <FundChrome locale={locale}>
         <View className="flex-1 items-center justify-center">
           <ListState
             state={detailState}
@@ -132,7 +133,7 @@ export default function CandidacyDetailScreen() {
             loading={<ActivityIndicator color={semantic.aura} />}
           />
         </View>
-      </Screen>
+      </FundChrome>
     );
   }
 
@@ -145,7 +146,7 @@ export default function CandidacyDetailScreen() {
   const title = card.title ?? card.category ?? '';
 
   return (
-    <Screen locale={locale}>
+    <FundChrome locale={locale}>
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
         {/* Player */}
         <View className="aspect-video w-full items-center justify-center overflow-hidden rounded-card bg-raise-2">
@@ -196,17 +197,17 @@ export default function CandidacyDetailScreen() {
           )}
         </View>
       </ScrollView>
-    </Screen>
+    </FundChrome>
   );
 }
 
-/** Shared modal chrome — back chevron + fund title. */
-function Screen({ children, locale }: { children: React.ReactNode; locale: 'it' | 'en' }) {
+/** Shared modal chrome — back chevron + fund title, on the Screen inset root. */
+function FundChrome({ children, locale }: { children: React.ReactNode; locale: 'it' | 'en' }) {
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
       {children}
-    </View>
+    </Screen>
   );
 }
 

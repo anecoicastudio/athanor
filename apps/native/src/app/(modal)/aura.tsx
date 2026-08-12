@@ -18,6 +18,7 @@ import { AURA_UNKNOWN } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraRealtime } from '@/hooks/use-aura-realtime';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 const IDLE_THRESHOLD_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -58,7 +59,7 @@ export default function AuraScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header */}
       <ModalHeader title={t('aura.title', locale)} backLabel={t('common.back', locale)} />
 
@@ -162,6 +163,6 @@ export default function AuraScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

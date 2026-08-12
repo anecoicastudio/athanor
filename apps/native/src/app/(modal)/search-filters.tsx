@@ -10,6 +10,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 import {
   AURA_BUCKETS,
   type AuraBucket,
@@ -62,7 +63,7 @@ export default function SearchFiltersScreen() {
 
   // ── Guard: while loading render nothing (avoid false "lapsed" flash) ──────────
   if (entitlementLoading) {
-    return <View className="flex-1 bg-background" />;
+    return <Screen />;
   }
 
   // ── Guard: if entitlement lapsed mid-session, redirect to Circle upsell ───────
@@ -89,7 +90,7 @@ export default function SearchFiltersScreen() {
   };
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* ── Header ── */}
       <ModalHeader
         title={t('search.filterSheet.title', locale)}
@@ -192,6 +193,6 @@ export default function SearchFiltersScreen() {
           <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

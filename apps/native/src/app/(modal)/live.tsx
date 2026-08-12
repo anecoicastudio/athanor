@@ -12,6 +12,7 @@ import { VicinoPanel } from '@/components/live/VicinoPanel';
 import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { HIT_SLOP } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 export default function LiveScreen() {
   const { profile } = useAuth();
@@ -22,7 +23,7 @@ export default function LiveScreen() {
   const premiumEnabled = entitlement?.features.premiumEvents ?? false;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader
         title={t('live.title', locale)}
         backLabel={t('common.back', locale)}
@@ -64,6 +65,6 @@ export default function LiveScreen() {
           premiumEnabled={premiumEnabled}
         />
       ) : null}
-    </View>
+    </Screen>
   );
 }

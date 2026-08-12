@@ -17,6 +17,7 @@ import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * New-message person picker (P3.2): the Messages «+» target. Searchable
@@ -59,7 +60,7 @@ export default function NewMessageScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('messages.new', locale)} backLabel={t('common.back', locale)} />
 
       <View className="px-5 pb-3">
@@ -109,6 +110,6 @@ export default function NewMessageScreen() {
         }}
       />
       {toast ? <Toast label={t('chat.openFailed', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

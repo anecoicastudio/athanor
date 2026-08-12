@@ -3,12 +3,13 @@ import { useRouter } from 'expo-router';
 import { getActiveDream, upsertActiveDream } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, TextInput } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Dream editor (M2, frontend `02` §3.2) — create-or-edit the single active dream.
@@ -69,13 +70,13 @@ export default function DreamEditorScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* head: back + title */}
       <ModalHeader title={t('dream.editor.title', locale)} backLabel={t('common.back', locale)} />
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-12 pt-4"
+        contentContainerClassName="gap-6 px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
         <Text className="text-[15px] leading-relaxed text-faint">
@@ -112,6 +113,6 @@ export default function DreamEditorScreen() {
       </ScrollView>
 
       {toast ? <Toast label={t('dream.toast.saved', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

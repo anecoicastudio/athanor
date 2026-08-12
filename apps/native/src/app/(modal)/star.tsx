@@ -12,6 +12,7 @@ import { MODAL_A11Y } from '@/lib/a11y';
 import { localeTag } from '@/lib/time';
 import { starsOrNull } from '@/lib/aura-display';
 import { starCellState, starGlyph } from '@/lib/star';
+import { Screen } from '@/components/Screen';
 
 /**
  * Star detail sheet (M6 §3.2).
@@ -71,7 +72,7 @@ export default function StarScreen() {
   const progressWidth = total > 0 ? done / total : 0;
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* Header — chevron-only (star name is the in-body header below) */}
       <ModalHeader title="" backLabel={t('common.back', locale)} />
 
@@ -144,6 +145,6 @@ export default function StarScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
