@@ -94,7 +94,7 @@ export default function MatchOverlay() {
         <Text className="mt-3 text-center text-[15px] leading-[22px] text-faint">
           {accepted ? fill('match.accepted.sub') : t('match.sub', locale)}
         </Text>
-        <Text className="mt-3 text-[12px] text-faint">✦ Aura 0</Text>
+        <Text className="mt-3 text-[12px] text-faint">{t('momenti.aura.chip', locale)}</Text>
 
         <View className="mt-8 w-full gap-3">
           <Button

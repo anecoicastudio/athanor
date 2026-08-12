@@ -42,10 +42,10 @@ const PROP_EXCEPTIONS = new Set([
   'tabBarShowLabel', // boolean
 ]);
 
-// Intentional non-translatable literals: glyph + the score's proper name + a
-// dormant-engine placeholder. "Aura" is never localized (CLAUDE.md: the score
-// name stays "Aura" in both IT and EN).
-const ALLOWLIST = new Set(['✦ Aura 0']);
+// Intentional non-translatable literals. Empty today — the «✦ Aura 0» chip
+// moved behind `momenti.aura.chip` (#52). Adding an entry is a conscious
+// exception, not a shortcut past rule #5.
+const ALLOWLIST = new Set([]);
 
 // prose heuristic: has a letter, and either a space or a >=4-char lowercase run
 const looksLikeProse = (s) => /[A-Za-zÀ-ÿ]/.test(s) && (/\s/.test(s) || /[a-zà-ÿ]{4,}/.test(s));
