@@ -6,6 +6,8 @@ import { getProjectsPage, type ProjectCursor, projectKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 import { ProjectCard } from '@/components/costellazioni/ProjectCard';
 import {
   ProjectFilterTabs,
@@ -39,7 +41,7 @@ export default function CostellazioniScreen() {
 
   if (query.isError) {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ListState
           state="error"
           locale={locale}
@@ -47,7 +49,7 @@ export default function CostellazioniScreen() {
           onRetry={onRefresh}
           className="flex-1 justify-center px-5"
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -59,14 +61,15 @@ export default function CostellazioniScreen() {
         });
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <FlatList
         data={projects}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View className="gap-4 py-4">
             <View className="gap-1 px-5">
-              <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+              {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
+              <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
                 {t('costellazioni.title', locale)}
               </Text>
               <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
@@ -74,7 +77,7 @@ export default function CostellazioniScreen() {
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
             <View className="flex-row items-center justify-between px-5">
               <SectionLabel>{t('costellazioni.board.label', locale)}</SectionLabel>
-              <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={8}>
+              <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={HIT_SLOP}>
                 <Text className="text-[13px] text-aura">{t('costellazioni.publish', locale)}</Text>
               </Pressable>
             </View>
@@ -129,6 +132,6 @@ export default function CostellazioniScreen() {
         }}
         contentContainerClassName="pb-[104px]"
       />
-    </View>
+    </Screen>
   );
 }

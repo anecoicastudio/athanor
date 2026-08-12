@@ -4,7 +4,8 @@ import { auraKeys, getAuraScore } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
-import { ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text } from '@/tw';
+import { Screen } from '@/components/Screen';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { DreamHeroCard } from '@/components/home/DreamHeroCard';
 import { FavorNudgeCard } from '@/components/home/FavorNudgeCard';
@@ -66,7 +67,7 @@ export default function HomeScreen() {
 
   if (!profile) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <Text
           className="text-2xl text-muted-foreground"
           accessibilityElementsHidden
@@ -74,7 +75,7 @@ export default function HomeScreen() {
         >
           ✦
         </Text>
-      </View>
+      </Screen>
     );
   }
 
@@ -97,38 +98,45 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
-      <HomeHeader greeting={greeting} handle={profile.handle} locale={locale} onAction={onAction} />
-      {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
+    <Screen>
+      <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
+        <HomeHeader
+          greeting={greeting}
+          handle={profile.handle}
+          locale={locale}
+          onAction={onAction}
+        />
+        {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
           active edition exists, so we show exactly one element in this slot. */}
-      <DreamHeroCard
-        locale={locale}
-        fallback={<ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />}
-      />
-      {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
-      <MomentiCard locale={locale} />
-      {/* Block 3: Esplora slot — Prime Stelle launch card while the flag is on (P4.2);
+        <DreamHeroCard
+          locale={locale}
+          fallback={<ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />}
+        />
+        {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
+        <MomentiCard locale={locale} />
+        {/* Block 3: Esplora slot — Prime Stelle launch card while the flag is on (P4.2);
           honest placeholder otherwise. */}
-      <PrimeStelleCard
-        locale={locale}
-        fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
-      />
-      {/* Block 4: «La tua settimana» — the card owns the recap query and says which of its four
+        <PrimeStelleCard
+          locale={locale}
+          fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
+        />
+        {/* Block 4: «La tua settimana» — the card owns the recap query and says which of its four
           states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
           week alike, over a feature that shipped in M6. */}
-      <WeekSlot locale={locale} />
-      {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
+        <WeekSlot locale={locale} />
+        {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
           nothing when no need is open, like block 2b and for the same reason (#99). */}
-      <FavorNudgeCard locale={locale} />
-      {/* Block 6: «Oggi» — M4 has landed. Collapses on loading, error and no events alike
+        <FavorNudgeCard locale={locale} />
+        {/* Block 6: «Oggi» — M4 has landed. Collapses on loading, error and no events alike
           (#111), the deliberate half of that sort; `(modal)/live` owns the copy and the retry. */}
-      <TodaySection locale={locale} />
+        <TodaySection locale={locale} />
 
-      {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}
-      <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />
+        {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}
+        <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />
 
-      {/* Block 8: real invite. */}
-      <InviteCard locale={locale} />
-    </ScrollView>
+        {/* Block 8: real invite. */}
+        <InviteCard locale={locale} />
+      </ScrollView>
+    </Screen>
   );
 }

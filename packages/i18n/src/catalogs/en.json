@@ -447,6 +447,7 @@
   "settings.logout.toast": "See you soon ✦",
   "settings.version": "Athanor · Version {version}",
   "community.compose.prompt": "Share a step of your journey…",
+  "community.title": "Community",
   "feed.filter.all": "All",
   "feed.filter.business": "Business",
   "feed.filter.human": "Human",

@@ -20,8 +20,10 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
 import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
+import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
@@ -182,26 +184,18 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Screen>
-        {/* header */}
-        <View className="flex-row items-center gap-3 px-5 pb-3 pt-3">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', locale)}
-            hitSlop={8}
-            onPress={() => router.back()}
-          >
-            <Text className="text-2xl text-foreground">‹</Text>
-          </Pressable>
-          <Avatar
-            handle={peer?.peerHandle ?? null}
-            displayName={peer?.peerDisplayName ?? null}
-            avatarPath={peer?.peerAvatarPath ?? null}
-            size={36}
-          />
-          <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-foreground">
-              {memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—'}
-            </Text>
+        <ModalHeader
+          backLabel={t('common.back', locale)}
+          avatar={
+            <Avatar
+              handle={peer?.peerHandle ?? null}
+              displayName={peer?.peerDisplayName ?? null}
+              avatarPath={peer?.peerAvatarPath ?? null}
+              size={36}
+            />
+          }
+          title={memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—'}
+          subtitle={
             <Text
               className="text-[11px] text-faint"
               accessibilityLabel={
@@ -212,26 +206,30 @@ export default function ChatScreen() {
             >
               {t('chat.peerAura', locale, { score: peerScore })}
             </Text>
-          </View>
-          {peer?.peerId ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('chat.a11y.profile', locale)}
-              hitSlop={8}
-              onPress={() => router.push(`/user/${peer.peerId}`)}
-            >
-              <Text className="text-xl text-faint">↗</Text>
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('chat.a11y.menu', locale)}
-            hitSlop={8}
-            onPress={openMenu}
-          >
-            <Text className="text-xl text-faint">⋯</Text>
-          </Pressable>
-        </View>
+          }
+          right={
+            <>
+              {peer?.peerId ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('chat.a11y.profile', locale)}
+                  hitSlop={HIT_SLOP}
+                  onPress={() => router.push(`/user/${peer.peerId}`)}
+                >
+                  <Text className="text-xl text-faint">↗</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.a11y.menu', locale)}
+                hitSlop={HIT_SLOP}
+                onPress={openMenu}
+              >
+                <Text className="text-xl text-faint">⋯</Text>
+              </Pressable>
+            </>
+          }
+        />
 
         <FlatList
           ref={listRef}

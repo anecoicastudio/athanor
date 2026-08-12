@@ -11,6 +11,7 @@ import {
 } from '@athanor/api';
 import type { MomentoDeckCard } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
+import { Screen } from '@/components/Screen';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -87,84 +88,89 @@ export default function MomentiScreen() {
   const topHandle = cards[0]?.handle ?? '';
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="px-5 pt-4 pb-10">
-      <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
-      <Text className="text-[24px] font-bold text-foreground">{t('momenti.title', locale)}</Text>
-      <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
+    <Screen>
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-10">
+        <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+        {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
+        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
+          {t('momenti.title', locale)}
+        </Text>
+        <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
 
-      <View className="mt-5 h-[438px]">
-        {deck.isLoading ? (
-          <View className="flex-1 rounded-card border border-hair bg-raise opacity-60" />
-        ) : deck.isError ? (
-          // `momenti.error`, not `momenti.empty.title` — the error branch used to borrow the
-          // empty state's sentence, so a failed deck read said «Nessun Momento per ora» over a
-          // retry button that contradicted it (#111).
-          <ListState
-            state="error"
-            locale={locale}
-            errorLabel={t('momenti.error', locale)}
-            onRetry={() => void deck.refetch()}
-            className="flex-1 justify-center px-5"
-          />
-        ) : exhausted ? (
-          <View className="flex-1 items-center justify-center">
-            <EmptyState>
-              {`${t('momenti.empty.title', locale)}\n\n${
-                startedEmpty ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
-              }`}
-            </EmptyState>
+        <View className="mt-5 h-[438px]">
+          {deck.isLoading ? (
+            <View className="flex-1 rounded-card border border-hair bg-raise opacity-60" />
+          ) : deck.isError ? (
+            // `momenti.error`, not `momenti.empty.title` — the error branch used to borrow the
+            // empty state's sentence, so a failed deck read said «Nessun Momento per ora» over a
+            // retry button that contradicted it (#111).
+            <ListState
+              state="error"
+              locale={locale}
+              errorLabel={t('momenti.error', locale)}
+              onRetry={() => void deck.refetch()}
+              className="flex-1 justify-center px-5"
+            />
+          ) : exhausted ? (
+            <View className="flex-1 items-center justify-center">
+              <EmptyState>
+                {`${t('momenti.empty.title', locale)}\n\n${
+                  startedEmpty ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
+                }`}
+              </EmptyState>
+            </View>
+          ) : (
+            <SwipeDeck
+              cards={cards}
+              locale={locale}
+              deckRef={deckRef}
+              onAccept={(c) => accept.mutate(c)}
+              onPass={(c) => pass.mutate(c)}
+              onEmpty={() => setDone(true)}
+            />
+          )}
+        </View>
+
+        {showActions ? (
+          <View className="mt-5 flex-row gap-4">
+            <SwipeActionButton
+              variant="pass"
+              label={t('momenti.pass', locale)}
+              a11yLabel={t('momenti.a11y.pass', locale, { name: topHandle })}
+              onPress={() => deckRef.current?.swipe('left')}
+            />
+            <SwipeActionButton
+              variant="connect"
+              label={t('momenti.connect', locale)}
+              a11yLabel={t('momenti.a11y.accept', locale, { name: topHandle })}
+              onPress={() => deckRef.current?.swipe('right')}
+            />
           </View>
-        ) : (
-          <SwipeDeck
-            cards={cards}
-            locale={locale}
-            deckRef={deckRef}
-            onAccept={(c) => accept.mutate(c)}
-            onPass={(c) => pass.mutate(c)}
-            onEmpty={() => setDone(true)}
-          />
-        )}
-      </View>
+        ) : null}
 
-      {showActions ? (
-        <View className="mt-5 flex-row gap-4">
-          <SwipeActionButton
-            variant="pass"
-            label={t('momenti.pass', locale)}
-            a11yLabel={t('momenti.a11y.pass', locale, { name: topHandle })}
-            onPress={() => deckRef.current?.swipe('left')}
-          />
-          <SwipeActionButton
-            variant="connect"
-            label={t('momenti.connect', locale)}
-            a11yLabel={t('momenti.a11y.accept', locale, { name: topHandle })}
-            onPress={() => deckRef.current?.swipe('right')}
-          />
-        </View>
-      ) : null}
-
-      {suggestion.data ? (
-        <View className="mt-8">
-          <SectionLabel className="mb-2">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
-          <SuggestionRow suggestion={suggestion.data} locale={locale} />
-        </View>
-      ) : null}
-
-      {/* One-sided-accept toast: «Momento inviato ✦ …» — NOT the MomentFlash help string. */}
-      {acceptToast !== null ? (
-        <View
-          pointerEvents="none"
-          className="absolute inset-x-5 bottom-6 items-center"
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-        >
-          <View className="rounded-full border border-hair bg-raise-2 px-5 py-2.5">
-            <Text className="text-center text-[14px] font-semibold text-foreground">
-              {t('momenti.toast.sentAccept', locale, { name: acceptToast })}
-            </Text>
+        {suggestion.data ? (
+          <View className="mt-8">
+            <SectionLabel className="mb-2">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
+            <SuggestionRow suggestion={suggestion.data} locale={locale} />
           </View>
-        </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+
+        {/* One-sided-accept toast: «Momento inviato ✦ …» — NOT the MomentFlash help string. */}
+        {acceptToast !== null ? (
+          <View
+            pointerEvents="none"
+            className="absolute inset-x-5 bottom-6 items-center"
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+          >
+            <View className="rounded-full border border-hair bg-raise-2 px-5 py-2.5">
+              <Text className="text-center text-[14px] font-semibold text-foreground">
+                {t('momenti.toast.sentAccept', locale, { name: acceptToast })}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+    </Screen>
   );
 }

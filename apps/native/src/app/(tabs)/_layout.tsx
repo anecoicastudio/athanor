@@ -25,8 +25,10 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: semantic.background },
-        headerTintColor: semantic.foreground,
+        // No native title bar anywhere (DESIGN §6 → Screen headers, #162): tab roots
+        // render their own in-content header and take their top inset from Screen.
+        // `title` stays — it feeds the tab-bar a11y labels.
+        headerShown: false,
         tabBarStyle: { backgroundColor: semantic.surfaceMuted, borderTopColor: semantic.border },
         // DESIGN §9 tab bar: active = foreground — cyan stays on the ✦ badge only.
         // Icons only: labels don't fit the 5-tab slot in either language
