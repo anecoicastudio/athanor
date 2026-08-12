@@ -7,39 +7,53 @@ export const momentoStatus = z.enum(['pending', 'accepted', 'passed']);
 export type MomentoStatus = z.infer<typeof momentoStatus>;
 
 /**
- * The wire shape of the deck select, parsed at the boundary. `candidate` is an aliased embed
- * carrying a nested `dreams` embed, which supabase-js infers as an array and cannot type
- * through the alias — hence a schema rather than a cast. `candidate` is nullable because the
- * profiles SELECT policy (not_blocked) filters the embed to null when either side blocks
- * after the proposal row is written; hiding the dream only empties the nested `dreams`.
- * `reasons` mirrors the column: text[] not null default '{}'.
+ * One affinity reason, as TERMS rather than prose (#273 D). `tags` are identity tag keys
+ * (`tag.identity.*` in @athanor/i18n) in every kind — `seeking` carries the identities the
+ * candidate holds that answer what you seek, `offering` the identities of YOURS that answer
+ * what they seek. `newDream` is the dream-recency fallback and claims no overlap at all, so
+ * it carries no tags.
+ */
+export const momentoReasonKind = z.enum(['shared', 'seeking', 'offering', 'newDream']);
+export type MomentoReasonKind = z.infer<typeof momentoReasonKind>;
+
+export const momentoReason = z.object({
+  kind: momentoReasonKind,
+  tags: z.array(z.string()),
+});
+export type MomentoReason = z.infer<typeof momentoReason>;
+
+/**
+ * The wire shape of `get_momenti_deck()` (migration <ts>_momenti_affinity_and_deck.sql),
+ * parsed at the boundary. The deck stopped being a table select in #273: the terms are
+ * recomputed and re-masked server-side on every read, so nothing here is a snapshot.
+ *
+ * `dream_text` is NOT nullable — the RPC inner-joins the candidate's newest active dream and
+ * drops the row when there is none. `affinity` is absent, as it is from the column grant: the
+ * RPC returns `reason_kind` instead (rule #1).
  */
 export const momentoDeckRow = z.object({
-  id: z.string().uuid(),
+  proposal_id: z.string().uuid(),
   candidate_id: z.string().uuid(),
-  reasons: z.array(z.string()),
-  status: momentoStatus,
-  candidate: z
-    .object({
-      handle: z.string().nullable(),
-      display_name: displayNameSchema.nullable(),
-      avatar_path: avatarPathSchema.nullable(),
-      dreams: z.array(z.object({ text: z.string() })).nullish(),
-    })
-    .nullable(),
+  handle: z.string().nullable(),
+  display_name: displayNameSchema.nullable(),
+  avatar_path: avatarPathSchema.nullable(),
+  dream_text: z.string(),
+  reason_kind: z.enum(['affinity', 'new_dream']),
+  shared: z.array(z.string()),
+  seek_hit: z.array(z.string()),
+  offer_hit: z.array(z.string()),
 });
 export type MomentoDeckRow = z.infer<typeof momentoDeckRow>;
 
-// The deck-card read model (proposal joined to the peer profile + active dream quote).
+// The deck-card read model (proposal + the peer's identity, dream quote and live reasons).
 export const momentoDeckCard = z.object({
   id: z.string().uuid(),
   candidateId: z.string().uuid(),
   handle: z.string().nullable(),
   displayName: displayNameSchema.nullable(),
   avatarPath: avatarPathSchema.nullable(),
-  reasons: z.array(z.string()),
-  dreamText: z.string().nullable(),
-  status: momentoStatus,
+  reasons: z.array(momentoReason),
+  dreamText: z.string(),
 });
 export type MomentoDeckCard = z.infer<typeof momentoDeckCard>;
 

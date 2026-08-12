@@ -1,0 +1,66 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { MOMENTO_AFFINITY_THRESHOLD, SEEKING_TO_IDENTITY } from './affinity';
+import { SEEKING_TAGS } from './tags';
+
+/**
+ * `affinity.ts` is the source of truth for the seeking → identity map, but the thing
+ * that actually ranks Momenti is `athanor.seeking_to_identity()` inside a migration.
+ * Two copies in two languages: the failure mode is that someone widens one of them
+ * and the nightly matcher keeps scoring the old shape, silently, with every test
+ * still green. `packages/schemas/src/password.mirror.test.ts` closes the same class
+ * of claim for the auth config.
+ *
+ * Reads the LAST migration that defines the function rather than a fixed filename —
+ * migrations are append-only, so the current body is whichever one came last.
+ */
+const MIGRATIONS = fileURLToPath(new URL('../../../../supabase/migrations', import.meta.url).href);
+
+function currentDefinition(fnName: string): string {
+  const bodies = readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => readFileSync(`${MIGRATIONS}/${f}`, 'utf8'))
+    .filter((sql) => new RegExp(`create (or replace )?function ${fnName}\\b`).test(sql));
+  const last = bodies.at(-1);
+  if (!last) throw new Error(`no migration defines ${fnName}`);
+  // From the create statement to the end of its $$-quoted body.
+  const from = last.search(new RegExp(`create (or replace )?function ${fnName}\\b`));
+  const rest = last.slice(from);
+  const end = rest.indexOf('$$;', rest.indexOf('as $$') + 1);
+  return rest.slice(0, end);
+}
+
+/** The `('seeking', 'identity')` pairs of the VALUES list, as the map they encode. */
+function sqlMap(): Record<string, string[]> {
+  const sql = currentDefinition('athanor\\.seeking_to_identity');
+  const out: Record<string, string[]> = Object.fromEntries(SEEKING_TAGS.map((t) => [t, []]));
+  for (const [, seeking, identity] of sql.matchAll(/\('([a-z]+)',\s*'([a-z]+)'\)/g)) {
+    (out[seeking!] ??= []).push(identity!);
+  }
+  for (const key of Object.keys(out)) out[key]!.sort();
+  return out;
+}
+
+describe('athanor.seeking_to_identity mirrors SEEKING_TO_IDENTITY', () => {
+  it('encodes exactly the same pairs', () => {
+    const expected = Object.fromEntries(
+      Object.entries(SEEKING_TO_IDENTITY).map(([seeking, identities]) => [
+        seeking,
+        [...identities].sort(),
+      ]),
+    );
+    expect(sqlMap()).toEqual(expected);
+  });
+});
+
+describe('the matcher applies MOMENTO_AFFINITY_THRESHOLD', () => {
+  it('run_momenti_matcher filters on affinity >= the constant', () => {
+    // The SQL cannot import the constant, so assert the literal it hardcodes. A
+    // threshold change that lands in TS alone would otherwise ship a matcher that
+    // still proposes on the old bar.
+    const sql = currentDefinition('public\\.run_momenti_matcher');
+    expect(sql).toMatch(new RegExp(`where affinity >= ${MOMENTO_AFFINITY_THRESHOLD}\\b`));
+  });
+});

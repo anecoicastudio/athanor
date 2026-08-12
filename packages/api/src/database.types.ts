@@ -2696,6 +2696,7 @@ export type Database = {
           venue: string
         }[]
       }
+      expire_momento_proposals: { Args: never; Returns: number }
       f_profile_search: {
         Args: {
           p_bio: string
@@ -2707,6 +2708,21 @@ export type Database = {
       }
       f_unaccent: { Args: { "": string }; Returns: string }
       fund_edition_open: { Args: never; Returns: boolean }
+      get_momenti_deck: {
+        Args: never
+        Returns: {
+          avatar_path: string
+          candidate_id: string
+          display_name: string
+          dream_text: string
+          handle: string
+          offer_hit: string[]
+          proposal_id: string
+          reason_kind: string
+          seek_hit: string[]
+          shared: string[]
+        }[]
+      }
       get_momenti_suggestion: {
         Args: { p_exclude?: string[] }
         Returns: {
@@ -2762,15 +2778,6 @@ export type Database = {
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
-      momento_reasons: {
-        Args: {
-          p_locale: string
-          p_offer_hit: string[]
-          p_seek_hit: string[]
-          p_shared: string[]
-        }
-        Returns: string[]
-      }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
         Args: { p_milestone_id: string }

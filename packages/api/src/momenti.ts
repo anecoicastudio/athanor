@@ -2,6 +2,7 @@ import {
   type AcceptMomentResult,
   type MomentoDeckCard,
   type MomentoDeckRow,
+  type MomentoReason,
   type MomentoSuggestion,
   acceptMomentResult,
   momentoDeckCard,
@@ -16,42 +17,48 @@ export const momentiKeys = {
   suggestions: () => [...momentiKeys.all, 'suggestions'] as const,
 };
 
-/** Parse a joined proposal row, then map it to the deck card. `affinity` is never selected/exposed. */
+/** Parse an RPC row, then map it to the deck card. `affinity` is never returned/exposed. */
 export function rowToDeckCard(raw: unknown): MomentoDeckCard {
   const row: MomentoDeckRow = momentoDeckRow.parse(raw);
+  // A term the candidate has masked comes back as [] and simply does not render — no empty
+  // «Condividete:» line, and no stale one either (the server recomputes them per read).
+  const terms: MomentoReason[] =
+    row.reason_kind === 'new_dream'
+      ? [{ kind: 'newDream', tags: [] }]
+      : (
+          [
+            { kind: 'shared', tags: row.shared },
+            { kind: 'seeking', tags: row.seek_hit },
+            { kind: 'offering', tags: row.offer_hit },
+          ] as const
+        ).filter((term) => term.tags.length > 0);
   return momentoDeckCard.parse({
-    id: row.id,
+    id: row.proposal_id,
     candidateId: row.candidate_id,
-    handle: row.candidate?.handle ?? null,
-    displayName: row.candidate?.display_name ?? null,
-    avatarPath: row.candidate?.avatar_path ?? null,
-    reasons: row.reasons,
-    dreamText: row.candidate?.dreams?.[0]?.text ?? null,
-    status: row.status,
+    handle: row.handle,
+    displayName: row.display_name,
+    avatarPath: row.avatar_path,
+    reasons: terms,
+    dreamText: row.dream_text,
   });
 }
 
 /**
- * Today's ≤3 pending proposals (already server-capped). `affinity` is NEVER selected (rule #1 —
- * the score is not client-readable here); the explicit column list excludes it. Bounded `.limit(3)`,
- * no offset (rule #9).
+ * The ≤3 pending proposals, newest DAY first (#273 B: `daily_rank` restarts at 1 every night,
+ * so ordering by it alone dealt an arbitrary trio out of every day's rank-1 rows at once).
  *
- * Dream-less cards are dropped: the matcher skips candidates whose dream is private, but a
- * candidate can flip `visibility.dream` (or archive the dream) AFTER the proposal row exists,
- * and the embed is then RLS-filtered to null. A Momento without a dream has nothing to answer.
+ * Goes through the get_momenti_deck RPC rather than a client select, for the reason
+ * getMomentiSuggestion does: the reasons are computed at read time from the candidate's
+ * current tags and `profiles.visibility`, none of which authenticated may read since the M10
+ * column grant. The RPC also re-establishes the caller (auth.uid(), never an argument), the
+ * block filter both ways, and the dream join that used to be a client-side `.filter()`.
+ *
+ * `affinity` is not in the projection at all (rule #1) — a card carries a reason KIND.
  */
 export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeckCard[]> {
-  const { data, error } = await client
-    .from('momento_proposals')
-    .select(
-      'id, candidate_id, reasons, status, ' +
-        'candidate:profiles!momento_proposals_candidate_id_fkey(handle, display_name, avatar_path, dreams(text))',
-    )
-    .eq('status', 'pending')
-    .order('daily_rank', { ascending: true })
-    .limit(3);
+  const { data, error } = await client.rpc('get_momenti_deck');
   if (error) throw error;
-  return (data ?? []).map((r) => rowToDeckCard(r)).filter((card) => card.dreamText != null);
+  return (data ?? []).map((r) => rowToDeckCard(r));
 }
 
 /**

@@ -18,3 +18,17 @@ export function t(key: MessageKey, locale: Locale, vars?: Record<string, string 
     Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : whole,
   );
 }
+
+/**
+ * Label for an onboarding tag key (`tag.identity.*` / `tag.seeking.*`).
+ *
+ * Separate from `t` because the key is DATA here, not a literal: the Momenti deck receives
+ * tag keys from `get_momenti_deck()` and localizes them per read (#273 D), so the key cannot
+ * be typed as a MessageKey at the call site. An unknown tag returns the key itself — a tag
+ * that reaches the DB before the catalogs must read as «astronauta», never «undefined».
+ */
+export function tagLabel(kind: 'identity' | 'seeking', tag: string, locale: Locale): string {
+  const key = `tag.${kind}.${tag}`;
+  const catalog: Record<string, string | undefined> = catalogs[locale];
+  return catalog[key] ?? tag;
+}

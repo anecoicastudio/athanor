@@ -29,7 +29,7 @@ import { supabase } from '@/lib/supabase';
  * ROUTE-ONLY — a second DELIBERATE DEVIATION, from DESIGN §8.2's `[Scopri][passa]` mockup,
  * which predates the swipe deck. Deciding belongs in the tab now: `acceptMoment` branches into
  * `(modal)/match` plus a toast (`(tabs)/momenti.tsx:61-79`), and `passMoment` is destructive for
- * 90 days with no undo (`packages/api/src/momenti.ts:107-117`). A stray tap on a scrolling Home
+ * 90 days with no undo (`packages/api/src/momenti.ts:111-121`). A stray tap on a scrolling Home
  * must not be able to spend either. Don't "restore" the buttons from the mockup.
  *
  * Same `momentiKeys.deck()` key and queryFn as the tab-bar badge, with NO options: TanStack
@@ -66,8 +66,9 @@ export function MomentiCard({ locale }: { locale: Locale }) {
   // Nothing waits, or nothing is known yet — the slot collapses entirely (see docblock).
   if (!top) return null;
 
-  // `getMomentiDeck` already drops dream-less cards (`packages/api/src/momenti.ts:59`); the
-  // guards below hold because the schema type stays `string | null` / a possibly-empty array.
+  // A card always carries a dream — `get_momenti_deck()` inner-joins the candidate's newest
+  // active dream — but `reasons` can be empty when the candidate has masked every term, so the
+  // guard below stays.
   const reason = top.reasons[0];
 
   return (

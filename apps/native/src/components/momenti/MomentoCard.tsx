@@ -35,8 +35,8 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
         </View>
 
         <View className="mt-4 gap-1">
-          {card.reasons.slice(0, 3).map((reason, i) => (
-            <AffinityRow key={i} reason={reason} locale={locale} />
+          {card.reasons.slice(0, 3).map((reason) => (
+            <AffinityRow key={reason.kind} reason={reason} locale={locale} />
           ))}
         </View>
 
