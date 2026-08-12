@@ -199,6 +199,39 @@ describe('createTicketCheckout', () => {
     const { client } = withFn(invoke);
     await expect(createTicketCheckout(client, E)).rejects.toThrow();
   });
+
+  // #103 — the server's {error} string is the contract; the screen maps it to copy.
+  it('reads the refusal body off FunctionsHttpError.context into a TicketCheckoutError', async () => {
+    const httpError = Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+      context: { status: 403, json: () => Promise.resolve({ error: 'organizer not verified' }) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const { client } = withFn(invoke);
+
+    await expect(createTicketCheckout(client, E)).rejects.toMatchObject({
+      name: 'TicketCheckoutError',
+      code: 'organizer not verified',
+      status: 403,
+    });
+  });
+
+  it('rethrows the raw error when the refusal body is unreadable', async () => {
+    const httpError = Object.assign(new Error('non-2xx'), {
+      context: { status: 500, json: () => Promise.reject(new Error('not json')) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const { client } = withFn(invoke);
+    await expect(createTicketCheckout(client, E)).rejects.toThrow('non-2xx');
+  });
+
+  it('rethrows the raw error when the body carries no {error} string', async () => {
+    const httpError = Object.assign(new Error('non-2xx'), {
+      context: { status: 500, json: () => Promise.resolve({ unrelated: true }) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const { client } = withFn(invoke);
+    await expect(createTicketCheckout(client, E)).rejects.toThrow('non-2xx');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -336,6 +336,21 @@ export function subscribeEventLive(
 }
 
 /**
+ * A refusal from create-ticket-checkout. `code` is the server's `{error}` string — those
+ * strings are the stable contract (#103); the screen maps them to copy. Plumbing only:
+ * no message mapping here (rule api.md).
+ */
+export class TicketCheckoutError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(`create-ticket-checkout refused: ${code} (${status})`);
+    this.name = 'TicketCheckoutError';
+  }
+}
+
+/**
  * Start a Stripe Checkout for a paid event via the create-ticket-checkout edge fn.
  * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only
  * (rule #6) — the ticket is issued by the webhook (W1) and arrives via subscribeTicket.
@@ -347,9 +362,25 @@ export async function createTicketCheckout(
   const res = await client.functions.invoke<unknown>('create-ticket-checkout', {
     body: { eventId },
   });
-  // supabase-js types FunctionsResponse.error as `any`; every concrete case
-  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
-  if (res.error) throw res.error as Error;
+  if (res.error) {
+    // On a non-2xx, FunctionsHttpError hangs the Response off `.context` — the JSON body is
+    // the only place the server's reason survives. Read it before rethrowing; an unreadable
+    // body (relay/network failure, non-JSON) falls back to the raw error unchanged.
+    const ctx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } })
+      .context;
+    if (ctx && typeof ctx.json === 'function' && typeof ctx.status === 'number') {
+      let code: unknown;
+      try {
+        code = ((await ctx.json()) as { error?: unknown } | null)?.error;
+      } catch {
+        // body unreadable — rethrow the raw error below
+      }
+      if (typeof code === 'string') throw new TicketCheckoutError(code, ctx.status);
+    }
+    // supabase-js types FunctionsResponse.error as `any`; every concrete case
+    // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+    throw res.error as Error;
+  }
   const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('checkout did not return a url');
   return { url };

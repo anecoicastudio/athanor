@@ -3,16 +3,36 @@ import { useRouter } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
-import { createTicketCheckout, eventKeys, getMyTicket, subscribeTicket } from '@athanor/api';
+import {
+  createTicketCheckout,
+  eventKeys,
+  getMyTicket,
+  subscribeTicket,
+  TicketCheckoutError,
+} from '@athanor/api';
 import { formatPrice } from '@athanor/core';
 import { semantic } from '@athanor/config';
-import { t } from '@athanor/i18n';
+import { t, type MessageKey } from '@athanor/i18n';
 import type { Event } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 
 type Phase = 'idle' | 'opening' | 'confirming' | 'confirmSlow';
+
+// The server's `{error}` strings are the stable contract (#103) — create-ticket-checkout's
+// guard ladder on one side, this map on the other. An unmapped code (a future guard, e.g.
+// #105's capacity refusal until it lands here) degrades to ticket.error.payment, never crashes.
+const ERROR_COPY: Record<string, MessageKey> = {
+  unauthorized: 'ticket.error.signedOut',
+  outdated_client: 'ticket.error.outdatedClient',
+  'event not found': 'ticket.error.notFound',
+  'event is free': 'ticket.error.eventFree',
+  'organizer not verified': 'ticket.error.organizerUnverified',
+  'organizer cannot buy': 'ticket.error.organizerSelf',
+  'event ended': 'ticket.error.eventEnded',
+  'ticket already owned': 'ticket.error.alreadyOwned',
+};
 
 export function TicketBar({ event, locale }: { event: Event; locale: 'it' | 'en' }) {
   const { profile } = useAuth();
@@ -63,9 +83,13 @@ export function TicketBar({ event, locale }: { event: Event; locale: 'it' | 'en'
       refetchTicket();
       if (slowTimer.current) clearTimeout(slowTimer.current);
       slowTimer.current = setTimeout(() => setPhase('confirmSlow'), 30000);
-    } catch {
+    } catch (e) {
       setPhase('idle');
-      setErrorMsg(t('ticket.error.payment', locale));
+      const code = e instanceof TicketCheckoutError ? e.code : null;
+      if (__DEV__) console.log('[ticket] checkout refused:', code ?? e);
+      // A 409 means the local ticket query is stale — re-read so the bar flips to the ticket view.
+      if (code === 'ticket already owned') refetchTicket();
+      setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.payment', locale));
     }
   }, [event.id, locale, refetchTicket]);
 
