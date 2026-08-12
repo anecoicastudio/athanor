@@ -60,6 +60,7 @@ Deno.test(
       { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur' },
       PROFILE,
       APP,
+      CREATED * 1000, // injected clock (ms) — only expires_at derives from it here
     );
     const db = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
     // If the producer ever renames a metadata key, handleTicketPaid throws 'missing metadata'
