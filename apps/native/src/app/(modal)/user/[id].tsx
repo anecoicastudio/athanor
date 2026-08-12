@@ -34,6 +34,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
+import { listState } from '@/lib/list-state';
 import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
 
@@ -348,6 +349,15 @@ export default function PersonDetailScreen() {
             urls,
             urlsLoading,
             locale,
+            // «Ancora nessun Momento» is a claim about ANOTHER member, made on the strength of
+            // the viewer's own connection — the same shape #10 fixed for their Aura (#111).
+            state: listState({
+              status: momentsQuery.status,
+              fetchStatus: momentsQuery.fetchStatus,
+              isEmpty: moments.length === 0,
+              staleWins: true,
+            }),
+            onRetry: () => void momentsQuery.refetch(),
             onOpen: setLightboxIndex,
             onSeeAll: () => router.push({ pathname: '/(modal)/grid', params: { userId: id } }),
             label: t('profile.moments.theirLabel', locale),

@@ -1,8 +1,9 @@
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
+import type { ListState as State } from '@/lib/list-state';
 import { Pressable, Text, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 
@@ -22,6 +23,8 @@ export function MomentiGallery({
   onAdd,
   label,
   emptyLabel,
+  state,
+  onRetry,
 }: {
   moments: Moment[];
   /** Signed URLs by storage path (from `useSignedUrls('moments', …)`). */
@@ -37,8 +40,16 @@ export function MomentiGallery({
   label?: string;
   /** Override the empty-state body (e.g. third-person «Ancora nessun Momento»). Defaults to the owner copy. */
   emptyLabel?: string;
+  /**
+   * `listState(...)` for the query that produced `moments`, from the caller — the gallery is
+   * props-driven and cannot see it. Threaded rather than derived because `moments.length === 0`
+   * was the whole bug: a failed read told both the owner and a visitor the person has none
+   * (#111). Same reason `urlsLoading` is threaded rather than assumed (#135).
+   */
+  state: State;
+  /** `query.refetch()` for that query. */
+  onRetry: () => void;
 }) {
-  const empty = moments.length === 0;
   return (
     <View className="gap-3">
       <View className="flex-row items-center justify-between">
@@ -73,7 +84,15 @@ export function MomentiGallery({
         ) : null}
       </View>
 
-      {empty ? <EmptyState>{emptyLabel ?? t('profile.moments.empty', locale)}</EmptyState> : null}
+      <ListState
+        state={state}
+        locale={locale}
+        errorLabel={t('profile.moments.error', locale)}
+        emptyLabel={emptyLabel ?? t('profile.moments.empty', locale)}
+        onRetry={onRetry}
+        className=""
+        loading={null}
+      />
     </View>
   );
 }

@@ -6,11 +6,12 @@ import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Pressable, ScrollView, Text, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
@@ -43,6 +44,14 @@ export default function GridScreen() {
     moments.map((m) => m.media_path),
   );
   const empty = moments.length === 0;
+  // `empty` alone drove the sentence below, so a failed read told the owner their journey
+  // starts here and told a visitor this person has no Momenti (#111).
+  const gridState = listState({
+    status: momentsQuery.status,
+    fetchStatus: momentsQuery.fetchStatus,
+    isEmpty: empty,
+    staleWins: true,
+  });
 
   const [index, setIndex] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -123,13 +132,17 @@ export default function GridScreen() {
           ) : null}
         </View>
 
-        {empty ? (
-          <View className="mt-2">
-            <EmptyState>
-              {t(readOnly ? 'profile.moments.theirEmpty' : 'moment.empty', locale)}
-            </EmptyState>
-          </View>
-        ) : null}
+        {/* The add tile above stays through every arm for the owner: putting a Momento up does
+            not depend on the read that failed. Only the sentence changes. */}
+        <ListState
+          state={gridState}
+          locale={locale}
+          errorLabel={t('profile.moments.error', locale)}
+          emptyLabel={t(readOnly ? 'profile.moments.theirEmpty' : 'moment.empty', locale)}
+          onRetry={() => void momentsQuery.refetch()}
+          className="mt-2"
+          loading={null}
+        />
 
         <Lightbox
           moments={moments}

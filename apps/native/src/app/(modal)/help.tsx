@@ -16,11 +16,13 @@ import { ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { MilestoneRow } from '@/components/profile/MilestoneRow';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones } from '@/lib/help-picker';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 // A unique violation here means you already offered help on this tappa.
@@ -103,6 +105,24 @@ export default function HelpScreen() {
     (dreamId != null && milestonesQuery.isPending) ||
     (tappe.length > 0 && myHelpsQuery.isPending);
 
+  // One read to the member, three to the database, so the arms compose: any leg that threw
+  // makes the whole picker an error, and only the dream leg decides emptiness. Before this,
+  // `dreamQuery.data == null` covered both, so a failed read said «Non ha ancora scritto il
+  // suo sogno» — a claim about another person, made from the viewer's own broken connection
+  // (#111, the shape #10 fixed for their Aura).
+  const pickerFailed = dreamQuery.isError || milestonesQuery.isError || myHelpsQuery.isError;
+  const pickerState = listState({
+    status: pickerFailed ? 'error' : dreamQuery.status,
+    fetchStatus: dreamQuery.fetchStatus,
+    isEmpty: dreamQuery.data == null,
+    staleWins: true,
+  });
+  const retryPicker = () => {
+    void dreamQuery.refetch();
+    void milestonesQuery.refetch();
+    void myHelpsQuery.refetch();
+  };
+
   const submit = async () => {
     if (saving) return;
     // One id whichever way the sheet was entered — the picker feeds the same submit.
@@ -144,8 +164,16 @@ export default function HelpScreen() {
           </View>
         ) : (
           <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
-            {dreamQuery.data == null ? (
-              <EmptyState>{t('help.pick.noDream', locale)}</EmptyState>
+            {pickerState !== 'ready' ? (
+              <ListState
+                state={pickerState}
+                locale={locale}
+                errorLabel={t('help.pick.error', locale)}
+                emptyLabel={t('help.pick.noDream', locale)}
+                onRetry={retryPicker}
+                className="pt-4"
+                loading={null}
+              />
             ) : options.length === 0 ? (
               <EmptyState>{t('help.pick.noneLeft', locale)}</EmptyState>
             ) : (

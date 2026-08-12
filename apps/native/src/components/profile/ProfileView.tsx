@@ -23,6 +23,7 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { Tag } from '@/components/Tag';
 import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
+import { listState } from '@/lib/list-state';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -146,6 +147,13 @@ export function ProfileView({
           urls,
           urlsLoading,
           locale,
+          state: listState({
+            status: momentsQuery.status,
+            fetchStatus: momentsQuery.fetchStatus,
+            isEmpty: moments.length === 0,
+            staleWins: true,
+          }),
+          onRetry: () => void momentsQuery.refetch(),
           onOpen: setLightboxIndex,
           onSeeAll: () => router.push('/(modal)/grid'),
           onAdd: () => setSheetOpen(true),

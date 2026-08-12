@@ -5,10 +5,11 @@ import { getProject, projectKeys } from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 export default function ProjectDetailScreen() {
@@ -30,16 +31,30 @@ export default function ProjectDetailScreen() {
   };
 
   const project = query.data;
+  // `staleWins`: a project page a few minutes old is still that project.
+  const detailState = listState({
+    status: query.status,
+    fetchStatus: query.fetchStatus,
+    isEmpty: project == null,
+    staleWins: true,
+  });
 
   return (
     <View className="flex-1 bg-background">
       <ModalHeader title={t('project.detail.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
-        {query.isError || (!query.isLoading && !project) ? (
-          <View className="pt-16">
-            <EmptyState>{t('costellazioni.error', locale)}</EmptyState>
-          </View>
-        ) : null}
+        {/* One branch used to cover a failed read AND a project that no longer exists, with no
+            way out of either — «Non siamo riusciti a caricare la bacheca» on a dead deep link,
+            and no retry on a real failure (#111). */}
+        <ListState
+          state={detailState}
+          locale={locale}
+          errorLabel={t('project.error', locale)}
+          emptyLabel={t('project.notFound', locale)}
+          onRetry={() => void query.refetch()}
+          className="pt-16"
+          loading={null}
+        />
 
         {project ? (
           <>

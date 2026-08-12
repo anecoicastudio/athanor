@@ -1,21 +1,26 @@
 import { useState } from 'react';
-import { Alert, FlatList, ActivityIndicator } from 'react-native';
+import { Alert, FlatList } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, listBlocked, unblockUser } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 /**
  * Blocked-profiles list screen (M9 §3.1). Keyset pagination (rule #9); neutral
  * palette — no cyan/glow (rule #4). Unblock requires a destructive Alert confirm
  * before firing the mutation; the touched row dims while in flight.
+ *
+ * The empty branch goes through `listState` rather than `!isLoading` (#111). This is the
+ * screen where that mattered most: «Non hai bloccato nessuno» rendered on a failed read is
+ * a false all-clear, and someone checking whether they are still protected has no way to
+ * tell it from the truth.
  */
 export default function BlockedScreen() {
   const { profile } = useAuth();
@@ -84,15 +89,18 @@ export default function BlockedScreen() {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
         ListEmptyComponent={
-          query.isLoading ? (
-            <View className="items-center pt-24">
-              <ActivityIndicator color={semantic.faint} />
-            </View>
-          ) : (
-            <View className="items-center px-8 pt-24">
-              <EmptyState>{t('block.list.empty', locale)}</EmptyState>
-            </View>
-          )
+          <ListState
+            state={listState({
+              status: query.status,
+              fetchStatus: query.fetchStatus,
+              isEmpty: rows.length === 0,
+              staleWins: true,
+            })}
+            locale={locale}
+            errorLabel={t('block.list.error', locale)}
+            emptyLabel={t('block.list.empty', locale)}
+            onRetry={() => void query.refetch()}
+          />
         }
       />
 

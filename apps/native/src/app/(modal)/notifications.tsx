@@ -14,11 +14,12 @@ import {
 import type { NotifCursor } from '@athanor/api';
 import type { Notification } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
 import { routeForNotification } from '@/lib/notification-route';
 import { supabase } from '@/lib/supabase';
@@ -144,15 +145,25 @@ export default function NotificationsScreen() {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
         ListEmptyComponent={
-          query.isLoading ? (
-            <View className="items-center pt-24">
-              <ActivityIndicator color={semantic.foregroundMuted} />
-            </View>
-          ) : (
-            <View className="items-center px-8 pt-24">
-              <EmptyState>{t('notif.empty', locale)}</EmptyState>
-            </View>
-          )
+          <ListState
+            state={listState({
+              status: query.status,
+              fetchStatus: query.fetchStatus,
+              isEmpty: sections.length === 0,
+              staleWins: true,
+            })}
+            locale={locale}
+            errorLabel={t('notif.error', locale)}
+            emptyLabel={t('notif.empty', locale)}
+            onRetry={() => void query.refetch()}
+            // `foregroundMuted`, not the `faint` default: this screen's RefreshControl above
+            // uses the same tone, and two spinners a pull apart should not differ.
+            loading={
+              <View className="items-center pt-24">
+                <ActivityIndicator color={semantic.foregroundMuted} />
+              </View>
+            }
+          />
         }
       />
     </View>
