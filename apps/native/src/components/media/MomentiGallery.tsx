@@ -15,6 +15,7 @@ import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 export function MomentiGallery({
   moments,
   urls,
+  urlsLoading,
   locale,
   onOpen,
   onSeeAll,
@@ -25,6 +26,8 @@ export function MomentiGallery({
   moments: Moment[];
   /** Signed URLs by storage path (from `useSignedUrls('moments', …)`). */
   urls: Record<string, string>;
+  /** That hook's `isLoading`, passed straight through to each tile — see #135. */
+  urlsLoading: boolean;
   locale: Locale;
   onOpen: (index: number) => void;
   onSeeAll: () => void;
@@ -58,6 +61,7 @@ export function MomentiGallery({
               variant="gallery"
               locale={locale}
               url={urls[m.media_path]}
+              isLoading={urlsLoading}
               onPress={() => onOpen(i)}
             />
           </View>
