@@ -161,8 +161,34 @@ Deno.test('handleTicketPaid re-issues a refunded ticket on a genuine re-purchase
     values.qr_token,
     await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
   );
-  // guard: only a refunded row is repairable — a concurrent check-in can't be overwritten
-  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'refunded'));
+  // guard: only a pending claim or a refunded row is payable — a concurrent check-in
+  // can't be overwritten
+  assert(
+    upd.filters.some(
+      ([f, c, v]) => f === 'in' && c === 'status' && JSON.stringify(v) === '["pending","refunded"]',
+    ),
+  );
+});
+
+Deno.test('handleTicketPaid pays the pending seat claim (#105 — the common path)', async () => {
+  // claim_event_seat wrote the pending row BEFORE the Session was minted, so the upsert is
+  // always swallowed (count 0) and the flip below is what actually issues the ticket. It
+  // must land even for a claim whose TTL lapsed — the money moved.
+  const db = makeFakeDb({
+    'event_tickets.upsert': [{ count: 0 }],
+    'event_tickets.select': [{ data: { status: 'pending', stripe_payment_id: null } }],
+  });
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+  const upd = db.calls.find((c) => c.op === 'update');
+  assert(upd, 'expected the pending claim to be paid');
+  const values = upd.values as Record<string, unknown>;
+  assertEquals(values.status, 'paid');
+  assertEquals(values.stripe_payment_id, 'pi_1');
+  assertEquals(values.expires_at, null); // the seat-hold TTL is over — the seat is owned now
+  assertEquals(
+    values.qr_token,
+    await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
+  );
 });
 
 Deno.test('handleTicketPaid never resurrects a refunded ticket from a stale replay', async () => {

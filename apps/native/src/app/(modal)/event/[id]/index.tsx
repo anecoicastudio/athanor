@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { eventKeys, getEvent, getEventAttendees, getMyRsvp, upsertRsvp } from '@athanor/api';
+import {
+  eventKeys,
+  getEvent,
+  getEventAttendees,
+  getEventSeatsTaken,
+  getMyRsvp,
+  upsertRsvp,
+} from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { ENGINE_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
@@ -85,9 +92,12 @@ export default function EventDetailScreen() {
       qc.setQueryData(eventKeys.rsvp(id), optimistic);
       return { prev };
     },
-    onError: (_e, _next, ctx) => {
+    onError: (e, _next, ctx) => {
       qc.setQueryData(eventKeys.rsvp(id), ctx?.prev);
-      setConfirmation(t('event.rsvp.error', locale));
+      // The rsvps capacity trigger (#105) refuses with 'sold out' — honest copy, not a
+      // generic error; onSettled's attendees invalidation then flips the bar to disabled.
+      const refusedFull = (e as { message?: string } | null)?.message === 'sold out';
+      setConfirmation(t(refusedFull ? 'event.soldOut' : 'event.rsvp.error', locale));
     },
     onSuccess: (_d, next) => {
       setConfirmation(next ? t('event.rsvp.toast', locale) : t('event.rsvp.cancelled', locale));
@@ -120,12 +130,20 @@ export default function EventDetailScreen() {
   const isPremium = event ? event.is_kairos_day || event.is_athanor_day : false;
   const isOrganizer = !!uid && event?.organizer_id === uid;
   const count = attendees.data?.count ?? 0;
-  const soldOut = event?.capacity != null && count >= event.capacity;
+
+  // Paid seats are tickets, not RSVPs, and ticket rows are owner-only — the count comes
+  // from the event_seats_taken definer RPC (#105). Free events keep the RSVP count.
+  const seats = useQuery({
+    queryKey: eventKeys.seats(id),
+    queryFn: () => getEventSeatsTaken(supabase, id),
+    enabled: !!id && isPaid && event?.capacity != null,
+  });
+  const soldOut = event?.capacity != null && (isPaid ? (seats.data ?? 0) : count) >= event.capacity;
 
   // Single action-bar node reused by both the premium <CircleGate> branch and the
   // non-premium branch — avoids duplicated prop sets that could drift on future edits.
   const actionBar = isPaid ? (
-    <TicketBar event={event!} locale={locale} />
+    <TicketBar event={event!} soldOut={soldOut} locale={locale} />
   ) : (
     <RsvpBar
       going={going}

@@ -682,6 +682,7 @@
   "ticket.error.organizerSelf": "È il tuo evento. Non ti serve un biglietto.",
   "ticket.error.eventEnded": "Questo evento è già finito.",
   "ticket.error.alreadyOwned": "Hai già il tuo biglietto ✦",
+  "ticket.error.soldOut": "I posti sono finiti mentre completavi l'acquisto.",
   "ticket.viewer.title": "Il tuo biglietto",
   "ticket.show": "Mostra questo codice all'ingresso",
   "ticket.status.valid": "Valido",

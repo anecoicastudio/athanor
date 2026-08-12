@@ -34,6 +34,7 @@ export const eventKeys = {
   attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
   liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
   ticket: (eventId: string) => [...eventKeys.all, 'ticket', eventId] as const,
+  seats: (eventId: string) => [...eventKeys.all, 'seats', eventId] as const,
   checkin: (eventId: string) => [...eventKeys.all, 'checkin', eventId] as const,
 };
 
@@ -386,6 +387,17 @@ export async function createTicketCheckout(
   return { url };
 }
 
+/**
+ * Seats currently held on the paid path — paid + checked_in + unexpired pending claims
+ * (#105). A definer count RPC because ticket rows are owner-only under RLS; feeds the
+ * sold-out state on the event screen next to `event.capacity`.
+ */
+export async function getEventSeatsTaken(client: AthanorClient, eventId: string): Promise<number> {
+  const { data, error } = await client.rpc('event_seats_taken', { p_event_id: eventId });
+  if (error) throw error;
+  return data ?? 0;
+}
+
 /** The viewer's own ticket for an event (null if they never bought one). Owner-reads-own RLS. */
 export async function getMyTicket(
   client: AthanorClient,
@@ -394,7 +406,9 @@ export async function getMyTicket(
 ): Promise<Ticket | null> {
   const { data, error } = await client
     .from('event_tickets')
-    .select('id,user_id,event_id,stripe_payment_id,qr_token,status,created_at,updated_at')
+    .select(
+      'id,user_id,event_id,stripe_payment_id,qr_token,status,expires_at,created_at,updated_at',
+    )
     .eq('event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();

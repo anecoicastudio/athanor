@@ -220,6 +220,7 @@ describe('ticketSchema', () => {
     stripe_payment_id: 'pi_123',
     qr_token: 'signed.token',
     status: 'paid',
+    expires_at: null,
     created_at: '2026-06-16T10:00:00.000Z',
     updated_at: '2026-06-16T10:00:00.000Z',
   };
@@ -228,9 +229,15 @@ describe('ticketSchema', () => {
     expect(ticketSchema.parse(valid)).toEqual(valid);
   });
 
-  it('accepts a pending ticket with null payment id + qr', () => {
+  it('accepts a pending ticket with null payment id + qr and a seat-hold expiry (#105)', () => {
     expect(() =>
-      ticketSchema.parse({ ...valid, status: 'pending', stripe_payment_id: null, qr_token: null }),
+      ticketSchema.parse({
+        ...valid,
+        status: 'pending',
+        stripe_payment_id: null,
+        qr_token: null,
+        expires_at: '2026-06-16T10:35:00.000Z',
+      }),
     ).not.toThrow();
   });
 

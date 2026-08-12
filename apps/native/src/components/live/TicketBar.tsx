@@ -15,6 +15,7 @@ import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Event } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 
@@ -32,9 +33,19 @@ const ERROR_COPY: Record<string, MessageKey> = {
   'organizer cannot buy': 'ticket.error.organizerSelf',
   'event ended': 'ticket.error.eventEnded',
   'ticket already owned': 'ticket.error.alreadyOwned',
+  'sold out': 'ticket.error.soldOut',
 };
 
-export function TicketBar({ event, locale }: { event: Event; locale: 'it' | 'en' }) {
+export function TicketBar({
+  event,
+  soldOut,
+  locale,
+}: {
+  event: Event;
+  /** capacity reached on the paid path (#105) — seats from event_seats_taken vs event.capacity */
+  soldOut: boolean;
+  locale: 'it' | 'en';
+}) {
   const { profile } = useAuth();
   const uid = profile?.id ?? null;
   const router = useRouter();
@@ -87,11 +98,12 @@ export function TicketBar({ event, locale }: { event: Event; locale: 'it' | 'en'
       setPhase('idle');
       const code = e instanceof TicketCheckoutError ? e.code : null;
       if (__DEV__) console.log('[ticket] checkout refused:', code ?? e);
-      // A 409 means the local ticket query is stale — re-read so the bar flips to the ticket view.
+      // A 409 means a local query is stale — re-read so the bar flips to its real state.
       if (code === 'ticket already owned') refetchTicket();
+      if (code === 'sold out') void qc.invalidateQueries({ queryKey: eventKeys.seats(event.id) });
       setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.payment', locale));
     }
-  }, [event.id, locale, refetchTicket]);
+  }, [event.id, locale, refetchTicket, qc]);
 
   // Escape the confirming state (e.g. the user cancelled Checkout, so no ticket will ever arrive).
   const dismissConfirming = useCallback(() => {
@@ -151,6 +163,18 @@ export function TicketBar({ event, locale }: { event: Event; locale: 'it' | 'en'
             </Pressable>
           </View>
         ) : null}
+      </View>
+    );
+  }
+
+  // Sold out (#105): same disabled surface as RsvpBar's «Tutto esaurito». A ticket holder
+  // never sees it (the hasTicket branch returns first), and a buyer mid-confirmation keeps
+  // their spinner — this replaces only the buy button.
+  if (soldOut) {
+    return (
+      <View className="gap-2 rounded-card border border-hair bg-raise p-4">
+        <Button label={t('event.soldOut', locale)} variant="ghost" disabled onPress={() => {}} />
+        {errorMsg ? <Text className="text-center text-[12px] text-error">{errorMsg}</Text> : null}
       </View>
     );
   }

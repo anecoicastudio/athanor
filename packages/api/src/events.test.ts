@@ -10,6 +10,7 @@ import {
   getEventAttendees,
   getEventCheckinCount,
   getEventLiveStats,
+  getEventSeatsTaken,
   getEventsByOrganizer,
   getEventsCalendar,
   getEventsNearby,
@@ -35,6 +36,12 @@ describe('eventKeys', () => {
 describe('eventKeys.liveStats', () => {
   it('namespaces live stats distinctly under the events root', () => {
     expect(eventKeys.liveStats('e1')).toEqual(['events', 'liveStats', 'e1']);
+  });
+});
+
+describe('eventKeys.seats', () => {
+  it('namespaces the seats-taken count distinctly under the events root', () => {
+    expect(eventKeys.seats('e1')).toEqual(['events', 'seats', 'e1']);
   });
 });
 
@@ -130,6 +137,7 @@ const ticketRow = (over: Record<string, unknown> = {}) => ({
   stripe_payment_id: null,
   qr_token: null,
   status: 'pending',
+  expires_at: null,
   created_at: '2026-08-01T00:00:00Z',
   updated_at: '2026-08-01T00:00:00Z',
   ...over,
@@ -231,6 +239,24 @@ describe('createTicketCheckout', () => {
     const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
     const { client } = withFn(invoke);
     await expect(createTicketCheckout(client, E)).rejects.toThrow('non-2xx');
+  });
+});
+
+describe('getEventSeatsTaken', () => {
+  it('reads the definer count rpc for this event (#105)', async () => {
+    const fake = makeFakeClient({ 'rpc.event_seats_taken': [{ data: 7 }] });
+    await expect(getEventSeatsTaken(asClient(fake), E)).resolves.toBe(7);
+    const rpc = fake.calls.find((c) => c.op === 'rpc');
+    expect(rpc?.columns).toBe('event_seats_taken');
+    expect(rpc?.values).toEqual({ p_event_id: E });
+  });
+
+  it('treats a null count as zero and surfaces errors', async () => {
+    const empty = makeFakeClient({ 'rpc.event_seats_taken': [{ data: null }] });
+    await expect(getEventSeatsTaken(asClient(empty), E)).resolves.toBe(0);
+
+    const failing = makeFakeClient({ 'rpc.event_seats_taken': [{ error: { message: 'boom' } }] });
+    await expect(getEventSeatsTaken(asClient(failing), E)).rejects.toBeTruthy();
   });
 });
 

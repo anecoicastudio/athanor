@@ -38,14 +38,19 @@ export type TicketEvent = {
 /**
  * Pure params builder. The price comes from the EVENT ROW (never client-supplied);
  * metadata.kind routes the shared webhook (W1); profile_id is the verified caller.
+ * `nowMs` (injected clock) caps the Session at 30 minutes — Stripe's minimum expiry —
+ * so the 35-minute seat claim (#105, claim_event_seat) strictly outlives the Session
+ * it backs: a payment that can still complete always has an unexpired claim behind it.
  */
 export function buildTicketSessionParams(
   event: TicketEvent,
   profileId: string,
   appBase: string,
+  nowMs: number,
 ): Stripe.Checkout.SessionCreateParams {
   return {
     mode: 'payment',
+    expires_at: Math.floor(nowMs / 1000) + 30 * 60,
     line_items: [
       {
         quantity: 1,
@@ -78,12 +83,16 @@ export function buildTicketSessionParams(
  * 200 with the money taken and no second ticket to show for it.
  *
  * The ticket gate is read-then-act, so it closes the SEQUENTIAL re-buy — a member who
- * already holds a ticket — and not the concurrent one: two sessions started before either
- * webhook lands both read no row, and the second charge is still swallowed. Closing that
- * needs a pre-charge claim row, which this milestone does not have.
+ * already holds a ticket — and not the concurrent one: a same-user concurrent double
+ * checkout is #258, and the claim row below is the mechanism it will build on (an own
+ * re-claim is currently idempotent on purpose — refusing it is #258's decision to make).
  *
- * Capacity is deliberately NOT checked here — #105 owns it end-to-end for both the RSVP
- * and the checkout path, including the concurrency bar this function cannot meet.
+ * Capacity (#105) is the last gate and the only one that is NOT read-then-act: the
+ * claim_event_seat RPC locks the events row, counts held seats (paid, checked_in,
+ * unexpired pending) and writes this caller's pending claim in one transaction, BEFORE
+ * any money moves. Concurrent buyers serialize on that lock — the count this function
+ * could run itself would be a race (two checkouts both pass, both charge, no way to
+ * decline the second after hosted Checkout captures it).
  */
 export async function createTicketCheckout(
   ctx: TicketCheckoutCtx,
@@ -137,15 +146,36 @@ export async function createTicketCheckout(
     return error('ticket already owned', 409);
   }
 
-  // Wrap the Stripe call: an API error must return a clean {error} (never leak Stripe's raw error
-  // body / a 500 with internals). No DB write or charge has happened, so failing here is money-safe.
+  // #105 — claim the seat before the money moves (see the docblock). The RPC runs as the
+  // caller (auth.uid()), so the claim can never be minted for someone else.
+  const { data: claim, error: claimErr } = await userClient.rpc('claim_event_seat', {
+    p_event_id: eventId,
+  });
+  if (claimErr) return error('seat claim failed', 500); // fail-closed: never sell when unsure
+  if (claim === 'sold_out') return error('sold out', 409);
+  if (claim === 'already_owned') return error('ticket already owned', 409); // belt for the gate above
+  if (claim === 'not_found') return error('event not found', 404);
+  if (claim !== 'claimed') return error('seat claim failed', 500); // unknown verdict — fail-closed
+
+  // Wrap the Stripe call: an API error must return a clean {error} (never leak Stripe's raw
+  // error body / a 500 with internals). No charge has happened, so failing here is money-safe —
+  // but a seat IS held now, so release it (best-effort; the claim's 35-minute TTL is the backstop).
+  const releaseSeat = () =>
+    userClient.rpc('release_event_seat', { p_event_id: eventId }).then(
+      () => undefined,
+      () => undefined,
+    );
   try {
     const session = await createCheckoutSession(
-      buildTicketSessionParams(event, profileId, appBase),
+      buildTicketSessionParams(event, profileId, appBase, now().getTime()),
     );
-    if (!session.url) return error('could not start checkout', 500);
+    if (!session.url) {
+      await releaseSeat();
+      return error('could not start checkout', 500);
+    }
     return json({ url: session.url });
   } catch {
+    await releaseSeat();
     return error('could not start checkout', 500);
   }
 }

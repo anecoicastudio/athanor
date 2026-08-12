@@ -682,6 +682,7 @@
   "ticket.error.organizerSelf": "It's your event. You don't need a ticket.",
   "ticket.error.eventEnded": "This event has already ended.",
   "ticket.error.alreadyOwned": "You already have your ticket ✦",
+  "ticket.error.soldOut": "The seats ran out while you were checking out.",
   "ticket.viewer.title": "Your ticket",
   "ticket.show": "Show this code at the entrance",
   "ticket.status.valid": "Valid",

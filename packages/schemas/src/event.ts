@@ -133,6 +133,8 @@ export const ticketSchema = z.object({
   stripe_payment_id: z.string().nullable(),
   qr_token: z.string().nullable(),
   status: ticketStatusSchema,
+  /** Seat-hold TTL while status=pending (#105); NULL on paid/checked_in/refunded rows. */
+  expires_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
