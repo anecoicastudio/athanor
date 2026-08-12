@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import { getPublicProfileByHandle, publicProfileKeys } from './public-profile';
+import { getPublicProfileByHandle } from './public-profile';
 
 type Row = Record<string, unknown> | null;
 
@@ -23,10 +23,6 @@ function makeClient(opts: { profile: Row; dream: Row; milestones: Row[] }) {
 }
 
 describe('public-profile api', () => {
-  it('key factory shape', () => {
-    expect(publicProfileKeys.detail('sole')).toEqual(['publicProfile', 'detail', 'sole']);
-  });
-
   it('returns null when no public profile row resolves', async () => {
     const client = makeClient({ profile: null, dream: null, milestones: [] });
     expect(await getPublicProfileByHandle(client, 'ghost')).toBeNull();

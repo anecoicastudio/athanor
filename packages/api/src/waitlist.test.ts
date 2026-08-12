@@ -7,7 +7,6 @@ import {
   WAITLIST_RATE_LIMITED_CODE,
   isWaitlistRateLimited,
   subscribeToWaitlist,
-  waitlistKeys,
 } from './waitlist';
 
 const db = (script: Record<string, FakeResult[]> = {}) => {
@@ -20,12 +19,6 @@ const waitlistRow = (email: string, source: string | null = null) => ({
   locale: 'it',
   source,
   created_at: '2026-01-01T00:00:00Z',
-});
-
-describe('waitlist api', () => {
-  it('key factory shape', () => {
-    expect(waitlistKeys.all).toEqual(['waitlist']);
-  });
 });
 
 describe('subscribeToWaitlist', () => {

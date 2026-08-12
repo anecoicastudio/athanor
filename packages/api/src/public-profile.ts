@@ -1,11 +1,6 @@
 import { type PublicProfile, publicProfileSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
-export const publicProfileKeys = {
-  all: ['publicProfile'] as const,
-  detail: (handle: string) => ['publicProfile', 'detail', handle] as const,
-};
-
 /**
  * The public @handle read-model (frontend 02 §6): assembled from anon, visibility-gated
  * reads. Returns null when no public row resolves (RLS returns 0 rows for a private/
