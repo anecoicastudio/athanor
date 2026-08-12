@@ -489,6 +489,7 @@
   "media.unavailable.photo": "This photo won't load.",
   "media.unavailable.video": "This video won't load.",
   "media.unavailable.audio": "This audio won't load.",
+  "media.noPoster.video": "Video with no preview.",
   "permission.camera.title": "Show your journey",
   "permission.camera.body": "We need the camera to add a photo or video to your moment.",
   "permission.photos.title": "Pick from your library",

@@ -489,6 +489,7 @@
   "media.unavailable.photo": "Questa foto non si carica.",
   "media.unavailable.video": "Questo video non si carica.",
   "media.unavailable.audio": "Questo audio non si carica.",
+  "media.noPoster.video": "Video senza anteprima.",
   "permission.camera.title": "Mostra il tuo percorso",
   "permission.camera.body": "Serve la fotocamera per aggiungere una foto o un video al tuo momento.",
   "permission.photos.title": "Scegli dalla tua libreria",
