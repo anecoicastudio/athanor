@@ -1,0 +1,22 @@
+-- Drop profiles_search_trgm — an index no query can use.
+--
+-- 20260619103142_m8_search.sql:69 created a GIN trigram index over
+-- f_profile_search(handle, bio, identity_tags, seeking), matching the search_all person
+-- arm of the time. 20260807170813_m10_profile_visibility_enforcement.sql:209 rewrote that
+-- arm to match against athanor.profile_search_text(p.id) — a different expression, read
+-- through a SECURITY DEFINER helper — so the planner cannot serve it from this index. That
+-- migration's header records the trade-off ("accepted at launch scale; revisit with a
+-- visibility-aware index expression if people-search slows"); what it did not do is drop
+-- the index the rewrite orphaned.
+--
+-- The cost is write-side and ongoing: profiles is written on every onboarding step, handle
+-- change, avatar change and verification transition, and each of those still maintains a
+-- GIN index that serves no read. Verified 2026-08-12: production profiles has 0 rows and
+-- the index is present there — this is the cheapest possible moment to drop it.
+--
+-- This does NOT resolve the m10 note. If people-search needs to scale past a sequential
+-- scan, the fix is materializing profile_search_text into a column (or an IMMUTABLE
+-- expression the planner can match) — justified by EXPLAIN ANALYZE against a seeded
+-- staging, not by re-creating this index in its old shape.
+
+drop index if exists public.profiles_search_trgm;

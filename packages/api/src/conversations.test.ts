@@ -105,6 +105,19 @@ describe('getConversationsPage', () => {
     });
   });
 
+  test('an RLS-nulled handle embed parses to a null peerHandle, not a throw', async () => {
+    // The profiles SELECT policy can null either handle embed (e.g. a block raised after the
+    // conversation row exists). The boundary parse must accept that shape.
+    const client = makeFakeClient({
+      'auth.getUser': session(),
+      'conversations.select': [{ data: [row({ a: null, b: null })] }],
+    });
+
+    const page = await getConversationsPage(as(client));
+
+    expect(page.items[0]).toMatchObject({ id: CONV, peerId: PEER, peerHandle: null });
+  });
+
   test('a thread with a blocked person reads as empty in either direction', async () => {
     // athanor.not_blocked hides the conversation whichever side raised the block
     // (m9_blocks_and_not_blocked.sql), so the client adds no block filter of its own.

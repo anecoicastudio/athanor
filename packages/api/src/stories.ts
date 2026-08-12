@@ -88,11 +88,16 @@ export async function getPersonStory(
 
 /**
  * Create a story segment (owner-only via RLS; expires_at defaults to now()+24h server-side).
- * Bytes are uploaded to the story-segments bucket first. Writes ONLY story_segments — never any
- * Aura/score event (rule #1). TODO(M6): the engine awards points from this domain event.
+ * Writes ONLY story_segments — never any Aura/score event (rule #1). TODO(M6): the engine
+ * awards points from this domain event.
  *
  * PARKED(story-add): 0 callers — the StoriesViewer "add" button routes to profile compose, not
  * here. Ships with the story-segment-add surface; wire or remove then.
+ *
+ * When that surface ships, the upload order must be row-first, then bytes (#272 / #31): the
+ * storage SELECT policy hides an object until its descriptor row exists, and storage-api's
+ * insert returns the object row, so INSERT … RETURNING is subject to SELECT policies. The
+ * bytes-then-row order this function was written for fails under that policy.
  */
 export async function createStorySegment(
   client: AthanorClient,

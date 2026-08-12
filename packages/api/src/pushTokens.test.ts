@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pushTokenKeys, registerPushToken, unregisterPushToken } from './pushTokens';
+import { registerPushToken, unregisterPushToken } from './pushTokens';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 
@@ -10,12 +10,6 @@ function mockClient() {
   const auth = { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'me-uuid' } } }) };
   return { client: { from, auth } as unknown as AthanorClient, from, upsert, del };
 }
-
-describe('pushTokenKeys', () => {
-  it('exposes a stable mine() key', () => {
-    expect(pushTokenKeys.mine()).toEqual(['push_tokens', 'mine']);
-  });
-});
 
 describe('registerPushToken', () => {
   it('upserts on the (profile_id, token) conflict target with the session profile_id', async () => {

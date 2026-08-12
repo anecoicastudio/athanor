@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { REPORT_PENALTY } from '@athanor/core';
-import { adminReportKeys, getReportDetail, getReportQueue, resolveReport } from './admin';
+import { getReportDetail, getReportQueue, resolveReport } from './admin';
 import { makeFakeClient } from './test-support/fake-client';
 import type { AthanorClient } from './client';
 
@@ -313,20 +313,7 @@ describe('getReportDetail target resolution', () => {
   });
 });
 
-describe('adminReportKeys', () => {
-  it('gives each queue status and detail its own cache slot', () => {
-    const keys = [
-      adminReportKeys.all,
-      adminReportKeys.queue('open'),
-      adminReportKeys.queue('reviewing'),
-      adminReportKeys.queue('resolved'),
-      adminReportKeys.detail(R1),
-      adminReportKeys.detail(R2),
-    ];
-    expect(keys.every((k) => k[0] === 'admin' && k[1] === 'reports')).toBe(true);
-    expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
-  });
-}); // ── the arms that decide what a moderator actually sees ──────────────────────
+// ── the arms that decide what a moderator actually sees ──────────────────────
 // Everything below covers a branch that no earlier test reaches: the resolved-bucket
 // widening, the limit+1 probe row, the reporter/target `?? null` arms and the audit `?? []`.
 describe('getReportQueue — the resolved bucket and the page probe', () => {

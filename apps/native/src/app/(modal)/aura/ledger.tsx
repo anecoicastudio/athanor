@@ -11,6 +11,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
@@ -26,10 +27,6 @@ const FILTERS: LedgerFilter[] = ['all', 'gained', 'decayed'];
 // ---------------------------------------------------------------------------
 // Shimmer placeholder
 // ---------------------------------------------------------------------------
-
-function ShimmerBar({ width = 'w-full' }: { width?: string }) {
-  return <View className={`h-5 rounded-sm bg-raise ${width}`} />;
-}
 
 function ShimmerRows() {
   return (

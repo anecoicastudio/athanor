@@ -1,21 +1,22 @@
 import { z } from 'zod';
 
-// Mirrors supabase/migrations/<ts>_conversations_messages.sql (schemas mirror migrations).
-export const conversationSource = z.enum(['momento', 'direct']);
-export type ConversationSource = z.infer<typeof conversationSource>;
-
-// Raw-row model (snake_case): parsed directly off select('*') and realtime payload.new.
-export const conversationSchema = z.object({
+/**
+ * The wire shape of the conversations-with-peer-handles select, parsed at the boundary.
+ *
+ * Two aliased embeds off the same table (a/b → profiles via the two participant FKs) is
+ * exactly the shape supabase-js cannot infer, so this schema — not a hand-written type
+ * behind a cast — is what makes the row typed.
+ */
+export const conversationPeerRow = z.object({
   id: z.string().uuid(),
   participant_a: z.string().uuid(),
   participant_b: z.string().uuid(),
-  created_from: conversationSource,
   last_message_at: z.string(),
   last_message_preview: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  a: z.object({ handle: z.string().nullable() }).nullable(),
+  b: z.object({ handle: z.string().nullable() }).nullable(),
 });
-export type Conversation = z.infer<typeof conversationSchema>;
+export type ConversationPeerRow = z.infer<typeof conversationPeerRow>;
 
 // Messages-list read model (camelCase): a conversation resolved to its peer (the non-me participant).
 export const conversationListItem = z.object({

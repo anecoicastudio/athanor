@@ -92,15 +92,6 @@ export const eventCreateSchema = z
   });
 export type EventCreate = z.infer<typeof eventCreateSchema>;
 
-/** Athanor Days "Avvisami" registration. */
-export const athanorDaysInterestSchema = z.object({
-  id: z.string().uuid(),
-  user_id: z.string().uuid(),
-  edition: z.string().max(80).nullable(),
-  created_at: z.string(),
-});
-export type AthanorDaysInterest = z.infer<typeof athanorDaysInterestSchema>;
-
 /**
  * rsvp — free-event attendance intent (mirrors public.rsvps). Toggle is going⇄cancelled;
  * the (user_id, event_id) pair is the idempotency key. No deleted_at (intent, not content).

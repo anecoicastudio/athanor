@@ -1,11 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
-export const pushTokenKeys = {
-  all: ['push_tokens'] as const,
-  mine: () => [...pushTokenKeys.all, 'mine'] as const,
-};
-
 type RegisterArgs = { token: string; platform: 'ios' | 'android'; deviceId?: string | null };
 
 /**

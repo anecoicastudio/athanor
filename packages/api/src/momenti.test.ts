@@ -38,6 +38,21 @@ describe('rowToDeckCard', () => {
     });
     expect(card.dreamText).toBeNull();
   });
+
+  // The profiles SELECT policy nulls the whole embed when either side blocks after the
+  // proposal row exists. The boundary parse must accept that shape, not throw — the card
+  // comes out dream-less and getMomentiDeck drops it.
+  it('tolerates an RLS-nulled candidate embed (block after proposal)', () => {
+    const card = rowToDeckCard({
+      id: '11111111-1111-1111-1111-111111111111',
+      candidate_id: '33333333-3333-3333-3333-333333333333',
+      reasons: ['Condividete: design'],
+      status: 'pending',
+      candidate: null,
+    });
+    expect(card.handle).toBeNull();
+    expect(card.dreamText).toBeNull();
+  });
 });
 
 /**

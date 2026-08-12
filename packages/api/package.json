@@ -16,18 +16,6 @@
     "@athanor/schemas": "workspace:*",
     "@supabase/supabase-js": "^2.49.4"
   },
-  "peerDependencies": {
-    "@tanstack/react-query": "^5.71.0",
-    "react": "*"
-  },
-  "peerDependenciesMeta": {
-    "@tanstack/react-query": {
-      "optional": true
-    },
-    "react": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@athanor/config": "workspace:*",
     "@vitest/coverage-v8": "^3.1.1",

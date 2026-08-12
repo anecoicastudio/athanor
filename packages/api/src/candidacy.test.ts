@@ -6,7 +6,6 @@ import {
   candidacyVideoPath,
   getCandidateById,
   getCandidates,
-  getMyCandidacy,
   submitCandidacy,
 } from './candidacy';
 
@@ -84,9 +83,8 @@ function stub(rows: Array<Record<string, unknown>> = []) {
 }
 
 describe('candidacyKeys', () => {
-  it('namespaces mine / detail / list under the candidacy root', () => {
+  it('namespaces detail / list under the candidacy root', () => {
     expect(candidacyKeys.all).toEqual(['candidacy']);
-    expect(candidacyKeys.mine(EDITION)).toEqual(['candidacy', 'mine', EDITION]);
     expect(candidacyKeys.detail(CAND1)).toEqual(['candidacy', 'detail', CAND1]);
     expect(candidacyKeys.list(EDITION)).toEqual(['candidacy', 'list', EDITION, null]);
   });
@@ -95,29 +93,6 @@ describe('candidacyKeys', () => {
 describe('candidacyVideoPath', () => {
   it('is the pure `{uid}/{candidacy_id}.mp4` storage convention', () => {
     expect(candidacyVideoPath(UID, CAND1)).toBe(`${UID}/${CAND1}.mp4`);
-  });
-});
-
-describe('getMyCandidacy', () => {
-  it('filters by edition + profile, excludes soft-deleted, uses maybeSingle', async () => {
-    const { client, calls } = stub([CANDIDACY_ROW]);
-    const row = await getMyCandidacy(client, EDITION, UID);
-    expect(
-      calls.some((c) => c.method === 'eq' && c.arg === 'edition_id' && c.arg2 === EDITION),
-    ).toBe(true);
-    expect(calls.some((c) => c.method === 'eq' && c.arg === 'profile_id' && c.arg2 === UID)).toBe(
-      true,
-    );
-    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
-      true,
-    );
-    expect(calls.some((c) => c.method === 'maybeSingle')).toBe(true);
-    expect(row?.id).toBe(CAND1);
-  });
-
-  it('returns null when no row is visible', async () => {
-    const { client } = stub([]);
-    expect(await getMyCandidacy(client, EDITION, UID)).toBeNull();
   });
 });
 
@@ -194,15 +169,6 @@ describe('getCandidateById', () => {
 });
 
 describe('candidacy — a database failure reaches the caller', () => {
-  // Reporting "no candidacy" on a failed read would offer the submit form to someone who has
-  // already submitted, and the insert would then hit the RLS window rather than a friendly error.
-  it('getMyCandidacy rethrows instead of reporting no candidacy', async () => {
-    const fake = makeFakeClient({ 'dream_candidacies.select': [{ error: DB_DOWN }] });
-    await expect(getMyCandidacy(asClient(fake), EDITION, UID)).rejects.toMatchObject({
-      code: '57P01',
-    });
-  });
-
   // The video is already uploaded to {uid}/{id}.mp4 before this insert runs (that is why the id
   // is client-generated), so a swallowed error would strand the object with no row.
   it('submitCandidacy rethrows rather than stranding the uploaded video', async () => {

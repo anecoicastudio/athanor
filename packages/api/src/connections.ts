@@ -3,6 +3,7 @@ import {
   connectionListItem,
   type ConnectionRequestListItem,
   connectionRequestListItem,
+  connectionRequestRow,
   type ConnectionState,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
@@ -24,13 +25,6 @@ export type RequestCursor = { created_at: string; id: string };
 export type IncomingRequestsPage = {
   items: ConnectionRequestListItem[];
   nextCursor: RequestCursor | null;
-};
-
-type ReqRow = {
-  id: string;
-  requester_id: string;
-  created_at: string;
-  requester: { handle: string | null } | null;
 };
 
 const REQ_SELECT =
@@ -66,7 +60,7 @@ export async function getIncomingRequestsPage(
   const { data, error } = await query;
   if (error) throw error;
   const items = (data ?? []).map((r) => {
-    const row = r as unknown as ReqRow;
+    const row = connectionRequestRow.parse(r);
     return connectionRequestListItem.parse({
       id: row.id,
       peerId: row.requester_id,

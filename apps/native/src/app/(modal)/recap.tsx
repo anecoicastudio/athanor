@@ -10,15 +10,11 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
+import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { MODAL_A11Y } from '@/lib/a11y';
-
-/** Shimmer placeholder bar — muted rect for loading state */
-function ShimmerBar({ width = 'w-full' }: { width?: string }) {
-  return <View className={`h-5 rounded-sm bg-raise ${width}`} />;
-}
 
 /**
  * Week recap sheet (M6 §3.4).

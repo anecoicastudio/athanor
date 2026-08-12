@@ -5,7 +5,8 @@ import {
   type SecureStoreLike,
 } from './large-secure-store';
 
-const KEY = 'sb-kwzeiqvrnnaagccyoose-auth-token';
+// Opaque to the store — any string works; deliberately not a real project ref.
+const KEY = 'sb-project-auth-token';
 const SESSION_JSON = '{"access_token":"abc","refresh_token":"def"}';
 
 function makeStubs() {

@@ -90,8 +90,12 @@ export default function CircleScreen() {
         qc.invalidateQueries({ queryKey: entitlementKeys.me() });
         qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
       } else if (result.kind === 'iap') {
-        // TODO(M10 S-IAP-1): StoreKit IAP path — unreachable in M8
-        // The edge function currently only returns { kind: 'url' }
+        // TODO(M10 S-IAP-1): StoreKit IAP path — unreachable in M8, the edge function only
+        // returns { kind: 'url' }. Loud rather than empty: if an `iap` result ever arrives
+        // before the StoreKit flow exists, the member gets an error instead of a spinner
+        // that stops with nothing having happened.
+        devWarn('[circle] startCheckout', 'returned kind=iap — StoreKit path not implemented');
+        setCheckoutError(true);
       }
     } catch {
       // Checkout-session failure happens before any subscription exists, so the query

@@ -40,12 +40,6 @@ export const candidacyInsertSchema = dreamCandidacySchema.pick({
 });
 export type CandidacyInsert = z.infer<typeof candidacyInsertSchema>;
 
-/** Editable while status='submitted' (the RLS update window). */
-export const candidacyUpdateSchema = dreamCandidacySchema
-  .pick({ story: true, goal: true, impact: true, video_url: true, plan: true })
-  .partial();
-export type CandidacyUpdate = z.infer<typeof candidacyUpdateSchema>;
-
 /** The `fund_candidate_cards` view read-model — candidacy + author handle + dream-text title. */
 export const candidateCardSchema = z.object({
   candidacy_id: z.string().uuid(),

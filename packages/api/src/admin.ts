@@ -1,5 +1,5 @@
-// Moderation API — consumed by the web admin panel (apps/web/app/admin) since the
-// web app returned in merge 34ff635.
+// Moderation API — consumed by the web admin panel (apps/web/app/admin), which reads it
+// from Server Components and Server Actions (no TanStack Query on that surface).
 import { reportPenaltyPoints } from '@athanor/core';
 import {
   type ResolveReportInput,
@@ -11,12 +11,6 @@ import type { AthanorClient } from './client';
 import { keysetFilter } from './pagination';
 
 export type { AdminReportRow, AdminReportDetail } from '@athanor/schemas';
-
-export const adminReportKeys = {
-  all: ['admin', 'reports'] as const,
-  queue: (status: string) => [...adminReportKeys.all, 'queue', status] as const,
-  detail: (id: string) => [...adminReportKeys.all, 'detail', id] as const,
-};
 
 const PAGE = 25;
 
