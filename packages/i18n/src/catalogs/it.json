@@ -515,6 +515,7 @@
   "costellazioni.board.empty": "La bacheca aspetta la prima ricerca.",
   "costellazioni.error": "Non siamo riusciti a caricare la bacheca.",
   "project.notFound": "Questa ricerca non c'è più.",
+  "project.error": "Non siamo riusciti a caricare questa ricerca.",
   "costellazioni.favor.title": "Passa il Favore",
   "costellazioni.favor.desc": "Aiuti qualcuno senza chiedere nulla. Il favore continua a circolare — e accende la stella del Collaboratore.",
   "favor.sheet.title": "Passa il Favore",

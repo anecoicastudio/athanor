@@ -25,6 +25,7 @@ import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { PostMedia } from '@/components/feed/PostMedia';
 import { ReactionStar } from '@/components/feed/ReactionStar';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 export default function PostDetailScreen() {
@@ -65,6 +66,14 @@ export default function PostDetailScreen() {
     enabled: Boolean(id),
   });
   const comments = commentsQuery.data?.pages.flatMap((p) => p.comments) ?? [];
+  // `staleWins`: replies already on screen stay through a lost refresh — realtime invalidates
+  // this key on every insert, so a flaky connection would otherwise blank the thread repeatedly.
+  const commentsState = listState({
+    status: commentsQuery.status,
+    fetchStatus: commentsQuery.fetchStatus,
+    isEmpty: comments.length === 0,
+    staleWins: true,
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -190,17 +199,6 @@ export default function PostDetailScreen() {
             <Text className="pt-2 text-[14px] font-semibold text-foreground">
               {t('comment.sectionLabel', locale)}
             </Text>
-            {/* Was a bare line of text with no way out — the member could see that the replies
-                failed and could do nothing about it (#111). */}
-            {commentsQuery.isError ? (
-              <ListState
-                state="error"
-                locale={locale}
-                errorLabel={t('comment.error', locale)}
-                onRetry={() => void commentsQuery.refetch()}
-                className="py-4"
-              />
-            ) : null}
           </View>
         }
         renderItem={({ item }) => (
@@ -223,11 +221,19 @@ export default function PostDetailScreen() {
           />
         )}
         ListEmptyComponent={
-          !commentsQuery.isLoading ? (
-            <Text className="px-1 text-[14px] text-muted-foreground">
-              {t('comment.empty', locale)}
-            </Text>
-          ) : null
+          // ONE answer about the replies, not two. `comment.error` used to be a bare line in the
+          // header with no way out, while this slot separately claimed «Nessun commento» off
+          // `!isLoading` — so a failed read said both at once, a retry above a contradiction
+          // (#111). The header block is gone; this is the whole decision.
+          <ListState
+            state={commentsState}
+            locale={locale}
+            errorLabel={t('comment.error', locale)}
+            emptyLabel={t('comment.empty', locale)}
+            onRetry={() => void commentsQuery.refetch()}
+            className="px-1 py-2"
+            loading={null}
+          />
         }
         onEndReachedThreshold={0.5}
         onEndReached={() => {

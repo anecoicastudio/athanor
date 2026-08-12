@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { FlatList, RefreshControl } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { semantic } from '@athanor/config';
@@ -156,6 +156,13 @@ export default function NotificationsScreen() {
             errorLabel={t('notif.error', locale)}
             emptyLabel={t('notif.empty', locale)}
             onRetry={() => void query.refetch()}
+            // `foregroundMuted`, not the `faint` default: this screen's RefreshControl above
+            // uses the same tone, and two spinners a pull apart should not differ.
+            loading={
+              <View className="items-center pt-24">
+                <ActivityIndicator color={semantic.foregroundMuted} />
+              </View>
+            }
           />
         }
       />

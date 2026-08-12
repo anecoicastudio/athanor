@@ -515,6 +515,7 @@
   "costellazioni.board.empty": "The board is waiting for the first search.",
   "costellazioni.error": "We couldn't load the board.",
   "project.notFound": "This listing is gone.",
+  "project.error": "We couldn't load this listing.",
   "costellazioni.favor.title": "Pay it Forward",
   "costellazioni.favor.desc": "You help someone asking nothing back. The favor keeps circulating — and lights the Collaborator star.",
   "favor.sheet.title": "Pay it Forward",

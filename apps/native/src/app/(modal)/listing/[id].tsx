@@ -49,7 +49,7 @@ export default function ProjectDetailScreen() {
         <ListState
           state={detailState}
           locale={locale}
-          errorLabel={t('costellazioni.error', locale)}
+          errorLabel={t('project.error', locale)}
           emptyLabel={t('project.notFound', locale)}
           onRetry={() => void query.refetch()}
           className="pt-16"
