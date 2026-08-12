@@ -3,7 +3,7 @@ import { BUCKET_URL_TTL } from '@athanor/api';
 import { STORY_SEGMENT_TTL, signedUrlPolicy } from './signed-url-policy';
 import type { MediaBucket } from './upload';
 
-const BUCKETS: MediaBucket[] = ['post-media', 'moments', 'story-segments'];
+const BUCKETS: MediaBucket[] = ['post-media', 'moments', 'story-segments', 'candidacy-videos'];
 
 describe('signedUrlPolicy', () => {
   it('caps story-segment URLs at 5 minutes — the residual window after a segment expires', () => {

@@ -1,6 +1,11 @@
 import type { PickedMedia } from './pick';
 
-export type MediaBucket = 'post-media' | 'moments' | 'story-segments' | 'avatars';
+export type MediaBucket =
+  | 'post-media'
+  | 'moments'
+  | 'story-segments'
+  | 'avatars'
+  | 'candidacy-videos';
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
 
