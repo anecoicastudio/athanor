@@ -16,9 +16,14 @@ export const postCommentSchema = z.object({
 /** Shared write-path rule for a comment body: trim, then 1–2000 chars. */
 const commentBodySchema = trimmedNonBlank(2000, 'comment body must not be blank');
 
-/** Adding a reply — post_id + author_id + body; parent_id optional (null = top-level). */
+/**
+ * Adding a reply — post_id + author_id + body; parent_id optional (null = top-level).
+ * `id` optional (#101): the composer sends its optimistic row's uuid as the PK, so a
+ * retried insert whose first response was lost conflicts instead of double-posting.
+ */
 export const postCommentInsertSchema = postCommentSchema
-  .pick({ post_id: true, author_id: true })
+  .pick({ id: true, post_id: true, author_id: true })
+  .partial({ id: true })
   .extend({
     body: commentBodySchema,
     parent_id: z.string().uuid().nullable().default(null),
