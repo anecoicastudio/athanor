@@ -7,6 +7,7 @@ import {
   getPersonStory,
   getViewerStoryReaction,
   pinStoryStep,
+  sendMessage,
   softDeleteStorySegment,
   storyKeys,
   toggleStoryReaction,
@@ -92,15 +93,12 @@ export default function StoriesScreen() {
         });
         Alert.alert(t('story.react.toast', locale));
       }}
-      onReply={async () => {
-        // Reply = open the DM with the author (P3.5, canonical open-or-create pattern).
-        if (!myId || isOwn || !targetId) return;
-        try {
-          const conversationId = await getOrCreateConversation(supabase, targetId);
-          router.push(`/chat?conversationId=${conversationId}`);
-        } catch {
-          Alert.alert(t('chat.openFailed', locale));
-        }
+      onSendReply={async (body) => {
+        // Reply sends into the DM in the background (#297) — the viewer is never left.
+        // Open-or-create is the canonical P3.5 pattern; the viewer owns the confirmation toast.
+        if (!myId || isOwn || !targetId) throw new Error('cannot reply');
+        const conversationId = await getOrCreateConversation(supabase, targetId);
+        await sendMessage(supabase, { conversationId, senderId: myId, body });
       }}
       onMakeDream={() => {
         // Same sheet the dream card opens (PRD §132) — pick a tappa, then offer. Ungated:

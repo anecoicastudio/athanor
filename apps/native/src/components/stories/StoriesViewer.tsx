@@ -1,17 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, PanResponder, StyleSheet } from 'react-native';
+import {
+  Animated,
+  Keyboard,
+  KeyboardAvoidingView,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  type View as RNView,
+} from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
+import { semantic } from '@athanor/config';
 import type { Locale, StorySegment } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, SafeAreaView, Text, TextInput, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
-import { Screen } from '@/components/Screen';
+import { Toast } from '@/components/Toast';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { star } from '@/lib/star';
 
-const { width: SCREEN_W } = Dimensions.get('window');
 const PHOTO_MS = 5000;
 const DEFAULT_VIDEO_MS = 15000;
+const REPLY_TOAST_MS = 2500;
 
 function segmentMs(seg: StorySegment): number {
   if (seg.kind === 'video') return (seg.duration_s ?? DEFAULT_VIDEO_MS / 1000) * 1000;
@@ -20,9 +29,17 @@ function segmentMs(seg: StorySegment): number {
 
 /**
  * Plays one person's story (frontend §3.4). Segments auto-advance (photo 5s, video by duration);
- * tap right third → next, left third → prev, hold → pause, swipe down → close. `isOwn` swaps the
- * action set. `count` (author-only celebration total) renders only when `isOwn`. All counts are
- * owner-only (rule #3); the ✦ react is viewer-state only.
+ * tap right two-thirds → next, left third → prev, hold → pause, swipe down → close. `isOwn` swaps
+ * the action set. `count` (author-only celebration total) renders only when `isOwn`. All counts
+ * are owner-only (rule #3); the ✦ react is viewer-state only.
+ *
+ * Layout (#297): the media fills the screen (`absolute inset-0`, cover) and all chrome floats
+ * above it in two `bg-background/70` scrim bands — DESIGN.md §6 "Full-bleed media + overlay
+ * chrome". Each band owns its safe-area edge via the per-view `SafeAreaView` (#161: the
+ * `useSafeAreaInsets` hook is per-window and over-insets inside the iOS `(modal)` sheet).
+ *
+ * The reply composer is real (#297): sending goes through `onSendReply` in the background — the
+ * viewer is never left. Focus pauses the segment, blur resumes it.
  */
 export function StoriesViewer({
   segments,
@@ -36,7 +53,7 @@ export function StoriesViewer({
   onClose,
   onAdvanceEnd,
   onReact,
-  onReply,
+  onSendReply,
   onMakeDream,
   onAddMoment,
   onPin,
@@ -54,7 +71,8 @@ export function StoriesViewer({
   onClose: () => void;
   onAdvanceEnd: () => void;
   onReact: (segment: StorySegment) => void;
-  onReply: () => void;
+  /** Sends the reply into the DM without leaving the viewer; rejects on failure. */
+  onSendReply: (body: string) => Promise<void>;
   onMakeDream: () => void;
   onAddMoment: () => void;
   onPin: (segment: StorySegment) => void;
@@ -62,6 +80,16 @@ export function StoriesViewer({
 }) {
   const [si, setSi] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Tap-zone width from onLayout, not Dimensions-at-module-scope: that snapshot goes stale
+  // after a rotation or in split view (#297 beyond-the-issue).
+  const [zoneW, setZoneW] = useState(0);
+  // How far this screen sits below the window top (the iOS `(modal)` pageSheet gap) — the
+  // keyboardVerticalOffset #163 documents, measured rather than guessed.
+  const [kbOffset, setKbOffset] = useState(0);
+  const rootRef = useRef<RNView>(null);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const [replyToast, setReplyToast] = useState<'sent' | 'failed' | null>(null);
   const reduce = useReducedMotion();
   const progress = useRef(new Animated.Value(0)).current;
   const current = segments[si];
@@ -70,6 +98,12 @@ export function StoriesViewer({
   useEffect(() => {
     setSi(0);
   }, [segments]);
+
+  useEffect(() => {
+    if (!replyToast) return;
+    const id = setTimeout(() => setReplyToast(null), REPLY_TOAST_MS);
+    return () => clearTimeout(id);
+  }, [replyToast]);
 
   const goNext = () => {
     if (si + 1 < segments.length) setSi(si + 1);
@@ -111,162 +145,230 @@ export function StoriesViewer({
             onClose();
             return;
           }
-          if (Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10) {
-            if (e.nativeEvent.locationX < SCREEN_W / 3) goPrev();
+          if (Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10 && zoneW > 0) {
+            if (e.nativeEvent.locationX < zoneW / 3) goPrev();
             else goNext();
           }
         },
         onPanResponderTerminate: () => setPaused(false),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [si, segments.length],
+    [si, segments.length, zoneW],
   );
+
+  const trimmed = reply.trim();
+  const canSend = trimmed.length > 0 && !sending;
+  const sendReply = async () => {
+    if (!canSend) return;
+    setSending(true);
+    Keyboard.dismiss(); // blur resumes the segment
+    try {
+      await onSendReply(trimmed);
+      setReply('');
+      setReplyToast('sent');
+    } catch {
+      setReplyToast('failed');
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (!current) return null;
 
   return (
-    <Screen>
-      <View className="flex-row gap-1 px-3 pt-3">
-        {segments.map((seg, i) => (
-          <View key={seg.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-hair">
-            <Animated.View
-              style={{
-                height: '100%',
-                width:
-                  i < si
-                    ? '100%'
-                    : i === si
-                      ? progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
-                      : '0%',
-              }}
-            >
-              <View className="h-full bg-aura" />
-            </Animated.View>
-          </View>
-        ))}
-      </View>
-
-      <View className="flex-row items-center justify-between px-5 py-3">
-        <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={onClose}
+    <View
+      ref={rootRef}
+      onLayout={() => {
+        rootRef.current?.measureInWindow((_x, y) => setKbOffset(Math.max(0, y)));
+      }}
+      className="flex-1 bg-background"
+    >
+      {current.kind === 'video' ? (
+        <MediaFrame
+          kind="video"
+          url={currentUrl}
+          isLoading={urlsLoading}
+          locale={locale}
+          className="absolute inset-0"
         >
-          <Text className="text-2xl text-foreground">✕</Text>
-        </Pressable>
-      </View>
+          {(uri) => <ViewerVideo key={current.id} uri={uri} paused={paused} />}
+        </MediaFrame>
+      ) : (
+        <MediaFrame
+          kind="photo"
+          url={currentUrl}
+          isLoading={urlsLoading}
+          locale={locale}
+          className="absolute inset-0"
+        />
+      )}
 
-      <View className="flex-1" {...pan.panHandlers}>
-        <View className="flex-1 items-center justify-center px-4">
-          <View className="aspect-[9/16] w-full overflow-hidden rounded-card bg-raise">
-            {current.kind === 'video' ? (
-              <MediaFrame
-                kind="video"
-                url={currentUrl}
-                isLoading={urlsLoading}
-                locale={locale}
-                className="absolute inset-0"
-              >
-                {(uri) => <ViewerVideo key={current.id} uri={uri} paused={paused} />}
-              </MediaFrame>
-            ) : (
-              <MediaFrame
-                kind="photo"
-                url={currentUrl}
-                isLoading={urlsLoading}
-                locale={locale}
-                className="absolute inset-0"
-              />
-            )}
-          </View>
-        </View>
-      </View>
-
-      <View className="gap-3 px-5 pb-10 pt-3">
-        {current.caption ? (
-          <Text className="text-[14px] text-foreground">{current.caption}</Text>
-        ) : null}
-        {current.is_step ? (
-          <Text className="text-[12px] text-aura">✦ {t('story.stepBadge', locale)}</Text>
-        ) : null}
-
-        {isOwn ? (
-          <View className="gap-3">
-            <Text className="text-[13px] text-faint">
-              {t('story.own.stat', locale, { n: count })}
-            </Text>
-            <View className="flex-row gap-3">
-              <Pressable
-                accessibilityRole="button"
-                onPress={onAddMoment}
-                className="flex-1 items-center rounded-ctl border border-aura-line bg-aura-soft py-3"
-              >
-                <Text className="text-[14px] text-aura">{t('story.own.add', locale)}</Text>
-              </Pressable>
-              {current.is_step && !current.pinned ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => onPin(current)}
-                  className="items-center justify-center rounded-ctl border border-hair px-4"
+      <KeyboardAvoidingView
+        style={styles.chrome}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={kbOffset}
+      >
+        <SafeAreaView edges={['top']} className="bg-background/70">
+          <View className="flex-row gap-1 px-3 pt-3">
+            {segments.map((seg, i) => (
+              <View key={seg.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-hair">
+                <Animated.View
+                  style={{
+                    height: '100%',
+                    width:
+                      i < si
+                        ? '100%'
+                        : i === si
+                          ? progress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0%', '100%'],
+                            })
+                          : '0%',
+                  }}
                 >
-                  <Text className="text-[14px] text-foreground">{t('story.own.pin', locale)}</Text>
-                </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => onDelete(current)}
-                className="items-center justify-center rounded-ctl border border-hair px-4"
-              >
-                <Text className="text-[14px] text-muted-foreground">
-                  {t('story.own.delete', locale)}
-                </Text>
-              </Pressable>
-            </View>
+                  <View className="h-full bg-aura" />
+                </Animated.View>
+              </View>
+            ))}
           </View>
-        ) : (
-          <View className="gap-3">
+
+          <View className="flex-row items-center justify-between px-5 py-3">
+            <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
             <Pressable
               accessibilityRole="button"
-              onPress={onReply}
-              className="rounded-ctl border border-hair bg-raise px-4 py-3"
+              accessibilityLabel={t('common.back', locale)}
+              hitSlop={8}
+              onPress={onClose}
             >
-              <Text className="text-[14px] text-faint">
-                {t('story.reply.placeholder', locale, { name })}
-              </Text>
+              <Text className="text-2xl text-foreground">✕</Text>
             </Pressable>
-            <View className="flex-row items-center gap-4">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: viewerReacted }}
-                accessibilityLabel={t(
-                  viewerReacted ? 'story.react.a11yLit' : 'story.react.a11y',
-                  locale,
-                )}
-                onPress={() => onReact(current)}
-                className="min-h-[44px] min-w-[44px] flex-row items-center justify-center"
-              >
-                {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and StarCell —
-                    `faint` alone stopped reading "off" once it was retuned for AA. */}
-                <Text className={`text-[22px] ${viewerReacted ? 'text-aura' : 'text-faint'}`}>
-                  {star(viewerReacted)}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={onMakeDream}
-                className="flex-1 items-center rounded-ctl border border-aura-line bg-aura-soft py-3"
-              >
-                <Text className="text-[14px] text-aura">{t('story.makeDream', locale)}</Text>
-              </Pressable>
-            </View>
           </View>
-        )}
-      </View>
-    </Screen>
+        </SafeAreaView>
+
+        <View
+          className="flex-1"
+          onLayout={(e) => setZoneW(e.nativeEvent.layout.width)}
+          {...pan.panHandlers}
+        />
+
+        <SafeAreaView edges={['bottom']} className="gap-3 bg-background/70 px-5 pb-3 pt-3">
+          {current.caption ? (
+            <Text className="text-[14px] text-foreground">{current.caption}</Text>
+          ) : null}
+          {current.is_step ? (
+            <Text className="text-[12px] text-aura">✦ {t('story.stepBadge', locale)}</Text>
+          ) : null}
+
+          {isOwn ? (
+            <View className="gap-3">
+              <Text className="text-[13px] text-faint">
+                {t('story.own.stat', locale, { n: count })}
+              </Text>
+              <View className="flex-row gap-3">
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onAddMoment}
+                  className="flex-1 items-center rounded-ctl border border-aura-line bg-aura-soft py-3"
+                >
+                  <Text className="text-[14px] text-aura">{t('story.own.add', locale)}</Text>
+                </Pressable>
+                {current.is_step && !current.pinned ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => onPin(current)}
+                    className="items-center justify-center rounded-ctl border border-hair px-4"
+                  >
+                    <Text className="text-[14px] text-foreground">
+                      {t('story.own.pin', locale)}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => onDelete(current)}
+                  className="items-center justify-center rounded-ctl border border-hair px-4"
+                >
+                  <Text className="text-[14px] text-muted-foreground">
+                    {t('story.own.delete', locale)}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View className="gap-3">
+              {/* Real composer (#297): send stays in the viewer. Send is a FLAT cyan surface —
+                  same rule #4 reading as the chat send button; a routine send is not a glow. */}
+              <View className="flex-row items-center gap-2">
+                <TextInput
+                  className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
+                  placeholder={t('story.reply.placeholder', locale, { name })}
+                  placeholderTextColor={semantic.faint}
+                  value={reply}
+                  onChangeText={setReply}
+                  onFocus={() => setPaused(true)}
+                  onBlur={() => setPaused(false)}
+                  returnKeyType="send"
+                  onSubmitEditing={sendReply}
+                  editable={!sending}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('story.reply.send.a11y', locale, { name })}
+                  disabled={!canSend}
+                  onPress={sendReply}
+                  className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
+                    canSend ? '' : 'opacity-40'
+                  }`}
+                >
+                  <Text className="text-[20px] text-on-aura">›</Text>
+                </Pressable>
+              </View>
+              <View className="flex-row items-center gap-4">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: viewerReacted }}
+                  accessibilityLabel={t(
+                    viewerReacted ? 'story.react.a11yLit' : 'story.react.a11y',
+                    locale,
+                  )}
+                  onPress={() => onReact(current)}
+                  className="min-h-[44px] min-w-[44px] flex-row items-center justify-center"
+                >
+                  {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and StarCell —
+                      `faint` alone stopped reading "off" once it was retuned for AA. */}
+                  <Text className={`text-[22px] ${viewerReacted ? 'text-aura' : 'text-faint'}`}>
+                    {star(viewerReacted)}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onMakeDream}
+                  className="flex-1 items-center rounded-ctl border border-aura-line bg-aura-soft py-3"
+                >
+                  <Text className="text-[14px] text-aura">{t('story.makeDream', locale)}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+
+      {replyToast ? (
+        <Toast
+          label={
+            replyToast === 'sent'
+              ? t('story.reply.sent', locale, { name })
+              : t('story.reply.error', locale)
+          }
+        />
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  chrome: { flex: 1 },
+});
 
 function ViewerVideo({ uri, paused }: { uri: string; paused: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
