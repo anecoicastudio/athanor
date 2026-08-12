@@ -14,6 +14,17 @@ import type { Help, Milestone } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * A helper's identity as «Aiuti in arrivo» needs it (#76): enough to draw their avatar and name
+ * them. `handle` falls back to a short id when the profile lookup fails, because the row still
+ * has to say WHO offered — an anonymous offer is worse than an ugly one.
+ */
+export type HelperIdentity = {
+  handle: string;
+  displayName: string | null;
+  avatarPath: string | null;
+};
+
 export type OwnDream = ReturnType<typeof useOwnDream>;
 
 /**
@@ -27,7 +38,7 @@ export function useOwnDream(userId: string) {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [mutatingMilestoneId, setMutatingMilestoneId] = useState<string | null>(null);
   const [incoming, setIncoming] = useState<Help[]>([]);
-  const [helperNames, setHelperNames] = useState<Record<string, string>>({});
+  const [helperNames, setHelperNames] = useState<Record<string, HelperIdentity>>({});
   const [mutatingHelpId, setMutatingHelpId] = useState<string | null>(null);
   const [flashMilestoneId, setFlashMilestoneId] = useState<string | null>(null);
 
@@ -54,14 +65,27 @@ export function useOwnDream(userId: string) {
             setIncoming(offers);
             // resolve distinct helper names (best-effort; fall back to a short id)
             const ids = [...new Set(offers.map((o) => o.helper_id))];
-            const names: Record<string, string> = {};
+            const names: Record<string, HelperIdentity> = {};
             for (const hid of ids) {
+              // A short id is the last resort, not a name: it appears only when the lookup
+              // fails outright or the row carries no handle at all.
+              const fallback: HelperIdentity = {
+                handle: hid.slice(0, 8),
+                displayName: null,
+                avatarPath: null,
+              };
               try {
                 const p = await getProfileById(supabase, hid);
-                names[hid] = p?.handle ?? hid.slice(0, 8);
+                names[hid] = p
+                  ? {
+                      handle: p.handle ?? hid.slice(0, 8),
+                      displayName: p.display_name,
+                      avatarPath: p.avatar_path,
+                    }
+                  : fallback;
               } catch (e) {
                 devWarn('[profile] helper name lookup', e);
-                names[hid] = hid.slice(0, 8);
+                names[hid] = fallback;
               }
             }
             if (!cancelled) setHelperNames(names);

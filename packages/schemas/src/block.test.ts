@@ -21,6 +21,8 @@ describe('block schemas', () => {
       id: '11111111-1111-1111-1111-111111111111',
       peerId: '33333333-3333-3333-3333-333333333333',
       peerHandle: null,
+      peerDisplayName: null,
+      peerAvatarPath: null,
       createdAt: '2026-06-19T00:00:00Z',
     };
     expect(blockedListItem.parse(item)).toEqual(item);

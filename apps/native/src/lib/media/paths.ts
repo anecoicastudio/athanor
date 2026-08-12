@@ -1,6 +1,6 @@
 import type { PickedMedia } from './pick';
 
-export type MediaBucket = 'post-media' | 'moments' | 'story-segments';
+export type MediaBucket = 'post-media' | 'moments' | 'story-segments' | 'avatars';
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
 
@@ -32,6 +32,22 @@ export function momentPath(uid: string, momentId: string, kind: PickedMedia['kin
  */
 export function momentThumbPath(uid: string, momentId: string): string {
   return `${uid}/${momentId}-thumb.jpg`;
+}
+
+/**
+ * Storage key for a member's avatar: `${uid}/${uid}.jpg` (#75's convention, and the seed
+ * computes the same key in SQL).
+ *
+ * Deterministic on purpose — a profile's entity id IS its uid, so there is no second id to
+ * hang a fresh key on. The cost is that replacing a photo reuses the key, so a client image
+ * cache can serve the previous bytes until the signed URL it was fetched with expires; the
+ * uploader busts that by re-signing (`useAvatarUpload`).
+ *
+ * Always `.jpg`: `processImage` re-encodes every picked image to JPEG for the EXIF strip, so
+ * the source extension never survives to reach this.
+ */
+export function avatarPath(uid: string): string {
+  return `${uid}/${uid}.jpg`;
 }
 
 /** Storage key for a story segment: `${uid}/${segmentId}.{ext}`. */

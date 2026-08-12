@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { peerIdentityFields } from './profile';
 
 // Mirrors supabase/migrations/<ts>_m9_blocks_and_not_blocked.sql (06 §2.10).
 // Immutable table — no updated_at / deleted_at (unblock is a hard DELETE).
@@ -20,7 +21,7 @@ export type BlockInput = z.infer<typeof blockInput>;
 export const blockedListItem = z.object({
   id: z.string().uuid(), // the block row id
   peerId: z.string().uuid(), // blocked_id
-  peerHandle: z.string().nullable(),
+  ...peerIdentityFields,
   createdAt: z.string(),
 });
 export type BlockedListItem = z.infer<typeof blockedListItem>;

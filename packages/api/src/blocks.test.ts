@@ -19,7 +19,7 @@ const blockRow = (over: Record<string, unknown> = {}) => ({
   id: BLOCK_ID,
   blocked_id: PEER,
   created_at: '2026-01-02T10:00:00.000Z',
-  blocked: { handle: 'peer' },
+  blocked: { handle: 'peer', display_name: 'Peer Uno', avatar_path: 'p/p.jpg' },
   ...over,
 });
 
@@ -165,7 +165,14 @@ describe('listBlocked', () => {
     const items = await listBlocked(as(client));
 
     expect(items).toEqual([
-      { id: BLOCK_ID, peerId: PEER, peerHandle: 'peer', createdAt: '2026-01-02T10:00:00.000Z' },
+      {
+        id: BLOCK_ID,
+        peerId: PEER,
+        peerHandle: 'peer',
+        peerDisplayName: 'Peer Uno',
+        peerAvatarPath: 'p/p.jpg',
+        createdAt: '2026-01-02T10:00:00.000Z',
+      },
     ]);
     expect(client.calls[0]?.columns).toContain('blocked_id');
     expect(client.calls[0]?.columns).not.toContain('blocker_id');

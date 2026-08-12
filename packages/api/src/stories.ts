@@ -42,7 +42,9 @@ const RAIL_WINDOW_FACTOR = 4;
 export async function getStoryRail(client: AthanorClient, people = 50): Promise<StoryRailPerson[]> {
   const { data, error } = await client
     .from('story_segments')
-    .select('author_id, created_at, profiles!story_segments_author_id_fkey(handle)')
+    .select(
+      'author_id, created_at, profiles!story_segments_author_id_fkey(handle, display_name, avatar_path)',
+    )
     .is('deleted_at', null)
     .gt('expires_at', new Date().toISOString()) // live only — exclude pinned-but-expired journey artifacts
     .order('created_at', { ascending: false })

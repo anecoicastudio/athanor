@@ -13,6 +13,7 @@ import {
   inviteKeys,
   updateProfile,
 } from '@athanor/api';
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
@@ -111,9 +112,16 @@ export default function SettingsScreen() {
       <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
         {/* Account card */}
         <View className="flex-row items-center gap-4 rounded-card border border-hair bg-raise p-5">
-          <Avatar handle={profile?.handle ?? null} size={56} />
+          <Avatar
+            handle={profile?.handle ?? null}
+            displayName={profile?.display_name ?? null}
+            avatarPath={profile?.avatar_path ?? null}
+            size={56}
+          />
           <View className="flex-1 gap-1">
-            <Text className="text-lg font-semibold text-foreground">{profile?.handle ?? '—'}</Text>
+            <Text className="text-lg font-semibold text-foreground">
+              {memberLabel(profile?.display_name, profile?.handle) ?? '—'}
+            </Text>
             <Text className="text-[13px] text-faint">
               {t('settings.account.subUnverified', locale, { email })}
             </Text>

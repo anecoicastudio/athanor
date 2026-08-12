@@ -9,6 +9,9 @@ import { MEDIA_LIMITS } from '@athanor/core';
  * metadata. We resize so the long edge ≤ IMAGE_MAX_LONG_EDGE and compress at
  * IMAGE_QUALITY in the same pass.
  *
+ * `opts` overrides those two numbers and nothing else — the re-encode is not optional. An
+ * avatar passes AVATAR_MAX_EDGE/AVATAR_QUALITY and gets the identical privacy guarantee.
+ *
  * SDK-54 uses the contextual manipulator API:
  *   ImageManipulator.manipulate(uri) → context
  *   context.resize({ width | height }) → context (chainable, ratio-preserving)
@@ -18,8 +21,10 @@ import { MEDIA_LIMITS } from '@athanor/core';
  */
 export async function processImage(
   uri: string,
+  opts?: { maxEdge?: number; quality?: number },
 ): Promise<{ uri: string; width: number; height: number }> {
-  const cap = MEDIA_LIMITS.IMAGE_MAX_LONG_EDGE;
+  const cap = opts?.maxEdge ?? MEDIA_LIMITS.IMAGE_MAX_LONG_EDGE;
+  const quality = opts?.quality ?? MEDIA_LIMITS.IMAGE_QUALITY;
 
   // Render once to read the source dimensions — the context can't report them
   // before a render, and we need them to know which axis is the long edge.
@@ -37,7 +42,7 @@ export async function processImage(
 
   const ref = await context.renderAsync();
   const result = await ref.saveAsync({
-    compress: MEDIA_LIMITS.IMAGE_QUALITY,
+    compress: quality,
     format: SaveFormat.JPEG,
   });
 

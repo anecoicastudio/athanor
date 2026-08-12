@@ -7,6 +7,8 @@ describe('conversationListItem', () => {
       id: '11111111-1111-1111-1111-111111111111',
       peerId: '22222222-2222-2222-2222-222222222222',
       peerHandle: 'bob',
+      peerDisplayName: 'Bob Bianchi',
+      peerAvatarPath: 'b/b.jpg',
       lastMessageAt: '2026-06-16T10:00:00Z',
       lastMessagePreview: 'Ciao!',
     });

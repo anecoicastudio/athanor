@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -67,10 +68,15 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
       <Card>
         {needs.map((need) => (
           <View key={need.need_milestone_id} className="flex-row items-center gap-3">
-            <Avatar handle={need.target_handle} size={40} />
+            <Avatar
+              handle={need.target_handle}
+              displayName={need.target_display_name}
+              avatarPath={need.target_avatar_path}
+              size={40}
+            />
             <View className="flex-1 gap-0.5">
               <Text className="text-[14px] text-foreground" numberOfLines={1}>
-                {need.target_handle ?? '—'}
+                {memberLabel(need.target_display_name, need.target_handle) ?? '—'}
               </Text>
               <Text className="text-[13px] text-faint" numberOfLines={2}>
                 {need.need}

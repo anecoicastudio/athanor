@@ -1,3 +1,4 @@
+import { memberLabel } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { ConnectionRequestListItem } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -20,10 +21,15 @@ export function ConnectionRequestRow({
   onDecline: () => void;
   pending?: boolean;
 }) {
-  const name = item.peerHandle ? `@${item.peerHandle}` : '—';
+  const name = memberLabel(item.peerDisplayName, item.peerHandle) ?? '—';
   return (
     <View className="flex-row items-center gap-3 py-3">
-      <Avatar handle={item.peerHandle} size={48} />
+      <Avatar
+        handle={item.peerHandle}
+        displayName={item.peerDisplayName}
+        avatarPath={item.peerAvatarPath}
+        size={48}
+      />
       <Text className="flex-1 text-[15px] font-semibold text-foreground">{name}</Text>
       <View className="flex-row items-center gap-2">
         <Pressable

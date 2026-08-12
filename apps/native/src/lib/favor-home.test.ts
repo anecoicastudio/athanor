@@ -9,6 +9,8 @@ const need = (id: string, handle: string): FavorNeed => ({
   need_created_at: '2026-08-11T10:00:00Z',
   target_id: `${id}-target`,
   target_handle: handle,
+  target_display_name: null,
+  target_avatar_path: null,
 });
 
 const page = (needs: FavorNeed[]): NeedsPage => ({ needs, nextCursor: null });

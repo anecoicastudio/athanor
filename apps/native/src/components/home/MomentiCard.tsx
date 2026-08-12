@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { getMomentiDeck, momentiKeys } from '@athanor/api';
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -79,11 +80,16 @@ export function MomentiCard({ locale }: { locale: Locale }) {
       <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
       <View className="gap-3 rounded-card border border-aura-line bg-raise p-5">
         <View className="flex-row items-center gap-3">
-          <Avatar handle={top.handle} size={48} />
+          <Avatar
+            handle={top.handle}
+            displayName={top.displayName}
+            avatarPath={top.avatarPath}
+            size={48}
+          />
           <View className="flex-1">
             {/* numberOfLines: handles run to 30 chars (handleSchema) and would wrap the row. */}
             <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">
-              {top.handle ?? '—'}
+              {memberLabel(top.displayName, top.handle) ?? '—'}
             </Text>
             {/* ONE reason, not MomentoCard's three: the tab is where the full case gets made. */}
             {reason ? <AffinityRow reason={reason} locale={locale} /> : null}

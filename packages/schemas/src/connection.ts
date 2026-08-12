@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarPathSchema, displayNameSchema, peerIdentityFields } from './profile';
 
 /**
  * The wire shape of the incoming-requests select, parsed at the boundary. The aliased embed
@@ -9,7 +10,13 @@ export const connectionRequestRow = z.object({
   id: z.string().uuid(),
   requester_id: z.string().uuid(),
   created_at: z.string(),
-  requester: z.object({ handle: z.string().nullable() }).nullable(),
+  requester: z
+    .object({
+      handle: z.string().nullable(),
+      display_name: displayNameSchema.nullable(),
+      avatar_path: avatarPathSchema.nullable(),
+    })
+    .nullable(),
 });
 export type ConnectionRequestRow = z.infer<typeof connectionRequestRow>;
 
@@ -17,7 +24,7 @@ export type ConnectionRequestRow = z.infer<typeof connectionRequestRow>;
 export const connectionRequestListItem = z.object({
   id: z.string().uuid(), // the request id — feeds respond_to_connection
   peerId: z.string().uuid(), // the requester
-  peerHandle: z.string().nullable(),
+  ...peerIdentityFields,
   createdAt: z.string(),
 });
 export type ConnectionRequestListItem = z.infer<typeof connectionRequestListItem>;
@@ -26,7 +33,7 @@ export type ConnectionRequestListItem = z.infer<typeof connectionRequestListItem
 export const connectionListItem = z.object({
   id: z.string().uuid(), // the connection id
   peerId: z.string().uuid(),
-  peerHandle: z.string().nullable(),
+  ...peerIdentityFields,
   createdAt: z.string(),
 });
 export type ConnectionListItem = z.infer<typeof connectionListItem>;

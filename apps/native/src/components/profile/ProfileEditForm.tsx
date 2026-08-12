@@ -3,13 +3,16 @@ import { updateProfile } from '@athanor/api';
 import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
-import { Text, TextInput, View } from '@/tw';
+import { Pressable, Text, TextInput, View } from '@/tw';
+import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
+import { MediaSheet } from '@/components/media/MediaSheet';
 import { Section, type Visibility } from '@/components/profile/Section';
+import { useAvatarUpload } from '@/lib/media/use-avatar-upload';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -35,6 +38,10 @@ export function ProfileEditForm({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const [displayName, setDisplayName] = useState(profile.display_name ?? '');
+  const [avatarPath, setAvatarPath] = useState<string | null>(profile.avatar_path);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const avatar = useAvatarUpload(userId);
   const [bio, setBio] = useState(profile.bio ?? '');
   const [identity, setIdentity] = useState<string[]>(profile.identity_tags);
   const [seeking, setSeeking] = useState<string[]>(profile.seeking);
@@ -56,6 +63,9 @@ export function ProfileEditForm({
     setError(null);
     try {
       await updateProfile(supabase, userId, {
+        // Empty means «I have no name», which is a legal state — not «leave it as it was».
+        display_name: displayName.trim() ? displayName.trim() : null,
+        avatar_path: avatarPath,
         bio: bio.trim() ? bio.trim() : null,
         identity_tags: identity,
         seeking,
@@ -76,6 +86,57 @@ export function ProfileEditForm({
 
   return (
     <>
+      {/* Identità — name + photo (#76). NOT inside a <Section>: Section carries a per-field
+          visibility control, and neither of these has a visibility key. They sit in the direct
+          grant tier alongside @handle (20260811074859), so offering an eye here would promise a
+          privacy setting that does not exist. */}
+      <View className="gap-3">
+        <SectionLabel>{t('profile.photo.label', locale)}</SectionLabel>
+        <View className="flex-row items-center gap-4">
+          <Avatar
+            handle={profile.handle}
+            displayName={displayName}
+            avatarPath={avatarPath}
+            size={72}
+          />
+          <View className="flex-1 gap-1.5">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.photo.a11y', locale)}
+              disabled={avatar.status === 'uploading'}
+              onPress={() => setSheetOpen(true)}
+            >
+              <Text className="text-[14px] font-semibold text-aura">
+                {avatarPath ? t('profile.photo.change', locale) : t('profile.photo.add', locale)}
+              </Text>
+            </Pressable>
+            {avatarPath ? (
+              <Pressable accessibilityRole="button" onPress={() => setAvatarPath(null)}>
+                <Text className="text-[13px] text-muted-foreground">
+                  {t('profile.photo.remove', locale)}
+                </Text>
+              </Pressable>
+            ) : null}
+            {avatar.status === 'uploading' ? (
+              <Text className="text-[13px] text-faint">{t('profile.photo.uploading', locale)}</Text>
+            ) : null}
+            {avatar.status === 'error' ? (
+              <Text className="text-[13px] text-error">{t('profile.photo.error', locale)}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <SectionLabel>{t('profile.name.label', locale)}</SectionLabel>
+        <TextInput
+          className="rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+          maxLength={60}
+          placeholder={t('profile.name.empty', locale)}
+          value={displayName}
+          onChangeText={setDisplayName}
+        />
+        <Text className="text-[13px] text-muted-foreground">{t('profile.name.hint', locale)}</Text>
+      </View>
+
       {/* Bio */}
       <Section
         label={t('profile.bio.label', locale)}
@@ -224,6 +285,19 @@ export function ProfileEditForm({
           />
         </View>
       </View>
+
+      {/* Kept mounted, never conditionally rendered: on iOS the picker is launched from the
+          Modal's onDismiss, and an unmount kills the queued launch (MediaSheet's docblock). */}
+      <MediaSheet
+        visible={sheetOpen}
+        locale={locale}
+        onClose={() => setSheetOpen(false)}
+        onPick={(asset) => {
+          void avatar.upload(asset).then((key) => {
+            if (key) setAvatarPath(key);
+          });
+        }}
+      />
     </>
   );
 }

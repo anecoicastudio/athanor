@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarPathSchema, displayNameSchema } from './profile';
 
 // Mirrors supabase/migrations/<ts>_momento_proposals.sql (schemas mirror migrations).
 // `affinity` is intentionally absent — the column-level grant never sends it to the client.
@@ -21,6 +22,8 @@ export const momentoDeckRow = z.object({
   candidate: z
     .object({
       handle: z.string().nullable(),
+      display_name: displayNameSchema.nullable(),
+      avatar_path: avatarPathSchema.nullable(),
       dreams: z.array(z.object({ text: z.string() })).nullish(),
     })
     .nullable(),
@@ -32,6 +35,8 @@ export const momentoDeckCard = z.object({
   id: z.string().uuid(),
   candidateId: z.string().uuid(),
   handle: z.string().nullable(),
+  displayName: displayNameSchema.nullable(),
+  avatarPath: avatarPathSchema.nullable(),
   reasons: z.array(z.string()),
   dreamText: z.string().nullable(),
   status: momentoStatus,
@@ -42,6 +47,8 @@ export type MomentoDeckCard = z.infer<typeof momentoDeckCard>;
 export const momentoSuggestion = z.object({
   candidateId: z.string().uuid(),
   handle: z.string().nullable(),
+  displayName: displayNameSchema.nullable(),
+  avatarPath: avatarPathSchema.nullable(),
   dreamText: z.string().nullable(),
 });
 export type MomentoSuggestion = z.infer<typeof momentoSuggestion>;

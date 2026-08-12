@@ -1,9 +1,11 @@
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Help, Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Tag } from '@/components/Tag';
+import type { HelperIdentity } from '@/hooks/use-own-dream';
 
 /**
  * One «Aiuti in arrivo» row on the owner's Profilo (frontend `02` §3.4D): who offered
@@ -14,7 +16,7 @@ import { Tag } from '@/components/Tag';
  */
 export function IncomingOfferRow({
   help,
-  helperName,
+  helper,
   locale,
   onAccept,
   onDecline,
@@ -22,20 +24,27 @@ export function IncomingOfferRow({
   mutating = false,
 }: {
   help: Help;
-  helperName: string;
+  /** null when the helper's profile could not be resolved at all (#76). */
+  helper: HelperIdentity | null;
   locale: Locale;
   onAccept: () => void;
   onDecline: () => void;
   onConfirm: () => void;
   mutating?: boolean;
 }) {
+  const helperName = memberLabel(helper?.displayName, helper?.handle) ?? '—';
   return (
     <View
       className={`gap-3 rounded-card border border-hair bg-raise p-4 ${mutating ? 'opacity-50' : ''}`}
     >
       {/* who + offer type */}
       <View className="flex-row items-center gap-3">
-        <Avatar handle={helperName} size={36} />
+        <Avatar
+          handle={helper?.handle ?? null}
+          displayName={helper?.displayName ?? null}
+          avatarPath={helper?.avatarPath ?? null}
+          size={36}
+        />
         <Text className="flex-1 text-[15px] font-semibold text-foreground" numberOfLines={1}>
           {helperName}
         </Text>
