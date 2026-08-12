@@ -6,13 +6,27 @@ export type MessageKey = keyof typeof it;
 
 const catalogs: Record<Locale, Record<MessageKey, string>> = { it, en };
 
+// No @types/node in this package; both Metro and Next inline `process.env.NODE_ENV` at build
+// time, so this local declaration only satisfies tsc — it never resolves a runtime global.
+declare const process: { env: { NODE_ENV?: string } };
+
 /**
  * Translate a key. Pass `vars` to substitute `{name}` placeholders
  * (e.g. t('profile.completeness', locale, { percent: 70 })). Two-arg calls
  * are unaffected — interpolation only runs when `vars` is provided.
+ *
+ * A missing key returns the key itself and never throws (#113): callers cast server-supplied
+ * strings into MessageKey, so the type alone cannot guarantee presence. Loud in dev, silent
+ * in production — same degrade shape as tagLabel below.
  */
 export function t(key: MessageKey, locale: Locale, vars?: Record<string, string | number>): string {
-  const message = catalogs[locale][key];
+  const message: string | undefined = catalogs[locale][key];
+  if (message === undefined) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[i18n] missing key "${key}" (${locale})`);
+    }
+    return key;
+  }
   if (!vars) return message;
   return message.replace(/\{(\w+)\}/g, (whole, name: string) =>
     Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : whole,

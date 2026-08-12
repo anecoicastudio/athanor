@@ -28,13 +28,34 @@ export type NotificationType = z.infer<typeof notificationType>;
 export const entityRefSchema = z.object({ kind: z.string(), id: z.string() }).nullish();
 export type EntityRef = z.infer<typeof entityRefSchema>;
 
+// The notif.tpl.* keys the fan-out writes. Mirrored in @athanor/i18n catalogs (that half
+// is asserted by an i18n test) and in supabase/functions/_shared/notif-templates.ts (manual
+// sync — Deno, not importable from Vitest, so no test covers that half).
+// `notif.tpl.generic` is client-only: the degrade target, never written server-side.
+export const NOTIFICATION_TEMPLATE_KEYS = [
+  'notif.tpl.moment',
+  'notif.tpl.message',
+  'notif.tpl.dreamMilestone',
+  'notif.tpl.review',
+  'notif.tpl.eventReminder',
+  'notif.tpl.fundMilestone',
+  'notif.tpl.projectResponse',
+  'notif.tpl.connection',
+  'notif.tpl.connectionAccepted',
+  'notif.tpl.generic',
+] as const;
+export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);
+export type NotificationTemplateKey = z.infer<typeof notificationTemplateKey>;
+
 // Recipient reads OWN rows; written ONLY by the fan-out edge fn (service role). Body copy is a
 // template_key + params (server-composed, IT/EN — 09 §3.6), never a hardcoded string.
 export const notificationSchema = z.object({
   id: z.string().uuid(),
   recipient_id: z.string().uuid(),
   type: notificationType,
-  template_key: z.string(),
+  // `.catch`, not a bare enum: a key this build has never seen (an old client after #125
+  // ships new templates) must degrade to the generic template, not fail the page parse (#113).
+  template_key: notificationTemplateKey.catch('notif.tpl.generic'),
   params: z.record(z.string(), z.unknown()).default({}),
   entity_ref: entityRefSchema,
   read_at: z.string().nullish(),

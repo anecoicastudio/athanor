@@ -1,3 +1,4 @@
+import type { MessageKey } from '@athanor/i18n';
 import type { Notification } from '@athanor/schemas';
 
 /**
@@ -32,8 +33,9 @@ export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
   connection: { glyph: '◌', accentClass: 'bg-raise-2', celebratory: false },
 };
 
-/** Maps each type to the i18n lead key (bold prefix on the row). */
-export const NOTIF_LEAD: Record<Notification['type'], string> = {
+/** Maps each type to the i18n lead key (bold prefix on the row). Typed MessageKey so a lead
+ *  that leaves the catalog fails typecheck here instead of degrading at render (#113). */
+export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   moment: 'notif.type.moment',
   dreamMilestone: 'notif.type.dreamMilestone',
   review: 'notif.type.review',
