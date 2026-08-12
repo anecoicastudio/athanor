@@ -148,7 +148,7 @@ export default function PersonDetailScreen() {
     enabled: Boolean(id) && !isSelf,
     staleTime: 60_000,
   }).data;
-  const { urls } = useSignedUrls(
+  const { urls, isLoading: urlsLoading } = useSignedUrls(
     'moments',
     moments.map((m) => m.media_path),
   );
@@ -346,6 +346,7 @@ export default function PersonDetailScreen() {
           gallery={{
             moments,
             urls,
+            urlsLoading,
             locale,
             onOpen: setLightboxIndex,
             onSeeAll: () => router.push({ pathname: '/(modal)/grid', params: { userId: id } }),
@@ -401,6 +402,7 @@ export default function PersonDetailScreen() {
         <Lightbox
           moments={moments}
           urls={urls}
+          urlsLoading={urlsLoading}
           index={lightboxIndex}
           locale={locale}
           onClose={() => setLightboxIndex(null)}

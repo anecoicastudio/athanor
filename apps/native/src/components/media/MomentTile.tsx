@@ -1,8 +1,8 @@
-import { Image, StyleSheet } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
 import { Pressable, Text, View } from '@/tw';
+import { MediaFrame } from '@/components/media/MediaFrame';
 
 export type TileVariant = 'gallery' | 'full';
 
@@ -14,24 +14,28 @@ const RADIUS: Record<TileVariant, string> = {
 };
 
 /**
- * A single Momento media tile (1:1, fills its parent cell). Renders the signed
- * `url` (thumb or media) as a cover image when available; falls back to a quiet
- * `raise` box while the URL loads or fails to sign. A ▶ glyph marks video; a
- * caption overlays the bottom when present.
+ * A single Momento media tile (1:1, fills its parent cell). The signed `url` (thumb or media)
+ * renders through `MediaFrame`, so a tile whose URL is still signing looks different from one
+ * whose URL is never coming (#135) — it used to be the same empty box either way. A ▶ glyph
+ * marks video once there is something to play; a caption overlays the bottom in every state,
+ * because the member's own words survive their media failing to load.
  */
 export function MomentTile({
   moment,
   variant,
   locale,
   url,
+  isLoading,
   onPress,
   onLongPress,
 }: {
   moment: Moment;
   variant: TileVariant;
   locale: Locale;
-  /** Signed URL for `moment.media_path` (or thumb). Undefined → placeholder. */
+  /** Signed URL for `moment.media_path` (or thumb). Undefined → loading or unavailable. */
   url?: string;
+  /** `useSignedUrls().isLoading`, which is what tells those two apart. */
+  isLoading: boolean;
   onPress: () => void;
   /** Owner-only soft-delete affordance (full grid). Omit elsewhere. */
   onLongPress?: () => void;
@@ -44,14 +48,25 @@ export function MomentTile({
       onLongPress={onLongPress}
       className={`aspect-square w-full justify-end overflow-hidden bg-raise ${RADIUS[variant]}`}
     >
-      {url ? (
-        <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      ) : null}
-      {moment.kind === 'video' ? (
-        <View className="absolute inset-0 items-center justify-center">
-          <Text className="text-2xl text-foreground">▶</Text>
-        </View>
-      ) : null}
+      <MediaFrame
+        // What renders is always the thumbnail image; `kind` is what the member came for, so a
+        // video Momento with no thumb says so instead of blaming a photo.
+        kind={moment.kind === 'video' ? 'video' : 'photo'}
+        url={url}
+        isLoading={isLoading}
+        locale={locale}
+        compact
+        className="absolute inset-0"
+        overlay={
+          moment.kind === 'video' ? (
+            // Ready-state only: over the unavailable glyph this would be two centred marks on
+            // top of each other, and ▶ would promise playback that isn't there.
+            <View className="absolute inset-0 items-center justify-center">
+              <Text className="text-2xl text-foreground">▶</Text>
+            </View>
+          ) : null
+        }
+      />
       {moment.caption ? (
         <Text
           numberOfLines={1}

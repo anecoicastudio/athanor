@@ -56,7 +56,7 @@ export function ProfileView({
     enabled: Boolean(userId),
   });
   const moments = momentsQuery.data?.moments ?? [];
-  const { urls } = useSignedUrls(
+  const { urls, isLoading: urlsLoading } = useSignedUrls(
     'moments',
     moments.map((m) => m.media_path),
   );
@@ -144,6 +144,7 @@ export function ProfileView({
         gallery={{
           moments,
           urls,
+          urlsLoading,
           locale,
           onOpen: setLightboxIndex,
           onSeeAll: () => router.push('/(modal)/grid'),
@@ -183,6 +184,7 @@ export function ProfileView({
       <Lightbox
         moments={moments}
         urls={urls}
+        urlsLoading={urlsLoading}
         index={lightboxIndex}
         locale={locale}
         onClose={() => setLightboxIndex(null)}

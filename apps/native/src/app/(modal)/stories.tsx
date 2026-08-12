@@ -38,7 +38,7 @@ export default function StoriesScreen() {
   // The viewer owns its own segment index; the host only needs the first for reaction gating.
   const current = segments[0];
 
-  const { urls } = useSignedUrls(
+  const { urls, isLoading: urlsLoading } = useSignedUrls(
     'story-segments',
     segments.map((s) => s.storage_path),
   );
@@ -75,6 +75,7 @@ export default function StoriesScreen() {
     <StoriesViewer
       segments={segments}
       urls={urls}
+      urlsLoading={urlsLoading}
       name={name}
       isOwn={isOwn}
       viewerReacted={Boolean(reactionQuery.data)}

@@ -38,7 +38,7 @@ export default function GridScreen() {
     enabled: Boolean(ownerId),
   });
   const moments = momentsQuery.data?.moments ?? [];
-  const { urls } = useSignedUrls(
+  const { urls, isLoading: urlsLoading } = useSignedUrls(
     'moments',
     moments.map((m) => m.media_path),
   );
@@ -106,6 +106,7 @@ export default function GridScreen() {
                 variant="full"
                 locale={locale}
                 url={urls[m.media_path]}
+                isLoading={urlsLoading}
                 onPress={() => setIndex(i)}
                 onLongPress={readOnly ? undefined : () => confirmDelete(m)}
               />
@@ -133,6 +134,7 @@ export default function GridScreen() {
         <Lightbox
           moments={moments}
           urls={urls}
+          urlsLoading={urlsLoading}
           index={index}
           locale={locale}
           onClose={() => setIndex(null)}

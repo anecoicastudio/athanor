@@ -1,4 +1,4 @@
-import { Image, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
 import { useQuery } from '@tanstack/react-query';
@@ -6,21 +6,17 @@ import { getPostMedia, postMediaKeys } from '@athanor/api';
 import type { Locale } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { MediaFrame, type MediaKind } from '@/components/media/MediaFrame';
 import { aspectRatio, formatDuration } from '@/lib/media/format';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
-/** A muted box used for loading skeletons and sign-fail placeholders. */
-function MediaBox({ children, ratio }: { children?: React.ReactNode; ratio: number }) {
-  return (
-    <View
-      className="items-center justify-center overflow-hidden rounded-card bg-raise"
-      style={{ aspectRatio: ratio }}
-    >
-      {children}
-    </View>
-  );
-}
+/** Post rows call their still image `image`; `MediaFrame` calls it `photo`. */
+const MEDIA_KIND: Record<'image' | 'video' | 'audio', MediaKind> = {
+  image: 'photo',
+  video: 'video',
+  audio: 'audio',
+};
 
 /** Detail-only real video player — owns its own `useVideoPlayer` hook. */
 function DetailVideo({ url, ratio }: { url: string; ratio: number }) {
@@ -73,7 +69,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
     enabled,
   });
   const rows = mediaQuery.data ?? [];
-  const { urls } = useSignedUrls(
+  const { urls, isLoading: urlsLoading } = useSignedUrls(
     'post-media',
     rows.map((r) => r.storage_path),
   );
@@ -84,7 +80,13 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
   if (mediaQuery.isLoading) {
     return (
       <View className="gap-2">
-        <MediaBox ratio={4 / 5} />
+        <MediaFrame
+          kind={MEDIA_KIND[postType]}
+          isLoading
+          locale={locale}
+          className="rounded-card bg-raise"
+          style={{ aspectRatio: 4 / 5 }}
+        />
       </View>
     );
   }
@@ -97,20 +99,33 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
         const ratio = aspectRatio(row);
         const durLabel = t('feed.audio', locale, { dur: formatDuration(row.duration_s) });
 
-        // No URL yet (signing) or sign-fail → muted placeholder, never crash.
+        // Still signing, or never coming — `MediaFrame` is what tells those two apart (#135).
         if (!url) {
-          return <MediaBox key={row.id} ratio={row.kind === 'audio' ? 4 / 1 : ratio} />;
+          return (
+            <MediaFrame
+              key={row.id}
+              kind={MEDIA_KIND[row.kind]}
+              isLoading={urlsLoading}
+              locale={locale}
+              className="rounded-card bg-raise"
+              style={{ aspectRatio: row.kind === 'audio' ? 4 / 1 : ratio }}
+            />
+          );
         }
 
         if (row.kind === 'image') {
+          // Same frame, and now an `onError`: a URL that signs and then 404s says so instead of
+          // rendering an empty card.
           return (
-            <View
+            <MediaFrame
               key={row.id}
-              className="overflow-hidden rounded-card bg-raise"
+              kind="photo"
+              url={url}
+              isLoading={urlsLoading}
+              locale={locale}
+              className="rounded-card bg-raise"
               style={{ aspectRatio: ratio }}
-            >
-              <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            </View>
+            />
           );
         }
 
