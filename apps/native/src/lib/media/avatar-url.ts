@@ -4,6 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { createSignedUrlBatcher } from './signed-url-batch';
 import { signedUrlPolicy } from './signed-url-policy';
 
+/**
+ * The one spelling of the avatar-URL cache key (`api.md`: a key is never spelled twice). The
+ * uploader busts this exact entry after overwriting the object — a second hand-written copy is
+ * how that cache-bust silently stops matching the query it is meant to invalidate.
+ */
+export const avatarUrlKey = (path: string) => ['avatar-url', path] as const;
+
 /** One batcher for the whole app — a shared queue is what makes the coalescing worth anything. */
 const resolveAvatarUrl = createSignedUrlBatcher((paths) =>
   signMediaUrls(supabase, 'avatars', paths),
@@ -19,7 +26,7 @@ const resolveAvatarUrl = createSignedUrlBatcher((paths) =>
 export function useAvatarUrl(path: string | null | undefined): string | null {
   const { staleTime } = signedUrlPolicy('avatars');
   const { data } = useQuery({
-    queryKey: ['avatar-url', path],
+    queryKey: avatarUrlKey(path as string),
     queryFn: () => resolveAvatarUrl(path as string),
     enabled: !!path,
     staleTime,

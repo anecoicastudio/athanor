@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { uploadAvatarImage } from './avatar-upload';
+import { avatarUrlKey } from './avatar-url';
 import type { PickedMedia } from './pick';
 
 export type AvatarUploadStatus = 'idle' | 'uploading' | 'done' | 'error';
@@ -37,7 +38,7 @@ export function useAvatarUpload(uid: string | null | undefined): {
     try {
       const key = await uploadAvatarImage(uid, asset.uri);
       // Drop the cached signed URL for this exact key — the bytes behind it just changed.
-      queryClient.removeQueries({ queryKey: ['avatar-url', key] });
+      queryClient.removeQueries({ queryKey: avatarUrlKey(key) });
       setPath(key);
       setStatus('done');
       return key;

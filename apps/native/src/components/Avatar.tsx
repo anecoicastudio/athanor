@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { memberLabel } from '@athanor/core';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/tw';
 import { useAvatarUrl } from '@/lib/media/avatar-url';
@@ -40,7 +41,7 @@ export function Avatar({
       // The label names the person either way, so a screen reader reads the same thing whether
       // or not the photo resolved.
       accessible
-      accessibilityLabel={displayName?.trim() || (handle ? `@${handle}` : undefined)}
+      accessibilityLabel={memberLabel(displayName, handle) ?? undefined}
     >
       {url ? (
         <Image
