@@ -344,8 +344,12 @@ Deno.test('handleSubscription upserts one membership per profile with derived fi
   assertEquals(values.current_period_end, new Date(1760000000 * 1000).toISOString());
 });
 
+// The renewal date is read from the subscription ITEM only. Stripe moved current_period_end
+// there in 2025-03-31.basil and _shared/stripe.ts pins 2026-05-27.dahlia, so a payload
+// carrying it at subscription level is not one this endpoint can receive — and if the pin ever
+// moves back, this asserts we store null rather than silently reading a stale field.
 Deno.test(
-  'handleSubscription derives annual plan and falls back to sub-level period end',
+  'handleSubscription derives annual plan and ignores a subscription-level period end',
   async () => {
     const db = makeFakeDb();
     await handleSubscription(
@@ -361,7 +365,7 @@ Deno.test(
     assertEquals(values.plan, 'annual');
     assertEquals(values.status, 'canceled'); // unpaid → canceled via mapSubStatus
     assertEquals(values.stripe_customer_id, 'cus_2');
-    assertEquals(values.current_period_end, new Date(1770000000 * 1000).toISOString());
+    assertEquals(values.current_period_end, null);
   },
 );
 

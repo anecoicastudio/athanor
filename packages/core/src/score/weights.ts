@@ -133,7 +133,14 @@ export const STAR_CRITERIA = {
   ambasciatore: { invitesActivated: 5 },
 } as const;
 
-/** The six display buckets in canonical display order (frontend §3.1) — single source (rule #10). */
+/**
+ * The six display buckets in canonical display order (frontend §3.1) — single source (rule #10).
+ *
+ * PARKED(reviews) / PARKED(valore): `recensioni` and `valore` have no BUCKET_MAP entry, so they
+ * render as a structural 0 rather than an empty result. Both wait on their surfaces (human
+ * reviews are Fase 3, as is the `review` notification type) — the zero is the design, not a
+ * missing mapping (PRODUCTION-READINESS P5).
+ */
 export const BUCKET_ORDER = [
   'contributi',
   'eventi',

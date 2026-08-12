@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { type Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { auraKeys, getAuraScoreFull } from '@athanor/api';
 import { auraGlowLevel, breakdownRows } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -156,7 +156,7 @@ export default function AuraScreen() {
           <Pressable
             className="mt-8 flex-row items-center justify-between border-t border-hair py-4"
             accessibilityRole="button"
-            onPress={() => router.push('/aura/ledger' as Href)}
+            onPress={() => router.push('/aura/ledger')}
           >
             <Text className="text-[14px] text-foreground">{t('aura.ledger.cta', locale)}</Text>
           </Pressable>

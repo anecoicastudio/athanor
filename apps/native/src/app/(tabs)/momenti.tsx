@@ -60,8 +60,6 @@ export default function MomentiScreen() {
     mutationFn: (card: MomentoDeckCard) => acceptMoment(supabase, card.id),
     onSuccess: (res, card) => {
       if (res.matched) {
-        // `(modal)/match` ships in the sibling match-overlay task; typed routes don't
-        // know it yet, so cast this one call until they regenerate once it exists.
         router.push({
           pathname: '/(modal)/match',
           params: {
@@ -69,7 +67,7 @@ export default function MomentiScreen() {
             source: 'accepted',
             conversationId: res.conversationId ?? '',
           },
-        } as unknown as Parameters<typeof router.push>[0]);
+        });
       } else {
         setAcceptToast(card.handle ?? '');
         setTimeout(() => setAcceptToast(null), 1900);

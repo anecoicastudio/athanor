@@ -275,11 +275,11 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
   const interval = item?.price?.recurring?.interval; // 'month' | 'year'
   const plan = interval === 'year' ? 'annual' : 'monthly';
 
-  // current_period_end moved onto items in newer API versions; fall back to the subscription field.
-  const periodEndUnix =
-    (item as { current_period_end?: number } | undefined)?.current_period_end ??
-    (sub as unknown as { current_period_end?: number }).current_period_end ??
-    null;
+  // current_period_end lives on the subscription ITEM, not the subscription: Stripe moved it
+  // in 2025-03-31.basil, and _shared/stripe.ts pins 2026-05-27.dahlia, so the old
+  // subscription-level field is not in the payloads this endpoint receives. Reading it as a
+  // fallback would only ever produce undefined.
+  const periodEndUnix = (item as { current_period_end?: number } | undefined)?.current_period_end;
   const currentPeriodEnd = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null;
 
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
@@ -464,7 +464,7 @@ export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Resp
     {
       event_id: event.id,
       type: event.type,
-      payload: event as unknown as Record<string, unknown>,
+      payload: { ...event },
     },
     { onConflict: 'event_id', ignoreDuplicates: true },
   );

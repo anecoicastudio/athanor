@@ -177,11 +177,7 @@ export default function SearchScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('search.filters.open', locale)}
             onPress={() => {
-              // /search-filters is Task 9's route — cast until typed routes regen
-              router.push({
-                pathname: '/search-filters',
-                params: filterSheetParams,
-              } as unknown as Parameters<typeof router.push>[0]);
+              router.push({ pathname: '/search-filters', params: filterSheetParams });
             }}
           >
             <Text className="text-[14px] text-foreground">{t('search.filters.open', locale)}</Text>

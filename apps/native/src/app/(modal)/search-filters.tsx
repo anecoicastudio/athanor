@@ -79,12 +79,7 @@ export default function SearchFiltersScreen() {
     // dismissTo pops this sheet and returns to the already-stacked /search screen
     // with updated params, triggering an automatic re-query on that screen.
     // expo-router v6 Href object: { pathname, params } — both passed in one call.
-    // Double-cast: typed routes don't include '/(modal)/search' until pnpm gen:types
-    // reruns (new route added). The runtime route is correct; the cast silences tsc.
-    router.dismissTo({
-      pathname: '/(modal)/search',
-      params,
-    } as unknown as Parameters<typeof router.dismissTo>[0]);
+    router.dismissTo({ pathname: '/(modal)/search', params });
   };
 
   const handleReset = () => {
