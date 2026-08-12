@@ -1,4 +1,4 @@
-import { IDENTITY_TAGS, type IdentityTag, SEEKING_TAGS, type SeekingTag } from './tags';
+import { type IdentityTag, SEEKING_TAGS, type SeekingTag } from './tags';
 
 /**
  * Momenti affinity (PRD §4.7), the tag half of it.
@@ -38,29 +38,32 @@ export type AffinityProfile = {
   seeking: readonly string[];
 };
 
-/** The three affinity terms, each a list of IDENTITY tag keys the UI can localize. */
+/**
+ * The three affinity terms, each a list of IDENTITY tag keys the UI can localize.
+ *
+ * `string[]`, not `IdentityTag[]`, and deliberately: `athanor.tag_intersect()` holds no
+ * vocabulary list, so a tag predating the curated set (rows carried 'design' / 'music' before
+ * #273) intersects like any other. `validate.ts` is what keeps new ones out. Narrowing the type
+ * here would describe an engine we do not run, and `tagLabel()` already renders an unknown key
+ * as itself rather than «undefined».
+ */
 export type AffinityTerms = {
   /** Identities you both claim. */
-  shared: IdentityTag[];
+  shared: string[];
   /** Identities they claim that answer what you seek. */
-  seekHit: IdentityTag[];
+  seekHit: string[];
   /** Identities you claim that answer what they seek. */
-  offerHit: IdentityTag[];
+  offerHit: string[];
 };
-
-const isIdentityTag = (tag: string): tag is IdentityTag =>
-  (IDENTITY_TAGS as readonly string[]).includes(tag);
 
 const isSeekingTag = (tag: string): tag is SeekingTag =>
   (SEEKING_TAGS as readonly string[]).includes(tag);
 
 /** Sorted, deduplicated intersection — stable output is what makes the terms diffable. */
-function intersect(a: readonly IdentityTag[], b: readonly IdentityTag[]): IdentityTag[] {
+function intersect(a: readonly string[], b: readonly string[]): string[] {
   const other = new Set(b);
   return [...new Set(a.filter((tag) => other.has(tag)))].sort();
 }
-
-const identitiesOf = (tags: readonly string[]): IdentityTag[] => tags.filter(isIdentityTag);
 
 /** The identities that answer a member's seeking list. Unknown keys are dropped. */
 export function expandSeeking(seeking: readonly string[]): IdentityTag[] {
@@ -77,12 +80,10 @@ export function expandSeeking(seeking: readonly string[]): IdentityTag[] {
  * `seekHit` and `offerHit` swap when the pair is scored the other way round.
  */
 export function momentoAffinityTerms(me: AffinityProfile, them: AffinityProfile): AffinityTerms {
-  const myIdentity = identitiesOf(me.identityTags);
-  const theirIdentity = identitiesOf(them.identityTags);
   return {
-    shared: intersect(myIdentity, theirIdentity),
-    seekHit: intersect(expandSeeking(me.seeking), theirIdentity),
-    offerHit: intersect(myIdentity, expandSeeking(them.seeking)),
+    shared: intersect(me.identityTags, them.identityTags),
+    seekHit: intersect(expandSeeking(me.seeking), them.identityTags),
+    offerHit: intersect(me.identityTags, expandSeeking(them.seeking)),
   };
 }
 

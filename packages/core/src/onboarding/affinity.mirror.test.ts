@@ -1,4 +1,5 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MOMENTO_AFFINITY_THRESHOLD, SEEKING_TO_IDENTITY } from './affinity';
@@ -15,7 +16,24 @@ import { SEEKING_TAGS } from './tags';
  * Reads the LAST migration that defines the function rather than a fixed filename —
  * migrations are append-only, so the current body is whichever one came last.
  */
-const MIGRATIONS = fileURLToPath(new URL('../../../../supabase/migrations', import.meta.url).href);
+/**
+ * Found by walking UP from this file, not by counting `../` from it. Stryker runs the suite
+ * from a sandbox copy of the package (`.stryker-tmp/sandbox-N/`), which puts the file two levels
+ * deeper than it sits in the repo — a fixed relative path resolves to
+ * `packages/core/supabase/migrations`, and the mutation job dies in its dry run before scoring
+ * anything. The sandbox is nested inside the repo, so climbing until `supabase/migrations`
+ * appears lands on the real one from either location.
+ */
+const MIGRATIONS = (() => {
+  let dir = fileURLToPath(new URL('.', import.meta.url).href);
+  for (;;) {
+    const candidate = join(dir, 'supabase', 'migrations');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) throw new Error('no supabase/migrations directory above this test');
+    dir = parent;
+  }
+})();
 
 function currentDefinition(fnName: string): string {
   const bodies = readdirSync(MIGRATIONS)

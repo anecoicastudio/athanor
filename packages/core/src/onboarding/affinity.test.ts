@@ -39,6 +39,18 @@ describe('expandSeeking', () => {
     expect(expandSeeking(['mentorship', 'crescita'])).toEqual(['coach', 'mentor']);
   });
 
+  it('sorts the union rather than returning it in encounter order', () => {
+    // «mentorship» is read first, so insertion order is coach, mentor, imprenditore,
+    // investitore. Sorted order interleaves them — the SQL side is `order by 1`, and a
+    // deck that reordered its own reason lines between two reads would look unstable.
+    expect(expandSeeking(['mentorship', 'business'])).toEqual([
+      'coach',
+      'imprenditore',
+      'investitore',
+      'mentor',
+    ]);
+  });
+
   it('ignores a tag outside the vocabulary', () => {
     expect(expandSeeking(['business', 'not-a-tag'])).toEqual(['imprenditore', 'investitore']);
   });
@@ -90,6 +102,19 @@ describe('momentoAffinityTerms', () => {
       { identityTags: ['coach', 'mentor', 'artista'], seeking: [] },
     );
     expect(terms.shared).toEqual(['artista', 'coach', 'mentor']);
+  });
+
+  it('counts a shared tag from outside the vocabulary, exactly as the SQL does', () => {
+    // athanor.tag_intersect() intersects the RAW arrays; it holds no vocabulary list. Rows
+    // predating the curated tags carry keys like 'design' (supabase/seed.sql did until #273),
+    // and `validate.ts` is what stops new ones — not this. A spec that quietly dropped them
+    // would disagree with the engine it exists to describe, and the mirror test only compares
+    // the seeking map, so nothing would catch it.
+    const terms = momentoAffinityTerms(
+      { identityTags: ['design'], seeking: [] },
+      { identityTags: ['design'], seeking: [] },
+    );
+    expect(terms.shared).toEqual(['design']);
   });
 
   it('masks a hidden field by receiving it empty', () => {
