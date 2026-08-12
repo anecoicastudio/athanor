@@ -191,7 +191,7 @@ export default function CircleScreen() {
     return (
       <Screen {...MODAL_A11Y}>
         {header}
-        <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+        <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
           {/* 1. Subscription status card (moment glow — belonging is moment-grade) */}
           <SubscriptionStatusCard
             plan={membership?.plan ?? entQuery.data?.plan ?? null}
@@ -242,7 +242,7 @@ export default function CircleScreen() {
   return (
     <Screen {...MODAL_A11Y}>
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}

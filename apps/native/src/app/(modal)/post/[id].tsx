@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert } from 'react-native';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -139,10 +140,7 @@ export default function PostDetailScreen() {
   const categoryLabel = t(`feed.filter.${post.category}` as MessageKey, locale);
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoiding>
       <Screen>
         <ModalHeader
           title={categoryLabel}
@@ -263,6 +261,6 @@ export default function PostDetailScreen() {
           </Pressable>
         </View>
       </Screen>
-    </KeyboardAvoidingView>
+    </KeyboardAvoiding>
   );
 }

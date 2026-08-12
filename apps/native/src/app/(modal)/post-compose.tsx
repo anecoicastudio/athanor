@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { Image } from 'react-native';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -95,10 +96,7 @@ export default function PostComposeScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoiding>
       <Screen>
         <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
@@ -228,6 +226,6 @@ export default function PostComposeScreen() {
           />
         </ScrollView>
       </Screen>
-    </KeyboardAvoidingView>
+    </KeyboardAvoiding>
   );
 }

@@ -176,6 +176,7 @@ describe('translation completeness', () => {
     'circle.benefit.ai.t',
     'circle.benefit.analytics.t',
     'circle.title',
+    'community.title',
     'costellazioni.filter.business',
     'costellazioni.filter.startup',
     'event.cat.business',

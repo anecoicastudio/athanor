@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform } from 'react-native';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -64,10 +64,7 @@ export default function ProjectComposeScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoiding>
       <Screen>
         <ModalHeader
           title={t('create.project.title', locale)}
@@ -133,6 +130,6 @@ export default function ProjectComposeScreen() {
           />
         </ScrollView>
       </Screen>
-    </KeyboardAvoidingView>
+    </KeyboardAvoiding>
   );
 }

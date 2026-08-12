@@ -7,7 +7,9 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed, Locale } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { Button } from '@/components/Button';
+import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { FavorRow } from '@/components/costellazioni/FavorRow';
@@ -109,7 +111,7 @@ export default function FavorScreen() {
             disabled={writing}
             onPress={() => void write(done)}
           />
-          <Pressable onPress={() => router.back()} hitSlop={8} className="items-center py-2">
+          <Pressable onPress={() => router.back()} hitSlop={HIT_SLOP} className="items-center py-2">
             <Text className="text-[14px] text-faint">{t('favor.done.dismiss', locale)}</Text>
           </Pressable>
         </View>
@@ -137,25 +139,17 @@ export default function FavorScreen() {
         data={needs}
         keyExtractor={(item) => item.need_milestone_id}
         ListHeaderComponent={
-          <View className="gap-3 px-5 pb-2 pt-3">
-            <View className="flex-row items-start justify-between">
-              <View className="flex-1 gap-1 pr-4">
-                <Text accessibilityRole="header" className="text-2xl text-foreground">
-                  {t('favor.sheet.title', locale)}
-                </Text>
-                <Text className="text-[14px] text-faint">{t('favor.sheet.sub', locale)}</Text>
-              </View>
-              <Pressable
-                onPress={() => router.back()}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.back', locale)}
-                hitSlop={8}
-              >
-                <Text className="text-2xl text-foreground">✕</Text>
-              </Pressable>
-            </View>
+          <View>
+            <ModalHeader
+              leading="none"
+              title={t('favor.sheet.title', locale)}
+              subtitle={t('favor.sheet.sub', locale)}
+              right={<HeaderClose label={t('common.back', locale)} onPress={() => router.back()} />}
+            />
             {helpError ? (
-              <Text className="text-[13px] text-error">{t('favor.help.error', locale)}</Text>
+              <Text className="px-5 pb-2 text-[13px] text-error">
+                {t('favor.help.error', locale)}
+              </Text>
             ) : null}
           </View>
         }

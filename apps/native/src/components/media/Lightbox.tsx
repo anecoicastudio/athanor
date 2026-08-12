@@ -6,6 +6,7 @@ import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
 import { Pressable, Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
+import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -46,19 +47,13 @@ export function Lightbox({
       {/* RN <Modal> is its own native root — the app-level provider doesn't reach in (#161). */}
       <SafeAreaProvider>
         <Screen>
-          {/* lb-top */}
-          <View className="flex-row items-center justify-between px-gutter pb-4 pt-3">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('common.back', locale)}
-              hitSlop={8}
-              onPress={onClose}
-            >
-              <Text className="text-2xl text-foreground">✕</Text>
-            </Pressable>
-            <Text className="text-sm text-faint">{t('lightbox.label', locale)}</Text>
-            <View className="w-6" />
-          </View>
+          {/* lb-top — immersive media chrome: ✕ left, label left-aligned (DESIGN §6). */}
+          <ModalHeader
+            leading="close"
+            backLabel={t('common.back', locale)}
+            onBack={onClose}
+            titleSlot={<Text className="text-sm text-faint">{t('lightbox.label', locale)}</Text>}
+          />
 
           {/* lb-stage — tap → next */}
           <Pressable className="flex-1 items-center justify-center px-5" onPress={step}>

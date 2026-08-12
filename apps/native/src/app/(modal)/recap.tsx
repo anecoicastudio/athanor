@@ -4,7 +4,8 @@ import { auraKeys, getStars, starKeys } from '@athanor/api';
 import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
+import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -70,20 +71,16 @@ export default function RecapScreen() {
 
   return (
     <Screen {...MODAL_A11Y}>
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 pb-3 pt-3">
-        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
-          {t('recap.title' as MessageKey, locale)}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back' as MessageKey, locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-[17px] text-muted-foreground">✕</Text>
-        </Pressable>
-      </View>
+      <ModalHeader
+        leading="none"
+        title={t('recap.title' as MessageKey, locale)}
+        right={
+          <HeaderClose
+            label={t('common.back' as MessageKey, locale)}
+            onPress={() => router.back()}
+          />
+        }
+      />
 
       {/* Sub */}
       <Text className="px-5 pb-4 text-[13px] text-muted-foreground">

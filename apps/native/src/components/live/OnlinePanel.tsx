@@ -32,7 +32,7 @@ export function OnlinePanel({
   if (query.isError) return <PanelError locale={locale} onRetry={() => void query.refetch()} />;
 
   return (
-    <ScrollView contentContainerClassName="pb-[104px] gap-4">
+    <ScrollView contentContainerClassName="pb-12 gap-4">
       <View className="gap-3 px-5">
         <SectionLabel>{t('live.online.section', locale)}</SectionLabel>
         {liveNow.map((e) => (

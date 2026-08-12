@@ -15,6 +15,8 @@ import {
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
@@ -105,15 +107,15 @@ export default function CommunityScreen() {
 
   if (query.isLoading) {
     return (
-      <View className="flex-1 bg-background pt-12">
+      <Screen className="pt-12">
         <FeedSkeleton />
-      </View>
+      </Screen>
     );
   }
 
   if (query.isError) {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ListState
           state="error"
           locale={locale}
@@ -121,7 +123,7 @@ export default function CommunityScreen() {
           onRetry={onRefresh}
           className="flex-1 justify-center px-5"
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -134,12 +136,26 @@ export default function CommunityScreen() {
   const emptyCta = filter === 'all' ? t('feed.empty.cta', locale) : t('feed.empty.cat.cta', locale);
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View className="gap-4 py-4">
+            {/* h1 + compose, per DESIGN §8.3 — the in-content header (§6 → Screen headers). */}
+            <View className="flex-row items-center justify-between px-5">
+              <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
+                {t('community.title', locale)}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('community.compose.prompt', locale)}
+                hitSlop={HIT_SLOP}
+                onPress={() => router.push(COMPOSE_HREF)}
+              >
+                <Text className="text-2xl text-faint">+</Text>
+              </Pressable>
+            </View>
             <Pressable
               className="mx-5 rounded-card border border-hair bg-raise px-5 py-4"
               onPress={() => router.push(COMPOSE_HREF)}
@@ -210,8 +226,8 @@ export default function CommunityScreen() {
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
-        contentContainerClassName="pb-[104px]"
+        contentContainerClassName="pb-12"
       />
-    </View>
+    </Screen>
   );
 }

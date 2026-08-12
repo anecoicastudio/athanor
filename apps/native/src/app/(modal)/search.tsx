@@ -7,6 +7,7 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { SearchResult, SearchScope } from '@athanor/schemas';
 import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { SearchBar } from '@/components/search/SearchBar';
 import { ScopeTabs } from '@/components/search/ScopeTabs';
 import { ResultRow } from '@/components/search/ResultRow';
@@ -151,17 +152,9 @@ export default function SearchScreen() {
 
   return (
     <Screen>
-      {/* ── Header row ── */}
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-3">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <View className="flex-1">
+      <ModalHeader
+        backLabel={t('common.back', locale)}
+        titleSlot={
           <SearchBar
             value={rawInput}
             onChangeText={setRawInput}
@@ -172,8 +165,8 @@ export default function SearchScreen() {
             placeholder={t('search.placeholder', locale)}
             clearAccessibilityLabel={t('search.clear', locale)}
           />
-        </View>
-      </View>
+        }
+      />
 
       {/* ── Scope tabs ── */}
       <ScopeTabs scope={scope} onChange={setScope} locale={locale} />
