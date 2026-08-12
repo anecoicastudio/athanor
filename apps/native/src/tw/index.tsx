@@ -9,6 +9,7 @@ import {
   FlatList as RNFlatList,
   type FlatListProps as RNFlatListProps,
 } from 'react-native';
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 
 /** Join conditional NativeWind classes — falsy parts drop out, so call sites avoid
  *  empty-string ternaries (`cond ? 'x' : ''`) inside template literals. */
@@ -16,7 +17,12 @@ export function cn(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-export type ViewProps = React.ComponentProps<typeof RNView> & { className?: string };
+// `ref` passes through as a regular prop (React 19), same as FlatList below — the instance is
+// the native View (measureInWindow etc.).
+export type ViewProps = React.ComponentProps<typeof RNView> & {
+  className?: string;
+  ref?: React.Ref<RNView>;
+};
 export const View = (props: ViewProps) => useCssElement(RNView, props, { className: 'style' });
 View.displayName = 'CSS(View)';
 
@@ -72,3 +78,13 @@ export type TextInputProps = React.ComponentProps<typeof RNTextInput> & { classN
 export const TextInput = (props: TextInputProps) =>
   useCssElement(RNTextInput, withAppFont(props), { className: 'style' });
 TextInput.displayName = 'CSS(TextInput)';
+
+// For chrome bands that own ONE safe-area edge on an overlay surface (story viewer). Whole-screen
+// roots keep using the `Screen` primitive — same native per-view measurement, plus its defaults.
+export type SafeAreaViewProps = React.ComponentProps<typeof RNSafeAreaView> & {
+  className?: string;
+};
+const SafeAreaViewImpl = RNSafeAreaView as unknown as React.ComponentType<Record<string, unknown>>;
+export const SafeAreaView = (props: SafeAreaViewProps) =>
+  useCssElement(SafeAreaViewImpl, props as Record<string, unknown>, { className: 'style' });
+SafeAreaView.displayName = 'CSS(SafeAreaView)';

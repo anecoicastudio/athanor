@@ -38,6 +38,7 @@ export {
 export { highlightMatches, type HighlightSpan } from './search/highlight';
 export {
   buildStoryRail,
+  buildStorySession,
   type StoryRailPerson,
   type StoryRailProfile,
   type StoryRailRow,

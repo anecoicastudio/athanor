@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   type FeedCursor,
   getFeedPage,
+  getPersonStory,
   getStoryRail,
   postKeys,
   storyKeys,
@@ -21,6 +22,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
+import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
@@ -63,7 +65,20 @@ export default function CommunityScreen() {
     queryKey: storyKeys.rail(),
     queryFn: () => getStoryRail(supabase),
   });
-  const [seenIds] = useState<Set<string>>(() => new Set());
+  // Persisted, shared with the viewer — a ring dims when a story FINISHES, not on tap (#298).
+  const { seenIds } = useStorySeen();
+
+  // Own live-segment presence drives the «Il tuo passo» ring (#298): with a live segment it
+  // opens the viewer (and the chain), without one it opens the composer. Also warms
+  // storyKeys.person(myId) so the viewer's session can include you without a refetch.
+  const myStoryQuery = useQuery({
+    queryKey: storyKeys.person(myId ?? ''),
+    queryFn: () => getPersonStory(supabase, myId as string),
+    enabled: Boolean(myId),
+  });
+  const myHasLive = (myStoryQuery.data?.segments ?? []).some(
+    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > Date.now(),
+  );
 
   // Realtime: a new story segment → refresh the rail (skip your own insert).
   useEffect(() => {
@@ -80,7 +95,6 @@ export default function CommunityScreen() {
       authorId === 'me'
         ? (profile?.handle ?? '')
         : (railQuery.data?.find((p) => p.author_id === authorId)?.handle ?? '');
-    if (authorId !== 'me') seenIds.add(authorId);
     router.push({ pathname: '/(modal)/stories', params: { authorId, handle } });
   };
 
@@ -149,7 +163,8 @@ export default function CommunityScreen() {
                   handle: profile?.handle ?? null,
                   displayName: profile?.display_name ?? null,
                   avatarPath: profile?.avatar_path ?? null,
-                  hasStory: false,
+                  hasStory: myHasLive,
+                  seen: myHasLive ? (myId ? seenIds.has(myId) : true) : true,
                 }}
                 people={railQuery.data ?? []}
                 seenIds={seenIds}
