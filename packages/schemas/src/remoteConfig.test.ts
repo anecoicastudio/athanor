@@ -3,7 +3,6 @@ import {
   featureFlagSchema,
   maintenanceModeSchema,
   minAppVersionSchema,
-  remoteConfigRowSchema,
   remoteConfigSnapshotSchema,
 } from './remoteConfig';
 
@@ -33,15 +32,6 @@ describe('remoteConfig schemas', () => {
   it('parses a feature flag and preserves extra keys', () => {
     const f = featureFlagSchema.parse({ enabled: true, rolloutPct: 50 });
     expect(f.enabled).toBe(true);
-  });
-
-  it('parses a raw row (value is opaque jsonb)', () => {
-    const row = remoteConfigRowSchema.parse({
-      key: 'maintenance_mode',
-      value: { enabled: false },
-      updated_at: '2026-06-21T00:00:00Z',
-    });
-    expect(row.key).toBe('maintenance_mode');
   });
 
   it('parses a persisted last-known-good snapshot', () => {

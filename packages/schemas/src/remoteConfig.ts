@@ -32,11 +32,3 @@ export const remoteConfigSnapshotSchema = z.object({
   savedAt: z.string(),
 });
 export type RemoteConfigSnapshotPersisted = z.infer<typeof remoteConfigSnapshotSchema>;
-
-/** A raw `remote_config` row. `value` is opaque jsonb here — callers narrow it per key. */
-export const remoteConfigRowSchema = z.object({
-  key: z.string(),
-  value: z.unknown(),
-  updated_at: z.string(),
-});
-export type RemoteConfigRow = z.infer<typeof remoteConfigRowSchema>;

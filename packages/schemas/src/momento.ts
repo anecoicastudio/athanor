@@ -5,23 +5,6 @@ import { z } from 'zod';
 export const momentoStatus = z.enum(['pending', 'accepted', 'passed']);
 export type MomentoStatus = z.infer<typeof momentoStatus>;
 
-export const momentoProposal = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  candidateId: z.string().uuid(),
-  reasons: z.array(z.string()),
-  status: momentoStatus,
-  proposedOn: z.string(),
-  passedUntil: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-export type MomentoProposal = z.infer<typeof momentoProposal>;
-
-// The only client-mutable field (accept/pass).
-export const momentoStatusUpdate = z.object({ status: z.enum(['accepted', 'passed']) });
-export type MomentoStatusUpdate = z.infer<typeof momentoStatusUpdate>;
-
 // The deck-card read model (proposal joined to the peer profile + active dream quote).
 export const momentoDeckCard = z.object({
   id: z.string().uuid(),

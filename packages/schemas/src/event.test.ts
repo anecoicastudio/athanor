@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  athanorDaysInterestSchema,
   attendanceSchema,
   checkInResultSchema,
   eventCreateSchema,
@@ -166,21 +165,6 @@ describe('eventCreateSchema', () => {
         long: null,
       }).is_online,
     ).toBe(true);
-  });
-});
-
-describe('athanorDaysInterestSchema', () => {
-  const valid = {
-    id: '11111111-1111-1111-1111-111111111111',
-    user_id: '22222222-2222-2222-2222-222222222222',
-    edition: 'primavera-2026',
-    created_at: '2026-06-15T10:00:00.000Z',
-  };
-
-  it('parses an interest row and bounds edition to 80 chars', () => {
-    expect(athanorDaysInterestSchema.parse(valid).edition).toBe('primavera-2026');
-    expect(athanorDaysInterestSchema.parse({ ...valid, edition: null }).edition).toBeNull();
-    expect(() => athanorDaysInterestSchema.parse({ ...valid, edition: 'x'.repeat(81) })).toThrow();
   });
 });
 

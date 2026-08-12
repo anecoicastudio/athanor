@@ -29,11 +29,7 @@ export const postInsertSchema = postSchema.pick({ author_id: true, category: tru
   tags: z.array(z.string()).max(8).default([]),
 });
 
-/** Editing an own post — body only (trim, 1–5000). */
-export const postUpdateSchema = z.object({ body: postBodySchema });
-
 export type Post = z.infer<typeof postSchema>;
 export type PostCategory = z.infer<typeof postCategorySchema>;
 export type PostType = z.infer<typeof postTypeSchema>;
 export type PostInsert = z.infer<typeof postInsertSchema>;
-export type PostUpdate = z.infer<typeof postUpdateSchema>;
