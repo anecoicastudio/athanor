@@ -206,9 +206,11 @@ export function ProfileEditForm({
             second of the two so both chip rows are already on screen.
 
             The copy says "matched", not "you won't appear". Both original
-            reasons have since been closed — pending proposals are purged on the
-            flip (20260807201350) and «Ti potrebbe interessare» gained the
-            predicate (get_momenti_suggestion) — but "matched" is still the
+            reasons have since been closed — the deck recomputes and re-masks its
+            affinity terms on every read (get_momenti_deck, #273 D; the purge
+            trigger that used to DELETE the pending proposals on the flip is
+            retired) and «Ti potrebbe interessare» gained the predicate
+            (get_momenti_suggestion) — but "matched" is still the
             accurate claim: accepted and passed rows deliberately survive, so the
             member does not vanish from every surface. Keep the weaker promise.
             Labels are interpolated from the same keys the chips render, so a

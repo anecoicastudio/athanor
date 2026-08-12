@@ -7,7 +7,7 @@
 -- an invented tag cannot exercise.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(15);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -147,5 +147,14 @@ select is(
   3,
   'a member already holding three waiting Momenti gets none added');
 reset role;
+-- The matcher's own block predicate is deliberately INVOKER: unlike athanor.not_blocked it has
+-- no blocked-member oracle to protect (execute is revoked from authenticated), and its only
+-- callers already run as the table owner. Rule 2 — DEFINER only when genuinely required.
+select is(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='athanor' and p.proname='pair_not_blocked' and p.prosecdef),
+  0::bigint,
+  'athanor.pair_not_blocked is SECURITY INVOKER');
+
 select * from finish();
 rollback;
