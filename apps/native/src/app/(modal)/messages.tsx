@@ -10,10 +10,11 @@ import {
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConversationRow } from '@/components/chat/ConversationRow';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 export default function MessagesScreen() {
@@ -91,14 +92,19 @@ export default function MessagesScreen() {
           />
         )}
         ListEmptyComponent={
-          !query.isLoading ? (
-            <View className="items-center px-8 pt-24">
-              <EmptyState>{t('messages.empty.title', locale)}</EmptyState>
-              <Text className="mt-1 text-center text-[13px] text-faint">
-                {t('messages.empty.body', locale)}
-              </Text>
-            </View>
-          ) : null
+          <ListState
+            state={listState({
+              status: query.status,
+              fetchStatus: query.fetchStatus,
+              isEmpty: items.length === 0,
+            })}
+            locale={locale}
+            errorLabel={t('messages.error', locale)}
+            emptyLabel={t('messages.empty.title', locale)}
+            emptyBody={t('messages.empty.body', locale)}
+            onRetry={() => void query.refetch()}
+            loading={null}
+          />
         }
         onEndReachedThreshold={0.5}
         onEndReached={() => {

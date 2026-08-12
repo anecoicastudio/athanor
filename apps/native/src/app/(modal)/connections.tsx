@@ -15,13 +15,14 @@ import {
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { ConnectionRequestListItem } from '@athanor/schemas';
-import { Text, TextInput, View } from '@/tw';
-import { EmptyState } from '@/components/EmptyState';
+import { TextInput, View } from '@/tw';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConnectionRequestRow } from '@/components/connections/ConnectionRequestRow';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { SegmentedToggle } from '@/components/connections/SegmentedToggle';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 
 type Segment = 'requests' | 'connections';
@@ -119,14 +120,19 @@ export default function ConnectionsScreen() {
             />
           )}
           ListEmptyComponent={
-            !requestsQuery.isLoading ? (
-              <View className="items-center px-8 pt-24">
-                <EmptyState>{t('connection.inbox.empty', locale)}</EmptyState>
-                <Text className="mt-1 text-center text-[13px] text-faint">
-                  {t('connection.inbox.emptyBody', locale)}
-                </Text>
-              </View>
-            ) : null
+            <ListState
+              state={listState({
+                status: requestsQuery.status,
+                fetchStatus: requestsQuery.fetchStatus,
+                isEmpty: requests.length === 0,
+              })}
+              locale={locale}
+              errorLabel={t('connection.inbox.error', locale)}
+              emptyLabel={t('connection.inbox.empty', locale)}
+              emptyBody={t('connection.inbox.emptyBody', locale)}
+              onRetry={() => void requestsQuery.refetch()}
+              loading={null}
+            />
           }
           onEndReachedThreshold={0.5}
           onEndReached={() => {
@@ -161,22 +167,26 @@ export default function ConnectionsScreen() {
               />
             )}
             ListEmptyComponent={
-              !connectionsQuery.isLoading ? (
-                <View className="items-center px-8 pt-24">
-                  {search.trim() ? (
-                    <Text className="text-center text-faint">
-                      {t('connection.list.noMatch', locale)}
-                    </Text>
-                  ) : (
-                    <>
-                      <EmptyState>{t('connection.list.empty', locale)}</EmptyState>
-                      <Text className="mt-1 text-center text-[13px] text-faint">
-                        {t('connection.list.emptyBody', locale)}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              ) : null
+              // A search that matched nothing and a search that FAILED were the same branch,
+              // and the failure got the reassuring copy. The error arm now outranks both, so
+              // «Nessuna corrispondenza» is only ever said about a read that came back.
+              <ListState
+                state={listState({
+                  status: connectionsQuery.status,
+                  fetchStatus: connectionsQuery.fetchStatus,
+                  isEmpty: connections.length === 0,
+                })}
+                locale={locale}
+                errorLabel={t('connection.list.error', locale)}
+                emptyLabel={
+                  search.trim()
+                    ? t('connection.list.noMatch', locale)
+                    : t('connection.list.empty', locale)
+                }
+                emptyBody={search.trim() ? undefined : t('connection.list.emptyBody', locale)}
+                onRetry={() => void connectionsQuery.refetch()}
+                loading={null}
+              />
             }
             onEndReachedThreshold={0.5}
             onEndReached={() => {
