@@ -13,6 +13,7 @@ import type { EventNearby } from '@athanor/schemas';
 import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
@@ -55,7 +56,13 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   const [denied, setDenied] = useState(false);
   const [city, setCity] = useState<string | null>(null);
   const [notified, setNotified] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const { session } = useAuth();
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   const requestLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -93,7 +100,11 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
       await registerAthanorDaysInterest(supabase, session.user.id, null);
       setNotified(true); // confirm only on a real write — no false success on failure
     } catch (e) {
+      // #132: this write is the only demand signal Athanor Days collects — a swallowed
+      // failure both lies to the member and loses the datum. Surface it; `notified`
+      // stays false, so the CTA still reads «Avvisami» and a second tap retries.
       devWarn('[live] registerAthanorDaysInterest', e);
+      showToast(t('live.athanorDays.error', locale));
     }
   };
 
@@ -110,57 +121,63 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
 
   if (denied) {
     return (
-      <ScrollView contentContainerClassName="pb-12">
-        {header}
-        <View className="items-center gap-4 px-5 pt-8">
-          <EmptyState>{t('live.map.locationDenied', locale)}</EmptyState>
-          <Pressable
-            className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-            onPress={() => void requestLocation()}
-          >
-            <Text className="text-[13px] text-aura">{t('live.map.allowLocation', locale)}</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+      <View className="flex-1">
+        <ScrollView contentContainerClassName="pb-12">
+          {header}
+          <View className="items-center gap-4 px-5 pt-8">
+            <EmptyState>{t('live.map.locationDenied', locale)}</EmptyState>
+            <Pressable
+              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
+              onPress={() => void requestLocation()}
+            >
+              <Text className="text-[13px] text-aura">{t('live.map.allowLocation', locale)}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+        {toast ? <Toast label={toast} /> : null}
+      </View>
     );
   }
 
   if (query.isError) return <PanelError locale={locale} onRetry={() => void query.refetch()} />;
 
   return (
-    <FlatList
-      data={rows}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={header}
-      renderItem={({ item }) => (
-        <View className="px-5 pb-3">
-          <EventRow
-            data={{
-              id: item.id,
-              title: item.title,
-              category: item.category,
-              starts_at: item.starts_at,
-              venue: item.venue,
-              city: item.city,
-              distanceKm: metersToKm(item.dist_meters),
-            }}
-            locale={locale}
-            onPress={() => onOpen(item.id)}
-          />
-        </View>
-      )}
-      ListEmptyComponent={
-        coords && !query.isLoading ? (
-          <View className="items-center px-5 pt-8">
-            <EmptyState>{t('live.vicino.empty', locale)}</EmptyState>
+    <View className="flex-1">
+      <FlatList
+        data={rows}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={header}
+        renderItem={({ item }) => (
+          <View className="px-5 pb-3">
+            <EventRow
+              data={{
+                id: item.id,
+                title: item.title,
+                category: item.category,
+                starts_at: item.starts_at,
+                venue: item.venue,
+                city: item.city,
+                distanceKm: metersToKm(item.dist_meters),
+              }}
+              locale={locale}
+              onPress={() => onOpen(item.id)}
+            />
           </View>
-        ) : null
-      }
-      onEndReachedThreshold={0.5}
-      onEndReached={() => {
-        if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
-      }}
-      contentContainerClassName="pb-12"
-    />
+        )}
+        ListEmptyComponent={
+          coords && !query.isLoading ? (
+            <View className="items-center px-5 pt-8">
+              <EmptyState>{t('live.vicino.empty', locale)}</EmptyState>
+            </View>
+          ) : null
+        }
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+        }}
+        contentContainerClassName="pb-12"
+      />
+      {toast ? <Toast label={toast} /> : null}
+    </View>
   );
 }

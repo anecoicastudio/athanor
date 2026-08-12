@@ -573,6 +573,7 @@
   "live.athanorDays.body": "Collaborare, imparare, celebrare i sogni realizzati. La promessa di Athanor, nel mondo reale.",
   "live.athanorDays.notify": "Avvisami della prossima edizione",
   "live.athanorDays.toast": "Ti avviseremo ✦",
+  "live.athanorDays.error": "Non siamo riusciti a salvare il tuo interesse. Riprova.",
   "live.vicino.section": "Vicino a te · {city}",
   "live.vicino.sectionNoCity": "Vicino a te",
   "live.vicino.empty": "Ancora nessun evento vicino a te",
