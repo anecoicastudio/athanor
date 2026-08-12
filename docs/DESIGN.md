@@ -557,7 +557,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 | **Star badge ✦**     | 4-point star. Earned: foreground (`aura` flash animation on earn). Unearned (own profile only): border outline                                                                      |
 | **Reaction ✦**       | Outline default → `aura` fill when lit by you. Count visible to author only                                                                                                         |
 | **Toast**            | Bottom, surface bg, leading ✓ in success / ✦ in `aura` for moment events                                                                                                            |
-| **Avatar**           | Circle. Photo when the member set one, initial otherwise (initial comes from the name, not the handle). Evolutionary story active = thin `aura` ring (journey, not vanity)          |
+| **Avatar**           | Circle. Photo when the member set one, initial otherwise (from the name when set, the handle when not). Evolutionary story active = thin `aura` ring (journey, not vanity)          |
 | **Empty state**      | Thin-line motif (§6) + one body line + one ghost action. Never sad-face illustrations                                                                                               |
 
 ## 10. Motion & accessibility
