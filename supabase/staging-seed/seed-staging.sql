@@ -650,6 +650,12 @@ update public.dream_candidacies c
    set video_url = c.profile_id::text || '/' || c.id::text || '.mp4'
  where c.video_url like 'http%';
 
+-- Same storage-key convention as candidacyThumbPath(uid, candidacyId) — `{uid}/{id}-thumb.jpg`.
+-- Set unconditionally: unlike video_url there is no legacy https:// value to guard against, and
+-- scripts/upload-staging-media.mjs is what puts the matching object in the bucket.
+update public.dream_candidacies c
+   set thumb_path = c.profile_id::text || '/' || c.id::text || '-thumb.jpg';
+
 -- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
 -- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
 -- renders an empty box — the same principle the moments guard above states.
