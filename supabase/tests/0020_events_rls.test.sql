@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(17);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -54,6 +54,27 @@ select results_eq(
 select results_eq(
   $$ select count(*)::int from public.events_nearby(40.0, -3.7, 5000) $$,
   $$ values (0) $$, 'event outside radius excluded');
+
+-- Column privileges for anon (20260812054134). RLS filters rows and never columns, so
+-- these three are only closed by the GRANT — and the public /event/{id} page publishes
+-- every upcoming event id in sitemap.xml, which is what makes the ids enumerable.
+set local role anon; set local request.jwt.claims = '';
+select throws_ok($$ select stream_url from public.events $$, '42501', null,
+  'anon cannot read stream_url — a public read is the ticket bypassed for a paid stream');
+select throws_ok($$ select fee_pct from public.events $$, '42501', null,
+  'anon cannot read fee_pct — platform fee is server config');
+select throws_ok($$ select capacity from public.events $$, '42501', null,
+  'anon cannot read capacity');
+select lives_ok($$
+  select id, title, category, is_online, venue, city, starts_at, ends_at,
+         price_cents, currency, is_kairos_day, is_athanor_day, organizer_id
+  from public.events where deleted_at is null
+$$, 'anon still reads every column the public read-model selects');
+-- geo stays granted on purpose: events_nearby is SECURITY INVOKER, so an anonymous
+-- caller needs the column privilege for st_distance. Revoking it would 42501 this.
+select lives_ok($$ select count(*) from public.events_nearby(52.52, 13.405, 5000) $$,
+  'anon can still call events_nearby');
+reset role;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';

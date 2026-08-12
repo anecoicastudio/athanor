@@ -18,11 +18,18 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * SSR /event/{id} page. Returns null when the segment is not a uuid, or when no row
  * resolves (soft-deleted, or never existed) — both are a 404, not an error.
  *
- * The column list is the trust boundary and is deliberately narrower than `eventSchema`:
- * no `geo` (approximate location is a privacy property, PRD §4.2), no `stream_url` (it
- * would hand a paid online event away for free), no `fee_pct`, no `capacity`. `organizer_id`
- * is read only to resolve the handle and never returned; `publicEventSchema` is `.strict()`,
- * so a widened select here fails loudly instead of leaking.
+ * The column list is deliberately narrower than `eventSchema`: no `geo` (approximate
+ * location is a privacy property, PRD §4.2), no `stream_url` (it would hand a paid online
+ * event away for free), no `fee_pct`, no `capacity`. `organizer_id` is read only to resolve
+ * the handle and never returned; `publicEventSchema` is `.strict()`, so a widened select
+ * here fails loudly instead of leaking.
+ *
+ * Where the real boundary is: migration 20260812054134 revokes `stream_url`, `fee_pct` and
+ * `capacity` from anon at the GRANT, because RLS filters rows and never columns — without
+ * it this list would be a convention a direct PostgREST query could ignore. `geo` is the
+ * one exception, still granted so the anon-callable `events_nearby()` can compute a
+ * distance from it; not selecting it here is therefore this function's own promise, not
+ * one the database keeps for us.
  *
  * Plumbing only — no business logic, no Aura.
  */

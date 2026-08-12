@@ -34,7 +34,7 @@ export function PublicEventView({
     : t(`event.cat.${event.category}` as MessageKey, locale);
   const where = event.is_online
     ? t('event.whereOnline', locale, { kind: t('event.streamKind', locale) })
-    : ([event.venue, event.city].filter(Boolean).join(' · ') ?? '');
+    : [event.venue, event.city].filter(Boolean).join(' · ');
   const price = eventPrice(event.price_cents, event.currency, locale);
 
   return (
@@ -88,7 +88,7 @@ export function PublicEventView({
       </dl>
 
       {event.is_kairos_day || event.is_athanor_day ? (
-        <p className="rounded-2xl border border-aura/40 bg-aura/5 p-4 text-sm text-aura">
+        <p className="rounded-2xl border border-aura-line bg-aura-soft p-4 text-sm text-aura">
           {t('event.kairos.banner', locale)}
         </p>
       ) : null}

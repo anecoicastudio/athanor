@@ -5,11 +5,13 @@ import { handleSchema } from './profile';
 /**
  * The public event read-model (issue #159) — what a logged-out visitor and a crawler
  * may see at /event/{id}. Deliberately NOT a `.pick()` of eventSchema: that shape is the
- * member-facing row, and the difference between the two is the trust boundary, not a
- * subset relationship. Columns anon may read in Postgres but that must never reach a
- * public page: `geo` (approximate location is a privacy property, PRD §4.2), `stream_url`
- * (would hand a paid online event away for free), `fee_pct` (server config), `capacity`
- * (only meaningful next to an attendee count anon cannot read).
+ * member-facing row, and the difference between the two is a trust boundary, not a
+ * subset relationship. Omitted: `stream_url` (would hand a paid online event away for
+ * free), `fee_pct` (server config), `capacity` (only meaningful next to an attendee count
+ * anon cannot read) — all three also revoked from anon at the GRANT in migration
+ * 20260812054134, since RLS filters rows and never columns. And `geo`: still granted to
+ * anon (the anon-callable `events_nearby()` computes distance from it), so leaving it out
+ * here is this model's own promise about the approximate location (PRD §4.2).
  *
  * `.strict()` so widening the read-model's select fails loudly here rather than
  * silently stripping the extra column and looking fine.
