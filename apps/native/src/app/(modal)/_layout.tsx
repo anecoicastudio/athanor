@@ -16,6 +16,7 @@ export default function ModalLayout() {
       <Stack.Screen name="help" options={{ presentation: 'modal' }} />
       <Stack.Screen name="user/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="post-compose" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="story-compose" options={{ presentation: 'modal' }} />
       <Stack.Screen name="project-compose" options={{ presentation: 'modal' }} />
       <Stack.Screen name="favor" options={{ presentation: 'modal' }} />
       <Stack.Screen name="listing/[id]" options={{ presentation: 'modal' }} />

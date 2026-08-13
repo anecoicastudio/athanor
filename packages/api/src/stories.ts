@@ -93,13 +93,10 @@ export async function getPersonStory(
  * Writes ONLY story_segments — never any Aura/score event (rule #1). TODO(M6): the engine
  * awards points from this domain event.
  *
- * PARKED(story-add): 0 callers — the StoriesViewer "add" button routes to profile compose, not
- * here. Ships with the story-segment-add surface; wire or remove then.
- *
- * When that surface ships, the upload order must be row-first, then bytes (#272 / #31): the
- * storage SELECT policy hides an object until its descriptor row exists, and storage-api's
- * insert returns the object row, so INSERT … RETURNING is subject to SELECT policies. The
- * bytes-then-row order this function was written for fails under that policy.
+ * Callers MUST write row-first, then bytes (#272 / #31): the storage SELECT policy hides an
+ * object until its descriptor row exists, and storage-api's insert returns the object row, so
+ * INSERT … RETURNING is subject to SELECT policies. `useStoryUpload` (apps/native, #317) is
+ * the canonical caller and follows that order.
  */
 export async function createStorySegment(
   client: AthanorClient,

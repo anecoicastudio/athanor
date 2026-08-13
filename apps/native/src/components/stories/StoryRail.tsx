@@ -6,7 +6,9 @@ import { StoryRing } from '@/components/stories/StoryRing';
 /**
  * The horizontal story rail (frontend §3.1). Your own ring first («Il tuo passo»), then the
  * people with a live story. `seenIds` is UI-only (a watched ring dims). Tapping a ring opens
- * the viewer at that person index; tapping your own ring with no story opens the composer.
+ * the viewer at that person index. The own ring carries an always-visible + badge into the
+ * story composer (#317); with no live story the ring tap goes there too — with one, the tap
+ * opens the viewer and the badge is the only way in.
  */
 export function StoryRail({
   you,
@@ -45,6 +47,7 @@ export function StoryRail({
         seen={you.seen}
         locale={locale}
         onPress={() => (you.hasStory ? onOpenPerson('me') : onAddYours())}
+        onAddPress={onAddYours}
       />
       {people.map((p) => (
         <StoryRing

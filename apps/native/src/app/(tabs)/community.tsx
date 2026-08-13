@@ -28,6 +28,7 @@ import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
+const STORY_COMPOSE_HREF = '/(modal)/story-compose' as const;
 const LIVE_HREF = '/(modal)/live' as const;
 
 export default function CommunityScreen() {
@@ -186,7 +187,7 @@ export default function CommunityScreen() {
                 seenIds={seenIds}
                 locale={locale}
                 onOpenPerson={openPerson}
-                onAddYours={() => router.push(COMPOSE_HREF)}
+                onAddYours={() => router.push(STORY_COMPOSE_HREF)}
               />
             ) : null}
             {hasNew ? (
