@@ -178,8 +178,9 @@ export default function StoriesScreen() {
         router.push({ pathname: '/(modal)/help', params: { userId: currentAuthorId } });
       }}
       onAddMoment={() => {
+        // The story composer (#317) — this used to misroute to the profile Momenti gallery.
         router.back();
-        router.push('/(tabs)/profile');
+        router.push('/(modal)/story-compose');
       }}
       onPin={async (seg) => {
         await pinStoryStep(supabase, seg.id);
