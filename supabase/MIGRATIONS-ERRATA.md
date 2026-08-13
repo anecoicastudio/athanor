@@ -16,6 +16,23 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260615145423_event_live_stats.sql`
+
+### L2, L12 — "public read for published events" was never what the policy enforced
+
+The header comment and the `comment on table` both claim _"public read for published
+events"_, but the policy the file actually creates (`event_live_stats_select_all`,
+L24-27) is `using (true)`: world-readable, no reference to `events.deleted_at`. Any
+anon or authenticated caller holding a soft-deleted event's id could read its live
+stats. The original pgTAP (`0023_event_live_stats_rls.test.sql`) asserted only the
+policy's _name_, never its predicate, which is how the gap survived.
+
+Fixed by `20260813055846_event_live_stats_published_only_read.sql` (#137), which
+replaces the policy with `event_live_stats_select_published` — an `exists` against
+`events` filtering `deleted_at is null`, publication's one definition (there is no
+draft flag). `0023` now asserts the predicate: a soft-deleted event's stats row is
+invisible to both roles.
+
 ## `20260811091835_equal_vote_weight.sql`
 
 ### L20-23 — "not a live bug … the Aura engine is dormant" was false when written
