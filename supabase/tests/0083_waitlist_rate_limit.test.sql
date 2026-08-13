@@ -12,7 +12,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(20);
 
 -- ── shape ────────────────────────────────────────────────────────────────────────────────────
 select has_function('athanor'::name, 'waitlist_throttle_check'::name,
@@ -61,6 +61,14 @@ select ok(
 select is(
   (select relrowsecurity from pg_class where oid = 'athanor.waitlist_throttle'::regclass),
   true, 'athanor.waitlist_throttle has RLS enabled');
+
+-- Exhaustive, empty-set form (issue #271, was #138): RLS-enabled with ZERO policies is the
+-- deny-by-default the grants above rely on — only the DEFINER trigger function touches the
+-- counters. Any policy appearing here would be the first client path to them.
+select is_empty(
+  $$ select policyname from pg_policies
+      where schemaname = 'athanor' and tablename = 'waitlist_throttle' $$,
+  'no policy of any kind exists on athanor.waitlist_throttle — deny-by-default is total');
 
 -- ── it actually counts, as the role that actually signs up ───────────────────────────────────
 -- PostgREST sets request.headers per request; simulating it is what proves the key is read from
