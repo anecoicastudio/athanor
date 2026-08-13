@@ -97,16 +97,42 @@ Deno.test('every function directory on disk has a declared posture', () => {
   assertEquals(onDisk, Object.keys(POSTURE).sort());
 });
 
-Deno.test('every internal function gates itself, because nothing else does', () => {
-  // verify_jwt=false means the network layer lets anyone in. requireServiceRole must be
-  // present AND must appear before any body parse — a gate after `await req.json()` still
-  // lets an unauthenticated caller drive parsing.
+// Body parse in ANY of its four forms. An earlier revision of the gate-order test matched
+// the literal 'req.json()' only, so an `await req.text()` ahead of the gate passed — the
+// same regex auth-posture.test.ts applies to the user-callable family (issue #271, was #139).
+const BODY_READ = /\breq\.(json|text|formData|arrayBuffer)\s*\(/;
+
+// The ONE function allowed to read the body before any gate, by name and on purpose:
+// stripe-webhook's raw body IS its authentication input — the Stripe signature is computed
+// over it, so verification cannot precede the read. A second webhook added tomorrow does
+// not inherit this exemption by accident; it must be listed here with its own reason.
+const RAW_BODY_IS_THE_CREDENTIAL = new Set(['stripe-webhook']);
+
+Deno.test('every function gates itself before parsing the body, because nothing else does', () => {
+  // verify_jwt=false means the network layer lets anyone in, and even verify_jwt=true only
+  // proves a JWT is well-formed. The in-handler gate must be present AND must appear before
+  // any body parse — a gate after `await req.json()` still lets an unauthenticated (or
+  // merely well-formed) caller drive parsing.
+  for (const name of RAW_BODY_IS_THE_CREDENTIAL) {
+    assertEquals(
+      POSTURE[name],
+      'webhook',
+      `${name} is exempt from gate-before-parse, which only a webhook posture can justify`,
+    );
+  }
+  const GATE: Record<Posture, string | null> = {
+    user: 'requireUser(req)',
+    internal: 'requireServiceRole(req)',
+    webhook: null, // gated by signature verification over the raw body, asserted separately
+  };
   for (const [name, posture] of Object.entries(POSTURE)) {
-    if (posture !== 'internal') continue;
+    if (RAW_BODY_IS_THE_CREDENTIAL.has(name)) continue;
+    const gateCall = GATE[posture];
+    if (gateCall === null) continue;
     const src = Deno.readTextFileSync(new URL(`../${name}/index.ts`, import.meta.url));
-    const gate = src.indexOf('requireServiceRole(req)');
-    assert(gate > -1, `${name} is internal but never calls requireServiceRole`);
-    const parse = src.indexOf('req.json()');
+    const gate = src.indexOf(gateCall);
+    assert(gate > -1, `${name} is ${posture} but never calls ${gateCall}`);
+    const parse = src.search(BODY_READ);
     assert(parse === -1 || gate < parse, `${name} parses the body before its gate`);
   }
 });
