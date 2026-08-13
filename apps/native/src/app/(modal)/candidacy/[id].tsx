@@ -57,6 +57,8 @@ export default function CandidacyDetailScreen() {
     queryFn: () => signMediaUrls(supabase, 'candidacy-videos', [card!.video_url]),
     enabled: !!card?.video_url,
     staleTime: 50 * 60 * 1000, // under the 1h signed-URL expiry
+    // Never persisted (#287): the URL dies at the 1h TTL, the persisted cache lives 24h.
+    meta: { persist: false },
   });
   const videoUrl = card ? videoQuery.data?.[card.video_url] : undefined;
 
