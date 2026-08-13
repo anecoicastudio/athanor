@@ -116,6 +116,67 @@ below) and the story `expires_at` refresh in §6. The latter is deliberate — s
 stories expire after 20 hours and the daily prune soft-deletes them, so without the
 refresh a second run would produce a world with exactly one visible story.
 
+## Hourly refresh (`refresh-staging.sql`)
+
+The seeded world decays while it is tested: a swiped Momento never comes back (the
+pair is unique and the matcher never re-proposes it), stories expire after 20 hours,
+events drift into the past, statuses get flipped by walking the flows.
+`refresh-staging.sql` installs `public.staging_refresh_world()` plus a pg_cron job
+(`staging-refresh-world`, `7 * * * *`) that restores all of that every hour:
+
+- **Momenti deck** — every persona holds 3 pending cards, scored with the matcher's
+  own affinity rules from live tags. Swipe as a persona and the cards are back within
+  the hour (delete + re-insert; the status guard forbids un-passing a row).
+- **Stories** — the nine seeded segments get `expires_at` pushed back out to 20 hours
+  once they come within 4 of expiring, and un-soft-deleted if the prune got them.
+- **Events** — the four future events re-stamp to their seeded offsets (+4/+9/+16/+25
+  days) once they decay within 3 days of now, with any live-window state cleared;
+  `bottega-aperta` stays deliberately past.
+- **Statuses & soft-deletes** — seeded dreams, milestones, helps, connection
+  requests, RSVPs, posts, comments, moments, projects and favor offers return to
+  their seeded states; persona `suspended_until` / `banned_at` are cleared.
+
+**Restorative, never a wipe.** Only rows the seed created are touched. Posts,
+messages, accounts and swipes you create while testing survive every run — including
+swipes on a non-persona account (sign in as a persona to get the hourly deck restore,
+or fall back to the full re-seed above). It is diff-aware: an untouched world
+produces zero writes, so an idle hour fires no notifications; persona `moment`
+notifications older than 2 hours are pruned on each run to cap the noise.
+
+What it deliberately does **not** restore: preference toggles (consent, notification
+preferences), reactions, resolved reports, conversations/messages, and the GoTrue
+half of a ban (clear that from the Dashboard — SQL cannot reach it).
+
+Install once (same two gates as the seed; the function additionally self-gates on the
+staging Vault marker, so it is inert anywhere else):
+
+```bash
+psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 \
+  -c "set app.settings.seed_confirm = 'yes'" \
+  -f supabase/staging-seed/refresh-staging.sql
+```
+
+(or the single Management-API `database/query` call with the `set` prepended — one
+call is one session, same as the seed.)
+
+On demand, without waiting for the hour:
+
+```bash
+pnpm staging:refresh --confirm
+```
+
+It authenticates with your own CLI credential (`SUPABASE_ACCESS_TOKEN` or the macOS
+keychain entry `supabase login` created) and prints the function's jsonb summary.
+
+Verify: `select jobname, schedule, active from cron.job;` shows `staging-refresh-world`,
+and `cron.job_run_details` keeps each run's summary in `return_message`.
+
+⚠ **Keep it in step with the seed.** The refresh function carries frozen copies of the
+seed's semantic-key lists (stories, events, statuses, content ids). Any edit to those
+sections of `seed-staging.sql` requires re-running `refresh-staging.sql`. The deck is
+the exception — it recomputes from live profiles. And as with the seed itself: this
+job must **never** be installed on production.
+
 ## Media
 
 The seed writes the descriptor rows and the storage **keys**; it cannot write bytes.
