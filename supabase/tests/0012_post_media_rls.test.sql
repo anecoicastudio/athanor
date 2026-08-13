@@ -27,7 +27,7 @@ select ok(
 );
 
 -- 2b. schema: the poster column exists and is nullable — extraction is best-effort (#318),
--- so a video row written without a poster must be insertable (test 9 inserts one).
+-- so a video row written without a poster must be insertable.
 select col_is_null('public'::name, 'post_media'::name, 'thumb_path'::name,
   'thumb_path exists and is nullable');
 
