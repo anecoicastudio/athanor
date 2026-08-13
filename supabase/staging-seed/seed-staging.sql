@@ -58,6 +58,11 @@
 -- out of these tables and puts a file at each one, so the two can never drift.
 -- Until it runs, every image and video is a blank rectangle.
 --
+-- COMPANION: refresh-staging.sql installs the hourly `staging_refresh_world()` cron
+-- that keeps this world restored while it is being tested. It carries frozen copies
+-- of the semantic-key lists below (stories, events, statuses, content ids) — editing
+-- one of those sections here means re-running refresh-staging.sql afterwards.
+--
 -- The keys are `{uid}/{id}.{ext}` — the same shape the app itself uploads at
 -- (apps/native/src/lib/media/paths.ts), and NOT the `<handle>/stories/<md5>.jpg` this
 -- file used to write. That older shape could never have worked: since
