@@ -52,4 +52,73 @@ describe('resolveReportInput', () => {
       }),
     ).toThrow();
   });
+
+  // #106 — the four PRD §4.13 actions on an uphold.
+  it('accepts warn and ban without severity or days', () => {
+    for (const action of ['warn', 'ban'] as const) {
+      const v = resolveReportInput.parse({
+        reportId: crypto.randomUUID(),
+        verdict: 'uphold',
+        action,
+        resolution: 'x',
+      });
+      expect(v.action).toBe(action);
+    }
+  });
+  it('suspend requires suspendDays, and suspendDays requires suspend', () => {
+    expect(() =>
+      resolveReportInput.parse({
+        reportId: crypto.randomUUID(),
+        verdict: 'uphold',
+        action: 'suspend',
+        resolution: 'x',
+      }),
+    ).toThrow();
+    expect(() =>
+      resolveReportInput.parse({
+        reportId: crypto.randomUUID(),
+        verdict: 'uphold',
+        action: 'ban',
+        resolution: 'x',
+        suspendDays: 7,
+      }),
+    ).toThrow();
+    const v = resolveReportInput.parse({
+      reportId: crypto.randomUUID(),
+      verdict: 'uphold',
+      action: 'suspend',
+      resolution: 'x',
+      suspendDays: 7,
+    });
+    expect(v.suspendDays).toBe(7);
+  });
+  it('rejects an action on a dismiss and severity on a non-penalty action', () => {
+    expect(() =>
+      resolveReportInput.parse({
+        reportId: crypto.randomUUID(),
+        verdict: 'dismiss',
+        action: 'ban',
+        resolution: 'x',
+      }),
+    ).toThrow();
+    expect(() =>
+      resolveReportInput.parse({
+        reportId: crypto.randomUUID(),
+        verdict: 'uphold',
+        action: 'warn',
+        resolution: 'x',
+        severity: 'low',
+      }),
+    ).toThrow();
+  });
+  it('an explicit penalty action still demands severity — same contract as the bare uphold', () => {
+    expect(() =>
+      resolveReportInput.parse({
+        reportId: crypto.randomUUID(),
+        verdict: 'uphold',
+        action: 'penalty',
+        resolution: 'x',
+      }),
+    ).toThrow();
+  });
 });

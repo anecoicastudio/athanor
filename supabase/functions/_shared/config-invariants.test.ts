@@ -30,6 +30,7 @@ const POSTURE: Record<string, Posture> = {
   'erasure-job': 'internal',
   'gdpr-export-job': 'internal',
   'media-process': 'internal',
+  'moderation-enforce': 'internal',
   'notification-fan-out': 'internal',
   'push-dispatch': 'internal',
   'score-engine': 'internal',

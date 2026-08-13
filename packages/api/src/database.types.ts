@@ -1978,6 +1978,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_path: string | null
+          banned_at: string | null
           bio: string | null
           created_at: string
           display_name: string | null
@@ -1990,11 +1991,13 @@ export type Database = {
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
+          suspended_until: string | null
           updated_at: string
           visibility: Json
         }
         Insert: {
           avatar_path?: string | null
+          banned_at?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -2007,11 +2010,13 @@ export type Database = {
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
+          suspended_until?: string | null
           updated_at?: string
           visibility?: Json
         }
         Update: {
           avatar_path?: string | null
+          banned_at?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -2024,6 +2029,7 @@ export type Database = {
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
+          suspended_until?: string | null
           updated_at?: string
           visibility?: Json
         }
@@ -2743,6 +2749,7 @@ export type Database = {
         Args: never
         Returns: {
           avatar_path: string | null
+          banned_at: string | null
           bio: string | null
           created_at: string
           display_name: string | null
@@ -2755,6 +2762,7 @@ export type Database = {
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
+          suspended_until: string | null
           updated_at: string
           visibility: Json
         }[]
@@ -2809,6 +2817,7 @@ export type Database = {
           p_resolution: string
           p_severity?: string
           p_status: string
+          p_suspend_until?: string
         }
         Returns: undefined
       }

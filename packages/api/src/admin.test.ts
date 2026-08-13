@@ -54,6 +54,60 @@ describe('resolveReport', () => {
     ).rejects.toThrow(/requires a severity/);
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  // #106 — the enforcement actions. severity/points travel only with a penalty; the
+  // suspend-until arithmetic runs against the injected clock, never the wall clock.
+  it('maps a suspend to p_suspend_until = now + suspendDays', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    const now = () => new Date('2026-08-13T12:00:00.000Z');
+    await resolveReport(
+      { rpc } as unknown as AthanorClient,
+      {
+        reportId: '00000000-0000-0000-0000-000000000004',
+        verdict: 'uphold',
+        action: 'suspend',
+        resolution: 'ripetute molestie',
+        suspendDays: 7,
+      },
+      now,
+    );
+    expect(rpc).toHaveBeenCalledWith('resolve_report', {
+      p_report_id: '00000000-0000-0000-0000-000000000004',
+      p_status: 'upheld',
+      p_resolution: 'ripetute molestie',
+      p_action: 'suspend',
+      p_suspend_until: '2026-08-20T12:00:00.000Z',
+    });
+  });
+  it('maps ban and warn with no severity, points or until', async () => {
+    for (const action of ['ban', 'warn'] as const) {
+      const rpc = vi.fn().mockResolvedValue({ error: null });
+      await resolveReport({ rpc } as unknown as AthanorClient, {
+        reportId: '00000000-0000-0000-0000-000000000005',
+        verdict: 'uphold',
+        action,
+        resolution: 'x',
+      });
+      expect(rpc).toHaveBeenCalledWith('resolve_report', {
+        p_report_id: '00000000-0000-0000-0000-000000000005',
+        p_status: 'upheld',
+        p_resolution: 'x',
+        p_action: action,
+      });
+    }
+  });
+  it('refuses a suspend with no suspendDays rather than sending an endless suspension', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    await expect(
+      resolveReport({ rpc } as unknown as AthanorClient, {
+        reportId: '00000000-0000-0000-0000-000000000006',
+        verdict: 'uphold',
+        action: 'suspend',
+        resolution: 'x',
+      }),
+    ).rejects.toThrow(/requires suspendDays/);
+    expect(rpc).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

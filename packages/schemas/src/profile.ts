@@ -59,6 +59,10 @@ export const profileSchema = z.object({
   seeking: z.array(z.string()).max(10),
   identity_verified: z.boolean(),
   founding_member: z.boolean(),
+  // Moderation state (#106) — server-written only, no client grant in either direction, so
+  // client reads never see these. Optional: present only in service-role projections.
+  suspended_until: z.string().nullable().optional(),
+  banned_at: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

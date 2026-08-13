@@ -101,25 +101,37 @@ export async function getReportDetail(
   };
 }
 
-/** Submit a verdict. Maps the camelCase input to the resolve_report RPC params. */
+/**
+ * Submit a verdict. Maps the camelCase input to the resolve_report RPC params.
+ *
+ * An uphold carries one of the four PRD §4.13 actions (#106); an omitted `action` is a
+ * penalty, which keeps every pre-#106 caller working unchanged. `now` is injectable so the
+ * suspend-until arithmetic is testable at a boundary.
+ */
 export async function resolveReport(
   client: AthanorClient,
   input: ResolveReportInput,
+  now: () => Date = () => new Date(),
 ): Promise<void> {
   const uphold = input.verdict === 'uphold';
-  // `resolveReportInput` refines severity to be mandatory on an uphold, but the inferred type
-  // leaves it optional, so this function is callable without one. Fail loudly rather than send
-  // `p_action: 'penalty'` with no points — that would write an audit_log row and enqueue a
-  // score award worth nothing, i.e. a penalty the moderator believes they applied.
-  if (uphold && !input.severity) {
-    throw new Error('resolveReport: an uphold verdict requires a severity');
+  const action = uphold ? (input.action ?? 'penalty') : 'dismiss';
+  // `resolveReportInput` refines these to be mandatory, but the inferred type leaves them
+  // optional, so this function is callable without them. Fail loudly rather than send a
+  // penalty worth nothing or a suspension with no end date — the SQL would 22023 the latter,
+  // but the former would write an audit_log row for a deduction that never happens.
+  if (action === 'penalty' && !input.severity) {
+    throw new Error('resolveReport: a penalty verdict requires a severity');
   }
-  // `p_severity`/`p_penalty_points` are `default null` in the SQL (m9_resolve_report_person_penalty),
-  // so omitting them on a dismissal is identical to passing null — and it types, which the
-  // previous `as any` casts existed to avoid. Same conditional-args shape as `createEvent`.
-  // NOTE: only one `resolve_report` signature exists (the m9 migration `create or replace`d it
-  // rather than overloading). If a second is ever added, omitted args become ambiguous to
-  // PostgREST (PGRST203) where explicit nulls would not.
+  if (action === 'suspend' && !input.suspendDays) {
+    throw new Error('resolveReport: a suspend verdict requires suspendDays');
+  }
+  // `p_severity`/`p_penalty_points`/`p_suspend_until` are `default null` in the SQL
+  // (moderation_suspend_ban), so omitting them is identical to passing null — and it types,
+  // which the previous `as any` casts existed to avoid. Same conditional-args shape as
+  // `createEvent`.
+  // NOTE: only one `resolve_report` signature exists (the #106 migration DROPs before it
+  // CREATEs, and pgTAP 0091 asserts the count stays 1). If a second is ever added, omitted
+  // args become ambiguous to PostgREST (PGRST203) where explicit nulls would not.
   const rpcArgs: {
     p_report_id: string;
     p_status: string;
@@ -127,15 +139,21 @@ export async function resolveReport(
     p_action: string;
     p_severity?: string;
     p_penalty_points?: number;
+    p_suspend_until?: string;
   } = {
     p_report_id: input.reportId,
     p_status: uphold ? 'upheld' : 'dismissed',
     p_resolution: input.resolution,
-    p_action: uphold ? 'penalty' : 'dismiss',
+    p_action: action,
   };
-  if (input.severity && uphold) {
+  if (action === 'penalty' && input.severity) {
     rpcArgs.p_severity = input.severity;
     rpcArgs.p_penalty_points = reportPenaltyPoints(input.severity);
+  }
+  if (action === 'suspend' && input.suspendDays) {
+    rpcArgs.p_suspend_until = new Date(
+      now().getTime() + input.suspendDays * 24 * 60 * 60 * 1000,
+    ).toISOString();
   }
 
   const { error } = await client.rpc('resolve_report', rpcArgs);
