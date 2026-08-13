@@ -23,6 +23,10 @@ export function routeForNotification(n: Notification): string | null {
       return '/(tabs)/costellazioni';
     case 'connection':
       return '/(modal)/connections';
+    case 'moderation':
+      // #313: the warn row IS the outcome — there is no member-facing moderation surface
+      // to open, so the tap marks it read and stays put.
+      return null;
     default:
       return null;
   }

@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Notification } from '@athanor/schemas';
+import { displayParams } from '@/lib/notif-params';
 import { timeAgo } from '@/lib/time';
 import { NOTIF_VISUAL, NOTIF_LEAD, NOTIF_LEAD_BY_TEMPLATE } from './notifTypes';
 
@@ -28,9 +29,10 @@ export default function NotificationRow({
   const unread = item.read_at == null;
   const lead = t(NOTIF_LEAD_BY_TEMPLATE[item.template_key] ?? NOTIF_LEAD[item.type], locale);
   // Template tail: interpolate `{name}`, `{count}`, `{title}`, `{amount}` etc. from params.
-  // template_key is schema-validated (unknown keys degrade to notif.tpl.generic — #113), so
-  // no cast; params values are `unknown`, cast to Record<string,string|number> for t().
-  const tail = t(item.template_key, locale, item.params as Record<string, string | number>);
+  // template_key is schema-validated (unknown keys degrade to notif.tpl.generic — #113).
+  // displayParams localizes the warn template's `reason` token (#313); every other
+  // template's params pass through untouched.
+  const tail = t(item.template_key, locale, displayParams(item, locale));
 
   return (
     <Pressable

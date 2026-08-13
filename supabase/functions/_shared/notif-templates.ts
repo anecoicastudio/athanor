@@ -7,6 +7,37 @@
 type Locale = 'it' | 'en';
 type Tpl = { title: string; body: (p: Record<string, unknown>) => string };
 
+// notif.tpl.warn's `reason` param is a reports.category TOKEN (#313). Mirror of the
+// i18n report.reason.* labels — keep in sync with packages/i18n/src/catalogs/{it,en}.json
+// the same way TEMPLATES below mirrors notif.tpl.*. An unknown token degrades to itself
+// (the tagLabel shape): a category added to the DB before this mirror must still read as
+// a word, never as `undefined`.
+const REASON_LABELS: Record<Locale, Record<string, string>> = {
+  it: {
+    selling: 'Vendite aggressive',
+    income: 'Promesse di guadagno garantito',
+    mlm: 'Reclutamento multilivello',
+    harassment: 'Molestie o comportamento offensivo',
+    spam: 'Spam o contenuto ingannevole',
+    impersonation: 'Identità falsa',
+    other: 'Altro',
+  },
+  en: {
+    selling: 'Aggressive selling',
+    income: 'Guaranteed-income promises',
+    mlm: 'Multi-level recruiting',
+    harassment: 'Harassment or abusive behavior',
+    spam: 'Spam or misleading content',
+    impersonation: 'Fake identity',
+    other: 'Something else',
+  },
+};
+
+function reasonLabel(reason: unknown, locale: Locale): string {
+  const token = typeof reason === 'string' ? reason : '';
+  return REASON_LABELS[locale][token] ?? token;
+}
+
 const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.moment': {
     it: {
@@ -100,6 +131,17 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `${p.name ?? 'Someone'} confirmed your help. Your Aura grows ✦`,
     },
   },
+  'notif.tpl.warn': {
+    it: {
+      title: 'Un richiamo',
+      body: (p) =>
+        `Abbiamo confermato una segnalazione: ${reasonLabel(p.reason, 'it')}. Fermati e ripensaci.`,
+    },
+    en: {
+      title: 'A warning',
+      body: (p) => `We upheld a report: ${reasonLabel(p.reason, 'en')}. Pause and think it over.`,
+    },
+  },
 };
 
 const ROUTE: Record<string, string> = {
@@ -111,6 +153,10 @@ const ROUTE: Record<string, string> = {
   fundMilestone: 'fund',
   projectResponse: 'costellazioni',
   connection: 'connections',
+  // #313: the warn has no member-facing destination — the row itself is the outcome. The
+  // in-app router (notification-route.ts) returns null; this push route lands on the
+  // notification center's home surface.
+  moderation: 'trust',
 };
 
 export type DispatchInput = {
