@@ -25,28 +25,28 @@ insert into public.events (id, organizer_id, title, category, is_online, stream_
   values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','11111111-1111-1111-1111-111111111111',
           'Respiro & Strategia','formazione',true,'https://stream.athanor.test/x', now());
 reset role;
-insert into public.event_live_stats (event_id, listener_count, is_live)
-  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 142, true);
+insert into public.event_live_stats (event_id, is_live)
+  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', true);
 
--- authenticated can read the count (public read)
+-- authenticated can read the live flag (public read; listener_count is presence, not a column — #120)
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select results_eq($$
-  select listener_count from public.event_live_stats
+  select is_live from public.event_live_stats
   where event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
-$$, $$ values (142) $$, 'authenticated can read the listener count');
+$$, $$ values (true) $$, 'authenticated can read the live flag');
 
 -- authenticated client INSERT denied (no grant / no policy) → 42501
 select throws_ok($$
-  insert into public.event_live_stats (event_id, listener_count, is_live)
-  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 999, true)
+  insert into public.event_live_stats (event_id, is_live)
+  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', true)
 $$, '42501', null, 'authenticated client cannot insert live stats');
 
 -- authenticated client UPDATE denied (no grant / no policy) → 42501
 select throws_ok($$
-  update public.event_live_stats set listener_count = 0
+  update public.event_live_stats set is_live = false
   where event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
-$$, '42501', null, 'authenticated client cannot update the listener count');
+$$, '42501', null, 'authenticated client cannot update the live flag');
 
 -- authenticated client DELETE denied (no grant / no policy) → 42501
 select throws_ok($$

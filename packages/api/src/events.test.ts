@@ -20,6 +20,7 @@ import {
   registerAthanorDaysInterest,
   subscribeAttendance,
   subscribeEventLive,
+  subscribeEventPresence,
   subscribeTicket,
   upsertRsvp,
 } from './events';
@@ -606,15 +607,11 @@ describe('getEventLiveStats', () => {
   it('returns the row when the stream has stats', async () => {
     const fake = makeFakeClient({
       'event_live_stats.select': [
-        {
-          data: [
-            { event_id: E, listener_count: 7, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
-          ],
-        },
+        { data: [{ event_id: E, is_live: true, updated_at: '2026-09-01T18:05:00Z' }] },
       ],
     });
     await expect(getEventLiveStats(asClient(fake), E)).resolves.toMatchObject({
-      listener_count: 7,
+      is_live: true,
     });
   });
 
@@ -798,16 +795,72 @@ describe('subscribeAttendance', () => {
 });
 
 describe('subscribeEventLive', () => {
-  it('forwards live stats rows to the callback', () => {
+  it('forwards live-flag rows to the callback', () => {
     const fake = makeFakeClient();
     const seen: unknown[] = [];
     subscribeEventLive(asClient(fake), E, (s) => seen.push(s));
     handlerOf(fake)({
-      new: { event_id: E, listener_count: 3, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
+      new: { event_id: E, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
     });
-    expect(seen).toEqual([
-      { event_id: E, listener_count: 3, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
+    expect(seen).toEqual([{ event_id: E, is_live: true, updated_at: '2026-09-01T18:05:00Z' }]);
+  });
+});
+
+describe('subscribeEventPresence', () => {
+  // The presence sync handler is the first (and only) .on() registration of the room's channel.
+  const syncHandlerOf = (fake: ReturnType<typeof makeFakeClient>, index = 0) =>
+    fake.channels[index]!.events[0]![2] as () => void;
+
+  it('shares ONE un-suffixed room per event and reports its size to every observer', () => {
+    const fake = makeFakeClient();
+    const counts: number[] = [];
+    const c1 = subscribeEventPresence(asClient(fake), E, (n) => counts.push(n));
+    const c2 = subscribeEventPresence(asClient(fake), E, (n) => counts.push(n * 10));
+
+    // one shared channel, bare topic — a channelTopic() suffix would put each
+    // subscriber in a private room of one and the count would never move
+    expect(fake.channels).toHaveLength(1);
+    expect(fake.channels[0]!.name).toBe(`event:${E}:presence`);
+
+    fake.channels[0]!.presence = { 'conn-a': [{}], 'conn-b': [{}] };
+    syncHandlerOf(fake)();
+    expect(counts).toEqual([2, 20]);
+
+    c1();
+    expect(fake.channels[0]!.removed).toBe(false); // second observer still in the room
+    c2();
+    expect(fake.channels[0]!.removed).toBe(true);
+  });
+
+  it('tracks once no matter how many trackers, untracks when the last leaves (rule api.md)', () => {
+    const fake = makeFakeClient();
+    const t1 = subscribeEventPresence(asClient(fake), E, () => {}, { track: true });
+    const t2 = subscribeEventPresence(asClient(fake), E, () => {}, { track: true });
+
+    expect(fake.channels[0]!.tracked).toHaveLength(1);
+
+    t1();
+    expect(fake.channels[0]!.untracked).toBe(0);
+    t2();
+    expect(fake.channels[0]!.untracked).toBe(1);
+    expect(fake.channels[0]!.removed).toBe(true);
+  });
+
+  it('separates rooms per event and survives double cleanup', () => {
+    const fake = makeFakeClient();
+    const c1 = subscribeEventPresence(asClient(fake), E, () => {});
+    subscribeEventPresence(asClient(fake), E2, () => {});
+
+    expect(fake.channels).toHaveLength(2);
+    expect(fake.channels.map((c) => c.name)).toEqual([
+      `event:${E}:presence`,
+      `event:${E2}:presence`,
     ]);
+
+    c1();
+    c1(); // idempotent — a second call must not double-remove or throw
+    expect(fake.channels[0]!.removed).toBe(true);
+    expect(fake.channels[1]!.removed).toBe(false);
   });
 });
 

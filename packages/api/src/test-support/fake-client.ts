@@ -166,6 +166,11 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
     events: unknown[][];
     subscribed: boolean;
     removed: boolean;
+    /** payloads passed to track() — presence self-registrations */
+    tracked: unknown[];
+    untracked: number;
+    /** what presenceState() answers; a test sets this before firing the sync handler */
+    presence: Record<string, unknown[]>;
   };
   const channels: ChannelRecord[] = [];
   const handles = new WeakMap<object, ChannelRecord>();
@@ -226,7 +231,15 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
     // Realtime: records the channel so a test can assert `.claude/rules/api.md`'s requirement
     // that every subscription hands back a working cleanup function.
     channel(name: string) {
-      const entry = { name, events: [] as unknown[][], subscribed: false, removed: false };
+      const entry: ChannelRecord = {
+        name,
+        events: [],
+        subscribed: false,
+        removed: false,
+        tracked: [],
+        untracked: 0,
+        presence: {},
+      };
       channels.push(entry);
       const ch = {
         on(...args: unknown[]) {
@@ -237,6 +250,17 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
           entry.subscribed = true;
           cb?.('SUBSCRIBED');
           return ch;
+        },
+        track(payload: unknown) {
+          entry.tracked.push(payload);
+          return Promise.resolve('ok');
+        },
+        untrack() {
+          entry.untracked += 1;
+          return Promise.resolve('ok');
+        },
+        presenceState() {
+          return entry.presence;
         },
       };
       // The handle handed to callers is not the record we keep, so identity has to be mapped

@@ -15,7 +15,7 @@ export type EventRowData = {
   premiumLocked?: boolean;
   /** Pre-formatted "x km" sub-fragment (Vicino/Mappa); omit elsewhere. */
   distanceKm?: string | null;
-  /** Realtime live-listener count; when present on a live row → «In diretta ora · {n} in ascolto». */
+  /** Presence-room size (subscribeEventPresence); when present on a live row → «In diretta ora · {n} in ascolto». */
   listeningCount?: number | null;
 };
 

@@ -45,7 +45,10 @@
 --   stars                      — engine-only output derived from aura_events.
 --   event_tickets, circle_memberships, fund_contributions, verifications,
 --   stripe_webhook_events      — Stripe (test mode) is the source of truth.
---   event_attendance, event_live_stats — produced by the check-in edge function.
+--   event_attendance           — produced by the check-in edge function.
+--   event_live_stats           — produced by the live_window_sweep() cron (#120), never
+--                                by check-in (this file's old claim). Listener count is
+--                                Realtime presence, not a row.
 --   gdpr_export_jobs           — produced by the export job.
 --   push_tokens                — needs a real device token from a real build.
 --

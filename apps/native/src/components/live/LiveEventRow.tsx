@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { eventKeys, getEventLiveStats, subscribeEventLive } from '@athanor/api';
+import {
+  eventKeys,
+  getEventLiveStats,
+  subscribeEventLive,
+  subscribeEventPresence,
+} from '@athanor/api';
 import type { Locale } from '@athanor/i18n';
 import type { Event } from '@athanor/schemas';
 import { supabase } from '@/lib/supabase';
 import { EventRow, toRowData } from './EventRow';
 
-/** A live-now online row that subscribes to its realtime listener count (cleanup on unmount). */
+/**
+ * A live-now online row. The live flag streams from event_live_stats (cron-maintained);
+ * the listening count is the presence room's size, observed WITHOUT tracking — browsing
+ * the Live tab is not listening; only the event-detail screen tracks (#120).
+ * Both subscriptions clean up on unmount (rule api.md).
+ */
 export function LiveEventRow({
   event,
   locale,
@@ -21,21 +31,24 @@ export function LiveEventRow({
     queryFn: () => getEventLiveStats(supabase, event.id),
   });
   const [count, setCount] = useState<number | null>(null);
-  const [isLive, setIsLive] = useState(true);
+  const [isLive, setIsLive] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeEventLive(supabase, event.id, (stats) => {
-      setCount(stats.listener_count);
+    const unsubscribeLive = subscribeEventLive(supabase, event.id, (stats) => {
       setIsLive(stats.is_live);
     });
-    return unsubscribe; // cleanup on unmount (rule api.md)
+    const unsubscribePresence = subscribeEventPresence(supabase, event.id, setCount);
+    return () => {
+      unsubscribeLive();
+      unsubscribePresence();
+    };
   }, [event.id]);
 
-  const listeningCount = count ?? seed.data?.listener_count ?? null;
+  const live = isLive ?? seed.data?.is_live ?? true;
 
   return (
     <EventRow
-      data={{ ...toRowData(event, true), live: isLive, listeningCount }}
+      data={{ ...toRowData(event, true), live, listeningCount: count }}
       locale={locale}
       onPress={() => onOpen(event.id)}
     />

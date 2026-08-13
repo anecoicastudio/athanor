@@ -873,19 +873,16 @@ export type Database = {
         Row: {
           event_id: string
           is_live: boolean
-          listener_count: number
           updated_at: string
         }
         Insert: {
           event_id: string
           is_live?: boolean
-          listener_count?: number
           updated_at?: string
         }
         Update: {
           event_id?: string
           is_live?: boolean
-          listener_count?: number
           updated_at?: string
         }
         Relationships: [
@@ -2791,6 +2788,7 @@ export type Database = {
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
+      live_window_sweep: { Args: never; Returns: undefined }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
         Args: { p_milestone_id: string }

@@ -194,21 +194,21 @@ describe('rsvpSchema', () => {
 describe('eventLiveStatsSchema', () => {
   const valid = {
     event_id: '11111111-1111-1111-1111-111111111111',
-    listener_count: 142,
     is_live: true,
     updated_at: '2026-06-15T10:00:00.000Z',
   };
 
-  it('parses a valid live-stats row', () => {
+  it('parses a valid live-flag row', () => {
     expect(eventLiveStatsSchema.parse(valid)).toEqual(valid);
   });
 
-  it('rejects a negative listener_count', () => {
-    expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: -1 })).toThrow();
+  it('strips a stray listener_count — dropped column; the count is presence, not a row (#120)', () => {
+    expect(eventLiveStatsSchema.parse({ ...valid, listener_count: 3 })).toEqual(valid);
   });
 
-  it('rejects a non-integer listener_count', () => {
-    expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: 1.5 })).toThrow();
+  it('rejects a missing is_live', () => {
+    const { is_live: _is_live, ...rest } = valid;
+    expect(() => eventLiveStatsSchema.parse(rest)).toThrow();
   });
 });
 
