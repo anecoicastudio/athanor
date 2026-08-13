@@ -16,6 +16,21 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260616123408_conversations_messages.sql:57` — "NULL for system/prompt" is no longer the whole truth
+
+The inline comment on `messages.sender_id` (`-- NULL for system/prompt`) described the only
+null-sender shape that existed at the time. Since `20260813163902_messages_user_shape_deleted_sender.sql`
+(#336) a **user**-kind message may also carry a null sender: it is the deleted-member shape the
+column's own `on delete set null` action produces mid-erasure-cascade. The original
+`messages_user_shape` CHECK contradicted that FK action and aborted every profile hard-delete
+with 23514; the widened CHECK admits it, while RLS (`messages_insert_own_user`) still forces
+`sender_id = auth.uid()` on every client insert.
+
+Verified behaviour lives in `supabase/tests/0097_messages_deleted_sender_shape.test.sql` —
+the SET NULL write passes, the hard-delete completes, clients still cannot forge the shape.
+
+---
+
 ## Five migrations — "no-op until the `app.settings.*` GUCs are set" was never a reachable state
 
 Each of these describes its `pg_net` caller as dormant pending a deploy step that sets custom
