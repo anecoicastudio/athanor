@@ -17,6 +17,7 @@ import {
   rsvpSchema,
   ticketSchema,
 } from '@athanor/schemas';
+import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import type { AthanorClient } from './client';
 import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
@@ -291,14 +292,14 @@ export async function getEventAttendees(
   };
 }
 
-/** One-shot read of the live-listener stats for an online event (null if no row yet). */
+/** One-shot read of the live flag for an online event (null if no row yet). */
 export async function getEventLiveStats(
   client: AthanorClient,
   eventId: string,
 ): Promise<EventLiveStats | null> {
   const { data, error } = await client
     .from('event_live_stats')
-    .select('event_id,listener_count,is_live,updated_at')
+    .select('event_id,is_live,updated_at')
     .eq('event_id', eventId)
     .maybeSingle();
   if (error) throw error;
@@ -306,8 +307,9 @@ export async function getEventLiveStats(
 }
 
 /**
- * Subscribe to live-listener stats for one online event (realtime INSERT/UPDATE) — backend 09 C8,
- * channel `event:{id}:live`. The count is service-role/Realtime maintained; clients never write it.
+ * Subscribe to the live flag for one online event (realtime INSERT/UPDATE) — backend 09 C8,
+ * channel `event:{id}:live`. The flag is cron-maintained (live_window_sweep); clients never
+ * write it. The listener count is presence, not a row — see subscribeEventPresence.
  * Returns a cleanup fn — callers MUST call it on unmount (rule api.md, invariant #1).
  */
 export function subscribeEventLive(
@@ -333,6 +335,102 @@ export function subscribeEventLive(
     .subscribe();
   return () => {
     void client.removeChannel(channel);
+  };
+}
+
+type PresenceRoom = {
+  channel: ReturnType<AthanorClient['channel']>;
+  /** live-count callbacks of every subscriber sharing this room */
+  listeners: Set<(count: number) => void>;
+  /** subscribers wanting their own presence tracked (event-detail listeners) */
+  trackers: number;
+  tracked: boolean;
+  joined: boolean;
+};
+
+/**
+ * One shared room per (client, event): presence only counts members of the SAME topic, so
+ * this must NOT go through channelTopic — its uniqueness suffix would put every subscriber
+ * in a private room of one. Sharing one channel also avoids realtime-js's one-channel-per-
+ * topic cache throwing when a second subscriber attaches after subscribe() (the Live tab
+ * stays mounted under the event-detail modal, so overlap is the normal case).
+ */
+const presenceRooms = new WeakMap<AthanorClient, Map<string, PresenceRoom>>();
+
+/**
+ * Subscribe to the live listener count of one event via Realtime presence — no table, no
+ * writer, no polling (#120). `onCount` receives the number of open connections in the room
+ * (a person on two devices counts twice). Pass `track: true` from the listening surface
+ * (event detail) to be counted; omit it to observe only (Live-tab rows).
+ * Returns a cleanup fn — callers MUST call it on unmount (rule api.md, invariant #1).
+ */
+export function subscribeEventPresence(
+  client: AthanorClient,
+  eventId: string,
+  onCount: (count: number) => void,
+  opts?: { track?: boolean },
+): () => void {
+  const topic = `event:${eventId}:presence`;
+  let rooms = presenceRooms.get(client);
+  if (!rooms) {
+    rooms = new Map();
+    presenceRooms.set(client, rooms);
+  }
+  const clientRooms = rooms;
+
+  let room = clientRooms.get(topic);
+  if (!room) {
+    const channel = client.channel(topic);
+    const created: PresenceRoom = {
+      channel,
+      listeners: new Set(),
+      trackers: 0,
+      tracked: false,
+      joined: false,
+    };
+    channel.on('presence', { event: 'sync' }, () => {
+      const count = Object.keys(channel.presenceState()).length;
+      created.listeners.forEach((listener) => listener(count));
+    });
+    channel.subscribe((status) => {
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+        created.joined = true;
+        if (created.trackers > 0 && !created.tracked) {
+          created.tracked = true;
+          void channel.track({});
+        }
+      }
+    });
+    clientRooms.set(topic, created);
+    room = created;
+  }
+
+  const joined = room;
+  joined.listeners.add(onCount);
+  if (opts?.track) {
+    joined.trackers += 1;
+    if (joined.joined && !joined.tracked) {
+      joined.tracked = true;
+      void joined.channel.track({});
+    }
+  }
+
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    joined.listeners.delete(onCount);
+    if (opts?.track) {
+      joined.trackers -= 1;
+      if (joined.trackers === 0 && joined.tracked) {
+        joined.tracked = false;
+        void joined.channel.untrack();
+      }
+    }
+    if (joined.listeners.size === 0 && joined.trackers === 0) {
+      clientRooms.delete(topic);
+      void client.removeChannel(joined.channel);
+    }
   };
 }
 

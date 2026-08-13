@@ -8,6 +8,7 @@ import {
   getEventAttendees,
   getEventSeatsTaken,
   getMyRsvp,
+  subscribeEventPresence,
   upsertRsvp,
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
@@ -67,6 +68,15 @@ export default function EventDetailScreen() {
     queryFn: () => getEventAttendees(supabase, id),
     enabled: !!id,
   });
+
+  // Being on a live online event's screen IS listening (#120): track presence so the Live
+  // tab's «{n} in ascolto» counts this member. Rows only observe; this screen is the one
+  // tracking surface. subscribeEventPresence returns its cleanup → untrack on unmount.
+  const isLiveNow = !!event?.is_online && !!event.live_started_at && !event.live_ended_at;
+  useEffect(() => {
+    if (!isLiveNow) return;
+    return subscribeEventPresence(supabase, id, () => {}, { track: true });
+  }, [isLiveNow, id]);
 
   const myRsvp = useQuery({
     queryKey: eventKeys.rsvp(id),
