@@ -24,7 +24,7 @@ import type { AuraSnapshot, Help, Locale, Milestone, PersonProfile, Star } from 
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { Toast, type ToastTone } from '@/components/Toast';
 import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/profile/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -65,10 +65,10 @@ export default function PersonDetailScreen() {
   const [stars, setStars] = useState<Star[] | null>(null);
   const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
+  const showToast = (label: string, tone?: ToastTone) => {
+    setToast({ label, tone });
     setTimeout(() => setToast(null), 1500);
   };
 
@@ -88,7 +88,7 @@ export default function PersonDetailScreen() {
     mutationFn: () => blockUser(supabase, id as string),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
-      showToast(t('block.toast.blocked', locale));
+      showToast(t('block.toast.blocked', locale), 'success');
       router.back();
     },
   });
@@ -97,7 +97,7 @@ export default function PersonDetailScreen() {
     mutationFn: () => unblockUser(supabase, id as string),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
-      showToast(t('block.toast.unblocked', locale));
+      showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
 
@@ -294,11 +294,15 @@ export default function PersonDetailScreen() {
   if (person === 'missing') {
     return (
       <Screen>
-        <ModalHeader title="" backLabel={t('common.back', locale)} right={headerRight} />
+        <ModalHeader
+          title={t('profile.unavailable.title', locale)}
+          backLabel={t('common.back', locale)}
+          right={headerRight}
+        />
         <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
           <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
         </ScrollView>
-        {toast ? <Toast label={toast} /> : null}
+        {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
       </Screen>
     );
   }
@@ -386,10 +390,11 @@ export default function PersonDetailScreen() {
           }
         />
 
-        {/* Recensioni umane — Fase 3, no backend. Label only, no vanity count. */}
+        {/* Recensioni umane — Fase 3, no backend. A real empty line, no vanity count (#119
+          replaced the bare untranslatable «—» that stood here). */}
         <View className="gap-3">
           <SectionLabel>{t('profile.reviews.label', locale)}</SectionLabel>
-          <Text className="text-faint">—</Text>
+          <EmptyState>{t('profile.reviews.empty', locale)}</EmptyState>
         </View>
 
         {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» drives the
@@ -422,7 +427,7 @@ export default function PersonDetailScreen() {
           onIndexChange={setLightboxIndex}
         />
       </ScrollView>
-      {toast ? <Toast label={toast} /> : null}
+      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

@@ -21,7 +21,7 @@ import { Avatar } from '@/components/Avatar';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SettingsGroup } from '@/components/settings/SettingsGroup';
-import { Toast } from '@/components/Toast';
+import { Toast, type ToastTone } from '@/components/Toast';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
@@ -45,7 +45,7 @@ export default function SettingsScreen() {
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
 
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
   const [langBusy, setLangBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -75,8 +75,8 @@ export default function SettingsScreen() {
   });
   const aura = auraDisplayValue(auraSnapshot?.score, auraIsError);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
+  const showToast = (label: string, tone?: ToastTone) => {
+    setToast({ label, tone });
     setTimeout(() => setToast(null), 2500);
   };
 
@@ -87,7 +87,7 @@ export default function SettingsScreen() {
     try {
       await updateProfile(supabase, userId, { locale: next });
       await refreshProfile();
-      showToast(t(next === 'it' ? 'settings.lang.it' : 'settings.lang.en', next));
+      showToast(t(next === 'it' ? 'settings.lang.it' : 'settings.lang.en', next), 'success');
     } catch {
       showToast(t('profile.error', locale));
     } finally {
@@ -98,7 +98,7 @@ export default function SettingsScreen() {
   const signOut = () => {
     if (signingOut) return;
     setSigningOut(true);
-    showToast(t('settings.logout.toast', locale));
+    showToast(t('settings.logout.toast', locale), 'moment');
     // Brief farewell, then end the session — AuthGuard routes to (auth)/welcome.
     setTimeout(() => {
       supabase.auth.signOut().catch(() => setSigningOut(false));
@@ -291,7 +291,7 @@ export default function SettingsScreen() {
         </Text>
       </ScrollView>
 
-      {toast ? <Toast label={toast} /> : null}
+      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

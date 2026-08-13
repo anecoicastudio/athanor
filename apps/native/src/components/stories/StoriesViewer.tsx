@@ -396,6 +396,7 @@ export function StoriesViewer({
               ? t('story.reply.sent', locale, { name })
               : t('story.reply.error', locale)
           }
+          tone={replyToast === 'sent' ? 'success' : undefined}
         />
       ) : null}
     </View>

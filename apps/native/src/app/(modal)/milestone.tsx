@@ -94,7 +94,7 @@ export default function MilestoneScreen() {
         />
       </ScrollView>
 
-      {toast ? <Toast label={t('milestone.toast.added', locale)} /> : null}
+      {toast ? <Toast label={t('milestone.toast.added', locale)} tone="moment" /> : null}
     </Screen>
   );
 }
