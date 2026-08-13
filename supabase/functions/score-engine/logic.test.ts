@@ -4,7 +4,7 @@
 // (repo convention: DI over mocks).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
-import { bodySchema, runAward, runDecay, type ScoreCtx, windowStart } from './logic.ts';
+import { bodySchema, runAward, runDecay, runStars, type ScoreCtx, windowStart } from './logic.ts';
 
 const PROFILE = '00000000-0000-0000-0000-000000000001';
 const REF = '00000000-0000-0000-0000-00000000beef';
@@ -389,6 +389,102 @@ Deno.test('award: a ✦ with no reviewerScore in ctx (pre-#27 payload) → skipp
   assertEquals(await res.json(), { awarded: 0, skipped: true });
   assert(!c.db.calls.some((call) => call.op === 'insert'));
 });
+
+// ── runStars (issue #121: stars-only mode, no score touched) ─────────────────
+// Invite activation enqueues { mode: 'stars' } so an invite-only profile can earn
+// Ambasciatore. The run re-evaluates all six stars from facts and writes ONLY the
+// stars table — never aura_events or aura_scores (rule #1: invites are worth zero).
+
+/** Stars-mode scripting for an otherwise-empty world. gatherStarFacts skips the
+ *  dream_milestones / post_reactions reads when dreams / posts come back empty. */
+const starsCtx = (invites: number, existingStars: unknown[] = []) =>
+  ctx({
+    'stars.select': [{ data: existingStars }],
+    'aura_events.select': [{ data: [] }],
+    'dreams.select': [{ data: [] }],
+    'posts.select': [{ data: [] }],
+    'invites.select': [{ count: invites }],
+  });
+
+Deno.test('bodySchema accepts a stars body and rejects malformed ones', () => {
+  assert(bodySchema.safeParse({ mode: 'stars', profileId: PROFILE }).success);
+  assert(!bodySchema.safeParse({ mode: 'stars' }).success); // no profileId
+  assert(!bodySchema.safeParse({ mode: 'stars', profileId: 'not-a-uuid' }).success);
+});
+
+Deno.test(
+  'stars: invite-only profile at 5 activations → Ambasciatore lit, zero Aura writes (#121)',
+  async () => {
+    const c = starsCtx(5);
+    const res = await runStars(c, { mode: 'stars', profileId: PROFILE });
+    const body = (await res.json()) as { starsGranted: string[]; newStars: string[] };
+    assert(body.starsGranted.includes('ambasciatore'));
+    assertEquals(body.newStars, ['ambasciatore']);
+
+    // All six star rows upserted; Ambasciatore granted at the injected now, ring full.
+    const ups = c.db.calls.filter((call) => call.table === 'stars' && call.op === 'upsert');
+    assertEquals(ups.length, 6);
+    const amb = ups.find((u) => (u.values as { star_id: string }).star_id === 'ambasciatore');
+    assert(amb);
+    assertEquals(amb.values, {
+      profile_id: PROFILE,
+      star_id: 'ambasciatore',
+      granted_at: NOW_ISO,
+      progress: { done: 5, total: 5, unit: 'inviti' },
+    });
+    assertEquals(amb.options, { onConflict: 'profile_id,star_id' });
+
+    // Celebration for the new star; no tier-up — no score changed in a stars run.
+    const rpc = c.db.calls.find((call) => call.op === 'rpc');
+    assert(rpc);
+    assertEquals(rpc.columns, 'broadcast_aura_celebration');
+    assertEquals(rpc.values, {
+      p_profile_id: PROFILE,
+      p_tier_up: null,
+      p_new_stars: ['ambasciatore'],
+    });
+
+    // Rule #1: a stars run never writes the ledger or the score snapshot.
+    assert(!c.db.calls.some((call) => call.table === 'aura_events' && call.op !== 'select'));
+    assert(!c.db.calls.some((call) => call.table === 'aura_scores'));
+  },
+);
+
+Deno.test('stars: zero activity → six ungranted progress rows, no celebration', async () => {
+  const c = starsCtx(0);
+  const res = await runStars(c, { mode: 'stars', profileId: PROFILE });
+  const body = (await res.json()) as { starsGranted: string[]; newStars: string[] };
+  assertEquals(body.starsGranted, []);
+  assertEquals(body.newStars, []);
+
+  const ups = c.db.calls.filter((call) => call.table === 'stars' && call.op === 'upsert');
+  assertEquals(ups.length, 6);
+  for (const u of ups) assertEquals((u.values as { granted_at: unknown }).granted_at, null);
+  assert(!c.db.calls.some((call) => call.op === 'rpc'));
+});
+
+Deno.test(
+  'stars: an already-earned star keeps its grant date and is not re-celebrated',
+  async () => {
+    const EARNED_AT = '2026-01-01T00:00:00.000Z';
+    const c = starsCtx(5, [{ star_id: 'ambasciatore', granted_at: EARNED_AT }]);
+    const res = await runStars(c, { mode: 'stars', profileId: PROFILE });
+    const body = (await res.json()) as { starsGranted: string[]; newStars: string[] };
+    assert(body.starsGranted.includes('ambasciatore')); // still meets the criteria
+    assertEquals(body.newStars, []); // but nothing is NEW
+
+    const amb = c.db.calls.find(
+      (call) =>
+        call.table === 'stars' &&
+        call.op === 'upsert' &&
+        (call.values as { star_id: string }).star_id === 'ambasciatore',
+    );
+    assert(amb);
+    // I3: the original grant date survives the re-sweep.
+    assertEquals((amb.values as { granted_at: string }).granted_at, EARNED_AT);
+    assert(!c.db.calls.some((call) => call.op === 'rpc'));
+  },
+);
 
 Deno.test('bodySchema accepts a null counterpartyId, as jsonb_build_object emits it', () => {
   assert(

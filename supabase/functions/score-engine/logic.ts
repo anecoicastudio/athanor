@@ -42,9 +42,17 @@ const decaySchema = z.object({
   mode: z.literal('decay'),
 });
 
-export const bodySchema = z.union([awardSchema, decaySchema]);
+// Stars-only re-evaluation (issue #121). Enqueued on invite activation, which is
+// worth zero Aura (rule #1) and therefore never passes through award mode.
+const starsSchema = z.object({
+  mode: z.literal('stars'),
+  profileId: z.string().uuid(),
+});
+
+export const bodySchema = z.union([awardSchema, decaySchema, starsSchema]);
 
 export type AwardInput = z.infer<typeof awardSchema>;
+export type StarsInput = z.infer<typeof starsSchema>;
 
 // ── Cap window helpers ───────────────────────────────────────────────────────
 
@@ -153,6 +161,92 @@ export async function gatherStarFacts(
     momentoConversations,
     invitesActivated,
   };
+}
+
+// ── Star sweep (award steps 8-9, shared with stars mode) ─────────────────────
+
+/**
+ * Re-evaluates all six stars from facts and upserts the rows (I3: an
+ * already-earned star keeps its original granted_at), then broadcasts the
+ * celebration when something actually happened. Award mode passes its computed
+ * tier-up; stars mode omits it — no score changed, so p_tier_up goes out null.
+ */
+export async function sweepStars(
+  ctx: ScoreCtx,
+  profileId: string,
+  tierUp?: string,
+): Promise<{ granted: StarKey[]; newStars: StarKey[] }> {
+  const { admin } = ctx;
+
+  // Fetch existing stars to preserve already-earned grant dates.
+  const { data: existingStars } = await admin
+    .from('stars')
+    .select('star_id, granted_at')
+    .eq('profile_id', profileId);
+
+  const existingGrantedAt = new Map<string, string | null>(
+    (existingStars ?? []).map((s: { star_id: string; granted_at: string | null }) => [
+      s.star_id,
+      s.granted_at,
+    ]),
+  );
+
+  const facts = await gatherStarFacts(admin, profileId);
+  const { granted, progress } = evaluateStars(facts);
+
+  const now = ctx.now().toISOString();
+  const newStars: StarKey[] = [];
+
+  for (const starId of STAR_KEYS) {
+    const isGranted = granted.includes(starId as StarKey);
+    const prog = progress[starId as StarKey];
+    const prevGrantedAt = existingGrantedAt.get(starId) ?? null;
+
+    // I3: never clear an already-earned star's grant date.
+    let grantedAt: string | null;
+    if (prevGrantedAt !== null) {
+      // Already earned before → preserve the original grant date.
+      grantedAt = prevGrantedAt;
+    } else if (isGranted) {
+      // Newly earned this run.
+      grantedAt = now;
+      newStars.push(starId as StarKey);
+    } else {
+      grantedAt = null;
+    }
+
+    const { error: starErr } = await admin.from('stars').upsert(
+      {
+        profile_id: profileId,
+        star_id: starId,
+        granted_at: grantedAt,
+        progress: { done: prog.done, total: prog.total, unit: prog.unit },
+      },
+      { onConflict: 'profile_id,star_id' },
+    );
+    if (starErr) {
+      // Non-fatal: any score change already committed. Log and continue.
+      console.error(`star upsert failed for ${starId}:`, starErr.message);
+    }
+  }
+
+  // I2: Celebration broadcast (Broadcast-from-DB, owner-private). The engine knows
+  // old vs new tier + which stars were newly granted; it emits the shaped payload
+  // via the SECURITY DEFINER RPC, which calls realtime.send onto the private
+  // aura:{id} topic (09 §2.4). Service-role-only; clients can never forge it.
+  if (tierUp !== undefined || newStars.length > 0) {
+    const { error: broadcastErr } = await admin.rpc('broadcast_aura_celebration', {
+      p_profile_id: profileId,
+      p_tier_up: tierUp ?? null,
+      p_new_stars: newStars.length > 0 ? newStars : null,
+    });
+    if (broadcastErr) {
+      // Non-fatal — score and stars already committed.
+      console.error('celebration broadcast failed:', broadcastErr.message);
+    }
+  }
+
+  return { granted, newStars };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -349,79 +443,12 @@ export async function runAward(ctx: ScoreCtx, input: AwardInput): Promise<Respon
 
   if (scoreErr) return error(`score upsert failed: ${scoreErr.message}`, 500);
 
-  // ── 8. Star evaluation & upsert (I3: preserve granted_at) ──────────────────
-
-  // Fetch existing stars to preserve already-earned grant dates.
-  const { data: existingStars } = await admin
-    .from('stars')
-    .select('star_id, granted_at')
-    .eq('profile_id', profile_id);
-
-  const existingGrantedAt = new Map<string, string | null>(
-    (existingStars ?? []).map((s: { star_id: string; granted_at: string | null }) => [
-      s.star_id,
-      s.granted_at,
-    ]),
-  );
-
-  const facts = await gatherStarFacts(admin, profile_id);
-  const { granted, progress } = evaluateStars(facts);
-
-  const now = ctx.now().toISOString();
-  const newStars: StarKey[] = [];
-
-  for (const starId of STAR_KEYS) {
-    const isGranted = granted.includes(starId as StarKey);
-    const prog = progress[starId as StarKey];
-    const prevGrantedAt = existingGrantedAt.get(starId) ?? null;
-
-    // I3: never clear an already-earned star's grant date.
-    let grantedAt: string | null;
-    if (prevGrantedAt !== null) {
-      // Already earned before → preserve the original grant date.
-      grantedAt = prevGrantedAt;
-    } else if (isGranted) {
-      // Newly earned this run.
-      grantedAt = now;
-      newStars.push(starId as StarKey);
-    } else {
-      grantedAt = null;
-    }
-
-    const { error: starErr } = await admin.from('stars').upsert(
-      {
-        profile_id,
-        star_id: starId,
-        granted_at: grantedAt,
-        progress: { done: prog.done, total: prog.total, unit: prog.unit },
-      },
-      { onConflict: 'profile_id,star_id' },
-    );
-    if (starErr) {
-      // Non-fatal: score already committed. Log and continue.
-      console.error(`star upsert failed for ${starId}:`, starErr.message);
-    }
-  }
-
-  // ── 9. I2: Celebration broadcast (Broadcast-from-DB, owner-private) ───────────
-  // The engine knows old vs new tier + which stars were newly granted; it emits the
-  // shaped payload via the SECURITY DEFINER RPC, which calls realtime.send onto the
-  // private aura:{id} topic (09 §2.4). Service-role-only; clients can never forge it.
+  // ── 8-9. Star evaluation + celebration (shared with stars mode) ────────────
 
   const tierUp =
     tierOf(newScore) !== tierOf(oldScore) && newScore > oldScore ? tierOf(newScore) : undefined;
 
-  if (tierUp !== undefined || newStars.length > 0) {
-    const { error: broadcastErr } = await admin.rpc('broadcast_aura_celebration', {
-      p_profile_id: profile_id,
-      p_tier_up: tierUp ?? null,
-      p_new_stars: newStars.length > 0 ? newStars : null,
-    });
-    if (broadcastErr) {
-      // Non-fatal — score and stars already committed.
-      console.error('celebration broadcast failed:', broadcastErr.message);
-    }
-  }
+  const { granted } = await sweepStars(ctx, profile_id, tierUp);
 
   // ── 10. Respond ─────────────────────────────────────────────────────────────
 
@@ -431,4 +458,16 @@ export async function runAward(ctx: ScoreCtx, input: AwardInput): Promise<Respon
     tier: tierOf(newScore),
     starsGranted: granted,
   });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STARS MODE — stars-only re-evaluation; never touches aura_events / aura_scores
+// ══════════════════════════════════════════════════════════════════
+
+// Issue #121: the enqueuer is invite activation, which is worth zero Aura
+// (rule #1) and so never reaches award mode — without this, an invite-only
+// profile could hold 5 activated invites and no Ambasciatore.
+export async function runStars(ctx: ScoreCtx, input: StarsInput): Promise<Response> {
+  const { granted, newStars } = await sweepStars(ctx, input.profileId);
+  return json({ starsGranted: granted, newStars });
 }
