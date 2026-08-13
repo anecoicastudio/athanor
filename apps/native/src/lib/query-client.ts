@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import { QueryClient } from '@tanstack/react-query';
+import { defaultShouldDehydrateQuery, QueryClient, type Query } from '@tanstack/react-query';
 
 /**
  * Shared TanStack Query client. staleTime keeps the feed warm across tab
@@ -20,3 +20,12 @@ export const queryClient = new QueryClient({
 
 /** Persists the cache to AsyncStorage so queries/mutations survive an app kill. */
 export const asyncStoragePersister = createAsyncStoragePersister({ storage: AsyncStorage });
+
+/**
+ * Queries owning their own durable storage opt out of the persisted cache with
+ * `meta: { persist: false }` (see use-story-seen.ts — its data is already versioned in
+ * AsyncStorage, and a second copy here shadows the canonical one under staleTime: Infinity).
+ */
+export function shouldDehydrateQuery(query: Query): boolean {
+  return defaultShouldDehydrateQuery(query) && query.meta?.persist !== false;
+}
