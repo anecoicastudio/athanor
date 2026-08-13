@@ -2,13 +2,16 @@
  * score-engine — M6 Aura engine (service-role only).
  *
  * SOLE writer of: aura_events, aura_scores, stars.
- * Two modes:
+ * Three modes:
  *   award — called per qualifying action (per-milestone triggers, wired at each originating slice).
  *   decay — called nightly by the cron (scheduled Supabase cron or external scheduler).
+ *   stars — stars-only re-evaluation, called on invite activation (issue #121: invites are worth
+ *           zero Aura by rule #1, so they never pass through award mode).
  *
  * Endpoint: POST /functions/v1/score-engine
  * Body (award): { mode: 'award', profileId: string, type: ScoringType, refId?: string, ctx?: AwardContext }
  * Body (decay): { mode: 'decay' }
+ * Body (stars): { mode: 'stars', profileId: string }
  *
  * Transport shell only — the award/decay engine lives in ./logic.ts (unit-tested);
  * this file wires auth, body parse, the admin client, and the real clock.
@@ -18,7 +21,7 @@ import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
-import { bodySchema, runAward, runDecay } from './logic.ts';
+import { bodySchema, runAward, runDecay, runStars } from './logic.ts';
 
 // Deploy-asset pins, kept as a belt-and-braces for the CLI upload walker: it only follows
 // extension-suffixed imports. packages/core/src/score/* now carries explicit `.ts` on every
@@ -47,5 +50,12 @@ Deno.serve(async (req) => {
   if (!parsed.success) return error(`invalid body: ${parsed.error.message}`, 400);
 
   const ctx = { admin: supabaseAdmin(), now: () => new Date() };
-  return parsed.data.mode === 'decay' ? runDecay(ctx) : runAward(ctx, parsed.data);
+  switch (parsed.data.mode) {
+    case 'decay':
+      return runDecay(ctx);
+    case 'stars':
+      return runStars(ctx, parsed.data);
+    default:
+      return runAward(ctx, parsed.data);
+  }
 });

@@ -2864,6 +2864,7 @@ export type Database = {
           peer_id: string
         }[]
       }
+      staging_refresh_world: { Args: never; Returns: Json }
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number }
     }
     Enums: {
