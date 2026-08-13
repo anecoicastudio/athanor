@@ -26,7 +26,8 @@ select ok(
 );
 select policies_are(
   'public', 'dream_candidacies',
-  array['dream_candidacies_select_visible','dream_candidacies_insert_own_verified','dream_candidacies_update_own_submitted'],
+  array['dream_candidacies_select_visible','dream_candidacies_insert_own_verified','dream_candidacies_update_own_submitted',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the three candidacy policies'
 );
 

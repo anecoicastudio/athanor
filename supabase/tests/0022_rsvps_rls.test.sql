@@ -16,7 +16,8 @@ values
 select has_table('public','rsvps','rsvps table exists');
 select ok((select relrowsecurity from pg_class where oid='public.rsvps'::regclass), 'RLS enabled on rsvps');
 select policies_are('public','rsvps',
-  array['rsvps_select_authenticated','rsvps_insert_own','rsvps_update_own'],
+  array['rsvps_select_authenticated','rsvps_insert_own','rsvps_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on rsvps');
 
 -- A (organizer) creates a free physical event to RSVP to

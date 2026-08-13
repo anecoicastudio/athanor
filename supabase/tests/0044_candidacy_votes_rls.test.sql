@@ -44,7 +44,8 @@ select ok(
 );
 select policies_are(
   'public', 'candidacy_votes',
-  array['candidacy_votes_select_own','candidacy_votes_insert_own','candidacy_votes_delete_own'],
+  array['candidacy_votes_select_own','candidacy_votes_insert_own','candidacy_votes_delete_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the three vote policies'
 );
 select is(

@@ -23,7 +23,8 @@ select has_table('public', 'messages', 'messages exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.messages'::regclass),
   'RLS enabled on messages');
 select policies_are('public', 'messages',
-  array['messages_select_participant', 'messages_insert_own_user'], 'expected policies');
+  array['messages_select_participant', 'messages_insert_own_user',
+        'active_write_insert', 'active_write_update', 'active_write_delete'], 'expected policies');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';

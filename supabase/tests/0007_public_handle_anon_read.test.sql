@@ -84,13 +84,16 @@ reset role;
 
 -- ===== policies present =====
 select policies_are('public', 'profiles',
-  array['profiles_select_authenticated','profiles_insert_own','profiles_update_own','profiles_select_anon_public'],
+  array['profiles_select_authenticated','profiles_insert_own','profiles_update_own','profiles_select_anon_public',
+        'active_write_update'],
   'profiles gained the anon public-read policy');
 select policies_are('public', 'dreams',
-  array['dreams_select_authenticated','dreams_insert_own','dreams_update_own','dreams_select_anon_public'],
+  array['dreams_select_authenticated','dreams_insert_own','dreams_update_own','dreams_select_anon_public',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'dreams gained the anon public-read policy');
 select policies_are('public', 'dream_milestones',
-  array['dream_milestones_select_authenticated','dream_milestones_insert_own','dream_milestones_update_own','dream_milestones_select_anon_public'],
+  array['dream_milestones_select_authenticated','dream_milestones_insert_own','dream_milestones_update_own','dream_milestones_select_anon_public',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'dream_milestones anon public-read policy re-added');
 
 -- ===== archived public dream is NOT anon-visible =====

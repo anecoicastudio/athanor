@@ -15,7 +15,8 @@ values
 select has_table('public','momento_proposals','momento_proposals exists');
 select ok((select relrowsecurity from pg_class where oid='public.momento_proposals'::regclass),'RLS enabled');
 select policies_are('public','momento_proposals',
-  array['momento_proposals_select_own','momento_proposals_update_own'],'expected policies (no insert/delete)');
+  array['momento_proposals_select_own','momento_proposals_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],'expected policies (no insert/delete)');
 
 -- seed as SERVICE ROLE (the only writer): A←B and B←A (reciprocal, so accept_momento can match)
 set local role service_role;

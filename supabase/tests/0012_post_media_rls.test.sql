@@ -30,7 +30,8 @@ select ok(
 select policies_are(
   'public'::name, 'post_media'::name,
   array['post_media_select_authenticated','post_media_insert_post_author',
-        'post_media_update_post_author','post_media_delete_post_author'],
+        'post_media_update_post_author','post_media_delete_post_author',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on post_media'
 );
 

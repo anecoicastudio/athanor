@@ -6,17 +6,48 @@ export const REPORT_SEVERITIES = ['low', 'medium', 'high'] as const;
 export const reportSeverity = z.enum(REPORT_SEVERITIES);
 export type ReportSeverity = z.infer<typeof reportSeverity>;
 
-/** Verdict the admin submits when resolving a report. MVP: dismiss | uphold. */
+/** Enforcement chosen on an uphold (#106, PRD §4.13). Absent = penalty, the pre-#106 contract. */
+export const MODERATION_ACTIONS = ['warn', 'penalty', 'suspend', 'ban'] as const;
+export const moderationAction = z.enum(MODERATION_ACTIONS);
+export type ModerationAction = z.infer<typeof moderationAction>;
+
+/** Longest suspension the form can hand over — beyond this the honest action is a ban. */
+export const SUSPEND_DAYS_MAX = 365;
+
+/**
+ * Verdict the admin submits when resolving a report. dismiss | uphold, and an uphold carries
+ * one of the four PRD §4.13 actions (omitted = penalty, so pre-#106 callers keep working).
+ * severity travels only with a penalty (it prices the Aura deduction — core maps it, rule #10);
+ * suspendDays only with a suspend.
+ */
 export const resolveReportInput = z
   .object({
     reportId: z.string().uuid(),
     verdict: z.enum(['dismiss', 'uphold']),
+    action: moderationAction.optional(),
     resolution: trimmedNonBlank(2000),
     severity: reportSeverity.optional(),
+    suspendDays: z.number().int().min(1).max(SUSPEND_DAYS_MAX).optional(),
   })
-  .refine((v) => v.verdict !== 'uphold' || v.severity != null, {
-    message: 'severity required when upholding',
-    path: ['severity'],
+  .refine((v) => v.verdict === 'uphold' || v.action == null, {
+    message: 'action travels only with an uphold',
+    path: ['action'],
+  })
+  .refine(
+    (v) => !(v.verdict === 'uphold' && (v.action ?? 'penalty') === 'penalty') || v.severity != null,
+    { message: 'severity required when upholding with a penalty', path: ['severity'] },
+  )
+  .refine(
+    (v) => (v.verdict === 'uphold' && (v.action ?? 'penalty') === 'penalty') || v.severity == null,
+    { message: 'severity travels only with a penalty', path: ['severity'] },
+  )
+  .refine((v) => v.action !== 'suspend' || v.suspendDays != null, {
+    message: 'suspendDays required when suspending',
+    path: ['suspendDays'],
+  })
+  .refine((v) => v.action === 'suspend' || v.suspendDays == null, {
+    message: 'suspendDays travels only with a suspend',
+    path: ['suspendDays'],
   });
 export type ResolveReportInput = z.infer<typeof resolveReportInput>;
 

@@ -26,8 +26,8 @@ select policies_are(
     'dream_milestones_select_authenticated',
     'dream_milestones_insert_own',
     'dream_milestones_update_own',
-    'dream_milestones_select_anon_public'
-  ],
+    'dream_milestones_select_anon_public',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on dream_milestones'
 );
 

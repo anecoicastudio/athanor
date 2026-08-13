@@ -26,8 +26,8 @@ select policies_are(
   array[
     'favor_offers_select_party',
     'favor_offers_insert_actor',
-    'favor_offers_update_actor'
-  ],
+    'favor_offers_update_actor',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on favor_offers'
 );
 

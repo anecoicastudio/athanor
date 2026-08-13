@@ -26,8 +26,8 @@ select policies_are(
   array[
     'posts_select_authenticated',
     'posts_insert_own',
-    'posts_update_own'
-  ],
+    'posts_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on posts'
 );
 
