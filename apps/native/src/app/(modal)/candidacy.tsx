@@ -119,14 +119,16 @@ export default function CandidacyWizard() {
     <Screen>
       <ScrollView
         className="flex-1"
-        contentContainerClassName="grow px-7 pb-9 pt-4"
+        contentContainerClassName="grow px-5 pb-9 pt-4"
         keyboardShouldPersistTaps="handled"
       >
         {/* Header: back chevron + eyebrow */}
         <View className="flex-row items-center gap-3">
+          {/* Real 44pt tap target (DESIGN §10, #164) — was a bare glyph + hitSlop ≈38pt
+            wide. -ml-3 keeps the glyph optically near the gutter. */}
           <Pressable
             onPress={() => (step > 0 ? setStep((s) => s - 1) : router.back())}
-            hitSlop={12}
+            className="-ml-3 h-11 w-11 items-center justify-center"
             accessibilityRole="button"
             accessibilityLabel={t('common.back', locale)}
           >
