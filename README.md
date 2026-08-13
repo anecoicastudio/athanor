@@ -101,8 +101,9 @@ which one you are pushing to, so check it before every push.
 
 ## The ten non-negotiable rules
 
-Enforced by review on every PR, and most also by CI — rule 3 has no CI check, and rule 4's
-literal-hex guard currently covers `apps/native` only (#61). Not style preferences.
+Enforced by review on every PR, and most also by CI — rules 3 and 4 currently have **no CI
+check**; rule 4's only guard today is local tooling, and a partial one (#61). Not style
+preferences.
 
 1. **Aura is never client-writable.** Only the `score-engine` edge function (service role) writes `aura_events` / `aura_scores`. RLS denies all client writes; pgTAP asserts it. Circle membership and fund contributions yield **zero** points.
 2. **RLS on every table**, deny-by-default, policies in the wrapped form `(select auth.uid())`, always `TO authenticated` / `TO anon` plus an ownership predicate. UPDATE policies need both `USING` and `WITH CHECK`.

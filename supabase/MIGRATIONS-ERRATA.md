@@ -36,8 +36,10 @@ GUCs these comments wait for **cannot be set at all** — the callers were unrea
 configuration resolves through **Vault** via `athanor.runtime_setting()`, and the GUC branch
 that survives inside that function exists solely for the local CI stack and pgTAP fixtures.
 
-Verified behaviour lives in `supabase/tests/0084_runtime_setting_vault.test.sql` (Vault
-precedence and the fixture-only GUC fallback).
+Verified behaviour lives in `supabase/tests/0084_runtime_setting_vault.test.sql` — the
+GUC-wins-when-set branch and NULL-when-unconfigured. The Vault half is deliberately not
+asserted there (the ephemeral CI stack has no populated `vault.decrypted_secrets`); it is
+exercised on the hosted projects, where the live backend depends on it.
 
 ---
 
