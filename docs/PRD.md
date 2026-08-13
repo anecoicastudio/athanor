@@ -180,14 +180,13 @@ Aura 0–1000, profile-visible with transparent breakdown by source. Append-only
 | Momento → conversation ≥ 10 messages both sides | +5       | max 10/month       |
 | Milestone help completed (owner-confirmed)      | +40      | uncapped           |
 | Dream milestone completed (own dream)           | +10      | per milestone      |
-| Post receives ✦ from member with score > 300    | +3…+4    | max 10/day counted |
+| Post receives ✦ from member with score > 300    | +3       | max 10/day counted |
 | Report upheld against user                      | −50…−200 | severity-based     |
 
 **Integrity rules (from concept doc):**
 
 - Reviews/ratings count only after verified collaborations `[FASE 2+ surface; ledger supports]`
-- Weighted judgment: actions from high-score members weigh more; reciprocal exchanges dampened (pairwise diminishing returns). For the ✦ row only, the weighting multiplies a **base of 2** that is never itself awarded: the gate is score > 300, and the lowest reactor who clears it already weighs ≈1.263, so the awarded value runs **+3** (reactor at 301) to **+4** (reactor at 1118 and above; the reviewer curve itself saturates at ×2 from 1719, but rounding reaches 4 earlier). Earlier revisions of this table stated **+2 base**, which no member can observe — corrected 2026-08-09 alongside `packages/core/src/score/weights.ts`; the reachable band {3, 4} is asserted in `award.test.ts`.
-  - ⚠ **Not yet true in the shipped system:** a ✦ currently awards **0**. The M6 trigger gates on the reactor's score in SQL and then never sends it to the engine, which re-checks the gate against an undefined value. Tracked as issue #27 — plumbing it moves the award from 0 to 3–4 on a rule #1 surface, so it is sequenced before the hosted deploy rather than after.
+- Weighted judgment: actions from high-score members weigh more; reciprocal exchanges dampened (pairwise diminishing returns). For the ✦ row only, the weighting multiplies a **base of 2** that is never itself awarded: the gate is score > 300, the lowest reactor who clears it already weighs ≈1.263, and rounding would reach **+4** only from a reactor at ≈1118 — a score no member can hold, because Aura is clamped to 1000 (`SCORE_MAX` in `packages/core/src/score/clamp.ts`, mirrored by the `aura_scores` 0–1000 check constraint). **A ✦ therefore always awards +3.** Earlier revisions of this table stated a **+2 base** (which no member can observe) and a **{3, 4}** band (whose 4 arm is dead); #55 tracks aligning `award.test.ts`, which still samples reviewer scores above the clamp.
 - **Decay:** after 30 days without qualifying action, score ×0.98/week. Floor: 40% of lifetime peak.
 - Aura never purchasable. Athanor Circle membership and fund contributions yield **zero** points. Enforced in engine, asserted in tests.
 - **Nor does money earn Aura in the other direction:** being selected for, or paid from, the fund yields **zero** points. Aura for collaboration is awarded only on a _verified completed collaboration_ — the `milestone_help` shape (+40 to the helper on owner confirmation, with pairwise counterparty dampening). Being hired earns nothing; delivering, confirmed by the counterparty, earns. (Source doc §15 asks for the opposite — see §13 Open Questions.)
@@ -197,14 +196,16 @@ Aura 0–1000, profile-visible with transparent breakdown by source. Append-only
 
 Earned, never chosen. v1 criteria (auto-granted by engine):
 
-| Star            | Earned by (v1)                                             |
-| --------------- | ---------------------------------------------------------- |
-| ★ Visionario    | dream published + 3 milestones defined + 10 ✦ on own posts |
-| ★ Creatore      | 2 own milestones completed                                 |
-| ★ Mentor        | 3 milestone helps completed for others                     |
-| ★ Innovatore    | 5 posts in Evoluzione with ✦ from 10 distinct members      |
-| ★ Collaboratore | 5 accepted Momenti with active conversations               |
-| ★ Ambasciatore  | 5 activated invites (invitee completes onboarding)         |
+| Star            | Earned by (v1)                                                                  |
+| --------------- | ------------------------------------------------------------------------------- |
+| ★ Visionario    | dream published + 3 milestones defined + 10 own Evoluzione posts each with ≥1 ✦ |
+| ★ Creatore      | 2 own milestones completed                                                      |
+| ★ Mentor        | 3 milestone helps completed for others                                          |
+| ★ Innovatore    | 5 posts in Evoluzione with ✦ from 10 distinct members                           |
+| ★ Collaboratore | 5 accepted Momenti with active conversations                                    |
+| ★ Ambasciatore  | 5 activated invites (invitee completes onboarding)                              |
+
+Visionario counts **starred posts**, not reactions — sustained dream-narration in Evoluzione («sogni in corso e traguardi raggiunti»), each chapter resonating with at least one member, which is the concept doc's «indica nuove direzioni e ispira gli altri a seguirle». Innovatore counts **distinct reactors** — breadth of audience. Earlier revisions said «10 ✦ on own posts»; ruled 2026-08-13 under #148 (resolving the #55/#122 disagreement in favour of the shipped criterion — the progress label that says `reazioni` while counting posts is still a bug, tracked in #122).
 
 ### 4.11 Dai Vita al Tuo Sogno (Fund Cycles)
 
