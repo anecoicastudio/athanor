@@ -139,6 +139,33 @@ Deno.test('every function gates itself before parsing the body, because nothing 
   }
 });
 
+Deno.test('webhook posture means a signature gate and a dedupe, not a config value', () => {
+  // A webhook is verify_jwt=false with NO requireServiceRole — the signature over the raw
+  // body is the only thing between the endpoint and the public internet, and the
+  // stripe_webhook_events ledger is what makes a replayed event a no-op (rule 6). Until now
+  // the posture table only restated the verify_jwt boolean, so a second webhook function
+  // added tomorrow would have satisfied it without either protection. Source-level markers
+  // are coarse, but they make the posture mean the two properties it names (issue #271,
+  // was #144). Reference implementation: stripe-webhook/handlers.ts (constructEventAsync
+  // over the exact received bytes; event-id upsert + atomic lease on stripe_webhook_events).
+  for (const [name, posture] of Object.entries(POSTURE)) {
+    if (posture !== 'webhook') continue;
+    const dir = new URL(`../${name}/`, import.meta.url);
+    const src = [...Deno.readDirSync(dir)]
+      .filter((e) => e.isFile && e.name.endsWith('.ts') && !e.name.endsWith('.test.ts'))
+      .map((e) => Deno.readTextFileSync(new URL(e.name, dir)))
+      .join('\n');
+    assert(
+      /constructEventAsync|constructEvent\b/.test(src),
+      `${name}: webhook posture but no Stripe signature-verification call in its source`,
+    );
+    assert(
+      src.includes('stripe_webhook_events'),
+      `${name}: webhook posture but no stripe_webhook_events dedupe in its source`,
+    );
+  }
+});
+
 Deno.test('no internal function performs I/O before its gate', () => {
   // The other half of rule 8's gate-first requirement (issue #271, was #140): body parse is
   // covered above; this covers env reads, outbound fetches and the service-role client. The
