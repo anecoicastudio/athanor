@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -12,6 +12,14 @@ select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 
 select has_table('public', 'consent', 'table exists');
+
+-- Exhaustive (issue #271, was #138): consent is the GDPR record — exactly where a
+-- silently-added read policy matters most. The behavioural probes below cannot catch an
+-- ADDED policy; this list can. Owner CRUD-minus-delete = exactly these three.
+select policies_are(
+  'public', 'consent',
+  array['consent_select_own', 'consent_insert_own', 'consent_update_own'],
+  'exactly the expected policies exist on consent');
 
 -- anon fully denied
 set local role anon;

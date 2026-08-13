@@ -19,8 +19,10 @@ type Posture = 'user' | 'internal' | 'webhook';
  *   webhook  — reached by Stripe, which cannot present a Supabase credential at all.
  *              verify_jwt=false, authenticity comes from signature verification.
  * Adding a function means adding it here; the last test fails until you do.
+ * Exported: auth-posture.test.ts discovers the user-callable family from this table, so a
+ * function cannot dodge those tests by not matching a filename prefix (issue #271, was #141).
  */
-const POSTURE: Record<string, Posture> = {
+export const POSTURE: Record<string, Posture> = {
   'check-in': 'user',
   'create-circle-checkout': 'user',
   'create-circle-portal': 'user',
@@ -97,17 +99,96 @@ Deno.test('every function directory on disk has a declared posture', () => {
   assertEquals(onDisk, Object.keys(POSTURE).sort());
 });
 
-Deno.test('every internal function gates itself, because nothing else does', () => {
-  // verify_jwt=false means the network layer lets anyone in. requireServiceRole must be
-  // present AND must appear before any body parse — a gate after `await req.json()` still
-  // lets an unauthenticated caller drive parsing.
+// Body parse in ANY of its four forms. An earlier revision of the gate-order test matched
+// the literal 'req.json()' only, so an `await req.text()` ahead of the gate passed — the
+// same regex auth-posture.test.ts applies to the user-callable family (issue #271, was #139).
+const BODY_READ = /\breq\.(json|text|formData|arrayBuffer)\s*\(/;
+
+// The ONE function allowed to read the body before any gate, by name and on purpose:
+// stripe-webhook's raw body IS its authentication input — the Stripe signature is computed
+// over it, so verification cannot precede the read. A second webhook added tomorrow does
+// not inherit this exemption by accident; it must be listed here with its own reason.
+const RAW_BODY_IS_THE_CREDENTIAL = new Set(['stripe-webhook']);
+
+Deno.test('every function gates itself before parsing the body, because nothing else does', () => {
+  // verify_jwt=false means the network layer lets anyone in, and even verify_jwt=true only
+  // proves a JWT is well-formed. The in-handler gate must be present AND must appear before
+  // any body parse — a gate after `await req.json()` still lets an unauthenticated (or
+  // merely well-formed) caller drive parsing.
+  for (const name of RAW_BODY_IS_THE_CREDENTIAL) {
+    assertEquals(
+      POSTURE[name],
+      'webhook',
+      `${name} is exempt from gate-before-parse, which only a webhook posture can justify`,
+    );
+  }
+  const GATE: Record<Posture, string | null> = {
+    user: 'requireUser(req)',
+    internal: 'requireServiceRole(req)',
+    webhook: null, // gated by signature verification over the raw body, asserted separately
+  };
+  for (const [name, posture] of Object.entries(POSTURE)) {
+    if (RAW_BODY_IS_THE_CREDENTIAL.has(name)) continue;
+    const gateCall = GATE[posture];
+    if (gateCall === null) continue;
+    const src = Deno.readTextFileSync(new URL(`../${name}/index.ts`, import.meta.url));
+    const gate = src.indexOf(gateCall);
+    assert(gate > -1, `${name} is ${posture} but never calls ${gateCall}`);
+    const parse = src.search(BODY_READ);
+    assert(parse === -1 || gate < parse, `${name} parses the body before its gate`);
+  }
+});
+
+Deno.test('webhook posture means a signature gate and a dedupe, not a config value', () => {
+  // A webhook is verify_jwt=false with NO requireServiceRole — the signature over the raw
+  // body is the only thing between the endpoint and the public internet, and the
+  // stripe_webhook_events ledger is what makes a replayed event a no-op (rule 6). Until now
+  // the posture table only restated the verify_jwt boolean, so a second webhook function
+  // added tomorrow would have satisfied it without either protection. Source-level markers
+  // are coarse, but they make the posture mean the two properties it names (issue #271,
+  // was #144). Reference implementation: stripe-webhook/handlers.ts (constructEventAsync
+  // over the exact received bytes; event-id upsert + atomic lease on stripe_webhook_events).
+  for (const [name, posture] of Object.entries(POSTURE)) {
+    if (posture !== 'webhook') continue;
+    const dir = new URL(`../${name}/`, import.meta.url);
+    const src = [...Deno.readDirSync(dir)]
+      .filter((e) => e.isFile && e.name.endsWith('.ts') && !e.name.endsWith('.test.ts'))
+      .map((e) => Deno.readTextFileSync(new URL(e.name, dir)))
+      .join('\n');
+    assert(
+      /constructEventAsync|constructEvent\b/.test(src),
+      `${name}: webhook posture but no Stripe signature-verification call in its source`,
+    );
+    assert(
+      src.includes('stripe_webhook_events'),
+      `${name}: webhook posture but no stripe_webhook_events dedupe in its source`,
+    );
+  }
+});
+
+Deno.test('no internal function performs I/O before its gate', () => {
+  // The other half of rule 8's gate-first requirement (issue #271, was #140): body parse is
+  // covered above; this covers env reads, outbound fetches and the service-role client. The
+  // rule as practised is "before any I/O, env read, or body parse", not "literally the first
+  // statement" — a CORS/method preamble that touches nothing but the request object and
+  // returns a static response is harmless and stays legal (media-process answers OPTIONS and
+  // 405 ahead of its gate; erasure-job, gdpr-export-job and moderation-enforce have no
+  // preamble at all). What must NOT be reachable unauthenticated is anything observable:
+  // an env read, a network call, or a client construction. Module scope counts — an
+  // import-time supabaseAdmin() would run before the gate on every unauthenticated probe.
+  const IO_CALL = [/\bDeno\.env\.get\s*\(/, /\bfetch\s*\(/, /\bsupabaseAdmin\s*\(/];
   for (const [name, posture] of Object.entries(POSTURE)) {
     if (posture !== 'internal') continue;
     const src = Deno.readTextFileSync(new URL(`../${name}/index.ts`, import.meta.url));
     const gate = src.indexOf('requireServiceRole(req)');
     assert(gate > -1, `${name} is internal but never calls requireServiceRole`);
-    const parse = src.indexOf('req.json()');
-    assert(parse === -1 || gate < parse, `${name} parses the body before its gate`);
+    for (const re of IO_CALL) {
+      const io = src.search(re);
+      assert(
+        io === -1 || gate < io,
+        `${name} performs I/O (${re.source}) before its service-role gate`,
+      );
+    }
   }
 });
 

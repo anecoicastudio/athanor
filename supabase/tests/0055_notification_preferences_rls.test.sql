@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -12,6 +12,16 @@ select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 
 select has_table('public', 'notification_preferences', 'table exists');
+
+-- Exhaustive (issue #271, was #138): the behavioural probes below cover the paths someone
+-- thought of; a silently ADDED policy (say `for select to anon using (true)`) would satisfy
+-- every one of them. Owner CRUD-minus-delete = exactly these three.
+select policies_are(
+  'public', 'notification_preferences',
+  array['notification_preferences_select_own',
+        'notification_preferences_insert_own',
+        'notification_preferences_update_own'],
+  'exactly the expected policies exist on notification_preferences');
 
 set local role anon;
 select throws_ok($$ select * from public.notification_preferences $$, '42501', null, 'anon denied');

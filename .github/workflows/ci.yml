@@ -84,6 +84,54 @@ jobs:
       - run: deno test --allow-env --allow-read .
         working-directory: supabase/functions
 
+  bundle-leak:
+    name: bundle leak scan (expo export)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: export the JS bundle
+        working-directory: apps/native
+        # Metro inlines EXPO_PUBLIC_* at bundle time. None are set in this job ON PURPOSE:
+        # the export must never need a secret, and whatever Metro inlines from the
+        # environment is exactly what the grep below is hunting for.
+        #
+        # --no-bytecode: Hermes packs its string table with no separators, so the legitimate
+        # 'sb_secret_' prefix literal in the client-side key guard (packages/api/src/
+        # supabase-key.ts rejects secret keys by that prefix) abuts whatever string follows
+        # and reads as key material. Plain JS keeps quotes, so the guard literal and a real
+        # leaked key stay distinguishable.
+        run: pnpm exec expo export --platform ios --platform android --no-bytecode --output-dir dist-ci
+      - name: grep the emitted bundle for secret material
+        working-directory: apps/native
+        run: |
+          # README rule 10's promise, built (issue #271, was #59): the manual release check
+          # R-1 (docs/RELEASE-RUNBOOK.md — unzip the EAS build, grep the JS) run mechanically
+          # on every push. This catches the realistic mistake — a service key or secret-shaped
+          # env var inlined into the bundle — at PR time instead of at release. R-1 stays as
+          # the belt-and-braces check on the real EAS artifact. One pattern is tightened vs
+          # R-1: sb_secret_ requires 16+ key-shaped chars after the prefix, because the bare
+          # prefix is a legitimate literal in the key guard (see the export step). Bundles
+          # only, not sourcemaps: maps embed node_modules sources, which may name env vars
+          # without shipping them. Mutation-tested: an injected sb_secret_… literal in
+          # _layout.tsx survives minification and trips the grep.
+          count=$(find dist-ci -type f -name '*.js' | wc -l | tr -d ' ')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::expo export produced no JS bundle — the leak scan scanned nothing"
+            exit 1
+          fi
+          if find dist-ci -type f -name '*.js' -print0 \
+            | xargs -0 grep -laiE 'service_role|sb_secret_[A-Za-z0-9]{16}|sentry_dsn|sk_live'; then
+            echo "::error::secret material in the exported bundle (service_role / sb_secret_… / sentry_dsn / sk_live) — see matching files above"
+            exit 1
+          fi
+          echo "::notice::bundle-leak scan OK — $count bundle files clean"
+
   db:
     name: migrations · pgTAP · types in sync
     runs-on: ubuntu-latest
@@ -187,7 +235,7 @@ jobs:
     # Every gate first. Workers Builds (Cloudflare's own git integration) cannot
     # express this, which is why the deploy lives here: it would fire on push while
     # pgTAP and the types gate were still running, or already red.
-    needs: [node, e2e, edge, db]
+    needs: [node, e2e, edge, db, bundle-leak]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
