@@ -17,6 +17,13 @@
 --   * `SECURITY DEFINER` => locked `search_path`, execute revoked from public/anon/authenticated
 --
 -- Every assertion is an is_empty() over a violations query, so a failure NAMES the offender.
+--
+-- Scope (issue #271, was #136): the POLICY sweeps cover storage/realtime as well — the
+-- private-media policies on storage.objects and rt_aura_owner_receive on realtime.messages
+-- follow the same conventions and were exempt from every mechanical check while the filter
+-- read ('public','athanor'). The TABLE-level checks (RLS-enabled, count tripwire) and the
+-- SECURITY DEFINER function checks stay on our two schemas: storage/realtime hold
+-- platform-owned tables and functions we neither create nor police.
 
 begin;
 
@@ -65,7 +72,7 @@ select is(
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname || ' -> ' || roles::text
        from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and 'public' = any(roles) $$,
   'rule 2: no policy targets PUBLIC -- every policy names TO authenticated / TO anon'
 );
@@ -73,7 +80,7 @@ select is_empty(
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname || ' -> ' || roles::text
        from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and not (roles <@ '{authenticated,anon,service_role}'::name[]) $$,
   'rule 2: every policy targets only authenticated / anon / service_role'
 );
@@ -86,7 +93,7 @@ select is_empty(
 -- surviving `auth.uid()` was written bare, which re-evaluates per row (initplan lost).
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and replace(coalesce(qual, '') || ' ' || coalesce(with_check, ''),
                     '( SELECT auth.uid() AS uid)', 'WRAPPED') like '%auth.uid()%' $$,
   'rule 2: auth.uid() in a policy is always the wrapped (select auth.uid()) form'
@@ -100,7 +107,7 @@ select is_empty(
 -- sign-ins too -- the role clause is the correct control.
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and coalesce(qual, '') || ' ' || coalesce(with_check, '') like '%auth.role()%' $$,
   'rules/supabase.md:10: no policy predicate calls auth.role()'
 );
@@ -113,7 +120,7 @@ select is_empty(
 -- someone else.
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and cmd in ('UPDATE', 'ALL')
         and (qual is null or with_check is null) $$,
   'rule 2: every UPDATE/ALL policy carries both USING and WITH CHECK'
@@ -123,7 +130,7 @@ select is_empty(
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname || ' (' || cmd || ')'
        from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and ( (cmd in ('SELECT', 'DELETE') and qual is null)
            or (cmd = 'INSERT' and with_check is null) ) $$,
   'rule 2: SELECT/DELETE policies have a USING, INSERT policies have a WITH CHECK'
@@ -137,7 +144,7 @@ select is_empty(
 -- in a policy lets a member grant themselves whatever the policy checks for.
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and ( coalesce(qual, '') || ' ' || coalesce(with_check, '') like '%user_metadata%'
            or coalesce(qual, '') || ' ' || coalesce(with_check, '') like '%raw_user_meta_data%' ) $$,
   'rule 2: no policy authorizes from user_metadata (must be app_metadata)'
