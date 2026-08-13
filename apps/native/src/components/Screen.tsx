@@ -2,6 +2,7 @@ import React from 'react';
 import { useCssElement } from 'react-native-css';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, cn } from '@/tw';
+import { SuspendedNotice } from '@/components/SuspendedNotice';
 import { ToastViewport } from '@/components/ToastHost';
 
 /**
@@ -51,6 +52,10 @@ const SafeAreaViewImpl = SafeAreaView as unknown as React.ComponentType<Record<s
 export function Screen({ className, gutter, footer, children, ...rest }: ScreenProps) {
   const content = (
     <>
+      {/* Sanction banner (#312) rides every Screen the way the toast viewport does,
+        so a suspended member sees the state on the modal where a write fails, not
+        only on the tab roots. Renders nothing in good standing. */}
+      <SuspendedNotice />
       {children}
       <ToastViewport />
     </>

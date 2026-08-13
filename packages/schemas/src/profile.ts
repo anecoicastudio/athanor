@@ -59,8 +59,11 @@ export const profileSchema = z.object({
   seeking: z.array(z.string()).max(10),
   identity_verified: z.boolean(),
   founding_member: z.boolean(),
-  // Moderation state (#106) — server-written only, no client grant in either direction, so
-  // client reads never see these. Optional: present only in service-role projections.
+  // Moderation state (#106) — server-written only (clients hold no write grant), but the
+  // OWN read does see them: `get_own_profile()` is a DEFINER `select *`, so its row carries
+  // both columns past the column-scoped grants (0072 asserts the full-row read) — that is
+  // what the SuspendedNotice banner renders (#312). Optional: third-person projections
+  // (`get_person_profile`) never include them.
   suspended_until: z.string().nullable().optional(),
   banned_at: z.string().nullable().optional(),
   created_at: z.string(),
