@@ -19,8 +19,10 @@ type Posture = 'user' | 'internal' | 'webhook';
  *   webhook  — reached by Stripe, which cannot present a Supabase credential at all.
  *              verify_jwt=false, authenticity comes from signature verification.
  * Adding a function means adding it here; the last test fails until you do.
+ * Exported: auth-posture.test.ts discovers the user-callable family from this table, so a
+ * function cannot dodge those tests by not matching a filename prefix (issue #271, was #141).
  */
-const POSTURE: Record<string, Posture> = {
+export const POSTURE: Record<string, Posture> = {
   'check-in': 'user',
   'create-circle-checkout': 'user',
   'create-circle-portal': 'user',
