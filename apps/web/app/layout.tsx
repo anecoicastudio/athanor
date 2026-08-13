@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
-import { Hanken_Grotesk, EB_Garamond } from 'next/font/google';
+import localFont from 'next/font/local';
 import { t } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
 import './globals.css';
@@ -14,25 +14,34 @@ import { PageReveal } from '@/components/page-reveal';
 import { LocaleProvider } from '@/components/locale-provider';
 import { CookieNotice } from '@/components/cookie-notice';
 
-const hankenGrotesk = Hanken_Grotesk({
+/*
+ * Self-hosted (next/font/local), not next/font/google: in dev mode the google
+ * loader fetches from fonts.googleapis.com at compile time, and a stalled runner
+ * connection kept the dev server from ever answering Playwright's webServer probe
+ * (issue #328 — the recurring `web e2e` red). The committed files under ./fonts/
+ * are Google's own latin-subset variable woff2 for the same two faces, so nothing
+ * changes visually; the network dependency just disappears, in prod builds too.
+ */
+const hankenGrotesk = localFont({
+  src: [{ path: './fonts/hanken-grotesk-latin.woff2', weight: '100 900', style: 'normal' }],
   variable: '--font-sans',
-  subsets: ['latin'],
-  weight: ['400', '600'],
 });
 
 /*
  * Display face (DESIGN.md §11, 2026-06-13): EB Garamond — upright for headlines,
  * italic for the dream quotes. Body / UI / labels remain Hanken Grotesk above —
  * as does the plain "ATHANOR" wordmark (2026-06-13, switched from EB Garamond to
- * match the vertical section labels). (The Greek-Λ wordmark experiment was
- * reverted to plain Latin letters on user request — the Greek subset is no longer
- * required but kept; it's harmless and EB Garamond's Greek is well-matched.)
+ * match the vertical section labels). (The Greek subset the reverted Greek-Λ
+ * wordmark experiment used was dropped with the move to self-hosting — local
+ * fonts carry no per-script unicode-range splitting, and nothing renders Greek.)
  */
-const ebGaramond = EB_Garamond({
+const ebGaramond = localFont({
+  src: [
+    { path: './fonts/eb-garamond-latin.woff2', weight: '400 800', style: 'normal' },
+    { path: './fonts/eb-garamond-latin-italic.woff2', weight: '400 800', style: 'italic' },
+  ],
   variable: '--font-eb-garamond',
-  subsets: ['latin', 'greek'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
+  adjustFontFallback: 'Times New Roman',
 });
 
 export const viewport: Viewport = {
