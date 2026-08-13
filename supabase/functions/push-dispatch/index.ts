@@ -17,9 +17,8 @@ import { processPushDispatch } from './logic.ts';
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Caller authorization: service-role only (see _shared/auth.ts). The enqueue_push trigger
-  // sets this bearer to app.settings.push_dispatch_key, which MUST be the service-role key
-  // (set at deploy time).
+  // Caller authorization: service-role only. _shared/auth.ts is the authority on how the
+  // secret is presented and verified — do not restate the mechanism here.
   const gate = requireServiceRole(req);
   if (!gate.ok) return gate.response;
 

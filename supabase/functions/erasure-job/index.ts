@@ -5,7 +5,8 @@
 //   (3) PSEUDONYMIZE (never delete) legally-retained money rows (fund_contributions / event_tickets /
 //       circle_memberships) — TODO(legal-gate): retention window needs counsel (10 §5 line 383),
 //   (4) delete the auth.users row (cascades profiles), and purge any matching email_waitlist row.
-// DEPLOY-DEFERRED + LEGAL-GATED: not deployed this slice; does NOT go live until the retention gate clears.
+// LEGAL-GATED: deployed, but the retention-gated cascade steps stay commented in ./logic.ts until
+// counsel clears the retention window — a claimed request is recorded, not yet erased.
 // Transport shell only — the loop (and the gated cascade steps, still commented) lives in
 // ./logic.ts (unit-tested); this file wires auth, the service-role client, and the auth port.
 import { requireServiceRole } from '../_shared/auth.ts';

@@ -2,11 +2,8 @@
 // INSERT, 06 §2.11). Maps a domain event → one notification row → invokes push-dispatch (transport +
 // preference gate live there, single responsibility). Transport shell only — the insert + best-effort
 // push live in ./logic.ts (unit-tested); this file wires auth, body parse, and the invoke closure.
-//
-// TODO(M9-fanout-deploy): deploy (`supabase functions deploy notification-fan-out`) + set secrets.
-// DB-trigger / direct-invocation wiring from source tables (M2 milestone_helps, M3 post_reactions/
-// projects, M4 events/event_tickets, M5 momento_proposals/connection_requests, M7 fund_aggregates)
-// is DEFERRED — until producers call this, the in-app center renders the honest empty state.
+// Producers: DB triggers call athanor.enqueue_notification (20260701160235_m9_notification_producers.sql
+// and later producer migrations), which POSTs here via pg_net.
 import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';

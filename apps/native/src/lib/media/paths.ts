@@ -1,11 +1,9 @@
+import type { MediaBucketName } from '@athanor/api';
 import type { PickedMedia } from './pick';
 
-export type MediaBucket =
-  | 'post-media'
-  | 'moments'
-  | 'story-segments'
-  | 'avatars'
-  | 'candidacy-videos';
+// Alias, not a second list: `@athanor/api` owns the bucket union, so a bucket added there
+// reaches every native call site without a hand-edit here staying in step.
+export type MediaBucket = MediaBucketName;
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
 

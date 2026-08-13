@@ -9,7 +9,8 @@ import { BUCKETS } from './buckets.ts';
 /**
  * POST { bucket_id, name } → { stripped, ... } — server-side metadata strip (P2.2,
  * backend 10 §4.1a / 11 §3.9a). Invoked by the enqueue_media_process storage trigger
- * (pg_net, guarded GUCs — inert until P1.1 deploy). Downloads the object, strips
+ * (pg_net; config from Vault via athanor.runtime_setting() — a no-op when unconfigured).
+ * Downloads the object, strips
  * EXIF/GPS/XMP/IPTC (see ./strip.ts), re-uploads in place ONLY when bytes changed.
  *
  * Defense-in-depth backstop, therefore FAIL-OPEN: any error is logged and answered 200 —
