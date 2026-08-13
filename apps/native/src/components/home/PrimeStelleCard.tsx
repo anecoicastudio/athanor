@@ -8,6 +8,7 @@ import { Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useToast } from '@/components/ToastHost';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { INVITE_URL_BASE } from '@/lib/links';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +24,7 @@ import { supabase } from '@/lib/supabase';
  */
 export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback?: ReactNode }) {
   const enabled = useFeatureFlags().prime_stelle_enabled === true;
+  const { showToast } = useToast();
 
   // Same session-gated read the InviteCard uses; only fires when the card is live.
   const { data: code, isPending } = useQuery({
@@ -36,9 +38,12 @@ export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback
   const invite = async () => {
     try {
       const link = code ? ` ${INVITE_URL_BASE}/${code}` : '';
-      await Share.share({
+      const { action } = await Share.share({
         message: `${t('prime.card.title', locale)} — ${t('app.name', locale)}${link}`,
       });
+      if (action === Share.sharedAction) {
+        showToast(t('home.invite.done', locale), 'success');
+      }
     } catch {
       // user dismissed or share unavailable — no-op
     }

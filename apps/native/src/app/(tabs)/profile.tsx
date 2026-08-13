@@ -10,6 +10,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 import { SettingsIcon } from '@/components/glyphs';
+import { useToast } from '@/components/ToastHost';
 import { DreamSection } from '@/components/profile/DreamSection';
 import { MomentFlash } from '@/components/profile/MomentFlash';
 import { ProfileEditForm } from '@/components/profile/ProfileEditForm';
@@ -62,6 +63,7 @@ function ProfileEditor({
 }) {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { showToast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
   const locale = profile.locale;
@@ -97,7 +99,10 @@ function ProfileEditor({
   const shareProfile = async () => {
     if (!shareMessage) return;
     try {
-      await Share.share({ message: shareMessage });
+      const { action } = await Share.share({ message: shareMessage });
+      if (action === Share.sharedAction) {
+        showToast(t('profile.share.done', locale), 'success');
+      }
     } catch {
       // user dismissed or share unavailable — no-op
     }
@@ -126,7 +131,7 @@ function ProfileEditor({
               {shareMessage != null && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('profile.share.toast', locale)}
+                  accessibilityLabel={t('profile.share.label', locale)}
                   hitSlop={HIT_SLOP}
                   onPress={() => void shareProfile()}
                 >
