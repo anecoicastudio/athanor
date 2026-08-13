@@ -70,9 +70,11 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
     enabled,
   });
   const rows = mediaQuery.data ?? [];
+  // Poster + media sign in the same call (momentSignPaths pattern): the card draws the thumb,
+  // the detail plays the mp4, and the two share one path → url map.
   const { urls, isLoading: urlsLoading } = useSignedUrls(
     'post-media',
-    rows.map((r) => r.storage_path),
+    rows.flatMap((r) => (r.thumb_path ? [r.storage_path, r.thumb_path] : [r.storage_path])),
   );
 
   if (!enabled) return null;
@@ -139,8 +141,43 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                 className="items-center justify-center overflow-hidden rounded-card bg-raise"
                 style={{ aspectRatio: ratio }}
                 onPress={onPress}
+                accessibilityRole="button"
+                accessibilityLabel={t('feed.video.playLabel', locale)}
               >
-                <Text className="text-4xl text-foreground">▶</Text>
+                {row.thumb_path === null ? (
+                  // A video with no poster is a STATE, not a failure (#318, MomentTile's fourth
+                  // state): it plays fine in the detail, it just has no still. Faint ▶ so it
+                  // reads as placeholder, not as the `foreground` ▶ over a real poster.
+                  <View
+                    className="absolute inset-0 items-center justify-center"
+                    accessible
+                    accessibilityLabel={t('media.noPoster.video', locale)}
+                  >
+                    <Text
+                      className="text-4xl text-faint"
+                      // Decorative: the wrapper above already announces the sentence.
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                    >
+                      ▶
+                    </Text>
+                  </View>
+                ) : (
+                  <MediaFrame
+                    kind="video"
+                    url={urls[row.thumb_path]}
+                    isLoading={urlsLoading}
+                    locale={locale}
+                    className="absolute inset-0"
+                    overlay={
+                      // Ready-state only: ▶ over a real poster promises the playback that a tap
+                      // delivers; over the unavailable ✦ it would promise the wrong thing.
+                      <View className="absolute inset-0 items-center justify-center">
+                        <Text className="text-4xl text-foreground">▶</Text>
+                      </View>
+                    }
+                  />
+                )}
                 {dur ? (
                   <View className="absolute bottom-2 right-2 rounded-ctl bg-surface-muted px-2 py-0.5">
                     <Text className="text-[11px] text-foreground">{dur}</Text>

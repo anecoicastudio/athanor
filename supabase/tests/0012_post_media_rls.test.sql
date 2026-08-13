@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(9);
+select plan(10);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -25,6 +25,11 @@ select ok(
   (select relrowsecurity from pg_class where oid = 'public.post_media'::regclass),
   'RLS enabled on post_media'
 );
+
+-- 2b. schema: the poster column exists and is nullable — extraction is best-effort (#318),
+-- so a video row written without a poster must be insertable.
+select col_is_null('public'::name, 'post_media'::name, 'thumb_path'::name,
+  'thumb_path exists and is nullable');
 
 -- 3. exactly the four expected policies
 select policies_are(

@@ -500,6 +500,7 @@
   "common.publish": "Publish",
   "post.compose.attach": "Add photo or video",
   "feed.audio": "Audio · {dur}",
+  "feed.video.playLabel": "Play the video",
   "media.processing": "Preparing…",
   "media.uploading": "Uploading… {pct}%",
   "media.uploadingIndeterminate": "Uploading…",

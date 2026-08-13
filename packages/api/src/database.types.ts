@@ -1838,6 +1838,7 @@ export type Database = {
           position: number
           post_id: string
           storage_path: string
+          thumb_path: string | null
           updated_at: string
           width: number | null
         }
@@ -1850,6 +1851,7 @@ export type Database = {
           position?: number
           post_id: string
           storage_path: string
+          thumb_path?: string | null
           updated_at?: string
           width?: number | null
         }
@@ -1862,6 +1864,7 @@ export type Database = {
           position?: number
           post_id?: string
           storage_path?: string
+          thumb_path?: string | null
           updated_at?: string
           width?: number | null
         }

@@ -19,6 +19,19 @@ export function postMediaPath(
   return `${uid}/${postId}/${index}.${kind === 'video' ? 'mp4' : 'jpg'}`;
 }
 
+/**
+ * Storage key for a post video's poster: `${uid}/${postId}/${index}-thumb.jpg`.
+ *
+ * Same `{uid}/…` folder as the mp4 it posters, because the post-media storage policies key on
+ * the first path segment (owner-write), and `media_process_enqueue` strips whatever lands in the
+ * bucket. The `-thumb` suffix keeps it clear of an image row's own `${index}.jpg` — position is
+ * unique per post, but the suffix says what the object is (same convention as `momentThumbPath`
+ * and `candidacyThumbPath`).
+ */
+export function postMediaThumbPath(uid: string, postId: string, index: number): string {
+  return `${uid}/${postId}/${index}-thumb.jpg`;
+}
+
 /** Storage key for a moment: `${uid}/${momentId}.{ext}`. */
 export function momentPath(uid: string, momentId: string, kind: PickedMedia['kind']): string {
   return `${uid}/${momentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
