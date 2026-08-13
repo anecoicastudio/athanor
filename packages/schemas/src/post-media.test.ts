@@ -8,6 +8,7 @@ const imageRow = {
   post_id: POST,
   kind: 'image',
   storage_path: 'uid/post/0.jpg',
+  thumb_path: null,
   duration_s: null,
   width: 800,
   height: 600,
@@ -64,9 +65,10 @@ describe('postMediaSchema', () => {
 });
 
 describe('postMediaInsertSchema', () => {
-  it('defaults duration and dimensions to null, so a minimal insert is a complete payload', () => {
+  it('defaults thumb, duration and dimensions to null, so a minimal insert is a complete payload', () => {
     expect(postMediaInsertSchema.parse(baseInsert)).toEqual({
       ...baseInsert,
+      thumb_path: null,
       duration_s: null,
       width: null,
       height: null,
@@ -94,6 +96,7 @@ describe('postMediaInsertSchema', () => {
       'position',
       'post_id',
       'storage_path',
+      'thumb_path',
       'width',
     ]);
   });
