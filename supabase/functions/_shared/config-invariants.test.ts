@@ -137,6 +137,32 @@ Deno.test('every function gates itself before parsing the body, because nothing 
   }
 });
 
+Deno.test('no internal function performs I/O before its gate', () => {
+  // The other half of rule 8's gate-first requirement (issue #271, was #140): body parse is
+  // covered above; this covers env reads, outbound fetches and the service-role client. The
+  // rule as practised is "before any I/O, env read, or body parse", not "literally the first
+  // statement" — a CORS/method preamble that touches nothing but the request object and
+  // returns a static response is harmless and stays legal (media-process answers OPTIONS and
+  // 405 ahead of its gate; erasure-job, gdpr-export-job and moderation-enforce have no
+  // preamble at all). What must NOT be reachable unauthenticated is anything observable:
+  // an env read, a network call, or a client construction. Module scope counts — an
+  // import-time supabaseAdmin() would run before the gate on every unauthenticated probe.
+  const IO_CALL = [/\bDeno\.env\.get\s*\(/, /\bfetch\s*\(/, /\bsupabaseAdmin\s*\(/];
+  for (const [name, posture] of Object.entries(POSTURE)) {
+    if (posture !== 'internal') continue;
+    const src = Deno.readTextFileSync(new URL(`../${name}/index.ts`, import.meta.url));
+    const gate = src.indexOf('requireServiceRole(req)');
+    assert(gate > -1, `${name} is internal but never calls requireServiceRole`);
+    for (const re of IO_CALL) {
+      const io = src.search(re);
+      assert(
+        io === -1 || gate < io,
+        `${name} performs I/O (${re.source}) before its service-role gate`,
+      );
+    }
+  }
+});
+
 Deno.test('every user-callable function calls requireUser', () => {
   for (const [name, posture] of Object.entries(POSTURE)) {
     if (posture !== 'user') continue;
