@@ -16,7 +16,13 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
-import { postMediaPath, processAndUpload } from '@/lib/media/upload';
+import { extractVideoPoster } from '@/lib/media/poster';
+import {
+  postMediaPath,
+  postMediaThumbPath,
+  processAndUpload,
+  uploadLocalFile,
+} from '@/lib/media/upload';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -57,6 +63,10 @@ export default function PostComposeScreen() {
               post_id: post.id,
               kind: item.kind,
               storage_path: up.storage_path,
+              thumb_path:
+                item.kind === 'video'
+                  ? await uploadPoster(authorId, post.id, index, up.localUri, up.duration_s)
+                  : null,
               position: index,
               width: up.width ?? null,
               height: up.height ?? null,
@@ -132,17 +142,31 @@ export default function PostComposeScreen() {
             <View className="flex-row flex-wrap gap-2">
               {items.map((item, index) => (
                 <View key={index} className="relative h-20 w-20">
-                  <Image
-                    source={{ uri: item.uri }}
-                    style={{ width: 80, height: 80, borderRadius: 8 }}
-                    resizeMode="cover"
-                  />
-                  {/* Video indicator */}
                   {item.kind === 'video' ? (
-                    <View className="absolute bottom-1 left-1">
-                      <Text className="text-[12px] text-foreground">▶</Text>
+                    // An <Image> handed a video file URI draws nothing (#318) — this tile was a
+                    // blank box with a ▶ badge. Same no-poster state the feed card falls back to:
+                    // dark fill, centred faint ▶ (MomentTile pairing — wrapper announces, glyph
+                    // is decorative).
+                    <View
+                      className="h-20 w-20 items-center justify-center rounded-[8px] bg-raise-2"
+                      accessible
+                      accessibilityLabel={t('media.noPoster.video', locale)}
+                    >
+                      <Text
+                        className="text-2xl text-faint"
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      >
+                        ▶
+                      </Text>
                     </View>
-                  ) : null}
+                  ) : (
+                    <Image
+                      source={{ uri: item.uri }}
+                      style={{ width: 80, height: 80, borderRadius: 8 }}
+                      resizeMode="cover"
+                    />
+                  )}
                   {/* Uploading dim overlay */}
                   {mutation.isPending ? (
                     <View
@@ -228,4 +252,39 @@ export default function PostComposeScreen() {
       </Screen>
     </KeyboardAvoiding>
   );
+}
+
+/**
+ * Extract a poster frame from an uploaded post video and put it beside the mp4, returning the
+ * storage path for `thumb_path` — or `null` if any part of that did not work out.
+ *
+ * Swallowing the failure is the design, exactly as in `use-moment-upload` (#281 rationale): by
+ * the time this runs the video is already in Storage and the member is waiting on their post;
+ * failing the publish because a decoder would not give up a frame would trade a working post for
+ * a missing one. The feed card reads the null and draws its own no-poster state instead.
+ *
+ * Extraction reads `processAndUpload`'s *processed* `localUri`, not the picked one — see the
+ * caution in `upload.ts`: the day `processVideo` transcodes, a poster taken from the picked file
+ * would be a frame of a video nobody uploaded.
+ *
+ * The poster shares the video's `{uid}/{postId}/…` folder, so the owner-write post-media storage
+ * policies cover it, and `media_process_enqueue` strips it server-side like any other object in
+ * the bucket.
+ */
+async function uploadPoster(
+  uid: string,
+  postId: string,
+  index: number,
+  localUri: string,
+  durationS: number | null | undefined,
+): Promise<string | null> {
+  try {
+    const poster = await extractVideoPoster(localUri, durationS);
+    if (!poster) return null;
+    const path = postMediaThumbPath(uid, postId, index);
+    await uploadLocalFile(poster.uri, { bucket: 'post-media', path }, 'image/jpeg');
+    return path;
+  } catch {
+    return null;
+  }
 }
