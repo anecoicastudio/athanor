@@ -16,9 +16,8 @@
       "url": "https://u.expo.dev/9eb6e3f0-ef63-4467-896e-16136b6fd68f"
     },
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.athanor.app",
-      "associatedDomains": ["applinks:www.athanor.workers.dev", "applinks:www.athanor.workers.dev"],
+      "associatedDomains": ["applinks:www.athanor.workers.dev"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
