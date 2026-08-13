@@ -42,8 +42,13 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //
     //     Tables to pseudonymize before (4):
     //       fund_contributions  — profile_id FK
-    //       event_tickets       — profile_id FK
+    //       event_tickets       — user_id FK (NOT profile_id — 20260615232924)
     //       circle_memberships  — profile_id FK
+    //     Chat is NOT on this list by design: conversations.participant_a/b are ON DELETE
+    //     CASCADE, so (4b) erases the member's conversations and their messages outright;
+    //     messages.sender_id's SET NULL no longer aborts that cascade since the
+    //     messages_user_shape widening (#336, 20260813163902). If counsel instead decides
+    //     to preserve counterpart conversations, that becomes a schema change here.
     //     Strategy (when legal gate clears): SET profile_id = '<tombstone-uuid>' WHERE profile_id = erasureReq.profile_id,
     //     so financial rows survive the auth.users cascade with a detached placeholder rather than being
     //     deleted. The tombstone profile row itself is a separate pre-seeded sentinel (no PII).
