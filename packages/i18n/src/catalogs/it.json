@@ -803,7 +803,6 @@
   "connection.accept": "Accetta",
   "connection.decline": "Rifiuta",
   "connection.connected": "Connessi ✦",
-  "connection.sent.toast": "Richiesta inviata",
   "connection.cancelled.toast": "Richiesta annullata",
   "connection.accepted.toast": "Vi siete connessi",
   "connection.failed": "Qualcosa non ha funzionato. Riprova.",

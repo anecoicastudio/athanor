@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { AccessibilityInfo } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelConnection,
@@ -12,23 +12,22 @@ import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Button } from '@/components/Button';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 /**
  * Profile action: send / cancel / accept-decline / connected, driven by the live
  * connection status for `peerId`. Flat cyan only (rule #4) — a connection is routine,
- * never a glow moment. Aura is never written here (rule #1).
+ * never a glow moment, which is also why its toasts carry no tone mark. Aura is never
+ * written here (rule #1). Feedback goes through the global toast host (#118); the
+ * private pill this component hand-rolled was the last ad-hoc Toast variant on the
+ * profile screen.
  */
 export function ConnectButton({ peerId, locale }: { peerId: string; locale: Locale }) {
   const queryClient = useQueryClient();
   const { session } = useAuth();
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 1600);
-  };
+  const { showToast } = useToast();
 
   const statusQuery = useQuery({
     queryKey: connectionKeys.status(peerId),
@@ -48,7 +47,10 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
     mutationFn: () => sendConnection(supabase, peerId),
     onSuccess: () => {
       invalidateAll();
-      showToast(t('connection.sent.toast', locale));
+      // No toast: the button itself flips to «Richiesta inviata» — the state change IS
+      // the feedback, and the removed toast said those exact words over it (#118).
+      // Screen readers can't see the flip, so announce the new state once.
+      AccessibilityInfo.announceForAccessibility(t('connection.pending', locale));
     },
     onError: () => {
       resyncStatus();
@@ -149,12 +151,6 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
           disabled
           onPress={() => {}}
         />
-      ) : null}
-
-      {toast ? (
-        <View className="absolute -top-12 self-center rounded-full border border-hair bg-raise-2 px-5 py-2">
-          <Text className="text-[14px] font-semibold text-foreground">{toast}</Text>
-        </View>
       ) : null}
     </View>
   );

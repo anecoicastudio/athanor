@@ -4,8 +4,7 @@ export type ToastTone = 'success' | 'moment';
 
 /**
  * Bottom toast pill — rendered ONLY by the ToastHost viewport (#117); screens
- * call `useToast().showToast(...)` instead of mounting this. (The one hold-out
- * is ConnectButton's hand-rolled pill, which #118 deletes.)
+ * call `useToast().showToast(...)` instead of mounting this.
  * One recipe (raised card, hairline, centered) — 4 ad-hoc variants existed
  * before this component; don't hand-roll new ones.
  *
