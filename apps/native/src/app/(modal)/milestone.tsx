@@ -7,7 +7,7 @@ import { ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -28,7 +28,7 @@ export default function MilestoneScreen() {
   const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
 
   const add = async () => {
     if (saving) return;
@@ -40,7 +40,8 @@ export default function MilestoneScreen() {
     setError(false);
     try {
       await addMilestone(supabase, { dream_id: dreamId, body });
-      setToast(true);
+      // The host keeps the toast alive across the pop (#117).
+      showToast(t('milestone.toast.added', locale), 'moment');
       setTimeout(() => router.back(), 700);
     } catch {
       setError(true);
@@ -93,8 +94,6 @@ export default function MilestoneScreen() {
           onPress={add}
         />
       </ScrollView>
-
-      {toast ? <Toast label={t('milestone.toast.added', locale)} tone="moment" /> : null}
     </Screen>
   );
 }

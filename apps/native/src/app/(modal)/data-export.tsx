@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
@@ -6,7 +5,7 @@ import { gdprKeys, getLatestExportJob, requestExport } from '@athanor/api';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast, type ToastTone } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -21,20 +20,7 @@ export default function DataExportScreen() {
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const qc = useQueryClient();
-  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashToast = useCallback((label: string, tone?: ToastTone) => {
-    setToast({ label, tone });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  }, []);
-  // Clear a pending toast timer on unmount so it can't setToast on a dead component.
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    [],
-  );
+  const { showToast } = useToast();
 
   const job = useQuery({
     queryKey: gdprKeys.exportStatus(),
@@ -47,10 +33,10 @@ export default function DataExportScreen() {
   const request = useMutation({
     mutationFn: () => requestExport(supabase),
     onSuccess: () => {
-      flashToast(t('gdpr.export.toast', locale), 'success');
+      showToast(t('gdpr.export.toast', locale), 'success');
       void qc.invalidateQueries({ queryKey: gdprKeys.exportStatus() });
     },
-    onError: () => flashToast(t('profile.error', locale)),
+    onError: () => showToast(t('profile.error', locale)),
   });
 
   return (
@@ -92,7 +78,6 @@ export default function DataExportScreen() {
           />
         ) : null}
       </ScrollView>
-      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

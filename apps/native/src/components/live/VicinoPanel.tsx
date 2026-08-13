@@ -13,7 +13,7 @@ import type { EventNearby } from '@athanor/schemas';
 import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
@@ -56,13 +56,8 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   const [denied, setDenied] = useState(false);
   const [city, setCity] = useState<string | null>(null);
   const [notified, setNotified] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { showToast } = useToast();
   const { session } = useAuth();
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
 
   const requestLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -137,7 +132,6 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
             </EmptyState>
           </View>
         </ScrollView>
-        {toast ? <Toast label={toast} /> : null}
       </View>
     );
   }
@@ -180,7 +174,6 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
         }}
         contentContainerClassName="pb-12"
       />
-      {toast ? <Toast label={toast} /> : null}
     </View>
   );
 }

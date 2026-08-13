@@ -140,74 +140,79 @@ export default function StoriesScreen() {
   }
 
   return (
-    <StoriesViewer
-      segments={segments}
-      urls={urls}
-      urlsLoading={urlsLoading}
-      name={name}
-      isOwn={isOwn}
-      viewerReacted={Boolean(reactionQuery.data)}
-      count={countQuery.data ?? 0}
-      locale={locale}
-      onClose={() => router.back()}
-      onAdvanceEnd={() => goToNextPerson(true)}
-      onAdvanceStart={goToPrevPerson}
-      onJumpNext={() => goToNextPerson(false)}
-      onJumpPrev={goToPrevPerson}
-      startAt={startAt}
-      onReact={async (seg) => {
-        if (!myId) return;
-        await toggleStoryReaction(supabase, seg.id, myId);
-        await queryClient.invalidateQueries({
-          queryKey: [...storyKeys.reactions(seg.id), 'viewer'],
-        });
-        Alert.alert(t('story.react.toast', locale));
-      }}
-      onSendReply={async (body) => {
-        // Reply sends into the DM in the background (#297) — the viewer is never left.
-        // Open-or-create is the canonical P3.5 pattern; the viewer owns the confirmation toast.
-        if (!myId || isOwn || !currentAuthorId) throw new Error('cannot reply');
-        const conversationId = await getOrCreateConversation(supabase, currentAuthorId);
-        await sendMessage(supabase, { conversationId, senderId: myId, body });
-      }}
-      onMakeDream={() => {
-        // Same sheet the dream card opens (PRD §132) — pick a tappa, then offer. Ungated:
-        // prefetching a dream per story view is not worth it, and a target with no dream
-        // lands on the picker's honest empty state rather than a toast (issue #109).
-        if (isOwn || !currentAuthorId) return;
-        router.push({ pathname: '/(modal)/help', params: { userId: currentAuthorId } });
-      }}
-      onAddMoment={() => {
-        // The story composer (#317) — this used to misroute to the profile Momenti gallery.
-        router.back();
-        router.push('/(modal)/story-compose');
-      }}
-      onPin={async (seg) => {
-        await pinStoryStep(supabase, seg.id);
-        await queryClient.invalidateQueries({ queryKey: storyKeys.person(currentAuthorId) });
-      }}
-      onDelete={(seg) => {
-        Alert.alert(t('story.own.delete.confirm', locale), undefined, [
-          { text: t('common.cancel', locale), style: 'cancel' },
-          {
-            text: t('story.own.delete', locale),
-            style: 'destructive',
-            onPress: () => {
-              void (async () => {
-                try {
-                  await softDeleteStorySegment(supabase, seg.id);
-                  await queryClient.invalidateQueries({
-                    queryKey: storyKeys.person(currentAuthorId),
-                  });
-                  router.back();
-                } catch {
-                  Alert.alert(t('story.own.delete.error', locale));
-                }
-              })();
+    // Screen with no edges: the viewer is full-bleed and owns its safe areas
+    // internally, but the wrapper still mounts the toast viewport (#117) —
+    // without it the reply-sent/reply-error toast has nowhere to render.
+    <Screen edges={[]}>
+      <StoriesViewer
+        segments={segments}
+        urls={urls}
+        urlsLoading={urlsLoading}
+        name={name}
+        isOwn={isOwn}
+        viewerReacted={Boolean(reactionQuery.data)}
+        count={countQuery.data ?? 0}
+        locale={locale}
+        onClose={() => router.back()}
+        onAdvanceEnd={() => goToNextPerson(true)}
+        onAdvanceStart={goToPrevPerson}
+        onJumpNext={() => goToNextPerson(false)}
+        onJumpPrev={goToPrevPerson}
+        startAt={startAt}
+        onReact={async (seg) => {
+          if (!myId) return;
+          await toggleStoryReaction(supabase, seg.id, myId);
+          await queryClient.invalidateQueries({
+            queryKey: [...storyKeys.reactions(seg.id), 'viewer'],
+          });
+          Alert.alert(t('story.react.toast', locale));
+        }}
+        onSendReply={async (body) => {
+          // Reply sends into the DM in the background (#297) — the viewer is never left.
+          // Open-or-create is the canonical P3.5 pattern; the viewer owns the confirmation toast.
+          if (!myId || isOwn || !currentAuthorId) throw new Error('cannot reply');
+          const conversationId = await getOrCreateConversation(supabase, currentAuthorId);
+          await sendMessage(supabase, { conversationId, senderId: myId, body });
+        }}
+        onMakeDream={() => {
+          // Same sheet the dream card opens (PRD §132) — pick a tappa, then offer. Ungated:
+          // prefetching a dream per story view is not worth it, and a target with no dream
+          // lands on the picker's honest empty state rather than a toast (issue #109).
+          if (isOwn || !currentAuthorId) return;
+          router.push({ pathname: '/(modal)/help', params: { userId: currentAuthorId } });
+        }}
+        onAddMoment={() => {
+          // The story composer (#317) — this used to misroute to the profile Momenti gallery.
+          router.back();
+          router.push('/(modal)/story-compose');
+        }}
+        onPin={async (seg) => {
+          await pinStoryStep(supabase, seg.id);
+          await queryClient.invalidateQueries({ queryKey: storyKeys.person(currentAuthorId) });
+        }}
+        onDelete={(seg) => {
+          Alert.alert(t('story.own.delete.confirm', locale), undefined, [
+            { text: t('common.cancel', locale), style: 'cancel' },
+            {
+              text: t('story.own.delete', locale),
+              style: 'destructive',
+              onPress: () => {
+                void (async () => {
+                  try {
+                    await softDeleteStorySegment(supabase, seg.id);
+                    await queryClient.invalidateQueries({
+                      queryKey: storyKeys.person(currentAuthorId),
+                    });
+                    router.back();
+                  } catch {
+                    Alert.alert(t('story.own.delete.error', locale));
+                  }
+                })();
+              },
             },
-          },
-        ]);
-      }}
-    />
+          ]);
+        }}
+      />
+    </Screen>
   );
 }

@@ -21,7 +21,7 @@ import { Avatar } from '@/components/Avatar';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SettingsGroup } from '@/components/settings/SettingsGroup';
-import { Toast, type ToastTone } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
@@ -45,7 +45,7 @@ export default function SettingsScreen() {
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
 
-  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
+  const { showToast } = useToast();
   const [langBusy, setLangBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -74,11 +74,6 @@ export default function SettingsScreen() {
     enabled: !!userId,
   });
   const aura = auraDisplayValue(auraSnapshot?.score, auraIsError);
-
-  const showToast = (label: string, tone?: ToastTone) => {
-    setToast({ label, tone });
-    setTimeout(() => setToast(null), 2500);
-  };
 
   const switchLocale = async (next: Locale) => {
     const userId = session?.user.id;
@@ -290,8 +285,6 @@ export default function SettingsScreen() {
           {t('settings.version', locale, { version })}
         </Text>
       </ScrollView>
-
-      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

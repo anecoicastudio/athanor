@@ -1,7 +1,8 @@
 import React from 'react';
 import { useCssElement } from 'react-native-css';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { cn } from '@/tw';
+import { View, cn } from '@/tw';
+import { ToastViewport } from '@/components/ToastHost';
 
 /**
  * Screen root — owns the top safe-area inset (#161) AND the bottom one (#163),
@@ -26,23 +27,49 @@ import { cn } from '@/tw';
  * `gutter` adds the DESIGN.md §6 20pt horizontal screen padding
  * (`spacing.gutter` / `--spacing-gutter`) for screens whose content doesn't
  * carry its own `px-*` on an inner container.
+ *
+ * Every Screen also mounts the global toast viewport (#117) — the pill's
+ * `bottom-10` measures from the CONTENT region, which is the whole Screen
+ * unless a `footer` is pinned. `footer` wraps the children in a flex-1 View
+ * with the footer below it, so a persistent action bar sits above the bottom
+ * inset and the toast band clears it by construction. In footer mode,
+ * content-alignment classNames (`items-center` …) stop reaching the children —
+ * they stay on the SafeAreaView; pad/align inside the footer-less content
+ * instead.
  */
 export type ScreenProps = React.ComponentProps<typeof SafeAreaView> & {
   className?: string;
   /** 20pt horizontal screen padding (DESIGN.md §6). Off by default: most screens pad an inner container. */
   gutter?: boolean;
+  /** Pinned action bar below the content region (#117). The toast band sits above it, not on it. */
+  footer?: React.ReactNode;
 };
 
 // Erased generic, same idiom as src/tw: exact public props, widened impl for useCssElement.
 const SafeAreaViewImpl = SafeAreaView as unknown as React.ComponentType<Record<string, unknown>>;
 
-export function Screen({ className, gutter, ...rest }: ScreenProps) {
+export function Screen({ className, gutter, footer, children, ...rest }: ScreenProps) {
+  const content = (
+    <>
+      {children}
+      <ToastViewport />
+    </>
+  );
   return useCssElement(
     SafeAreaViewImpl,
     {
       edges: ['top', 'bottom'],
       ...rest,
       className: cn('flex-1 bg-background', gutter && 'px-gutter', className),
+      children:
+        footer == null ? (
+          content
+        ) : (
+          <>
+            <View className="flex-1">{content}</View>
+            {footer}
+          </>
+        ),
     },
     { className: 'style' },
   );

@@ -12,7 +12,6 @@ import { DreamSection } from '@/components/profile/DreamSection';
 import { MomentFlash } from '@/components/profile/MomentFlash';
 import { ProfileEditForm } from '@/components/profile/ProfileEditForm';
 import { ProfileView } from '@/components/profile/ProfileView';
-import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { profileShareMessage } from '@/lib/profile-share';
 import { useOwnDream } from '@/hooks/use-own-dream';
@@ -66,7 +65,7 @@ function ProfileEditor({
   const locale = profile.locale;
 
   const dream = useOwnDream(userId);
-  const { starToast, starFlash } = useStarCelebration(userId, locale);
+  const { starFlash } = useStarCelebration(userId, locale);
 
   // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). Consumed in an
   // effect, not a useState initializer: trust dismissTo's back to this already-
@@ -173,11 +172,9 @@ function ProfileEditor({
         {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
         <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
 
-        {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash. */}
+        {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
+          The matching toast fires through the global host (#117). */}
         <MomentFlash visible={starFlash} locale={locale} />
-
-        {/* Star-earned toast: transient inline surface (shared Toast recipe). */}
-        {starToast ? <Toast label={starToast} /> : null}
       </ScrollView>
     </Screen>
   );

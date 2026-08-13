@@ -6,7 +6,7 @@ import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, TextInput } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -27,7 +27,7 @@ export default function DreamEditorScreen() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
 
   // Prefill with the current active dream when editing (empty draft when none).
   useEffect(() => {
@@ -61,7 +61,8 @@ export default function DreamEditorScreen() {
     setError(false);
     try {
       await upsertActiveDream(supabase, userId, text);
-      setToast(true);
+      // The host keeps the toast alive across the pop (#117).
+      showToast(t('dream.toast.saved', locale), 'moment');
       setTimeout(() => router.back(), 700);
     } catch {
       setError(true);
@@ -111,8 +112,6 @@ export default function DreamEditorScreen() {
           onPress={save}
         />
       </ScrollView>
-
-      {toast ? <Toast label={t('dream.toast.saved', locale)} tone="moment" /> : null}
     </Screen>
   );
 }

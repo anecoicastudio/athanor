@@ -24,7 +24,7 @@ import type { AuraSnapshot, Help, Locale, Milestone, PersonProfile, Star } from 
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast, type ToastTone } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/profile/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -65,12 +65,7 @@ export default function PersonDetailScreen() {
   const [stars, setStars] = useState<Star[] | null>(null);
   const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
-
-  const showToast = (label: string, tone?: ToastTone) => {
-    setToast({ label, tone });
-    setTimeout(() => setToast(null), 1500);
-  };
+  const { showToast } = useToast();
 
   // Self guard — never double-render the own profile; bounce to the owner tab.
   const isSelf = id != null && id === session?.user?.id;
@@ -302,7 +297,6 @@ export default function PersonDetailScreen() {
         <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
           <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
         </ScrollView>
-        {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
       </Screen>
     );
   }
@@ -324,7 +318,31 @@ export default function PersonDetailScreen() {
   const hasHelpableTappa = helpableMilestones(tappe, myHelps).length > 0;
 
   return (
-    <Screen>
+    <Screen
+      footer={
+        /* Action bar — pinned footer (#117), not scroll content: the two things the screen
+          exists for stay tappable at any scroll position, and the toast band clears them by
+          construction. «Scrivi» opens-or-creates the conversation; «Connetti» drives the
+          full connection-requests state machine (M5). */
+        <View className="flex-row items-center gap-4 border-t border-hair px-5 pb-3 pt-3">
+          <View className="flex-1">
+            <Button
+              label={t('profile.write.cta', locale)}
+              variant="ghost"
+              onPress={async () => {
+                try {
+                  const conversationId = await getOrCreateConversation(supabase, id);
+                  router.push(`/chat?conversationId=${conversationId}`);
+                } catch {
+                  showToast(t('chat.openFailed', locale));
+                }
+              }}
+            />
+          </View>
+          <ConnectButton peerId={id} locale={locale} />
+        </View>
+      }
+    >
       <ModalHeader
         title={person.handle ?? ''}
         backLabel={t('common.back', locale)}
@@ -397,26 +415,6 @@ export default function PersonDetailScreen() {
           <EmptyState>{t('profile.reviews.empty', locale)}</EmptyState>
         </View>
 
-        {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» drives the
-          full connection-requests state machine (M5). */}
-        <View className="flex-row items-center gap-4">
-          <View className="flex-1">
-            <Button
-              label={t('profile.write.cta', locale)}
-              variant="ghost"
-              onPress={async () => {
-                try {
-                  const conversationId = await getOrCreateConversation(supabase, id);
-                  router.push(`/chat?conversationId=${conversationId}`);
-                } catch {
-                  showToast(t('chat.openFailed', locale));
-                }
-              }}
-            />
-          </View>
-          <ConnectButton peerId={id} locale={locale} />
-        </View>
-
         <Lightbox
           moments={moments}
           urls={urls}
@@ -427,7 +425,6 @@ export default function PersonDetailScreen() {
           onIndexChange={setLightboxIndex}
         />
       </ScrollView>
-      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }
