@@ -64,4 +64,21 @@ describe('notificationSchema', () => {
     };
     expect(notificationSchema.parse(row).template_key).toBe('notif.tpl.connectionAccepted');
   });
+
+  // #125: the help-status producers write these two keys; they must not degrade to generic.
+  it('admits the help-status template keys', () => {
+    for (const key of ['notif.tpl.helpAccepted', 'notif.tpl.helpConfirmed']) {
+      const row = {
+        id: '11111111-1111-1111-1111-111111111111',
+        recipient_id: '22222222-2222-2222-2222-222222222222',
+        type: 'dreamMilestone',
+        template_key: key,
+        params: { name: 'Marco' },
+        entity_ref: { kind: 'milestone_help', id: 'abc' },
+        read_at: null,
+        created_at: '2026-06-20T10:00:00Z',
+      };
+      expect(notificationSchema.parse(row).template_key).toBe(key);
+    }
+  });
 });

@@ -93,6 +93,21 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: '✦',
       enHas: '✦',
     },
+    {
+      templateKey: 'notif.tpl.helpAccepted',
+      type: 'dreamMilestone',
+      params: { name: 'Nadia' },
+      itHas: 'Nadia',
+      enHas: 'Nadia',
+    },
+    // the Aura-earning transition carries the ✦; helpAccepted (no Aura) must not
+    {
+      templateKey: 'notif.tpl.helpConfirmed',
+      type: 'dreamMilestone',
+      params: { name: 'Nadia' },
+      itHas: '✦',
+      enHas: '✦',
+    },
   ];
   for (const c of cases) {
     for (const [locale, needle] of [
