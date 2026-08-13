@@ -20,6 +20,7 @@ import type { Notification } from '@athanor/schemas';
  *  ankh     → ◎  (ring/circle — fund milestone)
  *  vesica2  → ◈  (diamond in square — projects)
  *  link     → ◌  (dashed circle — connection)
+ *  triangle → △  (outline triangle — moderation warn, #313)
  */
 type Visual = { glyph: string; accentClass: string; celebratory: boolean };
 
@@ -31,6 +32,8 @@ export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
   fundMilestone: { glyph: '◎', accentClass: 'bg-raise-2', celebratory: false },
   projectResponse: { glyph: '◈', accentClass: 'bg-raise-2', celebratory: false },
   connection: { glyph: '◌', accentClass: 'bg-raise-2', celebratory: false },
+  // #313 warn verdicts — neutral fill like every non-moment type; a sanction is not a moment.
+  moderation: { glyph: '△', accentClass: 'bg-raise-2', celebratory: false },
 };
 
 /** Maps each type to the i18n lead key (bold prefix on the row). Typed MessageKey so a lead
@@ -43,6 +46,7 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   fundMilestone: 'notif.type.fundMilestone',
   projectResponse: 'notif.type.projectResponse',
   connection: 'notif.type.connection',
+  moderation: 'notif.type.moderation',
 };
 
 /** Per-template lead overrides, checked before NOTIF_LEAD. The help* templates reuse type

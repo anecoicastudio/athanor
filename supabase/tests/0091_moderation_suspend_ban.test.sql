@@ -7,7 +7,7 @@
 -- The GoTrue half (ban_duration) is asserted in moderation-enforce/logic.test.ts.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(44);
 
 -- ── setup ────────────────────────────────────────────────────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
@@ -29,7 +29,9 @@ insert into public.reports (id, reporter_id, target_type, target_id, category) v
   ('dddddddd-0000-0000-0000-000000000001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
   ('dddddddd-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
   ('dddddddd-0000-0000-0000-000000000003','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
-  ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','post', null,'spam');
+  ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','post', null,'spam'),
+  -- a post report whose target survives — the warn producer resolves the AUTHOR (#313)
+  ('dddddddd-0000-0000-0000-000000000005','cccccccc-cccc-cccc-cccc-cccccccccccc','post','aaaaaaaa-0000-0000-0000-000000000001','spam');
 
 set local role service_role;
 select set_config('test.conv',
@@ -42,6 +44,9 @@ reset role;
 -- pg_net's worker never sees uncommitted rows, so net.http_request_queue witnesses payloads.
 select set_config('app.settings.moderation_enforce_url', 'http://enforce.invalid/functions/v1/moderation-enforce', true);
 select set_config('app.settings.moderation_enforce_key', 'sb_secret_pgtap_dummy_key', true);
+-- fan-out configured too (#313): the warn producer posts through athanor.enqueue_notification
+select set_config('app.settings.notification_fanout_url', 'http://fanout.invalid/functions/v1/notification-fan-out', true);
+select set_config('app.settings.notification_fanout_key', 'sb_secret_pgtap_dummy_key', true);
 select set_config('test.until', (now() + interval '7 days')::text, false);
 
 -- ── (A) an ACTIVE member writes fine — the cause of every later 42501 is the gate ────────
@@ -86,6 +91,49 @@ select is(
   (select suspended_until is null and banned_at is null from public.profiles
     where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
   true, 'warn leaves the profile untouched');
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb ->> 'recipient_id'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'template_key' = 'notif.tpl.warn'
+    order by q.id desc limit 1),
+  'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  'warn enqueues one notification to the reported member (#313)');
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb -> 'params' ->> 'reason'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'template_key' = 'notif.tpl.warn'
+    order by q.id desc limit 1),
+  'harassment',
+  'the payload carries the report category as the reason token');
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb ->> 'type'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'template_key' = 'notif.tpl.warn'
+    order by q.id desc limit 1),
+  'moderation',
+  'the warn rides the moderation type');
+
+-- ── (C2) warn recipients beyond the person target (#313) ─────────────────────────────────
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated","app_metadata":{"role":"admin"}}';
+select lives_ok(
+  $$ select public.resolve_report('dddddddd-0000-0000-0000-000000000005','upheld','richiamo','warn') $$,
+  'admin warns a post report');
+select lives_ok(
+  $$ select public.resolve_report('dddddddd-0000-0000-0000-000000000004','upheld','richiamo','warn') $$,
+  'admin warns a report that names no subject');
+reset role;
+select is(
+  (select convert_from(q.body, 'utf8')::jsonb ->> 'recipient_id'
+     from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'template_key' = 'notif.tpl.warn'
+    order by q.id desc limit 1),
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  'a post-report warn notifies the post author');
+select is(
+  (select count(*)::int from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'template_key' = 'notif.tpl.warn'),
+  2, 'a warn with no subject enqueues nothing — audit-only');
 
 -- ── (D) suspend writes state + audit + enqueues the auth half ────────────────────────────
 set local role authenticated;

@@ -60,11 +60,17 @@ describe('routeForNotification — eventReminder needs its entity_ref', () => {
 });
 
 describe('routeForNotification — coverage of the canonical type set', () => {
-  it('every one of the seven types resolves to a route', () => {
+  it('every type except moderation resolves to a route', () => {
     for (const type of NOTIFICATION_TYPES) {
+      if (type === 'moderation') continue; // deliberate null — asserted below
       const n = notif({ type, entity_ref: { kind: 'event', id: 'ev-1' } });
       expect(routeForNotification(n)).not.toBeNull();
     }
+  });
+
+  it('moderation stays put — the warn row is the outcome, not a doorway (#313)', () => {
+    const n = notif({ type: 'moderation', entity_ref: { kind: 'report', id: 'r-1' } });
+    expect(routeForNotification(n)).toBeNull();
   });
 
   it('an unknown type is ignored rather than routed somewhere wrong', () => {

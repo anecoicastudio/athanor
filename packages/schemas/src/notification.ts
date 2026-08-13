@@ -19,6 +19,11 @@ export const NOTIFICATION_TYPES = [
   // only CTA on a project is currently a toast (#133). Ships with that surface.
   'projectResponse',
   'connection',
+  // Governance notices (#313, upheld warn verdicts). Deliberately NO PREF_ROWS entry — like
+  // 'connection', it has no per-type mute: the in-app row always lands, push obeys only the
+  // master toggle. A member must not be able to silence their own warnings via an unrelated
+  // preference, which is why this is a new type rather than a reuse.
+  'moderation',
 ] as const;
 export const notificationType = z.enum(NOTIFICATION_TYPES);
 export type NotificationType = z.infer<typeof notificationType>;
@@ -45,6 +50,9 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.connectionAccepted',
   'notif.tpl.helpAccepted',
   'notif.tpl.helpConfirmed',
+  // #313: one per upheld warn verdict. `reason` param is a reports.category TOKEN — the
+  // client localizes it via report.reason.* (displayParams), the push mirror via its own map.
+  'notif.tpl.warn',
   'notif.tpl.generic',
 ] as const;
 export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);

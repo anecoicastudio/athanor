@@ -108,6 +108,14 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: '✦',
       enHas: '✦',
     },
+    // #313: `reason` is a reports.category TOKEN — the template must render the label
+    {
+      templateKey: 'notif.tpl.warn',
+      type: 'moderation',
+      params: { reason: 'harassment' },
+      itHas: 'Molestie o comportamento offensivo',
+      enHas: 'Harassment or abusive behavior',
+    },
   ];
   for (const c of cases) {
     for (const [locale, needle] of [
@@ -128,6 +136,23 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       assertEquals(msgs[0].title.length > 0, true, `${c.templateKey} ${locale} has a title`);
     }
   }
+});
+
+Deno.test('an unknown reason token degrades to itself, never to undefined', () => {
+  const msgs = buildPushMessages(
+    ['ExponentPushToken[a]'],
+    {
+      type: 'moderation',
+      templateKey: 'notif.tpl.warn',
+      params: { reason: 'a_category_this_mirror_never_met' },
+      entityRef: 'x',
+      locale: 'it',
+    },
+    allValid,
+  );
+  assertEquals(msgs[0].body.includes('a_category_this_mirror_never_met'), true);
+  assertEquals(msgs[0].body.includes('undefined'), false);
+  assertEquals(msgs[0].data.route, 'trust');
 });
 
 Deno.test('falls back to IT for an unknown locale and empty for an unknown template', () => {
