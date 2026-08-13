@@ -33,7 +33,7 @@ export function WeekCard({
           something to bet a type scale on. Either fold it to 11px or give SectionLabel a real
           size prop — both are visual decisions, so neither belongs in a no-pixel-change sweep. */}
       <View className="flex-row items-center justify-between">
-        <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-aura">
+        <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-aura">
           {t('recap.weekTitle' as MessageKey, locale)}
         </Text>
         <Text className="text-[12px] text-muted-foreground">

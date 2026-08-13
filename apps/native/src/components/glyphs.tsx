@@ -126,3 +126,28 @@ export function BellIcon({ size = 22, color }: GlyphProps) {
     </Svg>
   );
 }
+
+export function SettingsIcon({ size = 22, color }: GlyphProps) {
+  // Sun-wheel: circumpunct + eight radial ticks — the icon system's gear
+  // (compass-and-ruler geometry per DESIGN §6, replacing a U+2699 text char
+  // that fell back to the emoji font). Same 2px header stroke as above.
+  const c = color ?? semantic.foregroundMuted;
+  const ticks = Array.from({ length: 8 }, (_, i) => {
+    const a = (i * Math.PI) / 4;
+    return {
+      x1: 12 + 7.4 * Math.cos(a),
+      y1: 12 + 7.4 * Math.sin(a),
+      x2: 12 + 10 * Math.cos(a),
+      y2: 12 + 10 * Math.sin(a),
+    };
+  });
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Circle cx={12} cy={12} r={5.6} {...stroke(c)} />
+      <Circle cx={12} cy={12} r={1.5} fill={c} />
+      {ticks.map((p, i) => (
+        <Line key={i} x1={p.x1} y1={p.y1} x2={p.x2} y2={p.y2} {...stroke(c)} />
+      ))}
+    </Svg>
+  );
+}

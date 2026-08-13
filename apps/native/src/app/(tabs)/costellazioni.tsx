@@ -75,9 +75,15 @@ export default function CostellazioniScreen() {
               <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
-            <View className="flex-row items-center justify-between px-5">
-              <SectionLabel>{t('costellazioni.board.label', locale)}</SectionLabel>
-              <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={HIT_SLOP}>
+            <View className="flex-row items-center justify-between gap-3 px-5">
+              <SectionLabel numberOfLines={1} className="shrink">
+                {t('costellazioni.board.label', locale)}
+              </SectionLabel>
+              <Pressable
+                onPress={() => router.push(COMPOSE_HREF)}
+                hitSlop={HIT_SLOP}
+                className="shrink-0"
+              >
                 <Text className="text-[13px] text-aura">{t('costellazioni.publish', locale)}</Text>
               </Pressable>
             </View>

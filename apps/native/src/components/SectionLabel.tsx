@@ -4,7 +4,7 @@ import { cn, Text } from '@/tw';
 /**
  * Small-caps micro label heading a section or a screen (DESIGN §4 micro: 11/600).
  *
- * The one home for `text-[11px] font-semibold uppercase tracking-[0.16em]`, which had been
+ * The one home for `text-[11px] font-semibold uppercase tracking-[0.18em]`, which had been
  * hand-copied to 53 sites while this component sat in 21 others. Add eyebrows here, not inline.
  *
  * `tone` preserves the colours those sites already used — it is NOT four interchangeable
@@ -28,14 +28,17 @@ export function SectionLabel({
   children,
   tone = 'faint',
   className,
+  numberOfLines,
 }: {
   children: ReactNode;
   tone?: keyof typeof TONE;
   className?: string;
+  numberOfLines?: number;
 }) {
   return (
     <Text
-      className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', TONE[tone], className)}
+      className={cn('text-[11px] font-semibold uppercase tracking-[0.18em]', TONE[tone], className)}
+      numberOfLines={numberOfLines}
     >
       {children}
     </Text>

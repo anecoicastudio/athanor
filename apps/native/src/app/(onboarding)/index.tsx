@@ -111,7 +111,10 @@ export default function OnboardingScreen() {
       >
         {/* Top bar: «Completa il profilo» (+ back) left, «Hai un account? Accedi» right. */}
         <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-row items-center gap-3">
+          {/* Yoga's default flexShrink is 0, so without flex-1 here + shrink-0 on the login
+            link the row overflows the gutter instead of compressing (EN strings are ~40pt
+            wider than IT on a 390pt device). The eyebrow is the yielding side. */}
+          <View className="flex-1 flex-row items-center gap-3">
             {/* The back slot is reserved unconditionally (#164): a conditionally rendered
               arrow moved the eyebrow's x-origin ~25pt between step 0 and 1. The slot is a
               real 44pt tap target (DESIGN §10 — the old bare glyph + hitSlop measured
@@ -126,13 +129,15 @@ export default function OnboardingScreen() {
                   accessibilityLabel={t('onboarding.back', locale)}
                   className="h-11 w-11 items-center justify-center"
                 >
-                  <Text className="text-muted-foreground">←</Text>
+                  <Text className="text-2xl text-foreground">‹</Text>
                 </Pressable>
               ) : null}
             </View>
-            <SectionLabel>{t('onboarding.eyebrow', locale)}</SectionLabel>
+            <SectionLabel numberOfLines={1} className="shrink">
+              {t('onboarding.eyebrow', locale)}
+            </SectionLabel>
           </View>
-          <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8}>
+          <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8} className="shrink-0">
             <Text className="text-[13px] font-semibold text-aura">
               {t('auth.haveAccount', locale)}
             </Text>
