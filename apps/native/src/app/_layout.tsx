@@ -25,7 +25,7 @@ import { BrandSplash } from '@/components/boot/BrandSplash';
 import { BootGate } from '@/components/boot/BootGate';
 import { ProfileErrorScreen } from '@/components/boot/ProfileErrorScreen';
 import { SentryConsentGate } from '@/components/boot/SentryConsentGate';
-import { asyncStoragePersister, queryClient } from '@/lib/query-client';
+import { asyncStoragePersister, queryClient, shouldDehydrateQuery } from '@/lib/query-client';
 import { supabase } from '@/lib/supabase';
 
 SplashScreen.preventAutoHideAsync();
@@ -121,7 +121,10 @@ function RootLayout() {
       <AuthProvider>
         <PersistQueryClientProvider
           client={queryClient}
-          persistOptions={{ persister: asyncStoragePersister }}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            dehydrateOptions: { shouldDehydrateQuery },
+          }}
         >
           <StatusBar style="light" />
           {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
