@@ -116,6 +116,14 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: 'Molestie o comportamento offensivo',
       enHas: 'Harassment or abusive behavior',
     },
+    // #129: fixed body, no params — and never a download URL in the push payload
+    {
+      templateKey: 'notif.tpl.gdprExport',
+      type: 'gdprExport',
+      params: {},
+      itHas: 'Il tuo archivio è pronto',
+      enHas: 'Your archive is ready',
+    },
   ];
   for (const c of cases) {
     for (const [locale, needle] of [

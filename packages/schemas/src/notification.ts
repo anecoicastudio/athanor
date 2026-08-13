@@ -24,6 +24,9 @@ export const NOTIFICATION_TYPES = [
   // master toggle. A member must not be able to silence their own warnings via an unrelated
   // preference, which is why this is a new type rather than a reuse.
   'moderation',
+  // «Your archive is ready» (#129, gdpr_export_jobs status→ready). Same no-PREF_ROWS stance
+  // as 'moderation': the delivery of a member's own data must not be mutable by type.
+  'gdprExport',
 ] as const;
 export const notificationType = z.enum(NOTIFICATION_TYPES);
 export type NotificationType = z.infer<typeof notificationType>;
@@ -53,6 +56,8 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   // #313: one per upheld warn verdict. `reason` param is a reports.category TOKEN — the
   // client localizes it via report.reason.* (displayParams), the push mirror via its own map.
   'notif.tpl.warn',
+  // #129: gdpr_export_jobs status→ready — no params; the row routes to Settings → Data Export.
+  'notif.tpl.gdprExport',
   'notif.tpl.generic',
 ] as const;
 export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);

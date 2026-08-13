@@ -13,8 +13,9 @@ import { Screen } from '@/components/Screen';
 
 /**
  * GDPR data export (09 §3.5.1). Request → processing → ready. The archive is assembled server-side
- * by the gdpr-export-job and emailed as a time-limited signed link; this screen mirrors the status
- * and surfaces the same link when ready. Neutral chrome, flat cyan CTA — no glow (rule #4).
+ * by the gdpr-export-job; when it flips to ready the member gets a gdprExport notification (#129)
+ * that routes back here, where the time-limited signed link is served. Neutral chrome, flat cyan
+ * CTA — no glow (rule #4).
  */
 export default function DataExportScreen() {
   const { profile } = useAuth();
