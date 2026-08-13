@@ -263,9 +263,15 @@ export default function SettingsScreen() {
               const link = referralCode ? ` ${INVITE_URL_BASE}/${referralCode}` : '';
               Share.share({
                 message: `${t('home.invite', locale)} — ${t('app.name', locale)}${link}`,
-              }).catch(() => {
-                // user dismissed the sheet — no-op
-              });
+              })
+                .then(({ action }) => {
+                  if (action === Share.sharedAction) {
+                    showToast(t('home.invite.done', locale), 'success');
+                  }
+                })
+                .catch(() => {
+                  // user dismissed the sheet — no-op
+                });
             }}
           />
         </SettingsGroup>

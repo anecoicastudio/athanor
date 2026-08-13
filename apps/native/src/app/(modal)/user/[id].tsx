@@ -243,7 +243,10 @@ export default function PersonDetailScreen() {
   const shareProfile = async () => {
     if (!shareMessage) return;
     try {
-      await Share.share({ message: shareMessage });
+      const { action } = await Share.share({ message: shareMessage });
+      if (action === Share.sharedAction) {
+        showToast(t('profile.share.done', locale), 'success');
+      }
     } catch {
       // user dismissed or share unavailable — no-op
     }
