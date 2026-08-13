@@ -108,7 +108,7 @@ export default function CommunityScreen() {
 
   if (query.isLoading) {
     return (
-      <Screen className="pt-12">
+      <Screen className="pt-4">
         <FeedSkeleton />
       </Screen>
     );
@@ -144,8 +144,12 @@ export default function CommunityScreen() {
         ListHeaderComponent={
           <View className="gap-4 py-4">
             {/* h1 + compose, per DESIGN §8.3 — the in-content header (§6 → Screen headers). */}
-            <View className="flex-row items-center justify-between px-5">
-              <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
+            <View className="flex-row items-center justify-between gap-3 px-5">
+              <Text
+                accessibilityRole="header"
+                className="flex-1 text-2xl font-semibold text-foreground"
+                numberOfLines={1}
+              >
                 {t('community.title', locale)}
               </Text>
               <Pressable

@@ -5,9 +5,11 @@ import { auraKeys, starKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Profile } from '@athanor/schemas';
 import { Share } from 'react-native';
+import { semantic } from '@athanor/config';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
+import { SettingsIcon } from '@/components/glyphs';
 import { DreamSection } from '@/components/profile/DreamSection';
 import { MomentFlash } from '@/components/profile/MomentFlash';
 import { ProfileEditForm } from '@/components/profile/ProfileEditForm';
@@ -117,8 +119,10 @@ function ProfileEditor({
         {!editing ? (
           <>
             {/* Header row: share + edit toggle — sized to the 24px icon scale
-              (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. */}
-            <View className="flex-row items-center justify-end gap-5">
+              (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. gap-6 (24px)
+              keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
+              side, so anything under 22px overlaps and taps cross-fire. */}
+            <View className="flex-row items-center justify-end gap-6">
               {shareMessage != null && (
                 <Pressable
                   accessibilityRole="button"
@@ -135,7 +139,7 @@ function ProfileEditor({
                 hitSlop={HIT_SLOP}
                 onPress={() => router.push('/(modal)/settings')}
               >
-                <Text className="text-2xl text-faint">⚙</Text>
+                <SettingsIcon size={24} color={semantic.faint} />
               </Pressable>
               <Pressable
                 onPress={() => setEditing(true)}

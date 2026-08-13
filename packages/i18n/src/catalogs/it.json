@@ -194,6 +194,7 @@
   "auth.email.placeholder": "nome@esempio.it",
   "auth.error.invalidLink": "Il varco è scaduto. Chiedine uno nuovo.",
   "auth.error.generic": "Qualcosa non ha funzionato. Riprova.",
+  "auth.error.network": "La rete non risponde. Controlla la connessione e riprova.",
   "auth.error.invalidEmail": "Questa email non sembra valida.",
   "auth.error.rateLimit": "Troppi tentativi. Riprova tra poco.",
   "auth.error.invalidCredentials": "Email o password non corretti.",

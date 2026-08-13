@@ -132,9 +132,11 @@ export default function CandidacyWizard() {
             accessibilityRole="button"
             accessibilityLabel={t('common.back', locale)}
           >
-            <Text className="text-muted-foreground">←</Text>
+            <Text className="text-2xl text-foreground">‹</Text>
           </Pressable>
-          <SectionLabel tone="aura">{t('candidacy.eyebrow', locale)}</SectionLabel>
+          <SectionLabel tone="aura" numberOfLines={1} className="shrink">
+            {t('candidacy.eyebrow', locale)}
+          </SectionLabel>
         </View>
 
         {/* Step dots (5 dots, current and past filled cyan) */}

@@ -41,7 +41,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { session, profile, refreshProfile } = useAuth();
+  const { session, profile, refreshProfile, signOut: endSession } = useAuth();
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
 
@@ -96,7 +96,7 @@ export default function SettingsScreen() {
     showToast(t('settings.logout.toast', locale), 'moment');
     // Brief farewell, then end the session — AuthGuard routes to (auth)/welcome.
     setTimeout(() => {
-      supabase.auth.signOut().catch(() => setSigningOut(false));
+      endSession().catch(() => setSigningOut(false));
     }, 700);
   };
 

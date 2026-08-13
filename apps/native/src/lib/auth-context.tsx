@@ -6,6 +6,7 @@ import type { Profile } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
+import { asyncStoragePersister, queryClient } from './query-client';
 import { registerForPush, unregisterPush } from './push';
 
 type AuthState = {
@@ -21,6 +22,11 @@ type AuthState = {
    *  a broken read apart from a new account and show something instead of freezing. */
   profileError: boolean;
   refreshProfile: () => Promise<void>;
+  /** End the session. Unregisters the push token FIRST — after auth signOut the
+   *  DELETE on push_tokens would run as anon, which the grants deny by design
+   *  (42501). Every sign-out initiator goes through here, never straight to
+   *  supabase.auth.signOut(). */
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState>({
@@ -30,6 +36,7 @@ const AuthContext = createContext<AuthState>({
   flushing: false,
   profileError: false,
   refreshProfile: async () => {},
+  signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -40,6 +47,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileError, setProfileError] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const pushTokenRef = useRef<string | null>(null);
+
+  const signOut = useCallback(async () => {
+    // Best-effort while the JWT still exists (unregisterPush swallows failures);
+    // the ref is cleared here so the !next branch below doesn't retry as anon.
+    await unregisterPush(pushTokenRef.current);
+    pushTokenRef.current = null;
+    await supabase.auth.signOut();
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     const userId = sessionRef.current?.user.id ?? null;
@@ -74,8 +89,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!next) {
         setProfile(null); // sign-out clears profile here (event handler, not effect)
         setProfileError(false);
-        void unregisterPush(pushTokenRef.current);
+        // No unregisterPush here: with the session gone the DELETE runs as anon
+        // and 42501s (e.g. a revoked session at boot after an account deletion).
+        // The signOut() helper unregisters while authenticated; a token this
+        // branch can't remove is pruned server-side on a DeviceNotRegistered
+        // receipt (push-dispatch) or by the profiles cascade.
         pushTokenRef.current = null;
+        // The persisted TanStack cache holds the signed-out account's profile
+        // and feed; drop both the live cache and the AsyncStorage copy so
+        // nothing rehydrates into the next session.
+        queryClient.clear();
+        void asyncStoragePersister.removeClient();
       } else if (
         event === 'SIGNED_IN' ||
         event === 'INITIAL_SESSION' ||
@@ -142,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, loading, flushing, profileError, refreshProfile }}
+      value={{ session, profile, loading, flushing, profileError, refreshProfile, signOut }}
     >
       {children}
     </AuthContext.Provider>

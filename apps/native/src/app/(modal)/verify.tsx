@@ -101,8 +101,8 @@ export default function VerifyScreen() {
         {/* grab handle */}
         <View className="mx-auto h-1 w-10 rounded-full bg-hair" />
         {/* head */}
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-foreground">
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="flex-1 text-xl font-bold text-foreground" numberOfLines={1}>
             {t('trust.verify.title', locale)}
           </Text>
           <Pressable
