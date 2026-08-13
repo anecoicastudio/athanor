@@ -359,7 +359,7 @@
   "profile.stars.title": "The six stars",
   "profile.stars.yourUnavailable": "We can't read your stars. Try again in a moment.",
   "profile.stars.theirUnavailable": "We can't read their stars.",
-  "profile.share.toast": "Share profile",
+  "profile.share.label": "Share profile",
   "profile.share.done": "Profile shared",
   "profile.aura.label": "your Aura",
   "profile.aura.how": "How it's built ›",

@@ -131,7 +131,7 @@ function ProfileEditor({
               {shareMessage != null && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('profile.share.toast', locale)}
+                  accessibilityLabel={t('profile.share.label', locale)}
                   hitSlop={HIT_SLOP}
                   onPress={() => void shareProfile()}
                 >

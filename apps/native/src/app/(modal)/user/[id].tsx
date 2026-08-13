@@ -259,7 +259,7 @@ export default function PersonDetailScreen() {
         <Pressable
           onPress={() => void shareProfile()}
           accessibilityRole="button"
-          accessibilityLabel={t('profile.share.toast', locale)}
+          accessibilityLabel={t('profile.share.label', locale)}
           hitSlop={8}
         >
           <Text className="text-xl text-aura">✦</Text>
