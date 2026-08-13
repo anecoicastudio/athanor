@@ -106,22 +106,30 @@ export default function OnboardingScreen() {
     <Screen>
       <ScrollView
         className="flex-1"
-        contentContainerClassName="grow px-7 pb-9 pt-4"
+        contentContainerClassName="grow px-5 pb-9 pt-4"
         keyboardShouldPersistTaps="handled"
       >
         {/* Top bar: «Completa il profilo» (+ back) left, «Hai un account? Accedi» right. */}
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-row items-center gap-3">
-            {step > 0 ? (
-              <Pressable
-                onPress={() => setStep((s) => s - 1)}
-                accessibilityRole="button"
-                accessibilityLabel={t('onboarding.back', locale)}
-                hitSlop={12}
-              >
-                <Text className="text-muted-foreground">←</Text>
-              </Pressable>
-            ) : null}
+            {/* The back slot is reserved unconditionally (#164): a conditionally rendered
+              arrow moved the eyebrow's x-origin ~25pt between step 0 and 1. The slot is a
+              real 44pt tap target (DESIGN §10 — the old bare glyph + hitSlop measured
+              ~38pt wide); -ml-3 keeps the glyph optically near the gutter. Step 0 renders
+              the empty slot, not a disabled button, so screen readers gain no phantom
+              control. */}
+            <View className="-ml-3 h-11 w-11">
+              {step > 0 ? (
+                <Pressable
+                  onPress={() => setStep((s) => s - 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('onboarding.back', locale)}
+                  className="h-11 w-11 items-center justify-center"
+                >
+                  <Text className="text-muted-foreground">←</Text>
+                </Pressable>
+              ) : null}
+            </View>
             <SectionLabel>{t('onboarding.eyebrow', locale)}</SectionLabel>
           </View>
           <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8}>

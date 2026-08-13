@@ -155,19 +155,25 @@ export default function WelcomeScreen() {
     <Screen>
       <ScrollView
         className="flex-1"
-        contentContainerClassName="grow px-7 pb-9 pt-4"
+        contentContainerClassName="grow px-5 pb-9 pt-4"
         keyboardShouldPersistTaps="handled"
       >
-        {router.canGoBack() ? (
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', locale)}
-            hitSlop={12}
-          >
-            <Text className="text-2xl text-foreground">‹</Text>
-          </Pressable>
-        ) : null}
+        {/* The back slot is reserved even when there is nothing to go back to (#164): the
+          conditional chevron sat the hero ~29pt higher when this screen is the root than
+          when it is pushed from the funnel. Real 44pt tap target (DESIGN §10); the empty
+          slot, not a disabled button, so screen readers gain no phantom control. */}
+        <View className="-ml-3 h-11 w-11">
+          {router.canGoBack() ? (
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back', locale)}
+              className="h-11 w-11 items-center justify-center"
+            >
+              <Text className="text-2xl text-foreground">‹</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <View className="mt-6 gap-2">
           <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
