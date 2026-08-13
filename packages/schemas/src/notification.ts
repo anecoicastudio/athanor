@@ -42,6 +42,8 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.projectResponse',
   'notif.tpl.connection',
   'notif.tpl.connectionAccepted',
+  'notif.tpl.helpAccepted',
+  'notif.tpl.helpConfirmed',
   'notif.tpl.generic',
 ] as const;
 export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);

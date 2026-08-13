@@ -44,3 +44,11 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   projectResponse: 'notif.type.projectResponse',
   connection: 'notif.type.connection',
 };
+
+/** Per-template lead overrides, checked before NOTIF_LEAD. The help* templates reuse type
+ *  'dreamMilestone' but notify the HELPER (#125) — the type lead («Una tappa del tuo sogno»)
+ *  addresses the dream owner and would misread on their rows. */
+export const NOTIF_LEAD_BY_TEMPLATE: Partial<Record<Notification['template_key'], MessageKey>> = {
+  'notif.tpl.helpAccepted': 'notif.lead.help',
+  'notif.tpl.helpConfirmed': 'notif.lead.help',
+};

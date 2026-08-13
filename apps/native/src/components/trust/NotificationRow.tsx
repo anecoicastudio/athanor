@@ -2,12 +2,13 @@ import { Pressable, Text, View } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Notification } from '@athanor/schemas';
 import { timeAgo } from '@/lib/time';
-import { NOTIF_VISUAL, NOTIF_LEAD } from './notifTypes';
+import { NOTIF_VISUAL, NOTIF_LEAD, NOTIF_LEAD_BY_TEMPLATE } from './notifTypes';
 
 /**
  * One notification row (M9 §4). Composed of:
  *  - ndot: accent circle (cyan for `moment`, neutral for all others — rule #4) + Unicode glyph
- *  - body: bolded lead (`notif.type.*`) + tail (interpolated `notif.tpl.*` template)
+ *  - body: bolded lead (`notif.type.*`, or a per-template override) + tail (interpolated
+ *    `notif.tpl.*` template)
  *  - relative time stamp
  *  - optional «Apri Momento» action chip (moment type only)
  *  - unread presence dot (`read_at == null`) — never a number (rule #3)
@@ -25,7 +26,7 @@ export default function NotificationRow({
 }) {
   const v = NOTIF_VISUAL[item.type];
   const unread = item.read_at == null;
-  const lead = t(NOTIF_LEAD[item.type], locale);
+  const lead = t(NOTIF_LEAD_BY_TEMPLATE[item.template_key] ?? NOTIF_LEAD[item.type], locale);
   // Template tail: interpolate `{name}`, `{count}`, `{title}`, `{amount}` etc. from params.
   // template_key is schema-validated (unknown keys degrade to notif.tpl.generic — #113), so
   // no cast; params values are `unknown`, cast to Record<string,string|number> for t().

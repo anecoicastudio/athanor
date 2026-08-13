@@ -1,7 +1,9 @@
 // Inline mirror of @athanor/i18n notif.tpl.* — the Deno edge fn can't import the TS i18n
 // package. Keep in sync with packages/i18n/src/catalogs/{it,en}.json (title = notif.type.*,
-// body = notif.tpl.*). push-dispatch composes the push from these; the app renders the same
-// notif.tpl.* for the in-app row.
+// body = notif.tpl.*; the help* templates title from notif.lead.help instead — their
+// recipient is the HELPER, whom the owner-directed dreamMilestone type title would misread).
+// push-dispatch composes the push from these; the app renders the same notif.tpl.* for the
+// in-app row.
 type Locale = 'it' | 'en';
 type Tpl = { title: string; body: (p: Record<string, unknown>) => string };
 
@@ -80,6 +82,23 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `${p.name ?? 'Qualcuno'} ha accettato la tua richiesta ✦`,
     },
     en: { title: 'Connection', body: (p) => `${p.name ?? 'Someone'} accepted your request ✦` },
+  },
+  'notif.tpl.helpAccepted': {
+    it: {
+      title: 'Il tuo aiuto',
+      body: (p) => `${p.name ?? 'Qualcuno'} ha accettato il tuo aiuto.`,
+    },
+    en: { title: 'Your help', body: (p) => `${p.name ?? 'Someone'} accepted your help.` },
+  },
+  'notif.tpl.helpConfirmed': {
+    it: {
+      title: 'Il tuo aiuto',
+      body: (p) => `${p.name ?? 'Qualcuno'} ha confermato il tuo aiuto. La tua Aura cresce ✦`,
+    },
+    en: {
+      title: 'Your help',
+      body: (p) => `${p.name ?? 'Someone'} confirmed your help. Your Aura grows ✦`,
+    },
   },
 };
 
