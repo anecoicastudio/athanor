@@ -68,12 +68,21 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------------
--- The refresh. Diff-aware throughout: an untouched world produces ZERO writes, so an
--- idle hour fires no triggers and produces no notifications.
+-- The refresh. Diff-aware throughout: an untouched world produces zero restorative
+-- writes, so an idle hour fires no triggers and produces no notifications (§12's
+-- notification prune is the one bookkeeping delete that may still run).
+--
+-- ⚠ gen:types: once this is installed, the next `pnpm gen:types` run (which reads
+-- staging) will add `staging_refresh_world` to database.types.ts `Functions`. That
+-- is expected, not schema drift — the RPC exists only on staging and only
+-- service_role can execute it.
 -- ---------------------------------------------------------------------------------
 create or replace function public.staging_refresh_world()
 returns jsonb
 language plpgsql
+-- SECURITY DEFINER for the same reason run_momenti_matcher() is: it writes tables
+-- (momento_proposals above all) whose client grants deny these writes, and the
+-- pg_cron / Management-API calling context holds no direct grant on them.
 security definer
 set search_path = ''
 as $$

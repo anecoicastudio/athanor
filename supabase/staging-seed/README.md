@@ -177,6 +177,11 @@ sections of `seed-staging.sql` requires re-running `refresh-staging.sql`. The de
 the exception — it recomputes from live profiles. And as with the seed itself: this
 job must **never** be installed on production.
 
+⚠ **gen:types picks it up.** `pnpm gen:types` reads staging, so after installing this
+the generated `database.types.ts` gains a `staging_refresh_world` entry in
+`Functions`. Expected, not schema drift: the RPC exists only on staging and only
+`service_role` may execute it.
+
 ## Media
 
 The seed writes the descriptor rows and the storage **keys**; it cannot write bytes.
