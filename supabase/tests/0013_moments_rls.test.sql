@@ -24,7 +24,8 @@ select ok(
 -- 3. exactly the three expected policies
 select policies_are(
   'public'::name, 'moments'::name,
-  array['moments_select_authenticated', 'moments_insert_own', 'moments_update_own'],
+  array['moments_select_authenticated', 'moments_insert_own', 'moments_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on moments'
 );
 

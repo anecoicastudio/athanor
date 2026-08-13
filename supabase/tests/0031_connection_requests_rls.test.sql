@@ -21,8 +21,8 @@ select ok((select relrowsecurity from pg_class where oid = 'public.connection_re
 select policies_are('public', 'connection_requests', array[
   'connection_requests_select_party',
   'connection_requests_insert_own',
-  'connection_requests_delete_own_pending'
-], 'select / insert / delete client policies only');
+  'connection_requests_delete_own_pending',
+        'active_write_insert', 'active_write_update', 'active_write_delete'], 'select / insert / delete client policies only');
 
 -- anon cannot read (no grant → 42501)
 set local role anon;

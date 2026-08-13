@@ -27,7 +27,8 @@ select ok(
 );
 select policies_are(
   'public', 'post_reactions',
-  array['post_reactions_select_own', 'post_reactions_insert_own', 'post_reactions_delete_own'],
+  array['post_reactions_select_own', 'post_reactions_insert_own', 'post_reactions_delete_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on post_reactions'
 );
 

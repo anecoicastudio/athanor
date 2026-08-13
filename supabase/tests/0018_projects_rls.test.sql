@@ -22,7 +22,8 @@ select ok(
 );
 select policies_are(
   'public', 'projects',
-  array['projects_select_authenticated', 'projects_insert_own', 'projects_update_own'],
+  array['projects_select_authenticated', 'projects_insert_own', 'projects_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on projects'
 );
 select has_index('public', 'projects', 'projects_board_cat', 'category cursor index exists');

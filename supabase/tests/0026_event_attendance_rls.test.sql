@@ -17,7 +17,8 @@ select has_table('public','event_attendance','event_attendance table exists');
 select ok((select relrowsecurity from pg_class where oid='public.event_attendance'::regclass),
   'RLS enabled on event_attendance');
 select policies_are('public','event_attendance',
-  array['event_attendance_select_holder_or_organizer','event_attendance_insert_organizer'],
+  array['event_attendance_select_holder_or_organizer','event_attendance_insert_organizer',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on event_attendance');
 
 -- setup (service role, bypasses RLS): A organizes a paid event; B holds a paid ticket

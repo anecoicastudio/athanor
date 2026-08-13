@@ -21,7 +21,8 @@ select ok(
 select policies_are(
   'public',
   'profiles',
-  array['profiles_select_authenticated', 'profiles_insert_own', 'profiles_update_own', 'profiles_select_anon_public'],
+  array['profiles_select_authenticated', 'profiles_insert_own', 'profiles_update_own', 'profiles_select_anon_public',
+        'active_write_update'],
   'exactly the expected policies exist'
 );
 

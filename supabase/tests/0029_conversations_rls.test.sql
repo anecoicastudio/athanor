@@ -17,7 +17,8 @@ select has_table('public', 'conversations', 'conversations exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.conversations'::regclass),
   'RLS enabled on conversations');
 select policies_are('public', 'conversations',
-  array['conversations_select_participant'],
+  array['conversations_select_participant',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'only a select policy (read-only to clients; creation + bump are server-side)');
 
 -- server creates a momento pair (canonicalizes order, injects ice-breakers). Capture the

@@ -14,7 +14,8 @@ values
 select has_table('public','events','events table exists');
 select ok((select relrowsecurity from pg_class where oid='public.events'::regclass), 'RLS enabled on events');
 select policies_are('public','events',
-  array['events_select_anon','events_select_authenticated','events_insert_own','events_update_own'],
+  array['events_select_anon','events_select_authenticated','events_insert_own','events_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on events');
 
 set local role authenticated;
