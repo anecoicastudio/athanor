@@ -30,6 +30,10 @@ export function useAvatarUrl(path: string | null | undefined): string | null {
     queryFn: () => resolveAvatarUrl(path as string),
     enabled: !!path,
     staleTime,
+    // Never persisted (#287): the URL is a credential that dies after BUCKET_URL_TTL.avatars
+    // (1h), while the persisted cache lives 24h — a cold start inside that window rehydrates a
+    // dead URL on every avatar at once. Re-signing on launch is one batched call.
+    meta: { persist: false },
   });
   return data ?? null;
 }

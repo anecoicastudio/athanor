@@ -16,6 +16,7 @@ import { Pressable, SafeAreaView, Text, TextInput, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { useToast } from '@/components/ToastHost';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { star } from '@/lib/star';
 
 const PHOTO_MS = 5000;
@@ -217,7 +218,9 @@ export function StoriesViewer({
           locale={locale}
           className="absolute inset-0"
         >
-          {(uri) => <ViewerVideo key={current.id} uri={uri} paused={paused} />}
+          {(uri, onFailure) => (
+            <ViewerVideo key={current.id} uri={uri} paused={paused} onError={onFailure} />
+          )}
         </MediaFrame>
       ) : (
         <MediaFrame
@@ -389,11 +392,22 @@ const styles = StyleSheet.create({
   chrome: { flex: 1 },
 });
 
-function ViewerVideo({ uri, paused }: { uri: string; paused: boolean }) {
+function ViewerVideo({
+  uri,
+  paused,
+  onError,
+}: {
+  uri: string;
+  paused: boolean;
+  onError: () => void;
+}) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
     p.play();
   });
+  // A story-segment URL lives 300s and re-signs on a 240s timer, so a paused or backgrounded
+  // story can outlive its URL mid-mount — the exact case #278 was filed about.
+  useVideoFailure(player, onError);
   useEffect(() => {
     if (paused) player.pause();
     else player.play();

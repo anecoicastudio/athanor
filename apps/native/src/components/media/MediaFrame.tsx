@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { type MessageKey, t } from '@athanor/i18n';
@@ -41,8 +41,12 @@ type Props = {
    * A render prop rather than a node, so a player is only ever constructed with a URL in hand —
    * the old `url ? <Player uri={url}/> : ▶` shape could not express that. Omit it and the ready
    * state is the image at `url`, which is what a thumbnail-backed tile wants even for a video.
+   *
+   * The second argument is the player's way to report a dead URL back up (#278) — it flips this
+   * frame to unavailable, the same `failed` the photo path sets through `onError`. One state,
+   * two reporters, so a re-signed `url` clears both the same way.
    */
-  children?: (url: string) => ReactNode;
+  children?: (url: string, onFailure: () => void) => ReactNode;
   /** Chrome that belongs on top of ready media only — a ▶ marker, a duration chip. */
   overlay?: ReactNode;
 };
@@ -61,10 +65,10 @@ type Props = {
  *
  * Photos render through `expo-image` for one reason above the fade: it has a real `onError`, so
  * a URL that signs fine and then 404s — a deleted object, a TTL that lapsed mid-view — becomes
- * the unavailable state instead of silence. That recovery is photo-only for now: the video and
- * audio players arrive through `children` and own their own error surface, so a dead *video* URL
- * still fails the way every URL used to. Closing that gap means an error callback on each player,
- * which is a separate change from this one.
+ * the unavailable state instead of silence. Players arriving through `children` report the same
+ * failure through the render prop's second argument (#278): video from `expo-video`'s error
+ * status (`useVideoFailure`), audio by inference at its own call site, because `expo-audio`
+ * exposes no playback error at all — see `DetailAudio` in `PostMedia`.
  *
  * `kind` picks the copy and nothing else, because the two can disagree: a video Momento's tile
  * draws a *thumbnail*, so what renders is an image while what the member is missing is a video.
@@ -90,6 +94,9 @@ export function MediaFrame({
   // 404'd is not the URL the next render gets.
   useEffect(() => setFailed(false), [url]);
 
+  // Stable so a player's failure effect doesn't re-fire on every parent render.
+  const reportFailure = useCallback(() => setFailed(true), []);
+
   const state = mediaState({ url, isLoading, failed });
   // `mediaState` only says ready when `url` is non-empty; re-deriving it here is what lets the
   // ready branch hand a `string` to expo-image and to `children` without an assertion.
@@ -108,7 +115,7 @@ export function MediaFrame({
       ) : readyUrl ? (
         <>
           {children ? (
-            children(readyUrl)
+            children(readyUrl, reportFailure)
           ) : (
             <ExpoImage
               source={{ uri: readyUrl }}

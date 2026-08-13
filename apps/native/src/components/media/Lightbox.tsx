@@ -8,6 +8,7 @@ import { Pressable, Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
+import { useVideoFailure } from '@/lib/media/use-video-failure';
 
 /**
  * Fullscreen Momento viewer (frontend `01` §3.6). Opened from the Profilo
@@ -66,7 +67,9 @@ export function Lightbox({
                   locale={locale}
                   className="absolute inset-0"
                 >
-                  {(uri) => <LightboxVideo key={current.id} uri={uri} />}
+                  {(uri, onFailure) => (
+                    <LightboxVideo key={current.id} uri={uri} onError={onFailure} />
+                  )}
                 </MediaFrame>
               ) : (
                 <MediaFrame
@@ -110,10 +113,12 @@ export function Lightbox({
  * `Lightbox` (hooks rules) — it mounts only when a video is shown, and a fresh
  * instance per `uri` (keyed by the caller) owns its own player.
  */
-function LightboxVideo({ uri }: { uri: string }) {
+function LightboxVideo({ uri, onError }: { uri: string; onError: () => void }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.play();
   });
+  // A dead URL flips the frame to unavailable (#278) instead of a player that never plays.
+  useVideoFailure(player, onError);
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />;
 }

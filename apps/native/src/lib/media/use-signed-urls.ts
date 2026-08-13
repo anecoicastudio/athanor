@@ -32,6 +32,9 @@ export function useSignedUrls(
     // only — a backgrounded app has nothing to render and refetching would just cost battery.
     refetchInterval,
     refetchIntervalInBackground: false,
+    // Never persisted (#287): every URL here expires within its bucket's TTL (≤1h), while the
+    // persisted cache lives 24h — rehydrating one hands the renderer a dead credential.
+    meta: { persist: false },
   });
 
   return { urls: query.data ?? {}, isLoading: query.isLoading };

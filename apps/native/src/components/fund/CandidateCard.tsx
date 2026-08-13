@@ -52,20 +52,23 @@ export function CandidateCard({
         className="aspect-video w-full items-center justify-center overflow-hidden rounded-card bg-raise-2"
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel={t('fund.candidate.playLabel', locale)}
+        // One composed label (#292): the Pressable is an accessibility element, so anything
+        // `accessible` nested inside it may never be spoken — the no-poster sentence has to
+        // ride the button's own label to reliably reach a screen reader.
+        accessibilityLabel={
+          card.thumb_path === null
+            ? `${t('fund.candidate.playLabel', locale)}, ${t('media.noPoster.video', locale)}`
+            : t('fund.candidate.playLabel', locale)
+        }
       >
         {card.thumb_path === null ? (
           // A candidacy with no poster is a STATE, not a failure: the video plays fine in the
           // detail, it just has no still. `media.unavailable.video` would be a lie here, which
           // is why this branch stays hand-rolled instead of becoming a fourth MediaFrame state.
-          <View
-            className="absolute inset-0 items-center justify-center"
-            accessible
-            accessibilityLabel={t('media.noPoster.video', locale)}
-          >
+          <View className="absolute inset-0 items-center justify-center">
             <Text
               className="text-4xl text-faint"
-              // Decorative: the wrapper above already announces the sentence.
+              // Decorative: the no-poster sentence rides the Pressable's label above (#292).
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
