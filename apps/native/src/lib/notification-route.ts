@@ -27,6 +27,9 @@ export function routeForNotification(n: Notification): string | null {
       // #313: the warn row IS the outcome — there is no member-facing moderation surface
       // to open, so the tap marks it read and stays put.
       return null;
+    case 'gdprExport':
+      // #129: the download button lives on the Data Export modal (Settings → I tuoi dati).
+      return '/(modal)/data-export';
     default:
       return null;
   }

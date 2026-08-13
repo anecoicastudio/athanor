@@ -31,10 +31,11 @@ describe('notificationSchema', () => {
     ).toThrow();
   });
 
-  it('exposes the 8 canonical types', () => {
-    // 7 from M9 + 'moderation' (#313 warn verdicts)
-    expect(NOTIFICATION_TYPES).toHaveLength(8);
+  it('exposes the 9 canonical types', () => {
+    // 7 from M9 + 'moderation' (#313 warn verdicts) + 'gdprExport' (#129 export delivery)
+    expect(NOTIFICATION_TYPES).toHaveLength(9);
     expect(NOTIFICATION_TYPES).toContain('moderation');
+    expect(NOTIFICATION_TYPES).toContain('gdprExport');
   });
 
   it('admits the warn template key (#313)', () => {
@@ -51,6 +52,22 @@ describe('notificationSchema', () => {
     const parsed = notificationSchema.parse(row);
     expect(parsed.type).toBe('moderation');
     expect(parsed.template_key).toBe('notif.tpl.warn');
+  });
+
+  it('admits the export-ready template key (#129)', () => {
+    const row = {
+      id: '11111111-1111-1111-1111-111111111111',
+      recipient_id: '22222222-2222-2222-2222-222222222222',
+      type: 'gdprExport',
+      template_key: 'notif.tpl.gdprExport',
+      params: {},
+      entity_ref: { kind: 'gdprExport', id: '33333333-3333-3333-3333-333333333333' },
+      read_at: null,
+      created_at: '2026-08-13T10:00:00Z',
+    };
+    const parsed = notificationSchema.parse(row);
+    expect(parsed.type).toBe('gdprExport');
+    expect(parsed.template_key).toBe('notif.tpl.gdprExport');
   });
 
   // #113: an unknown template_key (old client, newer server — e.g. after #125) must degrade

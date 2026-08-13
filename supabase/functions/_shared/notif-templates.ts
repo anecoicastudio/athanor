@@ -142,6 +142,18 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `We upheld a report: ${reasonLabel(p.reason, 'en')}. Pause and think it over.`,
     },
   },
+  // #129: gdpr_export_jobs status→ready. No params — deliberately no signed URL in the push
+  // payload (a push is not a secure channel for a download link); the member opens the app.
+  'notif.tpl.gdprExport': {
+    it: {
+      title: 'I tuoi dati',
+      body: () => 'Il tuo archivio è pronto. Scaricalo da Impostazioni → I tuoi dati.',
+    },
+    en: {
+      title: 'Your data',
+      body: () => 'Your archive is ready. Download it from Settings → Your data.',
+    },
+  },
 };
 
 const ROUTE: Record<string, string> = {
@@ -157,6 +169,8 @@ const ROUTE: Record<string, string> = {
   // in-app router (notification-route.ts) returns null; this push route lands on the
   // notification center's home surface.
   moderation: 'trust',
+  // #129: the in-app router opens the Data Export modal (Settings → I tuoi dati).
+  gdprExport: 'data-export',
 };
 
 export type DispatchInput = {

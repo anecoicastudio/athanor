@@ -73,6 +73,11 @@ describe('routeForNotification — coverage of the canonical type set', () => {
     expect(routeForNotification(n)).toBeNull();
   });
 
+  it('gdprExport → the data-export modal, where the download button lives (#129)', () => {
+    const n = notif({ type: 'gdprExport', entity_ref: { kind: 'gdprExport', id: 'j-1' } });
+    expect(routeForNotification(n)).toBe('/(modal)/data-export');
+  });
+
   it('an unknown type is ignored rather than routed somewhere wrong', () => {
     expect(routeForNotification(notif({ type: 'somethingNew' as never }))).toBeNull();
   });

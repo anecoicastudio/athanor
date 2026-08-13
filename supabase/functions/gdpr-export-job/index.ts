@@ -1,8 +1,9 @@
 // gdpr-export-job (11 §3.9 8a) — service-role, nightly pg_cron over gdpr_export_jobs status='requested'.
-// Assembles the user's archive (profile, dreams, posts, moments, messages, consent, tickets/rsvps refs),
-// uploads to the private `exports` bucket, signs a time-limited URL (72h — 10 §5 open decision), emails
-// it, and sets status='ready' + download_url + expires_at. Archive assembly is server-side and is NEVER
-// bundled into the app build (09 §6).
+// Assembles the user's archive (every EXPORT_SPEC section in ./logic.ts — profile through
+// gdpr_erasure_requests), uploads to the private `exports` bucket, signs a time-limited URL
+// (72h — 10 §5 open decision), and sets status='ready' + download_url + expires_at; that update
+// fires the gdprExport notification producer (20260813162227), which tells the member in-app.
+// Archive assembly is server-side and is NEVER bundled into the app build (09 §6).
 // Transport shell only — the claim/assemble/upload loop lives in ./logic.ts (unit-tested);
 // this file wires auth, the service-role client, and the `exports` bucket storage port.
 import { requireServiceRole } from '../_shared/auth.ts';
