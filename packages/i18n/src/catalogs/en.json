@@ -803,7 +803,6 @@
   "connection.accept": "Accept",
   "connection.decline": "Decline",
   "connection.connected": "Connected ✦",
-  "connection.sent.toast": "Request sent",
   "connection.cancelled.toast": "Request cancelled",
   "connection.accepted.toast": "You're connected",
   "connection.failed": "Something went wrong. Try again.",
