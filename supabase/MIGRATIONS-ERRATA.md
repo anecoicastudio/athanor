@@ -16,6 +16,61 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## Five migrations — "no-op until the `app.settings.*` GUCs are set" was never a reachable state
+
+Each of these describes its `pg_net` caller as dormant pending a deploy step that sets custom
+GUCs on the hosted database:
+
+| migration                                            | stale claim                                               |
+| ---------------------------------------------------- | --------------------------------------------------------- |
+| `20260617110200_score_engine_cron.sql` L1-2          | no-op until `app.settings.score_engine_url`/`_key` set    |
+| `20260617083714_push_enqueue.sql` L2                 | no-op until `app.settings.push_dispatch_url`/`_key` set   |
+| `20260622142310_m9_admin_moderation.sql` L4          | no-op until `app.settings.score_engine_*` set             |
+| `20260701160235_m9_notification_producers.sql` L6-8  | no-op until `app.settings.notification_fanout_url`/`_key` |
+| `20260703154523_p2_2_media_process_enqueue.sql` L6-7 | inert until the P1.1 deploy                               |
+
+That deploy step never existed. On hosted Supabase, supautils rejects
+`alter database … set` / `alter role … set` for custom parameters (SQLSTATE 42501), so the
+GUCs these comments wait for **cannot be set at all** — the callers were unreachable, not
+"pending a deploy". The correcting fact lives in `20260810103721_pg_net_config_via_vault.sql:3-13`:
+configuration resolves through **Vault** via `athanor.runtime_setting()`, and the GUC branch
+that survives inside that function exists solely for the local CI stack and pgTAP fixtures.
+
+Verified behaviour lives in `supabase/tests/0084_runtime_setting_vault.test.sql` (Vault
+precedence and the fixture-only GUC fallback).
+
+---
+
+## Seven `TODO(M9)` markers and three "strip deferred" comments — all closed, none live
+
+An open TODO on a security predicate reads as a live visibility hole, and every audit re-traces
+all of them. None is open.
+
+**The blocks/visibility markers**, each closed by a later migration:
+
+| marker                                                                      | closed by                                                |
+| --------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `20260614203046_post_media.sql:37` — mirror visibility/blocks               | `20260808151808_storage_not_blocked_predicate.sql:22-25` |
+| `20260614204000_moments.sql:39` — mirror momenti visibility/blocks          | same file, `:30-33`                                      |
+| `20260614230531_story_segments.sql:48` — `is_visible_to_me` / `not_blocked` | same file, `:38-41`                                      |
+| `20260616153035_connection_requests.sql:18,146,155,172` — 4× `not_blocked`  | `20260703152310_p2_3_connections_not_blocked.sql:2`      |
+
+**The server-side metadata-strip deferrals** — `20260614230533_story_storage_bucket.sql:4`,
+`20260614230531_story_segments.sql:7` and `20260614204500_storage_media_buckets.sql:5` all
+call the strip "deferred defense-in-depth" / a "launch-blocker TODO". It shipped:
+`supabase/functions/media-process/strip.ts` strips EXIF/GPS/XMP/IPTC and rewrites every MP4
+`udta`/`meta` box, and the `media_process_enqueue` trigger
+(`20260703154523_p2_2_media_process_enqueue.sql:47`) fires it for the user-media buckets. The
+client-side passthrough for video (`apps/native/src/lib/media/process.ts`) is by design — the
+server is the backstop.
+
+Verified behaviour: `supabase/tests/0050_not_blocked_predicate.test.sql` holds the predicate
+itself and the storage RLS tests (`0014`, `0017`, `0043`) its bucket applications;
+`supabase/functions/media-process/strip.test.ts` and `buckets.test.ts` hold the strip and the
+trigger/allowlist agreement.
+
+---
+
 ## `20260615145423_event_live_stats.sql`
 
 ### L2, L12 — "public read for published events" was never what the policy enforced

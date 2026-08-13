@@ -65,7 +65,7 @@ A **local Postgres is optional** and no longer part of the default loop:
 
 ```bash
 supabase start && supabase db reset         # full schema + seed — needs Docker and ~6 GB
-supabase test db                            # pgTAP suite (81 files, 964 assertions)
+supabase test db                            # pgTAP suite — prints its own file/assertion count
 ```
 
 What you give up by skipping it is mostly speed: the `db` CI job spins up its own stack and
@@ -101,7 +101,8 @@ which one you are pushing to, so check it before every push.
 
 ## The ten non-negotiable rules
 
-Enforced by CI and review on every PR — not style preferences.
+Enforced by review on every PR, and most also by CI — rule 3 has no CI check, and rule 4's
+literal-hex guard currently covers `apps/native` only (#61). Not style preferences.
 
 1. **Aura is never client-writable.** Only the `score-engine` edge function (service role) writes `aura_events` / `aura_scores`. RLS denies all client writes; pgTAP asserts it. Circle membership and fund contributions yield **zero** points.
 2. **RLS on every table**, deny-by-default, policies in the wrapped form `(select auth.uid())`, always `TO authenticated` / `TO anon` plus an ownership predicate. UPDATE policies need both `USING` and `WITH CHECK`.
@@ -110,9 +111,12 @@ Enforced by CI and review on every PR — not style preferences.
 5. **Zero hardcoded user-facing strings** — everything through `@athanor/i18n`, IT **and** EN (a parity test fails the build otherwise).
 6. **Money state is a cache of Stripe webhooks.** Stripe is the source of truth; keys server-side only; webhooks signature-verified and deduped.
 7. **Migrations are append-only once applied.** Create new ones via `supabase migration new <name>`, then `pnpm gen:types`. Never hand-edit `packages/api/src/database.types.ts`.
-8. **Cursor pagination, never offset.**
-9. **Score weights** are named constants in one `packages/core` module — server-tunable, test-asserted.
-10. **Never commit secrets.** Env files are gitignored; CI greps the built bundle for leaked keys as a release gate.
+8. **Edge functions are the only privileged surface.** Every function declares exactly one of three auth postures — user-callable (`verify_jwt` + `requireUser`), internal service-role (`requireServiceRole` as the first statement), or signature-verified webhook — and API keys resolve only through `_shared/keys.ts`.
+9. **Cursor pagination, never offset.**
+10. **Score weights** are named constants in one `packages/core` module — server-tunable, test-asserted.
+
+Also non-negotiable, if not a rule of its own: **never commit secrets.** Env files are
+gitignored; CI greps the built bundle for leaked keys as a release gate.
 
 ## Working conventions
 
