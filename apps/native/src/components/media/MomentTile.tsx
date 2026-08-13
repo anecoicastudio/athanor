@@ -50,25 +50,26 @@ export function MomentTile({
   onLongPress?: () => void;
 }) {
   const posterPath = momentPosterPath(moment);
+  const label = moment.caption ?? t('lightbox.label', locale);
 
   return (
     <Pressable
       accessibilityRole="imagebutton"
-      accessibilityLabel={moment.caption ?? t('lightbox.label', locale)}
+      // One composed label (#292): the Pressable is an accessibility element, so anything
+      // `accessible` nested inside it may never be spoken — the no-poster sentence has to ride
+      // the button's own label to reliably reach a screen reader.
+      accessibilityLabel={
+        posterPath === null ? `${label}, ${t('media.noPoster.video', locale)}` : label
+      }
       onPress={onPress}
       onLongPress={onLongPress}
       className={`aspect-square w-full justify-end overflow-hidden bg-raise ${RADIUS[variant]}`}
     >
       {posterPath === null ? (
-        <View
-          className="absolute inset-0 items-center justify-center"
-          accessible
-          accessibilityLabel={t('media.noPoster.video', locale)}
-        >
+        <View className="absolute inset-0 items-center justify-center">
           <Text
             className="text-2xl text-faint"
-            // Decorative: the wrapper above already announces the sentence (same pairing as
-            // MediaFrame's compact unavailable state).
+            // Decorative: the no-poster sentence rides the Pressable's label above (#292).
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           >

@@ -183,20 +183,24 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                 style={{ aspectRatio: ratio }}
                 onPress={onPress}
                 accessibilityRole="button"
-                accessibilityLabel={t('feed.video.playLabel', locale)}
+                // One composed label (#292): the Pressable is an accessibility element, so
+                // anything `accessible` nested inside it may never be spoken — the no-poster
+                // sentence has to ride the button's own label to reliably reach a screen reader.
+                accessibilityLabel={
+                  row.thumb_path === null
+                    ? `${t('feed.video.playLabel', locale)}, ${t('media.noPoster.video', locale)}`
+                    : t('feed.video.playLabel', locale)
+                }
               >
                 {row.thumb_path === null ? (
                   // A video with no poster is a STATE, not a failure (#318, MomentTile's fourth
                   // state): it plays fine in the detail, it just has no still. Faint ▶ so it
                   // reads as placeholder, not as the `foreground` ▶ over a real poster.
-                  <View
-                    className="absolute inset-0 items-center justify-center"
-                    accessible
-                    accessibilityLabel={t('media.noPoster.video', locale)}
-                  >
+                  <View className="absolute inset-0 items-center justify-center">
                     <Text
                       className="text-4xl text-faint"
-                      // Decorative: the wrapper above already announces the sentence.
+                      // Decorative: the no-poster sentence rides the Pressable's label above
+                      // (#292).
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
                     >
