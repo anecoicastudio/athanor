@@ -122,6 +122,21 @@ Deno.test('no client component reads a server secret', () => {
   assert(hits.length === 0, `'use client' module reads a server secret: ${hits.join(', ')}`);
 });
 
+Deno.test('edge functions resolve Supabase keys only through _shared/keys.ts', () => {
+  // rules/supabase-functions.md (issue #271, was #142): the platform injects
+  // SUPABASE_PUBLISHABLE_KEYS / SUPABASE_SECRET_KEYS as name-keyed JSON, and the legacy
+  // SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY only while those keys stay enabled. A
+  // direct Deno.env.get on any of them does not throw — it hands JSON (or undefined) to
+  // code expecting a key string and surfaces as a confusing 401 at runtime. keys.ts is the
+  // one sanctioned reader. SUPABASE_URL is not key material and stays readable anywhere.
+  const DIRECT_KEY_READ = /Deno\.env\.get\(\s*['"`]SUPABASE_(?!URL['"`])[A-Z0-9_]+['"`]/;
+  const hits = walk(new URL('supabase/functions/', REPO))
+    .filter((p) => !p.endsWith('_shared/keys.ts') && !p.endsWith('secret-exposure.test.ts'))
+    .filter((p) => DIRECT_KEY_READ.test(read(p)))
+    .map(rel);
+  assert(hits.length === 0, `SUPABASE_* key read outside _shared/keys.ts: ${hits.join(', ')}`);
+});
+
 Deno.test('no app or package imports the server-side Stripe SDK', () => {
   // Importing `stripe` client-side is how a key ends up client-side. The @stripe/* scoped
   // packages (stripe-react-native, stripe-js) are publishable-key SDKs and are fine.
