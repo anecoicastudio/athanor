@@ -78,12 +78,14 @@ export const supabase = createClient<Database>(url, anonKey, {
 });
 
 // RN has no document visibility: drive token auto-refresh from AppState.
+// Both calls are fire-and-forget; an offline refresh otherwise surfaces as an
+// unhandled-rejection LogBox pill ("TypeError: Network request failed").
 if (!isServerRender) {
   AppState.addEventListener('change', (state) => {
     if (state === 'active') {
-      supabase.auth.startAutoRefresh();
+      supabase.auth.startAutoRefresh().catch(() => undefined);
     } else {
-      supabase.auth.stopAutoRefresh();
+      supabase.auth.stopAutoRefresh().catch(() => undefined);
     }
   });
 }

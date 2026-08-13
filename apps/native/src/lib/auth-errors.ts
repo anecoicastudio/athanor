@@ -12,6 +12,10 @@ export function authErrorKey(err: { code?: string; status?: number }): MessageKe
   if (err.code === 'weak_password') return 'auth.error.weakPassword';
   if (err.code === 'email_address_invalid') return 'auth.error.invalidEmail';
   if (err.code === 'over_request_rate_limit' || err.status === 429) return 'auth.error.rateLimit';
+  // auth-js wraps a transport failure (fetch threw, nothing reached GoTrue) in an
+  // AuthRetryableFetchError with status 0 and no code — the one case where "try
+  // again" should say the network is the reason.
+  if (err.status === 0) return 'auth.error.network';
   return 'auth.error.generic';
 }
 

@@ -21,7 +21,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, signOut: endSession } = useAuth();
   const locale = profile?.locale ?? 'it';
   const [confirm, setConfirm] = useState('');
   const { showToast } = useToast();
@@ -43,7 +43,7 @@ export default function DeleteAccountScreen() {
       showToast(t('account.delete.toast', locale), 'success');
       // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
       signOutTimer.current = setTimeout(() => {
-        supabase.auth.signOut().catch(() => undefined);
+        endSession().catch(() => undefined);
       }, 700);
     },
     onError: () => showToast(t('profile.error', locale)),

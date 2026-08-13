@@ -194,6 +194,7 @@
   "auth.email.placeholder": "name@example.com",
   "auth.error.invalidLink": "The gate has closed. Ask for a new one.",
   "auth.error.generic": "Something didn't work. Try again.",
+  "auth.error.network": "The network didn't answer. Check your connection and try again.",
   "auth.error.invalidEmail": "That email doesn't look valid.",
   "auth.error.rateLimit": "Too many attempts. Try again shortly.",
   "auth.error.invalidCredentials": "Wrong email or password.",

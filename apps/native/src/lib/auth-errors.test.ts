@@ -33,6 +33,11 @@ describe('authErrorKey', () => {
     expect(authErrorKey({ status: 500 })).toBe('auth.error.generic');
   });
 
+  it('a transport failure (AuthRetryableFetchError, status 0) names the network', () => {
+    // fetch threw before GoTrue answered: auth-js returns status 0 and no code.
+    expect(authErrorKey({ status: 0 })).toBe('auth.error.network');
+  });
+
   it('a recognised code wins over a 429 status', () => {
     expect(authErrorKey({ code: 'weak_password', status: 429 })).toBe('auth.error.weakPassword');
   });
@@ -44,6 +49,7 @@ describe('authErrorKey', () => {
       { code: 'weak_password' },
       { code: 'email_address_invalid' },
       { status: 429 },
+      { status: 0 },
       {},
     ];
     for (const err of errors) {

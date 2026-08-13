@@ -27,8 +27,6 @@ import { BootGate } from '@/components/boot/BootGate';
 import { ProfileErrorScreen } from '@/components/boot/ProfileErrorScreen';
 import { SentryConsentGate } from '@/components/boot/SentryConsentGate';
 import { asyncStoragePersister, queryClient, shouldDehydrateQuery } from '@/lib/query-client';
-import { supabase } from '@/lib/supabase';
-
 SplashScreen.preventAutoHideAsync();
 // Settles a dangling OAuth browser session on resume (required for the web target;
 // no-op on native). Must run at module load, not inside a component.
@@ -38,7 +36,7 @@ WebBrowser.maybeCompleteAuthSession();
 // (B-5). Sentry.wrap below is safe pre-init — it just captures nothing until init runs.
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading, flushing, profileError, refreshProfile } = useAuth();
+  const { session, profile, loading, flushing, profileError, refreshProfile, signOut } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -80,10 +78,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // no error and no retry.
   if (session && profileError && !profile) {
     return (
-      <ProfileErrorScreen
-        onRetry={() => void refreshProfile()}
-        onSignOut={() => void supabase.auth.signOut()}
-      />
+      <ProfileErrorScreen onRetry={() => void refreshProfile()} onSignOut={() => void signOut()} />
     );
   }
   return <>{children}</>;
