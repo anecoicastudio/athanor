@@ -19,9 +19,11 @@ import type { VoteState } from '@/components/fund/CandidateCard';
 import { VoteBar } from '@/components/fund/VoteBar';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { ListState } from '@/components/ListState';
+import { MediaFrame } from '@/components/media/MediaFrame';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
+import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -150,13 +152,19 @@ export default function CandidacyDetailScreen() {
   return (
     <FundChrome locale={locale}>
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
-        {/* Player */}
-        <View className="aspect-video w-full items-center justify-center overflow-hidden rounded-card bg-raise-2">
-          {videoUrl ? (
-            <DetailVideo uri={videoUrl} />
-          ) : (
-            <Text className="text-4xl text-foreground">▶</Text>
-          )}
+        {/* Player — through MediaFrame (#278): the old bare `videoUrl ? player : ▶` rendered
+            "still signing", "never coming" and "died after signing" as the same static ▶, the
+            #135 conflation rebuilt on a new surface. */}
+        <View className="aspect-video w-full overflow-hidden rounded-card bg-raise-2">
+          <MediaFrame
+            kind="video"
+            url={videoUrl}
+            isLoading={videoQuery.isLoading}
+            locale={locale}
+            className="absolute inset-0"
+          >
+            {(uri, onFailure) => <DetailVideo uri={uri} onError={onFailure} />}
+          </MediaFrame>
         </View>
 
         {/* Title + author */}
@@ -217,11 +225,13 @@ function FundChrome({ children, locale }: { children: React.ReactNode; locale: '
  * Player child so `useVideoPlayer` never sits behind the URL conditional (hooks
  * rules) — a fresh instance per `uri`. Muted autoplay loop, like Lightbox.
  */
-function DetailVideo({ uri }: { uri: string }) {
+function DetailVideo({ uri, onError }: { uri: string; onError: () => void }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
     p.play();
   });
+  // A dead URL flips the frame to unavailable (#278) instead of a player that never plays.
+  useVideoFailure(player, onError);
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />;
 }
