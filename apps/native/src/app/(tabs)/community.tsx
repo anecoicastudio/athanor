@@ -205,14 +205,12 @@ export default function CommunityScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <View className="items-center gap-4 px-5 pt-16">
-            <EmptyState>{emptyTitle}</EmptyState>
-            <Pressable
-              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-              onPress={() => router.push(COMPOSE_HREF)}
-            >
-              <Text className="text-[13px] text-aura">{emptyCta}</Text>
-            </Pressable>
+          <View className="items-center px-5 pt-16">
+            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
+                moment-grade surface (rule #4) on an empty feed (#119). */}
+            <EmptyState action={{ label: emptyCta, onPress: () => router.push(COMPOSE_HREF) }}>
+              {emptyTitle}
+            </EmptyState>
           </View>
         }
         refreshControl={

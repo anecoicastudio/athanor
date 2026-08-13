@@ -265,7 +265,7 @@ export default function HelpScreen() {
           onPress={submit}
         />
       </ScrollView>
-      {toast ? <Toast label={t('help.toast.offered', locale)} /> : null}
+      {toast ? <Toast label={t('help.toast.offered', locale)} tone="moment" /> : null}
     </Screen>
   );
 }

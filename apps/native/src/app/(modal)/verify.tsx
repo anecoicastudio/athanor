@@ -13,7 +13,7 @@ import { deriveVerifyState } from '@athanor/core';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
-import { Toast } from '@/components/Toast';
+import { Toast, type ToastTone } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -32,7 +32,7 @@ export default function VerifyScreen() {
 
   const [sessionPending, setSessionPending] = useState(false);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,7 +62,7 @@ export default function VerifyScreen() {
   useEffect(() => {
     if (state !== 'verified') return;
     setSessionPending(false);
-    setToast(t('trust.verify.toast.verified', locale));
+    setToast({ label: t('trust.verify.toast.verified', locale), tone: 'moment' });
     dismissTimer.current = setTimeout(() => router.back(), 1600);
     return () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
@@ -84,7 +84,7 @@ export default function VerifyScreen() {
       const url = 'url' in result ? result.url : null;
       if (!url) throw new Error('no url'); // clientSecret/native path not used on SDK54 (web sheet only)
       setSessionPending(true);
-      setToast(t('trust.verify.toast.started', locale));
+      setToast({ label: t('trust.verify.toast.started', locale), tone: 'success' });
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 1800);
       await WebBrowser.openAuthSessionAsync(url, 'athanor://verify');
@@ -173,7 +173,7 @@ export default function VerifyScreen() {
         ) : null}
       </ScrollView>
 
-      {toast ? <Toast label={toast} /> : null}
+      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

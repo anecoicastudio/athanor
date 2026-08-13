@@ -69,12 +69,14 @@ export function DreamCard({
           <DreamQuote text={dream} />
         </Pressable>
       ) : (
-        <View className="gap-3">
-          <EmptyState>{t('dream.empty.title', locale)}</EmptyState>
-          {!isRead && onEdit ? (
-            <Button label={t('dream.empty.cta', locale)} variant="primary" onPress={onEdit} />
-          ) : null}
-        </View>
+        // Ghost, not primary — DESIGN §9's empty-state action is always the ghost (#119).
+        <EmptyState
+          action={
+            !isRead && onEdit ? { label: t('dream.empty.cta', locale), onPress: onEdit } : undefined
+          }
+        >
+          {t('dream.empty.title', locale)}
+        </EmptyState>
       )}
 
       {showTappe ? (

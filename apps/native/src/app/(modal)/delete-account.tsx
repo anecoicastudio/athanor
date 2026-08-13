@@ -7,7 +7,7 @@ import { requestErasure } from '@athanor/api';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { Toast, type ToastTone } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -24,11 +24,11 @@ export default function DeleteAccountScreen() {
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const [confirm, setConfirm] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const signOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashToast = useCallback((msg: string) => {
-    setToast(msg);
+  const flashToast = useCallback((label: string, tone?: ToastTone) => {
+    setToast({ label, tone });
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 1800);
   }, []);
@@ -47,7 +47,7 @@ export default function DeleteAccountScreen() {
   const erase = useMutation({
     mutationFn: () => requestErasure(supabase),
     onSuccess: () => {
-      flashToast(t('account.delete.toast', locale));
+      flashToast(t('account.delete.toast', locale), 'success');
       // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
       signOutTimer.current = setTimeout(() => {
         supabase.auth.signOut().catch(() => undefined);
@@ -95,7 +95,7 @@ export default function DeleteAccountScreen() {
           onPress={() => erase.mutate()}
         />
       </ScrollView>
-      {toast ? <Toast label={toast} /> : null}
+      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

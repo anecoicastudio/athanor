@@ -90,14 +90,17 @@ export default function CostellazioniScreen() {
         )}
         ListEmptyComponent={
           query.isLoading ? null : (
-            <View className="items-center gap-4 px-5 pt-16">
-              <EmptyState>{emptyTitle}</EmptyState>
-              <Pressable
-                className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-                onPress={() => router.push(COMPOSE_HREF)}
+            <View className="items-center px-5 pt-16">
+              {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
+                  moment-grade surface (rule #4) on an empty feed (#119). */}
+              <EmptyState
+                action={{
+                  label: t('feed.empty.cat.cta', locale),
+                  onPress: () => router.push(COMPOSE_HREF),
+                }}
               >
-                <Text className="text-[13px] text-aura">{t('feed.empty.cat.cta', locale)}</Text>
-              </Pressable>
+                {emptyTitle}
+              </EmptyState>
             </View>
           )
         }

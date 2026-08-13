@@ -106,7 +106,7 @@ export default function BlockedScreen() {
       />
 
       {/* Inline toast — no global host (rule: no global Sheet/Overlay/Toast) */}
-      {toast ? <Toast label={toast} /> : null}
+      {toast ? <Toast label={toast} tone="success" /> : null}
     </Screen>
   );
 }

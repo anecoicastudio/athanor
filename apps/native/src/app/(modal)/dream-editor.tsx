@@ -112,7 +112,7 @@ export default function DreamEditorScreen() {
         />
       </ScrollView>
 
-      {toast ? <Toast label={t('dream.toast.saved', locale)} /> : null}
+      {toast ? <Toast label={t('dream.toast.saved', locale)} tone="moment" /> : null}
     </Screen>
   );
 }

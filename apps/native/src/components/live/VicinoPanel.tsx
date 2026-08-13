@@ -124,14 +124,17 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
       <View className="flex-1">
         <ScrollView contentContainerClassName="pb-12">
           {header}
-          <View className="items-center gap-4 px-5 pt-8">
-            <EmptyState>{t('live.map.locationDenied', locale)}</EmptyState>
-            <Pressable
-              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-              onPress={() => void requestLocation()}
+          <View className="items-center px-5 pt-8">
+            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
+                moment-grade surface (rule #4) on a permission ask (#119). */}
+            <EmptyState
+              action={{
+                label: t('live.map.allowLocation', locale),
+                onPress: () => void requestLocation(),
+              }}
             >
-              <Text className="text-[13px] text-aura">{t('live.map.allowLocation', locale)}</Text>
-            </Pressable>
+              {t('live.map.locationDenied', locale)}
+            </EmptyState>
           </View>
         </ScrollView>
         {toast ? <Toast label={toast} /> : null}

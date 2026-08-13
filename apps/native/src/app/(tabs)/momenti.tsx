@@ -113,10 +113,12 @@ export default function MomentiScreen() {
             />
           ) : exhausted ? (
             <View className="flex-1 items-center justify-center">
-              <EmptyState>
-                {`${t('momenti.empty.title', locale)}\n\n${
+              <EmptyState
+                body={
                   startedEmpty ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
-                }`}
+                }
+              >
+                {t('momenti.empty.title', locale)}
               </EmptyState>
             </View>
           ) : (
