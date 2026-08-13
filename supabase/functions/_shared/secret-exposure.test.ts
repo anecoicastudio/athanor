@@ -59,13 +59,30 @@ const rel = (p: string) => p.slice(new URL('.', REPO).pathname.length);
 
 const clientTree = [...walk(new URL('apps/', REPO)), ...walk(new URL('packages/', REPO))];
 
-Deno.test('the client tree exists and is actually being scanned', () => {
-  // Guards the guard: a bad path or an over-eager skip list would make every test below
-  // vacuously green.
-  assert(
-    clientTree.length > 100,
-    `expected a populated apps/+packages/ tree, got ${clientTree.length}`,
-  );
+// Every root this file scans, with a minimum plausible scannable-file count (measured
+// 2026-08-13: native 321, web 157, packages 296, supabase 309, scripts 3 — mins sit around
+// half, loose enough for refactors and far above zero). walk() swallows a missing directory
+// on purpose, so a moved or renamed tree yields an empty scan and a green test — and
+// apps/native WAS renamed from apps/mobile once. The old single global threshold
+// (clientTree > 100) let packages/ alone clear it, so exactly that rename would have
+// passed silently (issue #271, was #143). A scanner that finds nothing must first prove
+// it looked at something, PER TREE.
+const SCAN_ROOTS: Record<string, number> = {
+  'apps/native/': 150,
+  'apps/web/': 70,
+  'packages/': 140,
+  'supabase/': 150,
+  'scripts/': 2,
+};
+
+Deno.test('every scanned root exists and yields a plausible file count', () => {
+  for (const [root, min] of Object.entries(SCAN_ROOTS)) {
+    const n = walk(new URL(root, REPO)).length;
+    assert(
+      n >= min,
+      `${root}: expected ≥${min} scannable files, got ${n} — a moved or renamed tree empties this scanner silently`,
+    );
+  }
 });
 
 const isEnvFile = (p: string) => /\/\.env(\.|$)/.test(p);
@@ -100,8 +117,8 @@ Deno.test('no Stripe server secret is reachable from the client bundle', () => {
   // secrets — its client-side halves are covered by the next test instead.
   const SERVER_SECRET =
     /STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|STRIPE_RESTRICTED_KEY|SUPABASE_SERVICE_ROLE_KEY/;
+  // Per-root population is asserted by the SCAN_ROOTS guard test above.
   const bundled = [...walk(new URL('apps/native/', REPO)), ...walk(new URL('packages/', REPO))];
-  assert(bundled.length > 50, 'apps/native + packages scan came up empty');
   const hits = bundled.filter((p) => SERVER_SECRET.test(read(p))).map(rel);
   assert(
     hits.length === 0,
