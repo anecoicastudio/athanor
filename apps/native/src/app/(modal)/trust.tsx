@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,7 +19,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -38,21 +38,7 @@ export default function TrustScreen() {
   const locale = profile?.locale ?? 'it';
   const verified = profile?.identity_verified ?? false;
   const qc = useQueryClient();
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashToast = useCallback((msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  }, []);
-  // Clear a pending toast timer on unmount so it can't setToast on a dead component
-  // (e.g. tapping «Segnala un comportamento» pushes a new modal mid-toast).
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    [],
-  );
+  const { showToast } = useToast();
 
   // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
   const consents = useQuery({
@@ -121,7 +107,7 @@ export default function TrustScreen() {
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(gdprKeys.consent(profile?.id ?? ''), ctx.prev);
-      flashToast(t('profile.error', locale));
+      showToast(t('profile.error', locale));
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: gdprKeys.consent(profile?.id ?? '') }),
   });
@@ -315,8 +301,6 @@ export default function TrustScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {toast ? <Toast label={toast} /> : null}
     </Screen>
   );
 }

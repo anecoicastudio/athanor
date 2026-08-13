@@ -7,7 +7,7 @@ import { FlatList } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
@@ -28,12 +28,7 @@ export default function BlockedScreen() {
   const locale = profile?.locale ?? 'it';
   const qc = useQueryClient();
   const [mutatingId, setMutatingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
+  const { showToast } = useToast();
 
   // ── Blocked list (keyset, created_at desc) ────────────────────────────────
   const query = useInfiniteQuery({
@@ -54,7 +49,7 @@ export default function BlockedScreen() {
     onSettled: () => setMutatingId(null),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
-      showToast(t('block.toast.unblocked', locale));
+      showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
 
@@ -104,9 +99,6 @@ export default function BlockedScreen() {
           />
         }
       />
-
-      {/* Inline toast — no global host (rule: no global Sheet/Overlay/Toast) */}
-      {toast ? <Toast label={toast} tone="success" /> : null}
     </Screen>
   );
 }

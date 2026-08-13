@@ -25,7 +25,7 @@ import type { PostComment } from '@athanor/schemas';
 import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { PostMedia } from '@/components/feed/PostMedia';
@@ -45,22 +45,8 @@ export default function PostDetailScreen() {
   const myId = session?.user.id;
 
   const [draft, setDraft] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showToast } = useToast();
   const listRef = useRef<RNFlatList<PostComment>>(null);
-
-  const flashToast = (msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2500);
-    setToast(msg);
-  };
-  // Clear a pending toast timer on unmount so it can't setToast on a dead component.
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    [],
-  );
 
   const postQuery = useQuery({
     queryKey: postKeys.detail(id),
@@ -159,7 +145,7 @@ export default function PostDetailScreen() {
       void queryClient.invalidateQueries({ queryKey: postKeys.comments(id) });
       // Give the text back unless the member already started a new draft.
       if (ctx) setDraft((cur) => (cur.length > 0 ? cur : ctx.draftBackup));
-      flashToast(t('comment.send.error', locale));
+      showToast(t('comment.send.error', locale));
     },
   });
 
@@ -333,9 +319,6 @@ export default function PostDetailScreen() {
             <Text className="text-[20px] text-background">✦</Text>
           </Pressable>
         </View>
-
-        {/* Inline toast — no global host; same recipe as settings/blocked/data-export. */}
-        {toast ? <Toast label={toast} /> : null}
       </Screen>
     </KeyboardAvoiding>
   );

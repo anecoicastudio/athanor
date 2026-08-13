@@ -13,7 +13,7 @@ import { deriveVerifyState } from '@athanor/core';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
-import { Toast, type ToastTone } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -32,8 +32,7 @@ export default function VerifyScreen() {
 
   const [sessionPending, setSessionPending] = useState(false);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState<{ label: string; tone?: ToastTone } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showToast } = useToast();
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const status = useQuery({
@@ -58,20 +57,19 @@ export default function VerifyScreen() {
     return cleanup;
   }, [me, qc]);
 
-  // On verified: stop polling, toast, auto-dismiss.
+  // On verified: stop polling, toast (survives the pop via the host, #117), auto-dismiss.
   useEffect(() => {
     if (state !== 'verified') return;
     setSessionPending(false);
-    setToast({ label: t('trust.verify.toast.verified', locale), tone: 'moment' });
+    showToast(t('trust.verify.toast.verified', locale), 'moment');
     dismissTimer.current = setTimeout(() => router.back(), 1600);
     return () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
     };
-  }, [state, locale, router]);
+  }, [state, locale, router, showToast]);
 
   useEffect(
     () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
     },
     [],
@@ -84,9 +82,7 @@ export default function VerifyScreen() {
       const url = 'url' in result ? result.url : null;
       if (!url) throw new Error('no url'); // clientSecret/native path not used on SDK54 (web sheet only)
       setSessionPending(true);
-      setToast({ label: t('trust.verify.toast.started', locale), tone: 'success' });
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(null), 1800);
+      showToast(t('trust.verify.toast.started', locale), 'success');
       await WebBrowser.openAuthSessionAsync(url, 'athanor://verify');
       setSessionPending(false); // browser returned (completed OR cancelled) — re-enable CTA; realtime/poll flips to verified if it actually completed
       // back from the Stripe flow — refetch; realtime/poll carry the rest.
@@ -95,7 +91,7 @@ export default function VerifyScreen() {
       setSessionPending(false);
       setError(true);
     }
-  }, [locale, qc]);
+  }, [locale, qc, showToast]);
 
   const verified = state === 'verified';
 
@@ -172,8 +168,6 @@ export default function VerifyScreen() {
           />
         ) : null}
       </ScrollView>
-
-      {toast ? <Toast label={toast.label} tone={toast.tone} /> : null}
     </Screen>
   );
 }

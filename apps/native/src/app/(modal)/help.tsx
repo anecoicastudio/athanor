@@ -19,7 +19,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { MilestoneRow } from '@/components/profile/MilestoneRow';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
@@ -62,7 +62,7 @@ export default function HelpScreen() {
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<'type' | 'already' | 'generic' | null>(null);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
 
   // Picker mode only when the caller named a person instead of a tappa. A `milestoneId`
   // always wins, so the per-tappa flow is byte-for-byte what it was.
@@ -140,7 +140,8 @@ export default function HelpScreen() {
         type,
         message: message.trim() || undefined,
       });
-      setToast(true);
+      // The host keeps the toast alive across the pop (#117).
+      showToast(t('help.toast.offered', locale), 'moment');
       setTimeout(() => router.back(), 700);
     } catch (e) {
       if (isUniqueViolation(e)) {
@@ -265,7 +266,6 @@ export default function HelpScreen() {
           onPress={submit}
         />
       </ScrollView>
-      {toast ? <Toast label={t('help.toast.offered', locale)} tone="moment" /> : null}
     </Screen>
   );
 }

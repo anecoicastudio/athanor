@@ -12,7 +12,7 @@ import { t } from '@athanor/i18n';
 import { FlatList, TextInput, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
@@ -32,7 +32,7 @@ export default function NewMessageScreen() {
 
   const [search, setSearch] = useState('');
   const [creatingId, setCreatingId] = useState<string | null>(null);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
 
   const connectionsQuery = useInfiniteQuery({
     queryKey: connectionKeys.list(search),
@@ -53,8 +53,7 @@ export default function NewMessageScreen() {
       const conversationId = await getOrCreateConversation(supabase, peerId);
       router.replace(`/chat?conversationId=${conversationId}`);
     } catch {
-      setToast(true);
-      setTimeout(() => setToast(false), 1600);
+      showToast(t('chat.openFailed', locale));
       setCreatingId(null);
     }
   };
@@ -109,7 +108,6 @@ export default function NewMessageScreen() {
             void connectionsQuery.fetchNextPage();
         }}
       />
-      {toast ? <Toast label={t('chat.openFailed', locale)} /> : null}
     </Screen>
   );
 }

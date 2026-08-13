@@ -14,13 +14,12 @@ import { semantic } from '@athanor/config';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, SafeAreaView, Text, TextInput, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { star } from '@/lib/star';
 
 const PHOTO_MS = 5000;
 const DEFAULT_VIDEO_MS = 15000;
-const REPLY_TOAST_MS = 2500;
 
 function segmentMs(seg: StorySegment): number {
   if (seg.kind === 'video') return (seg.duration_s ?? DEFAULT_VIDEO_MS / 1000) * 1000;
@@ -111,7 +110,7 @@ export function StoriesViewer({
   const rootRef = useRef<RNView>(null);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
-  const [replyToast, setReplyToast] = useState<'sent' | 'failed' | null>(null);
+  const { showToast } = useToast();
   const reduce = useReducedMotion();
   const progress = useRef(new Animated.Value(0)).current;
   const current = segments[si];
@@ -123,12 +122,6 @@ export function StoriesViewer({
     setSi(startAt === 'last' ? Math.max(0, segments.length - 1) : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [segments]);
-
-  useEffect(() => {
-    if (!replyToast) return;
-    const id = setTimeout(() => setReplyToast(null), REPLY_TOAST_MS);
-    return () => clearTimeout(id);
-  }, [replyToast]);
 
   const goNext = () => {
     if (si + 1 < segments.length) setSi(si + 1);
@@ -198,9 +191,9 @@ export function StoriesViewer({
     try {
       await onSendReply(trimmed);
       setReply('');
-      setReplyToast('sent');
+      showToast(t('story.reply.sent', locale, { name }), 'success');
     } catch {
-      setReplyToast('failed');
+      showToast(t('story.reply.error', locale));
     } finally {
       setSending(false);
     }
@@ -388,17 +381,6 @@ export function StoriesViewer({
           )}
         </SafeAreaView>
       </KeyboardAvoidingView>
-
-      {replyToast ? (
-        <Toast
-          label={
-            replyToast === 'sent'
-              ? t('story.reply.sent', locale, { name })
-              : t('story.reply.error', locale)
-          }
-          tone={replyToast === 'sent' ? 'success' : undefined}
-        />
-      ) : null}
     </View>
   );
 }

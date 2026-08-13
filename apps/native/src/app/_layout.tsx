@@ -21,6 +21,7 @@ import * as Sentry from '@sentry/react-native';
 import { isProfileComplete } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { ToastProvider } from '@/components/ToastHost';
 import { BrandSplash } from '@/components/boot/BrandSplash';
 import { BootGate } from '@/components/boot/BootGate';
 import { ProfileErrorScreen } from '@/components/boot/ProfileErrorScreen';
@@ -129,21 +130,26 @@ function RootLayout() {
           <StatusBar style="light" />
           {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
           <SentryConsentGate />
-          <BootGate>
-            <AuthGuard>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: semantic.background },
-                }}
-              >
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(onboarding)" />
-                <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
-              </Stack>
-            </AuthGuard>
-          </BootGate>
+          {/* Toast state lives above the router (#117); the pill renders inside the
+            focused Screen's viewport — a root-level mount would sit under (modal)'s
+            native modal layer. */}
+          <ToastProvider>
+            <BootGate>
+              <AuthGuard>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: semantic.background },
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(onboarding)" />
+                  <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
+                </Stack>
+              </AuthGuard>
+            </BootGate>
+          </ToastProvider>
           {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
           {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
         </PersistQueryClientProvider>
