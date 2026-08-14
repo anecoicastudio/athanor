@@ -2739,6 +2739,7 @@ export type Database = {
         Returns: {
           avatar_path: string
           candidate_id: string
+          city_near: string[]
           display_name: string
           dream_text: string
           handle: string
@@ -2747,6 +2748,7 @@ export type Database = {
           reason_kind: string
           seek_hit: string[]
           shared: string[]
+          skills_shared: string[]
         }[]
       }
       get_momenti_suggestion: {

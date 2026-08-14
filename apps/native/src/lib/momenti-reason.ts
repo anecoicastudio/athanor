@@ -17,13 +17,25 @@ const REASON_KEY: Record<MomentoReasonKind, MessageKey> = {
   shared: 'momenti.reason.shared',
   seeking: 'momenti.reason.seeking',
   offering: 'momenti.reason.offering',
+  skills: 'momenti.reason.skills',
+  city: 'momenti.reason.city',
   newDream: 'momenti.reason.newDream',
 };
 
+/**
+ * The tag kinds carry IDENTITY keys — `seeking` holds the identities the candidate has that
+ * answer what you seek, `offering` the ones of yours that answer what they seek. `skills`
+ * carries skill keys (#123). `city` carries the candidate's city display name — a place, not
+ * a catalog key — rendered verbatim rather than pushed through a tag lookup that would only
+ * pass it back by luck.
+ */
+function termLabel(kind: MomentoReasonKind, tag: string, locale: Locale): string {
+  if (kind === 'city') return tag;
+  return tagLabel(kind === 'skills' ? 'skill' : 'identity', tag, locale);
+}
+
 export function momentoReasonText(reason: MomentoReason, locale: Locale): string {
   const prefix = t(REASON_KEY[reason.kind], locale);
-  // Every term carries IDENTITY keys — `seeking` holds the identities the candidate has that
-  // answer what you seek, `offering` the ones of yours that answer what they seek.
-  const tags = reason.tags.map((tag) => tagLabel('identity', tag, locale));
+  const tags = reason.tags.map((tag) => termLabel(reason.kind, tag, locale));
   return tags.length > 0 ? `${prefix}: ${tags.join(', ')}` : prefix;
 }

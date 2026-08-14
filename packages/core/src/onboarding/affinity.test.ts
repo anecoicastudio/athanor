@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AFFINITY_WEIGHTS,
+  CITY_GEOHASH_MATCH_PRECISION,
   MOMENTO_AFFINITY_THRESHOLD,
   SEEKING_TO_IDENTITY,
+  cityNear,
   expandSeeking,
   momentoAffinity,
   momentoAffinityTerms,
 } from './affinity';
+import { CITY_GEOHASH_PRECISION } from './geohash';
 import { IDENTITY_TAGS, SEEKING_TAGS } from './tags';
 
 describe('SEEKING_TO_IDENTITY', () => {
@@ -60,19 +64,30 @@ describe('expandSeeking', () => {
   });
 });
 
+/** Full profile from the fields a test cares about — the other terms stay silent. */
+const profile = (p: Partial<Parameters<typeof momentoAffinityTerms>[0]>) => ({
+  identityTags: [],
+  seeking: [],
+  skills: [],
+  cityGeohash: null,
+  ...p,
+});
+
+const NO_TERMS = { shared: [], seekHit: [], offerHit: [], skillsShared: [], cityNear: false };
+
 describe('momentoAffinityTerms', () => {
   it('scores a shared identity label', () => {
     const terms = momentoAffinityTerms(
-      { identityTags: ['artista', 'creativo'], seeking: [] },
-      { identityTags: ['creativo'], seeking: [] },
+      profile({ identityTags: ['artista', 'creativo'] }),
+      profile({ identityTags: ['creativo'] }),
     );
-    expect(terms).toEqual({ shared: ['creativo'], seekHit: [], offerHit: [] });
+    expect(terms).toEqual({ ...NO_TERMS, shared: ['creativo'] });
   });
 
   it('scores complementarity: what I seek is what they are', () => {
     const terms = momentoAffinityTerms(
-      { identityTags: ['freelance'], seeking: ['mentorship'] },
-      { identityTags: ['mentor'], seeking: [] },
+      profile({ identityTags: ['freelance'], seeking: ['mentorship'] }),
+      profile({ identityTags: ['mentor'] }),
     );
     expect(terms.seekHit).toEqual(['mentor']);
     expect(terms.shared).toEqual([]);
@@ -80,8 +95,8 @@ describe('momentoAffinityTerms', () => {
 
   it('scores the reverse: what I am is what they seek', () => {
     const terms = momentoAffinityTerms(
-      { identityTags: ['investitore'], seeking: [] },
-      { identityTags: ['artista'], seeking: ['business'] },
+      profile({ identityTags: ['investitore'] }),
+      profile({ identityTags: ['artista'], seeking: ['business'] }),
     );
     expect(terms.offerHit).toEqual(['investitore']);
   });
@@ -90,16 +105,16 @@ describe('momentoAffinityTerms', () => {
     // Two people who both want mentorship are not a match on that alone — the term
     // is seeking ↔ identity in both directions, never seeking ↔ seeking.
     const terms = momentoAffinityTerms(
-      { identityTags: ['artista'], seeking: ['mentorship'] },
-      { identityTags: ['creativo'], seeking: ['mentorship'] },
+      profile({ identityTags: ['artista'], seeking: ['mentorship'] }),
+      profile({ identityTags: ['creativo'], seeking: ['mentorship'] }),
     );
-    expect(terms).toEqual({ shared: [], seekHit: [], offerHit: [] });
+    expect(terms).toEqual(NO_TERMS);
   });
 
   it('is deterministic: terms come back sorted', () => {
     const terms = momentoAffinityTerms(
-      { identityTags: ['mentor', 'artista', 'coach'], seeking: [] },
-      { identityTags: ['coach', 'mentor', 'artista'], seeking: [] },
+      profile({ identityTags: ['mentor', 'artista', 'coach'] }),
+      profile({ identityTags: ['coach', 'mentor', 'artista'] }),
     );
     expect(terms.shared).toEqual(['artista', 'coach', 'mentor']);
   });
@@ -111,8 +126,8 @@ describe('momentoAffinityTerms', () => {
     // would disagree with the engine it exists to describe, and the mirror test only compares
     // the seeking map, so nothing would catch it.
     const terms = momentoAffinityTerms(
-      { identityTags: ['design'], seeking: [] },
-      { identityTags: ['design'], seeking: [] },
+      profile({ identityTags: ['design'] }),
+      profile({ identityTags: ['design'] }),
     );
     expect(terms.shared).toEqual(['design']);
   });
@@ -121,21 +136,75 @@ describe('momentoAffinityTerms', () => {
     // Visibility masking happens at the caller (the matcher blanks a private array);
     // an empty array must simply score nothing rather than throw or match all.
     const terms = momentoAffinityTerms(
-      { identityTags: ['mentor'], seeking: ['business'] },
-      { identityTags: [], seeking: [] },
+      profile({ identityTags: ['mentor'], seeking: ['business'], skills: ['seo'] }),
+      profile({}),
     );
     expect(momentoAffinity(terms)).toBe(0);
+  });
+
+  it('scores the skills overlap like the tag terms: sorted, deduplicated (#123)', () => {
+    const terms = momentoAffinityTerms(
+      profile({ skills: ['sviluppo-web', 'branding', 'seo'] }),
+      profile({ skills: ['branding', 'sviluppo-web', 'branding'] }),
+    );
+    expect(terms.skillsShared).toEqual(['branding', 'sviluppo-web']);
+  });
+
+  it('fires the city term when the two cells agree at the match precision (#123)', () => {
+    // Stored at precision 5; compared at 4 — same ≈20 km cell, different ≈5 km cell.
+    const terms = momentoAffinityTerms(
+      profile({ cityGeohash: 'u0nd9' }),
+      profile({ cityGeohash: 'u0ndb' }),
+    );
+    expect(terms.cityNear).toBe(true);
+  });
+
+  it('a member with no geohash contributes zero to the city term, gracefully', () => {
+    // Free-text city stores NO geohash (#149) — the term skips them, both ways round.
+    expect(momentoAffinityTerms(profile({}), profile({ cityGeohash: 'u0nd9' })).cityNear).toBe(
+      false,
+    );
+    expect(momentoAffinityTerms(profile({ cityGeohash: 'u0nd9' }), profile({})).cityNear).toBe(
+      false,
+    );
+  });
+});
+
+describe('cityNear', () => {
+  it('agrees at the match precision, not the storage precision', () => {
+    expect(cityNear('u0nd9', 'u0ndb')).toBe(true); // differ only at char 5
+    expect(cityNear('u0nd9', 'u0n5b')).toBe(false); // differ at char 4
+  });
+
+  it('never fires on a missing side', () => {
+    expect(cityNear(null, 'u0nd9')).toBe(false);
+    expect(cityNear('u0nd9', null)).toBe(false);
+    expect(cityNear(null, null)).toBe(false);
+  });
+
+  it('never fires on a malformed, too-short hash', () => {
+    // The DB CHECK pins exactly 5 chars; a shorter string can only reach the pure
+    // function from a bug, and a 3-char prefix agreeing must not read as proximity.
+    expect(cityNear('u0n', 'u0nd9')).toBe(false);
+  });
+
+  it('the match precision is coarser than the stored precision, so it stays tunable', () => {
+    // #149 stored precision 5 exactly so the matcher could compare at fewer chars
+    // WITHOUT a re-migration. Comparing at ≥ stored precision would break that.
+    expect(CITY_GEOHASH_MATCH_PRECISION).toBeLessThan(CITY_GEOHASH_PRECISION);
+    expect(CITY_GEOHASH_MATCH_PRECISION).toBe(4);
   });
 });
 
 describe('momentoAffinity', () => {
   it('is the total number of terms that fired', () => {
     const terms = momentoAffinityTerms(
-      { identityTags: ['mentor'], seeking: ['business'] },
-      { identityTags: ['mentor', 'imprenditore'], seeking: ['mentorship'] },
+      profile({ identityTags: ['mentor'], seeking: ['business'] }),
+      profile({ identityTags: ['mentor', 'imprenditore'], seeking: ['mentorship'] }),
     );
     // shared: mentor · seekHit: imprenditore · offerHit: mentor
     expect(terms).toEqual({
+      ...NO_TERMS,
       shared: ['mentor'],
       seekHit: ['imprenditore'],
       offerHit: ['mentor'],
@@ -146,8 +215,8 @@ describe('momentoAffinity', () => {
   it('a single shared label falls under the proposal threshold', () => {
     // Issue #273 C: `affinity > 0` shipped a Momento on one tag out of seven.
     const terms = momentoAffinityTerms(
-      { identityTags: ['artista'], seeking: ['eventi'] },
-      { identityTags: ['artista'], seeking: ['connessioni'] },
+      profile({ identityTags: ['artista'], seeking: ['eventi'] }),
+      profile({ identityTags: ['artista'], seeking: ['connessioni'] }),
     );
     expect(momentoAffinity(terms)).toBeLessThan(MOMENTO_AFFINITY_THRESHOLD);
   });
@@ -156,10 +225,38 @@ describe('momentoAffinity', () => {
     // mentor ↔ mentorship in both directions: the exact pairing the dead terms
     // existed for. Nothing shared, and still a real match.
     const terms = momentoAffinityTerms(
-      { identityTags: ['mentor'], seeking: ['business'] },
-      { identityTags: ['imprenditore'], seeking: ['mentorship'] },
+      profile({ identityTags: ['mentor'], seeking: ['business'] }),
+      profile({ identityTags: ['imprenditore'], seeking: ['mentorship'] }),
     );
     expect(terms.shared).toEqual([]);
     expect(momentoAffinity(terms)).toBeGreaterThanOrEqual(MOMENTO_AFFINITY_THRESHOLD);
+  });
+
+  it('each shared skill weighs like a shared tag (#123 — parity, stated openly)', () => {
+    const terms = momentoAffinityTerms(
+      profile({ skills: ['sviluppo-web', 'branding'] }),
+      profile({ skills: ['sviluppo-web', 'branding'] }),
+    );
+    expect(momentoAffinity(terms)).toBe(2 * AFFINITY_WEIGHTS.skill);
+    expect(momentoAffinity(terms)).toBeGreaterThanOrEqual(MOMENTO_AFFINITY_THRESHOLD);
+  });
+
+  it('city proximity weighs once, at tag parity — it can complete a threshold, not meet it alone', () => {
+    const near = momentoAffinityTerms(
+      profile({ identityTags: ['artista'], cityGeohash: 'u0nd9' }),
+      profile({ identityTags: ['artista'], cityGeohash: 'u0ndb' }),
+    );
+    expect(momentoAffinity(near)).toBe(AFFINITY_WEIGHTS.tag + AFFINITY_WEIGHTS.city);
+    expect(momentoAffinity(near)).toBeGreaterThanOrEqual(MOMENTO_AFFINITY_THRESHOLD);
+
+    const alone = momentoAffinityTerms(
+      profile({ cityGeohash: 'u0nd9' }),
+      profile({ cityGeohash: 'u0ndb' }),
+    );
+    expect(momentoAffinity(alone)).toBeLessThan(MOMENTO_AFFINITY_THRESHOLD);
+  });
+
+  it('every weight starts at parity — retuning is a one-line product decision, not a rewrite', () => {
+    expect(AFFINITY_WEIGHTS).toEqual({ tag: 1, skill: 1, city: 1 });
   });
 });

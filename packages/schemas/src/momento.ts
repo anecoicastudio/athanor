@@ -8,12 +8,21 @@ export type MomentoStatus = z.infer<typeof momentoStatus>;
 
 /**
  * One affinity reason, as TERMS rather than prose (#273 D). `tags` are identity tag keys
- * (`tag.identity.*` in @athanor/i18n) in every kind — `seeking` carries the identities the
+ * (`tag.identity.*` in @athanor/i18n) in the tag kinds — `seeking` carries the identities the
  * candidate holds that answer what you seek, `offering` the identities of YOURS that answer
- * what they seek. `newDream` is the dream-recency fallback and claims no overlap at all, so
- * it carries no tags.
+ * what they seek. `skills` carries skill keys (`tag.skill.*`, #123). `city` carries the
+ * candidate's city DISPLAY NAME at most — never a geohash or coordinate — and only while the
+ * owner keeps it visible. `newDream` is the dream-recency fallback and claims no overlap at
+ * all, so it carries no tags.
  */
-export const momentoReasonKind = z.enum(['shared', 'seeking', 'offering', 'newDream']);
+export const momentoReasonKind = z.enum([
+  'shared',
+  'seeking',
+  'offering',
+  'skills',
+  'city',
+  'newDream',
+]);
 export type MomentoReasonKind = z.infer<typeof momentoReasonKind>;
 
 export const momentoReason = z.object({
@@ -42,6 +51,8 @@ export const momentoDeckRow = z.object({
   shared: z.array(z.string()),
   seek_hit: z.array(z.string()),
   offer_hit: z.array(z.string()),
+  skills_shared: z.array(z.string()),
+  city_near: z.array(z.string()),
 });
 export type MomentoDeckRow = z.infer<typeof momentoDeckRow>;
 

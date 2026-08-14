@@ -30,6 +30,9 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
             { kind: 'shared', tags: row.shared },
             { kind: 'seeking', tags: row.seek_hit },
             { kind: 'offering', tags: row.offer_hit },
+            { kind: 'skills', tags: row.skills_shared },
+            // `city` tags hold the candidate's city display name (never a geohash, #123).
+            { kind: 'city', tags: row.city_near },
           ] as const
         ).filter((term) => term.tags.length > 0);
   return momentoDeckCard.parse({

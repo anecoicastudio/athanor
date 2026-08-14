@@ -796,6 +796,8 @@
   "momenti.reason.shared": "You both are",
   "momenti.reason.seeking": "You're looking for",
   "momenti.reason.offering": "May be looking for what you offer",
+  "momenti.reason.skills": "You both know",
+  "momenti.reason.city": "Near you",
   "momenti.reason.newDream": "New dream",
   "match.eyebrow": "You have a Momento",
   "match.sub": "Same city, complementary skills, and a dream that speaks to yours.",

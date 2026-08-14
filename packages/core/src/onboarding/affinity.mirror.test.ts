@@ -2,7 +2,12 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { MOMENTO_AFFINITY_THRESHOLD, SEEKING_TO_IDENTITY } from './affinity';
+import {
+  AFFINITY_WEIGHTS,
+  CITY_GEOHASH_MATCH_PRECISION,
+  MOMENTO_AFFINITY_THRESHOLD,
+  SEEKING_TO_IDENTITY,
+} from './affinity';
 import { SEEKING_TAGS } from './tags';
 
 /**
@@ -80,5 +85,32 @@ describe('the matcher applies MOMENTO_AFFINITY_THRESHOLD', () => {
     // still proposes on the old bar.
     const sql = currentDefinition('public\\.run_momenti_matcher');
     expect(sql).toMatch(new RegExp(`where affinity >= ${MOMENTO_AFFINITY_THRESHOLD}\\b`));
+  });
+});
+
+describe('the matcher mirrors AFFINITY_WEIGHTS (#123)', () => {
+  // Same contract as the threshold above: the SQL hardcodes each weight as a literal in
+  // the affinity expression, so a retune that lands in one language alone fails here.
+  it('hardcodes the tag, skill and city weights in the affinity sum', () => {
+    const sql = currentDefinition('public\\.run_momenti_matcher');
+    expect(sql).toMatch(
+      new RegExp(`\\(${AFFINITY_WEIGHTS.tag} \\* \\(coalesce\\(array_length\\(shared`),
+    );
+    expect(sql).toMatch(
+      new RegExp(`\\+ ${AFFINITY_WEIGHTS.skill} \\* coalesce\\(array_length\\(skills_shared`),
+    );
+    expect(sql).toMatch(new RegExp(`case when city_near then ${AFFINITY_WEIGHTS.city} else 0 end`));
+  });
+});
+
+describe('city proximity compares prefixes at CITY_GEOHASH_MATCH_PRECISION (#123)', () => {
+  it('run_momenti_matcher truncates both geohashes to the constant', () => {
+    const sql = currentDefinition('public\\.run_momenti_matcher');
+    expect(sql).toMatch(new RegExp(`left\\(r\\.city_geohash, ${CITY_GEOHASH_MATCH_PRECISION}\\)`));
+  });
+
+  it('get_momenti_deck recomputes the term at the same precision', () => {
+    const sql = currentDefinition('public\\.get_momenti_deck');
+    expect(sql).toMatch(new RegExp(`left\\(me\\.city_geohash, ${CITY_GEOHASH_MATCH_PRECISION}\\)`));
   });
 });
