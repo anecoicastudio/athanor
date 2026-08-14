@@ -133,6 +133,21 @@ describe('mergeBoostedFeed — ordering', () => {
     });
     expect(out.posts).toEqual([friendPost, strangerPost]);
   });
+
+  it('breaks the tie the other way when the stranger holds the greater id', () => {
+    const friendPost = post(
+      FRIEND,
+      2 * HOUR + CONNECTION_BOOST_MS,
+      'aaaaaaaa-0000-4000-8000-000000000000',
+    );
+    const strangerPost = post(STRANGER, 2 * HOUR, 'bbbbbbbb-0000-4000-8000-000000000000');
+    const out = merge({
+      chrono: [strangerPost, friendPost],
+      boosted: [friendPost],
+      peerIds: peers(FRIEND),
+    });
+    expect(out.posts).toEqual([strangerPost, friendPost]);
+  });
 });
 
 // ── merge: dedup + consumption ───────────────────────────────────────────────
@@ -157,6 +172,37 @@ describe('mergeBoostedFeed — dedup and cursors', () => {
     const out = merge({ chrono: rows, boosted: [], peerIds: peers(), limit: 2 });
     expect(out.posts).toEqual([rows[0], rows[1]]);
     expect(out.lastChrono).toBe(rows[1]);
+    expect(out.done).toBe(false);
+  });
+
+  it('passes a boosted-only page through in order when the chrono stream is done', () => {
+    const rows = [post(FRIEND, 1 * HOUR), post(FRIEND, 2 * HOUR)];
+    const out = merge({ chrono: [], boosted: rows, peerIds: peers(FRIEND) });
+    expect(out.posts).toEqual(rows);
+    expect(out.lastBoosted).toBe(rows[1]);
+    expect(out.lastChrono).toBeNull();
+    expect(out.done).toBe(true);
+  });
+
+  it('is not done while unconsumed boosted rows remain past the limit', () => {
+    const rows = [post(FRIEND, 1 * HOUR), post(FRIEND, 2 * HOUR)];
+    const out = merge({ chrono: [], boosted: rows, peerIds: peers(FRIEND), limit: 1 });
+    expect(out.posts).toEqual([rows[0]]);
+    expect(out.lastBoosted).toBe(rows[0]);
+    expect(out.done).toBe(false);
+  });
+
+  it('stops when a full chrono page is consumed dry — its unfetched rows may outrank the boosted buffer', () => {
+    const friendPost = post(FRIEND, 1 * HOUR);
+    const olderFriend = post(FRIEND, 3 * HOUR);
+    const out = merge({
+      chrono: [friendPost], // the whole page was connection copies, consumed silently
+      boosted: [friendPost, olderFriend],
+      peerIds: peers(FRIEND),
+      chronoMayHaveMore: true, // chrono page was full at limit 1 → more chrono rows unknown
+    });
+    expect(out.posts).toEqual([]);
+    expect(out.lastChrono).toBe(friendPost);
     expect(out.done).toBe(false);
   });
 
@@ -211,6 +257,45 @@ describe('mergeBoostedFeed — frontier', () => {
     expect(out.posts).toEqual([fresh]);
     // dropped, but consumed — the boosted cursor advances past it
     expect(out.lastBoosted).toBe(alreadySeen);
+  });
+
+  it('reports a raw created_at frontier when the last emitted row is not a connection', () => {
+    const strangerPost = post(STRANGER, 1 * HOUR);
+    const out = merge({ chrono: [strangerPost], boosted: [], peerIds: peers() });
+    expect(out.frontier).toEqual({ ms: NOW - 1 * HOUR, id: strangerPost.id });
+  });
+
+  it('drops a chrono row above the frontier — it landed mid-scroll and waits for a refresh', () => {
+    // Strictly newer than the frontier ms, with an id BELOW the frontier id, so only the
+    // `ms > frontier.ms` comparison can catch it.
+    const midScroll = post(STRANGER, 1 * HOUR);
+    const older = post(STRANGER, 3 * HOUR);
+    const frontier: FeedFrontier = {
+      ms: NOW - 2 * HOUR,
+      id: 'ffffffff-0000-4000-8000-000000000000',
+    };
+    const out = merge({ chrono: [midScroll, older], boosted: [], peerIds: peers(), frontier });
+    expect(out.posts).toEqual([older]);
+    // dropped, but consumed — the chrono cursor advances past it
+    expect(out.lastChrono).toBe(older);
+  });
+
+  it('keeps consuming the boosted stream after dropping a row above the frontier', () => {
+    const alreadySeen = post(FRIEND, 1 * HOUR);
+    const older = post(FRIEND, 5 * HOUR);
+    const frontier: FeedFrontier = {
+      ms: effectiveTimestampMs(alreadySeen, true),
+      id: alreadySeen.id,
+    };
+    const out = merge({
+      chrono: [],
+      boosted: [alreadySeen, older],
+      peerIds: peers(FRIEND),
+      frontier,
+    });
+    expect(out.posts).toEqual([older]);
+    expect(out.lastBoosted).toBe(older);
+    expect(out.done).toBe(true);
   });
 
   it('propagates the previous frontier when nothing is emitted', () => {

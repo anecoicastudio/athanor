@@ -93,8 +93,22 @@ export function mergeBoostedFeed<T extends BoostFeedRow>(
   const atOrAboveFrontier = (ms: number, id: string): boolean =>
     frontier !== null && (ms > frontier.ms || (ms === frontier.ms && id >= frontier.id));
 
+  const takeChrono = (row: T): void => {
+    posts.push(row);
+    frontier = { ms: effectiveTimestampMs(row, false), id: row.id };
+    lastChrono = row;
+    iA++;
+  };
+  const takeBoosted = (row: T): void => {
+    posts.push(row);
+    frontier = { ms: effectiveTimestampMs(row, true), id: row.id };
+    lastBoosted = row;
+    iB++;
+  };
+
   while (posts.length < limit) {
-    const a = iA < chrono.length ? chrono[iA] : undefined;
+    // noUncheckedIndexedAccess: an out-of-range read is `undefined` — the stream is dry.
+    const a = chrono[iA];
     if (a !== undefined && peerIds.has(a.author_id)) {
       lastChrono = a;
       iA++;
@@ -105,7 +119,7 @@ export function mergeBoostedFeed<T extends BoostFeedRow>(
       iA++;
       continue;
     }
-    const b = iB < boosted.length ? boosted[iB] : undefined;
+    const b = boosted[iB];
     if (b !== undefined && atOrAboveFrontier(effectiveTimestampMs(b, true), b.id)) {
       lastBoosted = b;
       iB++;
@@ -114,22 +128,24 @@ export function mergeBoostedFeed<T extends BoostFeedRow>(
 
     if (a === undefined && chronoMayHaveMore) break;
     if (b === undefined && boostedMayHaveMore) break;
-    if (a === undefined && b === undefined) break;
 
-    const effA = a === undefined ? Number.NEGATIVE_INFINITY : effectiveTimestampMs(a, false);
-    const effB = b === undefined ? Number.NEGATIVE_INFINITY : effectiveTimestampMs(b, true);
-    const pickA =
-      b === undefined || (a !== undefined && (effA > effB || (effA === effB && a.id > b.id)));
-    if (pickA && a !== undefined) {
-      posts.push(a);
-      frontier = { ms: effA, id: a.id };
-      lastChrono = a;
-      iA++;
-    } else if (b !== undefined) {
-      posts.push(b);
-      frontier = { ms: effB, id: b.id };
-      lastBoosted = b;
-      iB++;
+    if (a === undefined) {
+      if (b === undefined) break;
+      takeBoosted(b);
+      continue;
+    }
+    if (b === undefined) {
+      takeChrono(a);
+      continue;
+    }
+    const effA = effectiveTimestampMs(a, false);
+    const effB = effectiveTimestampMs(b, true);
+    // Equivalent mutant (`>` → `>=`): ids are the posts PK, and the peerIds guard above
+    // consumes any chrono copy of a boosted row, so `a.id === b.id` cannot reach here.
+    if (effA > effB || (effA === effB && a.id > b.id)) {
+      takeChrono(a);
+    } else {
+      takeBoosted(b);
     }
   }
 
