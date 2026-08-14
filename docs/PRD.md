@@ -102,7 +102,7 @@ North-star: **completed dream milestones per month** (real value generated, not 
 - Costellazioni digital coworking + Tempo Bank `[FASE 2]` — the project board itself shipped in Fase 1 (§4.15)
 - Public web pages for sogni and eventi `[FASE 2]` — Fase-1 public web is @handle profiles + marketing/legal only (re-scopes #159)
 - Marketplace, professional cards, reviews on transactions `[FASE 3]`
-- Dream Fund (peer-to-peer milestone funding) `[FASE 3]`
+- Dream Fund (peer-to-peer milestone funding — the `contribution` help type, legal-gated, §4.3) `[FASE 3]`
 - AI Assistant, Athanor Academy, full Athanor Circle business tools `[FASE 4]`
 - In-app live streaming infrastructure (v1 links to external stream URL)
 - Local Circles city chapters (GTM feature; schema has `city`, chapters later)
@@ -142,8 +142,9 @@ Bio, mission, skills (tags), city (approximate), badges, Aura with breakdown, ev
 
 - One active dream per profile, owner's words, visible per visibility flag. History kept.
 - Milestones: discrete needs («un logo», «un mentor», «il primo cliente»). Status: open / in-progress / done.
-- «Fai accadere questo sogno» → pick a milestone → offer help (skill, connection, opportunity, contribution — text + optional link). Owner accepts/declines. Completed help → score event for both + helper's star progress.
+- «Fai accadere questo sogno» → pick a milestone → offer help (skill, connection, opportunity — text + optional link). Owner accepts/declines. Completed help → score event for both + helper's star progress.
 - **No money flows between members in Fase 1.** UI copy states it.
+- ⚠️ **Legal gate:** the fourth help type, **contribution** — money toward another member's milestone — is the peer-to-peer Dream Fund path (`[FASE 3]`, §3.2) and carries the same fiscal/regulatory implications (IT/EU) as the pooled fund (§4.11), plus peer-to-peer questions of its own. Legal review required before it exists at all. The enum is deliberately three-valued — `20260614131843_milestone_helps.sql` («NO 'contribution' (Fase 1)») is the decision point.
 - Acceptance: helper flow ≤ 3 taps from any profile; both parties notified on accept/complete.
 
 ### 4.4 Home Dashboard
@@ -381,7 +382,8 @@ profiles ──1:1── auth.users
    ├──1:N── dreams (one active) ──1:N── dream_milestones
    │                                        └──1:N── milestone_helps
    │                                             (helper_id, type: skill|connection|
-   │                                              opportunity|contribution,
+   │                                              opportunity,  -- NO 'contribution'
+   │                                              (Fase-3 Dream Fund, legal-gated §4.3)
    │                                              status: offered|accepted|completed)
    ├──1:N── badges            (star enum, earned_at)
    ├──1:N── aura_events       (type, points, ref_id, created_at)  ◄ append-only
