@@ -34,6 +34,14 @@ describe('momentoReasonText', () => {
     expect(momentoReasonText({ kind: 'city', tags: ['Monza'] }, 'en')).toBe('Near you: Monza');
   });
 
+  it('renders mutual activity with event titles verbatim — rooms, not catalog keys (#361)', () => {
+    // The server sends TITLES of events both members were checked in at; like the city
+    // display name, a title is a thing, not a key, and must never hit a tag lookup.
+    const reason = { kind: 'mutualActivity' as const, tags: ['Cena sotto le stelle'] };
+    expect(momentoReasonText(reason, 'it')).toBe('Avete già condiviso: Cena sotto le stelle');
+    expect(momentoReasonText(reason, 'en')).toBe("You've already shared: Cena sotto le stelle");
+  });
+
   it('says the fallback plainly, with no tag list and no affinity claim', () => {
     expect(momentoReasonText({ kind: 'newDream', tags: [] }, 'it')).toBe('Sogno nuovo');
     expect(momentoReasonText({ kind: 'newDream', tags: [] }, 'en')).toBe('New dream');

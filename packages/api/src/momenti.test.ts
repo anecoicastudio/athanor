@@ -23,6 +23,7 @@ describe('rowToDeckCard', () => {
     offer_hit: ['investitore'],
     skills_shared: ['branding', 'sviluppo-web'],
     city_near: ['Milano'],
+    mutual_activity: ['Cena sotto le stelle'],
   };
 
   it('maps an RPC row to a deck card of structured reasons', () => {
@@ -39,6 +40,7 @@ describe('rowToDeckCard', () => {
         { kind: 'offering', tags: ['investitore'] },
         { kind: 'skills', tags: ['branding', 'sviluppo-web'] },
         { kind: 'city', tags: ['Milano'] },
+        { kind: 'mutualActivity', tags: ['Cena sotto le stelle'] },
       ],
     });
   });
@@ -52,6 +54,7 @@ describe('rowToDeckCard', () => {
       offer_hit: [],
       skills_shared: [],
       city_near: [],
+      mutual_activity: [],
     });
     expect(card.reasons).toEqual([{ kind: 'shared', tags: ['creativo'] }]);
   });
@@ -64,6 +67,7 @@ describe('rowToDeckCard', () => {
       offer_hit: [],
       skills_shared: [],
       city_near: [],
+      mutual_activity: [],
     });
     expect(card.reasons).toEqual([]);
   });
@@ -119,6 +123,7 @@ describe('getMomentiDeck (get_momenti_deck RPC)', () => {
     offer_hit: [],
     skills_shared: [],
     city_near: [],
+    mutual_activity: [],
   };
 
   it('takes no argument — the caller comes from auth.uid() (rule #8)', async () => {

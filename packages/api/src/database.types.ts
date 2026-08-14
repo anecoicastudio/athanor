@@ -2743,6 +2743,7 @@ export type Database = {
           display_name: string
           dream_text: string
           handle: string
+          mutual_activity: string[]
           offer_hit: string[]
           proposal_id: string
           reason_kind: string

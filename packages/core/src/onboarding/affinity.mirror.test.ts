@@ -6,6 +6,7 @@ import {
   AFFINITY_WEIGHTS,
   CITY_GEOHASH_MATCH_PRECISION,
   MOMENTO_AFFINITY_THRESHOLD,
+  MUTUAL_ACTIVITY_CAP,
   SEEKING_TO_IDENTITY,
 } from './affinity';
 import { SEEKING_TAGS } from './tags';
@@ -100,6 +101,28 @@ describe('the matcher mirrors AFFINITY_WEIGHTS (#123)', () => {
       new RegExp(`\\+ ${AFFINITY_WEIGHTS.skill} \\* coalesce\\(array_length\\(skills_shared`),
     );
     expect(sql).toMatch(new RegExp(`case when city_near then ${AFFINITY_WEIGHTS.city} else 0 end`));
+  });
+});
+
+describe('mutual activity mirrors core (#361)', () => {
+  it('run_momenti_matcher weighs the term at AFFINITY_WEIGHTS.activity, capped at MUTUAL_ACTIVITY_CAP', () => {
+    const sql = currentDefinition('public\\.run_momenti_matcher');
+    expect(sql).toMatch(
+      new RegExp(
+        `\\+ ${AFFINITY_WEIGHTS.activity} \\* least\\(${MUTUAL_ACTIVITY_CAP}, coalesce\\(array_length\\(mutual_activity`,
+      ),
+    );
+  });
+
+  it('both functions read verified check-ins, never RSVP intent', () => {
+    // The term is «you were both THERE», not «you both clicked going» — event_attendance
+    // rows exist only behind an organizer scan of a real ticket. A rewrite that quietly
+    // switched to rsvps would make the term free to farm.
+    for (const fn of ['public\\.run_momenti_matcher', 'public\\.get_momenti_deck']) {
+      const sql = currentDefinition(fn);
+      expect(sql).toContain('public.event_attendance');
+      expect(sql).not.toContain('public.rsvps');
+    }
   });
 });
 
