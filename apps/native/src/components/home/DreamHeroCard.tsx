@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { fundKeys, getActiveEdition, getFundAggregate } from '@athanor/api';
@@ -8,6 +7,7 @@ import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
+import { dreamHeroSlot, fundCycleState } from '@/lib/fund-cycle';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -16,14 +16,19 @@ import { supabase } from '@/lib/supabase';
  * total, and the contributor count. Tapping the whole card navigates to the
  * Annual screen where the per-second ticker lives.
  *
- * When no active edition exists the `fallback` node is rendered instead so
- * exactly one element occupies the slot (never an empty gap).
+ * The slot's states live in `lib/fund-cycle.ts` (issue #224, FUND-47): a confirmed
+ * no-cycle read renders the first cycle's ANNOUNCEMENT — «Il primo ciclo aprirà
+ * presto», forward-looking, never €0 — while loading and a failed read collapse
+ * (DESIGN §11 2026-08-12 rule b: the fund heartbeat is not a claim about the
+ * member; the annual screen owns the error + retry). The old «Presto qui»
+ * `fallback` is gone: the fund shipped, so a milestone placeholder over it was a
+ * false claim.
  *
  * Rule #3: fund total + people count are sanctioned public heartbeat — rendered
  * plainly (no glow; the glow lives on the annual screen's ticker).
- * Rule #4: flat cyan accent only (no aura glow on this card).
+ * Rule #4: flat cyan accent only (no aura glow on this card, none on the announcement).
  */
-export function DreamHeroCard({ locale, fallback }: { locale: Locale; fallback?: ReactNode }) {
+export function DreamHeroCard({ locale }: { locale: Locale }) {
   const router = useRouter();
 
   const editionQuery = useQuery({
@@ -41,8 +46,28 @@ export function DreamHeroCard({ locale, fallback }: { locale: Locale; fallback?:
     refetchInterval: 60_000,
   });
 
-  // No active edition → render the fallback (caller's ComingSoonSection placeholder).
-  if (!edition) return fallback ?? null;
+  const slot = dreamHeroSlot(
+    fundCycleState({
+      status: editionQuery.status,
+      fetchStatus: editionQuery.fetchStatus,
+      edition,
+    }),
+  );
+
+  if (slot === 'collapse') return null;
+
+  if (slot === 'announce' || !edition) {
+    return (
+      <View className="gap-3">
+        <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
+        <Card>
+          <Text className="text-center text-[14px] leading-5 text-foreground">
+            {t('fund.noCycle', locale)}
+          </Text>
+        </Card>
+      </View>
+    );
+  }
 
   const { days } = timeRemaining(Date.parse(edition.target_at), Date.now());
   const agg = aggregateQuery.data ?? null;

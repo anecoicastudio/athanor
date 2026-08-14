@@ -23,11 +23,13 @@ import { supabase } from '@/lib/supabase';
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
  * prototype order and each milestone swaps its «Presto qui» placeholder for the
- * real block. TWO placeholders remain, both as `fallback` props: countdown M7
- * (`DreamHeroCard`) and Esplora Fase2/M8 (`PrimeStelleCard`). Everything else on
- * this screen has landed and renders real data.
+ * real block. ONE placeholder remains, as a `fallback` prop: Esplora Fase2/M8
+ * (`PrimeStelleCard`). The countdown slot's M7 shipped, so its no-data state is a
+ * real state now — `DreamHeroCard` owns it (#224): a confirmed no-cycle read
+ * renders the first cycle's announcement, loading/error collapse. Everything else
+ * on this screen has landed and renders real data.
  *
- * A placeholder promises a MILESTONE, so it belongs only to those two. The blocks
+ * A placeholder promises a MILESTONE, so it belongs only to that one. The blocks
  * whose milestone has landed say something true about today instead, and there are
  * two shapes of that, which is deliberate:
  *
@@ -106,12 +108,9 @@ export default function HomeScreen() {
           locale={locale}
           onAction={onAction}
         />
-        {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
-          active edition exists, so we show exactly one element in this slot. */}
-        <DreamHeroCard
-          locale={locale}
-          fallback={<ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />}
-        />
+        {/* Block 2: M7 dream-hero — card owns the edition query and its states (#224):
+          announcement on a confirmed no-cycle, collapse on loading/error, card when live. */}
+        <DreamHeroCard locale={locale} />
         {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
         <MomentiCard locale={locale} />
         {/* Block 3: Esplora slot — Prime Stelle launch card while the flag is on (P4.2);
