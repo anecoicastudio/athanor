@@ -161,7 +161,7 @@ Always-visible countdown widget (days to the announcement event, fund total €,
 ### 4.6 Athanor Live (Events)
 
 - Create event: title, category (business, networking, spiritualità, formazione, musica, arte, benessere), online (stream URL) or physical (venue, map pin), capacity, price (free or paid).
-- Views: calendar, list, nearby. Filter by category/city/date (#151). The map render is deferred post-launch — v1 ships the nearby list; a native maps dependency stays out of the launch path (#150).
+- Views: calendar, list, nearby. Filter by category/city/date is spec, not built (#151, blocked on #149). The map render is deferred post-launch — v1 ships the nearby list; a native maps dependency stays out of the launch path (#150).
 - Paid tickets: Stripe Checkout; platform fee on top or absorbed (config per event; default 10%). Free events: 1-tap RSVP.
 - Check-in: organizer scans attendee QR → attendance recorded → score event for both.
 - Athanor Days: flagged platform-official gatherings (`events.is_athanor_day` + interest list), premium/Athanor Circle early access. Renamed from this doc's earlier «Kairos Days» — the concept doc names the physical gatherings Athanor Days (ch. on events, ch. 21 Local Circles); «Kairos» remains the moment register (the ✦ mark, Momenti).
@@ -282,11 +282,11 @@ Two dates per cycle: the **announcement**, declared when the cycle opens and fix
 
 ### 4.15 Costellazioni (board v1) + connections
 
-Deliberate early delivery of concept ch. 11 — the concept roadmap placed Costellazioni in F2; the board shipped in Fase 1 (ruled in #148). Backed by `community_projects`, `favor_offers`, `connection_requests`.
+Deliberate early delivery of concept ch. 11 — the concept roadmap placed Costellazioni in F2; the board shipped in Fase 1 (ruled in #148). Backed by `projects`, `favor_offers`, `connection_requests`.
 
 - **Board:** publish a project, pick a category (startup, artistico, business, scientifico, volontariato), filter tabs, cursor-paginated scroll. Responding opens a DM.
 - **Passa il Favore** (concept «Pay It Forward»): offer or ask concrete help; accept; «Scrivi» opens the conversation. Non-monetary, like milestone help (§4.3).
-- **Explicit connections:** request → accept → connection (+ conversation). This is the first-degree signal §4.5's ranking boost consumes (#152).
+- **Explicit connections:** request → accept → connection (+ conversation). This is the first-degree signal §4.5's ranking boost will consume — the graph is shipped, the boost is not yet wired (#152, ranking is pure chronological today).
 - Still `[FASE 2]`: digital coworking, Tempo Bank.
 
 ---
@@ -350,7 +350,7 @@ athanor/
 │   ├── native/                 # Expo SDK 54, expo-router, NativeWind v5
 │   │   └── src/app/(tabs)/     # home · community · costellazioni · momenti · profilo
 │   └── web/                    # Next.js App Router, Tailwind, shadcn/ui
-│       └── app/                # marketing + legal · (public)/@handle · admin/
+│       └── app/                # marketing + legal · [handle] public pages · admin/
 ├── packages/
 │   ├── core/                   # domain logic: score engine, badge rules,
 │   │   │                       #   matching heuristics — pure TS, max test coverage
@@ -404,7 +404,7 @@ momento_proposals (user_a, user_b, affinity_score, reasons jsonb, status:
    └──1:1── conversations ──1:N── messages (realtime)
 
 moments — personal profile media gallery, NOT matching (§4.2 naming debt)
-community_projects — Costellazioni board (§4.15)
+projects — Costellazioni board (§4.15)
 favor_offers · connection_requests (→ connections)
 email_waitlist · remote_config (kill switches, minimum version)
 
