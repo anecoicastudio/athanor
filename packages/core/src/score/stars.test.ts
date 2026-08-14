@@ -76,7 +76,7 @@ test('every ring reports its own done/total and its own unit token', () => {
     invitesActivated: 1,
   });
   expect(r.progress).toEqual({
-    visionario: { done: 4, total: 10, unit: 'reazioni' },
+    visionario: { done: 4, total: 10, unit: 'passi' },
     creatore: { done: 1, total: 2, unit: 'tappe' },
     mentor: { done: 2, total: 3, unit: 'aiuti' },
     innovatore: { done: 3, total: 10, unit: 'reazioni' },

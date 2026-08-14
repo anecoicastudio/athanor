@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { pointsFor } from './award.ts';
-import { ENGINE_WEIGHTS, REVIEWER_WEIGHT_CAP } from './weights.ts';
+import { SCORE_MAX } from './clamp.ts';
+import { ENGINE_WEIGHTS, REACTION_AUTHOR_MIN_SCORE, REVIEWER_WEIGHT_CAP } from './weights.ts';
 
 test('flat awards', () => {
   expect(pointsFor('identity_verified')).toBe(50);
@@ -22,7 +23,11 @@ test('post_starred only counts from a reactor with score > 300, reviewer-weighte
   expect(pointsFor('post_starred', { reviewerScore: 300 })).toBe(0); // not strictly above
   expect(pointsFor('post_starred', { reviewerScore: 301 })).toBe(3); // the floor: round(2 × 1.2631)
   expect(pointsFor('post_starred', { reviewerScore: 1000 })).toBe(3); // round(2 × 1.6931)
-  expect(pointsFor('post_starred', { reviewerScore: 5000 })).toBe(4); // reviewer weight capped at 2
+  // Out-of-domain curve property: real scores clamp at SCORE_MAX (1000), so no reactor can
+  // reach the ×2 cap — but the curve itself must still saturate there, not grow unbounded.
+  expect(pointsFor('post_starred', { reviewerScore: 5000 })).toBe(
+    ENGINE_WEIGHTS.POST_REACTION * REVIEWER_WEIGHT_CAP,
+  );
 });
 // POST_REACTION is a BASE, not an award (weights.ts). The gate and the multiplier interact:
 // the lowest reactor who can award anything (301) already weighs ≈1.263, so 2 × 1.263 rounds
@@ -31,29 +36,26 @@ test('post_starred only counts from a reactor with score > 300, reviewer-weighte
 // claim checkable rather than prose, so a future edit to the gate, the base or the curve fails
 // here instead of silently invalidating a comment.
 //
-// The band is asserted as a SET, and 5000 is a sufficient upper bound because the reviewer
-// curve saturates at ×2 from 1719 — every score above that awards exactly 4, so sampling
-// further adds nothing. Integers only, deliberately: `v_reactor_score` is `int` in the trigger.
-//
-// The 3→4 flip is NOT pinned. It sits at 1118 because the real threshold is
-// 1000·(e^0.75 − 1) = 1117.00002 — sixteen millionths of a point above the integer 1117.
-// That is deterministic, not a float wobble, but a boundary that knife-edge is an artifact of
-// where the curve happens to cross a rounding line, not a rule anyone chose. Asserting it
-// would pin the implementation.
-test('every qualifying reactor awards 3 or 4 — the published base of 2 is unreachable', () => {
-  const band = Array.from({ length: 4700 }, (_, i) => 301 + i); // 301 … 5000
+// The sample is the REAL domain, exhaustively: aura_scores.score lives in [0, SCORE_MAX]
+// (clamp.ts, mirrored by the aura_scores CHECK constraint), and `v_reactor_score` is `int`
+// in the trigger — integers only, deliberately. Within that domain the band is exactly {3}:
+// the 4 arm of the curve needs 2·weight to cross 3.5, first true at 1000·(e^0.75 − 1)
+// ≈ 1117.00002 — above the clamp, so no real reactor can ever award 4. (The curve's ×2 cap
+// beyond the domain is pinned by the 5000 case above.)
+test('every qualifying reactor awards exactly 3 — the published base of 2 is unreachable', () => {
+  const band = Array.from(
+    { length: SCORE_MAX - REACTION_AUTHOR_MIN_SCORE },
+    (_, i) => REACTION_AUTHOR_MIN_SCORE + 1 + i,
+  ); // 301 … SCORE_MAX
   const awards = new Set(band.map((s) => pointsFor('post_starred', { reviewerScore: s })));
-  expect([...awards].sort((a, b) => a - b)).toEqual([3, 4]);
+  expect([...awards]).toEqual([3]);
   expect(awards.has(ENGINE_WEIGHTS.POST_REACTION)).toBe(false);
-  expect(Math.max(...awards)).toBe(ENGINE_WEIGHTS.POST_REACTION * REVIEWER_WEIGHT_CAP);
 });
-// The production path, and the reason the band above is currently unobservable (issue #27).
-// `athanor.aura_award_post_starred` gates on the reactor's score in SQL and then never sends
-// it: the pg_net payload carries only `severity`, so the engine calls this function with
-// `reviewerScore` undefined and the `?? 0` default fails the gate a second time. Every ✦
-// therefore awards 0 and writes no ledger row. This assert is the tripwire — when the value is
-// plumbed, `logic.test.ts` must cover the supplied case, and THIS test must keep passing,
-// because an undefined reviewer is still not a qualifying one.
+// Issue #27 (RESOLVED 2026-08-09, migration 20260809172520): the enqueue payload used to carry
+// no reviewerScore at all, the `?? 0` default failed the gate a second time, and every ✦
+// awarded 0 with no ledger row. The trigger now sends the reactor's score and `logic.test.ts`
+// covers the supplied case. This assert stays as the guard for the absent one — an undefined
+// reviewer is still not a qualifying reviewer, and must never fall through to the base.
 test('a ✦ with no reactor score awards nothing — it must never fall through to the base', () => {
   expect(pointsFor('post_starred', {})).toBe(0);
   expect(pointsFor('post_starred')).toBe(0);

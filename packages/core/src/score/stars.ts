@@ -6,7 +6,7 @@ export interface StarFacts {
   milestonesDefined: number;
   ownMilestonesCompleted: number;
   helpsCompleted: number;
-  evoluzionePostsStarred: number; // own posts that received ✦ (Visionario uses the same count)
+  evoluzionePostsStarred: number; // own Evoluzione posts with ≥1 ✦ (Visionario and Innovatore share this count)
   distinctStarrers: number; // distinct members who ✦'d own posts
   momentoConversations: number;
   invitesActivated: number;
@@ -32,7 +32,7 @@ export function evaluateStars(facts: StarFacts): {
   const visionarioMet =
     facts.dreamPublished &&
     facts.milestonesDefined >= STAR_CRITERIA.visionario.milestonesDefined &&
-    facts.evoluzionePostsStarred >= STAR_CRITERIA.visionario.ownPostsStarred;
+    facts.evoluzionePostsStarred >= STAR_CRITERIA.visionario.evoluzionePostsStarred;
   const innovatoreMet =
     facts.evoluzionePostsStarred >= STAR_CRITERIA.innovatore.evoluzionePostsStarred &&
     facts.distinctStarrers >= STAR_CRITERIA.innovatore.distinctStarrers;
@@ -41,10 +41,10 @@ export function evaluateStars(facts: StarFacts): {
     visionario: {
       done: clampDone(
         facts.dreamPublished ? facts.evoluzionePostsStarred : 0,
-        STAR_CRITERIA.visionario.ownPostsStarred,
+        STAR_CRITERIA.visionario.evoluzionePostsStarred,
       ),
-      total: STAR_CRITERIA.visionario.ownPostsStarred,
-      unit: 'reazioni',
+      total: STAR_CRITERIA.visionario.evoluzionePostsStarred,
+      unit: 'passi',
     },
     creatore: {
       done: clampDone(facts.ownMilestonesCompleted, STAR_CRITERIA.creatore.ownMilestonesCompleted),

@@ -319,7 +319,9 @@ Deno.test('award: an unresolvable counterparty falls back to the undampened awar
 
 // ── post_starred (issue #27: the payload must carry the reactor's Aura) ─────
 // pointsFor gates on ctx.reviewerScore > REACTION_AUTHOR_MIN_SCORE (300) and
-// multiplies the base 2 by reviewerWeight(s) — the reachable band is {3, 4}.
+// multiplies the base 2 by reviewerWeight(s) — every qualifying ✦ awards 3.
+// The curve's 4 arm needs a reactor at ≥1118, above the aura_scores 0–1000
+// clamp (core clamp.ts + check constraint), so it is unreachable (#55).
 // Until the enqueue plumbing landed, the pg_net body carried no reviewerScore
 // at all, `?? 0` failed the gate, and every ✦ awarded 0 with no ledger row.
 
@@ -353,17 +355,20 @@ Deno.test('award: a ✦ carrying the reactor score above the gate lands at 3', a
   assertEquals((ins.values as { reason: { reviewerScore?: number } }).reason.reviewerScore, 500);
 });
 
-Deno.test('award: a high-Aura reactor (≥1118) is worth 4 — the top of the band', async () => {
-  const c = starCtx();
-  const res = await runAward(c, {
-    mode: 'award',
-    profileId: PROFILE,
-    type: 'post_starred',
-    refId: REF,
-    ctx: { reviewerScore: 1200 },
-  });
-  assertEquals(((await res.json()) as { awarded: number }).awarded, 4);
-});
+Deno.test(
+  'award: a domain-max reactor (1000) still awards 3 — 4 sits above the clamp',
+  async () => {
+    const c = starCtx();
+    const res = await runAward(c, {
+      mode: 'award',
+      profileId: PROFILE,
+      type: 'post_starred',
+      refId: REF,
+      ctx: { reviewerScore: 1000 },
+    });
+    assertEquals(((await res.json()) as { awarded: number }).awarded, 3);
+  },
+);
 
 Deno.test('award: a sub-gate reactor score → skipped, no ledger row', async () => {
   const c = ctx({ 'aura_events.select': [{ count: 0 }] }); // the day-cap read only

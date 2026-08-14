@@ -56,7 +56,7 @@ describe('ENGINE_WEIGHTS — canonical PRD §4.9', () => {
     expect(STAR_CRITERIA.visionario).toEqual({
       dreamPublished: true,
       milestonesDefined: 3,
-      ownPostsStarred: 10,
+      evoluzionePostsStarred: 10,
     });
     expect(STAR_CRITERIA.innovatore).toEqual({ evoluzionePostsStarred: 5, distinctStarrers: 10 });
   });
