@@ -1,6 +1,8 @@
 {
   "app.name": "Athanor",
   "app.tagline": "Trasforma il tempo in valore.",
+  "og.profileAlt": "Il profilo pubblico su Athanor",
+  "og.dreamEyebrow": "Il Sogno",
   "landing.cta": "Accendi la tua Aura",
   "landing.hero.title": "Vuoi essere libero?",
   "landing.countdown.label": "Apriamo il {date}",

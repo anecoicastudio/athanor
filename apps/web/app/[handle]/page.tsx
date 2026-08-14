@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { t } from '@athanor/i18n';
 import { getPublicProfileByHandle } from '@athanor/api';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
+import { handleStaticParams } from '@/lib/handle-static-params';
 import { resolveHandle } from '@/lib/resolve-handle';
 import { createAnonClient } from '@/utils/supabase/server';
 import { PublicProfileClient } from '@/components/public-profile-client';
@@ -26,27 +27,10 @@ export const dynamicParams = true;
  */
 export const revalidate = 300;
 
+// Body shared with opengraph-image.tsx (lib/handle-static-params.ts) — the image
+// route needs its own generateStaticParams export, and the two must not drift.
 export async function generateStaticParams() {
-  try {
-    const supabase = createAnonClient();
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('handle')
-      .not('handle', 'is', null);
-    if (error) throw error;
-    return (
-      (data ?? [])
-        .filter((p): p is { handle: string } => Boolean(p.handle))
-        // The route rejects a segment without the leading @ (lib/resolve-handle.ts).
-        .map((p) => ({ handle: `@${p.handle}` }))
-    );
-  } catch (e) {
-    // env/network unavailable at build → prerender nothing, serve every handle on
-    // demand. Loud on purpose: silently returning [] looks identical to "no
-    // profiles exist" and would quietly un-prerender the whole route.
-    console.warn('[handle] generateStaticParams failed, prerendering no profiles:', e);
-    return [];
-  }
+  return handleStaticParams();
 }
 
 async function load(rawSegment: string) {
@@ -77,12 +61,14 @@ export async function generateMetadata({
   return {
     title: `@${profile.handle} — ${t('app.name', DEFAULT_LOCALE)}`,
     description,
-    // Name the site-wide card explicitly. Next replaces `openGraph` rather than
-    // merging it, so declaring this object at all drops the parent's image — and
-    // the layout's `summary_large_image` would then promise a card with no picture.
-    // The per-handle Satori route that used to fill this slot is gone (10 ms CPU budget).
-    openGraph: { title: `@${profile.handle}`, description, images: ['/opengraph-image'] },
-    twitter: { images: ['/opengraph-image'] },
+    // No `images` here: the sibling opengraph-image.tsx fills og:image per handle
+    // (#157) — file-based metadata beats these fields, and naming a URL as well
+    // would only invite the two to drift. Next replaces `openGraph`/`twitter`
+    // rather than merging them, so `twitter` must re-declare the card type or the
+    // layout's `summary_large_image` is lost; X then falls back to og:image, the
+    // per-handle card.
+    openGraph: { title: `@${profile.handle}`, description },
+    twitter: { card: 'summary_large_image', title: `@${profile.handle}`, description },
     robots: { index: true, follow: true },
   };
 }
