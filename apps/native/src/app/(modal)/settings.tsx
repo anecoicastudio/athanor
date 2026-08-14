@@ -18,7 +18,7 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
-import { Chip } from '@/components/Chip';
+import { LocaleChips } from '@/components/LocaleChips';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SettingsGroup } from '@/components/settings/SettingsGroup';
 import { useToast } from '@/components/ToastHost';
@@ -163,24 +163,7 @@ export default function SettingsScreen() {
               <Text className="text-base text-foreground">{t('settings.lang.title', locale)}</Text>
               <Text className="text-[13px] text-faint">{t('settings.lang.desc', locale)}</Text>
             </View>
-            <View
-              className="flex-row gap-2"
-              accessibilityRole="radiogroup"
-              accessibilityLabel={t('settings.lang.title', locale)}
-            >
-              <Chip
-                small
-                label={t('lang.it', locale)}
-                selected={locale === 'it'}
-                onPress={() => switchLocale('it')}
-              />
-              <Chip
-                small
-                label={t('lang.en', locale)}
-                selected={locale === 'en'}
-                onPress={() => switchLocale('en')}
-              />
-            </View>
+            <LocaleChips small value={locale} onChange={switchLocale} />
           </View>
           {/* Tema scuro — dark-only in Fase 1: display-on, non-interactive */}
           <SettingsRow
