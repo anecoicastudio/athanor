@@ -10,22 +10,38 @@ import { ProgressBar } from '@/components/ProgressBar';
  * The fund total + contributor count are public by design (rule #3 — heartbeat, not vanity).
  * The total surface is a sanctioned glow (rule #4 — live fund ticker).
  * Live dot pulse is suppressed to a static dot under reduce-motion.
+ *
+ * The props are a union so a caller CANNOT render figures without an open cycle (issue #224,
+ * FUND-47): with `noCycle` the ticker is the announcement — «Il primo ciclo aprirà presto» on
+ * a flat quiet card. No glow, no progress bar, no €0: a glowing surface means something
+ * happened (rule #4), and before cycle 1 nothing has. State selection lives in
+ * `lib/fund-cycle.ts` (`annualFundBody`), where it is testable.
  */
-export function FundTicker({
-  raisedCents,
-  contributorCount,
-  goalCents,
-  live,
-  locale,
-}: {
-  raisedCents: number;
-  contributorCount: number;
-  goalCents: number;
-  live: boolean;
-  locale: 'it' | 'en';
-}) {
+export function FundTicker(
+  props:
+    | { noCycle: true; locale: 'it' | 'en' }
+    | {
+        noCycle?: false;
+        raisedCents: number;
+        contributorCount: number;
+        goalCents: number;
+        live: boolean;
+        locale: 'it' | 'en';
+      },
+) {
   const reduce = useReducedMotion();
 
+  if (props.noCycle) {
+    return (
+      <View className="rounded-card border border-hair bg-raise p-4" accessibilityRole="none">
+        <Text className="text-center text-[15px] leading-6 text-foreground">
+          {t('fund.noCycle', props.locale)}
+        </Text>
+      </View>
+    );
+  }
+
+  const { raisedCents, contributorCount, goalCents, live, locale } = props;
   const progress = goalCents > 0 ? raisedCents / goalCents : 0;
   const totalLabel = formatFundTotal(raisedCents, locale);
   const liveText = live ? t('fund.live.label', locale) : t('fund.live.paused', locale);

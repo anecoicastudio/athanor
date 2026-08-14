@@ -24,6 +24,7 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { AmountRow } from '@/components/fund/AmountRow';
 import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
@@ -32,6 +33,7 @@ import { FundTicker } from '@/components/fund/FundTicker';
 import { SectionLabel } from '@/components/SectionLabel';
 import { PhaseList } from '@/components/fund/PhaseList';
 import { useAuth } from '@/lib/auth-context';
+import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -218,8 +220,16 @@ export default function AnnualFundScreen() {
     }
   }, [amountCents, edition?.id, router]);
 
-  // ── Loading state ────────────────────────────────────────────────────────────
-  if (editionQuery.isLoading) {
+  // ── Pending / error / no-cycle bodies (state selection: lib/fund-cycle.ts, #224) ──
+  const body = annualFundBody(
+    fundCycleState({
+      status: editionQuery.status,
+      fetchStatus: editionQuery.fetchStatus,
+      edition,
+    }),
+  );
+
+  if (body === 'loading') {
     return (
       <Screen>
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
@@ -232,16 +242,34 @@ export default function AnnualFundScreen() {
     );
   }
 
-  // ── No active edition ────────────────────────────────────────────────────────
-  if (!edition) {
+  // A failed read is NOT «no cycle» — it gets the retry, never the announcement (#224).
+  if (body === 'error') {
     return (
       <Screen>
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
-        {/* Calm empty state */}
-        <View className="flex-1 items-center justify-center px-5">
-          <Text className="text-center text-[15px] text-muted-foreground">
-            {t('fund.empty', locale)}
+        <View className="flex-1 items-center justify-center gap-2 px-5">
+          <EmptyState>{t('fund.error', locale)}</EmptyState>
+          <Button
+            label={t('common.retry', locale)}
+            variant="ghost"
+            onPress={() => void editionQuery.refetch()}
+          />
+        </View>
+      </Screen>
+    );
+  }
+
+  // ── No active cycle — the announcement, not an absence (FUND-47, FUND-SPEC §6) ──
+  if (body === 'announce' || !edition) {
+    return (
+      <Screen>
+        <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
+        <View className="flex-1 items-center justify-center gap-6 px-5">
+          {/* Same brand-voice hero the live screen opens with — flat cyan text, no glow */}
+          <Text className="text-center text-[15px] leading-6 text-aura">
+            {t('fund.hero.quote', locale)}
           </Text>
+          <FundTicker noCycle locale={locale} />
         </View>
       </Screen>
     );
