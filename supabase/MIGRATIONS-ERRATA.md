@@ -370,9 +370,13 @@ The section header reads:
 
 `+2` is not the award. `ENGINE_WEIGHTS.POST_REACTION` is a **base** that `pointsFor` multiplies
 by `reviewerWeight(reactor score) = min(2, 1 + ln1p(s/1000))` before rounding, and the gate is
-`s > 300`. The lowest reactor who clears the gate already weighs ≈1.263, so the reachable band
-is **{3, 4}** — 3 from a reactor at 301, 4 from 1118 up. 2 is unreachable. The same wrong number
-stood in `packages/core/src/score/weights.ts` and PRD §4.9; both were corrected 2026-08-09.
+`s > 300`. The lowest reactor who clears the gate already weighs ≈1.263, so every qualifying ✦
+awards **3**. 2 is unreachable — and so is 4: rounding reaches it only from a reactor at ≥1118,
+a score the `aura_scores` 0–1000 check constraint (and core's `SCORE_MAX`) makes impossible.
+The same wrong base stood in `packages/core/src/score/weights.ts` and PRD §4.9; both were
+corrected 2026-08-09. That correction itself overstated the band as **{3, 4}**: PRD §4.9 dropped
+the dead 4 arm in the #148 reconciliation (PR #347, 2026-08-13); the tests and this entry were
+aligned 2026-08-14 under #55.
 
 And as shipped by THIS migration the award was neither 2 nor 3–4 but **0**. The trigger selected
 `v_reactor_score`, gated on it in SQL, and then called `athanor.enqueue_score_award(...)` — which
@@ -389,13 +393,13 @@ rule #10 drift noted below) is GONE with it: core's `pointsFor` with `REACTION_A
 is the single authority on the threshold, so a sub-gate ✦ now enqueues and the engine alone
 decides it is worth nothing.
 
-Verified behaviour: `packages/core/src/score/award.test.ts` holds the `{3, 4}` band across the
-whole qualifying range plus `pointsFor('post_starred', {})` → `0` (the safety default, no longer
-the production path). `supabase/tests/0064_aura_award_triggers.test.sql` §K — which replaced the
-tripwire that pinned the defect — asserts the overload exists, the queued payload carries
-`ctx.reviewerScore`, the award targets the author, and a scoreless reactor travels as `0`.
-`supabase/functions/score-engine/logic.test.ts` pins the engine half: score 500 → 3, 1200 → 4,
-≤ 300 or absent → skipped with no ledger row.
+Verified behaviour: `packages/core/src/score/award.test.ts` holds the `{3}` band across the
+whole qualifying domain (301 … `SCORE_MAX`) plus `pointsFor('post_starred', {})` → `0` (the
+safety default, no longer the production path). `supabase/tests/0064_aura_award_triggers.test.sql`
+§K — which replaced the tripwire that pinned the defect — asserts the overload exists, the queued
+payload carries `ctx.reviewerScore`, the award targets the author, and a scoreless reactor
+travels as `0`. `supabase/functions/score-engine/logic.test.ts` pins the engine half: score
+500 → 3, domain-max 1000 → 3, ≤ 300 or absent → skipped with no ledger row.
 
 ---
 
