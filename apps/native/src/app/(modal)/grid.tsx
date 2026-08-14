@@ -8,6 +8,7 @@ import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { momentSignPaths } from '@/lib/media/moment-media';
+import { uploadErrorKey } from '@/lib/media/upload';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -167,7 +168,7 @@ export default function GridScreen() {
             allowVideo
             locale={locale}
             onClose={() => setSheetOpen(false)}
-            onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+            onPick={(m) => addMoment(m).catch((err) => setError(t(uploadErrorKey(err), locale)))}
             onError={() => setError(t('media.failed', locale))}
           />
         )}

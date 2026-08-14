@@ -26,6 +26,7 @@ import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { listState } from '@/lib/list-state';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { momentSignPaths } from '@/lib/media/moment-media';
+import { uploadErrorKey } from '@/lib/media/upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 
@@ -207,7 +208,7 @@ export function ProfileView({
         allowVideo
         locale={locale}
         onClose={() => setSheetOpen(false)}
-        onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
+        onPick={(m) => addMoment(m).catch((err) => setError(t(uploadErrorKey(err), locale)))}
         onError={() => setError(t('media.failed', locale))}
       />
     </>
