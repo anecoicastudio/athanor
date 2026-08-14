@@ -49,7 +49,18 @@ export const AFFINITY_WEIGHTS = {
   skill: 1,
   /** Once, when the two geohash cells agree at `CITY_GEOHASH_MATCH_PRECISION`. */
   city: 1,
+  /** Per element of `mutualActivity`, up to `MUTUAL_ACTIVITY_CAP` of them (#361). */
+  activity: 1,
 } as const;
+
+/**
+ * Mutual activity stops counting after this many shared events (#361). The term reads
+ * verified check-ins, and a member who attends everything would otherwise carry a few
+ * points of affinity with every other regular — the cap keeps shared history a signal,
+ * not a volume prize. Scoring only: the term array itself stays the full intersection,
+ * so the deck can name every shared event.
+ */
+export const MUTUAL_ACTIVITY_CAP = 3;
 
 /**
  * City proximity compares geohash PREFIXES at this length (≈ 20 km cell). Deliberately
@@ -66,6 +77,12 @@ export type AffinityProfile = {
   skills: readonly string[];
   /** Precision-5 geohash, or null — free-text city stores none, masked arrives null. */
   cityGeohash: string | null;
+  /**
+   * Ids of events this member CHECKED IN at (`event_attendance`, #361) — verified
+   * presence, never RSVPs or tickets alone. No visibility knob governs attendance, so
+   * there is no masked shape; the caller supplies what the tables record.
+   */
+  attendedEventIds: readonly string[];
 };
 
 /**
@@ -90,6 +107,12 @@ export type AffinityTerms = {
   skillsShared: string[];
   /** Same ≈20 km geohash cell (#123). */
   cityNear: boolean;
+  /**
+   * Event ids you both checked in at (#361) — the full intersection; the score caps at
+   * `MUTUAL_ACTIVITY_CAP` but the deck names every shared event (as TITLES, resolved
+   * server-side — ids never reach the client).
+   */
+  mutualActivity: string[];
 };
 
 const isSeekingTag = (tag: string): tag is SeekingTag =>
@@ -136,6 +159,7 @@ export function momentoAffinityTerms(me: AffinityProfile, them: AffinityProfile)
     offerHit: intersect(me.identityTags, expandSeeking(them.seeking)),
     skillsShared: intersect(me.skills, them.skills),
     cityNear: cityNear(me.cityGeohash, them.cityGeohash),
+    mutualActivity: intersect(me.attendedEventIds, them.attendedEventIds),
   };
 }
 
@@ -144,6 +168,7 @@ export function momentoAffinity(terms: AffinityTerms): number {
   return (
     AFFINITY_WEIGHTS.tag * (terms.shared.length + terms.seekHit.length + terms.offerHit.length) +
     AFFINITY_WEIGHTS.skill * terms.skillsShared.length +
-    (terms.cityNear ? AFFINITY_WEIGHTS.city : 0)
+    (terms.cityNear ? AFFINITY_WEIGHTS.city : 0) +
+    AFFINITY_WEIGHTS.activity * Math.min(MUTUAL_ACTIVITY_CAP, terms.mutualActivity.length)
   );
 }

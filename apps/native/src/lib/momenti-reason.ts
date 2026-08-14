@@ -19,18 +19,19 @@ const REASON_KEY: Record<MomentoReasonKind, MessageKey> = {
   offering: 'momenti.reason.offering',
   skills: 'momenti.reason.skills',
   city: 'momenti.reason.city',
+  mutualActivity: 'momenti.reason.mutualActivity',
   newDream: 'momenti.reason.newDream',
 };
 
 /**
  * The tag kinds carry IDENTITY keys — `seeking` holds the identities the candidate has that
  * answer what you seek, `offering` the ones of yours that answer what they seek. `skills`
- * carries skill keys (#123). `city` carries the candidate's city display name — a place, not
- * a catalog key — rendered verbatim rather than pushed through a tag lookup that would only
- * pass it back by luck.
+ * carries skill keys (#123). `city` carries the candidate's city display name and
+ * `mutualActivity` event titles (#361) — places and rooms, not catalog keys — rendered
+ * verbatim rather than pushed through a tag lookup that would only pass them back by luck.
  */
 function termLabel(kind: MomentoReasonKind, tag: string, locale: Locale): string {
-  if (kind === 'city') return tag;
+  if (kind === 'city' || kind === 'mutualActivity') return tag;
   return tagLabel(kind === 'skills' ? 'skill' : 'identity', tag, locale);
 }
 

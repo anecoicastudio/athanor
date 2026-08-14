@@ -12,8 +12,10 @@ export type MomentoStatus = z.infer<typeof momentoStatus>;
  * candidate holds that answer what you seek, `offering` the identities of YOURS that answer
  * what they seek. `skills` carries skill keys (`tag.skill.*`, #123). `city` carries the
  * candidate's city DISPLAY NAME at most — never a geohash or coordinate — and only while the
- * owner keeps it visible. `newDream` is the dream-recency fallback and claims no overlap at
- * all, so it carries no tags.
+ * owner keeps it visible. `mutualActivity` carries TITLES of events both members were checked
+ * in at (#361) — verified co-attendance; event ids never reach the client, and the caller only
+ * ever sees rooms they were in themselves. `newDream` is the dream-recency fallback and claims
+ * no overlap at all, so it carries no tags.
  */
 export const momentoReasonKind = z.enum([
   'shared',
@@ -21,6 +23,7 @@ export const momentoReasonKind = z.enum([
   'offering',
   'skills',
   'city',
+  'mutualActivity',
   'newDream',
 ]);
 export type MomentoReasonKind = z.infer<typeof momentoReasonKind>;
@@ -53,6 +56,7 @@ export const momentoDeckRow = z.object({
   offer_hit: z.array(z.string()),
   skills_shared: z.array(z.string()),
   city_near: z.array(z.string()),
+  mutual_activity: z.array(z.string()),
 });
 export type MomentoDeckRow = z.infer<typeof momentoDeckRow>;
 

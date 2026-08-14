@@ -3,6 +3,7 @@ import {
   AFFINITY_WEIGHTS,
   CITY_GEOHASH_MATCH_PRECISION,
   MOMENTO_AFFINITY_THRESHOLD,
+  MUTUAL_ACTIVITY_CAP,
   SEEKING_TO_IDENTITY,
   cityNear,
   expandSeeking,
@@ -70,10 +71,18 @@ const profile = (p: Partial<Parameters<typeof momentoAffinityTerms>[0]>) => ({
   seeking: [],
   skills: [],
   cityGeohash: null,
+  attendedEventIds: [],
   ...p,
 });
 
-const NO_TERMS = { shared: [], seekHit: [], offerHit: [], skillsShared: [], cityNear: false };
+const NO_TERMS = {
+  shared: [],
+  seekHit: [],
+  offerHit: [],
+  skillsShared: [],
+  cityNear: false,
+  mutualActivity: [],
+};
 
 describe('momentoAffinityTerms', () => {
   it('scores a shared identity label', () => {
@@ -168,6 +177,33 @@ describe('momentoAffinityTerms', () => {
       false,
     );
   });
+
+  it('scores mutual activity like the tag terms: sorted, deduplicated shared event ids (#361)', () => {
+    const terms = momentoAffinityTerms(
+      profile({ attendedEventIds: ['evt-c', 'evt-a', 'evt-b'] }),
+      profile({ attendedEventIds: ['evt-b', 'evt-c', 'evt-b', 'evt-z'] }),
+    );
+    expect(terms.mutualActivity).toEqual(['evt-b', 'evt-c']);
+  });
+
+  it('strangers — no event in common — share no mutual activity', () => {
+    const terms = momentoAffinityTerms(
+      profile({ attendedEventIds: ['evt-a'] }),
+      profile({ attendedEventIds: ['evt-b'] }),
+    );
+    expect(terms).toEqual(NO_TERMS);
+    expect(momentoAffinity(terms)).toBe(0);
+  });
+
+  it('keeps the full intersection in the term — the cap is a scoring rule, not a truncation', () => {
+    // The deck names every shared event; only the SCORE stops growing (#361).
+    const five = ['e1', 'e2', 'e3', 'e4', 'e5'];
+    const terms = momentoAffinityTerms(
+      profile({ attendedEventIds: five }),
+      profile({ attendedEventIds: five }),
+    );
+    expect(terms.mutualActivity).toEqual(five);
+  });
 });
 
 describe('cityNear', () => {
@@ -257,6 +293,31 @@ describe('momentoAffinity', () => {
   });
 
   it('every weight starts at parity — retuning is a one-line product decision, not a rewrite', () => {
-    expect(AFFINITY_WEIGHTS).toEqual({ tag: 1, skill: 1, city: 1 });
+    expect(AFFINITY_WEIGHTS).toEqual({ tag: 1, skill: 1, city: 1, activity: 1 });
+  });
+
+  it('each shared event weighs like a shared tag, at parity (#361)', () => {
+    const terms = momentoAffinityTerms(
+      profile({ attendedEventIds: ['evt-a', 'evt-b'] }),
+      profile({ attendedEventIds: ['evt-a', 'evt-b'] }),
+    );
+    expect(momentoAffinity(terms)).toBe(2 * AFFINITY_WEIGHTS.activity);
+    expect(momentoAffinity(terms)).toBeGreaterThanOrEqual(MOMENTO_AFFINITY_THRESHOLD);
+  });
+
+  it('caps the contribution at MUTUAL_ACTIVITY_CAP — a serial event-goer cannot dominate', () => {
+    const many = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7'];
+    const terms = momentoAffinityTerms(
+      profile({ attendedEventIds: many }),
+      profile({ attendedEventIds: many }),
+    );
+    expect(momentoAffinity(terms)).toBe(MUTUAL_ACTIVITY_CAP * AFFINITY_WEIGHTS.activity);
+  });
+
+  it('the cap clears the threshold — real shared history alone can ship a Momento', () => {
+    expect(MUTUAL_ACTIVITY_CAP).toBe(3);
+    expect(MUTUAL_ACTIVITY_CAP * AFFINITY_WEIGHTS.activity).toBeGreaterThanOrEqual(
+      MOMENTO_AFFINITY_THRESHOLD,
+    );
   });
 });
