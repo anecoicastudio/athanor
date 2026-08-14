@@ -1,7 +1,8 @@
 import { type IdentityTag, SEEKING_TAGS, type SeekingTag } from './tags';
 
 /**
- * Momenti affinity (PRD §4.7), the tag half of it.
+ * Momenti affinity (PRD §4.7) — the tag terms, the skills overlap and the city
+ * proximity (#273, #123).
  *
  * The two vocabularies in `tags.ts` are DISJOINT, so intersecting `seeking` with
  * `identity_tags` directly can only ever return the empty set — which is what the
@@ -11,7 +12,9 @@ import { type IdentityTag, SEEKING_TAGS, type SeekingTag } from './tags';
  *
  * `run_momenti_matcher()` carries the same map in SQL (`public.seeking_to_identity`);
  * `affinity.mirror.test.ts` asserts the two copies agree, so this file stays the
- * source of truth.
+ * source of truth. The same contract covers `AFFINITY_WEIGHTS` and
+ * `CITY_GEOHASH_MATCH_PRECISION`: the SQL hardcodes their literals, the mirror test
+ * pins them, so a retune is one line here plus a new migration — never one side alone.
  */
 export const SEEKING_TO_IDENTITY: Readonly<Record<SeekingTag, readonly IdentityTag[]>> = {
   // Generic intents: no profession answers them, so no complementarity term. Mapping
@@ -32,20 +35,49 @@ export const SEEKING_TO_IDENTITY: Readonly<Record<SeekingTag, readonly IdentityT
 /** A proposal ships only at this many terms or more (#273 C — `affinity > 0` was noise). */
 export const MOMENTO_AFFINITY_THRESHOLD = 2;
 
+/**
+ * Term weights (rule 10 shape): named constants, mirrored as literals in the matcher
+ * SQL, pinned by `affinity.mirror.test.ts`. All start at parity (#123) — each shared
+ * skill counts like a shared tag, and city proximity counts once, like one tag.
+ * Retuning is a product decision made on data; this makes it a one-line edit, not a
+ * rewrite.
+ */
+export const AFFINITY_WEIGHTS = {
+  /** Per element of `shared` / `seekHit` / `offerHit`. */
+  tag: 1,
+  /** Per element of `skillsShared`. */
+  skill: 1,
+  /** Once, when the two geohash cells agree at `CITY_GEOHASH_MATCH_PRECISION`. */
+  city: 1,
+} as const;
+
+/**
+ * City proximity compares geohash PREFIXES at this length (≈ 20 km cell). Deliberately
+ * coarser than the stored `CITY_GEOHASH_PRECISION` (5, #149): storing precisely and
+ * comparing coarsely is what keeps this tunable without a re-migration of the column.
+ */
+export const CITY_GEOHASH_MATCH_PRECISION = 4;
+
 /** The two sides of a candidate pair, already visibility-masked by the caller. */
 export type AffinityProfile = {
   identityTags: readonly string[];
   seeking: readonly string[];
+  /** Curated skill keys (#149); a masked field arrives as `[]` and scores nothing. */
+  skills: readonly string[];
+  /** Precision-5 geohash, or null — free-text city stores none, masked arrives null. */
+  cityGeohash: string | null;
 };
 
 /**
- * The three affinity terms, each a list of IDENTITY tag keys the UI can localize.
+ * The affinity terms. The tag terms and `skillsShared` are lists of tag keys the UI
+ * can localize; `cityNear` is a plain fact — the deck RPC surfaces it as a city
+ * DISPLAY NAME at most, never a geohash or coordinate (#123).
  *
- * `string[]`, not `IdentityTag[]`, and deliberately: `athanor.tag_intersect()` holds no
- * vocabulary list, so a tag predating the curated set (rows carried 'design' / 'music' before
- * #273) intersects like any other. `validate.ts` is what keeps new ones out. Narrowing the type
- * here would describe an engine we do not run, and `tagLabel()` already renders an unknown key
- * as itself rather than «undefined».
+ * `string[]`, not `IdentityTag[]`/`Skill[]`, and deliberately: `athanor.tag_intersect()` holds
+ * no vocabulary list, so a tag predating the curated set (rows carried 'design' / 'music'
+ * before #273) intersects like any other. `validate.ts` is what keeps new ones out. Narrowing
+ * the type here would describe an engine we do not run, and `tagLabel()` already renders an
+ * unknown key as itself rather than «undefined».
  */
 export type AffinityTerms = {
   /** Identities you both claim. */
@@ -54,6 +86,10 @@ export type AffinityTerms = {
   seekHit: string[];
   /** Identities you claim that answer what they seek. */
   offerHit: string[];
+  /** Skills you both claim (#123). */
+  skillsShared: string[];
+  /** Same ≈20 km geohash cell (#123). */
+  cityNear: boolean;
 };
 
 const isSeekingTag = (tag: string): tag is SeekingTag =>
@@ -76,7 +112,21 @@ export function expandSeeking(seeking: readonly string[]): IdentityTag[] {
 }
 
 /**
- * The three terms for one directed pair (me → them). Directed, not symmetric:
+ * City proximity: the two precision-5 cells agree on their first
+ * `CITY_GEOHASH_MATCH_PRECISION` characters. A missing side (free-text city, masked
+ * field) never fires — and never throws. A hash shorter than the match precision can
+ * only reach this through a bug (the DB CHECK pins 5 chars) and must not read a
+ * 3-char agreement as proximity, so both sides need the full prefix.
+ */
+export function cityNear(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return false;
+  if (a.length < CITY_GEOHASH_MATCH_PRECISION || b.length < CITY_GEOHASH_MATCH_PRECISION)
+    return false;
+  return a.slice(0, CITY_GEOHASH_MATCH_PRECISION) === b.slice(0, CITY_GEOHASH_MATCH_PRECISION);
+}
+
+/**
+ * The terms for one directed pair (me → them). Directed, not symmetric:
  * `seekHit` and `offerHit` swap when the pair is scored the other way round.
  */
 export function momentoAffinityTerms(me: AffinityProfile, them: AffinityProfile): AffinityTerms {
@@ -84,10 +134,16 @@ export function momentoAffinityTerms(me: AffinityProfile, them: AffinityProfile)
     shared: intersect(me.identityTags, them.identityTags),
     seekHit: intersect(expandSeeking(me.seeking), them.identityTags),
     offerHit: intersect(me.identityTags, expandSeeking(them.seeking)),
+    skillsShared: intersect(me.skills, them.skills),
+    cityNear: cityNear(me.cityGeohash, them.cityGeohash),
   };
 }
 
-/** Affinity is the count of terms that fired — every term weighs the same (rule 10 shape). */
+/** The weighted sum of the terms that fired (`AFFINITY_WEIGHTS` — all at parity today). */
 export function momentoAffinity(terms: AffinityTerms): number {
-  return terms.shared.length + terms.seekHit.length + terms.offerHit.length;
+  return (
+    AFFINITY_WEIGHTS.tag * (terms.shared.length + terms.seekHit.length + terms.offerHit.length) +
+    AFFINITY_WEIGHTS.skill * terms.skillsShared.length +
+    (terms.cityNear ? AFFINITY_WEIGHTS.city : 0)
+  );
 }

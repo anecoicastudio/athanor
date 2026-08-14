@@ -20,6 +20,20 @@ describe('momentoReasonText', () => {
     );
   });
 
+  it('localizes the skills term from the skill catalog, not the identity one (#123)', () => {
+    const reason = { kind: 'skills' as const, tags: ['illustrazione', 'sviluppo-web'] };
+    expect(momentoReasonText(reason, 'it')).toBe('Sapete fare: Illustrazione, Sviluppo web');
+    expect(momentoReasonText(reason, 'en')).toBe('You both know: Illustration, Web development');
+  });
+
+  it('renders the city term with the display name verbatim — it is a place, not a key (#123)', () => {
+    // The server sends the candidate's city display name (never a geohash); there is no
+    // tag.* catalog entry for it, and it must not fall through a tag lookup unchanged only
+    // by luck.
+    expect(momentoReasonText({ kind: 'city', tags: ['Monza'] }, 'it')).toBe('Vicino a te: Monza');
+    expect(momentoReasonText({ kind: 'city', tags: ['Monza'] }, 'en')).toBe('Near you: Monza');
+  });
+
   it('says the fallback plainly, with no tag list and no affinity claim', () => {
     expect(momentoReasonText({ kind: 'newDream', tags: [] }, 'it')).toBe('Sogno nuovo');
     expect(momentoReasonText({ kind: 'newDream', tags: [] }, 'en')).toBe('New dream');

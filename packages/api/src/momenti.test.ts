@@ -21,6 +21,8 @@ describe('rowToDeckCard', () => {
     shared: ['creativo'],
     seek_hit: ['mentor'],
     offer_hit: ['investitore'],
+    skills_shared: ['branding', 'sviluppo-web'],
+    city_near: ['Milano'],
   };
 
   it('maps an RPC row to a deck card of structured reasons', () => {
@@ -35,6 +37,8 @@ describe('rowToDeckCard', () => {
         { kind: 'shared', tags: ['creativo'] },
         { kind: 'seeking', tags: ['mentor'] },
         { kind: 'offering', tags: ['investitore'] },
+        { kind: 'skills', tags: ['branding', 'sviluppo-web'] },
+        { kind: 'city', tags: ['Milano'] },
       ],
     });
   });
@@ -42,12 +46,25 @@ describe('rowToDeckCard', () => {
   // The reasons are TAG KEYS now, not prose (#273 D) — the card localizes them. A term
   // that survived the server's masking as [] must not render an empty «Condividete:».
   it('drops a term the candidate has masked to nothing', () => {
-    const card = rowToDeckCard({ ...row, seek_hit: [], offer_hit: [] });
+    const card = rowToDeckCard({
+      ...row,
+      seek_hit: [],
+      offer_hit: [],
+      skills_shared: [],
+      city_near: [],
+    });
     expect(card.reasons).toEqual([{ kind: 'shared', tags: ['creativo'] }]);
   });
 
   it('leaves no reason at all when every term is masked', () => {
-    const card = rowToDeckCard({ ...row, shared: [], seek_hit: [], offer_hit: [] });
+    const card = rowToDeckCard({
+      ...row,
+      shared: [],
+      seek_hit: [],
+      offer_hit: [],
+      skills_shared: [],
+      city_near: [],
+    });
     expect(card.reasons).toEqual([]);
   });
 
@@ -100,6 +117,8 @@ describe('getMomentiDeck (get_momenti_deck RPC)', () => {
     shared: ['creativo'],
     seek_hit: [],
     offer_hit: [],
+    skills_shared: [],
+    city_near: [],
   };
 
   it('takes no argument — the caller comes from auth.uid() (rule #8)', async () => {

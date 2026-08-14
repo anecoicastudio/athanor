@@ -17,6 +17,9 @@ describe('tagLabel', () => {
     expect(tagLabel('identity', 'artista', 'it')).toBe('Artista');
     expect(tagLabel('identity', 'artista', 'en')).toBe('Artist');
     expect(tagLabel('seeking', 'mentorship', 'it')).toBe('Mentorship');
+    // The deck's skills term (#123) resolves through the same path.
+    expect(tagLabel('skill', 'illustrazione', 'it')).toBe('Illustrazione');
+    expect(tagLabel('skill', 'illustrazione', 'en')).toBe('Illustration');
   });
 
   test('falls back to the raw key rather than rendering "undefined"', () => {
