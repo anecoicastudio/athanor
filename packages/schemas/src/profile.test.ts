@@ -7,6 +7,11 @@ const validRow = {
   display_name: 'Stella Prima',
   avatar_path: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11/3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11.jpg',
   bio: null,
+  mission: null,
+  skills: [],
+  profession: null,
+  city: null,
+  city_geohash: null,
   locale: 'it',
   visibility: { bio: 'public' },
   identity_tags: [],
@@ -84,8 +89,12 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     display_name: 'Stella Prima',
     avatar_path: validRow.avatar_path,
     bio: null,
+    mission: null,
     identity_tags: null,
     seeking: null,
+    skills: null,
+    profession: null,
+    city: null,
     identity_verified: false,
     founding_member: true,
   };
@@ -109,5 +118,53 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     const parsed = personProfileSchema.parse({ ...personRow, locale: 'it', visibility: {} });
     expect(parsed).not.toHaveProperty('locale');
     expect(parsed).not.toHaveProperty('visibility');
+  });
+
+  it('strips city_geohash — another member’s cell is never client-visible (#149)', () => {
+    const parsed = personProfileSchema.parse({ ...personRow, city_geohash: 'u0nd9' });
+    expect(parsed).not.toHaveProperty('city_geohash');
+  });
+});
+
+describe('profileSchema — mission, skills, profession, city (#149)', () => {
+  it('parses a full new-field row', () => {
+    const parsed = profileSchema.parse({
+      ...validRow,
+      mission: 'Portare arte nelle scuole',
+      skills: ['illustrazione', 'storytelling'],
+      profession: 'arte',
+      city: 'Milano',
+      city_geohash: 'u0nd9',
+    });
+    expect(parsed.skills).toEqual(['illustrazione', 'storytelling']);
+    expect(parsed.city_geohash).toBe('u0nd9');
+  });
+
+  it('rejects a malformed geohash — shape mirrors the column CHECK', () => {
+    expect(() => profileSchema.parse({ ...validRow, city_geohash: 'u0ndA' })).toThrow();
+    expect(() => profileSchema.parse({ ...validRow, city_geohash: 'toolong7' })).toThrow();
+  });
+
+  it('rejects more than 10 skills, mirroring the column CHECK', () => {
+    expect(() =>
+      profileSchema.parse({ ...validRow, skills: Array.from({ length: 11 }, (_, i) => `s${i}`) }),
+    ).toThrow();
+  });
+
+  it('all five are client-writable through the update schema', () => {
+    const parsed = profileUpdateSchema.parse({
+      mission: 'm',
+      skills: ['seo'],
+      profession: 'marketing',
+      city: 'Roma',
+      city_geohash: 'sr2yk',
+    });
+    expect(parsed.city_geohash).toBe('sr2yk');
+  });
+
+  it('accepts clearing city and geohash back to null (free-text path)', () => {
+    const parsed = profileUpdateSchema.parse({ city: 'Atlantide', city_geohash: null });
+    expect(parsed.city).toBe('Atlantide');
+    expect(parsed.city_geohash).toBeNull();
   });
 });

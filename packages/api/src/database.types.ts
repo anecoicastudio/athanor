@@ -1980,6 +1980,8 @@ export type Database = {
           avatar_path: string | null
           banned_at: string | null
           bio: string | null
+          city: string | null
+          city_geohash: string | null
           created_at: string
           display_name: string | null
           founding_member: boolean
@@ -1988,9 +1990,12 @@ export type Database = {
           identity_tags: string[]
           identity_verified: boolean
           locale: string
+          mission: string | null
+          profession: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
+          skills: string[] | null
           suspended_until: string | null
           updated_at: string
           visibility: Json
@@ -1999,6 +2004,8 @@ export type Database = {
           avatar_path?: string | null
           banned_at?: string | null
           bio?: string | null
+          city?: string | null
+          city_geohash?: string | null
           created_at?: string
           display_name?: string | null
           founding_member?: boolean
@@ -2007,9 +2014,12 @@ export type Database = {
           identity_tags?: string[]
           identity_verified?: boolean
           locale?: string
+          mission?: string | null
+          profession?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
+          skills?: string[] | null
           suspended_until?: string | null
           updated_at?: string
           visibility?: Json
@@ -2018,6 +2028,8 @@ export type Database = {
           avatar_path?: string | null
           banned_at?: string | null
           bio?: string | null
+          city?: string | null
+          city_geohash?: string | null
           created_at?: string
           display_name?: string | null
           founding_member?: boolean
@@ -2026,9 +2038,12 @@ export type Database = {
           identity_tags?: string[]
           identity_verified?: boolean
           locale?: string
+          mission?: string | null
+          profession?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
+          skills?: string[] | null
           suspended_until?: string | null
           updated_at?: string
           visibility?: Json
@@ -2751,6 +2766,8 @@ export type Database = {
           avatar_path: string | null
           banned_at: string | null
           bio: string | null
+          city: string | null
+          city_geohash: string | null
           created_at: string
           display_name: string | null
           founding_member: boolean
@@ -2759,9 +2776,12 @@ export type Database = {
           identity_tags: string[]
           identity_verified: boolean
           locale: string
+          mission: string | null
+          profession: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
+          skills: string[] | null
           suspended_until: string | null
           updated_at: string
           visibility: Json
@@ -2778,13 +2798,17 @@ export type Database = {
         Returns: {
           avatar_path: string
           bio: string
+          city: string
           display_name: string
           founding_member: boolean
           handle: string
           id: string
           identity_tags: string[]
           identity_verified: boolean
+          mission: string
+          profession: string
           seeking: string[]
+          skills: string[]
         }[]
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }

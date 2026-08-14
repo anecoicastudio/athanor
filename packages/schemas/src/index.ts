@@ -30,6 +30,7 @@ export * from './vote';
 export * from './circle';
 export * from './entitlements';
 export * from './search';
+export * from './city-search';
 export * from './block';
 export * from './report';
 export * from './notification';

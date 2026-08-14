@@ -47,12 +47,27 @@ export const peerIdentityFields = {
   peerAvatarPath: avatarPathSchema.nullable(),
 };
 
+/**
+ * Precision-5 geohash of the picked city's coordinates (#149) — the column
+ * CHECK pins the same shape (5 chars, geohash base32: no a, i, l, o). NULL
+ * whenever the city was typed free text instead of picked.
+ */
+export const cityGeohashSchema = z.string().regex(/^[0-9b-hjkmnp-z]{5}$/);
+
 export const profileSchema = z.object({
   id: z.string().uuid(),
   handle: handleSchema.nullable(),
   display_name: displayNameSchema.nullable(),
   avatar_path: avatarPathSchema.nullable(),
   bio: z.string().max(500).nullable(),
+  // #149 — mission/skills/profession/city, all nullable: a profile that says
+  // nothing is a first-class state. Caps mirror the column CHECKs; vocabulary
+  // membership (skills/profession) is @athanor/core's job, not shape's.
+  mission: z.string().max(500).nullable(),
+  skills: z.array(z.string()).max(10).nullable(),
+  profession: z.string().max(40).nullable(),
+  city: z.string().max(80).nullable(),
+  city_geohash: cityGeohashSchema.nullable(),
   locale: localeSchema,
   visibility: z.record(z.enum(['public', 'members', 'private'])),
   identity_tags: z.array(z.string()).max(10),
@@ -76,6 +91,11 @@ export const profileUpdateSchema = profileSchema
     display_name: true,
     avatar_path: true,
     bio: true,
+    mission: true,
+    skills: true,
+    profession: true,
+    city: true,
+    city_geohash: true,
     locale: true,
     visibility: true,
     identity_tags: true,
@@ -104,12 +124,18 @@ export const personProfileSchema = profileSchema
     display_name: true,
     avatar_path: true,
     bio: true,
+    mission: true,
     identity_tags: true,
     seeking: true,
+    skills: true,
+    profession: true,
+    city: true,
     identity_verified: true,
     founding_member: true,
   })
-  // visibility-gated fields arrive NULL when hidden (bio is already nullable)
+  // visibility-gated fields arrive NULL when hidden (bio and the #149 fields
+  // are already nullable). city_geohash is deliberately absent: the RPC never
+  // projects another member's cell (20260814104755).
   .extend({
     identity_tags: profileSchema.shape.identity_tags.nullable(),
     seeking: profileSchema.shape.seeking.nullable(),

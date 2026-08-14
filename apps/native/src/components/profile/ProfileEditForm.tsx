@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { updateProfile } from '@athanor/api';
-import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
+import { IDENTITY_TAGS, MAX_SKILLS, PROFESSIONS, SEEKING_TAGS, SKILLS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
 import { Pressable, Text, TextInput, View } from '@/tw';
@@ -12,6 +12,7 @@ import { LocaleChips } from '@/components/LocaleChips';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MediaSheet } from '@/components/media/MediaSheet';
+import { CityPicker } from '@/components/profile/CityPicker';
 import { Section, type Visibility } from '@/components/profile/Section';
 import { useAvatarUpload } from '@/lib/media/use-avatar-upload';
 import { supabase } from '@/lib/supabase';
@@ -44,8 +45,14 @@ export function ProfileEditForm({
   const [sheetOpen, setSheetOpen] = useState(false);
   const avatar = useAvatarUpload(userId);
   const [bio, setBio] = useState(profile.bio ?? '');
+  const [mission, setMission] = useState(profile.mission ?? '');
   const [identity, setIdentity] = useState<string[]>(profile.identity_tags);
   const [seeking, setSeeking] = useState<string[]>(profile.seeking);
+  const [profession, setProfession] = useState<string | null>(profile.profession);
+  const [skills, setSkills] = useState<string[]>(profile.skills ?? []);
+  const [city, setCity] = useState(profile.city ?? '');
+  // NULL whenever the city is free text; only a picked suggestion sets it.
+  const [cityGeohash, setCityGeohash] = useState<string | null>(profile.city_geohash);
   const [locale, setLocale] = useState<Locale>(profile.locale);
   const [visibility, setVisibility] = useState<Record<string, Visibility>>(
     profile.visibility as Record<string, Visibility>,
@@ -68,8 +75,14 @@ export function ProfileEditForm({
         display_name: displayName.trim() ? displayName.trim() : null,
         avatar_path: avatarPath,
         bio: bio.trim() ? bio.trim() : null,
+        mission: mission.trim() ? mission.trim() : null,
         identity_tags: identity,
         seeking,
+        profession,
+        skills,
+        city: city.trim() ? city.trim() : null,
+        // A geohash only ever accompanies a picked, non-empty city.
+        city_geohash: city.trim() ? cityGeohash : null,
         locale,
         visibility,
       });
@@ -82,8 +95,19 @@ export function ProfileEditForm({
     }
   };
 
-  const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
-    t(`${prefix}.${key}` as MessageKey, locale);
+  const tagLabel = (
+    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
+    key: string,
+  ) => t(`${prefix}.${key}` as MessageKey, locale);
+
+  const toggleSkill = (key: string) =>
+    setSkills((prev) =>
+      prev.includes(key)
+        ? prev.filter((x) => x !== key)
+        : prev.length >= MAX_SKILLS
+          ? prev
+          : [...prev, key],
+    );
 
   return (
     <>
@@ -157,6 +181,25 @@ export function ProfileEditForm({
         />
       </Section>
 
+      {/* La mia missione — free text like bio, the member's own words (#149) */}
+      <Section
+        label={t('profile.mission.label', locale)}
+        field="mission"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <TextInput
+          className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+          multiline
+          maxLength={500}
+          placeholder={t('profile.mission.empty', locale)}
+          value={mission}
+          onChangeText={setMission}
+        />
+      </Section>
+
       {/* Chi sei */}
       <Section
         label={t('profile.identity.label', locale)}
@@ -227,6 +270,70 @@ export function ProfileEditForm({
             })}
           </Text>
         ) : null}
+      </Section>
+
+      {/* Professione — single curated key: tapping the selected chip clears it (#149) */}
+      <Section
+        label={t('profile.profession.label', locale)}
+        field="profession"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <View className="flex-row flex-wrap gap-3">
+          {PROFESSIONS.map((key) => (
+            <Chip
+              key={key}
+              label={tagLabel('tag.profession', key)}
+              selected={profession === key}
+              onPress={() => setProfession(profession === key ? null : key)}
+            />
+          ))}
+        </View>
+      </Section>
+
+      {/* Competenze — curated multi-select, capped at MAX_SKILLS (#149) */}
+      <Section
+        label={t('profile.skills.label', locale)}
+        field="skills"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <View className="flex-row flex-wrap gap-3">
+          {SKILLS.map((key) => (
+            <Chip
+              key={key}
+              label={tagLabel('tag.skill', key)}
+              selected={skills.includes(key)}
+              onPress={() => toggleSkill(key)}
+            />
+          ))}
+        </View>
+        <Text className="text-[13px] text-muted-foreground">
+          {t('profile.skills.hint', locale)}
+        </Text>
+      </Section>
+
+      {/* Città — typed-text search, approximate by design (#149) */}
+      <Section
+        label={t('profile.city.label', locale)}
+        field="city"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <CityPicker
+          city={city}
+          locale={locale}
+          onChange={(nextCity, geohash) => {
+            setCity(nextCity);
+            setCityGeohash(geohash);
+          }}
+        />
       </Section>
 
       {/* Il mio sogno — visibility only; the text lives in the dream editor.
