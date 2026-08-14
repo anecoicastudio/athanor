@@ -1,6 +1,9 @@
+import { useRouter } from 'expo-router';
+import { memberLabel } from '@athanor/core';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
+import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 
 /** Small enough to sit under a bubble's last line without stealing width from the text. */
@@ -34,6 +37,7 @@ export function Bubble({
   /** True on the LAST bubble of a run from the peer; the rest keep the gutter and skip the face. */
   showPeerAvatar?: boolean;
 }) {
+  const router = useRouter();
   if (message.kind === 'system' || message.kind === 'prompt') {
     // prompt_key is server-controlled (the 4 ice-breaker keys exist in both catalogs); guard the
     // cast anyway so an unknown key falls back to body rather than rendering `undefined`.
@@ -59,15 +63,26 @@ export function Bubble({
   }
   return (
     <View className="my-1 max-w-[80%] flex-row items-end gap-2 self-start">
-      {/* The gutter is always AVATAR_SIZE wide; only the last bubble of a run fills it. */}
+      {/* The gutter is always AVATAR_SIZE wide; only the last bubble of a run fills it.
+          The face taps through to the peer's profile (#356) — same link as the header
+          identity block, so a reader deep in a thread never has to scroll up to reach it. */}
       <View style={{ width: AVATAR_SIZE }}>
         {showPeerAvatar ? (
-          <Avatar
-            handle={peer?.handle ?? null}
-            displayName={peer?.displayName ?? null}
-            avatarPath={peer?.avatarPath ?? null}
-            size={AVATAR_SIZE}
-          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('connection.a11y.open', locale, {
+              name: memberLabel(peer?.displayName, peer?.handle) ?? '—',
+            })}
+            hitSlop={HIT_SLOP}
+            onPress={() => router.push(`/(modal)/user/${message.sender_id}`)}
+          >
+            <Avatar
+              handle={peer?.handle ?? null}
+              displayName={peer?.displayName ?? null}
+              avatarPath={peer?.avatarPath ?? null}
+              size={AVATAR_SIZE}
+            />
+          </Pressable>
         ) : null}
       </View>
       <View className="flex-1 rounded-2xl border border-hair bg-raise px-4 py-2">

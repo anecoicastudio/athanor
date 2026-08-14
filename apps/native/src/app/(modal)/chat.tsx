@@ -141,6 +141,14 @@ export default function ChatScreen() {
   const trimmed = draft.trim();
   const canSend = trimmed.length > 0 && !send.isPending && Boolean(conversationId);
 
+  const peerName = memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—';
+  // The identity pressable masks its children for screen readers, so its label re-carries
+  // name + Aura; «Vedi il profilo» rides along as the hint (the action, not the content).
+  const peerAuraA11y =
+    peerScore === AURA_UNKNOWN
+      ? t('aura.unknown', locale)
+      : t('chat.peerAura', locale, { score: peerScore });
+
   const openMenu = () =>
     Alert.alert(t('chat.a11y.menu', locale), undefined, [
       {
@@ -192,40 +200,28 @@ export default function ChatScreen() {
               size={36}
             />
           }
-          title={memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—'}
+          title={peerName}
           subtitle={
-            <Text
-              className="text-[11px] text-faint"
-              accessibilityLabel={
-                peerScore === AURA_UNKNOWN
-                  ? t('aura.unknown', locale)
-                  : t('chat.peerAura', locale, { score: peerScore })
-              }
-            >
+            <Text className="text-[11px] text-faint" accessibilityLabel={peerAuraA11y}>
               {t('chat.peerAura', locale, { score: peerScore })}
             </Text>
           }
+          // The identity block IS the link (#356) — the old ↗ beside it is dropped, so
+          // VoiceOver never announces two identical «Vedi il profilo» targets.
+          onIdentityPress={
+            peer?.peerId ? () => router.push(`/(modal)/user/${peer.peerId}`) : undefined
+          }
+          identityLabel={`${peerName}, ${peerAuraA11y}`}
+          identityHint={t('chat.a11y.profile', locale)}
           right={
-            <>
-              {peer?.peerId ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('chat.a11y.profile', locale)}
-                  hitSlop={HIT_SLOP}
-                  onPress={() => router.push(`/user/${peer.peerId}`)}
-                >
-                  <Text className="text-xl text-faint">↗</Text>
-                </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('chat.a11y.menu', locale)}
-                hitSlop={HIT_SLOP}
-                onPress={openMenu}
-              >
-                <Text className="text-xl text-faint">⋯</Text>
-              </Pressable>
-            </>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('chat.a11y.menu', locale)}
+              hitSlop={HIT_SLOP}
+              onPress={openMenu}
+            >
+              <Text className="text-xl text-faint">⋯</Text>
+            </Pressable>
           }
         />
 

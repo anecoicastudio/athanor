@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getOrCreateConversation, getProject, projectKeys } from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -89,16 +89,10 @@ export default function ProjectDetailScreen() {
               <Text className="text-[15px] leading-6 text-foreground">{project.description}</Text>
             ) : null}
 
+            {/* The identity row IS the profile link (#356) — the old «Vedi il profilo» text
+                link under it duplicated the same target, twice for VoiceOver. */}
             <View className="gap-3 rounded-card border border-hair bg-raise p-5">
               <PostAuthorRow authorId={project.author_id} />
-              <Pressable
-                onPress={() => router.push(`/(modal)/user/${project.author_id}`)}
-                hitSlop={8}
-              >
-                <Text className="text-[13px] text-aura">
-                  {t('project.detail.viewProfile', locale)}
-                </Text>
-              </Pressable>
             </View>
 
             {isOwn ? null : (

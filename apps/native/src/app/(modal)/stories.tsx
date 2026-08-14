@@ -159,6 +159,17 @@ export default function StoriesScreen() {
         onJumpNext={() => goToNextPerson(false)}
         onJumpPrev={goToPrevPerson}
         startAt={startAt}
+        onAuthorPress={
+          isOwn
+            ? undefined
+            : () => {
+                // EXIT to the profile (#356), same back-then-push recipe as onAddMoment: a push
+                // on top would leave the story playing underneath, and its auto-advance end
+                // (goToNextPerson → router.back) would pop the profile out from under the reader.
+                router.back();
+                router.push(`/(modal)/user/${currentAuthorId}`);
+              }
+        }
         onReact={async (seg) => {
           if (!myId) return;
           await toggleStoryReaction(supabase, seg.id, myId);
