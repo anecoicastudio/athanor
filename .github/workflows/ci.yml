@@ -107,8 +107,9 @@ jobs:
         working-directory: apps/native
         # Double duty (#147): this export IS CI's native-bundle gate. A bad expo dep or
         # a Metro resolver break fails this job on every push and PR — there is no other
-        # place apps/native gets bundled before EAS. JS bundling only: native
-        # compile/link (`expo prebuild` + Xcode/Gradle) is still uncovered.
+        # place apps/native gets bundled before EAS. JS bundling only: config-plugin
+        # execution and native project generation live in `native-prebuild` (#350);
+        # native compile/link (Xcode/Gradle) is still uncovered anywhere in CI.
         #
         # Metro inlines EXPO_PUBLIC_* at bundle time. None are set in this job ON PURPOSE:
         # the export must never need a secret, and whatever Metro inlines from the
@@ -144,6 +145,82 @@ jobs:
             exit 1
           fi
           echo "::notice::bundle-leak scan OK — $count bundle files clean"
+
+  native-prebuild:
+    name: native doctor · prebuild (expo)
+    runs-on: ubuntu-latest
+    # Same reason as the db job: the pinned filter action only reads changed files.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      # PR path-trim, same pattern as the db job (see its comment for the fail-closed
+      # `!= 'false'` rationale and why the `if:` sits on steps, not the job — `deploy`
+      # has `needs:` on this job too). On PRs the steps run only when a native-shaped
+      # input changed; pushes to dev/main always run everything, so drift an untouched
+      # PR skipped surfaces on the next dev push at latest.
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: native-paths
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            native:
+              # The inputs doctor and prebuild actually read: dep versions (package.json
+              # + lockfile + the workspace catalog/pins) and the app config with its
+              # plugin list. apps/native/src/** is deliberately absent — JS-only changes
+              # cannot alter prebuild's output and are already gated by bundle-leak.
+              - 'apps/native/package.json'
+              - 'apps/native/app.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              # The job must test itself (same as the db job's self-listing).
+              - '.github/workflows/ci.yml'
+      - uses: pnpm/action-setup@v4
+        if: steps.native-paths.outputs.native != 'false'
+      - uses: actions/setup-node@v4
+        if: steps.native-paths.outputs.native != 'false'
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.native-paths.outputs.native != 'false'
+      # The other native half (#350): bundle-leak exports the JS, but a native module
+      # that type-checks and bundles yet fails to configure/link would still reach EAS
+      # unverified. These two steps close the cheap part of that gap. What they prove,
+      # exactly (#146 — a gate must not look stronger than it is):
+      #
+      #   expo-doctor    — dependency/SDK coherence: package versions match the SDK's
+      #                    expectations, config is sane. Talks to the Expo/npm APIs, so
+      #                    a new SDK patch can turn it red with no repo change — that is
+      #                    its canary function, same as running it locally after a dep
+      #                    change (the rules/mobile.md ritual, now pinned as a devDep).
+      #   expo prebuild  — config plugins all execute and the native projects generate
+      #                    (AndroidManifest.xml, Podfile, xcodeproj). A crashing plugin
+      #                    or invalid app.json fails here instead of on the EAS builder.
+      #
+      # Neither step COMPILES anything: no Gradle, no Xcode, no dependency linking.
+      # Native compile/link remains EAS-verified only. The Android Gradle-assemble
+      # canary (#350 rung 3) is deliberately not added: it needs JDK + Android SDK
+      # setup and a multi-GB Gradle cache for 10×+ wall-time, and this repo has no
+      # custom native code for it to uniquely catch — managed workflow, no android/
+      # or ios/ committed, every app.json plugin a third-party npm package. Revisit
+      # when a local config plugin or custom native module lands.
+      #
+      # Order matters: doctor runs BEFORE prebuild, because doctor flags generated
+      # android/ + ios/ dirs as a non-CNG project and would fail on prebuild's output.
+      # Both are non-interactive under CI=true (verified headless 2026-08-14).
+      - name: expo-doctor — dependency/SDK coherence
+        if: steps.native-paths.outputs.native != 'false'
+        working-directory: apps/native
+        run: pnpm exec expo-doctor
+      - name: expo prebuild — config plugins + native project generation
+        if: steps.native-paths.outputs.native != 'false'
+        working-directory: apps/native
+        # --no-install: skip pod/npm install — generation is the gate, not the toolchain.
+        # Prebuild rewrites package.json scripts (start → run:*) in the runner checkout;
+        # throwaway, nothing later in this job reads it.
+        run: pnpm exec expo prebuild --no-install
 
   web-build:
     name: web build (OpenNext)
@@ -289,7 +366,7 @@ jobs:
     # Every gate first. Workers Builds (Cloudflare's own git integration) cannot
     # express this, which is why the deploy lives here: it would fire on push while
     # pgTAP and the types gate were still running, or already red.
-    needs: [node, e2e, edge, db, bundle-leak, web-build]
+    needs: [node, e2e, edge, db, bundle-leak, native-prebuild, web-build]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
