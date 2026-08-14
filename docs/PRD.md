@@ -40,14 +40,14 @@ Athanor is a digital ecosystem where people, professionals, companies and creati
 
 ### 1.5 The Six Pillars
 
-| Pillar         | What it is                                                    | Build phase                  |
-| -------------- | ------------------------------------------------------------- | ---------------------------- |
-| Community      | Evolutionary feed: ideas, business, art, science, inspiration | **Fase 1**                   |
-| Athanor Live   | Online + physical events: calendar, map, streams, Kairos Days | **Fase 1**                   |
-| Momenti        | Intelligent networking: the right person at the right moment  | **Fase 1**                   |
-| Costellazioni  | Collaborations, project board, Tempo Bank                     | Fase 2                       |
-| Marketplace    | Services, consulting, products, courses, talents              | Fase 3                       |
-| Athanor Circle | Premium membership: belonging, not paywall                    | Fase 1 (sub) / Fase 4 (full) |
+| Pillar         | What it is                                                     | Build phase                           |
+| -------------- | -------------------------------------------------------------- | ------------------------------------- |
+| Community      | Evolutionary feed: ideas, business, art, science, inspiration  | **Fase 1**                            |
+| Athanor Live   | Online + physical events: calendar, map, streams, Athanor Days | **Fase 1**                            |
+| Momenti        | Intelligent networking: the right person at the right moment   | **Fase 1**                            |
+| Costellazioni  | Collaborations, project board, Tempo Bank                      | **Fase 1** (board v1) / Fase 2 (rest) |
+| Marketplace    | Services, consulting, products, courses, talents               | Fase 3                                |
+| Athanor Circle | Premium membership: belonging, not paywall                     | Fase 1 (sub) / Fase 4 (full)          |
 
 Cross-cutting: **Aura** (Fase 1, v1), **Il Sogno** (Fase 1), **Dai Vita al Tuo Sogno** (Fase 1, first edition).
 
@@ -88,10 +88,19 @@ North-star: **completed dream milestones per month** (real value generated, not 
 - Moderation: reports, score penalties, admin panel
 - i18n: IT + EN
 - GDPR: consent, field-level visibility, approximate location, export/erasure
+- Costellazioni board v1 + Passa il Favore + explicit connections (§4.15 — deliberate early delivery of concept ch. 11, ruled in #148)
+- Personal media gallery on the profile (§4.2)
+- Aura tiers + tier-up celebration (§4.9 — presentation only)
+- Athanor Days: platform-official gatherings (§4.6)
+- Email waitlist + admin export (GTM surface; feeds Prime Stelle onboarding, M10)
+- Prime Stelle `founding_member` cosmetic (§4.2 — never affects score)
+- Remote config: server kill-switches + minimum-version boot gate (§9)
+- Marketing site + legal pages (privacy, terms, cookie notice) on `apps/web`
 
 ### 3.2 Fase 1 — OUT (designed for, not built)
 
-- Costellazioni project board, digital coworking, Tempo Bank `[FASE 2]`
+- Costellazioni digital coworking + Tempo Bank `[FASE 2]` — the project board itself shipped in Fase 1 (§4.15)
+- Public web pages for sogni and eventi `[FASE 2]` — Fase-1 public web is @handle profiles + marketing/legal only (re-scopes #159)
 - Marketplace, professional cards, reviews on transactions `[FASE 3]`
 - Dream Fund (peer-to-peer milestone funding) `[FASE 3]`
 - AI Assistant, Athanor Academy, full Athanor Circle business tools `[FASE 4]`
@@ -103,6 +112,7 @@ North-star: **completed dream milestones per month** (real value generated, not 
 - No follower counts, no vanity metrics, ever
 - No ads, no attention selling
 - No pay-for-visibility of any kind
+- No public post pages — feed content is members-only; `/post/{id}` gets no anon grant (ruled in #148, settling #268)
 
 ---
 
@@ -123,6 +133,9 @@ Bio, mission, skills (tags), city (approximate), badges, Aura with breakdown, ev
 
 - Field-level visibility controls (public / members / private). Location approximate by default.
 - Public web version at `www.athanor.workers.dev/@handle` (SSR, SEO, OG image with dream quote) — only fields marked public. (The domain settled on `https://www.athanor.workers.dev`, not the aspirational `athanor.app`: `apps/web/lib/site.ts:10` holds the canonical origin, and `apps/web/lib/site.test.ts:32-41` asserts it equals the host `apps/native/app.json` associates with, so the two cannot drift. Deep links only work on that host — AASA, `assetlinks` and `app.json` move together with it or not at all.)
+- Personal media gallery (grid) on the profile. The backing table is `moments`, which collides with the Momenti matching pillar (whose table is `momento_proposals`) — known naming debt, rename deferred (#148).
+- `profiles.founding_member` renders the Prime Stelle cosmetic card/badge — granted to the founding cohort at launch (concept ch. 21). Cosmetic only; never touches score (§4.9).
+- A fully-private profile still renders a minimal public shell at `/@handle` (handle + whatever is public) rather than a 404 (#251). The per-handle OG image with dream quote is spec; currently regressed to the generic site card (#157).
 - Acceptance: profile renders identically (data parity) on mobile and web; visibility flags enforced by RLS, verified by tests.
 
 ### 4.3 Il Sogno + Dream Milestones
@@ -148,10 +161,10 @@ Always-visible countdown widget (days to the announcement event, fund total €,
 ### 4.6 Athanor Live (Events)
 
 - Create event: title, category (business, networking, spiritualità, formazione, musica, arte, benessere), online (stream URL) or physical (venue, map pin), capacity, price (free or paid).
-- Views: calendar, map (nearby), list. Filter by category/city/date.
+- Views: calendar, list, nearby. Filter by category/city/date is spec, not built (#151, blocked on #149). The map render is deferred post-launch — v1 ships the nearby list; a native maps dependency stays out of the launch path (#150).
 - Paid tickets: Stripe Checkout; platform fee on top or absorbed (config per event; default 10%). Free events: 1-tap RSVP.
 - Check-in: organizer scans attendee QR → attendance recorded → score event for both.
-- Kairos Days: flagged platform-official events, premium/Athanor Circle early access.
+- Athanor Days: flagged platform-official gatherings (`events.is_athanor_day` + interest list), premium/Athanor Circle early access. Renamed from this doc's earlier «Kairos Days» — the concept doc names the physical gatherings Athanor Days (ch. on events, ch. 21 Local Circles); «Kairos» remains the moment register (the ✦ mark, Momenti).
 - Acceptance: ticket purchase → QR in app ≤ 30s; webhook-confirmed, idempotent.
 
 ### 4.7 Momenti (Intelligent Networking)
@@ -168,7 +181,7 @@ Always-visible countdown widget (days to the announcement event, fund total €,
 
 ### 4.9 Aura v1
 
-Aura 0–1000, profile-visible with transparent breakdown by source. Append-only ledger; nightly recompute with decay.
+Aura 0–1000, profile-visible with transparent breakdown by source. Append-only ledger; nightly recompute with decay. Display **tiers** band the 0–1000 range, with a realtime tier-up celebration (glow-grade moment per `docs/DESIGN.md`) — presentation only, tiers grant nothing.
 
 **Earning (v1 weights, tunable server-side):**
 
@@ -180,14 +193,13 @@ Aura 0–1000, profile-visible with transparent breakdown by source. Append-only
 | Momento → conversation ≥ 10 messages both sides | +5       | max 10/month       |
 | Milestone help completed (owner-confirmed)      | +40      | uncapped           |
 | Dream milestone completed (own dream)           | +10      | per milestone      |
-| Post receives ✦ from member with score > 300    | +3…+4    | max 10/day counted |
+| Post receives ✦ from member with score > 300    | +3       | max 10/day counted |
 | Report upheld against user                      | −50…−200 | severity-based     |
 
 **Integrity rules (from concept doc):**
 
 - Reviews/ratings count only after verified collaborations `[FASE 2+ surface; ledger supports]`
-- Weighted judgment: actions from high-score members weigh more; reciprocal exchanges dampened (pairwise diminishing returns). For the ✦ row only, the weighting multiplies a **base of 2** that is never itself awarded: the gate is score > 300, and the lowest reactor who clears it already weighs ≈1.263, so the awarded value runs **+3** (reactor at 301) to **+4** (reactor at 1118 and above; the reviewer curve itself saturates at ×2 from 1719, but rounding reaches 4 earlier). Earlier revisions of this table stated **+2 base**, which no member can observe — corrected 2026-08-09 alongside `packages/core/src/score/weights.ts`; the reachable band {3, 4} is asserted in `award.test.ts`.
-  - ⚠ **Not yet true in the shipped system:** a ✦ currently awards **0**. The M6 trigger gates on the reactor's score in SQL and then never sends it to the engine, which re-checks the gate against an undefined value. Tracked as issue #27 — plumbing it moves the award from 0 to 3–4 on a rule #1 surface, so it is sequenced before the hosted deploy rather than after.
+- Weighted judgment: actions from high-score members weigh more; reciprocal exchanges dampened (pairwise diminishing returns). For the ✦ row only, the weighting multiplies a **base of 2** that is never itself awarded: the gate is score > 300, the lowest reactor who clears it already weighs ≈1.263, and rounding would reach **+4** only from a reactor at ≈1118 — a score no member can hold, because Aura is clamped to 1000 (`SCORE_MAX` in `packages/core/src/score/clamp.ts`, mirrored by the `aura_scores` 0–1000 check constraint). **A ✦ therefore always awards +3.** Earlier revisions of this table stated a **+2 base** (which no member can observe) and a **{3, 4}** band (whose 4 arm is dead); #55 tracks aligning `award.test.ts`, which still samples reviewer scores above the clamp.
 - **Decay:** after 30 days without qualifying action, score ×0.98/week. Floor: 40% of lifetime peak.
 - Aura never purchasable. Athanor Circle membership and fund contributions yield **zero** points. Enforced in engine, asserted in tests.
 - **Nor does money earn Aura in the other direction:** being selected for, or paid from, the fund yields **zero** points. Aura for collaboration is awarded only on a _verified completed collaboration_ — the `milestone_help` shape (+40 to the helper on owner confirmation, with pairwise counterparty dampening). Being hired earns nothing; delivering, confirmed by the counterparty, earns. (Source doc §15 asks for the opposite — see §13 Open Questions.)
@@ -197,14 +209,16 @@ Aura 0–1000, profile-visible with transparent breakdown by source. Append-only
 
 Earned, never chosen. v1 criteria (auto-granted by engine):
 
-| Star            | Earned by (v1)                                             |
-| --------------- | ---------------------------------------------------------- |
-| ★ Visionario    | dream published + 3 milestones defined + 10 ✦ on own posts |
-| ★ Creatore      | 2 own milestones completed                                 |
-| ★ Mentor        | 3 milestone helps completed for others                     |
-| ★ Innovatore    | 5 posts in Evoluzione with ✦ from 10 distinct members      |
-| ★ Collaboratore | 5 accepted Momenti with active conversations               |
-| ★ Ambasciatore  | 5 activated invites (invitee completes onboarding)         |
+| Star            | Earned by (v1)                                                                  |
+| --------------- | ------------------------------------------------------------------------------- |
+| ★ Visionario    | dream published + 3 milestones defined + 10 own Evoluzione posts each with ≥1 ✦ |
+| ★ Creatore      | 2 own milestones completed                                                      |
+| ★ Mentor        | 3 milestone helps completed for others                                          |
+| ★ Innovatore    | 5 posts in Evoluzione with ✦ from 10 distinct members                           |
+| ★ Collaboratore | 5 accepted Momenti with active conversations                                    |
+| ★ Ambasciatore  | 5 activated invites (invitee completes onboarding)                              |
+
+Visionario counts **starred posts**, not reactions — sustained dream-narration in Evoluzione («sogni in corso e traguardi raggiunti»), each chapter resonating with at least one member, which is the concept doc's «indica nuove direzioni e ispira gli altri a seguirle». Innovatore counts **distinct reactors** — breadth of audience. Earlier revisions said «10 ✦ on own posts»; ruled 2026-08-13 under #148 (resolving the #55/#122 disagreement in favour of the shipped criterion — the progress label that says `reazioni` while counting posts is still a bug, tracked in #122).
 
 ### 4.11 Dai Vita al Tuo Sogno (Fund Cycles)
 
@@ -247,7 +261,7 @@ Two dates per cycle: the **announcement**, declared when the cycle opens and fix
 ### 4.12 Athanor Circle (Subscription)
 
 - Monthly/annual via Stripe Billing + Customer Portal.
-- Fase 1 benefits: advanced search filters, personal analytics-lite (own impact/growth data), premium event & Kairos Day access, founding-member badge cosmetic.
+- Fase 1 benefits: advanced search filters, personal analytics-lite (own impact/growth data), premium event & Athanor Day access, founding-member (Prime Stelle) badge cosmetic.
 - Never: score boost, feed boost, Momenti priority. Stated in UI.
 - `[FASE 4]` full business tools, AI assistant, reduced marketplace fees.
 
@@ -263,6 +277,17 @@ Two dates per cycle: the **announcement**, declared when the cycle opens and fix
 - Push (Expo Push) — mobile: Hai un Momento, new message, milestone help received/accepted, event reminders, countdown milestones. Per-category opt-out.
 - In-app notification center — both platforms. Web push `[FASE 2]`.
 - Voice & tone: Athanor voice («Hai un Momento», never «Hai una nuova notifica»). Copy catalog in i18n package.
+- `notifications.type` values `review` and `projectResponse` are declared but producer-less — reserved for `[FASE 2+]` verified-collaboration reviews and Costellazioni board responses. No Fase-1 promise.
+- Fund countdown/milestone notifications are spec (the «countdown milestones» category above) but unbuilt — #127, sequenced with the post-launch fund milestones (#249).
+
+### 4.15 Costellazioni (board v1) + connections
+
+Deliberate early delivery of concept ch. 11 — the concept roadmap placed Costellazioni in F2; the board shipped in Fase 1 (ruled in #148). Backed by `projects`, `favor_offers`, `connection_requests`.
+
+- **Board:** publish a project, pick a category (startup, artistico, business, scientifico, volontariato), filter tabs, cursor-paginated scroll. Responding opens a DM.
+- **Passa il Favore** (concept «Pay It Forward»): offer or ask concrete help; accept; «Scrivi» opens the conversation. Non-monetary, like milestone help (§4.3).
+- **Explicit connections:** request → accept → connection (+ conversation). This is the first-degree signal §4.5's ranking boost will consume — the graph is shipped, the boost is not yet wired (#152, ranking is pure chronological today).
+- Still `[FASE 2]`: digital coworking, Tempo Bank.
 
 ---
 
@@ -272,10 +297,10 @@ Two dates per cycle: the **announcement**, declared when the cycle opens and fix
                     ┌────────────────────┐   ┌────────────────────┐
                     │   MOBILE (iOS/And) │   │     WEB (desktop)  │
                     │   Expo React Native│   │  Next.js 16 App R. │
-                    │  tabs: Home · Comm │   │  full parity +     │
-                    │  Live · Momenti ·  │   │  SSR public pages: │
-                    │  Profilo           │   │  @handle, sogni,   │
-                    │  Expo Push         │   │  eventi (SEO/OG)   │
+                    │  tabs: Home · Comm │   │  marketing + legal │
+                    │  Costellazioni ·   │   │  SSR @handle pages │
+                    │  Momenti · Profilo │   │  (SEO/OG) · /admin │
+                    │  Expo Push         │   │  no parity routes  │
                     └─────────┬──────────┘   └─────────┬──────────┘
                               │   supabase-js + @athanor/api (shared)
                               └───────────┬────────────┘
@@ -290,8 +315,8 @@ Two dates per cycle: the **announcement**, declared when the cycle opens and fix
             │ ┌─────────────┐ │ [fase 2] │ │  identity-webhook  │ │
             │ │  Realtime   │ └──────────┘ │  push-dispatch     │ │
             │ │ chat ·      │ ┌──────────┐ │  erasure-job       │ │
-            │ │ countdown   │ │ Storage  │ └────────────────────┘ │
-            │ └─────────────┘ │ media    │                        │
+            │ │ countdown   │ │ Storage  │ │  media-process     │ │
+            │ └─────────────┘ │ media    │ └────────────────────┘ │
             └─────────────────┴──────────┴────────────────────────┘
             (Auth box: email+password + Google OAuth; Apple built but disabled — `APPLE_ENABLED=false`.)
                        │                          │
@@ -322,10 +347,10 @@ Two dates per cycle: the **announcement**, declared when the cycle opens and fix
 ```
 athanor/
 ├── apps/
-│   ├── mobile/                 # Expo SDK 54, expo-router, NativeWind v5
-│   │   └── app/(tabs)/         # home · community · live · momenti · profilo
+│   ├── native/                 # Expo SDK 54, expo-router, NativeWind v5
+│   │   └── src/app/(tabs)/     # home · community · costellazioni · momenti · profilo
 │   └── web/                    # Next.js App Router, Tailwind, shadcn/ui
-│       └── app/                # (app)/ parity routes · (public)/@handle · admin/
+│       └── app/                # marketing + legal · [handle] public pages · admin/
 ├── packages/
 │   ├── core/                   # domain logic: score engine, badge rules,
 │   │   │                       #   matching heuristics — pure TS, max test coverage
@@ -370,13 +395,18 @@ posts (author, category enum, tags[], media[], story bool, expires_at)
    └──1:N── post_reactions (✦) · post_comments
 
 events (organizer, category, online|physical, venue, geo, stream_url,
-   │    capacity, price_cents, is_kairos_day, fee_pct)
+   │    capacity, price_cents, is_athanor_day, fee_pct)
    ├──1:N── event_tickets   (stripe_payment_id, qr_token, status)
    └──1:N── event_attendance (checked_in_at → score event)
 
-moments (user_a, user_b, affinity_score, reasons jsonb, status:
+momento_proposals (user_a, user_b, affinity_score, reasons jsonb, status:
    │     proposed|accepted|passed, proposed_at)
    └──1:1── conversations ──1:N── messages (realtime)
+
+moments — personal profile media gallery, NOT matching (§4.2 naming debt)
+projects — Costellazioni board (§4.15)
+favor_offers · connection_requests (→ connections)
+email_waitlist · remote_config (kill switches, minimum version)
 
 fund_editions (cycle_number*, target_at, goal_cents, closed_at*,
    │           phase: candidacy|screening|voting|announcement|realization|closed *,
@@ -450,6 +480,8 @@ aura_events (ledger, append-only)
 | Security      | RLS on all tables, deny-by-default. Secrets in Supabase/Cloudflare/EAS vaults. Stripe keys server-side only. Webhooks signature-verified + idempotent. Rate limits on writes.                                  |
 | Performance   | Feed p75 < 1s on 4G. Cold start < 3s mobile. Public pages SSG/ISR. Images via Supabase Storage transforms.                                                                                                     |
 | Availability  | Managed-only stack; no self-hosted services. Status visibility via Sentry alerts.                                                                                                                              |
+| Operability   | Remote config: server-driven kill switches + minimum-version boot gate (`remote_config`) — any surface can be switched off without a store release.                                                            |
+| Media privacy | Uploaded images re-encoded + EXIF-stripped client-side, then byte-level metadata strip server-side (`media-process` edge function) before serving.                                                             |
 | Accessibility | WCAG 2.1 AA web; RN accessibility props; contrast-checked palette (aura on background verified).                                                                                                               |
 | i18n          | IT + EN day one, catalogs in `packages/i18n`, no hardcoded strings (lint rule).                                                                                                                                |
 | Brand         | The `aura` cyan accent reserved for moments that matter (new Momento, dream helped, star lit). Calm-but-powerful, no mystical effects. Two-weight humanist sans (Hanken Grotesk).                              |
