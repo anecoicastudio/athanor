@@ -3,8 +3,13 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(13);
 
--- Fixtures: A = bio+dream public (+ active dream + tappa); B = all members (default {});
+-- Fixtures: A = bio+dream public (+ active dream + tappa); B = untouched default map;
 -- C = bio public, dream members (+ active dream). Profiles auto-created by handle_new_user.
+-- Since 20260814151601 (#251) the default map carries identity:'public' and anon row
+-- reachability keys on that facet ALONE (absent key coalesces to 'public'), so all three are
+-- anon-reachable: B by the default, A and C because their explicit maps lack the identity key.
+-- The shell matrix — explicit identity:'members' opt-out, exact column reach, storage,
+-- the dream combo — lives in 0101_public_handle_shell.
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -19,7 +24,7 @@ update public.profiles set handle = 'pub_a', bio = 'Bio A',
   visibility = '{"bio":"public","dream":"public"}'::jsonb
   where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 update public.profiles set handle = 'mem_b', bio = 'Bio B'
-  where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';            -- visibility {} ⇒ members
+  where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';            -- default map ⇒ identity public (#251)
 update public.profiles set handle = 'bio_c', bio = 'Bio C',
   visibility = '{"bio":"public"}'::jsonb
   where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';            -- dream stays members
@@ -45,8 +50,8 @@ set local request.jwt.claims = '';
 
 select results_eq(
   $$ select handle from public.profiles order by handle $$,
-  $$ values ('bio_c'),('pub_a') $$,
-  'anon reads only profiles with at least one public section'
+  $$ values ('bio_c'),('mem_b'),('pub_a') $$,
+  'anon reads every profile whose identity facet is public — the #251 default shell'
 );
 select results_eq(
   $$ select text from public.dreams $$,

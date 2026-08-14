@@ -101,3 +101,62 @@ describe('getPublicProfileByHandle — each of the three reads surfaces its fail
     });
   });
 });
+
+// #251 — the shell fields: the name passes through, the avatar key is exchanged for a
+// SIGNED url (private bucket; the anon storage policy authorises the signing).
+describe('getPublicProfileByHandle — shell name + signed avatar', () => {
+  const KEY = `${PROFILE_ID}/${PROFILE_ID}.jpg`;
+  const SIGNED = `https://x.supabase.co/storage/v1/object/sign/avatars/${KEY}?token=t`;
+
+  it('signs the avatar key and carries name + url', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        { data: { id: PROFILE_ID, handle: 'lucia', display_name: 'Lucia Riva', avatar_path: KEY } },
+      ],
+      'storage.avatars.createSignedUrls': [{ data: [{ path: KEY, signedUrl: SIGNED }] }],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).resolves.toMatchObject({
+      handle: 'lucia',
+      displayName: 'Lucia Riva',
+      avatarUrl: SIGNED,
+    });
+  });
+
+  it('never signs when there is no avatar — no storage round-trip for an initials render', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        { data: { id: PROFILE_ID, handle: 'lucia', display_name: null, avatar_path: null } },
+      ],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).resolves.toMatchObject({
+      displayName: null,
+      avatarUrl: null,
+    });
+    expect(fake.calls.some((c) => c.table.startsWith('storage.'))).toBe(false);
+  });
+
+  it('a key the signing response omits degrades to null (initials), not a crash', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        { data: { id: PROFILE_ID, handle: 'lucia', display_name: 'Lucia Riva', avatar_path: KEY } },
+      ],
+      'storage.avatars.createSignedUrls': [{ data: [] }],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).resolves.toMatchObject({
+      displayName: 'Lucia Riva',
+      avatarUrl: null,
+    });
+  });
+
+  it('rethrows when the signing CALL fails — an infra fault must not publish a photoless page', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        { data: { id: PROFILE_ID, handle: 'lucia', display_name: 'Lucia Riva', avatar_path: KEY } },
+      ],
+      'storage.avatars.createSignedUrls': [{ error: DB_DOWN }],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+});

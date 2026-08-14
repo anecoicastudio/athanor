@@ -1,3 +1,5 @@
+import { SITE_ORIGIN } from './links';
+
 /**
  * The message the native share sheet carries for a member profile (issue #110).
  *
@@ -8,11 +10,12 @@
  * `appName` is passed in rather than read from `@athanor/i18n` so this stays a
  * pure function: the caller already holds the locale.
  *
- * **No URL yet, deliberately.** `apps/web` serves `/@handle`, but the anon
- * SELECT policy on `profiles` requires a visibility value of `'public'`, and
- * `visibility` defaults to `'{}'` while the editor defaults every field to
- * `'members'`. So a link would 404 for every member who has not explicitly
- * opted a field public — which is every new signup. Deferred, not forgotten.
+ * The `/@handle` URL is carried since #251: the default public shell (identity
+ * facet `'public'` by default, migration 20260814151601) means a shared link
+ * resolves for every member who has not explicitly opted out — and a member who
+ * DID opt out chose the dead link knowingly (the editor says so next to the
+ * control). Before #251 this builder deliberately carried no URL, because the
+ * link 404'd for every default signup.
  *
  * Returns `null` when there is no handle. Callers must not render a share
  * control at all in that case, rather than opening a sheet on a bare app name.
@@ -21,5 +24,5 @@ export function profileShareMessage(handle: string | null | undefined, appName: 
   const trimmed = handle?.trim() ?? '';
   const bare = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
   if (!bare) return null;
-  return `@${bare} — ${appName}`;
+  return `@${bare} — ${appName}\n${SITE_ORIGIN}/@${bare}`;
 }

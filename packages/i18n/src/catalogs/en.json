@@ -346,6 +346,7 @@
   "profile.photo.uploading": "Uploading…",
   "profile.photo.error": "The photo didn't make it. Try again.",
   "profile.photo.a11y": "Your profile photo",
+  "profile.shell.hint": "Your name and photo are what your public link shows. Everything else is up to you.",
   "profile.identity.label": "Who you are",
   "profile.seeking.label": "What you seek",
   "dream.ownLabel": "My dream",

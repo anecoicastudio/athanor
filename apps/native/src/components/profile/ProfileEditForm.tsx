@@ -111,10 +111,12 @@ export function ProfileEditForm({
 
   return (
     <>
-      {/* Identità — name + photo (#76). NOT inside a <Section>: Section carries a per-field
-          visibility control, and neither of these has a visibility key. They sit in the direct
-          grant tier alongside @handle (20260811074859), so offering an eye here would promise a
-          privacy setting that does not exist. */}
+      {/* Identità — name + photo (#76). Still not inside a <Section>: the block-level control
+          below writes the ONE identity facet (#251) for both fields together, not a per-field
+          eye. 'public' (the default) keeps the /@handle link resolving for anyone; 'members'
+          kills the public shell — a knowingly dead link. 'private' is deliberately not offered:
+          members always see name and photo (the facet gates anon only, profile.ts docblock),
+          so a «Solo io» chip here would promise a setting that does not exist. */}
       <View className="gap-3">
         <SectionLabel>{t('profile.photo.label', locale)}</SectionLabel>
         <View className="flex-row items-center gap-4">
@@ -160,6 +162,34 @@ export function ProfileEditForm({
           onChangeText={setDisplayName}
         />
         <Text className="text-[13px] text-muted-foreground">{t('profile.name.hint', locale)}</Text>
+
+        {/* The identity facet (#251): one control for the whole block, same visual grammar as
+            Section's chip row. An absent key means the DEFAULT — public — never 'members'
+            (the row policy coalesces the same way), and a stray 'private' value normalises to
+            the members chip: anon-dark either way. */}
+        <View className="flex-row items-center justify-between gap-3">
+          <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
+          <View
+            className="flex-row gap-1.5"
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('profile.visibility.label', locale)}
+          >
+            {(['public', 'members'] as const).map((opt) => (
+              <Chip
+                key={opt}
+                small
+                label={t(`visibility.${opt}`, locale)}
+                selected={
+                  ((visibility.identity ?? 'public') === 'public' ? 'public' : 'members') === opt
+                }
+                onPress={() => setVis('identity', opt)}
+              />
+            ))}
+          </View>
+        </View>
+        <Text className="text-[13px] leading-snug text-muted-foreground">
+          {t('profile.shell.hint', locale)}
+        </Text>
       </View>
 
       {/* Bio */}
