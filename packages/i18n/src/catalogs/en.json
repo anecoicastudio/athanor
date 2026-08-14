@@ -1,6 +1,8 @@
 {
   "app.name": "Athanor",
   "app.tagline": "Turn time into value.",
+  "og.profileAlt": "The public profile on Athanor",
+  "og.dreamEyebrow": "The Dream",
   "landing.cta": "Light your Aura",
   "landing.hero.title": "Do you want to be free?",
   "landing.countdown.label": "We open on {date}",

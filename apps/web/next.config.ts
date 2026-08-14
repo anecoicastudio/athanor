@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   // static assets. Keeping the optimizer would mean standing up another billed
   // image pipeline on the host to save ~100 KB.
   images: { unoptimized: true },
+  // The OG-card TTFs are read with fs at BUILD time only (the Worker branch of
+  // app/[handle]/opengraph-image.tsx redirects instead of rendering), but file
+  // tracing sees the readFile and would copy ~170 KB of fonts into the server
+  // function — dead weight against the free plan's 3 MiB gzip Worker cap.
+  outputFileTracingExcludes: { '*': ['./assets/og-fonts/**'] },
   // All five workspace deps export raw TS (`"." → ./src/index.ts`) — list them all;
   // the build compiled the missing three implicitly, which is a Next-upgrade hazard.
   transpilePackages: [
