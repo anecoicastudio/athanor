@@ -21,6 +21,7 @@ import {
   postMediaPath,
   postMediaThumbPath,
   processAndUpload,
+  uploadErrorKey,
   uploadLocalFile,
 } from '@/lib/media/upload';
 import { supabase } from '@/lib/supabase';
@@ -83,8 +84,8 @@ export default function PostComposeScreen() {
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
       router.back();
     },
-    onError: () => {
-      setError(t('media.failed', locale));
+    onError: (err) => {
+      setError(t(uploadErrorKey(err), locale));
     },
   });
 

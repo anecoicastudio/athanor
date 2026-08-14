@@ -13,6 +13,9 @@ if (!url) {
   throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL');
 }
 
+// Narrowed re-binding: the guard above doesn't reach into closures (storageUploadAuth).
+const baseUrl: string = url;
+
 // Metro INLINES `process.env.EXPO_PUBLIC_*` at bundle time, so both names must appear as
 // literal member expressions here — a computed lookup silently yields undefined.
 const anonKey = resolveSupabaseKey(
@@ -76,6 +79,30 @@ export const supabase = createClient<Database>(url, anonKey, {
     fetch: gatedFetch,
   },
 });
+
+/**
+ * Base URL + auth/identity headers for the XHR storage upload (`lib/media/upload.ts`).
+ *
+ * The upload bypasses `supabase.storage` because RN's fetch has no upload-progress signal
+ * (#294), so this re-creates what `fetchWithAuth` would have sent: the session bearer
+ * falling back to the public key (supabase-js's own `_getAccessToken` order), the `apikey`
+ * header, and the version headers every request from this client carries. The 426 gate
+ * needs no wiring here — `isVersionGateRejection` only counts `/functions/v1/` responses.
+ */
+export async function storageUploadAuth(): Promise<{
+  baseUrl: string;
+  headers: Record<string, string>;
+}> {
+  const { data } = await supabase.auth.getSession();
+  return {
+    baseUrl,
+    headers: {
+      ...versionHeaders,
+      apikey: anonKey,
+      Authorization: `Bearer ${data.session?.access_token ?? anonKey}`,
+    },
+  };
+}
 
 // RN has no document visibility: drive token auto-refresh from AppState.
 // Both calls are fire-and-forget; an offline refresh otherwise surfaces as an

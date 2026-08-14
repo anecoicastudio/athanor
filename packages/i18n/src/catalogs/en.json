@@ -518,6 +518,7 @@
   "media.retry": "Try again",
   "media.cancel": "Cancel",
   "media.canceled": "Upload canceled",
+  "media.stalled": "The upload stopped. Check your connection and try again.",
   "media.sheet.title": "Add photo or video",
   "media.sheet.sub": "The moments that matter get seen. Add them to your journey.",
   "media.sheet.photo": "Take a photo",

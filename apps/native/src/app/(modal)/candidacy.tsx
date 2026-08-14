@@ -196,8 +196,10 @@ export default function CandidacyWizard() {
               <VideoUploadTile
                 locale={locale}
                 status={upload.status}
+                progress={upload.progress}
                 onPick={upload.pick}
                 onRecord={upload.record}
+                onCancel={upload.cancel}
               />
             ) : null}
             {step === 4 ? (

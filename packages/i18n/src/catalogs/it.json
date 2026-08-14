@@ -518,6 +518,7 @@
   "media.retry": "Riprova",
   "media.cancel": "Annulla",
   "media.canceled": "Caricamento annullato",
+  "media.stalled": "Il caricamento si è fermato. Controlla la rete e riprova.",
   "media.sheet.title": "Aggiungi foto o video",
   "media.sheet.sub": "I momenti che contano si vedono. Aggiungili al tuo percorso.",
   "media.sheet.photo": "Scatta una foto",

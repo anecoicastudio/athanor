@@ -11,6 +11,7 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
+import { uploadErrorKey } from '@/lib/media/upload';
 import { useStoryUpload } from '@/lib/media/use-story-upload';
 import { Screen } from '@/components/Screen';
 
@@ -53,8 +54,8 @@ export default function StoryComposeScreen() {
         });
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         router.back();
-      } catch {
-        setError(t('media.failed', locale));
+      } catch (err) {
+        setError(t(uploadErrorKey(err), locale));
       }
     })();
   };
