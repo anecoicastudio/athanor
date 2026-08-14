@@ -60,9 +60,17 @@ jobs:
           # The two admin smoke tests need only the Next dev server (Playwright webServer
           # starts `pnpm dev`) + the public Supabase URL and one API key for the SSR client
           # (publishable preferred, legacy anon accepted while it still exists).
-          # Skip gracefully until the secrets exist (same pattern as the types gate).
+          # Fail-loud policy (same as the db job's types gate): missing secrets soft-skip
+          # on PRs and feature branches (forks have no secrets) but FAIL on a main push.
+          # `deploy` has `needs: e2e`, and a step-level `exit 0` concludes the job
+          # `success` — a quiet skip on main would let deploy read "never ran" as
+          # "passed" (#146).
           if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
-            echo "::notice::e2e skipped — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
+            echo "::warning::e2e SKIPPED — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "::error::e2e gate cannot run on a main push without the Supabase e2e secrets"
+              exit 1
+            fi
             exit 0
           fi
           pnpm --filter web exec playwright install --with-deps chromium
@@ -85,7 +93,7 @@ jobs:
         working-directory: supabase/functions
 
   bundle-leak:
-    name: bundle leak scan (expo export)
+    name: native bundle (expo export) · leak scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,6 +105,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: export the JS bundle
         working-directory: apps/native
+        # Double duty (#147): this export IS CI's native-bundle gate. A bad expo dep or
+        # a Metro resolver break fails this job on every push and PR — there is no other
+        # place apps/native gets bundled before EAS. JS bundling only: native
+        # compile/link (`expo prebuild` + Xcode/Gradle) is still uncovered.
+        #
         # Metro inlines EXPO_PUBLIC_* at bundle time. None are set in this job ON PURPOSE:
         # the export must never need a secret, and whatever Metro inlines from the
         # environment is exactly what the grep below is hunting for.
@@ -131,6 +144,47 @@ jobs:
             exit 1
           fi
           echo "::notice::bundle-leak scan OK — $count bundle files clean"
+
+  web-build:
+    name: web build (OpenNext)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: build what deploy ships
+        working-directory: apps/web
+        env:
+          # Next inlines NEXT_PUBLIC_* at build time, so the build needs the same env
+          # the deploy job passes — same names, same source.
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_CF_BEACON_TOKEN: ${{ secrets.NEXT_PUBLIC_CF_BEACON_TOKEN }}
+        run: |
+          # apps/web otherwise builds only inside `deploy`, which is main-push only — a
+          # PR could go green while unbuildable, and the break would first surface on the
+          # release push (#147). This runs the exact command deploy runs
+          # (`opennextjs-cloudflare build` wraps `next build`; no turbo build — the
+          # @athanor/* packages ship raw TS compiled by Next via transpilePackages), so
+          # PR-green means deploy-buildable. Exit status is the whole value: no artifact
+          # is kept, deploy still builds its own.
+          # Same fail-loud shape as the e2e and types gates: quiet skip without secrets
+          # on PRs (forks have none), loud fail on a main push.
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
+            echo "::warning::web build SKIPPED — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "::error::web build gate cannot run on a main push without the Supabase secrets"
+              exit 1
+            fi
+            exit 0
+          fi
+          pnpm exec opennextjs-cloudflare build
 
   db:
     name: migrations · pgTAP · types in sync
@@ -235,7 +289,7 @@ jobs:
     # Every gate first. Workers Builds (Cloudflare's own git integration) cannot
     # express this, which is why the deploy lives here: it would fire on push while
     # pgTAP and the types gate were still running, or already red.
-    needs: [node, e2e, edge, db, bundle-leak]
+    needs: [node, e2e, edge, db, bundle-leak, web-build]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -262,13 +316,15 @@ jobs:
           # Optional: unset simply means no beacon.
           NEXT_PUBLIC_CF_BEACON_TOKEN: ${{ secrets.NEXT_PUBLIC_CF_BEACON_TOKEN }}
         run: |
-          # Same fail-soft-then-fail-loud shape as the types gate above: the Cloudflare
-          # account has to be provisioned by hand once (Worker, KV namespace, API token),
-          # and this job would otherwise turn the first release PR red for a reason no
-          # code change can fix.
+          # This job only ever runs on a main push (job-level `if:` above), so unlike the
+          # e2e and types gates there is no feature-branch case to stay quiet for: a soft
+          # skip here is a release that "passes" while shipping nothing, silently, every
+          # time. The Cloudflare account is provisioned (Worker, KV namespace, API token
+          # — live since the 2026-08 Vercel→Workers migration), so the one-time
+          # bootstrap rationale for skipping is gone. Fail loud (#146).
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::warning::deploy SKIPPED — set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets to enable"
-            exit 0
+            echo "::error::deploy cannot run — set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets"
+            exit 1
           fi
           # The KV id is account-specific and cannot be committed ahead of time. Catch the
           # placeholder here, where the message is actionable, rather than as an opaque
