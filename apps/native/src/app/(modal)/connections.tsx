@@ -164,7 +164,7 @@ export default function ConnectionsScreen() {
               <ConnectionRow
                 item={item}
                 locale={locale}
-                onPress={() => router.push(`/user/${item.peerId}`)}
+                onPress={() => router.push(`/(modal)/user/${item.peerId}`)}
               />
             )}
             ListEmptyComponent={

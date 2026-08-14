@@ -66,6 +66,7 @@ export function StoriesViewer({
   onJumpNext,
   onJumpPrev,
   startAt = 'first',
+  onAuthorPress,
   onReact,
   onSendReply,
   onMakeDream,
@@ -92,6 +93,8 @@ export function StoriesViewer({
   onJumpPrev: () => void;
   /** Which end to open on when `segments` changes person ('last' when arriving backwards). */
   startAt?: 'first' | 'last';
+  /** Author name → author profile (#356); absent on the own story, where the name stays text. */
+  onAuthorPress?: () => void;
   onReact: (segment: StorySegment) => void;
   /** Sends the reply into the DM without leaving the viewer; rejects on failure. */
   onSendReply: (body: string) => Promise<void>;
@@ -265,7 +268,21 @@ export function StoriesViewer({
           </View>
 
           <View className="flex-row items-center justify-between px-5 py-3">
-            <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
+            {/* The name is the exit to the author's profile (#356). Press vs pan never fight:
+                the PanResponder is attached to the sibling swipe-zone View below, not here. */}
+            {onAuthorPress ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('connection.a11y.open', locale, { name })}
+                hitSlop={{ left: 8, right: 8 }}
+                onPress={onAuthorPress}
+                className="min-h-[44px] justify-center"
+              >
+                <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
+              </Pressable>
+            ) : (
+              <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
+            )}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('common.back', locale)}

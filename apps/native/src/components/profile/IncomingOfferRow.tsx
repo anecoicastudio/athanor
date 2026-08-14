@@ -1,7 +1,8 @@
+import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Help, Locale } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Tag } from '@/components/Tag';
@@ -32,22 +33,32 @@ export function IncomingOfferRow({
   onConfirm: () => void;
   mutating?: boolean;
 }) {
+  const router = useRouter();
   const helperName = memberLabel(helper?.displayName, helper?.handle) ?? '—';
   return (
     <View
       className={`gap-3 rounded-card border border-hair bg-raise p-4 ${mutating ? 'opacity-50' : ''}`}
     >
-      {/* who + offer type */}
+      {/* who + offer type — the identity block taps through to the helper's profile (#356) */}
       <View className="flex-row items-center gap-3">
-        <Avatar
-          handle={helper?.handle ?? null}
-          displayName={helper?.displayName ?? null}
-          avatarPath={helper?.avatarPath ?? null}
-          size={36}
-        />
-        <Text className="flex-1 text-[15px] font-semibold text-foreground" numberOfLines={1}>
-          {helperName}
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('connection.a11y.open', locale, { name: helperName })}
+          className="flex-1 flex-row items-center gap-3"
+          // 36pt avatar + 4pt each side = the 44pt target, without growing the row.
+          hitSlop={{ top: 4, bottom: 4 }}
+          onPress={() => router.push(`/(modal)/user/${help.helper_id}`)}
+        >
+          <Avatar
+            handle={helper?.handle ?? null}
+            displayName={helper?.displayName ?? null}
+            avatarPath={helper?.avatarPath ?? null}
+            size={36}
+          />
+          <Text className="flex-1 text-[15px] font-semibold text-foreground" numberOfLines={1}>
+            {helperName}
+          </Text>
+        </Pressable>
         <Tag quiet label={t(`help.type.${help.type}`, locale)} />
       </View>
 
