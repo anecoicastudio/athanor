@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
+import { CONNECTION_BOOST_MAX_PEERS } from '@athanor/core';
 import {
   cancelConnection,
   connectionKeys,
+  getConnectionPeerIds,
   getConnectionsPage,
   getConnectionStatus,
   getIncomingRequestsPage,
@@ -10,7 +12,7 @@ import {
   sendConnection,
   subscribeIncomingConnections,
 } from './connections';
-import { makeFakeClient, type FakeResult } from './test-support/fake-client';
+import { DB_DOWN, makeFakeClient, type FakeResult } from './test-support/fake-client';
 
 const ME = '00000000-0000-4000-8000-000000000001';
 const PEER = '00000000-0000-4000-8000-000000000002';
@@ -351,5 +353,45 @@ describe('subscribeIncomingConnections', () => {
     // removeChannel throws if handed a channel this client never created, so this also
     // asserts the cleanup removes the RIGHT channel rather than merely calling the method.
     expect(fake.channels[0]!.removed).toBe(true);
+  });
+});
+
+describe('getConnectionPeerIds (feed boost #152)', () => {
+  const OTHER = '00000000-0000-4000-8000-000000000003';
+
+  it('unauthenticated → empty snapshot without querying anything', async () => {
+    const fake = fakeAs(null);
+    const ids = await getConnectionPeerIds(asClient(fake));
+    expect(ids).toEqual([]);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('maps each row to the peer side, whichever column the caller sits in', async () => {
+    const fake = fakeAs(ME, {
+      'connections.select': [
+        {
+          data: [
+            { profile_a: ME, profile_b: PEER },
+            { profile_a: OTHER, profile_b: ME },
+          ],
+        },
+      ],
+    });
+    const ids = await getConnectionPeerIds(asClient(fake));
+    expect(ids).toEqual([PEER, OTHER]);
+  });
+
+  it('reads the most recent edges first and caps at CONNECTION_BOOST_MAX_PEERS', async () => {
+    const fake = fakeAs(ME, { 'connections.select': [{ data: [] }] });
+    await getConnectionPeerIds(asClient(fake));
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('connections');
+    expect(call.modifiers).toContainEqual(['order', 'created_at', { ascending: false }]);
+    expect(call.modifiers).toContainEqual(['limit', CONNECTION_BOOST_MAX_PEERS]);
+  });
+
+  it('rethrows a database failure instead of silently unboosting the feed', async () => {
+    const fake = fakeAs(ME, { 'connections.select': [{ error: DB_DOWN }] });
+    await expect(getConnectionPeerIds(asClient(fake))).rejects.toMatchObject({ code: '57P01' });
   });
 });

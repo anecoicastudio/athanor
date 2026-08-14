@@ -1,3 +1,4 @@
+import { type FeedFrontier, mergeBoostedFeed } from '@athanor/core';
 import {
   type Post,
   type PostCategory,
@@ -6,7 +7,8 @@ import {
   postSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
-import { keysetFilter, nextCursorOf } from './pagination';
+import { getConnectionPeerIds } from './connections';
+import { keysetFilter } from './pagination';
 import { channelTopic } from './realtime';
 
 export const postKeys = {
@@ -17,16 +19,33 @@ export const postKeys = {
   reactions: (id: string) => ['posts', 'reactions', id] as const, // author-only count
 };
 
-/** Opaque keyset cursor — the last (created_at, id) the caller has seen. Never an offset. */
-export type FeedCursor = { created_at: string; id: string };
+/** The last (created_at, id) a single stream has consumed. Never an offset. */
+export type FeedKeysetPoint = { created_at: string; id: string };
+
+/**
+ * Opaque feed cursor (#152): one raw keyset point per stream (chronological /
+ * connection-authored), the merge frontier, and the first page's peer snapshot —
+ * carried through the whole scroll so every page ranks against the same set.
+ */
+export type FeedCursor = {
+  chrono: FeedKeysetPoint | null;
+  conn: FeedKeysetPoint | null;
+  frontier: FeedFrontier | null;
+  peerIds: string[];
+};
 export type FeedPage = { posts: Post[]; nextCursor: FeedCursor | null };
 
 const FEED_PAGE_SIZE = 20;
 
 /**
- * One page of the Community feed, newest-first by the (created_at, id) keyset
- * (rule #9: never offset). `category: 'all'` spans every category. `cursor` is
- * the last page's `nextCursor`; pass null/undefined for the first page.
+ * One page of the Community feed: chronological backbone with the light
+ * first-degree connection boost (#152, PRD §4.5). Two keyset streams — the plain
+ * chronological page and the connection-authored page — each on its own raw
+ * `(created_at, id)` cursor (rule #9: never offset), merged by
+ * `mergeBoostedFeed` in `@athanor/core`. Blocked authors never appear because the
+ * posts SELECT policy (`athanor.not_blocked`) filters both streams server-side.
+ * `category: 'all'` spans every category. `cursor` is the last page's
+ * `nextCursor`; pass null/undefined for the first page.
  */
 export async function getFeedPage(
   client: AthanorClient,
@@ -35,31 +54,64 @@ export async function getFeedPage(
   },
 ): Promise<FeedPage> {
   const limit = opts.limit ?? FEED_PAGE_SIZE;
-  let query = client
-    .from('posts')
-    .select('*')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(limit);
+  const cursor = opts.cursor ?? null;
+  const peerIds = cursor ? cursor.peerIds : await getConnectionPeerIds(client);
 
-  if (opts.category !== 'all') query = query.eq('category', opts.category);
+  const fetchStream = async (
+    point: FeedKeysetPoint | null,
+    authors?: readonly string[],
+  ): Promise<Post[]> => {
+    let query = client
+      .from('posts')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
 
-  // keyset: (created_at, id) < (cursor.created_at, cursor.id), expressed for PostgREST
-  if (opts.cursor) {
-    const { created_at, id } = opts.cursor;
-    query = query.or(keysetFilter('created_at', 'id', created_at, id, 'lt'));
-  }
+    if (opts.category !== 'all') query = query.eq('category', opts.category);
+    if (authors) query = query.in('author_id', [...authors]);
 
-  const { data, error } = await query;
-  if (error) throw error;
-  const posts = (data ?? []).map((row) => postSchema.parse(row));
-  // A full page means more rows may exist — hand back the last row as the keyset cursor.
-  const nextCursor = nextCursorOf(posts, limit, (last) => ({
-    created_at: last.created_at,
-    id: last.id,
-  }));
-  return { posts, nextCursor };
+    // keyset: (created_at, id) < (point.created_at, point.id), expressed for PostgREST
+    if (point) {
+      query = query.or(keysetFilter('created_at', 'id', point.created_at, point.id, 'lt'));
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []).map((row) => postSchema.parse(row));
+  };
+
+  // Thenables resolve in array order, so the FIFO-scripted test fake stays deterministic.
+  const [chrono, boosted] = await Promise.all([
+    fetchStream(cursor?.chrono ?? null),
+    peerIds.length > 0 ? fetchStream(cursor?.conn ?? null, peerIds) : Promise.resolve([]),
+  ]);
+
+  const merged = mergeBoostedFeed({
+    chrono,
+    boosted,
+    peerIds: new Set(peerIds),
+    limit,
+    // A full page means more rows may exist beyond that stream's horizon.
+    chronoMayHaveMore: chrono.length === limit,
+    boostedMayHaveMore: boosted.length === limit,
+    frontier: cursor?.frontier ?? null,
+  });
+
+  const nextCursor: FeedCursor | null = merged.done
+    ? null
+    : {
+        chrono: merged.lastChrono
+          ? { created_at: merged.lastChrono.created_at, id: merged.lastChrono.id }
+          : (cursor?.chrono ?? null),
+        conn: merged.lastBoosted
+          ? { created_at: merged.lastBoosted.created_at, id: merged.lastBoosted.id }
+          : (cursor?.conn ?? null),
+        frontier: merged.frontier,
+        peerIds,
+      };
+  return { posts: merged.posts, nextCursor };
 }
 
 /** A single post (modal detail). Null when missing or soft-deleted. */

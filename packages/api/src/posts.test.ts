@@ -88,63 +88,136 @@ function realtimeStub() {
   };
 }
 
-describe('getFeedPage', () => {
-  it("category 'all' adds no category filter", async () => {
-    const { client, calls } = stub([]);
-    await getFeedPage(client, { category: 'all' });
-    expect(calls.some((c) => c.method === 'eq' && c.arg === 'category')).toBe(false);
+describe('getFeedPage (light connection boost, #152)', () => {
+  const FRIEND = '00000000-0000-0000-0000-00000000000f';
+  const F1 = '00000000-0000-0000-0000-0000000000f1';
+
+  const postRow = (id: string, created_at: string, author = AUTHOR) => ({
+    ...BASE_POST,
+    id,
+    author_id: author,
+    created_at,
+    updated_at: created_at,
   });
 
-  it('a specific category filters with eq(category)', async () => {
-    const { client, calls } = stub([]);
-    await getFeedPage(client, { category: 'business' });
-    expect(
-      calls.some((c) => c.method === 'eq' && c.arg === 'category' && c.arg2 === 'business'),
-    ).toBe(true);
+  const postSelects = (fake: ReturnType<typeof makeFakeClient>) =>
+    fake.calls.filter((c) => c.table === 'posts' && c.op === 'select');
+
+  it('a reader with no connections gets the pure chronological page from one query', async () => {
+    const rows = [postRow(P1, '2026-01-02T11:00:00Z'), postRow(P2, '2026-01-02T10:00:00Z')];
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [] }],
+      'posts.select': [{ data: rows }],
+    });
+    const page = await getFeedPage(asClient(fake), { category: 'all' });
+    expect(page.posts.map((p) => p.id)).toEqual([P1, P2]);
+    expect(postSelects(fake)).toHaveLength(1); // no boosted stream without peers
+    expect(page.nextCursor).toBeNull(); // short page, nothing more
   });
 
-  it('orders by (created_at desc, id desc) and excludes deleted rows', async () => {
-    const { client, calls } = stub([]);
-    await getFeedPage(client, { category: 'all' });
-    const orders = calls.filter((c) => c.method === 'order').map((c) => c.arg);
-    expect(orders).toEqual(['created_at', 'id']);
-    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
-      true,
-    );
+  it('orders by (created_at desc, id desc) and excludes deleted rows — on every stream', async () => {
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [{ profile_a: 'prof-1', profile_b: FRIEND }] }],
+      'posts.select': [{ data: [] }, { data: [] }],
+    });
+    await getFeedPage(asClient(fake), { category: 'all' });
+    const selects = postSelects(fake);
+    expect(selects).toHaveLength(2);
+    for (const call of selects) {
+      expect(call.modifiers).toContainEqual(['order', 'created_at', { ascending: false }]);
+      expect(call.modifiers).toContainEqual(['order', 'id', { ascending: false }]);
+      expect(call.filters).toContainEqual(['is', 'deleted_at', null]);
+      expect(call.modifiers.some(([name]) => name === 'range')).toBe(false); // never offset
+    }
   });
 
-  it('applies the keyset or-disjunction when a cursor is provided — never offset', async () => {
-    const cursor = { created_at: '2026-01-01T00:00:00Z', id: P1 };
-    const { client, calls } = stub([]);
-    await getFeedPage(client, { category: 'all', cursor });
-    const orCall = calls.find((c) => c.method === 'or');
-    expect(orCall).toBeDefined();
-    expect(orCall?.arg).toBe(
-      `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`,
-    );
+  it('applies a specific category to both streams', async () => {
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [{ profile_a: 'prof-1', profile_b: FRIEND }] }],
+      'posts.select': [{ data: [] }, { data: [] }],
+    });
+    await getFeedPage(asClient(fake), { category: 'business' });
+    for (const call of postSelects(fake)) {
+      expect(call.filters).toContainEqual(['eq', 'category', 'business']);
+    }
   });
 
-  it('returns nextCursor from the last row when a full page comes back', async () => {
-    const rows = [
-      { ...BASE_POST, id: P1, created_at: '2026-01-02T00:00:00Z' },
-      { ...BASE_POST, id: P2, created_at: '2026-01-01T00:00:00Z' },
-    ];
-    const { client } = stub(rows);
-    const page = await getFeedPage(client, { category: 'all', limit: 2 });
-    expect(page.nextCursor).toEqual({ created_at: '2026-01-01T00:00:00Z', id: P2 });
+  it('restricts the boosted stream to the connection authors', async () => {
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [{ profile_a: 'prof-1', profile_b: FRIEND }] }],
+      'posts.select': [{ data: [] }, { data: [] }],
+    });
+    await getFeedPage(asClient(fake), { category: 'all' });
+    const [chrono, boosted] = postSelects(fake);
+    expect(chrono?.filters.some(([name]) => name === 'in')).toBe(false);
+    expect(boosted?.filters).toContainEqual(['in', 'author_id', [FRIEND]]);
+  });
+
+  it('keeps each stream on its own raw keyset cursor — never offset, no arithmetic', async () => {
+    const cursor = {
+      chrono: { created_at: '2026-01-01T00:00:00Z', id: P1 },
+      conn: { created_at: '2026-01-01T06:00:00Z', id: P2 },
+      frontier: { ms: Date.parse('2026-01-01T08:00:00Z'), id: P2 },
+      peerIds: [FRIEND],
+    };
+    const fake = makeFakeClient({ 'posts.select': [{ data: [] }, { data: [] }] });
+    await getFeedPage(asClient(fake), { category: 'all', cursor });
+    expect(fake.calls.some((c) => c.table === 'connections')).toBe(false); // snapshot reused
+    const [chrono, boosted] = postSelects(fake);
+    expect(chrono?.filters).toContainEqual([
+      'or',
+      `created_at.lt.${cursor.chrono.created_at},and(created_at.eq.${cursor.chrono.created_at},id.lt.${P1})`,
+    ]);
+    expect(boosted?.filters).toContainEqual([
+      'or',
+      `created_at.lt.${cursor.conn.created_at},and(created_at.eq.${cursor.conn.created_at},id.lt.${P2})`,
+    ]);
+  });
+
+  it('nudges a connection post above a slightly newer stranger post', async () => {
+    const friendPost = postRow(F1, '2026-01-02T10:30:00Z', FRIEND);
+    const strangerPost = postRow(P1, '2026-01-02T11:30:00Z');
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [{ profile_a: 'prof-1', profile_b: FRIEND }] }],
+      'posts.select': [{ data: [strangerPost, friendPost] }, { data: [friendPost] }],
+    });
+    const page = await getFeedPage(asClient(fake), { category: 'all' });
+    expect(page.posts.map((p) => p.id)).toEqual([F1, P1]); // boosted 2h → 12:30 beats 11:30
+  });
+
+  it('keeps chronology the backbone: a 3-day-old connection post never outranks today', async () => {
+    const friendPost = postRow(F1, '2025-12-30T12:00:00Z', FRIEND);
+    const strangerPost = postRow(P1, '2026-01-02T06:00:00Z');
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [{ profile_a: 'prof-1', profile_b: FRIEND }] }],
+      'posts.select': [{ data: [strangerPost, friendPost] }, { data: [friendPost] }],
+    });
+    const page = await getFeedPage(asClient(fake), { category: 'all' });
+    expect(page.posts.map((p) => p.id)).toEqual([P1, F1]);
+  });
+
+  it('carries the peer snapshot and per-stream cursors through nextCursor', async () => {
+    const rows = [postRow(P1, '2026-01-02T11:00:00Z'), postRow(P2, '2026-01-02T10:00:00Z')];
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [{ profile_a: 'prof-1', profile_b: FRIEND }] }],
+      'posts.select': [{ data: rows }, { data: [] }],
+    });
+    const page = await getFeedPage(asClient(fake), { category: 'all', limit: 2 });
     expect(page.posts).toHaveLength(2);
-  });
-
-  it('returns nextCursor = null on a short page', async () => {
-    const { client } = stub([{ ...BASE_POST }]);
-    const page = await getFeedPage(client, { category: 'all' }); // default limit 20, 1 row
-    expect(page.nextCursor).toBeNull();
-    expect(page.posts).toHaveLength(1);
+    expect(page.nextCursor).toEqual({
+      chrono: { created_at: '2026-01-02T10:00:00Z', id: P2 },
+      conn: null, // boosted stream untouched this page — no cursor to advance
+      frontier: { ms: Date.parse('2026-01-02T10:00:00Z'), id: P2 },
+      peerIds: [FRIEND],
+    });
   });
 
   it('parses every row through postSchema', async () => {
-    const { client } = stub([{ ...BASE_POST, extraneous: 'stripped' }]);
-    const page = await getFeedPage(client, { category: 'all' });
+    const fake = makeFakeClient({
+      'connections.select': [{ data: [] }],
+      'posts.select': [{ data: [{ ...BASE_POST, extraneous: 'stripped' }] }],
+    });
+    const page = await getFeedPage(asClient(fake), { category: 'all' });
     expect(page.posts[0]).toEqual(BASE_POST);
     expect(page.posts[0]).not.toHaveProperty('extraneous');
   });
