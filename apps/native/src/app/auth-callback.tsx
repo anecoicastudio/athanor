@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { deviceLocale } from '@/lib/locale';
+import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -31,7 +31,9 @@ export default function AuthCallbackScreen() {
   const errorDescription = params.error_description;
   const router = useRouter();
   const [failed, setFailed] = useState(false);
-  const locale = deviceLocale;
+  // Draft-aware (#158): the OTP link lands here while the draft (and its chosen
+  // locale) is still on disk — the flush clears it only after the exchange.
+  const locale = useDraftLocale();
 
   useEffect(() => {
     // GoTrue appends ?error=…&error_description=… instead of a code when the link

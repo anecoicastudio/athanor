@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
+import type { Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { LocaleChips } from '@/components/LocaleChips';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { SectionLabel } from '@/components/SectionLabel';
 import { StepBars } from '@/components/StepBars';
@@ -20,7 +22,8 @@ const STEPS = 4;
 /**
  * Onboarding funnel (prototype order: questions FIRST, account last). Runs with
  * NO session — anon has no `profiles` access — so the answers (identity, seeking,
- * dream, and since #76 an optional photo) are kept in a local AsyncStorage draft
+ * dream, the locale picked on step 0 (#158), and since #76 an optional photo)
+ * are kept in a local AsyncStorage draft
  * and flushed to the profile after OTP (see `lib/flush-onboarding.ts`). The photo
  * is stashed as a LOCAL uri for the same reason: every `avatars` storage policy
  * keys on auth.uid(), and there is no uid here yet. The NAME is not asked here —
@@ -30,8 +33,13 @@ const STEPS = 4;
  */
 export default function OnboardingScreen() {
   const router = useRouter();
-  const locale = deviceLocale;
 
+  // Defaults from the device (PRD §4.1), switchable on step 0 (#158) — the
+  // earliest point, so a wrong default taints none of the funnel's copy and the
+  // dream (step 2) gets written in the right language. The choice rides the
+  // draft and lands on profiles.locale in the post-OTP flush, the same column
+  // the settings picker writes.
+  const [locale, setLocale] = useState<Locale>(deviceLocale);
   const [step, setStep] = useState(0);
   const [identity, setIdentity] = useState<string[]>([]);
   const [seeking, setSeeking] = useState<string[]>([]);
@@ -44,6 +52,7 @@ export default function OnboardingScreen() {
     let cancelled = false;
     loadDraft().then((d) => {
       if (cancelled || !d) return;
+      setLocale(d.locale);
       setIdentity(d.identity_tags);
       setSeeking(d.seeking);
       setDream(d.dream);
@@ -66,18 +75,27 @@ export default function OnboardingScreen() {
 
   // Persist the latest answers on every transition so a relaunch resumes here.
   const persist = (next: {
+    locale: Locale;
     identity: string[];
     seeking: string[];
     dream: string;
     avatarUri: string | null;
   }) =>
     saveDraft({
-      locale,
+      locale: next.locale,
       identity_tags: next.identity,
       seeking: next.seeking,
       dream: next.dream,
       avatar_uri: next.avatarUri,
     });
+
+  // Persist immediately (not just on step transitions): switching language is the
+  // kind of choice that must survive an abandoned funnel.
+  const switchLocale = (next: Locale) => {
+    if (next === locale) return;
+    setLocale(next);
+    void persist({ locale: next, identity, seeking, dream, avatarUri });
+  };
 
   const canNext = useMemo(() => {
     if (step === 0) return identity.length > 0;
@@ -86,14 +104,14 @@ export default function OnboardingScreen() {
   }, [step, identity, seeking]);
 
   const next = () => {
-    persist({ identity, seeking, dream, avatarUri });
+    persist({ locale, identity, seeking, dream, avatarUri });
     setStep((s) => s + 1);
   };
 
   // Persist the draft to disk BEFORE navigating, so the post-auth flush can always
   // read it (a lost draft → incomplete profile → AuthGuard loops back here).
   const createAccount = async () => {
-    await persist({ identity, seeking, dream, avatarUri });
+    await persist({ locale, identity, seeking, dream, avatarUri });
     router.push('/(auth)/welcome');
   };
 
@@ -169,6 +187,13 @@ export default function OnboardingScreen() {
                     />
                   ))}
                 </View>
+                {/* Locale picker (PRD §4.1, #158) — inline on the first step, no
+                  step of its own. The small variant keeps it visually apart from
+                  the identity tags above. */}
+                <View className="gap-3 pt-2">
+                  <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
+                  <LocaleChips small value={locale} onChange={switchLocale} />
+                </View>
               </View>
             ) : null}
 
@@ -243,7 +268,7 @@ export default function OnboardingScreen() {
                       accessibilityRole="button"
                       onPress={() => {
                         setAvatarUri(null);
-                        void persist({ identity, seeking, dream, avatarUri: null });
+                        void persist({ locale, identity, seeking, dream, avatarUri: null });
                       }}
                     >
                       <Text className="text-[13px] text-muted-foreground">
@@ -287,7 +312,7 @@ export default function OnboardingScreen() {
           onPick={(asset) => {
             if (asset.kind !== 'image') return;
             setAvatarUri(asset.uri);
-            void persist({ identity, seeking, dream, avatarUri: asset.uri });
+            void persist({ locale, identity, seeking, dream, avatarUri: asset.uri });
           }}
         />
       </ScrollView>

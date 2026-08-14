@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
+import { LocaleChips } from '@/components/LocaleChips';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MediaSheet } from '@/components/media/MediaSheet';
@@ -257,18 +258,7 @@ export function ProfileEditForm({
       {/* Lingua + actions */}
       <View className="gap-3">
         <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
-        <View className="flex-row gap-3">
-          <Chip
-            label={t('lang.it', locale)}
-            selected={locale === 'it'}
-            onPress={() => setLocale('it')}
-          />
-          <Chip
-            label={t('lang.en', locale)}
-            selected={locale === 'en'}
-            onPress={() => setLocale('en')}
-          />
-        </View>
+        <LocaleChips value={locale} onChange={setLocale} />
 
         {error ? <Text className="text-sm text-error">{error}</Text> : null}
 

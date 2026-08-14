@@ -6,7 +6,7 @@ import { semantic } from '@athanor/config';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
-import { deviceLocale } from '@/lib/locale';
+import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
@@ -46,7 +46,8 @@ export default function WelcomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const router = useRouter();
-  const locale = deviceLocale;
+  // Draft-aware (#158): the funnel routes here right after a language choice.
+  const locale = useDraftLocale();
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
     t(`${login ? 'auth.login' : 'auth.signup'}.${suffix}` as MessageKey, locale);
