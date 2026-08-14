@@ -1,3 +1,4 @@
+import type { Insets } from 'react-native';
 import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { Pressable, Text, View } from '@/tw';
@@ -5,17 +6,23 @@ import { Avatar } from '@/components/Avatar';
 import { useProfile } from '@/hooks/use-profile';
 import { t } from '@athanor/i18n';
 
-function AttendeeAvatar({ userId, locale }: { userId: string; locale: 'it' | 'en' }) {
+function AttendeeAvatar({
+  userId,
+  locale,
+  hitSlop,
+}: {
+  userId: string;
+  locale: 'it' | 'en';
+  hitSlop: Insets;
+}) {
   const router = useRouter();
   const { data } = useProfile(userId);
   const name = memberLabel(data?.display_name, data?.handle) ?? '—';
   return (
-    // Faces overlap by design, so the horizontal target stays face-width; the vertical
-    // slop still reaches the 44pt line (28pt face + 8pt each side).
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('connection.a11y.open', locale, { name })}
-      hitSlop={{ top: 8, bottom: 8 }}
+      hitSlop={hitSlop}
       onPress={() => router.push(`/(modal)/user/${userId}`)}
       className="rounded-full border border-background"
     >
@@ -53,7 +60,19 @@ export function AttendeeStack({
       <View className="flex-row">
         {shown.map((id, i) => (
           <View key={id} style={{ marginLeft: i === 0 ? 0 : -10 }}>
-            <AttendeeAvatar userId={id} locale={locale} />
+            {/* Vertical slop reaches the 44pt line (28pt face + 8pt each side). Horizontally,
+                only the stack's unoverlapped OUTER edges get slop — interior edges stay
+                face-width so neighboring faces' targets never collide. */}
+            <AttendeeAvatar
+              userId={id}
+              locale={locale}
+              hitSlop={{
+                top: 8,
+                bottom: 8,
+                left: i === 0 ? 8 : 0,
+                right: i === shown.length - 1 ? 8 : 0,
+              }}
+            />
           </View>
         ))}
       </View>
