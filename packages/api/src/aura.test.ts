@@ -468,6 +468,112 @@ describe('subscribeAura', () => {
 
     expect(seen).toEqual([]);
   });
+
+  // #358 — realtime-js hands back ONE cached channel per topic, and `aura:<id>` cannot take
+  // channelTopic()'s uniqueness suffix (the topic is a server-side address — realtime.ts).
+  // The Profilo tab (useStarCelebration) stays mounted under the aura modal (useAuraRealtime),
+  // so two live subscribers on the same profile are the normal case, not an edge.
+  describe('two concurrent subscribers share one room', () => {
+    const makeClient = (fake: ReturnType<typeof makeFakeClient>) =>
+      ({
+        ...fake,
+        realtime: { setAuth: vi.fn().mockResolvedValue(undefined) },
+      }) as unknown as AthanorClient;
+
+    const drain = async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    it('a second subscribe on the same topic shares the channel instead of throwing', async () => {
+      const fake = makeFakeClient();
+      const client = makeClient(fake);
+      const first: unknown[] = [];
+      const second: unknown[] = [];
+
+      subscribeAura(client, P, { onScore: (r) => first.push(r) });
+      await drain();
+      expect(() => subscribeAura(client, P, { onScore: (r) => second.push(r) })).not.toThrow();
+      await drain();
+
+      expect(fake.channels).toHaveLength(1);
+      findByTable(fake, 'aura_scores')?.({ new: scoreRow() });
+      expect(first).toHaveLength(1);
+      expect(second).toHaveLength(1);
+    });
+
+    it("the first unsubscribe leaves the survivor's stream alive", async () => {
+      const fake = makeFakeClient();
+      const client = makeClient(fake);
+      const survivor: unknown[] = [];
+
+      const cleanupFirst = subscribeAura(client, P, { onScore: () => {} });
+      const cleanupSecond = subscribeAura(client, P, { onScore: (r) => survivor.push(r) });
+      await drain();
+
+      cleanupFirst();
+      expect(fake.channels[0]!.removed).toBe(false);
+      findByTable(fake, 'aura_scores')?.({ new: scoreRow() });
+      expect(survivor).toHaveLength(1);
+      cleanupSecond();
+    });
+
+    it("a double cleanup call does not steal the survivor's refcount", async () => {
+      const fake = makeFakeClient();
+      const client = makeClient(fake);
+
+      const cleanupFirst = subscribeAura(client, P, { onScore: () => {} });
+      const cleanupSecond = subscribeAura(client, P, { onScore: () => {} });
+      await drain();
+
+      cleanupFirst();
+      cleanupFirst();
+      expect(fake.channels[0]!.removed).toBe(false);
+      cleanupSecond();
+      expect(fake.channels[0]!.removed).toBe(true);
+    });
+
+    it('the last unsubscribe removes the channel and a fresh subscribe builds a new one', async () => {
+      const fake = makeFakeClient();
+      const client = makeClient(fake);
+
+      const cleanupFirst = subscribeAura(client, P, { onScore: () => {} });
+      const cleanupSecond = subscribeAura(client, P, { onScore: () => {} });
+      await drain();
+
+      cleanupFirst();
+      cleanupSecond();
+      expect(fake.channels[0]!.removed).toBe(true);
+
+      const fresh: unknown[] = [];
+      subscribeAura(client, P, { onScore: (r) => fresh.push(r) });
+      await drain();
+
+      expect(fake.channels).toHaveLength(2);
+      expect(fake.channels[1]!.subscribed).toBe(true);
+      const scoreOnNew = fake.channels[1]!.events.find(
+        (e) => (e[1] as { table?: string })?.table === 'aura_scores',
+      )?.[2] as ((p: { new: unknown }) => void) | undefined;
+      scoreOnNew?.({ new: scoreRow() });
+      expect(fresh).toHaveLength(1);
+    });
+
+    it('overlapping mounts during the async setAuth join produce one channel, two handlers', async () => {
+      const fake = makeFakeClient();
+      const client = makeClient(fake);
+      const first: unknown[] = [];
+      const second: unknown[] = [];
+
+      subscribeAura(client, P, { onScore: (r) => first.push(r) });
+      subscribeAura(client, P, { onScore: (r) => second.push(r) }); // before setAuth resolves
+      await drain();
+
+      expect(fake.channels).toHaveLength(1);
+      findByTable(fake, 'aura_scores')?.({ new: scoreRow() });
+      expect(first).toHaveLength(1);
+      expect(second).toHaveLength(1);
+    });
+  });
 });
 
 describe('aura key namespacing', () => {

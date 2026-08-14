@@ -29,6 +29,16 @@ export type FakeCall = {
   terminal?: 'single' | 'maybeSingle';
 };
 
+/** The realtime channel handle the fake hands out — module-scope so `channel()`'s
+ * two return paths (fresh vs topic-cached) share one declared type. */
+export type ChannelHandle = {
+  on: (...args: unknown[]) => ChannelHandle;
+  subscribe: (cb?: (status: string) => void) => ChannelHandle;
+  track: (payload: unknown) => Promise<string>;
+  untrack: () => Promise<string>;
+  presenceState: () => Record<string, unknown[]>;
+};
+
 /** PostgREST's own code for "single()/maybeSingle() did not match exactly one row". */
 const rowCountError = (rows: number) => ({
   code: 'PGRST116',
@@ -174,6 +184,11 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
   };
   const channels: ChannelRecord[] = [];
   const handles = new WeakMap<object, ChannelRecord>();
+  // realtime-js caches ONE live channel per topic and hands the same instance back to a
+  // second caller; adding callbacks to it after subscribe() throws, and removeChannel()
+  // evicts it. Mirrored here so a subscription that builds a second same-topic channel
+  // fails in tests the way it fails in production (#358).
+  const liveByTopic = new Map<string, ChannelHandle>();
 
   return {
     calls,
@@ -230,7 +245,9 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
     },
     // Realtime: records the channel so a test can assert `.claude/rules/api.md`'s requirement
     // that every subscription hands back a working cleanup function.
-    channel(name: string) {
+    channel(name: string): ChannelHandle {
+      const cached = liveByTopic.get(name);
+      if (cached) return cached;
       const entry: ChannelRecord = {
         name,
         events: [],
@@ -243,10 +260,16 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
       channels.push(entry);
       const ch = {
         on(...args: unknown[]) {
+          if (entry.subscribed)
+            throw new Error(
+              `cannot add callbacks on ${name} after calling subscribe() — realtime-js shares one channel per topic`,
+            );
           entry.events.push(args);
           return ch;
         },
         subscribe(cb?: (status: string) => void) {
+          if (entry.subscribed)
+            throw new Error('tried to subscribe multiple times per channel instance');
           entry.subscribed = true;
           cb?.('SUBSCRIBED');
           return ch;
@@ -267,12 +290,14 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
       // rather than searched for. Falling back to "the last channel" would let a test that
       // asserts WHICH channel was removed pass against a cleanup that removed the wrong one.
       handles.set(ch, entry);
+      liveByTopic.set(name, ch);
       return ch;
     },
     removeChannel(ch: unknown) {
       const entry = handles.get(ch as object);
       if (!entry) throw new Error('removeChannel called with a channel this client never created');
       entry.removed = true;
+      if (liveByTopic.get(entry.name) === ch) liveByTopic.delete(entry.name);
       return Promise.resolve('ok');
     },
   };
