@@ -21,6 +21,7 @@ export * from './profile/sanction';
 export * from './media/limits';
 export * from './media/post-type';
 export * from './media/poster';
+export * from './feed/boost';
 export * from './events/distance';
 export * from './events/price';
 export * from './chat/dayBucket';

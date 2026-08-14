@@ -1,3 +1,4 @@
+import { CONNECTION_BOOST_MAX_PEERS } from '@athanor/core';
 import {
   type ConnectionListItem,
   connectionListItem,
@@ -117,6 +118,26 @@ export async function getConnectionsPage(
     id: last.id,
   }));
   return { items, nextCursor };
+}
+
+// ── peer snapshot for the feed boost (#152) ────────────────────────────────────
+/**
+ * First-degree peer ids for the feed's light connection boost: most recent edges
+ * first, capped at CONNECTION_BOOST_MAX_PEERS (bounds the `in.(...)` filter the
+ * boosted stream builds). RLS scopes `connections` to rows the caller is party to.
+ * Plumbing only — the boost weight and merge live in `@athanor/core` (feed/boost).
+ */
+export async function getConnectionPeerIds(client: AthanorClient): Promise<string[]> {
+  const myId = (await client.auth.getUser()).data.user?.id;
+  if (!myId) return [];
+  const { data, error } = await client
+    .from('connections')
+    .select('profile_a, profile_b')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(CONNECTION_BOOST_MAX_PEERS);
+  if (error) throw error;
+  return (data ?? []).map((r) => (r.profile_a === myId ? r.profile_b : r.profile_a));
 }
 
 // ── button state for a peer (drives <ConnectButton>) ───────────────────────────
