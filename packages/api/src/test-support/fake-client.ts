@@ -241,6 +241,25 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
             }),
           );
         },
+        // Batch variant (signMediaUrls). Script `storage.<bucket>.createSignedUrls` with
+        // `data: [{ path, signedUrl, error }]` rows, as storage-js returns them.
+        createSignedUrls: (paths: string[], expiresIn: number) => {
+          calls.push({
+            table: `storage.${bucket}`,
+            op: 'select',
+            values: { paths, expiresIn },
+            filters: [],
+            modifiers: [],
+          });
+          return Promise.resolve(
+            result(`storage.${bucket}.createSignedUrls`, {
+              table: bucket,
+              op: 'select',
+              filters: [],
+              modifiers: [],
+            }),
+          );
+        },
       }),
     },
     // Realtime: records the channel so a test can assert `.claude/rules/api.md`'s requirement

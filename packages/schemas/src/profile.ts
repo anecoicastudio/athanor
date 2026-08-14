@@ -112,10 +112,10 @@ export const profileUpdateSchema = profileSchema
  * owner set that field to 'private' (absent key = 'members'). No locale,
  * visibility, or other own-only columns.
  *
- * `display_name` and `avatar_path` carry no visibility key and are never masked here (#76):
- * they enrich the handle a member already sees, so gating them would be a second identity
- * setting with nothing behind it. The RPC's members-only reach is the boundary — anon is
- * excluded from both columns at the grant (20260811074859), so `apps/web` still renders initials.
+ * `display_name` and `avatar_path` are never masked here (#76): they enrich the handle a
+ * member already sees, so a members-side mask would be a second identity setting with nothing
+ * behind it. The `identity` visibility facet (#251) gates the ANON shell only — it decides
+ * whether `apps/web`'s @handle page resolves at all, never what a signed-in member sees.
  */
 export const personProfileSchema = profileSchema
   .pick({

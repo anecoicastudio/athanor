@@ -346,6 +346,7 @@
   "profile.photo.uploading": "Sto caricando…",
   "profile.photo.error": "La foto non è arrivata. Riprova.",
   "profile.photo.a11y": "La tua foto del profilo",
+  "profile.shell.hint": "Nome e foto sono ciò che mostra il tuo link pubblico. Tutto il resto lo decidi tu.",
   "profile.identity.label": "Chi sei",
   "profile.seeking.label": "Cosa cerchi",
   "dream.ownLabel": "Il mio sogno",
