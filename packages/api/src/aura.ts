@@ -230,6 +230,38 @@ export async function getStars(client: AthanorClient, profileId: string): Promis
   }));
 }
 
+type AuraHandlers = {
+  onScore?: (row: unknown) => void;
+  onEvent?: (row: unknown) => void;
+  onStar?: (row: unknown) => void;
+  onCelebration?: (payload: AuraCelebrationPayload) => void;
+};
+
+type AuraRoom = {
+  /** null until the setAuth-gated private join completes */
+  channel: RealtimeChannel | null;
+  /** handler bundles of every subscriber sharing this room — the refcount */
+  handlers: Set<AuraHandlers>;
+};
+
+/**
+ * One shared room per (client, profile) — same shape as subscribeEventPresence's
+ * registry (events.ts): realtime-js caches one channel per topic and throws when a
+ * second subscriber calls `.on()` on the shared, already-subscribed channel. `aura:<id>`
+ * cannot take channelTopic()'s uniqueness suffix because the topic is a server-side
+ * address — the engine broadcasts to it and RLS on realtime.messages authorizes it
+ * (realtime.ts). The Profilo tab (useStarCelebration) stays mounted under the aura
+ * modal (useAuraRealtime), so overlap is the normal case; `.on()` is attached once and
+ * dispatches to the live handler set, and removeChannel runs only when the last
+ * subscriber leaves (#358).
+ *
+ * Not extracted into a shared helper with the presence registry: presence needs
+ * track/untrack refcounts and a synchronous join; this room needs an async
+ * setAuth-gated private join — the shared core would be smaller than the
+ * parameterization it forces.
+ */
+const auraRooms = new WeakMap<AthanorClient, Map<string, AuraRoom>>();
+
 /**
  * Subscribe an owner to their Aura realtime: aura_scores / aura_events / stars row
  * changes + the engine's celebration broadcast. Returns a cleanup fn (api rule:
@@ -238,59 +270,79 @@ export async function getStars(client: AthanorClient, profileId: string): Promis
 export function subscribeAura(
   client: AthanorClient,
   profileId: string,
-  handlers: {
-    onScore?: (row: unknown) => void;
-    onEvent?: (row: unknown) => void;
-    onStar?: (row: unknown) => void;
-    onCelebration?: (payload: AuraCelebrationPayload) => void;
-  },
+  handlers: AuraHandlers,
 ): () => void {
-  let channel: RealtimeChannel | null = null;
-  let cancelled = false;
+  const topic = `aura:${profileId}`;
+  let rooms = auraRooms.get(client);
+  if (!rooms) {
+    rooms = new Map();
+    auraRooms.set(client, rooms);
+  }
+  const clientRooms = rooms;
 
-  // Private channel (09 §5.2): broadcast authz is enforced by RLS on realtime.messages
-  // (owner-receive-only, no client send). postgres_changes stay authorized by each aura_*
-  // table's own RLS. setAuth() MUST complete before the private join (09 §5.2.2), so we
-  // join inside an async IIFE while keeping the synchronous cleanup contract below.
-  void (async () => {
-    await client.realtime.setAuth();
-    if (cancelled) return;
-    channel = client
-      .channel(`aura:${profileId}`, { config: { private: true } })
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'aura_scores',
-          filter: `profile_id=eq.${profileId}`,
-        },
-        (p) => handlers.onScore?.(p.new),
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'aura_events',
-          filter: `profile_id=eq.${profileId}`,
-        },
-        (p) => handlers.onEvent?.(p.new),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'stars', filter: `profile_id=eq.${profileId}` },
-        (p) => handlers.onStar?.(p.new),
-      )
-      .on('broadcast', { event: 'celebration' }, (p) => {
-        const parsed = auraCelebrationPayload.safeParse(p.payload);
-        if (parsed.success) handlers.onCelebration?.(parsed.data);
-      })
-      .subscribe();
-  })();
+  let room = clientRooms.get(topic);
+  if (!room) {
+    const created: AuraRoom = { channel: null, handlers: new Set() };
+    clientRooms.set(topic, created);
+    room = created;
 
+    // Private channel (09 §5.2): broadcast authz is enforced by RLS on realtime.messages
+    // (owner-receive-only, no client send). postgres_changes stay authorized by each aura_*
+    // table's own RLS. setAuth() MUST complete before the private join (09 §5.2.2), so we
+    // join inside an async IIFE while keeping the synchronous cleanup contract below.
+    // Registering the room synchronously above is what serializes overlapping mounts onto
+    // this one join — a second mount lands in the handler set, never in a second build.
+    void (async () => {
+      await client.realtime.setAuth();
+      if (created.handlers.size === 0) return; // every subscriber left mid-join
+      created.channel = client
+        .channel(topic, { config: { private: true } })
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'aura_scores',
+            filter: `profile_id=eq.${profileId}`,
+          },
+          (p) => created.handlers.forEach((h) => h.onScore?.(p.new)),
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'aura_events',
+            filter: `profile_id=eq.${profileId}`,
+          },
+          (p) => created.handlers.forEach((h) => h.onEvent?.(p.new)),
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'stars', filter: `profile_id=eq.${profileId}` },
+          (p) => created.handlers.forEach((h) => h.onStar?.(p.new)),
+        )
+        .on('broadcast', { event: 'celebration' }, (p) => {
+          const parsed = auraCelebrationPayload.safeParse(p.payload);
+          if (parsed.success) created.handlers.forEach((h) => h.onCelebration?.(parsed.data));
+        })
+        .subscribe();
+    })();
+  }
+
+  const joined = room;
+  joined.handlers.add(handlers);
+
+  let done = false;
   return () => {
-    cancelled = true;
-    if (channel) void client.removeChannel(channel);
+    if (done) return;
+    done = true;
+    joined.handlers.delete(handlers);
+    if (joined.handlers.size > 0) return;
+    if (clientRooms.get(topic) === joined) clientRooms.delete(topic);
+    if (joined.channel) {
+      void client.removeChannel(joined.channel);
+      joined.channel = null;
+    }
   };
 }
