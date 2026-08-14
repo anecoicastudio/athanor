@@ -20,13 +20,14 @@ describe('encodeGeohash', () => {
   });
 
   it('matches the DB check shape: 5 chars of the base32 alphabet', () => {
-    for (const [lat, lng] of [
+    const points: Array<[number, number]> = [
       [41.8933, 12.4829],
       [45.4642, 9.19],
       [-33.8688, 151.2093],
       [64.1466, -21.9426],
       [0, 0],
-    ]) {
+    ];
+    for (const [lat, lng] of points) {
       expect(encodeGeohash(lat, lng)).toMatch(/^[0-9b-hjkmnp-z]{5}$/);
     }
   });

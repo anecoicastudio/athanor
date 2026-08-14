@@ -103,9 +103,12 @@ export function ProfileView({
 
   const identity = profile.identity_tags;
   const seeking = profile.seeking;
+  const skills = profile.skills ?? [];
 
-  const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
-    t(`${prefix}.${key}` as MessageKey, locale);
+  const tagLabel = (
+    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
+    key: string,
+  ) => t(`${prefix}.${key}` as MessageKey, locale);
 
   return (
     <>
@@ -166,6 +169,14 @@ export function ProfileView({
       {/* Il Sogno — editable quote (dream editor) + tappe CRUD (M2) */}
       {dreamSlot}
 
+      {/* La mia missione — §4.2 order: bio (hero) → mission → skills → city (#149) */}
+      {profile.mission ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.mission.label', locale)}</SectionLabel>
+          <Text className="text-[15px] leading-relaxed text-foreground">{profile.mission}</Text>
+        </View>
+      ) : null}
+
       {/* Chi sei — identity tags */}
       {identity.length > 0 ? (
         <View className="gap-3">
@@ -187,6 +198,35 @@ export function ProfileView({
               <Tag key={tag} label={tagLabel('tag.seeking', tag)} />
             ))}
           </View>
+        </View>
+      ) : null}
+
+      {/* Professione + Competenze — curated keys (#149) */}
+      {profile.profession ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.profession.label', locale)}</SectionLabel>
+          <View className="flex-row flex-wrap gap-3">
+            <Tag label={tagLabel('tag.profession', profile.profession)} />
+          </View>
+        </View>
+      ) : null}
+
+      {skills.length > 0 ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.skills.label', locale)}</SectionLabel>
+          <View className="flex-row flex-wrap gap-3">
+            {skills.map((key) => (
+              <Tag key={key} label={tagLabel('tag.skill', key)} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Città — display name only; the geohash never renders anywhere (#149) */}
+      {profile.city ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.city.label', locale)}</SectionLabel>
+          <Text className="text-[15px] text-foreground">{profile.city}</Text>
         </View>
       ) : null}
 
