@@ -629,16 +629,20 @@ export type Database = {
       }
       dream_candidacies: {
         Row: {
+          budget_cents: number
           category: string | null
           city: string | null
           created_at: string
           deleted_at: string | null
+          dream_id: string | null
           edition_id: string
           goal: string
           id: string
           impact: string
+          min_viable_cents: number
           plan: string
           profile_id: string
+          skills_needed: string[]
           status: string
           story: string
           thumb_path: string | null
@@ -646,16 +650,20 @@ export type Database = {
           video_url: string
         }
         Insert: {
+          budget_cents: number
           category?: string | null
           city?: string | null
           created_at?: string
           deleted_at?: string | null
+          dream_id?: string | null
           edition_id: string
           goal: string
           id?: string
           impact: string
+          min_viable_cents: number
           plan: string
           profile_id: string
+          skills_needed?: string[]
           status?: string
           story: string
           thumb_path?: string | null
@@ -663,16 +671,20 @@ export type Database = {
           video_url: string
         }
         Update: {
+          budget_cents?: number
           category?: string | null
           city?: string | null
           created_at?: string
           deleted_at?: string | null
+          dream_id?: string | null
           edition_id?: string
           goal?: string
           id?: string
           impact?: string
+          min_viable_cents?: number
           plan?: string
           profile_id?: string
+          skills_needed?: string[]
           status?: string
           story?: string
           thumb_path?: string | null
@@ -680,6 +692,13 @@ export type Database = {
           video_url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "dream_candidacies_dream_id_fkey"
+            columns: ["dream_id"]
+            isOneToOne: false
+            referencedRelation: "dreams"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dream_candidacies_edition_id_fkey"
             columns: ["edition_id"]
@@ -1216,38 +1235,59 @@ export type Database = {
         Row: {
           candidacy_window_open: boolean
           contributions_enabled: boolean
+          cost_fee_statement: string | null
           created_at: string
+          equity_declared: string | null
           goal_cents: number
           id: string
+          min_candidacies: number
+          min_funding_cents: number
+          min_voters: number
           phase: string
+          split_pct: number | null
           target_at: string
           updated_at: string
+          voting_ends_at: string | null
+          voting_starts_at: string | null
           winner_candidacy_id: string | null
-          year: number
         }
         Insert: {
           candidacy_window_open?: boolean
           contributions_enabled?: boolean
+          cost_fee_statement?: string | null
           created_at?: string
+          equity_declared?: string | null
           goal_cents: number
           id?: string
+          min_candidacies: number
+          min_funding_cents: number
+          min_voters: number
           phase?: string
+          split_pct?: number | null
           target_at: string
           updated_at?: string
+          voting_ends_at?: string | null
+          voting_starts_at?: string | null
           winner_candidacy_id?: string | null
-          year: number
         }
         Update: {
           candidacy_window_open?: boolean
           contributions_enabled?: boolean
+          cost_fee_statement?: string | null
           created_at?: string
+          equity_declared?: string | null
           goal_cents?: number
           id?: string
+          min_candidacies?: number
+          min_funding_cents?: number
+          min_voters?: number
           phase?: string
+          split_pct?: number | null
           target_at?: string
           updated_at?: string
+          voting_ends_at?: string | null
+          voting_starts_at?: string | null
           winner_candidacy_id?: string | null
-          year?: number
         }
         Relationships: [
           {

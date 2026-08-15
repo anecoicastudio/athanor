@@ -176,7 +176,7 @@ export default function AnnualFundScreen() {
 
   const voteStateFor = (card: CandidateCardModel): VoteState => {
     if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
-    if (edition && edition.phase !== 'community') return 'votingClosed';
+    if (edition && edition.phase !== 'voting') return 'votingClosed';
     if (pendingCandidacyId === card.candidacy_id) return 'voting';
     if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
     return 'notVoted';

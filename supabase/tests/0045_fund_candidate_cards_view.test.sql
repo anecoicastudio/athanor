@@ -20,16 +20,18 @@ insert into public.dreams (profile_id, text, status)
 -- one open edition + two candidacies (service_role bypasses the identity gate):
 --   user_a → submitted (members-visible);  user_b → rejected (own-only)
 set local role service_role;
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
-  values ('00000000-0000-0000-0000-0000000000ed', 2027, now() + interval '30 days', 1000000, 'community', true, false);
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status)
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  min_funding_cents, min_voters, min_candidacies)
+  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'candidacy', true, false,
+          100000, 5, 3);
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, budget_cents, min_viable_cents)
 values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000ed',
    '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4',
-   '11111111-1111-1111-1111-111111111111/a-thumb.jpg','p','submitted'),
+   '11111111-1111-1111-1111-111111111111/a-thumb.jpg','p','submitted', 800000, 500000),
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000ed',
    '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4',
-   null,'p','rejected');
+   null,'p','rejected', 800000, 500000);
 reset role;
 
 -- ── schema ────────────────────────────────────────────────────────────────────────────

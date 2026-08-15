@@ -2,7 +2,7 @@ import type { FundPhase } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
 
-const PHASES: FundPhase[] = ['community', 'reputation', 'ethics', 'event'];
+const PHASES: FundPhase[] = ['candidacy', 'screening', 'voting', 'announcement', 'realization'];
 
 /** One numbered phase row. Highlighted when `active`. */
 function PhaseRow({
@@ -57,7 +57,8 @@ function PhaseRow({
 }
 
 /**
- * Ordered list of the 4 selection phases (community → reputation → ethics → event).
+ * Ordered list of the 5 open-cycle phases (candidacy → screening → voting → announcement →
+ * realization; `closed` has no row — a closed cycle is not rendered as a step).
  * The row matching `current` is highlighted in cyan + carries the «in corso» chip.
  */
 export function PhaseList({ current, locale }: { current: FundPhase; locale: 'it' | 'en' }) {

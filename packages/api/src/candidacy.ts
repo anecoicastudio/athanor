@@ -1,3 +1,4 @@
+import { isSkill } from '@athanor/core';
 import {
   type CandidacyInsert,
   type CandidateCard,
@@ -39,13 +40,25 @@ export function candidacyThumbPath(uid: string, candidacyId: string): string {
 /**
  * Submit a candidacy. `id` is generated client-side so the video can be uploaded
  * to `{uid}/{id}.mp4` BEFORE the row exists; profile_id + status are server-pinned
- * by RLS WITH CHECK (status must be 'submitted'; insert requires identity_verified).
+ * by RLS WITH CHECK (status must be 'submitted'; insert requires identity_verified;
+ * dream_id, when set, must be the author's own dream).
+ *
+ * skills_needed is bounded against @athanor/core SKILLS here (#225, FUND-10): the DB
+ * bounds shape and cardinality only (the profiles.skills pattern), so the vocabulary
+ * membership check lives at this boundary — a free-text key would silently break the
+ * member-surfacing intersection the field exists for.
  */
 export async function submitCandidacy(
   client: AthanorClient,
   params: { id: string; profileId: string; input: CandidacyInsert },
 ): Promise<DreamCandidacy> {
   const { id, profileId, input } = params;
+  const unknownSkill = input.skills_needed.find((s) => !isSkill(s));
+  if (unknownSkill !== undefined) {
+    throw new Error(
+      `skills_needed carries a key outside the curated SKILLS vocabulary: ${unknownSkill}`,
+    );
+  }
   const { data, error } = await client
     .from('dream_candidacies')
     .insert({ ...input, id, profile_id: profileId, status: 'submitted' })

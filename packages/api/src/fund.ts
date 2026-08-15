@@ -19,14 +19,12 @@ export const fundKeys = {
   myContributions: (profileId: string) => [...fundKeys.all, 'contributions', profileId] as const,
 };
 
-/** The current non-closed edition (newest year). The unique index guarantees ≤1 active per year. */
+/** The current non-closed cycle. `fund_editions_one_active` guarantees at most one (#215). */
 export async function getActiveEdition(client: AthanorClient): Promise<FundEdition | null> {
   const { data, error } = await client
     .from('fund_editions')
     .select('*')
     .neq('phase', 'closed')
-    .order('year', { ascending: false })
-    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data ? fundEditionSchema.parse(data) : null;

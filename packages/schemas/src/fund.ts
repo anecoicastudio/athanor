@@ -1,18 +1,36 @@
 import { z } from 'zod';
 
-export const fundPhaseSchema = z.enum(['community', 'reputation', 'ethics', 'event', 'closed']);
+/** The cycle model (#215, FUND-SPEC §1): candidacy → screening → voting → announcement → realization → closed. */
+export const fundPhaseSchema = z.enum([
+  'candidacy',
+  'screening',
+  'voting',
+  'announcement',
+  'realization',
+  'closed',
+]);
 export type FundPhase = z.infer<typeof fundPhaseSchema>;
 
-/** Public read-model of one annual fund edition (backend 06 §2.1). */
+/** Public read-model of one event-driven fund cycle (the identifier stays fund_editions, D39). */
 export const fundEditionSchema = z.object({
   id: z.string().uuid(),
-  year: z.number().int(),
   target_at: z.string(), // ISO timestamptz — the server-authoritative countdown clock
   goal_cents: z.number().int().positive(),
   phase: fundPhaseSchema,
   candidacy_window_open: z.boolean(),
   contributions_enabled: z.boolean(),
   winner_candidacy_id: z.string().uuid().nullable(),
+  // Ballot window (FUND-15) — published at open, enforced by cast_vote from #217 on.
+  voting_starts_at: z.string().nullable(),
+  voting_ends_at: z.string().nullable(),
+  // The three deferred per-cycle minimums (FUND-SPEC §5) — NOT NULL in the DB, no default.
+  min_funding_cents: z.number().int().nonnegative(),
+  min_voters: z.number().int().positive(),
+  min_candidacies: z.number().int().positive(),
+  // Declared economics — nullable shape; #232 owns the frozen-at-open semantics.
+  split_pct: z.number().int().min(0).max(100).nullable(),
+  cost_fee_statement: z.string().nullable(),
+  equity_declared: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
