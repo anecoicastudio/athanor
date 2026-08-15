@@ -75,6 +75,6 @@ on conflict do nothing;
 insert into public.remote_config (key, value) values
   ('min_app_version',          '{"ios":"1.0.0","android":"1.0.0"}'::jsonb),
   ('maintenance_mode',         '{"enabled":false,"eta":null}'::jsonb),
-  ('fund_contributions_enabled','{"enabled":false}'::jsonb),
+  ('fund_surfaces_enabled',    '{"enabled":false}'::jsonb),
   ('prime_stelle_enabled',     '{"enabled":false}'::jsonb)
 on conflict (key) do nothing;

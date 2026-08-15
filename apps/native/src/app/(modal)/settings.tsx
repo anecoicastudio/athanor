@@ -148,7 +148,7 @@ export default function SettingsScreen() {
             title={t('settings.payments.title', locale)}
             description={t('settings.payments.desc', locale)}
             onPress={() =>
-              flags.fund_contributions_enabled
+              flags.fund_surfaces_enabled
                 ? router.push('/(modal)/payments')
                 : showToast(t('settings.payments.soon', locale))
             }
