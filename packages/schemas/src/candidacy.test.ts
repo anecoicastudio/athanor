@@ -4,6 +4,7 @@ import {
   candidacyUpdateSchema,
   candidateCardSchema,
   dreamCandidacySchema,
+  screeningCriterionCodeSchema,
 } from './candidacy';
 
 const validRow = {
@@ -23,10 +24,24 @@ const validRow = {
   min_viable_cents: 500000,
   skills_needed: ['fotografia'],
   dream_id: null,
+  rejection_reasons: null,
   created_at: '2026-06-18T00:00:00Z',
   updated_at: '2026-06-18T00:00:00Z',
   deleted_at: null,
 };
+
+describe('screeningCriterionCodeSchema', () => {
+  it.each(['identity_verified', 'proposal_complete', 'no_moderation_sanction', 'plan_coherent'])(
+    'accepts the published criterion %s (D5)',
+    (code) => {
+      expect(screeningCriterionCodeSchema.parse(code)).toBe(code);
+    },
+  );
+  it('rejects a code outside the published criteria — an Aura threshold above all (D5)', () => {
+    expect(screeningCriterionCodeSchema.safeParse('aura_threshold').success).toBe(false);
+    expect(screeningCriterionCodeSchema.safeParse('').success).toBe(false);
+  });
+});
 
 describe('dreamCandidacySchema', () => {
   it('parses a valid row', () => {
@@ -50,6 +65,27 @@ describe('dreamCandidacySchema', () => {
       'artistic',
     );
     expect(dreamCandidacySchema.safeParse({ ...validRow, category: 'craft' }).success).toBe(false);
+  });
+  it('binds rejection_reasons to the published criteria codes (#218, D6)', () => {
+    const rejected = {
+      ...validRow,
+      status: 'rejected',
+      rejection_reasons: ['plan_coherent', 'no_moderation_sanction'],
+    };
+    expect(dreamCandidacySchema.parse(rejected).rejection_reasons).toEqual([
+      'plan_coherent',
+      'no_moderation_sanction',
+    ]);
+    expect(
+      dreamCandidacySchema.safeParse({
+        ...validRow,
+        status: 'rejected',
+        rejection_reasons: ['aura_too_low'], // D5: no Aura criterion exists to cite
+      }).success,
+    ).toBe(false);
+  });
+  it('accepts null rejection_reasons on a non-rejected row', () => {
+    expect(dreamCandidacySchema.parse(validRow).rejection_reasons).toBeNull();
   });
   it('accepts a linked own dream and a null one (FUND-50)', () => {
     const linked = { ...validRow, dream_id: '44444444-4444-4444-4444-444444444444' };

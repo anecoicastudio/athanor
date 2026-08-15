@@ -669,6 +669,7 @@ export type Database = {
           min_viable_cents: number
           plan: string
           profile_id: string
+          rejection_reasons: string[] | null
           skills_needed: string[]
           status: string
           story: string
@@ -690,6 +691,7 @@ export type Database = {
           min_viable_cents: number
           plan: string
           profile_id: string
+          rejection_reasons?: string[] | null
           skills_needed?: string[]
           status?: string
           story: string
@@ -711,6 +713,7 @@ export type Database = {
           min_viable_cents?: number
           plan?: string
           profile_id?: string
+          rejection_reasons?: string[] | null
           skills_needed?: string[]
           status?: string
           story?: string
@@ -2396,6 +2399,30 @@ export type Database = {
           },
         ]
       }
+      screening_criteria: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          sort: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          sort: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          sort?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stars: {
         Row: {
           created_at: string
@@ -2943,6 +2970,14 @@ export type Database = {
         Returns: undefined
       }
       run_momenti_matcher: { Args: never; Returns: number }
+      screen_candidacy: {
+        Args: {
+          p_candidacy_id: string
+          p_decision: string
+          p_reasons?: string[]
+        }
+        Returns: string
+      }
       search_all: {
         Args: {
           cursor_id?: string

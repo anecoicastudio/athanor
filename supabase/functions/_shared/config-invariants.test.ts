@@ -37,6 +37,7 @@ export const POSTURE: Record<string, Posture> = {
   'notification-fan-out': 'internal',
   'push-dispatch': 'internal',
   'score-engine': 'internal',
+  'screen-candidacy': 'internal',
   'stripe-webhook': 'webhook',
 };
 

@@ -11,6 +11,19 @@ export const candidacyStatusSchema = z.enum([
 ]);
 export type CandidacyStatus = z.infer<typeof candidacyStatusSchema>;
 
+/**
+ * #218/D5 — the published screening criteria codes (screening_criteria.code, seeded in
+ * 20260815164809). Objective only, no Aura criterion, by decision. i18n renders each as
+ * fund.screening.criteria.<code>.t/.d.
+ */
+export const screeningCriterionCodeSchema = z.enum([
+  'identity_verified',
+  'proposal_complete',
+  'no_moderation_sanction',
+  'plan_coherent',
+]);
+export type ScreeningCriterionCode = z.infer<typeof screeningCriterionCodeSchema>;
+
 /** Full read-model of a fund application (backend 06 §2.4). */
 export const dreamCandidacySchema = z.object({
   id: z.string().uuid(),
@@ -35,6 +48,9 @@ export const dreamCandidacySchema = z.object({
   skills_needed: z.array(z.string().min(1)).max(10),
   // #225 (FUND-50/D12) — optional link to the author's own personal dream.
   dream_id: z.string().uuid().nullable(),
+  // #218 (FUND-52/D6) — screening_criteria codes the candidacy failed; present exactly
+  // when status='rejected' (DB CHECK), cleared by the reopen (appeal) transition.
+  rejection_reasons: z.array(screeningCriterionCodeSchema).nullable(),
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: z.string().nullable(),

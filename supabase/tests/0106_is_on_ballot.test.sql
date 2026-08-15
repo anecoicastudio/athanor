@@ -34,30 +34,30 @@ insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_wi
 reset role;
 
 insert into public.dream_candidacies
-  (id, edition_id, profile_id, story, goal, impact, video_url, plan, budget_cents, min_viable_cents, status, deleted_at)
+  (id, edition_id, profile_id, story, goal, impact, video_url, plan, budget_cents, min_viable_cents, status, deleted_at, rejection_reasons)
 select ('c0000000-0000-0000-0000-00000000000' || i)::uuid,
        '00000000-0000-0000-0000-0000000000ed',
        ('a0000000-0000-0000-0000-00000000000' || i)::uuid,
-       's', 'g', 'i', 'v.mp4', 'p', 800000, 500000, s.status, s.deleted_at
+       's', 'g', 'i', 'v.mp4', 'p', 800000, 500000, s.status, s.deleted_at, s.rejection_reasons
   from (values
-    (1, 'submitted',   null::timestamptz),
-    (2, 'screening',   null),
-    (3, 'shortlisted', null),
-    (4, 'winner',      null),
-    (5, 'rejected',    null),
-    (6, 'shortlisted', now())
-  ) as s(i, status, deleted_at);
+    (1, 'submitted',   null::timestamptz, null::text[]),
+    (2, 'screening',   null, null),
+    (3, 'shortlisted', null, null),
+    (4, 'winner',      null, null),
+    (5, 'rejected',    null, array['plan_coherent']),
+    (6, 'shortlisted', now(), null)
+  ) as s(i, status, deleted_at, rejection_reasons);
 
--- ── truth table ─────────────────────────────────────────────────────────────────────────
+-- ── truth table (#218: the ballot is the SCREENED set) ──────────────────────────────────
 select is((select public.is_on_ballot(c) from public.dream_candidacies c
             where c.id = 'c0000000-0000-0000-0000-000000000001'),
-  true,  'submitted is on the ballot');
+  false, 'submitted is NOT on the ballot — the field publishes at shortlist (FUND-52/D4)');
 select is((select public.is_on_ballot(c) from public.dream_candidacies c
             where c.id = 'c0000000-0000-0000-0000-000000000002'),
-  true,  'screening is on the ballot');
+  false, 'screening is NOT on the ballot — the committee has not admitted it yet');
 select is((select public.is_on_ballot(c) from public.dream_candidacies c
             where c.id = 'c0000000-0000-0000-0000-000000000003'),
-  true,  'shortlisted is on the ballot');
+  true,  'shortlisted is on the ballot — screening passed');
 select is((select public.is_on_ballot(c) from public.dream_candidacies c
             where c.id = 'c0000000-0000-0000-0000-000000000004'),
   true,  'winner stays on the ballot (visible field; declare_winner composes its own exception)');
@@ -114,8 +114,8 @@ set local request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-000000000005","r
 select results_eq(
   $$ select count(*)::int from public.dream_candidacies
       where edition_id = '00000000-0000-0000-0000-0000000000ed' $$,
-  array[5],
-  'a member sees the four on-ballot candidacies plus their own rejected row');
+  array[3],
+  'a member sees the two on-ballot candidacies plus their own rejected row');
 reset role;
 
 select * from finish();

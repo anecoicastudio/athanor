@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(23);
 
 -- two users: A (unverified) + B (identity-verified). The handle_new_user trigger
 -- auto-creates their public.profiles rows. We then flip B's identity_verified as the
@@ -88,15 +88,29 @@ select is(
 );
 set local role authenticated;
 
--- (g) read visibility: user_a sees user_b's submitted candidacy
+-- (g) read visibility (#218): a pre-screening candidacy is private to its author — the
+-- field publishes at shortlist (is_on_ballot = the screened set), so user_a sees 0 now…
 select is(
   (select count(*) from public.dream_candidacies where id='00000000-0000-0000-0000-0000000000ca')::bigint,
-  1::bigint, 'members see public-status candidacy'
+  0::bigint, 'a submitted candidacy is private to its author (field publishes at shortlist)'
+);
+
+-- …and 1 once screening shortlists it (owner write stands in for screen_candidacy here;
+-- the transition path itself is 0107's subject).
+reset role;
+update public.dream_candidacies set status='shortlisted' where id='00000000-0000-0000-0000-0000000000ca';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select is(
+  (select count(*) from public.dream_candidacies where id='00000000-0000-0000-0000-0000000000ca')::bigint,
+  1::bigint, 'members see the screened (shortlisted) candidacy'
 );
 
 -- (h) after service_role sets it 'rejected', user_a sees 0; the author still sees own (asserted via user_a here)
 reset role;
-update public.dream_candidacies set status='rejected' where id='00000000-0000-0000-0000-0000000000ca';
+update public.dream_candidacies
+   set status='rejected', rejection_reasons=array['plan_coherent']
+ where id='00000000-0000-0000-0000-0000000000ca';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select is(
