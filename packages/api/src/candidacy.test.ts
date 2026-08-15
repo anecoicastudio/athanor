@@ -28,6 +28,10 @@ const CANDIDACY_ROW = {
   status: 'submitted' as const,
   city: null,
   category: null,
+  budget_cents: 800000,
+  min_viable_cents: 500000,
+  skills_needed: [] as string[],
+  dream_id: null,
   created_at: '2026-07-02T00:00:00Z',
   updated_at: '2026-07-02T00:00:00Z',
   deleted_at: null,
@@ -112,21 +116,50 @@ describe('candidacyThumbPath', () => {
 });
 
 describe('submitCandidacy', () => {
+  const INPUT = {
+    edition_id: EDITION,
+    story: CANDIDACY_ROW.story,
+    goal: CANDIDACY_ROW.goal,
+    impact: CANDIDACY_ROW.impact,
+    video_url: CANDIDACY_ROW.video_url,
+    thumb_path: CANDIDACY_ROW.thumb_path,
+    plan: CANDIDACY_ROW.plan,
+    budget_cents: CANDIDACY_ROW.budget_cents,
+    min_viable_cents: CANDIDACY_ROW.min_viable_cents,
+    skills_needed: [] as string[],
+    category: null,
+    dream_id: null,
+  };
+
   it('sends the client-generated id, pinned profile_id and status=submitted', async () => {
     const { client, calls } = stub([CANDIDACY_ROW]);
-    const input = {
-      edition_id: EDITION,
-      story: CANDIDACY_ROW.story,
-      goal: CANDIDACY_ROW.goal,
-      impact: CANDIDACY_ROW.impact,
-      video_url: CANDIDACY_ROW.video_url,
-      thumb_path: CANDIDACY_ROW.thumb_path,
-      plan: CANDIDACY_ROW.plan,
-    };
+    const created = await submitCandidacy(client, { id: CAND1, profileId: UID, input: INPUT });
+    const insert = calls.find((c) => c.method === 'insert');
+    expect(insert?.arg).toEqual({ ...INPUT, id: CAND1, profile_id: UID, status: 'submitted' });
+    expect(created.status).toBe('submitted');
+  });
+
+  it('carries the ballot numbers and curated skills through the payload (#225)', async () => {
+    const row = { ...CANDIDACY_ROW, skills_needed: ['fotografia', 'montaggio'] };
+    const { client, calls } = stub([row]);
+    const input = { ...INPUT, skills_needed: ['fotografia', 'montaggio'] };
     const created = await submitCandidacy(client, { id: CAND1, profileId: UID, input });
     const insert = calls.find((c) => c.method === 'insert');
-    expect(insert?.arg).toEqual({ ...input, id: CAND1, profile_id: UID, status: 'submitted' });
-    expect(created.status).toBe('submitted');
+    expect(insert?.arg).toMatchObject({
+      budget_cents: 800000,
+      min_viable_cents: 500000,
+      skills_needed: ['fotografia', 'montaggio'],
+    });
+    expect(created.skills_needed).toEqual(['fotografia', 'montaggio']);
+  });
+
+  it('refuses a skills key outside @athanor/core SKILLS before any insert (FUND-10)', async () => {
+    const { client, calls } = stub([CANDIDACY_ROW]);
+    const input = { ...INPUT, skills_needed: ['fotografia', 'ceramica-libera'] };
+    await expect(submitCandidacy(client, { id: CAND1, profileId: UID, input })).rejects.toThrow(
+      'ceramica-libera',
+    );
+    expect(calls.find((c) => c.method === 'insert')).toBeUndefined();
   });
 });
 
@@ -201,6 +234,11 @@ describe('candidacy — a database failure reaches the caller', () => {
           plan: 'piano',
           video_url: `${UID}/${CAND1}.mp4`,
           thumb_path: null,
+          budget_cents: 800000,
+          min_viable_cents: 500000,
+          skills_needed: [],
+          category: null,
+          dream_id: null,
         },
       }),
     ).rejects.toMatchObject({ code: '57P01' });

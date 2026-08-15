@@ -15,10 +15,14 @@ import { Screen } from '@/components/Screen';
 
 /**
  * 5-step candidacy wizard (07 §3.4).
- * Steps: 1 story / 2 goal / 3 impact / 4 video / 5 plan.
+ * Steps: 1 story / 2 goal / 3 impact / 4 video / 5 plan + budget.
  * Gated by identity_verified (real gate — M9 wires the Stripe Identity webhook).
  * Window-closed guard: if no open edition or candidacy_window_open=false → empty-state.
  * No Aura is awarded for candidacy (rule #1, asserted in pgTAP).
+ *
+ * Step 5 collects budget_cents + min_viable_cents beside the plan (#225 made them NOT NULL,
+ * so a payload without them cannot insert). The minimum is BALLOT INFORMATION, not the
+ * shortfall gate (FUND-42 is). Skills, category and the personal-dream link are #226's steps.
  */
 export default function CandidacyWizard() {
   const router = useRouter();
@@ -37,18 +41,29 @@ export default function CandidacyWizard() {
   const [goal, setGoal] = useState('');
   const [impact, setImpact] = useState('');
   const [planText, setPlanText] = useState('');
+  const [budgetEuro, setBudgetEuro] = useState('');
+  const [minViableEuro, setMinViableEuro] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const upload = useCandidacyUpload(uid);
 
+  // Whole euros typed by the member → integral cents; null when not a plain positive integer.
+  const euroToCents = (v: string): number | null =>
+    /^\d+$/.test(v.trim()) && Number(v.trim()) > 0 ? Number(v.trim()) * 100 : null;
+  const budgetCents = euroToCents(budgetEuro);
+  const minViableCents = euroToCents(minViableEuro);
+  const budgetValid =
+    budgetCents !== null && minViableCents !== null && minViableCents <= budgetCents;
+
   // Whether the user can advance from the current step.
   const canAdvance = useMemo(() => {
     if (step === 3) return upload.status === 'done'; // video required to leave step 4
-    const fieldForStep = [story, goal, impact, '', planText];
+    if (step === 4) return planText.trim().length > 0 && budgetValid;
+    const fieldForStep = [story, goal, impact];
     const val = fieldForStep[step];
     return val !== undefined && val.trim().length > 0;
-  }, [step, story, goal, impact, planText, upload.status]);
+  }, [step, story, goal, impact, planText, budgetValid, upload.status]);
 
   const windowClosed = editionQuery.isSuccess && (!edition || !edition.candidacy_window_open);
 
@@ -79,7 +94,11 @@ export default function CandidacyWizard() {
 
   const onSubmit = async () => {
     if (!canAdvance) {
-      setError(t('candidacy.error.empty', locale));
+      setError(
+        planText.trim().length > 0 && !budgetValid
+          ? t('candidacy.error.budget', locale)
+          : t('candidacy.error.empty', locale),
+      );
       return;
     }
     // id-gate: real precondition — M9 Stripe Identity webhook sets identity_verified.
@@ -87,7 +106,7 @@ export default function CandidacyWizard() {
       setError(t('candidacy.idGate', locale));
       return;
     }
-    if (!edition || !upload.videoPath) return;
+    if (!edition || !upload.videoPath || budgetCents === null || minViableCents === null) return;
     setSubmitting(true);
     try {
       await submitCandidacy(supabase, {
@@ -101,6 +120,12 @@ export default function CandidacyWizard() {
           video_url: upload.videoPath,
           thumb_path: upload.thumbPath,
           plan: planText.trim(),
+          budget_cents: budgetCents,
+          min_viable_cents: minViableCents,
+          // #226 adds the wizard steps for these; an empty declaration is first-class.
+          skills_needed: [],
+          category: null,
+          dream_id: null,
         },
       });
       router.replace('/(modal)/candidacy-success');
@@ -203,17 +228,54 @@ export default function CandidacyWizard() {
               />
             ) : null}
             {step === 4 ? (
-              <TextInput
-                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-                multiline
-                maxLength={4000}
-                placeholder={t('candidacy.step5.placeholder', locale)}
-                value={planText}
-                onChangeText={(v) => {
-                  setPlanText(v);
-                  setError(null);
-                }}
-              />
+              <View className="gap-4">
+                <TextInput
+                  className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+                  multiline
+                  maxLength={4000}
+                  placeholder={t('candidacy.step5.placeholder', locale)}
+                  value={planText}
+                  onChangeText={(v) => {
+                    setPlanText(v);
+                    setError(null);
+                  }}
+                />
+                {/* Budget + minimum viable (#225): whole euros; the minimum informs the
+                    ballot, it is not the shortfall gate (FUND-42 is). */}
+                <View className="flex-row gap-3">
+                  <View className="flex-1 gap-1.5">
+                    <SectionLabel>{t('candidacy.budget.label', locale)}</SectionLabel>
+                    <TextInput
+                      className="rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+                      keyboardType="number-pad"
+                      maxLength={9}
+                      placeholder="8000"
+                      value={budgetEuro}
+                      onChangeText={(v) => {
+                        setBudgetEuro(v);
+                        setError(null);
+                      }}
+                    />
+                  </View>
+                  <View className="flex-1 gap-1.5">
+                    <SectionLabel>{t('candidacy.budget.min.label', locale)}</SectionLabel>
+                    <TextInput
+                      className="rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+                      keyboardType="number-pad"
+                      maxLength={9}
+                      placeholder="5000"
+                      value={minViableEuro}
+                      onChangeText={(v) => {
+                        setMinViableEuro(v);
+                        setError(null);
+                      }}
+                    />
+                  </View>
+                </View>
+                <Text className="text-[12px] leading-[18px] text-faint">
+                  {t('candidacy.budget.hint', locale)}
+                </Text>
+              </View>
             ) : null}
           </View>
 

@@ -30,12 +30,12 @@ insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_wi
           100000, 5, 3);
 -- two votable candidacies, one per author (status submitted). Written as owner (bypasses the
 -- identity-verified insert gate — exactly the service-role path).
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status)
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status, budget_cents, min_viable_cents)
 values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000ed',
-   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','submitted'),
+   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','submitted', 800000, 500000),
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000ed',
-   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','submitted');
+   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','submitted', 800000, 500000);
 reset role;
 
 -- ── schema / RLS ──────────────────────────────────────────────────────────────────────

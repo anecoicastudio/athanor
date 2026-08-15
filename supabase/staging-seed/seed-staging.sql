@@ -762,17 +762,22 @@ on conflict do nothing;
 -- never sign, so the candidacy detail has always shown an empty player.
 -- `thumb_path` is set here too, from the same two ids, so a fresh seed is correct on its own —
 -- the standalone UPDATE further up only exists to backfill rows inserted before this column did.
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category)
+-- budget_cents / min_viable_cents are NOT NULL with no default (#225): the seed CHOOSES the
+-- same fake-world values 20260815080109 backfilled the pre-existing rows with. category uses
+-- the project_category enum as-is (the old 'craft'/'wellbeing' values fail its CHECK);
+-- skills_needed keys come from @athanor/core SKILLS.
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category,
+                                      budget_cents, min_viable_cents, skills_needed)
 select md5('candidacy:' || c.handle)::uuid, md5('fundedition:2027')::uuid, md5('user:' || c.handle)::uuid,
        c.story, c.goal, c.impact,
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '.mp4',
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '-thumb.jpg',
-       c.plan, c.status, c.city, c.category
+       c.plan, c.status, c.city, c.category, c.budget_cents, c.min_viable_cents, c.skills_needed
 from (values
-  ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'craft'),
-  ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'submitted',   'Milano', 'wellbeing'),
-  ('rocco_film',     'Filmo mestieri che stanno sparendo. Ne restano cinque sulla costa.',          'Cinque episodi finiti e distribuiti.',                       'Un archivio di cose che tra dieci anni non ci sono più.','Attrezzatura, viaggi, montaggio.',                       'submitted',   'Genova', 'artistic')
-) as c(handle, story, goal, impact, plan, status, city, category)
+  ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'artistic',  800000::bigint,  500000::bigint, array['social-media','fotografia']),
+  ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'submitted',   'Milano', 'volunteer', 1200000::bigint, 600000::bigint, array['coaching','facilitazione']),
+  ('rocco_film',     'Filmo mestieri che stanno sparendo. Ne restano cinque sulla costa.',          'Cinque episodi finiti e distribuiti.',                       'Un archivio di cose che tra dieci anni non ci sono più.','Attrezzatura, viaggi, montaggio.',                       'submitted',   'Genova', 'artistic',  1500000::bigint, 900000::bigint, array['montaggio','sound-design'])
+) as c(handle, story, goal, impact, plan, status, city, category, budget_cents, min_viable_cents, skills_needed)
 on conflict do nothing;
 
 -- One vote per (edition, voter) — the unique constraint, and the rule.
