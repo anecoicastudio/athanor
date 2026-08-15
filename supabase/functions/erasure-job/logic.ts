@@ -2,24 +2,35 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
-// port wiring) and injects everything here (repo convention: DI over mocks). Auth
-// arrives as a capability port because the fake db has no .auth namespace. The port
-// exposes ONLY signOut — getUserById/deleteUser join it when the legal-gated cascade
-// below goes live.
+// + storage port wiring) and injects everything here (repo convention: DI over mocks).
+// Auth and storage arrive as capability ports because the fake db has no .auth or
+// .storage namespace. The auth port exposes ONLY signOut — getUserById/deleteUser
+// join it when the legal-gated cascade below goes live.
+
+export const CANDIDACY_VIDEOS_BUCKET = 'candidacy-videos';
 
 export type ErasureAuth = {
   /** db.auth.admin.signOut — global revoke, MUST run before any delete (see step 1) */
   signOut: (profileId: string, scope: 'global') => Promise<unknown>;
 };
 
+/** The candidacy-videos bucket surface the job needs — index wires db.storage.from(...). */
+export type ErasureStorage = {
+  remove: (paths: string[]) => Promise<{ error: unknown }>;
+};
+
 export type ErasureCtx = {
   /** service role — owns the request status column (+ the gated cascade, when live) */
   db: SupabaseClient;
   auth: ErasureAuth;
+  storage: ErasureStorage;
 };
 
+/** Row shape of the blob-removal manifest gdpr_erase_fund_footprint returns. */
+type ManifestRow = { bucket_id: string; name: string };
+
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
-  const { db, auth } = ctx;
+  const { db, auth, storage } = ctx;
 
   const { data: reqs, error } = await db
     .from('gdpr_erasure_requests')
@@ -34,14 +45,27 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
     await auth.signOut(erasureReq.profile_id, 'global').catch(() => undefined);
 
-    // (3) TODO(legal-gate): pseudonymize Stripe-linked rows BEFORE deleting the user, so the
-    //     on-delete-cascade does not remove legally-retained financial history. Detach profile_id to a
-    //     tombstone / null per the retention policy. Confirm the exact FK behavior + retention window
-    //     with counsel (10 §5 line 383, same gate as the fund PRD §13 Q1). Until then this fn stays
-    //     undeployed — do NOT proceed to (4) without (3).
-    //
-    //     Tables to pseudonymize before (4):
-    //       fund_contributions  — profile_id FK
+    // (3) fund-table reach — LIVE (#240). One atomic DB transaction (gdpr_erase_fund_footprint,
+    //     20260815131925): fund_contributions tombstone-reassigned to the pre-seeded no-PII
+    //     sentinel (D50: money rows are pseudonymized, never deleted — and #378's ON DELETE
+    //     RESTRICT makes the reassignment mandatory before (4b) can ever run), candidacy_votes
+    //     + dream_candidacies deleted, touched fund_aggregates recomputed. The function returns
+    //     the candidacy-videos blob manifest, derived from storage.objects rather than the path
+    //     convention, so a failed removal here is retried from what actually remains in the
+    //     bucket — no orphaned video object survives a crash between the two halves.
+    const { data: manifest, error: fundError } = await db.rpc('gdpr_erase_fund_footprint', {
+      p_profile_id: erasureReq.profile_id,
+    });
+    if (!fundError) {
+      const paths = ((manifest ?? []) as ManifestRow[]).map((row) => row.name);
+      // Rejection swallowed like signOut: leftover blobs re-surface in the next manifest,
+      // and one dead Storage call must not stall the rest of the batch.
+      if (paths.length > 0) await storage.remove(paths).catch(() => undefined);
+    }
+
+    // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
+    //     retention window with counsel (#184; 10 §5 line 383, same gate as the fund PRD §13 Q1).
+    //     Do NOT proceed to (4) while any of these still points at the profile:
     //       event_tickets       — user_id FK (NOT profile_id — 20260615232924)
     //       circle_memberships  — profile_id FK
     //     Chat is NOT on this list by design: conversations.participant_a/b are ON DELETE
@@ -49,9 +73,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     messages.sender_id's SET NULL no longer aborts that cascade since the
     //     messages_user_shape widening (#336, 20260813163902). If counsel instead decides
     //     to preserve counterpart conversations, that becomes a schema change here.
-    //     Strategy (when legal gate clears): SET profile_id = '<tombstone-uuid>' WHERE profile_id = erasureReq.profile_id,
-    //     so financial rows survive the auth.users cascade with a detached placeholder rather than being
-    //     deleted. The tombstone profile row itself is a separate pre-seeded sentinel (no PII).
+    //     The retention window itself is deliberately not encoded anywhere yet — nothing in
+    //     this job deletes a retained money row, so there is no number to invent (#184).
 
     // (2)+(4) DEPLOY-GATED: delete auth.users (cascades profiles + on-delete-cascade content), then
     //     purge waitlist by email. Left commented until the legal gate clears so a stray run can't hard-delete.
@@ -66,9 +89,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // await db.auth.admin.deleteUser(erasureReq.profile_id);
 
     await db.from('gdpr_erasure_requests').update({ status: 'failed' }).eq('id', erasureReq.id);
-    // ^ stays 'failed' (not 'done') intentionally while legal-gated: the request is logged but the
-    //   destructive cascade is NOT performed. Flip to the real cascade + status='done' at deploy-time
-    //   once step (3) pseudonymization is implemented and counsel has confirmed the retention window.
+    // ^ stays 'failed' (not 'done') intentionally while legal-gated: the fund reach above ran,
+    //   but the account itself is NOT erased — 'done' would report a partial erasure as complete.
+    //   Flip to status='done' only when (3-gated) + (4) go live (#107, gated on #184). Every step
+    //   above is idempotent, so re-running a request after that flip finishes cleanly.
   }
 
   return new Response(JSON.stringify({ seen: reqs?.length ?? 0 }), {
