@@ -16,3 +16,4 @@ apps/native/assets/expo.icon/icon.json
 .open-next
 .wrangler
 apps/web/cloudflare-env.d.ts
+PROJECT_INDEX.json
