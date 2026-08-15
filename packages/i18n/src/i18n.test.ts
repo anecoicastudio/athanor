@@ -89,6 +89,89 @@ describe('notification template contract', () => {
   });
 });
 
+describe('fund pre-payment disclosure (FUND-18, #235)', () => {
+  /**
+   * The sixteen facts in six blocks (FUND-SPEC §3) plus screen chrome, EACH BY NAME —
+   * deliberately never `count === 16`: a count passes on sixteen wrong keys and fails on an
+   * honest merge. `MessageKey`-typed so a key missing from the IT catalog fails typecheck
+   * before this even runs; the runtime half asserts both catalogs carry real copy.
+   * Block membership is the spec's, not the catalog's — reordering a fact into another
+   * block is a spec change and must fail here.
+   */
+  const DISCLOSURE_KEYS: readonly MessageKey[] = [
+    // screen chrome
+    'fund.disclose.title',
+    'fund.disclose.lead',
+    'fund.disclose.cta',
+    // ① dove va il denaro
+    'fund.disclose.where.title',
+    'fund.disclose.where.pool',
+    'fund.disclose.where.anyAmount',
+    'fund.disclose.where.fees',
+    // ② non è un acquisto
+    'fund.disclose.notPurchase.title',
+    'fund.disclose.notPurchase.noShare',
+    'fund.disclose.notPurchase.noAdvantage',
+    'fund.disclose.notPurchase.voteDecides',
+    // ③ non c'è restituzione — nextDream is the FUND-18 line PR #375 deferred here
+    'fund.disclose.noReturn.title',
+    'fund.disclose.noReturn.othersDream',
+    'fund.disclose.noReturn.notReturned',
+    'fund.disclose.noReturn.nextDream',
+    // ④ se il ciclo non riesce — every void carries the money forward (never §17's flat reset)
+    'fund.disclose.ifFails.title',
+    'fund.disclose.ifFails.belowFloor',
+    'fund.disclose.ifFails.belowQuorum',
+    'fund.disclose.ifFails.winnerDeclines',
+    'fund.disclose.ifFails.shortBudget',
+    // ⑤ cosa trattiene Athanor
+    'fund.disclose.retains.title',
+    'fund.disclose.retains.percent',
+    'fund.disclose.retains.equity',
+    // ⑥ conformità normativa
+    'fund.disclose.compliance.title',
+    'fund.disclose.compliance.law',
+  ];
+
+  test.each(DISCLOSURE_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the accept CTA carries the amount in both locales', () => {
+    expect(it['fund.disclose.cta']).toContain('{amt}');
+    expect(en['fund.disclose.cta']).toContain('{amt}');
+  });
+
+  test('the reset is stated conditionally — a void carries forward, never a flat azzeramento', () => {
+    // FUND-SPEC §3: sourcing §17's «al termine del ciclo il contatore viene azzerato» would
+    // misstate the shipped rule (FUND-32: reset on realization only) on the one screen counsel
+    // signs. The three void facts must say the money stays, and no disclosure copy may claim
+    // an unconditional end-of-cycle reset.
+    for (const key of [
+      'fund.disclose.ifFails.belowFloor',
+      'fund.disclose.ifFails.belowQuorum',
+      'fund.disclose.ifFails.winnerDeclines',
+    ] as const) {
+      expect(it[key]).toContain('resta nel fondo');
+      expect(en[key]).toContain('stays in the fund');
+    }
+    for (const key of DISCLOSURE_KEYS) {
+      expect(it[key], `it.${key} states a flat reset`).not.toMatch(/azzera/i);
+    }
+  });
+
+  test('the vote-equality statement stays off this screen (§8 separates money from voice)', () => {
+    // fund.vote.equal is ballot disclosure. No disclosure key may duplicate it.
+    for (const key of DISCLOSURE_KEYS) {
+      expect(it[key], `it.${key}`).not.toBe(it['fund.vote.equal']);
+      expect(en[key], `en.${key}`).not.toBe(en['fund.vote.equal']);
+    }
+  });
+});
+
 describe('catalog quality', () => {
   // `?? ''` keeps the failure self-describing if a key is missing from one
   // catalog (the `catalog parity` test catches that first, but don't throw here).
