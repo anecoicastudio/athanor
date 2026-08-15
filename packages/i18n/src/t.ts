@@ -42,7 +42,7 @@ export function t(key: MessageKey, locale: Locale, vars?: Record<string, string 
  * that reaches the DB before the catalogs must read as «astronauta», never «undefined».
  */
 export function tagLabel(
-  kind: 'identity' | 'seeking' | 'skill',
+  kind: 'identity' | 'seeking' | 'skill' | 'profession',
   tag: string,
   locale: Locale,
 ): string {

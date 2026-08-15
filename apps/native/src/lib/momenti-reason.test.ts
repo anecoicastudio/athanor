@@ -42,6 +42,16 @@ describe('momentoReasonText', () => {
     expect(momentoReasonText(reason, 'en')).toBe("You've already shared: Cena sotto le stelle");
   });
 
+  it('localizes the profession pair from the profession catalog — crafts, not identities (#361)', () => {
+    // The server sends the two profession KEYS, the reader's craft first; both localize
+    // from tag.profession.*, never the identity or skill catalogs.
+    const reason = { kind: 'profession' as const, tags: ['design', 'sviluppo'] };
+    expect(momentoReasonText(reason, 'it')).toBe('Mestieri che si completano: Design, Sviluppo');
+    expect(momentoReasonText(reason, 'en')).toBe(
+      'Crafts that complete each other: Design, Development',
+    );
+  });
+
   it('says the fallback plainly, with no tag list and no affinity claim', () => {
     expect(momentoReasonText({ kind: 'newDream', tags: [] }, 'it')).toBe('Sogno nuovo');
     expect(momentoReasonText({ kind: 'newDream', tags: [] }, 'en')).toBe('New dream');
