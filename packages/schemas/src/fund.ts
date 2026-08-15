@@ -27,10 +27,10 @@ export const fundEditionSchema = z.object({
   min_funding_cents: z.number().int().nonnegative(),
   min_voters: z.number().int().positive(),
   min_candidacies: z.number().int().positive(),
-  // Declared economics — nullable shape; #232 owns the frozen-at-open semantics.
-  split_pct: z.number().int().min(0).max(100).nullable(),
-  cost_fee_statement: z.string().nullable(),
-  equity_declared: z.string().nullable(),
+  // Declared economics (#232, D15/D16) — NOT NULL in the DB, non-blank, frozen at open.
+  split_pct: z.number().int().min(0).max(100),
+  cost_fee_statement: z.string().min(1),
+  equity_declared: z.string().min(1),
   created_at: z.string(),
   updated_at: z.string(),
 });

@@ -1262,16 +1262,16 @@ export type Database = {
         Row: {
           candidacy_window_open: boolean
           contributions_enabled: boolean
-          cost_fee_statement: string | null
+          cost_fee_statement: string
           created_at: string
-          equity_declared: string | null
+          equity_declared: string
           goal_cents: number
           id: string
           min_candidacies: number
           min_funding_cents: number
           min_voters: number
           phase: string
-          split_pct: number | null
+          split_pct: number
           target_at: string
           updated_at: string
           voting_ends_at: string | null
@@ -1281,16 +1281,16 @@ export type Database = {
         Insert: {
           candidacy_window_open?: boolean
           contributions_enabled?: boolean
-          cost_fee_statement?: string | null
+          cost_fee_statement: string
           created_at?: string
-          equity_declared?: string | null
+          equity_declared: string
           goal_cents: number
           id?: string
           min_candidacies: number
           min_funding_cents: number
           min_voters: number
           phase?: string
-          split_pct?: number | null
+          split_pct: number
           target_at: string
           updated_at?: string
           voting_ends_at?: string | null
@@ -1300,16 +1300,16 @@ export type Database = {
         Update: {
           candidacy_window_open?: boolean
           contributions_enabled?: boolean
-          cost_fee_statement?: string | null
+          cost_fee_statement?: string
           created_at?: string
-          equity_declared?: string | null
+          equity_declared?: string
           goal_cents?: number
           id?: string
           min_candidacies?: number
           min_funding_cents?: number
           min_voters?: number
           phase?: string
-          split_pct?: number | null
+          split_pct?: number
           target_at?: string
           updated_at?: string
           voting_ends_at?: string | null

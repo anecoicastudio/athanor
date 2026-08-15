@@ -20,8 +20,9 @@ const validEdition = {
   min_voters: 5,
   min_candidacies: 3,
   split_pct: 10,
-  cost_fee_statement: null,
-  equity_declared: null,
+  cost_fee_statement:
+    'Il 10% copre in parte costi e commissioni; la differenza è a carico di Athanor.',
+  equity_declared: 'Nessuna partecipazione societaria nel progetto per questo ciclo.',
   created_at: '2026-06-17T00:00:00.000Z',
   updated_at: '2026-06-17T00:00:00.000Z',
 };
@@ -53,9 +54,25 @@ describe('fundEditionSchema', () => {
       false,
     );
   });
-  it('bounds split_pct to 0–100 and allows null (declared later, #232)', () => {
+  // #232: the declarations are mandatory at open — a null that parsed while they were
+  // "nullable shape" (pre-20260815155811) must not parse anymore.
+  it('bounds split_pct to 0–100 and refuses null (declared at open, #232)', () => {
     expect(fundEditionSchema.safeParse({ ...validEdition, split_pct: 101 }).success).toBe(false);
-    expect(fundEditionSchema.safeParse({ ...validEdition, split_pct: null }).success).toBe(true);
+    expect(fundEditionSchema.safeParse({ ...validEdition, split_pct: null }).success).toBe(false);
+  });
+  it('refuses a null or empty declared statement (#232)', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, cost_fee_statement: null }).success).toBe(
+      false,
+    );
+    expect(fundEditionSchema.safeParse({ ...validEdition, cost_fee_statement: '' }).success).toBe(
+      false,
+    );
+    expect(fundEditionSchema.safeParse({ ...validEdition, equity_declared: null }).success).toBe(
+      false,
+    );
+    expect(fundEditionSchema.safeParse({ ...validEdition, equity_declared: '' }).success).toBe(
+      false,
+    );
   });
 });
 

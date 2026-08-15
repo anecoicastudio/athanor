@@ -1066,7 +1066,7 @@
   "fund.disclose.ifFails.winnerDeclines": "If the winner steps back because the dream can't be delivered, the cycle is voided and the money stays in the fund, for the next cycle.",
   "fund.disclose.ifFails.shortBudget": "If the fund closes below the budget, the dream is resized to the money that truly exists.",
   "fund.disclose.retains.title": "What Athanor retains",
-  "fund.disclose.retains.percent": "The retained percentage is declared in advance, for this cycle.",
+  "fund.disclose.retains.percent": "Athanor retains {percent}% this cycle. The percentage is declared in advance and does not change.",
   "fund.disclose.retains.equity": "Any stake in the project is declared in advance and executed through proper legal instruments.",
   "fund.disclose.compliance.title": "Regulatory compliance",
   "fund.disclose.compliance.law": "Everything happens in accordance with applicable law.",

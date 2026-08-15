@@ -25,16 +25,19 @@ select col_hasnt_default('public', 'fund_editions', 'min_candidacies', 'min_cand
 -- seed one cycle as service_role
 set local role service_role;
 insert into public.fund_editions
-  (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies)
-  values (now() + interval '30 days', 5000000, 'candidacy', 100000, 5, 3);
+  (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies,
+   split_pct, cost_fee_statement, equity_declared)
+  values (now() + interval '30 days', 5000000, 'candidacy', 100000, 5, 3,
+          10, 'fixture costs statement', 'none');
 reset role;
 
 -- anon CAN read the heartbeat (contrast every other table)
 set local role anon;
 select is((select count(*)::int from public.fund_editions), 1, 'anon can read the cycle (heartbeat)');
 select throws_ok(
-  $$insert into public.fund_editions (target_at, goal_cents, min_funding_cents, min_voters, min_candidacies)
-    values (now(), 100, 1, 1, 1)$$,
+  $$insert into public.fund_editions (target_at, goal_cents, min_funding_cents, min_voters, min_candidacies,
+                                      split_pct, cost_fee_statement, equity_declared)
+    values (now(), 100, 1, 1, 1, 10, 'costs', 'none')$$,
   '42501', null, 'anon cannot insert a cycle');
 select throws_ok(
   $$delete from public.fund_editions$$,
@@ -44,8 +47,9 @@ reset role;
 -- authenticated cannot write
 set local role authenticated;
 select throws_ok(
-  $$insert into public.fund_editions (target_at, goal_cents, min_funding_cents, min_voters, min_candidacies)
-    values (now(), 100, 1, 1, 1)$$,
+  $$insert into public.fund_editions (target_at, goal_cents, min_funding_cents, min_voters, min_candidacies,
+                                      split_pct, cost_fee_statement, equity_declared)
+    values (now(), 100, 1, 1, 1, 10, 'costs', 'none')$$,
   '42501', null, 'authenticated cannot insert a cycle');
 select throws_ok(
   $$update public.fund_editions set phase = 'closed'$$,
@@ -75,28 +79,33 @@ select is(
 set local role service_role;
 select throws_ok(
   $$insert into public.fund_editions
-      (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies)
-      values (now() + interval '60 days', 1000000, 'candidacy', 1, 1, 1)$$,
+      (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies,
+       split_pct, cost_fee_statement, equity_declared)
+      values (now() + interval '60 days', 1000000, 'candidacy', 1, 1, 1, 10, 'costs', 'none')$$,
   '23505', null, 'a second non-closed cycle is a unique violation');
 -- a CLOSED second cycle is fine — the index is partial on phase <> 'closed'
 select lives_ok(
   $$insert into public.fund_editions
-      (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies)
-      values (now() - interval '400 days', 1000000, 'closed', 1, 1, 1)$$,
+      (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies,
+       split_pct, cost_fee_statement, equity_declared)
+      values (now() - interval '400 days', 1000000, 'closed', 1, 1, 1, 10, 'costs', 'none')$$,
   'a closed cycle coexists with the active one');
 
 -- ── #215: a cycle cannot open without its declared minimums (23502 not-null) ────────────
 select throws_ok(
-  $$insert into public.fund_editions (target_at, goal_cents, phase, min_voters, min_candidacies)
-    values (now(), 100, 'closed', 1, 1)$$,
+  $$insert into public.fund_editions (target_at, goal_cents, phase, min_voters, min_candidacies,
+                                      split_pct, cost_fee_statement, equity_declared)
+    values (now(), 100, 'closed', 1, 1, 10, 'costs', 'none')$$,
   '23502', null, 'insert without min_funding_cents is refused');
 select throws_ok(
-  $$insert into public.fund_editions (target_at, goal_cents, phase, min_funding_cents, min_candidacies)
-    values (now(), 100, 'closed', 1, 1)$$,
+  $$insert into public.fund_editions (target_at, goal_cents, phase, min_funding_cents, min_candidacies,
+                                      split_pct, cost_fee_statement, equity_declared)
+    values (now(), 100, 'closed', 1, 1, 10, 'costs', 'none')$$,
   '23502', null, 'insert without min_voters is refused');
 select throws_ok(
-  $$insert into public.fund_editions (target_at, goal_cents, phase, min_funding_cents, min_voters)
-    values (now(), 100, 'closed', 1, 1)$$,
+  $$insert into public.fund_editions (target_at, goal_cents, phase, min_funding_cents, min_voters,
+                                      split_pct, cost_fee_statement, equity_declared)
+    values (now(), 100, 'closed', 1, 1, 10, 'costs', 'none')$$,
   '23502', null, 'insert without min_candidacies is refused');
 reset role;
 

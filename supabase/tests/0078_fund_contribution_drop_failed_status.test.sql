@@ -15,9 +15,10 @@ create extension if not exists pgtap with schema extensions;
 select plan(7);
 
 insert into public.fund_editions (id, target_at, goal_cents, phase, contributions_enabled,
-                                  min_funding_cents, min_voters, min_candidacies)
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
 values ('eee00000-0000-0000-0000-000000000078', now() + interval '30 days', 100000, 'voting', true,
-        100000, 5, 3);
+        100000, 5, 3, 10, 'fixture costs statement', 'none');
 
 -- #239 made profile_id NOT NULL, so the fixtures need a real contributor (the handle_new_user
 -- trigger auto-creates the public.profiles row). This file still tests only the status CHECK.

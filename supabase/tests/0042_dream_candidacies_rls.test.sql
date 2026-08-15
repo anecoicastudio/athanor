@@ -34,9 +34,10 @@ select policies_are(
 -- seed a cycle (service_role — fund_editions is service-role write only)
 set local role service_role;
 insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
-                                  min_funding_cents, min_voters, min_candidacies)
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
   values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'candidacy', true, false,
-          100000, 5, 3);
+          100000, 5, 3, 10, 'fixture costs statement', 'none');
 reset role;
 
 -- (a) UNVERIFIED user_a cannot insert (identity gate fires in WITH CHECK)
