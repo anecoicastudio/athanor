@@ -53,6 +53,13 @@ describe('dreamCandidacySchema', () => {
   it('rejects an unknown status', () => {
     expect(() => dreamCandidacySchema.parse({ ...validRow, status: 'won' })).toThrow();
   });
+  // #216/D33: the terminal state of a voided cycle's candidacies — in the vocabulary,
+  // never on the ballot (is_on_ballot() allowlist), never a rejection (reasons stay null).
+  it('accepts status voided with null rejection_reasons', () => {
+    const parsed = dreamCandidacySchema.parse({ ...validRow, status: 'voided' });
+    expect(parsed.status).toBe('voided');
+    expect(parsed.rejection_reasons).toBeNull();
+  });
   it('accepts a null thumb_path — a candidacy submitted before posters, or whose extraction failed', () => {
     expect(dreamCandidacySchema.parse(validRow).thumb_path).toBeNull();
   });

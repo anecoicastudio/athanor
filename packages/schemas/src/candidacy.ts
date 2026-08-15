@@ -1,13 +1,18 @@
 import { z } from 'zod';
 import { projectCategorySchema } from './project';
 
-/** dream_candidacies.status — service-role/ethics drive transitions; client only ever 'submitted'. */
+/**
+ * dream_candidacies.status — service-role/ethics drive transitions; client only ever 'submitted'.
+ * 'voided' (#216, D33/D34) is the terminal state for candidacies of a voided cycle — not a
+ * rejection (rejection_reasons stays NULL) and never on the ballot (is_on_ballot() allowlist).
+ */
 export const candidacyStatusSchema = z.enum([
   'submitted',
   'screening',
   'shortlisted',
   'rejected',
   'winner',
+  'voided',
 ]);
 export type CandidacyStatus = z.infer<typeof candidacyStatusSchema>;
 

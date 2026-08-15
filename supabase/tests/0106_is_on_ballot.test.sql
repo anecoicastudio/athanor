@@ -26,10 +26,10 @@ select volatility_is('public', 'is_on_ballot', array['dream_candidacies'], 'immu
 
 -- ── fixture: one closed edition, six candidacies — five statuses + one soft-deleted ─────
 set local role service_role;
-insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+insert into public.fund_editions (id, target_at, goal_cents, phase, closure_reason, candidacy_window_open, contributions_enabled,
                                   min_funding_cents, min_voters, min_candidacies,
                                   split_pct, cost_fee_statement, equity_declared)
-  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 5000000, 'closed', false, false,
+  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 5000000, 'closed', 'realized', false, false,
           100000, 3, 3, 10, 'fixture costs statement', 'none');
 reset role;
 

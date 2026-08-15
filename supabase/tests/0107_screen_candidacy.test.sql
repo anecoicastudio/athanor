@@ -11,7 +11,9 @@ select plan(36);
 -- Four candidates: u1 verified (the pass path), u2 unverified (identity re-check + the
 -- reject/reopen path), u3 suspended (sanction re-check), u4 verified (the freeze path).
 
-update public.fund_editions set phase = 'closed' where phase <> 'closed';
+-- closure_reason since #216: a closed row must name why (fund_editions_closure_reason_shape);
+-- 'realized' is a fixture value, rolled back with everything else.
+update public.fund_editions set phase = 'closed', closure_reason = 'realized' where phase <> 'closed';
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000',

@@ -1264,6 +1264,9 @@ export type Database = {
       fund_editions: {
         Row: {
           candidacy_window_open: boolean
+          carried_in_cents: number
+          closure_reason: string | null
+          confirmed_pool_cents: number | null
           contributions_enabled: boolean
           cost_fee_statement: string
           created_at: string
@@ -1283,6 +1286,9 @@ export type Database = {
         }
         Insert: {
           candidacy_window_open?: boolean
+          carried_in_cents?: number
+          closure_reason?: string | null
+          confirmed_pool_cents?: number | null
           contributions_enabled?: boolean
           cost_fee_statement: string
           created_at?: string
@@ -1302,6 +1308,9 @@ export type Database = {
         }
         Update: {
           candidacy_window_open?: boolean
+          carried_in_cents?: number
+          closure_reason?: string | null
+          confirmed_pool_cents?: number | null
           contributions_enabled?: boolean
           cost_fee_statement?: string
           created_at?: string

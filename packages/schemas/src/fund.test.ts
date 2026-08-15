@@ -23,6 +23,9 @@ const validEdition = {
   cost_fee_statement:
     'Il 10% copre in parte costi e commissioni; la differenza è a carico di Athanor.',
   equity_declared: 'Nessuna partecipazione societaria nel progetto per questo ciclo.',
+  closure_reason: null,
+  confirmed_pool_cents: null,
+  carried_in_cents: 0,
   created_at: '2026-06-17T00:00:00.000Z',
   updated_at: '2026-06-17T00:00:00.000Z',
 };
@@ -72,6 +75,37 @@ describe('fundEditionSchema', () => {
     );
     expect(fundEditionSchema.safeParse({ ...validEdition, equity_declared: '' }).success).toBe(
       false,
+    );
+  });
+  // #216 failure states — the enum mirrors fund_editions_closure_reason_check.
+  it.each(['realized', 'voided_underfunded', 'voided_quorum', 'voided_declined'])(
+    'accepts closure_reason %s',
+    (closure_reason) => {
+      expect(fundEditionSchema.safeParse({ ...validEdition, closure_reason }).success).toBe(true);
+    },
+  );
+  it.each(['voided', 'failed', ''])('rejects unknown closure_reason %s', (closure_reason) => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, closure_reason }).success).toBe(false);
+  });
+  it('accepts a null or non-negative confirmed_pool_cents, rejects a negative one (#216)', () => {
+    expect(
+      fundEditionSchema.safeParse({ ...validEdition, confirmed_pool_cents: 4832810 }).success,
+    ).toBe(true);
+    expect(fundEditionSchema.safeParse({ ...validEdition, confirmed_pool_cents: -1 }).success).toBe(
+      false,
+    );
+  });
+  it('requires carried_in_cents and rejects a negative one (FUND-45 — always readable)', () => {
+    const { carried_in_cents: _k, ...bare } = validEdition;
+    expect(fundEditionSchema.safeParse(bare).success).toBe(false);
+    expect(fundEditionSchema.safeParse({ ...validEdition, carried_in_cents: null }).success).toBe(
+      false,
+    );
+    expect(fundEditionSchema.safeParse({ ...validEdition, carried_in_cents: -1 }).success).toBe(
+      false,
+    );
+    expect(fundEditionSchema.safeParse({ ...validEdition, carried_in_cents: 250000 }).success).toBe(
+      true,
     );
   });
 });
