@@ -1,3 +1,4 @@
+import { type Profession, isProfession } from './professions';
 import { type IdentityTag, SEEKING_TAGS, type SeekingTag } from './tags';
 
 /**
@@ -32,6 +33,37 @@ export const SEEKING_TO_IDENTITY: Readonly<Record<SeekingTag, readonly IdentityT
   mentorship: ['coach', 'mentor'],
 };
 
+/**
+ * Profession complementarity (#361, ruled 2026-08-15): the crafts that ship things
+ * TOGETHER — design with the people who build it, business with the people who keep it
+ * legal, music with the people who film it. Symmetric sparse pairs, 2–4 complements
+ * each, DELIBERATELY: a map where everything complements everything scores every pair,
+ * and the term becomes the noise #273 C removed. Same-craft pairs are absent on
+ * purpose — «you both are» is the shared-identity terms' signal, not this one's.
+ *
+ * `run_momenti_matcher()` carries the same pairs in SQL
+ * (`athanor.profession_complements`); `affinity.mirror.test.ts` asserts the two copies
+ * agree, so this map stays the source of truth.
+ */
+export const PROFESSION_COMPLEMENTS: Readonly<Record<Profession, readonly Profession[]>> = {
+  design: ['artigianato', 'comunicazione', 'marketing', 'sviluppo'],
+  sviluppo: ['business', 'design', 'ricerca'],
+  arte: ['artigianato', 'comunicazione', 'musica'],
+  musica: ['arte', 'foto-video'],
+  scrittura: ['comunicazione', 'educazione', 'marketing'],
+  'foto-video': ['food', 'marketing', 'musica'],
+  marketing: ['business', 'design', 'foto-video', 'scrittura'],
+  comunicazione: ['arte', 'design', 'scrittura'],
+  business: ['finanza', 'legale', 'marketing', 'sviluppo'],
+  finanza: ['business', 'legale'],
+  legale: ['business', 'finanza'],
+  educazione: ['benessere', 'ricerca', 'scrittura'],
+  artigianato: ['arte', 'design', 'food'],
+  ricerca: ['educazione', 'sviluppo'],
+  benessere: ['educazione', 'food'],
+  food: ['artigianato', 'benessere', 'foto-video'],
+};
+
 /** A proposal ships only at this many terms or more (#273 C — `affinity > 0` was noise). */
 export const MOMENTO_AFFINITY_THRESHOLD = 2;
 
@@ -51,6 +83,8 @@ export const AFFINITY_WEIGHTS = {
   city: 1,
   /** Per element of `mutualActivity`, up to `MUTUAL_ACTIVITY_CAP` of them (#361). */
   activity: 1,
+  /** Once, when the pair's professions are complementary per `PROFESSION_COMPLEMENTS` (#361). */
+  profession: 1,
 } as const;
 
 /**
@@ -83,6 +117,8 @@ export type AffinityProfile = {
    * there is no masked shape; the caller supplies what the tables record.
    */
   attendedEventIds: readonly string[];
+  /** Single curated profession key (#361), or null — unset and masked look the same. */
+  profession: string | null;
 };
 
 /**
@@ -113,6 +149,12 @@ export type AffinityTerms = {
    * server-side — ids never reach the client).
    */
   mutualActivity: string[];
+  /**
+   * `[mine, theirs]` when the two professions complement each other per
+   * `PROFESSION_COMPLEMENTS`, else `[]` (#361). Reader's craft first — the reason line
+   * names the pairing, and it scores ONCE, like `cityNear`, whatever its length.
+   */
+  professionPair: string[];
 };
 
 const isSeekingTag = (tag: string): tag is SeekingTag =>
@@ -149,6 +191,19 @@ export function cityNear(a: string | null, b: string | null): boolean {
 }
 
 /**
+ * Profession complementarity for one directed pair (#361): `[me, them]` when the map
+ * holds the pair, else `[]`. A missing side never fires — and neither does a key from
+ * outside the vocabulary: `profiles.profession` is app-validated, not CHECK-pinned, so
+ * a legacy free-text row must score zero rather than throw. The map is symmetric, so
+ * only the ORDER of the returned pair is directed.
+ */
+export function professionPair(me: string | null, them: string | null): string[] {
+  if (me === null || them === null) return [];
+  if (!isProfession(me) || !isProfession(them)) return [];
+  return PROFESSION_COMPLEMENTS[me].includes(them) ? [me, them] : [];
+}
+
+/**
  * The terms for one directed pair (me → them). Directed, not symmetric:
  * `seekHit` and `offerHit` swap when the pair is scored the other way round.
  */
@@ -160,6 +215,7 @@ export function momentoAffinityTerms(me: AffinityProfile, them: AffinityProfile)
     skillsShared: intersect(me.skills, them.skills),
     cityNear: cityNear(me.cityGeohash, them.cityGeohash),
     mutualActivity: intersect(me.attendedEventIds, them.attendedEventIds),
+    professionPair: professionPair(me.profession, them.profession),
   };
 }
 
@@ -169,6 +225,7 @@ export function momentoAffinity(terms: AffinityTerms): number {
     AFFINITY_WEIGHTS.tag * (terms.shared.length + terms.seekHit.length + terms.offerHit.length) +
     AFFINITY_WEIGHTS.skill * terms.skillsShared.length +
     (terms.cityNear ? AFFINITY_WEIGHTS.city : 0) +
-    AFFINITY_WEIGHTS.activity * Math.min(MUTUAL_ACTIVITY_CAP, terms.mutualActivity.length)
+    AFFINITY_WEIGHTS.activity * Math.min(MUTUAL_ACTIVITY_CAP, terms.mutualActivity.length) +
+    (terms.professionPair.length > 0 ? AFFINITY_WEIGHTS.profession : 0)
   );
 }

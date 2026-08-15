@@ -2745,6 +2745,7 @@ export type Database = {
           handle: string
           mutual_activity: string[]
           offer_hit: string[]
+          profession_pair: string[]
           proposal_id: string
           reason_kind: string
           seek_hit: string[]

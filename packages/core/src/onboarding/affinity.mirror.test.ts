@@ -7,8 +7,10 @@ import {
   CITY_GEOHASH_MATCH_PRECISION,
   MOMENTO_AFFINITY_THRESHOLD,
   MUTUAL_ACTIVITY_CAP,
+  PROFESSION_COMPLEMENTS,
   SEEKING_TO_IDENTITY,
 } from './affinity';
+import { PROFESSIONS } from './professions';
 import { SEEKING_TAGS } from './tags';
 
 /**
@@ -79,6 +81,28 @@ describe('athanor.seeking_to_identity mirrors SEEKING_TO_IDENTITY', () => {
   });
 });
 
+describe('athanor.profession_complements mirrors PROFESSION_COMPLEMENTS (#361)', () => {
+  it('encodes exactly the same pairs', () => {
+    // Same contract as the seeking map above: the VALUES list is the SQL copy of the
+    // ruled complementarity map, and widening one side alone must fail here. The
+    // pattern allows the hyphen `foto-video` carries.
+    const sql = currentDefinition('athanor\\.profession_complements');
+    const out: Record<string, string[]> = Object.fromEntries(PROFESSIONS.map((p) => [p, []]));
+    for (const [, profession, complement] of sql.matchAll(/\('([a-z-]+)',\s*'([a-z-]+)'\)/g)) {
+      (out[profession!] ??= []).push(complement!);
+    }
+    for (const key of Object.keys(out)) out[key]!.sort();
+
+    const expected = Object.fromEntries(
+      Object.entries(PROFESSION_COMPLEMENTS).map(([profession, complements]) => [
+        profession,
+        [...complements].sort(),
+      ]),
+    );
+    expect(out).toEqual(expected);
+  });
+});
+
 describe('the matcher applies MOMENTO_AFFINITY_THRESHOLD', () => {
   it('run_momenti_matcher filters on affinity >= the constant', () => {
     // The SQL cannot import the constant, so assert the literal it hardcodes. A
@@ -122,6 +146,23 @@ describe('mutual activity mirrors core (#361)', () => {
       const sql = currentDefinition(fn);
       expect(sql).toContain('public.event_attendance');
       expect(sql).not.toContain('public.rsvps');
+    }
+  });
+});
+
+describe('profession complementarity mirrors core (#361)', () => {
+  it('run_momenti_matcher weighs the term at AFFINITY_WEIGHTS.profession, once', () => {
+    const sql = currentDefinition('public\\.run_momenti_matcher');
+    expect(sql).toMatch(
+      new RegExp(`case when profession_match then ${AFFINITY_WEIGHTS.profession} else 0 end`),
+    );
+  });
+
+  it('both functions resolve the pair through the shared map function', () => {
+    // The map lives ONCE on the SQL side. A deck that re-encoded the pairs inline
+    // would drift from the matcher the first time the map is retuned.
+    for (const fn of ['public\\.run_momenti_matcher', 'public\\.get_momenti_deck']) {
+      expect(currentDefinition(fn)).toContain('athanor.profession_complements');
     }
   });
 });

@@ -4,13 +4,16 @@ import {
   CITY_GEOHASH_MATCH_PRECISION,
   MOMENTO_AFFINITY_THRESHOLD,
   MUTUAL_ACTIVITY_CAP,
+  PROFESSION_COMPLEMENTS,
   SEEKING_TO_IDENTITY,
   cityNear,
   expandSeeking,
   momentoAffinity,
   momentoAffinityTerms,
+  professionPair,
 } from './affinity';
 import { CITY_GEOHASH_PRECISION } from './geohash';
+import { PROFESSIONS } from './professions';
 import { IDENTITY_TAGS, SEEKING_TAGS } from './tags';
 
 describe('SEEKING_TO_IDENTITY', () => {
@@ -65,6 +68,65 @@ describe('expandSeeking', () => {
   });
 });
 
+describe('PROFESSION_COMPLEMENTS (#361)', () => {
+  it('covers every profession key, and only profession keys', () => {
+    expect(Object.keys(PROFESSION_COMPLEMENTS).sort()).toEqual([...PROFESSIONS].sort());
+  });
+
+  it('maps only to professions that exist', () => {
+    const unknown = Object.values(PROFESSION_COMPLEMENTS)
+      .flat()
+      .filter((p) => !(PROFESSIONS as readonly string[]).includes(p));
+    expect(unknown).toEqual([]);
+  });
+
+  it('is symmetric: a complements b exactly when b complements a', () => {
+    for (const [a, complements] of Object.entries(PROFESSION_COMPLEMENTS)) {
+      for (const b of complements) {
+        expect(PROFESSION_COMPLEMENTS[b], `${a}↔${b} has no matching ${b}↔${a}`).toContain(a);
+      }
+    }
+  });
+
+  it('never pairs a profession with itself — same craft is not complementarity', () => {
+    for (const [a, complements] of Object.entries(PROFESSION_COMPLEMENTS)) {
+      expect(complements, `${a} pairs with itself`).not.toContain(a);
+    }
+  });
+
+  it('stays sparse: each profession carries 2–4 complements, never the whole board', () => {
+    // A map where everything complements everything scores every pair — the term
+    // becomes noise, the #273 failure mode arrived at from a third direction.
+    for (const [a, complements] of Object.entries(PROFESSION_COMPLEMENTS)) {
+      expect(complements.length, `${a} has ${complements.length}`).toBeGreaterThanOrEqual(2);
+      expect(complements.length, `${a} has ${complements.length}`).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it('encodes exactly the 23 ruled pairs — 46 directed entries', () => {
+    // The ruling's map (issue #361, 2026-08-15) is data, not derivable — pin its SIZE
+    // so a dropped or added pair fails even when symmetry and sparsity still hold.
+    expect(Object.values(PROFESSION_COMPLEMENTS).flat()).toHaveLength(46);
+  });
+
+  it('keeps each complement list sorted and deduplicated', () => {
+    for (const [a, complements] of Object.entries(PROFESSION_COMPLEMENTS)) {
+      expect(complements, `${a} list is unsorted or carries a duplicate`).toEqual(
+        [...new Set(complements)].sort(),
+      );
+    }
+  });
+
+  it('spot-checks the pairs-that-ship-together logic', () => {
+    expect(PROFESSION_COMPLEMENTS.design).toContain('sviluppo');
+    expect(PROFESSION_COMPLEMENTS.business).toContain('legale');
+    expect(PROFESSION_COMPLEMENTS.musica).toContain('foto-video');
+    // …and what the ruling deliberately left OUT stays out.
+    expect(PROFESSION_COMPLEMENTS.design).not.toContain('food');
+    expect(PROFESSION_COMPLEMENTS.legale).not.toContain('arte');
+  });
+});
+
 /** Full profile from the fields a test cares about — the other terms stay silent. */
 const profile = (p: Partial<Parameters<typeof momentoAffinityTerms>[0]>) => ({
   identityTags: [],
@@ -72,6 +134,7 @@ const profile = (p: Partial<Parameters<typeof momentoAffinityTerms>[0]>) => ({
   skills: [],
   cityGeohash: null,
   attendedEventIds: [],
+  profession: null,
   ...p,
 });
 
@@ -82,6 +145,7 @@ const NO_TERMS = {
   skillsShared: [],
   cityNear: false,
   mutualActivity: [],
+  professionPair: [],
 };
 
 describe('momentoAffinityTerms', () => {
@@ -204,6 +268,50 @@ describe('momentoAffinityTerms', () => {
     );
     expect(terms.mutualActivity).toEqual(five);
   });
+
+  it('fires the profession term on a complementary pair, naming both crafts (#361)', () => {
+    const terms = momentoAffinityTerms(
+      profile({ profession: 'design' }),
+      profile({ profession: 'sviluppo' }),
+    );
+    // [mine, theirs] — the reason line names the pairing from the reader's side.
+    expect(terms).toEqual({ ...NO_TERMS, professionPair: ['design', 'sviluppo'] });
+  });
+
+  it('same craft is NOT complementarity — the shared-identity terms own that signal', () => {
+    const terms = momentoAffinityTerms(
+      profile({ profession: 'design' }),
+      profile({ profession: 'design' }),
+    );
+    expect(terms).toEqual(NO_TERMS);
+  });
+
+  it('a non-complementary pair of real crafts stays silent', () => {
+    const terms = momentoAffinityTerms(
+      profile({ profession: 'legale' }),
+      profile({ profession: 'arte' }),
+    );
+    expect(terms).toEqual(NO_TERMS);
+  });
+
+  it('a member with no profession contributes zero, gracefully, both ways round', () => {
+    expect(
+      momentoAffinityTerms(profile({}), profile({ profession: 'design' })).professionPair,
+    ).toEqual([]);
+    expect(
+      momentoAffinityTerms(profile({ profession: 'design' }), profile({})).professionPair,
+    ).toEqual([]);
+  });
+
+  it('a profession outside the vocabulary scores nothing rather than throwing', () => {
+    // profiles.profession is app-validated, not CHECK-constrained — a legacy free-text
+    // row must pass through the pure function silently, like unknown tags do.
+    const terms = momentoAffinityTerms(
+      profile({ profession: 'astronauta' }),
+      profile({ profession: 'design' }),
+    );
+    expect(terms.professionPair).toEqual([]);
+  });
 });
 
 describe('cityNear', () => {
@@ -229,6 +337,24 @@ describe('cityNear', () => {
     // WITHOUT a re-migration. Comparing at ≥ stored precision would break that.
     expect(CITY_GEOHASH_MATCH_PRECISION).toBeLessThan(CITY_GEOHASH_PRECISION);
     expect(CITY_GEOHASH_MATCH_PRECISION).toBe(4);
+  });
+});
+
+describe('professionPair', () => {
+  it('names the pair, reader first, when the map holds it', () => {
+    expect(professionPair('musica', 'foto-video')).toEqual(['musica', 'foto-video']);
+    expect(professionPair('foto-video', 'musica')).toEqual(['foto-video', 'musica']);
+  });
+
+  it('never fires on a missing side', () => {
+    expect(professionPair(null, 'design')).toEqual([]);
+    expect(professionPair('design', null)).toEqual([]);
+    expect(professionPair(null, null)).toEqual([]);
+  });
+
+  it('never fires outside the vocabulary, on either side', () => {
+    expect(professionPair('astronauta', 'design')).toEqual([]);
+    expect(professionPair('design', 'astronauta')).toEqual([]);
   });
 });
 
@@ -293,7 +419,23 @@ describe('momentoAffinity', () => {
   });
 
   it('every weight starts at parity — retuning is a one-line product decision, not a rewrite', () => {
-    expect(AFFINITY_WEIGHTS).toEqual({ tag: 1, skill: 1, city: 1, activity: 1 });
+    expect(AFFINITY_WEIGHTS).toEqual({ tag: 1, skill: 1, city: 1, activity: 1, profession: 1 });
+  });
+
+  it('a complementary craft weighs once, at parity — completes a threshold, never meets it alone (#361)', () => {
+    const withTag = momentoAffinityTerms(
+      profile({ identityTags: ['artista'], profession: 'arte' }),
+      profile({ identityTags: ['artista'], profession: 'artigianato' }),
+    );
+    expect(momentoAffinity(withTag)).toBe(AFFINITY_WEIGHTS.tag + AFFINITY_WEIGHTS.profession);
+    expect(momentoAffinity(withTag)).toBeGreaterThanOrEqual(MOMENTO_AFFINITY_THRESHOLD);
+
+    const alone = momentoAffinityTerms(
+      profile({ profession: 'arte' }),
+      profile({ profession: 'artigianato' }),
+    );
+    expect(momentoAffinity(alone)).toBe(AFFINITY_WEIGHTS.profession);
+    expect(momentoAffinity(alone)).toBeLessThan(MOMENTO_AFFINITY_THRESHOLD);
   });
 
   it('each shared event weighs like a shared tag, at parity (#361)', () => {

@@ -19,6 +19,20 @@ describe('momento schemas', () => {
     expect(card.handle).toBe('maria');
   });
 
+  it('parses the profession-complementarity reason (#361)', () => {
+    const card = momentoDeckCard.parse({
+      id: '11111111-1111-1111-1111-111111111111',
+      candidateId: '33333333-3333-3333-3333-333333333333',
+      handle: 'maria',
+      displayName: null,
+      avatarPath: null,
+      // Two profession KEYS, caller's craft first — localized per render like the rest.
+      reasons: [{ kind: 'profession', tags: ['design', 'sviluppo'] }],
+      dreamText: 'Aprire uno studio',
+    });
+    expect(card.reasons[0]?.kind).toBe('profession');
+  });
+
   it('rejects a reason kind the client cannot render', () => {
     expect(() =>
       momentoDeckCard.parse({

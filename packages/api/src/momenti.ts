@@ -35,6 +35,9 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
             { kind: 'city', tags: row.city_near },
             // `mutualActivity` tags hold titles of events both sides checked in at (#361).
             { kind: 'mutualActivity', tags: row.mutual_activity },
+            // `profession` tags hold the two profession keys of a complementary pair,
+            // the caller's craft first (#361).
+            { kind: 'profession', tags: row.profession_pair },
           ] as const
         ).filter((term) => term.tags.length > 0);
   return momentoDeckCard.parse({
