@@ -2903,6 +2903,10 @@ export type Database = {
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
+      is_on_ballot: {
+        Args: { c: Database["public"]["Tables"]["dream_candidacies"]["Row"] }
+        Returns: boolean
+      }
       live_window_sweep: { Args: never; Returns: undefined }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
