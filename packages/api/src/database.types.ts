@@ -1858,6 +1858,54 @@ export type Database = {
           },
         ]
       }
+      payout_accounts: {
+        Row: {
+          charges_enabled: boolean
+          created_at: string
+          id: string
+          onboarded_at: string | null
+          payouts_enabled: boolean
+          profile_id: string
+          stripe_account_id: string
+          updated_at: string
+        }
+        Insert: {
+          charges_enabled?: boolean
+          created_at?: string
+          id?: string
+          onboarded_at?: string | null
+          payouts_enabled?: boolean
+          profile_id: string
+          stripe_account_id: string
+          updated_at?: string
+        }
+        Update: {
+          charges_enabled?: boolean
+          created_at?: string
+          id?: string
+          onboarded_at?: string | null
+          payouts_enabled?: boolean
+          profile_id?: string
+          stripe_account_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_accounts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payout_accounts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_comments: {
         Row: {
           author_id: string
