@@ -22,8 +22,8 @@ import { useAuth } from '@/lib/auth-context';
 type Phase = 'idle' | 'opening' | 'confirming' | 'confirmSlow';
 
 // The server's `{error}` strings are the stable contract (#103) — create-ticket-checkout's
-// guard ladder on one side, this map on the other. An unmapped code (a future guard, e.g.
-// #105's capacity refusal until it lands here) degrades to ticket.error.payment, never crashes.
+// guard ladder on one side, this map on the other. An unmapped code (a future guard)
+// degrades to ticket.error.payment, never crashes.
 const ERROR_COPY: Record<string, MessageKey> = {
   unauthorized: 'ticket.error.signedOut',
   outdated_client: 'ticket.error.outdatedClient',
@@ -34,6 +34,7 @@ const ERROR_COPY: Record<string, MessageKey> = {
   'event ended': 'ticket.error.eventEnded',
   'ticket already owned': 'ticket.error.alreadyOwned',
   'sold out': 'ticket.error.soldOut',
+  'checkout already open': 'ticket.error.checkoutOpen',
 };
 
 export function TicketBar({
@@ -99,7 +100,9 @@ export function TicketBar({
       const code = e instanceof TicketCheckoutError ? e.code : null;
       if (__DEV__) console.log('[ticket] checkout refused:', code ?? e);
       // A 409 means a local query is stale — re-read so the bar flips to its real state.
-      if (code === 'ticket already owned') refetchTicket();
+      // 'checkout already open' (#258) included: the other invocation may have paid by now,
+      // and if it did the refetch flips the bar to the ticket instead of arguing.
+      if (code === 'ticket already owned' || code === 'checkout already open') refetchTicket();
       if (code === 'sold out') void qc.invalidateQueries({ queryKey: eventKeys.seats(event.id) });
       setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.payment', locale));
     }

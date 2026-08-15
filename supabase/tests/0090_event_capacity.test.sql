@@ -5,12 +5,16 @@
 -- and what actually closes the race once claims serialize — is that the count includes
 -- other members' UNEXPIRED pending claims, excludes expired ones, and that the belt
 -- refuses paid rows. Asserted here.
+-- #258 — a LIVE own claim refuses a second claim ('claim_pending'): the claim outlives
+-- the Session it backs, so at most one payable Session exists per (user, event). The
+-- refusal must not extend the claim, must end with the TTL, and must not touch refunded
+-- re-buys — all asserted here.
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(27);
 
 -- organizer A + members B, C, D (handle_new_user auto-creates profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -67,8 +71,37 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
 select results_eq($$ select public.claim_event_seat('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') $$,
   $$ values ('claimed') $$, 'an EXPIRED pending claim holds no seat');
+reset role;
+
+-- #258 — D's claim is LIVE: a second claim (the concurrent double checkout) must refuse,
+-- and the refusal must not touch the row — a refreshed expiry would let retries roll the
+-- lockout forward forever.
+create temp table d_claim_before as
+  select expires_at from public.event_tickets
+  where user_id='44444444-4444-4444-4444-444444444444'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
 select results_eq($$ select public.claim_event_seat('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') $$,
-  $$ values ('claimed') $$, 're-claiming your own seat is idempotent');
+  $$ values ('claim_pending') $$,
+  'a LIVE own claim refuses a second claim — the concurrent double checkout dies here (#258)');
+reset role;
+
+select ok((select t.expires_at = b.expires_at
+  from public.event_tickets t, d_claim_before b
+  where t.user_id='44444444-4444-4444-4444-444444444444'
+    and t.event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'),
+  'the refusal leaves the claim untouched — no retry can extend the lockout');
+
+-- D's claim lapses: the refusal ends with the TTL, never a permanent lockout
+update public.event_tickets set expires_at = now() - interval '1 minute'
+  where user_id='44444444-4444-4444-4444-444444444444'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+select results_eq($$ select public.claim_event_seat('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') $$,
+  $$ values ('claimed') $$, 'an expired OWN claim re-claims — the lockout is the TTL, not forever');
 reset role;
 
 select results_eq($$ select count(*)::int from public.event_tickets
@@ -111,6 +144,16 @@ reset role;
 select results_eq($$ select count(*)::int from public.event_tickets
   where user_id='22222222-2222-2222-2222-222222222222' $$, $$ values (1) $$,
   'a paid ticket cannot be released');
+
+-- a refund frees the row for a genuine re-buy: #258 refuses only LIVE pending claims
+update public.event_tickets set status='refunded', expires_at=null, qr_token=null
+  where user_id='22222222-2222-2222-2222-222222222222'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+select results_eq($$ select public.claim_event_seat('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') $$,
+  $$ values ('claimed') $$, 'a refunded row re-claims — the refusal is for live claims, not history');
+reset role;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';

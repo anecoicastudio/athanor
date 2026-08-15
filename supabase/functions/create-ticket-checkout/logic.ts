@@ -82,10 +82,12 @@ export function buildTicketSessionParams(
  * ignoreDuplicates (correct, for redelivery), so a second purchase would be swallowed at
  * 200 with the money taken and no second ticket to show for it.
  *
- * The ticket gate is read-then-act, so it closes the SEQUENTIAL re-buy — a member who
- * already holds a ticket — and not the concurrent one: a same-user concurrent double
- * checkout is #258, and the claim row below is the mechanism it will build on (an own
- * re-claim is currently idempotent on purpose — refusing it is #258's decision to make).
+ * The ticket gate is read-then-act, so it alone closes only the SEQUENTIAL re-buy — a
+ * member who already holds a ticket. The concurrent double checkout (#258) is closed by
+ * the claim below: a LIVE own pending claim returns 'claim_pending' → 409, no Session
+ * minted. The claim (35 min) strictly outlives the Session it backs (30 min), so at most
+ * one payable Session exists per (user, event) at any moment — the second charge cannot
+ * come into existence, rather than being refunded after the fact.
  *
  * Capacity (#105) is the last gate and the only one that is NOT read-then-act: the
  * claim_event_seat RPC locks the events row, counts held seats (paid, checked_in,
@@ -153,6 +155,10 @@ export async function createTicketCheckout(
   });
   if (claimErr) return error('seat claim failed', 500); // fail-closed: never sell when unsure
   if (claim === 'sold_out') return error('sold out', 409);
+  // #258 — a live claim means a payable Session may already exist for this caller: minting
+  // another would be the concurrent double charge. Not a payment failure — the copy says
+  // "purchase in progress", and the claim's TTL bounds the wait after an abandoned Checkout.
+  if (claim === 'claim_pending') return error('checkout already open', 409);
   if (claim === 'already_owned') return error('ticket already owned', 409); // belt for the gate above
   if (claim === 'not_found') return error('event not found', 404);
   if (claim !== 'claimed') return error('seat claim failed', 500); // unknown verdict — fail-closed

@@ -762,6 +762,7 @@
   "ticket.error.eventEnded": "This event has already ended.",
   "ticket.error.alreadyOwned": "You already have your ticket ✦",
   "ticket.error.soldOut": "The seats ran out while you were checking out.",
+  "ticket.error.checkoutOpen": "You already have a purchase in progress. Finish it, or try again later.",
   "ticket.viewer.title": "Your ticket",
   "ticket.show": "Show this code at the entrance",
   "ticket.status.valid": "Valid",
