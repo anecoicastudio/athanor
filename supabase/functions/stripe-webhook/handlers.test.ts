@@ -221,18 +221,32 @@ Deno.test('handleTicketPaid refuses an unsettled session and writes nothing', as
 
 // ── W3 handleContribution ────────────────────────────────────────────────────
 
-Deno.test('handleContribution throws on missing edition_id / amount_total', async () => {
-  await assertRejects(
-    () => handleContribution(asDb(makeFakeDb()), contributionSession({ metadata: {} })),
-    Error,
-    'edition_id',
-  );
-  await assertRejects(
-    () => handleContribution(asDb(makeFakeDb()), contributionSession({ amount_total: null })),
-    Error,
-    'amount_total',
-  );
-});
+Deno.test(
+  'handleContribution throws on missing edition_id / amount_total / profile_id',
+  async () => {
+    await assertRejects(
+      () => handleContribution(asDb(makeFakeDb()), contributionSession({ metadata: {} })),
+      Error,
+      'edition_id',
+    );
+    await assertRejects(
+      () => handleContribution(asDb(makeFakeDb()), contributionSession({ amount_total: null })),
+      Error,
+      'amount_total',
+    );
+    // #239: profile_id is NOT NULL — a null insert would 500 → redeliver forever, so the guard
+    // throws before touching the db, exactly like the two above.
+    await assertRejects(
+      () =>
+        handleContribution(
+          asDb(makeFakeDb()),
+          contributionSession({ metadata: { kind: 'contribution', edition_id: 'ed-1' } }),
+        ),
+      Error,
+      'profile_id',
+    );
+  },
+);
 
 Deno.test('handleContribution writes row then recomputes the aggregate', async () => {
   const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
@@ -246,6 +260,7 @@ Deno.test('handleContribution writes row then recomputes the aggregate', async (
     count: 'exact',
   });
   const values = upsert.values as Record<string, unknown>;
+  assertEquals(values.profile_id, 'prof-1'); // never null — NOT NULL column (#239)
   assertEquals(values.amount_cents, 2500);
   assertEquals(values.currency, 'eur'); // lowercased
   assertEquals(values.status, 'succeeded');

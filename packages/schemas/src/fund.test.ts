@@ -130,6 +130,11 @@ describe('fundContributionSchema', () => {
   it.each(['failed', 'processing', ''])('rejects status %s', (status) => {
     expect(fundContributionRow({ status }).success).toBe(false);
   });
+
+  // Mirrors the #239 migration: profile_id is NOT NULL, contributions are never anonymous (D24).
+  it('rejects a null profile_id', () => {
+    expect(fundContributionRow({ profile_id: null }).success).toBe(false);
+  });
 });
 
 /** A valid contribution row with `over` applied — keeps the enum cases to one line each. */
