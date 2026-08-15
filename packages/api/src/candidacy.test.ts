@@ -7,7 +7,9 @@ import {
   candidacyVideoPath,
   getCandidateById,
   getCandidates,
+  getMyCandidacy,
   submitCandidacy,
+  updateCandidacy,
 } from './candidacy';
 
 const UID = '00000000-0000-4000-8000-000000000001';
@@ -90,8 +92,9 @@ function stub(rows: Array<Record<string, unknown>> = []) {
 }
 
 describe('candidacyKeys', () => {
-  it('namespaces detail / list under the candidacy root', () => {
+  it('namespaces mine / detail / list under the candidacy root', () => {
     expect(candidacyKeys.all).toEqual(['candidacy']);
+    expect(candidacyKeys.mine(EDITION)).toEqual(['candidacy', 'mine', EDITION]);
     expect(candidacyKeys.detail(CAND1)).toEqual(['candidacy', 'detail', CAND1]);
     expect(candidacyKeys.list(EDITION)).toEqual(['candidacy', 'list', EDITION, null]);
   });
@@ -160,6 +163,57 @@ describe('submitCandidacy', () => {
       'ceramica-libera',
     );
     expect(calls.find((c) => c.method === 'insert')).toBeUndefined();
+  });
+});
+
+describe('getMyCandidacy', () => {
+  it('scopes to (edition, profile), skips soft-deleted rows and uses maybeSingle', async () => {
+    const { client, calls } = stub([CANDIDACY_ROW]);
+    const mine = await getMyCandidacy(client, EDITION, UID);
+    expect(
+      calls.some((c) => c.method === 'eq' && c.arg === 'edition_id' && c.arg2 === EDITION),
+    ).toBe(true);
+    expect(calls.some((c) => c.method === 'eq' && c.arg === 'profile_id' && c.arg2 === UID)).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'maybeSingle')).toBe(true);
+    expect(mine?.id).toBe(CAND1);
+  });
+
+  it('returns null when the member has no candidacy for the edition', async () => {
+    const { client } = stub([]);
+    expect(await getMyCandidacy(client, EDITION, UID)).toBeNull();
+  });
+});
+
+describe('updateCandidacy', () => {
+  it('updates the row by id and parses the returned candidacy', async () => {
+    const row = { ...CANDIDACY_ROW, story: 'riscritta', skills_needed: ['fotografia'] };
+    const { client, calls } = stub([row]);
+    const patch = { story: 'riscritta', skills_needed: ['fotografia'] };
+    const updated = await updateCandidacy(client, CAND1, patch);
+    const update = calls.find((c) => c.method === 'update');
+    expect(update?.arg).toEqual(patch);
+    expect(calls.some((c) => c.method === 'eq' && c.arg === 'id' && c.arg2 === CAND1)).toBe(true);
+    expect(updated.story).toBe('riscritta');
+  });
+
+  it('refuses a skills key outside @athanor/core SKILLS before any update (FUND-10)', async () => {
+    const { client, calls } = stub([CANDIDACY_ROW]);
+    await expect(
+      updateCandidacy(client, CAND1, { skills_needed: ['fotografia', 'ceramica-libera'] }),
+    ).rejects.toThrow('ceramica-libera');
+    expect(calls.find((c) => c.method === 'update')).toBeUndefined();
+  });
+
+  it('a patch that says nothing about skills passes the vocabulary gate', async () => {
+    const { client, calls } = stub([{ ...CANDIDACY_ROW, plan: 'nuovo piano' }]);
+    const updated = await updateCandidacy(client, CAND1, { plan: 'nuovo piano' });
+    expect(calls.find((c) => c.method === 'update')?.arg).toEqual({ plan: 'nuovo piano' });
+    expect(updated.plan).toBe('nuovo piano');
   });
 });
 
@@ -242,6 +296,20 @@ describe('candidacy — a database failure reaches the caller', () => {
         },
       }),
     ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('getMyCandidacy rethrows rather than reporting "no candidacy" on a down database', async () => {
+    const fake = makeFakeClient({ 'dream_candidacies.select': [{ error: DB_DOWN }] });
+    await expect(getMyCandidacy(asClient(fake), EDITION, UID)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('updateCandidacy rethrows rather than pretending the edit landed', async () => {
+    const fake = makeFakeClient({ 'dream_candidacies.update': [{ error: DB_DOWN }] });
+    await expect(updateCandidacy(asClient(fake), CAND1, { plan: 'x' })).rejects.toMatchObject({
+      code: '57P01',
+    });
   });
 
   it('getCandidates rethrows instead of showing an empty field of candidates', async () => {
