@@ -84,7 +84,10 @@ Deno.test(
   'fund metadata minted by create-contribution-session is readable by the webhook',
   async () => {
     const producerDb = makeFakeDb({
-      'fund_editions.select': [{ data: { id: 'ed-9', contributions_enabled: true } }],
+      // phase must be an open one (D34 window gate, #222) or the producer refuses.
+      'fund_editions.select': [
+        { data: { id: 'ed-9', contributions_enabled: true, phase: 'voting' } },
+      ],
     });
     const created: Stripe.Checkout.SessionCreateParams[] = [];
     const producerCtx: ContributionSessionCtx = {

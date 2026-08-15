@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fundKeys, getMyContributions, subscribeFundAggregate } from './fund';
+import {
+  ContributionSessionError,
+  createContributionSession,
+  fundKeys,
+  getMyContributions,
+  subscribeFundAggregate,
+} from './fund';
 
 describe('fundKeys', () => {
   it('namespaces under "fund" and distinguishes active vs by-id', () => {
@@ -25,6 +31,56 @@ describe('subscribeFundAggregate', () => {
 describe('fundKeys.myContributions', () => {
   it('namespaces under fund/contributions per profile', () => {
     expect(fundKeys.myContributions('p1')).toEqual(['fund', 'contributions', 'p1']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createContributionSession — refusal parsing (events.test.ts idiom, #103/#222)
+// ---------------------------------------------------------------------------
+
+describe('createContributionSession', () => {
+  const INPUT = { editionId: 'ed-1', amountCents: 500 };
+  const withInvoke = (invoke: ReturnType<typeof vi.fn>) => ({ functions: { invoke } }) as never;
+
+  it('returns the hosted checkout url', async () => {
+    const invoke = vi.fn().mockResolvedValue({ data: { url: 'https://c' }, error: null });
+    await expect(createContributionSession(withInvoke(invoke), INPUT)).resolves.toEqual({
+      url: 'https://c',
+    });
+  });
+
+  // The server's {error} string is the contract; the screen maps it to copy — a D34
+  // window refusal must not degrade into the generic payment-failed message.
+  it('reads the refusal body off FunctionsHttpError.context into a ContributionSessionError', async () => {
+    const httpError = Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+      context: { status: 403, json: () => Promise.resolve({ error: 'the cycle is closed' }) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+
+    await expect(createContributionSession(withInvoke(invoke), INPUT)).rejects.toMatchObject({
+      name: 'ContributionSessionError',
+      code: 'the cycle is closed',
+      status: 403,
+    });
+    await expect(createContributionSession(withInvoke(invoke), INPUT)).rejects.toBeInstanceOf(
+      ContributionSessionError,
+    );
+  });
+
+  it('rethrows the raw error when the refusal body is unreadable', async () => {
+    const httpError = Object.assign(new Error('non-2xx'), {
+      context: { status: 500, json: () => Promise.reject(new Error('not json')) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    await expect(createContributionSession(withInvoke(invoke), INPUT)).rejects.toThrow('non-2xx');
+  });
+
+  it('rethrows the raw error when the body carries no {error} string', async () => {
+    const httpError = Object.assign(new Error('non-2xx'), {
+      context: { status: 500, json: () => Promise.resolve({ unrelated: true }) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    await expect(createContributionSession(withInvoke(invoke), INPUT)).rejects.toThrow('non-2xx');
   });
 });
 

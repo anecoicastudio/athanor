@@ -1037,6 +1037,7 @@
   "fund.contribute.pending": "Contribution incoming…",
   "fund.contribute.canceled": "Contribution canceled. Whenever you like, the dream is waiting.",
   "fund.contribute.error": "Couldn't open the payment. Try again.",
+  "fund.contribute.cycleClosed": "The cycle has closed. No payment was started.",
   "fund.amount.custom": "Other",
   "fund.amount.customPlaceholder": "from €1",
   "fund.amount.error": "The minimum is €1",
