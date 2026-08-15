@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(63);
+select plan(70);
 
 -- #220 — announcement: enter_announcement() and record_winner_decision(), every way they
 -- refuse, and the four endings a cycle can reach from 'voting': voided_quorum,
@@ -361,6 +361,97 @@ select is(
       and action = 'winner_decline'
       and candidacy_id = '01090000-0000-0000-0000-0000000000c5'),
   1, 'one audit_log row records the decline, pointing at the declining winner');
+
+-- ── edition 5: declare, then a refund sinks the pool — the void retires the winner ──────
+-- The pool does NOT only grow (reverseContribution flips succeeded → refunded, no phase
+-- gate — 20260815185445, MIGRATIONS-ERRATA.md): in the declare-then-enter order the void
+-- branch must reach a pre-declared 'winner' row too.
+set local role service_role;
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  voting_starts_at, voting_ends_at,
+                                  split_pct, cost_fee_statement, equity_declared)
+  values ('01090000-0000-0000-0000-0000000000e5', now() + interval '30 days', 5000000, 'voting', false, false,
+          100000, 3, 1, now() - interval '2 days', now() - interval '1 day',
+          10, 'fixture costs statement', 'none');
+reset role;
+
+insert into public.dream_candidacies
+  (id, edition_id, profile_id, story, goal, impact, video_url, plan, budget_cents, min_viable_cents, status, created_at)
+values
+  ('01090000-0000-0000-0000-0000000000c7', '01090000-0000-0000-0000-0000000000e5',
+   '01090000-0000-0000-0000-000000000001', 's', 'g', 'i', 'v.mp4', 'p', 800000, 500000, 'shortlisted', now() - interval '2 hours'),
+  ('01090000-0000-0000-0000-0000000000c8', '01090000-0000-0000-0000-0000000000e5',
+   '01090000-0000-0000-0000-000000000002', 's', 'g', 'i', 'v.mp4', 'p', 800000, 500000, 'shortlisted', now() - interval '1 hour');
+insert into public.candidacy_votes (edition_id, candidacy_id, voter_id) values
+  ('01090000-0000-0000-0000-0000000000e5', '01090000-0000-0000-0000-0000000000c7', '01090000-0000-0000-0000-000000000001'),
+  ('01090000-0000-0000-0000-0000000000e5', '01090000-0000-0000-0000-0000000000c7', '01090000-0000-0000-0000-000000000002'),
+  ('01090000-0000-0000-0000-0000000000e5', '01090000-0000-0000-0000-0000000000c8', '01090000-0000-0000-0000-000000000003');
+insert into public.fund_contributions (edition_id, profile_id, amount_cents, stripe_checkout_session_id, status)
+  values ('01090000-0000-0000-0000-0000000000e5', '01090000-0000-0000-0000-000000000001', 150000, 'cs_0109_9', 'succeeded');
+
+select lives_ok(
+  $$ select * from public.declare_winner('01090000-0000-0000-0000-0000000000e5') $$,
+  'edition 5 declares its winner during voting (legal order, #219 window)');
+
+set local role service_role;
+update public.fund_contributions set status = 'refunded'
+ where stripe_checkout_session_id = 'cs_0109_9';
+reset role;
+
+select is(
+  (select outcome from public.enter_announcement('01090000-0000-0000-0000-0000000000e5')),
+  'voided_underfunded', 'a refund after declaration sinks the pool — the entry voids');
+select is(
+  (select status from public.dream_candidacies where id = '01090000-0000-0000-0000-0000000000c7'),
+  'voided', 'the void retires the pre-declared winner too — no live ''winner'' in a voided cycle');
+select is(
+  (select winner_candidacy_id from public.fund_editions where id = '01090000-0000-0000-0000-0000000000e5'),
+  '01090000-0000-0000-0000-0000000000c7'::uuid,
+  'winner_candidacy_id keeps the historical record, as on a decline');
+
+-- ── edition 6: announce, then a refund — the declaration still lands on the snapshot ────
+-- D34: the frozen figure is the floor's basis. A refund after the snapshot must not strand
+-- an announced cycle behind a floor it already cleared.
+set local role service_role;
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  voting_starts_at, voting_ends_at,
+                                  split_pct, cost_fee_statement, equity_declared)
+  values ('01090000-0000-0000-0000-0000000000e6', now() + interval '30 days', 5000000, 'voting', false, false,
+          100000, 3, 1, now() - interval '2 days', now() - interval '1 day',
+          10, 'fixture costs statement', 'none');
+reset role;
+
+insert into public.dream_candidacies
+  (id, edition_id, profile_id, story, goal, impact, video_url, plan, budget_cents, min_viable_cents, status, created_at)
+values
+  ('01090000-0000-0000-0000-0000000000c9', '01090000-0000-0000-0000-0000000000e6',
+   '01090000-0000-0000-0000-000000000001', 's', 'g', 'i', 'v.mp4', 'p', 800000, 500000, 'shortlisted', now() - interval '2 hours'),
+  ('01090000-0000-0000-0000-0000000000ca', '01090000-0000-0000-0000-0000000000e6',
+   '01090000-0000-0000-0000-000000000002', 's', 'g', 'i', 'v.mp4', 'p', 800000, 500000, 'shortlisted', now() - interval '1 hour');
+insert into public.candidacy_votes (edition_id, candidacy_id, voter_id) values
+  ('01090000-0000-0000-0000-0000000000e6', '01090000-0000-0000-0000-0000000000c9', '01090000-0000-0000-0000-000000000001'),
+  ('01090000-0000-0000-0000-0000000000e6', '01090000-0000-0000-0000-0000000000c9', '01090000-0000-0000-0000-000000000002'),
+  ('01090000-0000-0000-0000-0000000000e6', '01090000-0000-0000-0000-0000000000ca', '01090000-0000-0000-0000-000000000003');
+insert into public.fund_contributions (edition_id, profile_id, amount_cents, stripe_checkout_session_id, status)
+  values ('01090000-0000-0000-0000-0000000000e6', '01090000-0000-0000-0000-000000000001', 150000, 'cs_0109_10', 'succeeded');
+
+select is(
+  (select outcome from public.enter_announcement('01090000-0000-0000-0000-0000000000e6')),
+  'announced', 'edition 6 announces at €1500');
+
+set local role service_role;
+update public.fund_contributions set status = 'refunded'
+ where stripe_checkout_session_id = 'cs_0109_10';
+reset role;
+
+select lives_ok(
+  $$ select * from public.declare_winner('01090000-0000-0000-0000-0000000000e6') $$,
+  'the declaration lands although the live pool sank — the floor reads the snapshot (D34)');
+select is(
+  (select status from public.dream_candidacies where id = '01090000-0000-0000-0000-0000000000c9'),
+  'winner', 'the tally winner is declared');
 
 -- rule #1 tooth: nothing in the announcement family emits Aura
 select is(
