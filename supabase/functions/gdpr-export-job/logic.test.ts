@@ -90,6 +90,11 @@ const EXPECTED_SECTIONS: Record<string, { table: string; filter: ExpectedFilter;
   candidacy_votes: { table: 'candidacy_votes', filter: { kind: 'eq', column: 'voter_id' } },
   fund_contributions: { table: 'fund_contributions', filter: { kind: 'eq', column: 'profile_id' } },
   circle_memberships: { table: 'circle_memberships', filter: { kind: 'eq', column: 'profile_id' } },
+  payout_accounts: {
+    table: 'payout_accounts',
+    filter: { kind: 'eq', column: 'profile_id' },
+    one: true,
+  },
   invites: { table: 'invites', filter: { kind: 'or', columns: ['inviter_id', 'invitee_id'] } },
   consent: { table: 'consent', filter: { kind: 'eq', column: 'profile_id' } },
   verifications: { table: 'verifications', filter: { kind: 'eq', column: 'profile_id' } },

@@ -121,6 +121,7 @@ export const EXPORT_SPEC: readonly OwnDataSpec[] = [
   { key: 'candidacy_votes', table: 'candidacy_votes', mode: 'many', column: 'voter_id' },
   { key: 'fund_contributions', table: 'fund_contributions', mode: 'many', column: 'profile_id' },
   { key: 'circle_memberships', table: 'circle_memberships', mode: 'many', column: 'profile_id' },
+  { key: 'payout_accounts', table: 'payout_accounts', mode: 'one', column: 'profile_id' },
   { key: 'invites', table: 'invites', mode: 'either', columns: ['inviter_id', 'invitee_id'] },
   { key: 'consent', table: 'consent', mode: 'many', column: 'profile_id' },
   { key: 'verifications', table: 'verifications', mode: 'many', column: 'profile_id' },
