@@ -1204,7 +1204,7 @@ export type Database = {
           currency: string
           edition_id: string
           id: string
-          profile_id: string | null
+          profile_id: string
           status: string
           stripe_checkout_session_id: string
           stripe_payment_intent_id: string | null
@@ -1216,7 +1216,7 @@ export type Database = {
           currency?: string
           edition_id: string
           id?: string
-          profile_id?: string | null
+          profile_id: string
           status?: string
           stripe_checkout_session_id: string
           stripe_payment_intent_id?: string | null
@@ -1228,7 +1228,7 @@ export type Database = {
           currency?: string
           edition_id?: string
           id?: string
-          profile_id?: string | null
+          profile_id?: string
           status?: string
           stripe_checkout_session_id?: string
           stripe_payment_intent_id?: string | null

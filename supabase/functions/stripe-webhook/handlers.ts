@@ -174,7 +174,11 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
   // Stripe is the source of truth for the amount. Fail loud on a missing total so Stripe retries
   // (rather than relying on the amount_cents >= 100 CHECK to bounce a junk 0-row).
   if (!session.amount_total) throw new Error('contribution session missing amount_total');
-  const profileId = session.metadata?.profile_id ?? null; // nullable: anonymous donors allowed
+  // profile_id NOT NULL since #239 (D24: no anonymous contributions). create-contribution-session
+  // always mints it from the verified caller, so a session without it is malformed — fail loud
+  // here rather than let the insert hit the constraint and poison-loop on redelivery.
+  const profileId = session.metadata?.profile_id;
+  if (!profileId) throw new Error('contribution session missing profile_id');
 
   const { error, count } = await db.from('fund_contributions').upsert(
     {

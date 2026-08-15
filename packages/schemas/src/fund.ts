@@ -56,7 +56,7 @@ export type ContributionSessionInput = z.infer<typeof contributionSessionInputSc
 export const fundContributionSchema = z.object({
   id: z.string().uuid(),
   edition_id: z.string().uuid(),
-  profile_id: z.string().uuid().nullable(),
+  profile_id: z.string().uuid(), // NOT NULL since #239 — contributions are never anonymous (D24)
   amount_cents: z.number().int().nonnegative(),
   currency: z.string(),
   stripe_checkout_session_id: z.string(),

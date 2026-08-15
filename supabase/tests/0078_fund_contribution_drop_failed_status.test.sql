@@ -19,23 +19,29 @@ insert into public.fund_editions (id, target_at, goal_cents, phase, contribution
 values ('eee00000-0000-0000-0000-000000000078', now() + interval '30 days', 100000, 'voting', true,
         100000, 5, 3);
 
+-- #239 made profile_id NOT NULL, so the fixtures need a real contributor (the handle_new_user
+-- trigger auto-creates the public.profiles row). This file still tests only the status CHECK.
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000000', '78787878-7878-7878-7878-787878787878',
+        'authenticated', 'authenticated', 'contrib_78@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+
 -- the three surviving statuses still insert
 select lives_ok(
   $$ insert into public.fund_contributions
        (edition_id, profile_id, amount_cents, currency, stripe_checkout_session_id, status)
-     values ('eee00000-0000-0000-0000-000000000078', null, 5000, 'eur', 'cs_pending_78', 'pending') $$,
+     values ('eee00000-0000-0000-0000-000000000078', '78787878-7878-7878-7878-787878787878', 5000, 'eur', 'cs_pending_78', 'pending') $$,
   'status pending is still accepted'
 );
 select lives_ok(
   $$ insert into public.fund_contributions
        (edition_id, profile_id, amount_cents, currency, stripe_checkout_session_id, status)
-     values ('eee00000-0000-0000-0000-000000000078', null, 700, 'eur', 'cs_ok_78', 'succeeded') $$,
+     values ('eee00000-0000-0000-0000-000000000078', '78787878-7878-7878-7878-787878787878', 700, 'eur', 'cs_ok_78', 'succeeded') $$,
   'status succeeded is still accepted'
 );
 select lives_ok(
   $$ insert into public.fund_contributions
        (edition_id, profile_id, amount_cents, currency, stripe_checkout_session_id, status)
-     values ('eee00000-0000-0000-0000-000000000078', null, 5000, 'eur', 'cs_ref_78', 'refunded') $$,
+     values ('eee00000-0000-0000-0000-000000000078', '78787878-7878-7878-7878-787878787878', 5000, 'eur', 'cs_ref_78', 'refunded') $$,
   'status refunded is still accepted'
 );
 
@@ -43,7 +49,7 @@ select lives_ok(
 select throws_ok(
   $$ insert into public.fund_contributions
        (edition_id, profile_id, amount_cents, currency, stripe_checkout_session_id, status)
-     values ('eee00000-0000-0000-0000-000000000078', null, 5000, 'eur', 'cs_failed_78', 'failed') $$,
+     values ('eee00000-0000-0000-0000-000000000078', '78787878-7878-7878-7878-787878787878', 5000, 'eur', 'cs_failed_78', 'failed') $$,
   '23514',
   null,
   'status failed is rejected — no code path can produce it since assertSettled'
@@ -53,7 +59,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.fund_contributions
        (edition_id, profile_id, amount_cents, currency, stripe_checkout_session_id, status)
-     values ('eee00000-0000-0000-0000-000000000078', null, 5000, 'eur', 'cs_junk_78', 'whatever') $$,
+     values ('eee00000-0000-0000-0000-000000000078', '78787878-7878-7878-7878-787878787878', 5000, 'eur', 'cs_junk_78', 'whatever') $$,
   '23514',
   null,
   'an unknown status is still rejected by the CHECK'

@@ -480,3 +480,26 @@ explicit: `if voting_ends_at is null or now() <= voting_ends_at then raise`.
 
 Asserted by: `supabase/tests/0103_declare_winner.test.sql` — an undeclared window refuses
 `ballot not closed`, and so does a window still open; both before any write.
+
+## `20260618153032_m7_contributions.sql` — anonymous contributions no longer exist
+
+### L8 — "nullable: anonymous contributions allowed"
+
+The column comment described the pre-D24 design. D24 (`docs/FUND-DECISIONS.md`) dropped
+anonymous contributions — `create-contribution-session` mints `metadata.profile_id` from the
+verified caller on every session — and `20260815120318_fund_contribution_profile_not_null.sql`
+(#239) makes the column `NOT NULL` and flips the FK action from `ON DELETE SET NULL` (which
+would now raise 23502 mid-delete) to `ON DELETE RESTRICT`.
+
+### L57 — "anon (null profile_id) excluded (MVP)"
+
+The comment inside `recompute_fund_aggregate` implied `contributor_count` could legitimately
+describe a smaller population than `raised_cents` sums. With `profile_id` nullable that was a
+live defect on the public ticker: an anonymous succeeded row moved the money total but not the
+contributor count. The same #239 migration replaces the function verbatim with the corrected
+comment — the arithmetic never changed; under `NOT NULL` both aggregates describe the same set
+of succeeded rows.
+
+Asserted by: `supabase/tests/0046_fund_contributions_rls.test.sql` — `col_not_null`, a
+service_role insert with a null `profile_id` raises 23502, and `raised_cents` /
+`contributor_count` derive from the same succeeded rows.

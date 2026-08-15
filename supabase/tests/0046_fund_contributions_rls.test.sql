@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(16);
 
 -- two users (the handle_new_user trigger auto-creates their public.profiles rows)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -79,6 +79,26 @@ select results_eq(
      where edition_id = '00000000-0000-0000-0000-0000000000ed' $$,
   $$ values (600::bigint, 2::bigint) $$,
   'aggregate recomputed from succeeded contributions');
+reset role;
+
+-- #239: profile_id is NOT NULL — no anonymous rows, so contributor_count and raised_cents
+-- describe the same set of succeeded contributions (D24: contributions are never anonymous).
+select col_not_null('public', 'fund_contributions', 'profile_id',
+  'profile_id is NOT NULL — anonymous contributions are impossible');
+
+set local role service_role;
+select throws_ok(
+  $$ insert into public.fund_contributions (edition_id, profile_id, amount_cents, stripe_checkout_session_id, status)
+     values ('00000000-0000-0000-0000-0000000000ed', null, 300, 'cs_anon', 'succeeded') $$,
+  '23502', null, 'even service_role cannot insert an anonymous contribution');
+-- recompute after the rejected anon attempt: the aggregate still derives from the same two
+-- member rows — every counted cent belongs to a counted contributor.
+select public.recompute_fund_aggregate('00000000-0000-0000-0000-0000000000ed');
+select results_eq(
+  $$ select raised_cents, contributor_count from public.fund_aggregates
+     where edition_id = '00000000-0000-0000-0000-0000000000ed' $$,
+  $$ values (600::bigint, 2::bigint) $$,
+  'raised_cents and contributor_count describe the same succeeded rows');
 reset role;
 
 -- rule #1: a contribution creates ZERO aura events
