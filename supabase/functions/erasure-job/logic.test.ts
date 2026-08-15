@@ -1,31 +1,46 @@
 // deno test supabase/functions/erasure-job/ — runs in CI (edge job) and locally.
 // Characterization tests for the legal-gated erasure loop: claim → 'processing' →
-// session revoke → 'failed' (intentionally NOT 'done' — the destructive cascade stays
-// commented until the legal gate clears). All db I/O through injected fakes; auth is
-// a recorded capability port (no .auth on the fake db — DI over mocks).
+// session revoke → fund reach (#240: gdpr_erase_fund_footprint rpc + blob removal) →
+// 'failed' (intentionally NOT 'done' — the account cascade stays commented until the
+// legal gate clears, and a partial erasure must never report complete). All db I/O
+// through injected fakes; auth and storage are recorded capability ports (no .auth /
+// .storage on the fake db — DI over mocks).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import { type ErasureCtx, processErasureRequests } from './logic.ts';
 
-type Ctx = ErasureCtx & { db: FakeDb; signedOut: [string, string][] };
+type Ctx = ErasureCtx & { db: FakeDb; signedOut: [string, string][]; removed: string[][] };
 
 const ctx = (
   script: Record<string, FakeResult[]> = {},
-  signOut?: ErasureCtx['auth']['signOut'],
+  overrides: {
+    signOut?: ErasureCtx['auth']['signOut'];
+    remove?: ErasureCtx['storage']['remove'];
+  } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
   const signedOut: [string, string][] = [];
+  const removed: string[][] = [];
   return {
     db,
     auth: {
       signOut:
-        signOut ??
+        overrides.signOut ??
         ((id, scope) => {
           signedOut.push([id, scope]);
           return Promise.resolve();
         }),
     },
+    storage: {
+      remove:
+        overrides.remove ??
+        ((paths) => {
+          removed.push(paths);
+          return Promise.resolve({ error: null });
+        }),
+    },
     signedOut,
+    removed,
   } as unknown as Ctx;
 };
 
@@ -98,8 +113,109 @@ Deno.test(
       ],
     );
 
-    // the destructive cascade is NOT performed while legal-gated: no deletes anywhere.
+    // the ACCOUNT cascade is NOT performed while legal-gated: no PostgREST deletes anywhere.
+    // (The fund reach (#240) is the gdpr_erase_fund_footprint rpc, asserted below — its row
+    // deletes happen inside that DB transaction, never through this client.)
     assert(!c.db.calls.some((k) => k.op === 'delete'));
+
+    // fund reach invoked once per request, keyed to the erased profile.
+    const rpcs = c.db.calls.filter((k) => k.op === 'rpc');
+    assertEquals(
+      rpcs.map((k) => [k.columns, k.values]),
+      [
+        ['gdpr_erase_fund_footprint', { p_profile_id: 'user-1' }],
+        ['gdpr_erase_fund_footprint', { p_profile_id: 'user-2' }],
+      ],
+    );
+  },
+);
+
+Deno.test('fund reach: manifest paths are removed from the candidacy-videos port', async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.gdpr_erase_fund_footprint': [
+      {
+        data: [
+          { bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' },
+          { bucket_id: 'candidacy-videos', name: 'user-1/cand-1-thumb.jpg' },
+        ],
+      },
+    ],
+  });
+  const res = await processErasureRequests(c);
+  assertEquals(res.status, 200);
+
+  // one remove call, both blobs, video + poster together.
+  assertEquals(c.removed, [['user-1/cand-1.mp4', 'user-1/cand-1-thumb.jpg']]);
+  // still legal-gated: the request lands on 'failed', never 'done'.
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('fund reach: empty manifest → no storage call at all', async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.gdpr_erase_fund_footprint': [{ data: [] }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.removed, []);
+});
+
+Deno.test("fund reach rpc error → no blob removal, request still lands on 'failed'", async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [
+      {
+        data: [
+          { id: 'req-1', profile_id: 'user-1' },
+          { id: 'req-2', profile_id: 'user-2' },
+        ],
+      },
+    ],
+    'rpc.gdpr_erase_fund_footprint': [
+      { error: { message: 'db down' } },
+      { data: [{ bucket_id: 'candidacy-videos', name: 'user-2/cand-2.mp4' }] },
+    ],
+  });
+  const res = await processErasureRequests(c);
+  assertEquals(res.status, 200);
+
+  // req-1's manifest never arrived → nothing removed for it; req-2 proceeds normally.
+  assertEquals(c.removed, [['user-2/cand-2.mp4']]);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed', 'processing', 'failed'],
+  );
+});
+
+Deno.test(
+  'storage.remove rejection is swallowed — loop continues to the next request',
+  async () => {
+    const c = ctx(
+      {
+        'gdpr_erasure_requests.select': [
+          {
+            data: [
+              { id: 'req-1', profile_id: 'user-1' },
+              { id: 'req-2', profile_id: 'user-2' },
+            ],
+          },
+        ],
+        'rpc.gdpr_erase_fund_footprint': [
+          { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
+          { data: [{ bucket_id: 'candidacy-videos', name: 'user-2/cand-2.mp4' }] },
+        ],
+      },
+      { remove: () => Promise.reject(new Error('storage down')) },
+    );
+    const res = await processErasureRequests(c);
+    assertEquals(res.status, 200);
+    // both requests still reach their terminal status despite the dead Storage API.
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed', 'processing', 'failed'],
+    );
   },
 );
 
@@ -117,7 +233,7 @@ Deno.test(
           },
         ],
       },
-      () => Promise.reject(new Error('gotrue down')),
+      { signOut: () => Promise.reject(new Error('gotrue down')) },
     );
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);

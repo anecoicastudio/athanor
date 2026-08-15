@@ -2810,6 +2810,14 @@ export type Database = {
       }
       f_unaccent: { Args: { "": string }; Returns: string }
       fund_edition_open: { Args: never; Returns: boolean }
+      gdpr_erase_fund_footprint: {
+        Args: { p_profile_id: string }
+        Returns: {
+          bucket_id: string
+          name: string
+        }[]
+      }
+      gdpr_tombstone_profile_id: { Args: never; Returns: string }
       get_momenti_deck: {
         Args: never
         Returns: {
