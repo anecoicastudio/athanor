@@ -1152,6 +1152,8 @@
   "candidacy.edit.cta": "Edit your candidacy",
   "candidacy.edit.submit": "Save your changes",
   "candidacy.edit.toast": "Candidacy updated ✦",
+  "candidacy.resubmit.cta": "Candidate your dream again",
+  "candidacy.resubmit.hint": "Start again from what you wrote last cycle. You'll need a new video.",
   "candidacy.error.update": "We couldn't save your changes. Try again.",
   "candidacy.continue": "Continue",
   "candidacy.submit": "Submit your candidacy",

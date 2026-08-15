@@ -9,6 +9,7 @@ import {
   getActiveDream,
   getActiveEdition,
   getMyCandidacy,
+  getMyLatestPriorCandidacy,
   submitCandidacy,
   updateCandidacy,
 } from '@athanor/api';
@@ -52,14 +53,21 @@ const TOTAL_STEPS = 7;
  * form and submit becomes updateCandidacy. It is never entered automatically — annual.tsx
  * offers it only while the row is still 'submitted' (the RLS update window,
  * dream_candidacies_update_own_submitted) and the candidacy window is open.
+ *
+ * `?resubmit=1` is FUND-35's cross-cycle half (#221): the member's most recent candidacy
+ * from a closed prior cycle prefills the TEXT of a fresh submit — a prior-cycle row is
+ * terminal ('voided'/'rejected'/'winner'), so submit stays submitCandidacy and a new video
+ * is required (the old object belongs to the old candidacy's storage key). Explicit here
+ * too: annual.tsx offers it only when no current-cycle candidacy exists.
  */
 export default function CandidacyWizard() {
   const router = useRouter();
   const { profile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const uid = profile?.id ?? '';
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const { edit, resubmit } = useLocalSearchParams<{ edit?: string; resubmit?: string }>();
   const editing = edit === '1';
+  const resubmitting = !editing && resubmit === '1';
 
   const editionQuery = useQuery({
     queryKey: fundKeys.activeEdition(),
@@ -67,11 +75,17 @@ export default function CandidacyWizard() {
   });
   const edition = editionQuery.data ?? null;
 
-  // Edit mode only: the row that prefills the form. Never fetched on a fresh submit.
+  // Edit/resubmit mode only: the row that prefills the form. Never fetched on a fresh
+  // submit. Edit reads the current cycle's own row; resubmit the latest prior-cycle one.
   const mineQuery = useQuery({
-    queryKey: candidacyKeys.mine(edition?.id ?? ''),
-    queryFn: () => getMyCandidacy(supabase, edition!.id, uid),
-    enabled: editing && !!edition && uid !== '',
+    queryKey: editing
+      ? candidacyKeys.mine(edition?.id ?? '')
+      : candidacyKeys.priorMine(edition?.id ?? ''),
+    queryFn: () =>
+      editing
+        ? getMyCandidacy(supabase, edition!.id, uid)
+        : getMyLatestPriorCandidacy(supabase, edition!.id, uid),
+    enabled: (editing || resubmitting) && !!edition && uid !== '',
   });
 
   const windowClosed = editionQuery.isSuccess && (!edition || !edition.candidacy_window_open);
@@ -90,7 +104,7 @@ export default function CandidacyWizard() {
     );
   }
 
-  if (editing && mineQuery.isError) {
+  if ((editing || resubmitting) && mineQuery.isError) {
     return (
       <Screen className="items-center justify-center px-8">
         <Text className="text-center text-[15px] text-muted-foreground">
@@ -107,9 +121,9 @@ export default function CandidacyWizard() {
     );
   }
 
-  // Edit mode waits for the row so the form MOUNTS prefilled — state initializers, no
-  // prefill effects racing the member's typing.
-  if (editing && mineQuery.data === undefined) {
+  // Edit/resubmit mode waits for the row so the form MOUNTS prefilled — state
+  // initializers, no prefill effects racing the member's typing.
+  if ((editing || resubmitting) && mineQuery.data === undefined) {
     return (
       <Screen className="items-center justify-center">
         <ActivityIndicator color={semantic.aura} />
@@ -117,14 +131,25 @@ export default function CandidacyWizard() {
     );
   }
 
-  return <WizardForm initial={editing ? (mineQuery.data ?? null) : null} edition={edition} />;
+  // A resubmit deep link with no prior row degrades to the plain fresh wizard.
+  return (
+    <WizardForm
+      initial={editing || resubmitting ? (mineQuery.data ?? null) : null}
+      mode={editing ? 'edit' : 'fresh'}
+      edition={edition}
+    />
+  );
 }
 
 function WizardForm({
   initial,
+  mode,
   edition,
 }: {
   initial: DreamCandidacy | null;
+  /** 'edit' = same-cycle update (#226); 'fresh' = new row, prefilled when `initial` is a
+   *  prior-cycle candidacy (#221) — the video never stands on a fresh submit. */
+  mode: 'edit' | 'fresh';
   edition: FundEdition | null;
 }) {
   const router = useRouter();
@@ -151,8 +176,10 @@ function WizardForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Edit mode passes the existing id so a replacement video overwrites the same storage key.
-  const upload = useCandidacyUpload(uid, initial?.id);
+  // Edit mode passes the existing id so a replacement video overwrites the same storage
+  // key. A prefilled fresh submit (#221) gets a NEW id: the row is new and the prior
+  // cycle's video object stays under the old candidacy's key, untouched.
+  const upload = useCandidacyUpload(uid, mode === 'edit' ? initial?.id : undefined);
 
   // The author's single active dream — the only dream the wizard offers to link (D12);
   // RLS re-checks ownership server-side either way.
@@ -171,8 +198,11 @@ function WizardForm({
   const budgetValid =
     budgetCents !== null && minViableCents !== null && minViableCents <= budgetCents;
 
-  // Edit mode: the stored video stands until a replacement finishes uploading.
-  const hasVideo = upload.status === 'done' || (initial !== null && upload.status !== 'uploading');
+  // Edit mode: the stored video stands until a replacement finishes uploading. On a
+  // prefilled fresh submit the prior cycle's video never stands — a new one is required.
+  const hasVideo =
+    upload.status === 'done' ||
+    (mode === 'edit' && initial !== null && upload.status !== 'uploading');
 
   // Whether the user can advance from the current step.
   const canAdvance = useMemo(() => {
@@ -219,14 +249,26 @@ function WizardForm({
       setError(t('candidacy.idGate', locale));
       return;
     }
-    const videoPath = upload.videoPath ?? initial?.video_url ?? null;
+    // The stored video/poster back a fresh submit never (#221): they live under the prior
+    // candidacy's storage key and the new row must own its own object.
+    const videoPath = upload.videoPath ?? (mode === 'edit' ? (initial?.video_url ?? null) : null);
     if (!edition || !videoPath || budgetCents === null || minViableCents === null) return;
     // A replaced video invalidates the stored poster; an untouched one keeps it.
-    const thumbPath = upload.videoPath ? upload.thumbPath : (initial?.thumb_path ?? null);
-    const dreamId = linkDream ? (initial?.dream_id ?? activeDream?.id ?? null) : null;
+    const thumbPath = upload.videoPath
+      ? upload.thumbPath
+      : mode === 'edit'
+        ? (initial?.thumb_path ?? null)
+        : null;
+    // A prior-cycle dream_id may point at a retired dream — a fresh submit links only the
+    // author's CURRENT active dream (D12); RLS re-checks ownership either way.
+    const dreamId = linkDream
+      ? mode === 'edit'
+        ? (initial?.dream_id ?? activeDream?.id ?? null)
+        : (activeDream?.id ?? null)
+      : null;
     setSubmitting(true);
     try {
-      if (initial) {
+      if (mode === 'edit' && initial) {
         await updateCandidacy(supabase, initial.id, {
           story: story.trim(),
           goal: goal.trim(),
@@ -266,7 +308,7 @@ function WizardForm({
         router.replace('/(modal)/candidacy-success');
       }
     } catch {
-      setError(t(initial ? 'candidacy.error.update' : 'candidacy.error.submit', locale));
+      setError(t(mode === 'edit' ? 'candidacy.error.update' : 'candidacy.error.submit', locale));
       setSubmitting(false);
     }
   };
@@ -364,7 +406,7 @@ function WizardForm({
                   onCancel={upload.cancel}
                 />
                 {/* Edit mode: the stored video stands unless a replacement lands. */}
-                {initial && upload.status !== 'done' ? (
+                {mode === 'edit' && initial && upload.status !== 'done' ? (
                   <Text className="text-[12px] leading-[18px] text-faint">
                     {t('candidacy.step4.keepHint', locale)}
                   </Text>
@@ -454,7 +496,7 @@ function WizardForm({
                 {/* Optional link to the author's own personal dream (#226, D12/FUND-50). */}
                 <View className="gap-3">
                   <SectionLabel>{t('candidacy.dream.label', locale)}</SectionLabel>
-                  {activeDream || initial?.dream_id ? (
+                  {activeDream || (mode === 'edit' && initial?.dream_id) ? (
                     <View className="gap-3">
                       <View className="flex-row flex-wrap gap-3">
                         <Chip
@@ -500,7 +542,7 @@ function WizardForm({
             variant="light"
             label={
               isLast
-                ? t(initial ? 'candidacy.edit.submit' : 'candidacy.submit', locale)
+                ? t(mode === 'edit' ? 'candidacy.edit.submit' : 'candidacy.submit', locale)
                 : t('candidacy.continue', locale)
             }
             disabled={submitting || upload.status === 'uploading'}

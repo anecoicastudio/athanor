@@ -1264,6 +1264,7 @@ export type Database = {
       fund_editions: {
         Row: {
           candidacy_window_open: boolean
+          carried_from_edition_id: string | null
           carried_in_cents: number
           closure_reason: string | null
           confirmed_pool_cents: number | null
@@ -1287,6 +1288,7 @@ export type Database = {
         }
         Insert: {
           candidacy_window_open?: boolean
+          carried_from_edition_id?: string | null
           carried_in_cents?: number
           closure_reason?: string | null
           confirmed_pool_cents?: number | null
@@ -1310,6 +1312,7 @@ export type Database = {
         }
         Update: {
           candidacy_window_open?: boolean
+          carried_from_edition_id?: string | null
           carried_in_cents?: number
           closure_reason?: string | null
           confirmed_pool_cents?: number | null
@@ -1332,6 +1335,13 @@ export type Database = {
           winner_confirmed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fund_editions_carried_from_edition_id_fkey"
+            columns: ["carried_from_edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fund_editions_winner_candidacy_fk"
             columns: ["winner_candidacy_id"]
@@ -2767,6 +2777,27 @@ export type Database = {
         Returns: undefined
       }
       claim_event_seat: { Args: { p_event_id: string }; Returns: string }
+      close_cycle: {
+        Args: {
+          p_cost_fee_statement: string
+          p_edition_id: string
+          p_equity_declared: string
+          p_evidence: string
+          p_goal_cents: number
+          p_min_candidacies: number
+          p_min_funding_cents: number
+          p_min_voters: number
+          p_outcome: string
+          p_released_cents: number
+          p_split_pct: number
+          p_target_at: string
+        }
+        Returns: {
+          carried_in_cents: number
+          closure_reason: string
+          successor_id: string
+        }[]
+      }
       confirm_milestone_help: {
         Args: { p_help_id: string }
         Returns: undefined
@@ -2857,6 +2888,21 @@ export type Database = {
       }
       f_unaccent: { Args: { "": string }; Returns: string }
       fund_edition_open: { Args: never; Returns: boolean }
+      fund_rollover_successor: {
+        Args: {
+          p_carried_in_cents: number
+          p_cost_fee_statement: string
+          p_equity_declared: string
+          p_goal_cents: number
+          p_min_candidacies: number
+          p_min_funding_cents: number
+          p_min_voters: number
+          p_predecessor_id: string
+          p_split_pct: number
+          p_target_at: string
+        }
+        Returns: string
+      }
       gdpr_erase_fund_footprint: {
         Args: { p_profile_id: string }
         Returns: {
@@ -2992,6 +3038,23 @@ export type Database = {
       respond_to_connection: {
         Args: { p_accept: boolean; p_request_id: string }
         Returns: undefined
+      }
+      rollover_voided: {
+        Args: {
+          p_cost_fee_statement: string
+          p_edition_id: string
+          p_equity_declared: string
+          p_goal_cents: number
+          p_min_candidacies: number
+          p_min_funding_cents: number
+          p_min_voters: number
+          p_split_pct: number
+          p_target_at: string
+        }
+        Returns: {
+          carried_in_cents: number
+          successor_id: string
+        }[]
       }
       run_momenti_matcher: { Args: never; Returns: number }
       screen_candidacy: {
