@@ -16,6 +16,26 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260815205504_payout_accounts.sql:9-10` — "Written ONLY by the stripe-webhook `account.updated` branch" is one writer short
+
+The header (and the `comment on table` at L30, plus "The webhook writes as `service_role`" at
+L51) names the webhook as the table's only writer. The **initial row** is written by
+`create-payout-onboarding` (#246): reuse semantics need a durable
+`{profile_id, stripe_account_id}` pointer at account-creation time — waiting for the first
+`account.updated` event would leave a window in which a retry mints a second Express account
+for the same profile. So the function inserts the pointer row through the service-role client
+(the table's SRW posture is unchanged — clients still have no write path), and the webhook
+remains the only writer of the **state** columns (`charges_enabled`, `payouts_enabled`,
+`onboarded_at`).
+
+Verified behaviour lives in `supabase/functions/create-payout-onboarding/logic.test.ts` (the
+insert carries only the two pointer columns; the 23505 race re-reads the winner) and
+`supabase/functions/stripe-webhook/handlers.test.ts` (W13 — flags both directions,
+`onboarded_at` set-once, unmatched account acked). Client denial is unchanged and stays
+asserted by `supabase/tests/0111_payout_accounts_rls.test.sql`.
+
+---
+
 ## `20260815183252_fund_announcement.sql:22-27` — "the pool only grows" is false
 
 The header's composition argument — voters fixed at ballot close **and the pool only
