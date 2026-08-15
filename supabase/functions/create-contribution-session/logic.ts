@@ -32,6 +32,20 @@ export function isValidContributionAmount(amountCents: number): boolean {
 }
 
 /**
+ * Phases that accept contributions (D34 / PRD §4.11): from cycle open through closure,
+ * realization included — post-snapshot money lands in the same cycle and carries forward.
+ * Anything not listed (`closed`, or a phase this build does not know) refuses before
+ * Stripe is ever called — money code fails closed.
+ */
+export const CONTRIBUTION_OPEN_PHASES: readonly string[] = [
+  'candidacy',
+  'screening',
+  'voting',
+  'announcement',
+  'realization',
+];
+
+/**
  * Pure params builder. The amount is the SERVER-VALIDATED value (never Stripe-trusted
  * blindly); metadata.kind routes the shared webhook (W3); profile_id is the verified caller.
  */
@@ -62,8 +76,8 @@ export function buildContributionSessionParams(
 
 /**
  * Gates in order: amount floor (≥ €1, integer) → edition exists → contributions_enabled
- * re-asserted (the app shouldn't have called when off). The contribution row + aggregate
- * are written by the webhook (W3), never here.
+ * re-asserted (the app shouldn't have called when off) → contribution window (D34: open
+ * phases only). The contribution row + aggregate are written by the webhook (W3), never here.
  */
 export async function createContributionSession(
   ctx: ContributionSessionCtx,
@@ -84,6 +98,10 @@ export async function createContributionSession(
   if (edErr) return error('edition lookup failed', 500);
   if (!edition) return error('edition not found', 404);
   if (!edition.contributions_enabled) return error('contributions are not open', 403);
+  // D34 window: a closed (or unknown) phase refuses before Stripe. These `{error}`
+  // strings are the stable contract the screen maps to copy (#103 idiom) — a window
+  // refusal must never read as a payment failure.
+  if (!CONTRIBUTION_OPEN_PHASES.includes(edition.phase)) return error('the cycle is closed', 403);
 
   try {
     const session = await createCheckoutSession(

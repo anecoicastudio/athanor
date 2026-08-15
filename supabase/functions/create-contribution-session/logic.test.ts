@@ -7,6 +7,7 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 import type Stripe from 'npm:stripe@22';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import {
+  CONTRIBUTION_OPEN_PHASES,
   createContributionSession,
   isValidContributionAmount,
   type ContributionSessionCtx,
@@ -18,7 +19,9 @@ const EDITION = 'ed-1';
 const editionRow = (over: Record<string, unknown> = {}) => ({
   id: EDITION,
   contributions_enabled: true,
-  phase: 'contributions',
+  // A real open phase from the #372 six-value CHECK — the old 'contributions'
+  // placeholder was never a valid value and now trips the D34 window gate.
+  phase: 'voting',
   ...over,
 });
 
@@ -102,6 +105,45 @@ Deno.test('contributions_enabled false → 403, Stripe never called', async () =
   assertEquals(res.status, 403);
   assertEquals(body, { error: 'contributions are not open' });
   assertEquals(c.created.length, 0);
+});
+
+// ── contribution window (#222 / D34) ─────────────────────────────────────────
+
+Deno.test('no open cycle (stale edition id) → 404, Stripe never called', async () => {
+  const c = ctx({ 'fund_editions.select': [{ data: null }] });
+  const { res, body } = await run(c, 100);
+  assertEquals(res.status, 404);
+  assertEquals(body, { error: 'edition not found' });
+  assertEquals(c.created.length, 0);
+});
+
+Deno.test("closed phase → 403 'the cycle is closed', Stripe never called", async () => {
+  // 'closed' is the six-value CHECK's terminal phase; 'contributions' pins the
+  // fail-closed branch — an unknown phase refuses too, it never reaches Stripe.
+  for (const phase of ['closed', 'contributions']) {
+    const c = ctx({ 'fund_editions.select': [{ data: editionRow({ phase }) }] });
+    const { res, body } = await run(c, 100);
+    assertEquals(res.status, 403);
+    assertEquals(body, { error: 'the cycle is closed' });
+    assertEquals(c.created.length, 0);
+  }
+});
+
+Deno.test('every open phase accepts — candidacy through realization (D34)', async () => {
+  assertEquals(CONTRIBUTION_OPEN_PHASES, [
+    'candidacy',
+    'screening',
+    'voting',
+    'announcement',
+    'realization',
+  ]);
+  for (const phase of CONTRIBUTION_OPEN_PHASES) {
+    const c = ctx({ 'fund_editions.select': [{ data: editionRow({ phase }) }] });
+    const { res, body } = await run(c, 100);
+    assertEquals(res.status, 200, `phase ${phase} must accept`);
+    assertEquals(body, { url: 'https://checkout.stripe.test/cs_1' });
+    assertEquals(c.created.length, 1);
+  }
 });
 
 // ── session params + happy path ──────────────────────────────────────────────

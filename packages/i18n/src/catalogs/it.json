@@ -1037,6 +1037,7 @@
   "fund.contribute.pending": "Contributo in arrivo…",
   "fund.contribute.canceled": "Contributo annullato. Quando vuoi, il sogno ti aspetta.",
   "fund.contribute.error": "Non è stato possibile aprire il pagamento. Riprova.",
+  "fund.contribute.cycleClosed": "Il ciclo si è chiuso. Nessun pagamento è partito.",
   "fund.amount.custom": "Altro",
   "fund.amount.customPlaceholder": "da 1€",
   "fund.amount.error": "Il minimo è 1€",

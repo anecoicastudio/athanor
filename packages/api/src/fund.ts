@@ -73,6 +73,22 @@ export function subscribeFundAggregate(
 }
 
 /**
+ * A refusal from create-contribution-session. `code` is the server's `{error}` string —
+ * those strings are the stable contract (#103 idiom); the screen maps them to copy so a
+ * D34 window refusal never reads as a payment failure (#222). Plumbing only: no message
+ * mapping here (rule api.md).
+ */
+export class ContributionSessionError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(`create-contribution-session refused: ${code} (${status})`);
+    this.name = 'ContributionSessionError';
+  }
+}
+
+/**
  * Start a Stripe Checkout for a Dream-Fund contribution via the create-contribution-session edge fn.
  * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only (rule #6):
  * the fund total moves when the webhook (W3) lands → fund_aggregates → the realtime ticker. Never optimistic.
@@ -84,9 +100,25 @@ export async function createContributionSession(
   const res = await client.functions.invoke<unknown>('create-contribution-session', {
     body: { editionId: input.editionId, amountCents: input.amountCents },
   });
-  // supabase-js types FunctionsResponse.error as `any`; every concrete case
-  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
-  if (res.error) throw res.error as Error;
+  if (res.error) {
+    // On a non-2xx, FunctionsHttpError hangs the Response off `.context` — the JSON body is
+    // the only place the server's reason survives. Read it before rethrowing; an unreadable
+    // body (relay/network failure, non-JSON) falls back to the raw error unchanged.
+    const ctx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } })
+      .context;
+    if (ctx && typeof ctx.json === 'function' && typeof ctx.status === 'number') {
+      let code: unknown;
+      try {
+        code = ((await ctx.json()) as { error?: unknown } | null)?.error;
+      } catch {
+        // body unreadable — rethrow the raw error below
+      }
+      if (typeof code === 'string') throw new ContributionSessionError(code, ctx.status);
+    }
+    // supabase-js types FunctionsResponse.error as `any`; every concrete case
+    // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+    throw res.error as Error;
+  }
   const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('contribution checkout did not return a url');
   return { url };
