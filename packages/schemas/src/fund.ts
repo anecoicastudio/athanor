@@ -49,6 +49,9 @@ export const fundEditionSchema = z.object({
   closure_reason: fundClosureReasonSchema.nullable(),
   confirmed_pool_cents: z.number().int().nonnegative().nullable(),
   carried_in_cents: z.number().int().nonnegative(),
+  // #220: when the winner confirmed deliverability at confirmed_pool_cents — NULL until
+  // record_winner_decision('confirm'); stays NULL on a decline (closure_reason says so).
+  winner_confirmed_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

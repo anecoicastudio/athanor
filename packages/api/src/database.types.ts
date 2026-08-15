@@ -1283,6 +1283,7 @@ export type Database = {
           voting_ends_at: string | null
           voting_starts_at: string | null
           winner_candidacy_id: string | null
+          winner_confirmed_at: string | null
         }
         Insert: {
           candidacy_window_open?: boolean
@@ -1305,6 +1306,7 @@ export type Database = {
           voting_ends_at?: string | null
           voting_starts_at?: string | null
           winner_candidacy_id?: string | null
+          winner_confirmed_at?: string | null
         }
         Update: {
           candidacy_window_open?: boolean
@@ -1327,6 +1329,7 @@ export type Database = {
           voting_ends_at?: string | null
           voting_starts_at?: string | null
           winner_candidacy_id?: string | null
+          winner_confirmed_at?: string | null
         }
         Relationships: [
           {
@@ -2814,6 +2817,14 @@ export type Database = {
         Returns: undefined
       }
       ensure_referral_code: { Args: never; Returns: string }
+      enter_announcement: {
+        Args: { p_edition_id: string }
+        Returns: {
+          outcome: string
+          pool_cents: number
+          voters: number
+        }[]
+      }
       event_seats_taken: { Args: { p_event_id: string }; Returns: number }
       events_nearby: {
         Args: {
@@ -2960,6 +2971,10 @@ export type Database = {
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }
         Returns: undefined
+      }
+      record_winner_decision: {
+        Args: { p_decision: string; p_edition_id: string }
+        Returns: string
       }
       release_event_seat: { Args: { p_event_id: string }; Returns: undefined }
       resolve_report: {
