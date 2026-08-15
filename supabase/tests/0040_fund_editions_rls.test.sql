@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(24);
 
 -- structure
 select has_table('public', 'fund_editions', 'fund_editions exists');
@@ -50,6 +50,9 @@ select throws_ok(
 select throws_ok(
   $$update public.fund_editions set phase = 'closed'$$,
   '42501', null, 'authenticated cannot update a cycle');
+select throws_ok(
+  $$update public.fund_editions set winner_candidacy_id = gen_random_uuid()$$,
+  '42501', null, 'authenticated cannot write winner_candidacy_id (#219 — only declare_winner does)');
 select throws_ok(
   $$delete from public.fund_editions$$,
   '42501', null, 'authenticated cannot delete a cycle');

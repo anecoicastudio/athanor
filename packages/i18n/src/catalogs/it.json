@@ -1284,6 +1284,7 @@
   "admin.action.penalty": "Penalità",
   "admin.action.suspend": "Sospensione",
   "admin.action.ban": "Bannato",
+  "admin.action.declare_winner": "Vincitore dichiarato",
   "admin.waitlist.title": "Lista d'attesa",
   "admin.waitlist.count": "persone in attesa",
   "admin.waitlist.empty": "Ancora nessuna iscrizione.",

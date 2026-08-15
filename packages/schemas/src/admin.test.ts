@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveReportInput } from './admin';
+import { auditLogRow, resolveReportInput } from './admin';
 
 describe('resolveReportInput', () => {
   it('accepts a dismiss verdict without severity', () => {
@@ -118,6 +118,50 @@ describe('resolveReportInput', () => {
         verdict: 'uphold',
         action: 'penalty',
         resolution: 'x',
+      }),
+    ).toThrow();
+  });
+});
+
+// #219 — audit_log holds two shapes now; the mirror must accept both and nothing else.
+describe('auditLogRow', () => {
+  const base = {
+    id: crypto.randomUUID(),
+    penalty_points: null,
+    reason: null,
+    created_at: new Date().toISOString(),
+  };
+  it('accepts a moderation row (report + actor set, no fund columns)', () => {
+    const v = auditLogRow.parse({
+      ...base,
+      report_id: crypto.randomUUID(),
+      actor_id: crypto.randomUUID(),
+      action: 'dismiss',
+      edition_id: null,
+      candidacy_id: null,
+    });
+    expect(v.action).toBe('dismiss');
+  });
+  it('accepts a declare_winner row (edition set, no report, no user actor)', () => {
+    const v = auditLogRow.parse({
+      ...base,
+      report_id: null,
+      actor_id: null,
+      action: 'declare_winner',
+      edition_id: crypto.randomUUID(),
+      candidacy_id: crypto.randomUUID(),
+    });
+    expect(v.action).toBe('declare_winner');
+  });
+  it('rejects an unknown action', () => {
+    expect(() =>
+      auditLogRow.parse({
+        ...base,
+        report_id: null,
+        actor_id: null,
+        action: 'declare_realized',
+        edition_id: crypto.randomUUID(),
+        candidacy_id: null,
       }),
     ).toThrow();
   });
