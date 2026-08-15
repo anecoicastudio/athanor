@@ -33,6 +33,14 @@ const nextConfig: NextConfig = {
         source: '/.well-known/assetlinks.json',
         destination: '/api/well-known/assetlinks',
       },
+      // Universal-link fallback (#268): every /post/{id} serves the one static
+      // invitation shell. A rewrite, not a `[id]` segment — the copy is
+      // id-independent, and a dynamic segment would cache one permanent KV
+      // entry per arbitrary string instead of exactly one for the whole path.
+      {
+        source: '/post/:id',
+        destination: '/post',
+      },
     ];
   },
 };
