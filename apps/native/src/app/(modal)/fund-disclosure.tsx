@@ -117,7 +117,13 @@ export default function FundDisclosureScreen() {
             </Text>
             {block.facts.map((fact) => (
               <Text key={fact} className="text-[14px] leading-5 text-foreground">
-                {t(fact, locale)}
+                {fact === 'fund.disclose.retains.percent'
+                  ? // The declared per-cycle figure itself (#232, D15) — `split_pct` is NOT NULL
+                    // and frozen at open, so the number shown is the number that governs. The
+                    // em-dash only appears during a direct-deep-link refetch, when the CTA is
+                    // disabled anyway.
+                    t(fact, locale, { percent: edition ? String(edition.split_pct) : '—' })
+                  : t(fact, locale)}
               </Text>
             ))}
           </View>

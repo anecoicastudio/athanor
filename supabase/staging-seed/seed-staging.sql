@@ -752,12 +752,19 @@ on conflict do nothing;
 -- ---------------------------------------------------------------------------------
 insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
                                   voting_starts_at, voting_ends_at,
-                                  min_funding_cents, min_voters, min_candidacies)
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
 values (md5('fundedition:2027')::uuid,
         (date_trunc('year', now()) + interval '1 year' + interval '5 months')::timestamptz,
         5000000, 'voting', true, true,
         now() - interval '7 days', now() + interval '23 days',
-        100000, 5, 3)
+        100000, 5, 3,
+        -- Cycle-one declarations (#232, D16): 10% knowingly subsidised, equity none.
+        -- Same values 20260815155811 backfilled into the pre-existing row; frozen at open,
+        -- so a re-run can only ever re-create them identically, never amend them.
+        10,
+        'Per questo ciclo Athanor trattiene il 10%. La percentuale copre solo in parte i costi operativi e le commissioni di pagamento; la differenza è volutamente a carico di Athanor. I costi reali sono pubblicati nel report di fine ciclo.',
+        'Nessuna partecipazione societaria nel progetto per questo ciclo.')
 on conflict do nothing;
 
 -- `video_url` is misnamed: it holds a STORAGE KEY in the candidacy-videos bucket, not a URL.

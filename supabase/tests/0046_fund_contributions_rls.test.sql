@@ -24,8 +24,10 @@ select policies_are('public', 'fund_contributions', array['fund_contributions_se
 -- seed an edition + two succeeded contributions (service_role — the sole writer)
 set local role service_role;
 insert into public.fund_editions (id, target_at, goal_cents, contributions_enabled,
-                                  min_funding_cents, min_voters, min_candidacies)
-  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '10 days', 1000000, true, 100000, 5, 3);
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
+  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '10 days', 1000000, true, 100000, 5, 3,
+          10, 'fixture costs statement', 'none');
 insert into public.fund_contributions (edition_id, profile_id, amount_cents, stripe_checkout_session_id, status)
   values
    ('00000000-0000-0000-0000-0000000000ed','11111111-1111-1111-1111-111111111111',100,'cs_a','succeeded'),

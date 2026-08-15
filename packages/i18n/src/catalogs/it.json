@@ -1066,7 +1066,7 @@
   "fund.disclose.ifFails.winnerDeclines": "Se chi vince rinuncia perché il sogno non è realizzabile, il ciclo viene annullato e il denaro resta nel fondo, per il ciclo successivo.",
   "fund.disclose.ifFails.shortBudget": "Se il fondo chiude sotto il budget, il sogno viene ricalibrato sul denaro che c'è davvero.",
   "fund.disclose.retains.title": "Cosa trattiene Athanor",
-  "fund.disclose.retains.percent": "La percentuale trattenuta è dichiarata in anticipo, per questo ciclo.",
+  "fund.disclose.retains.percent": "Athanor trattiene il {percent}% per questo ciclo. La percentuale è dichiarata in anticipo e non cambia.",
   "fund.disclose.retains.equity": "Un'eventuale partecipazione al progetto è dichiarata in anticipo e regolata con strumenti legali adeguati.",
   "fund.disclose.compliance.title": "Conformità normativa",
   "fund.disclose.compliance.law": "Tutta l'attività si svolge nel rispetto delle leggi applicabili.",

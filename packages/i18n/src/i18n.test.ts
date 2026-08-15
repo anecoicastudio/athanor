@@ -145,6 +145,13 @@ describe('fund pre-payment disclosure (FUND-18, #235)', () => {
     expect(en['fund.disclose.cta']).toContain('{amt}');
   });
 
+  test('the retained-percentage fact carries the per-cycle number in both locales (#232)', () => {
+    // D15: the percentage is per-cycle DATA, frozen at open — the consent copy renders the
+    // declared figure itself, not an abstract promise that a figure exists somewhere.
+    expect(it['fund.disclose.retains.percent']).toContain('{percent}');
+    expect(en['fund.disclose.retains.percent']).toContain('{percent}');
+  });
+
   test('the reset is stated conditionally — a void carries forward, never a flat azzeramento', () => {
     // FUND-SPEC §3: sourcing §17's «al termine del ciclo il contatore viene azzerato» would
     // misstate the shipped rule (FUND-32: reset on realization only) on the one screen counsel
