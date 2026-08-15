@@ -23,6 +23,7 @@ type Posture = 'user' | 'internal' | 'webhook';
  * function cannot dodge those tests by not matching a filename prefix (issue #271, was #141).
  */
 export const POSTURE: Record<string, Posture> = {
+  'announce-cycle': 'internal',
   'check-in': 'user',
   'create-circle-checkout': 'user',
   'create-circle-portal': 'user',

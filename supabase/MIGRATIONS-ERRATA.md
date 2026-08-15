@@ -16,6 +16,26 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260815183252_fund_announcement.sql:22-27` — "the pool only grows" is false
+
+The header's composition argument — voters fixed at ballot close **and the pool only
+grows**, so a cycle that passed `enter_announcement()`'s checks can never be refused by
+`declare_winner()`'s — overstates half of its premise. `reverseContribution`
+(`stripe-webhook/handlers.ts`, on `charge.refunded` / dispute) flips a `fund_contributions`
+row from `'succeeded'` to `'refunded'` at any moment, with no phase gate, so the settled sum
+can shrink between any two reads. The voters half stands: votes have no reversal path.
+
+`20260815185445_fund_announcement_refund_consistency.sql` replaces both functions to
+survive this: `enter_announcement`'s void branch also retires a pre-declared `'winner'`
+row, and `declare_winner`'s floor check reads `confirmed_pool_cents` once the snapshot
+exists (D34's basis) instead of the live sum.
+
+Verified behaviour lives in `supabase/tests/0109_fund_announcement.test.sql` — edition 5
+(declare → refund → entry voids, winner retired), edition 6 (announce → refund →
+declaration still lands on the snapshot).
+
+---
+
 ## `20260616123408_conversations_messages.sql:57` — "NULL for system/prompt" is no longer the whole truth
 
 The inline comment on `messages.sender_id` (`-- NULL for system/prompt`) described the only

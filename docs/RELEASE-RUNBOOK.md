@@ -269,4 +269,52 @@ Full gate definitions live in `10-m10-launch.md` §10. Summary for go/no-go sign
 
 ---
 
+## 9. Fund cycle 1 — operator runbook (D41)
+
+D41: screening, declaration and the announcement transitions ship as **service-role edge
+functions first**; the admin panel comes later, so cycle 1 is operated from here. Every call
+below is a POST with the `sb_secret_…` key on the **`apikey`** header (never `Authorization` —
+the platform would parse it as a JWT), against `https://<ref>.supabase.co/functions/v1/<fn>`.
+Each function's SQL transition is atomic and refuses (4xx, no write) rather than half-applying;
+a 502 is a failure to investigate, not a refusal. Zero Aura from any of these (rule #1).
+
+### 9.1 Screening (#218)
+
+`screen-candidacy` — body `{ "candidacyId": "<uuid>", "decision": "start|pass|reject|reopen", "reasons": ["<code>"] }`
+(`reasons` only with `reject`, codes from `screening_criteria`). Refused once the ballot opens (D4).
+
+### 9.2 Ballot close → announcement (#219, #220)
+
+Run **after `voting_ends_at` has passed**, in this order:
+
+1. **`announce-cycle`** with `{ "editionId": "<uuid>", "op": "enter" }` — the two-part
+   shortfall gate. Response `outcome`:
+   - `announced` — the pool is snapshotted into `confirmed_pool_cents` (the figure the winner
+     confirms viability at; it never changes afterwards). Contributions keep flowing (D34).
+   - `voided_quorum` / `voided_underfunded` — the cycle is **closed** with that published
+     reason, candidacies go terminal `voided`, and there is nothing further to run this
+     cycle; the pool carries into the successor at #221's rollover. Stop here.
+2. **`declare-winner`** with `{ "editionId": "<uuid>" }` — writes the winner from the tally
+   (D7 tie order). Legal before or after step 1; its own quorum/floor refusals cannot fire
+   once step 1 announced.
+3. **The winner's viability decision** — relay it with `announce-cycle`,
+   `op: "confirm"` or `op: "decline"`, once the winner has answered against the
+   `confirmed_pool_cents` figure (FUND-42: deliverable at that amount, or not):
+   - `confirm` → `winner_confirmed_at` is stamped; realization planning proceeds (#228/#229).
+   - `decline` → the cycle closes `voided_declined`, the whole field (winner included) goes
+     `voided`, **no runner-up is promoted** — a re-submission in the successor cycle is the
+     member's explicit choice. The confirmation is the point of no return: a recorded
+     `confirm` cannot be followed by a decline (withdrawing later is #221's failure path).
+
+Every transition writes an `audit_log` row (`announce`, `void_cycle`, `winner_confirm`,
+`winner_decline`, `declare_winner`, `screen_*`) — the §20 report reads from there.
+
+### 9.3 Closure and rollover (#221 — not yet built)
+
+Voids above leave the cycle at its terminal state; creating the successor cycle and moving
+the pool into its `carried_in_cents` is #221's transaction. Until #221 lands there is no
+rollover step to run.
+
+---
+
 _Generated for M10 beta-store-submission slice · 2026-06-21_

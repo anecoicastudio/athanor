@@ -26,6 +26,7 @@ const validEdition = {
   closure_reason: null,
   confirmed_pool_cents: null,
   carried_in_cents: 0,
+  winner_confirmed_at: null,
   created_at: '2026-06-17T00:00:00.000Z',
   updated_at: '2026-06-17T00:00:00.000Z',
 };
@@ -107,6 +108,20 @@ describe('fundEditionSchema', () => {
     expect(fundEditionSchema.safeParse({ ...validEdition, carried_in_cents: 250000 }).success).toBe(
       true,
     );
+  });
+  // #220: the confirmation stamp — present as a key, null until the winner confirms.
+  it('requires winner_confirmed_at as a nullable timestamp key (#220)', () => {
+    const { winner_confirmed_at: _w, ...bare } = validEdition;
+    expect(fundEditionSchema.safeParse(bare).success).toBe(false);
+    expect(
+      fundEditionSchema.safeParse({
+        ...validEdition,
+        winner_confirmed_at: '2027-05-02T12:00:00.000Z',
+      }).success,
+    ).toBe(true);
+    expect(
+      fundEditionSchema.safeParse({ ...validEdition, winner_confirmed_at: 1746187200 }).success,
+    ).toBe(false);
   });
 });
 
