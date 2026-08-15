@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(61);
+select plan(57);
 
 -- #221 — closure and rollover: close_cycle() and rollover_voided(), every way they refuse,
 -- the carry arithmetic in each closure reason, and the one-active invariant held through
@@ -15,9 +15,11 @@ select plan(61);
 -- via format().
 
 -- ── structure ───────────────────────────────────────────────────────────────────────────
+-- No released parameter since #247: on realization_failed the disbursed figure is read
+-- from fund_payout_ledger (released-net), never operator-typed.
 select has_function('public', 'close_cycle',
-  array['uuid','text','text','bigint','timestamptz','bigint','bigint','integer','integer','integer','text','text'],
-  'close_cycle(uuid, outcome, evidence, released, successor…) exists');
+  array['uuid','text','text','timestamptz','bigint','bigint','integer','integer','integer','text','text'],
+  'close_cycle(uuid, outcome, evidence, successor…) exists');
 select has_function('public', 'rollover_voided',
   array['uuid','timestamptz','bigint','bigint','integer','integer','integer','text','text'],
   'rollover_voided(uuid, successor…) exists');
@@ -61,7 +63,7 @@ values
 -- ── refusal: unknown edition, both entry points ─────────────────────────────────────────
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-00000000dead', 'realized', 'e',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
   'P0001', 'edition not found', 'close_cycle refuses an unknown edition');
 select throws_ok(
   $$ select * from public.rollover_voided('01100000-0000-0000-0000-00000000dead',
@@ -84,7 +86,7 @@ insert into public.fund_contributions (edition_id, profile_id, amount_cents, str
 
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', 'e',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
   'P0001', 'closure out of phase', 'a voting cycle cannot be declared over');
 select is(
   (select phase from public.fund_editions where id = '01100000-0000-0000-0000-0000000000e1'),
@@ -98,7 +100,7 @@ reset role;
 
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', 'e',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
   'P0001', 'no winner declared', 'closure needs a declared winner');
 
 insert into public.dream_candidacies
@@ -114,7 +116,7 @@ reset role;
 
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', 'e',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
   'P0001', 'viability not confirmed', 'an unconfirmed winner has nothing to realize or to fail');
 
 set local role service_role;
@@ -125,28 +127,12 @@ reset role;
 
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', '   ',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
   'P0001', 'evidence required', 'the admin act carries its evidence — blank refused');
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'voided', 'e',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
   'P0001', 'unknown outcome', 'the outcome vocabulary is closed');
-select throws_ok(
-  $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', 'e',
-       5, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
-  'P0001', 'released not applicable', 'realized disburses the snapshot — a released amount contradicts it');
-select throws_ok(
-  $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realization_failed', 'e',
-       null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
-  'P0001', 'released required', 'the D33 failure must state what was released');
-select throws_ok(
-  $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realization_failed', 'e',
-       200000, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
-  'P0001', 'released out of range', 'released cannot exceed the snapshot');
-select throws_ok(
-  $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realization_failed', 'e',
-       -1, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
-  'P0001', 'released out of range', 'released cannot be negative');
 select throws_ok(
   $$ select * from public.rollover_voided('01100000-0000-0000-0000-0000000000e1',
        now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $$,
@@ -156,7 +142,7 @@ select throws_ok(
 create temp table clo_a as
   select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized',
     'delivered against the published plan — evidence at D26 publication',
-    null, now() + interval '90 days', 6000000, 50000, 4, 2, 10, 'cycle 2 costs statement', 'none');
+    now() + interval '90 days', 6000000, 50000, 4, 2, 10, 'cycle 2 costs statement', 'none');
 -- temp tables belong to the login role; the service_role fixture blocks below read them
 grant select on clo_a to service_role;
 
@@ -212,13 +198,16 @@ select throws_ok(
   'P0001', 'predecessor not voided', 'a realized cycle already rolled over inside close_cycle');
 select throws_ok(
   format($sq$ select * from public.close_cycle('%s', 'realized', 'e',
-    null, now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $sq$,
+    now() + interval '90 days', 100, 0, 1, 1, 10, 'c', 'e') $sq$,
     (select successor_id from clo_a)),
   'P0001', 'closure out of phase', 'a candidacy-phase successor cannot be declared over');
 
 -- ── S1: the D33 failure, closed from ''realization'', remainder carries ─────────────────
--- carried_in 70000 + raised 10000 − released 30000 = 50000. The live field (winner
--- included) goes terminal 'voided', as on a decline.
+-- carried_in 70000 + raised 10000 − released 30000 = 50000. The released figure is READ
+-- FROM fund_payout_ledger since #247 (never operator-typed): the fixture seeds one
+-- recorded transfer of 33000 with 3000 reversed — released-net 30000, proving the read
+-- nets reversals (#244: a return nets against what remains unreleased). The live field
+-- (winner included) goes terminal 'voided', as on a decline.
 set local role service_role;
 update public.fund_editions
    set phase = 'announcement', confirmed_pool_cents = 50000
@@ -238,12 +227,19 @@ update public.fund_editions
 update public.fund_editions
    set phase = 'realization'
  where id = (select successor_id from clo_a);
+-- the recorded first tranche (what the transfer.created/transfer.reversed arms cache):
+-- pool 50000, split 10 → payable 45000; amount 33000, 3000 reversed → released-net 30000
+insert into public.fund_payout_ledger
+  (edition_id, destination_account_id, amount_cents, reversed_cents,
+   pool_cents, split_pct, payable_cents, status, stripe_transfer_id)
+select successor_id, 'acct_0110_win', 33000, 3000, 50000, 10, 45000, 'released', 'tr_0110_1'
+  from clo_a;
 reset role;
 
 create temp table clo_s1 as
   select * from public.close_cycle((select successor_id from clo_a), 'realization_failed',
     'first tranche released, delivery declared failed (D26 publication)',
-    30000, now() + interval '90 days', 6000000, 50000, 4, 2, 10, 'cycle 3 costs statement', 'none');
+    now() + interval '90 days', 6000000, 50000, 4, 2, 10, 'cycle 3 costs statement', 'none');
 grant select on clo_s1 to service_role;
 
 select is((select clo_s1.closure_reason from clo_s1), 'realization_failed',
@@ -285,7 +281,7 @@ reset role;
 create temp table clo_s2 as
   select * from public.close_cycle((select successor_id from clo_s1), 'realized',
     'delivered; the pool sank below the snapshot after refunds',
-    null, now() + interval '90 days', 6000000, 50000, 5, 2, 10, 'cycle 4 costs statement', 'none');
+    now() + interval '90 days', 6000000, 50000, 5, 2, 10, 'cycle 4 costs statement', 'none');
 grant select on clo_s2 to service_role;
 
 select is((select clo_s2.carried_in_cents from clo_s2), 0::bigint,
@@ -386,7 +382,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"01100000-0000-0000-0000-000000000001","role":"authenticated"}';
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', 'e',
-       null, now(), 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now(), 100, 0, 1, 1, 10, 'c', 'e') $$,
   '42501', null, 'authenticated cannot execute close_cycle');
 select throws_ok(
   $$ select * from public.rollover_voided('01100000-0000-0000-0000-0000000000e1',
@@ -400,7 +396,7 @@ reset role;
 set local role anon;
 select throws_ok(
   $$ select * from public.close_cycle('01100000-0000-0000-0000-0000000000e1', 'realized', 'e',
-       null, now(), 100, 0, 1, 1, 10, 'c', 'e') $$,
+       now(), 100, 0, 1, 1, 10, 'c', 'e') $$,
   '42501', null, 'anon cannot execute close_cycle');
 select throws_ok(
   $$ select * from public.rollover_voided('01100000-0000-0000-0000-0000000000e1',

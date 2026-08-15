@@ -1358,6 +1358,62 @@ export type Database = {
           },
         ]
       }
+      fund_payout_ledger: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          destination_account_id: string
+          edition_id: string
+          id: string
+          payable_cents: number
+          pool_cents: number
+          reversed_cents: number
+          split_pct: number
+          status: string
+          stripe_transfer_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          destination_account_id: string
+          edition_id: string
+          id?: string
+          payable_cents: number
+          pool_cents: number
+          reversed_cents?: number
+          split_pct: number
+          status?: string
+          stripe_transfer_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          destination_account_id?: string
+          edition_id?: string
+          id?: string
+          payable_cents?: number
+          pool_cents?: number
+          reversed_cents?: number
+          split_pct?: number
+          status?: string
+          stripe_transfer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_payout_ledger_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gdpr_erasure_requests: {
         Row: {
           created_at: string
@@ -2836,7 +2892,6 @@ export type Database = {
           p_min_funding_cents: number
           p_min_voters: number
           p_outcome: string
-          p_released_cents: number
           p_split_pct: number
           p_target_at: string
         }

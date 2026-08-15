@@ -21,6 +21,8 @@ import {
   handleInvoiceFailed,
   handleSubscription,
   handleTicketPaid,
+  handleTransferCreated,
+  handleTransferReversed,
   handleWebhook,
   mapSubStatus,
   processEvent,
@@ -610,6 +612,138 @@ Deno.test('handleAccountUpdated throws on a failed write (Stripe must retry)', a
   }
 });
 
+// ── W14/W15: transfer.created / transfer.reversed → fund_payout_ledger (#247) ─
+
+const fundTransfer = (over: Record<string, unknown> = {}) =>
+  ({
+    id: 'tr_1',
+    amount: 4000,
+    amount_reversed: 0,
+    currency: 'eur',
+    destination: 'acct_win',
+    metadata: {
+      kind: 'fund_payout',
+      edition_id: 'ed-1',
+      pool_cents: '10000',
+      split_pct: '10',
+      payable_cents: '9000',
+    },
+    ...over,
+  }) as unknown as Stripe.Transfer;
+
+Deno.test(
+  'handleTransferCreated records the ledger row from the transfer + its basis',
+  async () => {
+    const db = makeFakeDb();
+    await handleTransferCreated(asDb(db), fundTransfer());
+    assertEquals(db.calls.length, 1);
+    const call = db.calls[0];
+    assertEquals(call.table, 'fund_payout_ledger');
+    assertEquals(call.op, 'upsert');
+    assertEquals(call.values, {
+      edition_id: 'ed-1',
+      destination_account_id: 'acct_win',
+      amount_cents: 4000,
+      reversed_cents: 0,
+      currency: 'eur',
+      pool_cents: 10000,
+      split_pct: 10,
+      payable_cents: 9000,
+      status: 'released',
+      stripe_transfer_id: 'tr_1',
+    });
+    // Row-level idempotency: a redelivery (or a second event id for the same transfer)
+    // inserts nothing — same posture as fund_contributions.
+    assertEquals(call.options, { onConflict: 'stripe_transfer_id', ignoreDuplicates: true });
+  },
+);
+
+Deno.test('handleTransferCreated ignores transfers that are not fund payouts', async () => {
+  // #104's ticket payouts and Dashboard manual transfers are not this arm's to record.
+  const db = makeFakeDb();
+  await handleTransferCreated(asDb(db), fundTransfer({ metadata: {} }));
+  await handleTransferCreated(asDb(db), fundTransfer({ metadata: { kind: 'ticket_payout' } }));
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('handleTransferCreated throws on missing basis metadata (fail loud, retry)', async () => {
+  // A row without its declared-retention basis cannot reconcile #234's costs against
+  // #237's figures — never cache it; the unprocessed event is the standing alarm.
+  const base = fundTransfer().metadata as Record<string, string>;
+  for (const patch of [
+    { edition_id: '' },
+    { pool_cents: 'not-a-number' },
+    { split_pct: '' },
+    { payable_cents: '9000.5' },
+  ]) {
+    const db = makeFakeDb();
+    await assertRejects(() =>
+      handleTransferCreated(asDb(db), fundTransfer({ metadata: { ...base, ...patch } })),
+    );
+    assertEquals(db.calls.length, 0);
+  }
+  const db = makeFakeDb();
+  await assertRejects(() => handleTransferCreated(asDb(db), fundTransfer({ destination: null })));
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test(
+  'handleTransferCreated normalises an expanded destination and throws on db error',
+  async () => {
+    const db = makeFakeDb();
+    await handleTransferCreated(asDb(db), fundTransfer({ destination: { id: 'acct_win' } }));
+    assertEquals(
+      (db.calls[0].values as Record<string, unknown>).destination_account_id,
+      'acct_win',
+    );
+
+    const failing = makeFakeDb({ 'fund_payout_ledger.upsert': [{ error: { message: 'boom' } }] });
+    await assertRejects(() => handleTransferCreated(asDb(failing), fundTransfer()));
+  },
+);
+
+Deno.test('handleTransferReversed nets the row — partial stays released, full flips', async () => {
+  for (const [amountReversed, status] of [
+    [1500, 'released'],
+    [4000, 'reversed'],
+  ] as const) {
+    const db = makeFakeDb({ 'fund_payout_ledger.update': [{ data: [{ id: 'row-1' }] }] });
+    await handleTransferReversed(asDb(db), fundTransfer({ amount_reversed: amountReversed }));
+    const call = db.calls[0];
+    assertEquals(call.table, 'fund_payout_ledger');
+    assertEquals(call.op, 'update');
+    assertEquals(call.values, { reversed_cents: amountReversed, status });
+    assertEquals(call.filters, [['eq', 'stripe_transfer_id', 'tr_1']]);
+  }
+});
+
+Deno.test(
+  'handleTransferReversed: unmatched fund reversal throws, foreign reversal acks',
+  async () => {
+    // Stripe does not guarantee order. A fund-kind reversal landing before its
+    // transfer.created must RETRY (acking would lose the reversal when the created arm
+    // later inserts the pre-reversal snapshot); a transfer that is not ours just acks.
+    const fund = makeFakeDb({ 'fund_payout_ledger.update': [{ data: [] }] });
+    await assertRejects(
+      () => handleTransferReversed(asDb(fund), fundTransfer({ amount_reversed: 4000 })),
+      Error,
+      'before its ledger row',
+    );
+
+    const foreign = makeFakeDb({ 'fund_payout_ledger.update': [{ data: [] }] });
+    await handleTransferReversed(
+      asDb(foreign),
+      fundTransfer({ amount_reversed: 4000, metadata: {} }),
+    );
+    assertEquals(foreign.calls.length, 1); // the guarded update ran, matched nothing, acked
+  },
+);
+
+Deno.test('handleTransferReversed throws on a failed write (Stripe must retry)', async () => {
+  const db = makeFakeDb({ 'fund_payout_ledger.update': [{ error: { message: 'boom' } }] });
+  await assertRejects(() => handleTransferReversed(asDb(db), fundTransfer()));
+});
+
 // ── processEvent routing ─────────────────────────────────────────────────────
 
 const routingCtx = (db: FakeDb, retrieved?: Stripe.Subscription) => {
@@ -645,9 +779,16 @@ Deno.test('processEvent routes each event type to the right table', async () => 
       'verifications',
     ],
     ['account.updated', connectAccount(), 'payout_accounts'],
+    ['transfer.created', fundTransfer(), 'fund_payout_ledger'],
+    ['transfer.reversed', fundTransfer({ amount_reversed: 4000 }), 'fund_payout_ledger'],
   ];
   for (const [type, object, table] of cases) {
-    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+    const db = makeFakeDb({
+      'fund_contributions.upsert': [{ count: 1 }],
+      // transfer.reversed throws on a 0-row update for a fund transfer (out-of-order
+      // guard) — script the matched row so routing stays the thing under test here.
+      'fund_payout_ledger.update': [{ data: [{ id: 'row-1' }] }],
+    });
     await processEvent(routingCtx(db), stripeEvent(type, object));
     assertEquals(db.calls[0]?.table, table, `${type} should write ${table}`);
   }

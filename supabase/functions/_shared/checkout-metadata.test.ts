@@ -23,12 +23,14 @@ import {
 } from '../create-contribution-session/logic.ts';
 import { createCircleCheckout, type CircleCheckoutCtx } from '../create-circle-checkout/logic.ts';
 import { buildVerificationSessionParams } from '../create-verification-session/logic.ts';
+import { releaseFundPayout, type ReleaseFundPayoutCtx } from '../release-fund-payout/logic.ts';
 import {
   type Db,
   handleContribution,
   handleIdentityVerified,
   handleSubscription,
   handleTicketPaid,
+  handleTransferCreated,
   processEvent,
 } from '../stripe-webhook/handlers.ts';
 
@@ -209,5 +211,78 @@ Deno.test(
     const profileUpdate = db.calls.find((c) => c.table === 'profiles');
     assert(profileUpdate, 'the verified badge must be applied to a profile');
     assertEquals(profileUpdate.filters, [['eq', 'id', PROFILE]]);
+  },
+);
+
+// ── W14 fund payout: release-fund-payout mints → the webhook records (#247) ──
+
+Deno.test(
+  'fund payout metadata minted by release-fund-payout is readable by the webhook',
+  async () => {
+    // The same producer→consumer wire as the checkouts above, on the money-OUT side: the
+    // release path sets the declared-retention basis on the transfer, and the webhook arm
+    // rebuilds the ledger row from it. A drifted key would move real money and record
+    // nothing — reconciliation would go blind while both halves' own suites stay green.
+    const ED = '00000000-0000-0000-0000-0000000000ed';
+    const producer = makeFakeDb({
+      'fund_editions.select': [
+        {
+          data: {
+            phase: 'announcement',
+            closure_reason: null,
+            winner_candidacy_id: '00000000-0000-0000-0000-00000000000c',
+            winner_confirmed_at: '2026-08-15T12:00:00.000Z',
+            confirmed_pool_cents: 10000,
+            split_pct: 10,
+          },
+        },
+      ],
+      'dream_candidacies.select': [{ data: { profile_id: PROFILE } }],
+      'payout_accounts.select': [
+        { data: { stripe_account_id: 'acct_win', charges_enabled: true, payouts_enabled: true } },
+      ],
+    });
+    let minted: Stripe.TransferCreateParams | null = null;
+    const res = await releaseFundPayout(
+      {
+        admin: producer as unknown as ReleaseFundPayoutCtx['admin'],
+        createTransfer: (params) => {
+          minted = params;
+          return Promise.resolve({ id: 'tr_rt' } as Stripe.Transfer);
+        },
+        listTransfers: () => Promise.resolve([]),
+        retrieveBalance: () =>
+          Promise.resolve({
+            available: [{ currency: 'eur', amount: 100000 }],
+            pending: [],
+          } as unknown as Stripe.Balance),
+      },
+      new Request('http://localhost/release-fund-payout', {
+        method: 'POST',
+        body: JSON.stringify({ editionId: ED, amountCents: 4000 }),
+      }),
+    );
+    assertEquals(res.status, 200);
+    assert(minted, 'the release must mint a transfer');
+
+    const consumer = makeFakeDb();
+    await handleTransferCreated(asDb(consumer), {
+      id: 'tr_rt',
+      amount: (minted as Stripe.TransferCreateParams).amount,
+      amount_reversed: 0,
+      currency: (minted as Stripe.TransferCreateParams).currency,
+      destination: (minted as Stripe.TransferCreateParams).destination,
+      metadata: (minted as Stripe.TransferCreateParams).metadata,
+    } as unknown as Stripe.Transfer);
+
+    assertEquals(consumer.calls.length, 1, 'the webhook must record exactly one ledger row');
+    const values = consumer.calls[0].values as Record<string, unknown>;
+    assertEquals(consumer.calls[0].table, 'fund_payout_ledger');
+    assertEquals(values.edition_id, ED);
+    assertEquals(values.amount_cents, 4000);
+    assertEquals(values.pool_cents, 10000);
+    assertEquals(values.split_pct, 10);
+    assertEquals(values.payable_cents, 9000);
+    assertEquals(values.destination_account_id, 'acct_win');
   },
 );

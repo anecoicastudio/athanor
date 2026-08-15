@@ -116,6 +116,8 @@ Spec ref: `10-m10-launch.md` §7.
 
 > **Webhook endpoint API version (2026-08-07):** `STRIPE_API_VERSION` is pinned to `2026-05-27.dahlia` (`supabase/functions/_shared/stripe.ts`, aligned with the pinned `npm:stripe@22` SDK). When creating the Dashboard webhook endpoint at deploy time (R-8), set the endpoint's API version to exactly this value — a mismatch changes event payload shapes under the signature check.
 
+> **Payout transfer deploy config (2026-08-16, #247):** the Dashboard webhook endpoint's enabled events must also include **`transfer.created`** and **`transfer.reversed`** (the W14/W15 arms are the ONLY writers of `fund_payout_ledger`; without the events, releases move real money that the ledger — and therefore `close_cycle`'s disbursed figure — never sees, rule 6's cache silently goes stale). `release-fund-payout` deploys with the normal function release; it needs no secrets beyond the platform-injected ones.
+
 > **Payout onboarding deploy config (2026-08-15, #246):** the Dashboard webhook endpoint's enabled events must include **`account.updated`** (the W13 arm maintains `payout_accounts`; without the event the capability flags never flip and #247's transfer gate never opens). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. The pages behind them arrive with the winner-facing UI; until then any placeholder HTTPS page unblocks onboarding (state lands via the webhook, not the redirect). Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
 
 ---
@@ -329,9 +331,11 @@ delivered, where published>", "successor": { … } }`.
   snapshot; the post-snapshot remainder carries into the successor (D34/D35). Candidacy
   statuses stand as the historical record.
 - **Realization failed** (D33, post-tranche) — the delivery is declared failed:
-  same call with `"outcome": "realization_failed"` plus `"releasedCents": N` (what was
-  actually paid out — no tranche ledger exists yet, #228/#229 tighten this). The unreleased
-  remainder carries; the candidacy field (winner included) goes terminal `voided`.
+  same call with `"outcome": "realization_failed"` and **nothing else** — since #247 the
+  disbursed figure is read from `fund_payout_ledger` (released-net, reversals netted),
+  never typed by the operator. The payload is strict: a legacy `"releasedCents"` key is
+  refused `400 invalid payload` rather than silently ignored. The unreleased remainder
+  carries; the candidacy field (winner included) goes terminal `voided`.
 - **Rollover after a void** — §9.2's voids already closed the cycle, so only the successor
   remains: `{ "editionId": "<uuid>", "op": "rollover", "successor": { … } }`. The whole pool
   carries. One successor per predecessor — a second call refuses `already rolled over`.

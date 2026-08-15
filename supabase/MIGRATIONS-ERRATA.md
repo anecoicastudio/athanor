@@ -543,3 +543,20 @@ of succeeded rows.
 Asserted by: `supabase/tests/0046_fund_contributions_rls.test.sql` — `col_not_null`, a
 service_role insert with a null `profile_id` raises 23502, and `raised_cents` /
 `contributor_count` derive from the same succeeded rows.
+
+## `20260815193158_fund_closure_rollover.sql` — the released amount is ledger-read since #247
+
+### L37-39 / L230-232 — "there is no tranche ledger yet — #228/#229 own realization plans, and tightening this parameter to a ledger read is theirs"
+
+The header (and the matching in-body comment ahead of the `p_released_cents` range check)
+deferred the ledger read to #228/#229. The lane ruling on #247 assigned it there instead:
+`20260815215924_fund_payout_ledger.sql` creates `fund_payout_ledger` (a cache of Stripe
+`transfer.created`/`transfer.reversed` webhooks) and replaces `close_cycle` WITHOUT the
+`p_released_cents` parameter — on `realization_failed`, `disbursed` is now
+`sum(amount_cents − reversed_cents)` over the cycle's ledger rows, never an operator-typed
+figure. #228/#229 still own tranche _scheduling_ (when and how much releases); what WAS
+released is the ledger's alone. The three released-shape refusals (`released not applicable`
+/ `released required` / `released out of range`) no longer exist.
+
+Asserted by: `supabase/tests/0112_fund_payout_ledger.test.sql` (ledger cap + close_cycle
+reading it) and the updated `supabase/tests/0110_fund_closure_rollover.test.sql`.
