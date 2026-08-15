@@ -14,8 +14,10 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(7);
 
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, contributions_enabled)
-values ('eee00000-0000-0000-0000-000000000078', 2032, now() + interval '30 days', 100000, 'community', true);
+insert into public.fund_editions (id, target_at, goal_cents, phase, contributions_enabled,
+                                  min_funding_cents, min_voters, min_candidacies)
+values ('eee00000-0000-0000-0000-000000000078', now() + interval '30 days', 100000, 'voting', true,
+        100000, 5, 3);
 
 -- the three surviving statuses still insert
 select lives_ok(

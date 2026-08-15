@@ -22,10 +22,12 @@ values
 insert into public.aura_scores (profile_id, score)
   values ('11111111-1111-1111-1111-111111111111', 700);
 
--- one open edition (service_role — fund_editions is service-role write only)
+-- one open cycle in the voting phase (service_role — fund_editions is service-role write only)
 set local role service_role;
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
-  values ('00000000-0000-0000-0000-0000000000ed', 2027, now() + interval '30 days', 1000000, 'community', true, false);
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  min_funding_cents, min_voters, min_candidacies)
+  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'voting', true, false,
+          100000, 5, 3);
 -- two votable candidacies, one per author (status submitted). Written as owner (bypasses the
 -- identity-verified insert gate — exactly the service-role path).
 insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status)
@@ -127,14 +129,14 @@ select is(
 );
 
 -- ── phase gate ────────────────────────────────────────────────────────────────────────
--- flip the edition out of the community phase (service role) → cast_vote refuses
+-- flip the cycle out of the voting phase (service role) → cast_vote refuses
 reset role;
-update public.fund_editions set phase='reputation' where id='00000000-0000-0000-0000-0000000000ed';
+update public.fund_editions set phase='screening' where id='00000000-0000-0000-0000-0000000000ed';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select throws_ok(
   $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
-  'P0001', null, 'cast_vote phase-gated to community (closed → P0001)'
+  'P0001', null, 'cast_vote phase-gated to voting (outside it → P0001)'
 );
 
 -- ── zero Aura ─────────────────────────────────────────────────────────────────────────

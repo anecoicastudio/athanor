@@ -8,23 +8,54 @@ import {
 
 const validEdition = {
   id: '00000000-0000-0000-0000-0000000000a1',
-  year: 2027,
   target_at: '2027-06-01T00:00:00.000Z',
   goal_cents: 5000000,
-  phase: 'ethics',
+  phase: 'voting',
   candidacy_window_open: false,
   contributions_enabled: false,
   winner_candidacy_id: null,
+  voting_starts_at: '2027-04-01T00:00:00.000Z',
+  voting_ends_at: '2027-05-01T00:00:00.000Z',
+  min_funding_cents: 100000,
+  min_voters: 5,
+  min_candidacies: 3,
+  split_pct: 10,
+  cost_fee_statement: null,
+  equity_declared: null,
   created_at: '2026-06-17T00:00:00.000Z',
   updated_at: '2026-06-17T00:00:00.000Z',
 };
 
 describe('fundEditionSchema', () => {
-  it('parses a valid edition row', () => {
-    expect(fundEditionSchema.parse(validEdition).phase).toBe('ethics');
+  it('parses a valid cycle row', () => {
+    expect(fundEditionSchema.parse(validEdition).phase).toBe('voting');
   });
-  it('rejects an unknown phase', () => {
-    expect(() => fundEditionSchema.parse({ ...validEdition, phase: 'launch' })).toThrow();
+  it.each(['candidacy', 'screening', 'voting', 'announcement', 'realization', 'closed'])(
+    'accepts phase %s',
+    (phase) => {
+      expect(fundEditionSchema.safeParse({ ...validEdition, phase }).success).toBe(true);
+    },
+  );
+  // The annual vocabulary is GONE (#215) — a row still carrying it must not parse.
+  it.each(['community', 'reputation', 'ethics', 'event', 'launch'])(
+    'rejects retired/unknown phase %s',
+    (phase) => {
+      expect(fundEditionSchema.safeParse({ ...validEdition, phase }).success).toBe(false);
+    },
+  );
+  it('requires the three deferred minimums (FUND-SPEC §5)', () => {
+    const { min_funding_cents: _f, min_voters: _v, min_candidacies: _c, ...bare } = validEdition;
+    expect(fundEditionSchema.safeParse(bare).success).toBe(false);
+  });
+  it('rejects a non-positive quorum or candidacy minimum', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, min_voters: 0 }).success).toBe(false);
+    expect(fundEditionSchema.safeParse({ ...validEdition, min_candidacies: 0 }).success).toBe(
+      false,
+    );
+  });
+  it('bounds split_pct to 0–100 and allows null (declared later, #232)', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, split_pct: 101 }).success).toBe(false);
+    expect(fundEditionSchema.safeParse({ ...validEdition, split_pct: null }).success).toBe(true);
   });
 });
 

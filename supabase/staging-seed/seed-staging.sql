@@ -729,9 +729,15 @@ select md5('block:bea_foto:rocco_film')::uuid, md5('user:bea_foto')::uuid, md5('
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------------------
--- 12. Fund edition + candidacies + votes.
---     phase = 'community' — both because 'candidacy' is not a legal phase, and
---     because cast_vote() requires 'community', which is what makes voting walkable.
+-- 12. Fund cycle + candidacies + votes.
+--     phase = 'voting' — cast_vote() gates on it (20260815075408 renamed the phase
+--     vocabulary; 'community' no longer exists), which is what makes voting walkable.
+--     candidacy_window_open stays true beside it so the candidacy wizard is walkable
+--     too — the two gates are independent columns.
+--     The three min_* columns are NOT NULL with no default (FUND-SPEC §5): the seed
+--     CHOOSES fake-world values — floor €1.000, quorum 5 (six votes below → decisive),
+--     3 candidacies — the same values 20260815075408 backfilled the pre-existing row
+--     with. The voting window is published but unenforced until #217 lands.
 --     `candidacy_votes.weight` is NOT supplied: set_candidacy_vote_weight() is a
 --     BEFORE INSERT trigger that raises 'weight is server-written' for any non-zero
 --     value, service_role included. It writes a constant 1.000 — equal vote (PRD §4.11).
@@ -739,10 +745,14 @@ on conflict do nothing;
 --     create/edit flow is actually walkable from the app.
 --     Contributions are NOT seeded — those are Stripe's to create, in test mode.
 -- ---------------------------------------------------------------------------------
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
-values (md5('fundedition:2027')::uuid, 2027,
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  voting_starts_at, voting_ends_at,
+                                  min_funding_cents, min_voters, min_candidacies)
+values (md5('fundedition:2027')::uuid,
         (date_trunc('year', now()) + interval '1 year' + interval '5 months')::timestamptz,
-        5000000, 'community', true, true)
+        5000000, 'voting', true, true,
+        now() - interval '7 days', now() + interval '23 days',
+        100000, 5, 3)
 on conflict do nothing;
 
 -- `video_url` is misnamed: it holds a STORAGE KEY in the candidacy-videos bucket, not a URL.

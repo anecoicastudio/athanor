@@ -1216,38 +1216,59 @@ export type Database = {
         Row: {
           candidacy_window_open: boolean
           contributions_enabled: boolean
+          cost_fee_statement: string | null
           created_at: string
+          equity_declared: string | null
           goal_cents: number
           id: string
+          min_candidacies: number
+          min_funding_cents: number
+          min_voters: number
           phase: string
+          split_pct: number | null
           target_at: string
           updated_at: string
+          voting_ends_at: string | null
+          voting_starts_at: string | null
           winner_candidacy_id: string | null
-          year: number
         }
         Insert: {
           candidacy_window_open?: boolean
           contributions_enabled?: boolean
+          cost_fee_statement?: string | null
           created_at?: string
+          equity_declared?: string | null
           goal_cents: number
           id?: string
+          min_candidacies: number
+          min_funding_cents: number
+          min_voters: number
           phase?: string
+          split_pct?: number | null
           target_at: string
           updated_at?: string
+          voting_ends_at?: string | null
+          voting_starts_at?: string | null
           winner_candidacy_id?: string | null
-          year: number
         }
         Update: {
           candidacy_window_open?: boolean
           contributions_enabled?: boolean
+          cost_fee_statement?: string | null
           created_at?: string
+          equity_declared?: string | null
           goal_cents?: number
           id?: string
+          min_candidacies?: number
+          min_funding_cents?: number
+          min_voters?: number
           phase?: string
+          split_pct?: number | null
           target_at?: string
           updated_at?: string
+          voting_ends_at?: string | null
+          voting_starts_at?: string | null
           winner_candidacy_id?: string | null
-          year?: number
         }
         Relationships: [
           {

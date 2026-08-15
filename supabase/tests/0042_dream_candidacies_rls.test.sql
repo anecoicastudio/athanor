@@ -31,10 +31,12 @@ select policies_are(
   'exactly the three candidacy policies'
 );
 
--- seed an edition (service_role — fund_editions is service-role write only)
+-- seed a cycle (service_role — fund_editions is service-role write only)
 set local role service_role;
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
-  values ('00000000-0000-0000-0000-0000000000ed', 2027, now() + interval '30 days', 1000000, 'community', true, false);
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  min_funding_cents, min_voters, min_candidacies)
+  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'candidacy', true, false,
+          100000, 5, 3);
 reset role;
 
 -- (a) UNVERIFIED user_a cannot insert (identity gate fires in WITH CHECK)
