@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,8 +7,6 @@ import {
   type CandidateCard as CandidateCardModel,
   candidacyKeys,
   castVote,
-  ContributionSessionError,
-  createContributionSession,
   fundKeys,
   getActiveEdition,
   getCandidates,
@@ -23,7 +19,7 @@ import {
 } from '@athanor/api';
 import { consensusForCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
@@ -39,15 +35,6 @@ import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
-
-// The server's `{error}` strings are the stable contract (#103 idiom) — the D34 window
-// gate in create-contribution-session on one side, this map on the other. A window
-// refusal must not read as a payment failure (#222); an unmapped string degrades to
-// fund.contribute.error, never crashes.
-const CONTRIB_ERROR_COPY: Record<string, MessageKey> = {
-  'the cycle is closed': 'fund.contribute.cycleClosed',
-  'edition not found': 'fund.contribute.cycleClosed',
-};
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
@@ -200,50 +187,20 @@ export default function AnnualFundScreen() {
     return 'notVoted';
   };
 
-  // ── Contribution state + handler ─────────────────────────────────────────────
+  // ── Contribution amount (payment itself lives behind the disclosure, #235) ──
   const [amountCents, setAmountCents] = useState<number>(100); // default 1€ chip on
-  const [contribPhase, setContribPhase] = useState<
-    'idle' | 'opening' | 'pending' | 'canceled' | 'error'
-  >('idle');
-  const [contribErrorKey, setContribErrorKey] = useState<MessageKey>('fund.contribute.error');
 
-  // Clear a stale canceled/error/pending banner when the screen regains focus
-  // (returning from the thank-you overlay, or navigating away and back). Never
-  // clobber an in-flight `opening`.
-  useFocusEffect(
-    useCallback(() => {
-      setContribPhase((p) => (p === 'opening' ? p : 'idle'));
-    }, []),
-  );
-
-  const onContribute = useCallback(async () => {
-    if (!amountCents) return;
-    setContribPhase('opening');
-    try {
-      const { url } = await createContributionSession(supabase, {
-        editionId: edition?.id ?? '',
-        amountCents,
-      });
-      const result = await WebBrowser.openAuthSessionAsync(url, `${'athanor://'}annual`);
-      if (result.type === 'success' && result.url) {
-        const { queryParams } = Linking.parse(result.url);
-        if (queryParams?.contrib === 'success') {
-          setContribPhase('pending'); // ticker moves when the webhook lands (money = webhook cache)
-          router.push('/(modal)/contribution-thanks');
-          return;
-        }
-      }
-      setContribPhase('canceled');
-    } catch (e) {
-      const code = e instanceof ContributionSessionError ? e.code : null;
-      const copy = code ? CONTRIB_ERROR_COPY[code] : undefined;
-      setContribErrorKey(copy ?? 'fund.contribute.error');
-      // A window refusal means the cached edition is stale (cycle rolled over or
-      // closed) — re-read so the screen flips to its real state instead of arguing.
-      if (copy) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
-      setContribPhase('error');
-    }
-  }, [amountCents, edition?.id, router, qc]);
+  // FUND-18: the CTA never opens a payment — it pushes the blocking disclosure
+  // screen, which is the app's ONLY call site of createContributionSession
+  // (pinned by fund-disclosure.test.ts). The window-refusal handling from #222
+  // moved there with the payment launch.
+  const onContribute = useCallback(() => {
+    if (amountCents < 100) return;
+    router.push({
+      pathname: '/(modal)/fund-disclosure',
+      params: { amount: String(amountCents) },
+    });
+  }, [amountCents, router]);
 
   // ── Pending / error / no-cycle bodies (state selection: lib/fund-cycle.ts, #224) ──
   const body = annualFundBody(
@@ -372,31 +329,14 @@ export default function AnnualFundScreen() {
                 locale={locale}
               />
               <Button
-                label={
-                  contribPhase === 'opening'
-                    ? t('fund.contribute.opening', locale)
-                    : t('fund.contribute.cta', locale, {
-                        amt: String(Math.floor(amountCents / 100)),
-                      })
-                }
-                onPress={() => void onContribute()}
+                label={t('fund.contribute.cta', locale, {
+                  amt: String(Math.floor(amountCents / 100)),
+                })}
+                onPress={onContribute}
                 variant="light"
-                disabled={contribPhase === 'opening' || amountCents < 100}
+                disabled={amountCents < 100}
                 // Flat cyan CTA — no glow (rule #4)
               />
-              {contribPhase === 'pending' ? (
-                <Text className="text-[12px] text-muted-foreground">
-                  {t('fund.contribute.pending', locale)}
-                </Text>
-              ) : null}
-              {contribPhase === 'canceled' ? (
-                <Text className="text-[12px] text-muted-foreground">
-                  {t('fund.contribute.canceled', locale)}
-                </Text>
-              ) : null}
-              {contribPhase === 'error' ? (
-                <Text className="text-[12px] text-error">{t(contribErrorKey, locale)}</Text>
-              ) : null}
               <Text className="text-[12px] text-muted-foreground">
                 {t('fund.contribute.zeroAura', locale)}
               </Text>
