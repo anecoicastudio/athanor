@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { annualFundBody, dreamHeroSlot, fundCycleState, type FundCycleState } from './fund-cycle';
 
-const EDITION = { id: 'e1', phase: 'community' };
+const EDITION = { id: 'e1', phase: 'voting' };
 
 describe('fundCycleState', () => {
   it('first load in flight is pending — the announcement must not flash (issue #224)', () => {

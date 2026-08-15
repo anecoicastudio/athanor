@@ -737,7 +737,12 @@ on conflict do nothing;
 --     The three min_* columns are NOT NULL with no default (FUND-SPEC §5): the seed
 --     CHOOSES fake-world values — floor €1.000, quorum 5 (six votes below → decisive),
 --     3 candidacies — the same values 20260815075408 backfilled the pre-existing row
---     with. The voting window is published but unenforced until #217 lands.
+--     with. The voting window is published AND enforced (20260815090015, #217): cast_vote
+--     refuses outside [voting_starts_at, voting_ends_at], so keep the seeded window
+--     spanning now() or the fake world's voting stops being walkable. The direct INSERT
+--     into phase = 'voting' below deliberately bypasses the ballot-open trigger — it
+--     fires on UPDATE OF phase only, precisely so this bootstrap stays legal before the
+--     candidacies exist.
 --     `candidacy_votes.weight` is NOT supplied: set_candidacy_vote_weight() is a
 --     BEFORE INSERT trigger that raises 'weight is server-written' for any non-zero
 --     value, service_role included. It writes a constant 1.000 — equal vote (PRD §4.11).
