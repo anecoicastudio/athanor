@@ -33,7 +33,7 @@ select col_is_null('public', 'audit_log', 'report_id', 'audit_log.report_id is n
 select col_is_null('public', 'audit_log', 'actor_id', 'audit_log.actor_id is nullable (declare-winner has no user)');
 
 -- rule #3 tooth: the declaration returns aggregates only — no voter identity, ever.
-select unlike(
+select unalike(
   pg_get_function_result('public.declare_winner(uuid)'::regprocedure),
   '%voter%',
   'declare_winner returns no voter_id (ballot privacy, rule #3)');
