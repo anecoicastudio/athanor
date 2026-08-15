@@ -532,3 +532,6 @@ verify_jwt = true
 
 [functions.create-circle-portal]
 verify_jwt = true
+
+[functions.create-payout-onboarding]
+verify_jwt = true

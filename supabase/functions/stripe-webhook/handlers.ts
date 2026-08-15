@@ -384,6 +384,39 @@ export async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Prom
   if (error) throw error;
 }
 
+/**
+ * W13 — account.updated: maintain the payout_accounts cache (#245/#246) as Stripe walks the
+ * Express account through KYC. Both directions on purpose: Stripe grants AND revokes
+ * capabilities (new requirements past their deadline flip payouts_enabled back to false), and
+ * #247's transfer gate must fail closed on the revocation, not just open on the grant.
+ * Update-only, matched on stripe_account_id: the row is inserted by create-payout-onboarding,
+ * so an unmatched id means the account is not ours or the profile was erased and the row
+ * cascaded away — recreating it would resurrect a deleted profile's pointer. Ack either way.
+ * Idempotent: a redelivery rewrites the same flags, and onboarded_at is guarded set-once.
+ */
+export async function handleAccountUpdated(db: Db, account: Stripe.Account): Promise<void> {
+  const { error: updErr } = await db
+    .from('payout_accounts')
+    .update({
+      charges_enabled: !!account.charges_enabled,
+      payouts_enabled: !!account.payouts_enabled,
+    })
+    .eq('stripe_account_id', account.id);
+  if (updErr) throw updErr;
+
+  // onboarded_at means "when onboarding completed", not "last account event": stamp it on the
+  // first event with details_submitted and never move it — the is-null guard makes replays
+  // and later capability events no-ops here.
+  if (account.details_submitted) {
+    const { error: onbErr } = await db
+      .from('payout_accounts')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('stripe_account_id', account.id)
+      .is('onboarded_at', null);
+    if (onbErr) throw onbErr;
+  }
+}
+
 export async function processEvent(
   ctx: Pick<WebhookCtx, 'db' | 'qrSecret' | 'retrieveSubscription'>,
   event: Stripe.Event,
@@ -445,6 +478,11 @@ export async function processEvent(
     case 'identity.verification_session.verified': {
       // W9
       await handleIdentityVerified(db, event.data.object as Stripe.Identity.VerificationSession);
+      return;
+    }
+    case 'account.updated': {
+      // W13 — Connect Express account state (payout_accounts cache).
+      await handleAccountUpdated(db, event.data.object as Stripe.Account);
       return;
     }
     case 'identity.verification_session.requires_input':

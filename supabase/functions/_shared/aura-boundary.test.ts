@@ -96,6 +96,7 @@ Deno.test('NO Aura award trigger fires on a money table', () => {
     'stripe_webhook_events',
     'fund_aggregates',
     'fund_editions',
+    'payout_accounts', // W13 writes it (#246); pgTAP 0111 asserts the same boundary in-db
   ];
   for (const table of MONEY_TABLES) {
     // A name no migration creates would pass the assertion below for free. Check it is a real

@@ -80,13 +80,18 @@ Deno.test('no user-callable function can read an identity out of the request bod
   }
 });
 
-// The ONE deliberate exception to the no-service-role rule, by name and with its reason
-// (issue #271, was #141): an organiser scanning a ticket cannot read another member's
-// event_attendance row under RLS — 20260616022242_event_attendance_revoke_client_mutations
-// blocks the client path on purpose — so check-in's logic verifies the QR against the ticket
-// row through an admin client. The scanner's identity still comes from the JWT (requireUser),
-// never the body, and the other two tests in this file apply to check-in in full.
-const SERVICE_ROLE_ALLOWED = new Set(['check-in']);
+// The deliberate exceptions to the no-service-role rule, each by name and with its reason
+// (issue #271, was #141) — the other two tests in this file apply to both in full, and
+// identity still comes from the JWT (requireUser), never the body:
+// - check-in: an organiser scanning a ticket cannot read another member's event_attendance
+//   row under RLS — 20260616022242_event_attendance_revoke_client_mutations blocks the client
+//   path on purpose — so its logic verifies the QR against the ticket row through an admin
+//   client.
+// - create-payout-onboarding: payout_accounts is SRW (#245 — revoke all, grant back SELECT
+//   only), so the initial {profile_id, stripe_account_id} pointer row cannot ride the
+//   caller's RLS; the insert goes through the admin client. Capability flags stay the
+//   webhook's job — this function writes nothing else.
+const SERVICE_ROLE_ALLOWED = new Set(['check-in', 'create-payout-onboarding']);
 
 Deno.test('no user-callable function reaches for the service-role client', () => {
   // Rule 8 confines the service-role key to _shared/supabaseAdmin.ts and server jobs. These are

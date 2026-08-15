@@ -29,6 +29,7 @@ export const POSTURE: Record<string, Posture> = {
   'create-circle-checkout': 'user',
   'create-circle-portal': 'user',
   'create-contribution-session': 'user',
+  'create-payout-onboarding': 'user',
   'create-ticket-checkout': 'user',
   'create-verification-session': 'user',
   'declare-winner': 'internal',

@@ -116,6 +116,8 @@ Spec ref: `10-m10-launch.md` §7.
 
 > **Webhook endpoint API version (2026-08-07):** `STRIPE_API_VERSION` is pinned to `2026-05-27.dahlia` (`supabase/functions/_shared/stripe.ts`, aligned with the pinned `npm:stripe@22` SDK). When creating the Dashboard webhook endpoint at deploy time (R-8), set the endpoint's API version to exactly this value — a mismatch changes event payload shapes under the signature check.
 
+> **Payout onboarding deploy config (2026-08-15, #246):** the Dashboard webhook endpoint's enabled events must include **`account.updated`** (the W13 arm maintains `payout_accounts`; without the event the capability flags never flip and #247's transfer gate never opens). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. The pages behind them arrive with the winner-facing UI; until then any placeholder HTTPS page unblocks onboarding (state lands via the webhook, not the redirect). Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
+
 ---
 
 ## 6. `remote_config` Operations

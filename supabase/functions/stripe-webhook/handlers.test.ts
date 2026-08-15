@@ -12,6 +12,7 @@ import {
   type Db,
   type WebhookCtx,
   assertSettled,
+  handleAccountUpdated,
   handleChargeRefunded,
   handleContribution,
   handleDisputeCreated,
@@ -526,6 +527,89 @@ Deno.test('handleIdentityFailed caches failed and never touches profiles', async
   assertEquals((db.calls[0].values as Record<string, unknown>).status, 'failed');
 });
 
+// ── W13: account.updated → payout_accounts cache ─────────────────────────────
+
+const connectAccount = (over: Record<string, unknown> = {}) =>
+  ({
+    id: 'acct_1',
+    charges_enabled: false,
+    payouts_enabled: false,
+    details_submitted: false,
+    ...over,
+  }) as unknown as Stripe.Account;
+
+Deno.test(
+  'handleAccountUpdated flips the capability flags on — and stamps onboarded_at once',
+  async () => {
+    const db = makeFakeDb();
+    await handleAccountUpdated(
+      asDb(db),
+      connectAccount({ charges_enabled: true, payouts_enabled: true, details_submitted: true }),
+    );
+    const [flags, onboarded] = db.calls;
+    assertEquals(flags.table, 'payout_accounts');
+    assertEquals(flags.values, { charges_enabled: true, payouts_enabled: true });
+    assertEquals(flags.filters, [['eq', 'stripe_account_id', 'acct_1']]);
+    assertEquals(onboarded.table, 'payout_accounts');
+    assert(
+      typeof (onboarded.values as Record<string, unknown>).onboarded_at === 'string',
+      'onboarded_at must be stamped when details_submitted',
+    );
+    // Set-once: the is-null guard is what keeps a redelivery (or a later capability
+    // event) from moving the completion timestamp.
+    assertEquals(onboarded.filters, [
+      ['eq', 'stripe_account_id', 'acct_1'],
+      ['is', 'onboarded_at', null],
+    ]);
+  },
+);
+
+Deno.test(
+  'handleAccountUpdated flips the capability flags OFF too — the transfer gate must fail closed',
+  async () => {
+    // Stripe revokes as well as grants (new requirements past deadline). A grant-only handler
+    // would leave #247 reading stale true flags after a revocation.
+    const db = makeFakeDb();
+    await handleAccountUpdated(
+      asDb(db),
+      connectAccount({ charges_enabled: false, payouts_enabled: false, details_submitted: true }),
+    );
+    assertEquals(db.calls[0].values, { charges_enabled: false, payouts_enabled: false });
+  },
+);
+
+Deno.test('handleAccountUpdated coerces absent flags to false, never null', async () => {
+  // Stripe types both flags optional; a null would violate the NOT NULL columns and
+  // poison-loop the event.
+  const db = makeFakeDb();
+  await handleAccountUpdated(asDb(db), { id: 'acct_1' } as unknown as Stripe.Account);
+  assertEquals(db.calls[0].values, { charges_enabled: false, payouts_enabled: false });
+  assertEquals(db.calls.length, 1, 'no details_submitted → no onboarded_at write');
+});
+
+Deno.test(
+  'handleAccountUpdated acks an account with no cached row (not ours / erased)',
+  async () => {
+    // Update-only by design: PostgREST reports a 0-row update as success, and recreating the
+    // row would resurrect a hard-deleted profile's pointer. No throw = 200 = Stripe stops.
+    const db = makeFakeDb();
+    await handleAccountUpdated(asDb(db), connectAccount({ id: 'acct_unknown' }));
+    assertEquals(db.calls.length, 1);
+  },
+);
+
+Deno.test('handleAccountUpdated throws on a failed write (Stripe must retry)', async () => {
+  for (const script of [
+    { 'payout_accounts.update': [{ error: { message: 'boom' } }] },
+    { 'payout_accounts.update': [{ error: null }, { error: { message: 'boom' } }] },
+  ]) {
+    const db = makeFakeDb(script);
+    await assertRejects(() =>
+      handleAccountUpdated(asDb(db), connectAccount({ details_submitted: true })),
+    );
+  }
+});
+
 // ── processEvent routing ─────────────────────────────────────────────────────
 
 const routingCtx = (db: FakeDb, retrieved?: Stripe.Subscription) => {
@@ -560,6 +644,7 @@ Deno.test('processEvent routes each event type to the right table', async () => 
       { id: 'vs_1', metadata: { profile_id: 'p' } },
       'verifications',
     ],
+    ['account.updated', connectAccount(), 'payout_accounts'],
   ];
   for (const [type, object, table] of cases) {
     const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
@@ -813,7 +898,12 @@ const scoreWrites = (db: FakeDb): FakeCall[] =>
       : c.op !== 'select' && /^aura_(events|scores)$/.test(c.table),
   );
 
-const MONEY_TABLES = ['event_tickets', 'fund_contributions', 'circle_memberships'];
+const MONEY_TABLES = [
+  'event_tickets',
+  'fund_contributions',
+  'circle_memberships',
+  'payout_accounts',
+];
 const moneyWrites = (db: FakeDb) =>
   db.calls.filter((c) => c.op !== 'select' && MONEY_TABLES.includes(c.table));
 
@@ -837,6 +927,13 @@ Deno.test('paying money writes ZERO score events, on every paying branch', async
     ['circle updated', 'customer.subscription.updated', subscription()],
     ['circle deleted', 'customer.subscription.deleted', subscription({ status: 'canceled' })],
     ['circle invoice failed', 'invoice.payment_failed', { subscription: 'sub_1' }],
+    // Completing payout KYC is the last step before money can reach a member — if any
+    // paying-adjacent branch were going to leak Aura, it is this one (rule #1).
+    [
+      'payout account update',
+      'account.updated',
+      connectAccount({ charges_enabled: true, payouts_enabled: true, details_submitted: true }),
+    ],
   ];
   for (const [label, type, object] of cases) {
     const db = makeFakeDb({
@@ -895,6 +992,12 @@ Deno.test('each money branch touches its own ledger and no other', async () => {
     ['fund', 'checkout.session.completed', contributionSession(), 'fund_contributions'],
     ['circle checkout', 'checkout.session.completed', subscriptionCheckout(), 'circle_memberships'],
     ['circle sub', 'customer.subscription.updated', subscription(), 'circle_memberships'],
+    [
+      'payout account',
+      'account.updated',
+      connectAccount({ details_submitted: true }),
+      'payout_accounts',
+    ],
   ];
   for (const [label, type, object, own] of cases) {
     const db = makeFakeDb({
