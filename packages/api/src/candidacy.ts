@@ -1,6 +1,7 @@
 import { isSkill } from '@athanor/core';
 import {
   type CandidacyInsert,
+  type CandidacyUpdate,
   type CandidateCard,
   candidateCardSchema,
   type DreamCandidacy,
@@ -11,6 +12,7 @@ import { keysetFilter, nextCursorOf } from './pagination';
 
 export const candidacyKeys = {
   all: ['candidacy'] as const,
+  mine: (editionId: string) => [...candidacyKeys.all, 'mine', editionId] as const,
   detail: (id: string) => [...candidacyKeys.all, 'detail', id] as const,
   list: (editionId: string, cursor?: string | null) =>
     [...candidacyKeys.all, 'list', editionId, cursor ?? null] as const,
@@ -38,6 +40,28 @@ export function candidacyThumbPath(uid: string, candidacyId: string): string {
 }
 
 /**
+ * The caller's own candidacy for an edition — one row at most
+ * (`dream_candidacies_one_per_edition`). Null when none. Feeds the explicit
+ * edit/resubmit flow (#226): the wizard prefills from this row only when the
+ * member chooses to edit, never automatically.
+ */
+export async function getMyCandidacy(
+  client: AthanorClient,
+  editionId: string,
+  profileId: string,
+): Promise<DreamCandidacy | null> {
+  const { data, error } = await client
+    .from('dream_candidacies')
+    .select('*')
+    .eq('edition_id', editionId)
+    .eq('profile_id', profileId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? dreamCandidacySchema.parse(data) : null;
+}
+
+/**
  * Submit a candidacy. `id` is generated client-side so the video can be uploaded
  * to `{uid}/{id}.mp4` BEFORE the row exists; profile_id + status are server-pinned
  * by RLS WITH CHECK (status must be 'submitted'; insert requires identity_verified;
@@ -62,6 +86,35 @@ export async function submitCandidacy(
   const { data, error } = await client
     .from('dream_candidacies')
     .insert({ ...input, id, profile_id: profileId, status: 'submitted' })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return dreamCandidacySchema.parse(data);
+}
+
+/**
+ * Edit an own candidacy while it is still 'submitted' (#226 — same-cycle, pre-screening).
+ * RLS (dream_candidacies_update_own_submitted) pins row ownership, keeps status
+ * 'submitted' (USING + WITH CHECK) and re-checks dream ownership on dream_id; the patch
+ * never carries edition_id/profile_id/status (candidacyUpdateSchema strips them).
+ * skills_needed is bounded against @athanor/core SKILLS here, exactly as in
+ * submitCandidacy — the DB bounds shape and cardinality only.
+ */
+export async function updateCandidacy(
+  client: AthanorClient,
+  id: string,
+  patch: CandidacyUpdate,
+): Promise<DreamCandidacy> {
+  const unknownSkill = (patch.skills_needed ?? []).find((s) => !isSkill(s));
+  if (unknownSkill !== undefined) {
+    throw new Error(
+      `skills_needed carries a key outside the curated SKILLS vocabulary: ${unknownSkill}`,
+    );
+  }
+  const { data, error } = await client
+    .from('dream_candidacies')
+    .update(patch)
+    .eq('id', id)
     .select('*')
     .single();
   if (error) throw error;

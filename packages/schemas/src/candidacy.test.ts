@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { candidacyInsertSchema, candidateCardSchema, dreamCandidacySchema } from './candidacy';
+import {
+  candidacyInsertSchema,
+  candidacyUpdateSchema,
+  candidateCardSchema,
+  dreamCandidacySchema,
+} from './candidacy';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -121,6 +126,65 @@ describe('candidacyInsertSchema', () => {
     expect(candidacyInsertSchema.safeParse({ ...validInsert, skills_needed: eleven }).success).toBe(
       false,
     );
+  });
+});
+
+describe('candidacyUpdateSchema', () => {
+  it('accepts an empty patch — every field is optional', () => {
+    expect(candidacyUpdateSchema.parse({})).toEqual({});
+  });
+  it('accepts a lone story edit', () => {
+    expect(candidacyUpdateSchema.parse({ story: 'riscritta' })).toEqual({ story: 'riscritta' });
+  });
+  it('strips edition_id / profile_id / status — an edit never re-targets a row', () => {
+    const parsed = candidacyUpdateSchema.parse({
+      story: 'x',
+      edition_id: validRow.edition_id,
+      profile_id: validRow.profile_id,
+      status: 'winner',
+    });
+    expect(parsed).not.toHaveProperty('edition_id');
+    expect(parsed).not.toHaveProperty('profile_id');
+    expect(parsed).not.toHaveProperty('status');
+  });
+  it('rejects an empty story when one is present — partial never weakens the field rule', () => {
+    expect(candidacyUpdateSchema.safeParse({ story: '' }).success).toBe(false);
+  });
+  it.each([0, -1, 100.5])('rejects budget_cents = %d', (budget_cents) => {
+    expect(candidacyUpdateSchema.safeParse({ budget_cents }).success).toBe(false);
+  });
+  it('rejects a minimum above the budget when both travel together', () => {
+    expect(
+      candidacyUpdateSchema.safeParse({ budget_cents: 500000, min_viable_cents: 500001 }).success,
+    ).toBe(false);
+  });
+  it('accepts a minimum equal to the budget', () => {
+    expect(
+      candidacyUpdateSchema.safeParse({ budget_cents: 500000, min_viable_cents: 500000 }).success,
+    ).toBe(true);
+  });
+  it('accepts a lone budget or a lone minimum — the DB CHECK guards the stored counterpart', () => {
+    expect(candidacyUpdateSchema.safeParse({ budget_cents: 100 }).success).toBe(true);
+    expect(candidacyUpdateSchema.safeParse({ min_viable_cents: 100 }).success).toBe(true);
+  });
+  it('caps skills_needed at 10 keys (mirrors the DB bounds)', () => {
+    const eleven = Array.from({ length: 11 }, (_, i) => `skill-${i}`);
+    expect(candidacyUpdateSchema.safeParse({ skills_needed: eleven }).success).toBe(false);
+    expect(candidacyUpdateSchema.safeParse({ skills_needed: eleven.slice(0, 10) }).success).toBe(
+      true,
+    );
+  });
+  it('binds category to the project_category enum, null included', () => {
+    expect(candidacyUpdateSchema.parse({ category: 'artistic' }).category).toBe('artistic');
+    expect(candidacyUpdateSchema.parse({ category: null }).category).toBeNull();
+    expect(candidacyUpdateSchema.safeParse({ category: 'craft' }).success).toBe(false);
+  });
+  it('accepts unlinking the dream and re-linking an own one', () => {
+    expect(candidacyUpdateSchema.parse({ dream_id: null }).dream_id).toBeNull();
+    expect(
+      candidacyUpdateSchema.parse({ dream_id: '44444444-4444-4444-4444-444444444444' }).dream_id,
+    ).toBe('44444444-4444-4444-4444-444444444444');
+    expect(candidacyUpdateSchema.safeParse({ dream_id: 'not-a-uuid' }).success).toBe(false);
   });
 });
 

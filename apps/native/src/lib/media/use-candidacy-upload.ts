@@ -13,6 +13,9 @@ export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error' | 'canceled' 
  * One-video upload for the candidacy wizard (step 4). Generates the candidacy id
  * up front so the file lands at `{uid}/{id}.mp4` BEFORE the row exists; the same
  * id is reused by `submitCandidacy` (rule #1 — no Aura event written here).
+ * The edit flow (#226) passes `existingId` instead, so a replacement video PUTs
+ * the SAME `{uid}/{id}.mp4` key and the upsert overwrites the old one — the same
+ * no-orphan property the #294 retry path relies on.
  *
  * The upload is cancellable and watched (#294): `cancel` aborts the in-flight transfer,
  * a stalled network aborts itself, and `progress` carries the whole-percent number the
@@ -37,7 +40,10 @@ export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error' | 'canceled' 
  * when duration_s > MAX_VIDEO_SECONDS). A null asset is silently ignored; the
  * caller surfaces `media.tooLong` / `candidacy.error.video` to the user.
  */
-export function useCandidacyUpload(uid: string): {
+export function useCandidacyUpload(
+  uid: string,
+  existingId?: string,
+): {
   candidacyId: string;
   videoPath: string | null;
   thumbPath: string | null;
@@ -48,7 +54,7 @@ export function useCandidacyUpload(uid: string): {
   record: () => Promise<void>;
   cancel: () => void;
 } {
-  const [candidacyId] = useState<string>(() => Crypto.randomUUID());
+  const [candidacyId] = useState<string>(() => existingId ?? Crypto.randomUUID());
   const [videoPath, setVideoPath] = useState<string | null>(null);
   const [thumbPath, setThumbPath] = useState<string | null>(null);
   const [status, setStatus] = useState<UploadStatus>('idle');

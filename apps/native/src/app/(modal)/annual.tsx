@@ -16,6 +16,7 @@ import {
   getCandidates,
   getEditionTally,
   getFundAggregate,
+  getMyCandidacy,
   getMyVote,
   subscribeFundAggregate,
   voteKeys,
@@ -110,6 +111,13 @@ export default function AnnualFundScreen() {
     queryFn: () => getMyVote(supabase, editionId, uid!),
     enabled: !!editionId && !!uid,
   });
+  // Own candidacy (one per edition) — drives the explicit edit/resubmit entry (#226).
+  const myCandidacyQuery = useQuery({
+    queryKey: candidacyKeys.mine(editionId),
+    queryFn: () => getMyCandidacy(supabase, editionId, uid!),
+    enabled: !!editionId && !!uid,
+  });
+  const myCandidacy = myCandidacyQuery.data ?? null;
 
   // Refetch the tally on focus — others' votes don't stream (own-row RLS), so
   // there's no realtime subscription here; the % refreshes on focus + on a vote.
@@ -317,14 +325,36 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard */}
+        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard. One candidacy
+            per edition (dream_candidacies_one_per_edition), so an existing row replaces the
+            CTA; while it is still 'submitted' (the RLS update window) and the window is open,
+            the member can EXPLICITLY reopen the wizard prefilled (#226 — never automatic). */}
         <View className="gap-2">
-          <Button
-            label={t('fund.candidate.cta', locale)}
-            onPress={() => router.push('/(modal)/candidacy')}
-            variant="light"
-            // No glow — flat CTA, rule #4
-          />
+          {!myCandidacy ? (
+            <Button
+              label={t('fund.candidate.cta', locale)}
+              onPress={() => router.push('/(modal)/candidacy')}
+              variant="light"
+              // No glow — flat CTA, rule #4
+            />
+          ) : (
+            <>
+              {myCandidacy.status !== 'rejected' ? (
+                <Text className="text-center text-[13px] text-muted-foreground">
+                  {t('candidacy.success.eyebrow', locale)}
+                </Text>
+              ) : null}
+              {myCandidacy.status === 'submitted' && edition.candidacy_window_open ? (
+                <Button
+                  label={t('candidacy.edit.cta', locale)}
+                  onPress={() =>
+                    router.push({ pathname: '/(modal)/candidacy', params: { edit: '1' } })
+                  }
+                  variant="ghost"
+                />
+              ) : null}
+            </>
+          )}
         </View>
 
         {/* 5. Partecipa */}

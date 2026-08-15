@@ -70,6 +70,38 @@ export const candidacyInsertSchema = dreamCandidacySchema
   });
 export type CandidacyInsert = z.infer<typeof candidacyInsertSchema>;
 
+/**
+ * Same-cycle edit while status='submitted' (#226) — RLS
+ * (dream_candidacies_update_own_submitted) pins the row to the author, the status to
+ * 'submitted' (USING + WITH CHECK) and dream_id to an own dream. edition_id, profile_id
+ * and status are deliberately absent: an edit never re-targets a row.
+ */
+export const candidacyUpdateSchema = dreamCandidacySchema
+  .pick({
+    story: true,
+    goal: true,
+    impact: true,
+    video_url: true,
+    thumb_path: true,
+    plan: true,
+    budget_cents: true,
+    min_viable_cents: true,
+    skills_needed: true,
+    category: true,
+    dream_id: true,
+  })
+  .partial()
+  // Mirrors the DB CHECK when both numbers travel together; a lone update of either
+  // still hits the CHECK server-side against the stored counterpart.
+  .refine(
+    (v) =>
+      v.budget_cents === undefined ||
+      v.min_viable_cents === undefined ||
+      v.min_viable_cents <= v.budget_cents,
+    { message: 'min_viable_cents must not exceed budget_cents', path: ['min_viable_cents'] },
+  );
+export type CandidacyUpdate = z.infer<typeof candidacyUpdateSchema>;
+
 /** The `fund_candidate_cards` view read-model — candidacy + author handle + dream-text title. */
 export const candidateCardSchema = z.object({
   candidacy_id: z.string().uuid(),
