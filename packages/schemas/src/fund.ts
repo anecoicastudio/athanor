@@ -11,6 +11,19 @@ export const fundPhaseSchema = z.enum([
 ]);
 export type FundPhase = z.infer<typeof fundPhaseSchema>;
 
+/**
+ * fund_editions.closure_reason (#216, D33) — why a cycle closed: realized, or one of the
+ * three void causes (below the FUND-42 floor, below the FUND-43 quorum, winner declined).
+ * Present exactly when phase = 'closed' (DB shape CHECK); #221 writes it at closure.
+ */
+export const fundClosureReasonSchema = z.enum([
+  'realized',
+  'voided_underfunded',
+  'voided_quorum',
+  'voided_declined',
+]);
+export type FundClosureReason = z.infer<typeof fundClosureReasonSchema>;
+
 /** Public read-model of one event-driven fund cycle (the identifier stays fund_editions, D39). */
 export const fundEditionSchema = z.object({
   id: z.string().uuid(),
@@ -31,6 +44,11 @@ export const fundEditionSchema = z.object({
   split_pct: z.number().int().min(0).max(100),
   cost_fee_statement: z.string().min(1),
   equity_declared: z.string().min(1),
+  // Failure states (#216) — closure reason exactly when closed; the FUND-42 announcement
+  // snapshot, null until #220 writes it; the FUND-45 carry-forward, 0 = nothing carried.
+  closure_reason: fundClosureReasonSchema.nullable(),
+  confirmed_pool_cents: z.number().int().nonnegative().nullable(),
+  carried_in_cents: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });

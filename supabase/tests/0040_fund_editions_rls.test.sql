@@ -84,11 +84,12 @@ select throws_ok(
       values (now() + interval '60 days', 1000000, 'candidacy', 1, 1, 1, 10, 'costs', 'none')$$,
   '23505', null, 'a second non-closed cycle is a unique violation');
 -- a CLOSED second cycle is fine — the index is partial on phase <> 'closed'
+-- (closure_reason since #216: closed rows must name why — fund_editions_closure_reason_shape)
 select lives_ok(
   $$insert into public.fund_editions
-      (target_at, goal_cents, phase, min_funding_cents, min_voters, min_candidacies,
+      (target_at, goal_cents, phase, closure_reason, min_funding_cents, min_voters, min_candidacies,
        split_pct, cost_fee_statement, equity_declared)
-      values (now() - interval '400 days', 1000000, 'closed', 1, 1, 1, 10, 'costs', 'none')$$,
+      values (now() - interval '400 days', 1000000, 'closed', 'realized', 1, 1, 1, 10, 'costs', 'none')$$,
   'a closed cycle coexists with the active one');
 
 -- ── #215: a cycle cannot open without its declared minimums (23502 not-null) ────────────
