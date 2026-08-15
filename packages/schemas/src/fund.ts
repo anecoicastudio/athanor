@@ -12,15 +12,17 @@ export const fundPhaseSchema = z.enum([
 export type FundPhase = z.infer<typeof fundPhaseSchema>;
 
 /**
- * fund_editions.closure_reason (#216, D33) — why a cycle closed: realized, or one of the
- * three void causes (below the FUND-42 floor, below the FUND-43 quorum, winner declined).
- * Present exactly when phase = 'closed' (DB shape CHECK); #221 writes it at closure.
+ * fund_editions.closure_reason (#216/#221, D33) — why a cycle closed: realized, one of the
+ * three void causes (below the FUND-42 floor, below the FUND-43 quorum, winner declined),
+ * or realization_failed (D33's post-tranche branch — declared failed with evidence).
+ * Present exactly when phase = 'closed' (DB shape CHECK); close_cycle() writes it.
  */
 export const fundClosureReasonSchema = z.enum([
   'realized',
   'voided_underfunded',
   'voided_quorum',
   'voided_declined',
+  'realization_failed',
 ]);
 export type FundClosureReason = z.infer<typeof fundClosureReasonSchema>;
 
@@ -49,6 +51,9 @@ export const fundEditionSchema = z.object({
   closure_reason: fundClosureReasonSchema.nullable(),
   confirmed_pool_cents: z.number().int().nonnegative().nullable(),
   carried_in_cents: z.number().int().nonnegative(),
+  // #221: rollover provenance — the predecessor this cycle's carried_in_cents moved from;
+  // NULL on a cycle opened from nothing. Unique where present (one successor per predecessor).
+  carried_from_edition_id: z.string().uuid().nullable(),
   // #220: when the winner confirmed deliverability at confirmed_pool_cents — NULL until
   // record_winner_decision('confirm'); stays NULL on a decline (closure_reason says so).
   winner_confirmed_at: z.string().nullable(),

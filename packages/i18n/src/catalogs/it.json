@@ -1152,6 +1152,8 @@
   "candidacy.edit.cta": "Modifica la candidatura",
   "candidacy.edit.submit": "Salva le modifiche",
   "candidacy.edit.toast": "Candidatura aggiornata ✦",
+  "candidacy.resubmit.cta": "Ricandida il tuo sogno",
+  "candidacy.resubmit.hint": "Riparti da ciò che avevi scritto nel ciclo scorso. Serve un nuovo video.",
   "candidacy.error.update": "Non siamo riusciti a salvare le modifiche. Riprova.",
   "candidacy.continue": "Continua",
   "candidacy.submit": "Invia la candidatura",

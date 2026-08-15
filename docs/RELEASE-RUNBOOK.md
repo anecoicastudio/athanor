@@ -309,11 +309,34 @@ Run **after `voting_ends_at` has passed**, in this order:
 Every transition writes an `audit_log` row (`announce`, `void_cycle`, `winner_confirm`,
 `winner_decline`, `declare_winner`, `screen_*`) — the §20 report reads from there.
 
-### 9.3 Closure and rollover (#221 — not yet built)
+### 9.3 Closure and rollover (#221)
 
-Voids above leave the cycle at its terminal state; creating the successor cycle and moving
-the pool into its `carried_in_cents` is #221's transaction. Until #221 lands there is no
-rollover step to run.
+`close-cycle` ends a cycle and opens its successor in **one transaction**. Every call takes a
+`successor` object — the next cycle's declarations, chosen now because nothing defaults them
+(FUND-SPEC §5): `{ "targetAt": "<ISO>", "goalCents": N, "minFundingCents": N, "minVoters": N,
+"minCandidacies": N, "splitPct": N, "costFeeStatement": "…", "equityDeclared": "…" }`. The
+successor opens at `candidacy` with both windows shut and `contributions_enabled=false` —
+opening them stays a separate operator act. Contributors are refunded in **no** branch; the
+carry is `greatest(carried_in + raised − disbursed, 0)`.
+
+- **Realized** — the dream was delivered against its published plan. An admin act with
+  evidence, never a second community vote:
+  `{ "editionId": "<uuid>", "op": "close", "outcome": "realized", "evidence": "<what was
+delivered, where published>", "successor": { … } }`.
+  Requires a declared, viability-confirmed winner. Disburses the `confirmed_pool_cents`
+  snapshot; the post-snapshot remainder carries into the successor (D34/D35). Candidacy
+  statuses stand as the historical record.
+- **Realization failed** (D33, post-tranche) — the delivery is declared failed:
+  same call with `"outcome": "realization_failed"` plus `"releasedCents": N` (what was
+  actually paid out — no tranche ledger exists yet, #228/#229 tighten this). The unreleased
+  remainder carries; the candidacy field (winner included) goes terminal `voided`.
+- **Rollover after a void** — §9.2's voids already closed the cycle, so only the successor
+  remains: `{ "editionId": "<uuid>", "op": "rollover", "successor": { … } }`. The whole pool
+  carries. One successor per predecessor — a second call refuses `already rolled over`.
+
+Audit rows: `close_cycle` on the predecessor (evidence + figures), `rollover_cycle` on the
+successor. The counter starts at zero either way; `carried_in_cents` renders as its own
+distinctly-labelled amount (FUND-45).
 
 ---
 

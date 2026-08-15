@@ -25,6 +25,7 @@ type Posture = 'user' | 'internal' | 'webhook';
 export const POSTURE: Record<string, Posture> = {
   'announce-cycle': 'internal',
   'check-in': 'user',
+  'close-cycle': 'internal',
   'create-circle-checkout': 'user',
   'create-circle-portal': 'user',
   'create-contribution-session': 'user',

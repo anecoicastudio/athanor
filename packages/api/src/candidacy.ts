@@ -13,6 +13,7 @@ import { keysetFilter, nextCursorOf } from './pagination';
 export const candidacyKeys = {
   all: ['candidacy'] as const,
   mine: (editionId: string) => [...candidacyKeys.all, 'mine', editionId] as const,
+  priorMine: (editionId: string) => [...candidacyKeys.all, 'priorMine', editionId] as const,
   detail: (id: string) => [...candidacyKeys.all, 'detail', id] as const,
   list: (editionId: string, cursor?: string | null) =>
     [...candidacyKeys.all, 'list', editionId, cursor ?? null] as const,
@@ -56,6 +57,33 @@ export async function getMyCandidacy(
     .eq('edition_id', editionId)
     .eq('profile_id', profileId)
     .is('deleted_at', null)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? dreamCandidacySchema.parse(data) : null;
+}
+
+/**
+ * The caller's most recent candidacy from any OTHER cycle (#221 — FUND-35's cross-cycle
+ * half). Cycles are sequential and only one is ever non-closed, so "not the current
+ * edition" means "a closed prior cycle". Feeds the explicit re-submission prefill: the
+ * wizard reads this row's text fields into a FRESH submit (a prior-cycle row is terminal
+ * — 'voided'/'rejected'/'winner' — so updateCandidacy can never reach it); nothing
+ * auto-carries (pgTAP 0110 asserts the old row stays untouched). Own-row RLS covers
+ * closed editions (dream_candidacies_select_visible, own arm).
+ */
+export async function getMyLatestPriorCandidacy(
+  client: AthanorClient,
+  currentEditionId: string,
+  profileId: string,
+): Promise<DreamCandidacy | null> {
+  const { data, error } = await client
+    .from('dream_candidacies')
+    .select('*')
+    .neq('edition_id', currentEditionId)
+    .eq('profile_id', profileId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data ? dreamCandidacySchema.parse(data) : null;

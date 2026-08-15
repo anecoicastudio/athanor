@@ -13,6 +13,7 @@ import {
   getEditionTally,
   getFundAggregate,
   getMyCandidacy,
+  getMyLatestPriorCandidacy,
   getMyVote,
   subscribeFundAggregate,
   voteKeys,
@@ -105,6 +106,14 @@ export default function AnnualFundScreen() {
     enabled: !!editionId && !!uid,
   });
   const myCandidacy = myCandidacyQuery.data ?? null;
+  // FUND-35's cross-cycle half (#221): a candidacy in a closed prior cycle offers the
+  // explicit prefilled re-submission — fetched only once this cycle is known to have none.
+  const priorCandidacyQuery = useQuery({
+    queryKey: candidacyKeys.priorMine(editionId),
+    queryFn: () => getMyLatestPriorCandidacy(supabase, editionId, uid!),
+    enabled: !!editionId && !!uid && myCandidacyQuery.isSuccess && !myCandidacyQuery.data,
+  });
+  const priorCandidacy = priorCandidacyQuery.data ?? null;
 
   // Refetch the tally on focus — others' votes don't stream (own-row RLS), so
   // there's no realtime subscription here; the % refreshes on focus + on a vote.
@@ -288,12 +297,30 @@ export default function AnnualFundScreen() {
             the member can EXPLICITLY reopen the wizard prefilled (#226 — never automatic). */}
         <View className="gap-2">
           {!myCandidacy ? (
-            <Button
-              label={t('fund.candidate.cta', locale)}
-              onPress={() => router.push('/(modal)/candidacy')}
-              variant="light"
-              // No glow — flat CTA, rule #4
-            />
+            <>
+              <Button
+                label={t('fund.candidate.cta', locale)}
+                onPress={() => router.push('/(modal)/candidacy')}
+                variant="light"
+                // No glow — flat CTA, rule #4
+              />
+              {/* FUND-35 cross-cycle (#221): a prior-cycle candidacy offers the EXPLICIT
+                  prefilled restart — a fresh row in this cycle, never an auto-carry. */}
+              {priorCandidacy ? (
+                <>
+                  <Button
+                    label={t('candidacy.resubmit.cta', locale)}
+                    onPress={() =>
+                      router.push({ pathname: '/(modal)/candidacy', params: { resubmit: '1' } })
+                    }
+                    variant="ghost"
+                  />
+                  <Text className="text-center text-[12px] text-muted-foreground">
+                    {t('candidacy.resubmit.hint', locale)}
+                  </Text>
+                </>
+              ) : null}
+            </>
           ) : (
             <>
               {myCandidacy.status !== 'rejected' ? (

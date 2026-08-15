@@ -26,6 +26,7 @@ const validEdition = {
   closure_reason: null,
   confirmed_pool_cents: null,
   carried_in_cents: 0,
+  carried_from_edition_id: null,
   winner_confirmed_at: null,
   created_at: '2026-06-17T00:00:00.000Z',
   updated_at: '2026-06-17T00:00:00.000Z',
@@ -78,15 +79,32 @@ describe('fundEditionSchema', () => {
       false,
     );
   });
-  // #216 failure states — the enum mirrors fund_editions_closure_reason_check.
-  it.each(['realized', 'voided_underfunded', 'voided_quorum', 'voided_declined'])(
-    'accepts closure_reason %s',
-    (closure_reason) => {
-      expect(fundEditionSchema.safeParse({ ...validEdition, closure_reason }).success).toBe(true);
-    },
-  );
+  // #216/#221 failure states — the enum mirrors fund_editions_closure_reason_check.
+  it.each([
+    'realized',
+    'voided_underfunded',
+    'voided_quorum',
+    'voided_declined',
+    'realization_failed',
+  ])('accepts closure_reason %s', (closure_reason) => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, closure_reason }).success).toBe(true);
+  });
   it.each(['voided', 'failed', ''])('rejects unknown closure_reason %s', (closure_reason) => {
     expect(fundEditionSchema.safeParse({ ...validEdition, closure_reason }).success).toBe(false);
+  });
+  // #221: rollover provenance — a required, nullable uuid key.
+  it('requires carried_from_edition_id as a nullable uuid key (#221)', () => {
+    const { carried_from_edition_id: _p, ...bare } = validEdition;
+    expect(fundEditionSchema.safeParse(bare).success).toBe(false);
+    expect(
+      fundEditionSchema.safeParse({
+        ...validEdition,
+        carried_from_edition_id: '00000000-0000-0000-0000-0000000000b2',
+      }).success,
+    ).toBe(true);
+    expect(
+      fundEditionSchema.safeParse({ ...validEdition, carried_from_edition_id: 'pred-1' }).success,
+    ).toBe(false);
   });
   it('accepts a null or non-negative confirmed_pool_cents, rejects a negative one (#216)', () => {
     expect(
