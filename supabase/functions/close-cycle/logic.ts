@@ -3,7 +3,7 @@ import { error, json } from '../_shared/respond.ts';
 
 // The transitions themselves — the refusal ladders, the carry arithmetic, the successor
 // creation — are TWO SQL functions (public.close_cycle and public.rollover_voided,
-// migration 20260815193158, pgTAP 0110): atomicity and authority are the database's job,
+// migrations 20260815193158 + 20260815215924, pgTAP 0110): atomicity and authority are the database's job,
 // not this layer's. What lives here: strict parse (the op-specific shape included, so a
 // malformed call dies 400 before any rpc), the single rpc per op, refusal → status
 // mapping, and the response. Transport shell in index.ts (requireServiceRole first); the
@@ -22,36 +22,31 @@ const successor = z.object({
   equityDeclared: z.string().trim().min(1),
 });
 
-// op-discriminated: 'close' carries the declared outcome + evidence (and the released
-// amount exactly when the outcome is the D33 failure); 'rollover' carries only the
-// successor. The SQL re-checks all of it behind this parse (belt and braces).
-const payload = z
-  .discriminatedUnion('op', [
-    z.object({
+// op-discriminated: 'close' carries the declared outcome + evidence; 'rollover' carries
+// only the successor. No released amount travels here since #247 — on the D33 failure the
+// SQL reads disbursed from fund_payout_ledger (released-net), never from the caller: the
+// figure must not live in two places. The SQL re-checks the rest behind this parse.
+// Strict members: a caller still sending the pre-#247 releasedCents (or any unknown key)
+// dies 400 instead of having the figure silently stripped and ignored — the operator must
+// learn the parameter is gone, not believe it was honoured.
+const payload = z.discriminatedUnion('op', [
+  z
+    .object({
       editionId: z.string().uuid(),
       op: z.literal('close'),
       outcome: z.enum(['realized', 'realization_failed']),
       evidence: z.string().trim().min(1),
-      releasedCents: z.number().int().nonnegative().optional(),
       successor,
-    }),
-    z.object({
+    })
+    .strict(),
+  z
+    .object({
       editionId: z.string().uuid(),
       op: z.literal('rollover'),
       successor,
-    }),
-  ])
-  // discriminatedUnion members must stay bare ZodObjects, so the cross-field rule sits on
-  // the union: the released amount travels with the D33 failure and only with it.
-  .superRefine((v, ctx) => {
-    if (v.op !== 'close') return;
-    if (v.outcome === 'realized' && v.releasedCents !== undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'released not applicable' });
-    }
-    if (v.outcome === 'realization_failed' && v.releasedCents === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'released required' });
-    }
-  });
+    })
+    .strict(),
+]);
 
 /** The one row close_cycle() returns: the successor and what the closure carried. */
 export type CloseRow = {
@@ -85,7 +80,6 @@ export type CloseCycleDb = {
       p_edition_id: string;
       p_outcome: 'realized' | 'realization_failed';
       p_evidence: string;
-      p_released_cents: number | null;
     } & SuccessorArgs,
   ) => Promise<{ data: CloseRow[] | null; error: { code?: string; message: string } | null }>) &
     ((
@@ -107,9 +101,6 @@ const REFUSALS: Record<string, number> = {
   'no winner declared': 409, // close: declare_winner has not run
   'viability not confirmed': 409, // close: nothing to realize or to fail without the confirmation
   'evidence required': 400,
-  'released not applicable': 400, // close realized: the snapshot figure is the disbursement
-  'released required': 400, // close realization_failed: no tranche ledger yet — operator supplies it
-  'released out of range': 400,
   'cycle not closed': 409, // rollover: the predecessor must be at its end-state
   'predecessor not voided': 409, // rollover: realized/failed cycles rolled over inside close_cycle
   'already rolled over': 409, // rollover: one successor per predecessor
@@ -143,7 +134,6 @@ export async function closeCycle(db: CloseCycleDb, req: Request): Promise<Respon
       p_edition_id: p.editionId,
       p_outcome: p.outcome,
       p_evidence: p.evidence,
-      p_released_cents: p.releasedCents ?? null,
       ...successorArgs,
     });
     if (dbErr) {

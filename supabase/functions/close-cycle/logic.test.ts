@@ -2,9 +2,10 @@ import { assertEquals } from 'jsr:@std/assert@1';
 import { closeCycle, type CloseCycleDb, type CloseRow, type RolloverRow } from './logic.ts';
 
 // The transactions, the ladders and the carry arithmetic live in SQL (close_cycle() and
-// rollover_voided(), pgTAP 0110). What this layer owes: parse strictly (op shape and the
-// released-amount rule included), route the op to its ONE rpc and nothing else, map each
-// refusal to a status, and return the outcome untouched.
+// rollover_voided(), pgTAP 0110). What this layer owes: parse strictly (no released
+// amount travels here since #247 — the SQL reads it from fund_payout_ledger), route the
+// op to its ONE rpc and nothing else, map each refusal to a status, and return the
+// outcome untouched.
 
 const ED = '00000000-0000-0000-0000-0000000000ed';
 const SUC = '00000000-0000-0000-0000-00000000000b';
@@ -94,36 +95,33 @@ Deno.test('missing/invalid fields → 400, no db call', async () => {
 });
 
 Deno.test(
-  'released travels only with the D33 failure — both directions 400, no db call',
+  'a stale releasedCents is refused loudly, never silently stripped — 400, no db call',
   async () => {
+    // #247 removed the parameter: disbursed is read from fund_payout_ledger in SQL. A
+    // caller still sending it must learn that, not believe the figure was honoured.
     const { db, calls } = fakeDb({ data: [closed], error: null });
-    for (const body of [
-      // realized must NOT carry a released amount
-      JSON.stringify({
-        editionId: ED,
-        op: 'close',
-        outcome: 'realized',
-        evidence: 'e',
-        releasedCents: 1,
-        successor,
-      }),
-      // realization_failed must carry one
-      JSON.stringify({
-        editionId: ED,
-        op: 'close',
-        outcome: 'realization_failed',
-        evidence: 'e',
-        successor,
-      }),
-    ]) {
-      const res = await closeCycle(db, post(body));
-      assertEquals(res.status, 400);
+    for (const outcome of ['realized', 'realization_failed']) {
+      const res = await closeCycle(
+        db,
+        post(
+          JSON.stringify({
+            editionId: ED,
+            op: 'close',
+            outcome,
+            evidence: 'e',
+            releasedCents: 3000,
+            successor,
+          }),
+        ),
+      );
+      assertEquals(res.status, 400, outcome);
+      assertEquals((await res.json()).error, 'invalid payload');
     }
     assertEquals(calls.length, 0);
   },
 );
 
-Deno.test('close realized routes to close_cycle with a null released amount', async () => {
+Deno.test('close realized routes to close_cycle', async () => {
   const { db, calls } = fakeDb({ data: [closed], error: null });
   const res = await closeCycle(
     db,
@@ -147,13 +145,13 @@ Deno.test('close realized routes to close_cycle with a null released amount', as
   assertEquals(calls.length, 1);
   assertEquals(calls[0].fn, 'close_cycle');
   assertEquals(calls[0].args.p_outcome, 'realized');
-  assertEquals(calls[0].args.p_released_cents, null);
+  assertEquals('p_released_cents' in calls[0].args, false); // gone since #247 — ledger-read in SQL
   assertEquals(calls[0].args.p_evidence, 'delivered per plan');
   assertEquals(calls[0].args.p_target_at, successor.targetAt);
   assertEquals(calls[0].args.p_min_voters, 5);
 });
 
-Deno.test('close realization_failed forwards the released amount', async () => {
+Deno.test('close realization_failed routes without any released figure', async () => {
   const failedRow: CloseRow = {
     successor_id: SUC,
     closure_reason: 'realization_failed',
@@ -168,14 +166,14 @@ Deno.test('close realization_failed forwards the released amount', async () => {
         op: 'close',
         outcome: 'realization_failed',
         evidence: 'first tranche released, no delivery',
-        releasedCents: 3000,
         successor,
       }),
     ),
   );
   assertEquals(res.status, 200);
   assertEquals((await res.json()).outcome, 'realization_failed');
-  assertEquals(calls[0].args.p_released_cents, 3000);
+  assertEquals(calls[0].fn, 'close_cycle');
+  assertEquals('p_released_cents' in calls[0].args, false); // disbursed = ledger released-net (#247)
 });
 
 Deno.test('rollover routes to rollover_voided and returns the carried amount', async () => {
@@ -201,9 +199,6 @@ Deno.test('each SQL refusal maps to its status', async () => {
     ['no winner declared', 409],
     ['viability not confirmed', 409],
     ['evidence required', 400],
-    ['released not applicable', 400],
-    ['released required', 400],
-    ['released out of range', 400],
   ];
   for (const [message, status] of cases) {
     const { db } = fakeDb({ data: null, error: { code: 'P0001', message } });

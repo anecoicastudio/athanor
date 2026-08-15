@@ -26,6 +26,7 @@ export * from './gdprExportJob';
 export * from './pushToken';
 export * from './fund';
 export * from './payout-account';
+export * from './payout-ledger';
 export * from './candidacy';
 export * from './vote';
 export * from './circle';

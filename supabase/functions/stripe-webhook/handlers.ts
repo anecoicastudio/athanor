@@ -417,6 +417,84 @@ export async function handleAccountUpdated(db: Db, account: Stripe.Account): Pro
   }
 }
 
+/**
+ * W14 — transfer.created: RECORD the fund payout the release path requested (#247, rule #6:
+ * the execution requests, the webhook records — this arm is the ONLY writer of a new
+ * fund_payout_ledger row). Only kind='fund_payout' transfers are ours to record; any other
+ * transfer (#104's ticket payouts later, a Dashboard manual transfer) acks untouched.
+ * The basis rides the transfer's metadata — set by release-fund-payout from the cycle's
+ * frozen #232 columns — and the within-basis trigger re-derives it against those columns,
+ * so a diverging or over-payable row REFUSES (P0001): this throw makes Stripe retry and
+ * leaves the event visible with processed_at NULL, a standing alarm, exactly the
+ * assertSettled failure posture. Idempotent: stripe_transfer_id is UNIQUE and the upsert
+ * ignores duplicates, so a redelivery inserts nothing.
+ */
+export async function handleTransferCreated(db: Db, transfer: Stripe.Transfer): Promise<void> {
+  if (transfer.metadata?.kind !== 'fund_payout') return; // not the fund path — ack
+
+  // Metadata values are strings; a lax Number() would read '' as 0 and cache a zero
+  // basis, so only a plain non-negative digit string parses. Fail loud on anything else
+  // rather than cache a row the reconciliation cannot trust — Stripe retries, the
+  // misconfiguration stays visible.
+  const metaInt = (v: string | undefined): number | null =>
+    typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : null;
+  const editionId = transfer.metadata.edition_id;
+  const poolCents = metaInt(transfer.metadata.pool_cents);
+  const splitPct = metaInt(transfer.metadata.split_pct);
+  const payableCents = metaInt(transfer.metadata.payable_cents);
+  if (!editionId) throw new Error('fund payout transfer missing edition_id');
+  if (poolCents === null || splitPct === null || payableCents === null) {
+    throw new Error('fund payout transfer missing its declared-retention basis');
+  }
+  const destination = refId(transfer.destination);
+  if (!destination) throw new Error('fund payout transfer missing destination');
+
+  const reversed = transfer.amount_reversed ?? 0;
+  const { error } = await db.from('fund_payout_ledger').upsert(
+    {
+      edition_id: editionId,
+      destination_account_id: destination,
+      amount_cents: transfer.amount,
+      reversed_cents: reversed,
+      currency: (transfer.currency ?? 'eur').toLowerCase(),
+      pool_cents: poolCents,
+      split_pct: splitPct,
+      payable_cents: payableCents,
+      status: reversed === transfer.amount ? 'reversed' : 'released',
+      stripe_transfer_id: transfer.id,
+    },
+    { onConflict: 'stripe_transfer_id', ignoreDuplicates: true },
+  );
+  if (error) throw error;
+}
+
+/**
+ * W15 — transfer.reversed: keep the ledger row true when money comes back (full or
+ * partial; amount_reversed is cumulative and only grows, so a redelivery rewrites the
+ * same values — idempotent). A reversal nets against what remains unreleased (#244), so
+ * close_cycle's disbursed and release-fund-payout's headroom both move with this column.
+ * Out-of-order delivery: Stripe does not guarantee event order, and a reversal arriving
+ * before its transfer.created would update zero rows — silently acking that would LOSE
+ * the reversal when the created arm later inserts the pre-reversal snapshot. So an
+ * unmatched fund-kind reversal throws (Stripe retries until the row exists); an unmatched
+ * transfer without our kind is simply not ours — ack.
+ */
+export async function handleTransferReversed(db: Db, transfer: Stripe.Transfer): Promise<void> {
+  const reversed = transfer.amount_reversed ?? 0;
+  const { data: updated, error } = await db
+    .from('fund_payout_ledger')
+    .update({
+      reversed_cents: reversed,
+      status: reversed === transfer.amount ? 'reversed' : 'released',
+    })
+    .eq('stripe_transfer_id', transfer.id)
+    .select('id');
+  if (error) throw error;
+  if ((!updated || updated.length === 0) && transfer.metadata?.kind === 'fund_payout') {
+    throw new Error(`reversal for ${transfer.id} arrived before its ledger row — retry`);
+  }
+}
+
 export async function processEvent(
   ctx: Pick<WebhookCtx, 'db' | 'qrSecret' | 'retrieveSubscription'>,
   event: Stripe.Event,
@@ -483,6 +561,16 @@ export async function processEvent(
     case 'account.updated': {
       // W13 — Connect Express account state (payout_accounts cache).
       await handleAccountUpdated(db, event.data.object as Stripe.Account);
+      return;
+    }
+    case 'transfer.created': {
+      // W14 — the fund payout the release path requested, recorded (#247).
+      await handleTransferCreated(db, event.data.object as Stripe.Transfer);
+      return;
+    }
+    case 'transfer.reversed': {
+      // W15 — money came back; the ledger row nets it (#244/#247).
+      await handleTransferReversed(db, event.data.object as Stripe.Transfer);
       return;
     }
     case 'identity.verification_session.requires_input':
