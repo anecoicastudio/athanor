@@ -29,6 +29,7 @@ export const POSTURE: Record<string, Posture> = {
   'create-contribution-session': 'user',
   'create-ticket-checkout': 'user',
   'create-verification-session': 'user',
+  'declare-winner': 'internal',
   'erasure-job': 'internal',
   'gdpr-export-job': 'internal',
   'media-process': 'internal',

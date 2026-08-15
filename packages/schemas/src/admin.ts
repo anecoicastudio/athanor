@@ -51,15 +51,21 @@ export const resolveReportInput = z
   });
 export type ResolveReportInput = z.infer<typeof resolveReportInput>;
 
-/** Append-only audit row (admin-read). Mirrors supabase audit_log. */
+/**
+ * Append-only audit row (admin-read). Mirrors supabase audit_log, which since #219 holds
+ * two shapes: moderation rows (report_id + actor_id set) and fund rows ('declare_winner':
+ * edition_id set, no report, no user actor — the writer is the service-role edge function).
+ */
 export const auditLogRow = z.object({
   id: z.string().uuid(),
-  report_id: z.string().uuid(),
-  actor_id: z.string().uuid(),
-  action: z.enum(['dismiss', 'warn', 'penalty', 'suspend', 'ban']),
+  report_id: z.string().uuid().nullable(),
+  actor_id: z.string().uuid().nullable(),
+  action: z.enum(['dismiss', 'warn', 'penalty', 'suspend', 'ban', 'declare_winner']),
   penalty_points: z.number().int().nullable(),
   reason: z.string().nullable(),
   created_at: z.string(),
+  edition_id: z.string().uuid().nullable(),
+  candidacy_id: z.string().uuid().nullable(),
 });
 export type AuditLogRow = z.infer<typeof auditLogRow>;
 

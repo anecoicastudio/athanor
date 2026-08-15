@@ -78,30 +78,36 @@ export type Database = {
       audit_log: {
         Row: {
           action: string
-          actor_id: string
+          actor_id: string | null
+          candidacy_id: string | null
           created_at: string
+          edition_id: string | null
           id: string
           penalty_points: number | null
           reason: string | null
-          report_id: string
+          report_id: string | null
         }
         Insert: {
           action: string
-          actor_id: string
+          actor_id?: string | null
+          candidacy_id?: string | null
           created_at?: string
+          edition_id?: string | null
           id?: string
           penalty_points?: number | null
           reason?: string | null
-          report_id: string
+          report_id?: string | null
         }
         Update: {
           action?: string
-          actor_id?: string
+          actor_id?: string | null
+          candidacy_id?: string | null
           created_at?: string
+          edition_id?: string | null
           id?: string
           penalty_points?: number | null
           reason?: string | null
-          report_id?: string
+          report_id?: string | null
         }
         Relationships: [
           {
@@ -116,6 +122,27 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "dream_candidacies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "fund_candidate_cards"
+            referencedColumns: ["candidacy_id"]
+          },
+          {
+            foreignKeyName: "audit_log_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
             referencedColumns: ["id"]
           },
           {
@@ -2730,6 +2757,15 @@ export type Database = {
           p_venue?: string
         }
         Returns: string
+      }
+      declare_winner: {
+        Args: { p_edition_id: string }
+        Returns: {
+          candidacy_id: string
+          is_winner: boolean
+          vote_count: number
+          weighted_total: number
+        }[]
       }
       enqueue_push: {
         Args: {

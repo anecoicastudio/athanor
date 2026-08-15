@@ -83,7 +83,9 @@ export async function getReportDetail(
   }
   const { data: audit } = await client
     .from('audit_log')
-    .select('id, report_id, actor_id, action, penalty_points, reason, created_at')
+    .select(
+      'id, report_id, actor_id, action, penalty_points, reason, created_at, edition_id, candidacy_id',
+    )
     .eq('report_id', id)
     .order('created_at', { ascending: false });
   return {

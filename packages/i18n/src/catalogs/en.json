@@ -1284,6 +1284,7 @@
   "admin.action.penalty": "Penalty",
   "admin.action.suspend": "Suspension",
   "admin.action.ban": "Banned",
+  "admin.action.declare_winner": "Winner declared",
   "admin.waitlist.title": "Waitlist",
   "admin.waitlist.count": "people waiting",
   "admin.waitlist.empty": "No signups yet.",

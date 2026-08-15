@@ -462,3 +462,21 @@ for both constraints (impersonation, a space-padded 5001-character name, a white
 and that `handle_new_user` still cannot be made to raise 23514 by any provider value. The
 allowlist/trigger agreement is pinned by `supabase/functions/media-process/buckets.test.ts`, which
 parses the WHEN clause out of the migrations rather than trusting a comment.
+
+## `20260815093035_declare_winner.sql` — "NULL bounds fail closed, as in cast_vote" was false
+
+The comment above the ballot-window gate claimed a NULL `voting_ends_at` fails closed the way it
+does in `cast_vote`. It does not, and the two shapes differ in exactly the way that matters:
+`cast_vote`'s NULL lands inside a WHERE clause, where NULL means the row does not qualify and the
+surrounding `NOT EXISTS` raises — genuinely fail-closed. `declare_winner`'s gate was an IF:
+`if not (now() > voting_ends_at)` evaluates to `not NULL` = NULL, and plpgsql treats a NULL
+condition as false — so an edition with an **undeclared** window skipped the gate entirely and
+fell through to the quorum and floor checks. Caught the same day by a staging smoke (the refusal
+came back `funding floor not met`, two gates deeper than an undeclared-window edition should ever
+reach); with quorum and floor met it would have declared a winner on a ballot that never closed.
+
+`20260815094157_declare_winner_window_fail_closed.sql` replaces the body with the NULL arm
+explicit: `if voting_ends_at is null or now() <= voting_ends_at then raise`.
+
+Asserted by: `supabase/tests/0103_declare_winner.test.sql` — an undeclared window refuses
+`ballot not closed`, and so does a window still open; both before any write.
