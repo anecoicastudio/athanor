@@ -297,6 +297,16 @@ Deno.test('claim rpc error or unknown verdict → 500 fail-closed, Stripe never 
   }
 });
 
+Deno.test('a live claim → 409 checkout already open, Stripe never called (#258)', async () => {
+  // The concurrent double checkout: the other invocation's claim is live, so this one
+  // must refuse BEFORE minting — a second payable Session is the double charge itself.
+  const c = ctx({ ...sellable(), 'rpc.claim_event_seat': [{ data: 'claim_pending' }] });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 409);
+  assertEquals(body, { error: 'checkout already open' });
+  assertEquals(c.created.length, 0);
+});
+
 Deno.test('claim belt: already_owned → 409, not_found → 404', async () => {
   const owned = await run(
     ctx({ ...sellable(), 'rpc.claim_event_seat': [{ data: 'already_owned' }] }),

@@ -762,6 +762,7 @@
   "ticket.error.eventEnded": "Questo evento è già finito.",
   "ticket.error.alreadyOwned": "Hai già il tuo biglietto ✦",
   "ticket.error.soldOut": "I posti sono finiti mentre completavi l'acquisto.",
+  "ticket.error.checkoutOpen": "Hai già un acquisto in corso. Completalo, oppure riprova più tardi.",
   "ticket.viewer.title": "Il tuo biglietto",
   "ticket.show": "Mostra questo codice all'ingresso",
   "ticket.status.valid": "Valido",
