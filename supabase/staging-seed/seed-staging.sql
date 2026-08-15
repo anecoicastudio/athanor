@@ -808,7 +808,7 @@ on conflict do nothing;
 -- 13. remote_config — boot kill-switches.
 --
 -- ⚠ DELIBERATELY DIVERGES FROM PRODUCTION. The runbook sets
--- fund_contributions_enabled and prime_stelle_enabled to false on production, and
+-- fund_surfaces_enabled and prime_stelle_enabled to false on production, and
 -- fund_editions.contributions_enabled carries a "LEGAL FLAG: gated until counsel
 -- clears" comment. They are true here so the flows can be walked in Stripe test mode.
 -- Do not copy this block to production.
@@ -816,7 +816,7 @@ on conflict do nothing;
 insert into public.remote_config (key, value) values
   ('min_app_version',           '{"ios":"1.0.0","android":"1.0.0"}'::jsonb),
   ('maintenance_mode',          '{"enabled":false,"eta":null}'::jsonb),
-  ('fund_contributions_enabled','{"enabled":true}'::jsonb),
+  ('fund_surfaces_enabled',     '{"enabled":true}'::jsonb),
   ('prime_stelle_enabled',      '{"enabled":true}'::jsonb)
 on conflict do nothing;
 

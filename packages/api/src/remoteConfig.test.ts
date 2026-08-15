@@ -21,12 +21,12 @@ describe('getRemoteConfig', () => {
         { key: 'min_app_version', value: { ios: '1.2.0', android: '1.2.0' }, updated_at: 't' },
         { key: 'maintenance_mode', value: { enabled: true, eta: '18:00' }, updated_at: 't' },
         { key: 'prime_stelle_enabled', value: { enabled: false }, updated_at: 't' },
-        { key: 'fund_contributions_enabled', value: { enabled: true }, updated_at: 't' },
+        { key: 'fund_surfaces_enabled', value: { enabled: true }, updated_at: 't' },
       ]),
     );
     expect(snap.minAppVersion).toEqual({ ios: '1.2.0', android: '1.2.0' });
     expect(snap.maintenance).toEqual({ enabled: true, eta: '18:00' });
-    expect(snap.flags).toEqual({ prime_stelle_enabled: false, fund_contributions_enabled: true });
+    expect(snap.flags).toEqual({ prime_stelle_enabled: false, fund_surfaces_enabled: true });
   });
 
   it('fail-open: empty table → all null / empty flags', async () => {
