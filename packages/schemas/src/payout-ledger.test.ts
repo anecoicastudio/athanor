@@ -53,6 +53,12 @@ describe('payoutLedgerSchema', () => {
     ).toThrow();
   });
 
+  it('rejects an amount past the payable — no single transfer exceeds the cap', () => {
+    expect(() => payoutLedgerSchema.parse({ ...releasedRow, amount_cents: 9001 })).toThrow();
+    const atPayable = { ...releasedRow, amount_cents: 9000 };
+    expect(payoutLedgerSchema.parse(atPayable)).toEqual(atPayable);
+  });
+
   it('rejects a status that contradicts the reversal arithmetic', () => {
     // fully reversed but still 'released' — and 'reversed' with money still out
     expect(() => payoutLedgerSchema.parse({ ...releasedRow, reversed_cents: 4000 })).toThrow();

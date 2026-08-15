@@ -29,6 +29,9 @@ export const payoutLedgerSchema = z
     if (row.reversed_cents > row.amount_cents) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'reversal exceeds amount' });
     }
+    if (row.amount_cents > row.payable_cents) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'amount exceeds payable' });
+    }
     // The #232 rider, mirrored: floor(pool × (100 − split) / 100), same truncation as
     // the bigint division in the table's CHECK.
     if (row.payable_cents !== Math.floor((row.pool_cents * (100 - row.split_pct)) / 100)) {
