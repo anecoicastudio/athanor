@@ -35,16 +35,17 @@ insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_wi
   values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'voting', true, false,
           now() - interval '1 hour', now() + interval '1 hour',
           100000, 5, 3, 10, 'fixture costs statement', 'none');
--- two votable candidacies, one per author (status submitted). Written as owner (bypasses the
+-- two votable candidacies, one per author — 'shortlisted', because the ballot is the
+-- SCREENED set from #218 on (is_on_ballot). Written as owner (bypasses the
 -- identity-verified insert gate — exactly the service-role path). created_at is explicit and
 -- distinct: same-transaction inserts share now(), and the D7 tie-break tests below need a1
 -- to be the earlier submission.
 insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status, budget_cents, min_viable_cents, created_at)
 values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000ed',
-   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','submitted', 800000, 500000, now() - interval '2 days'),
+   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','shortlisted', 800000, 500000, now() - interval '2 days'),
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000ed',
-   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','submitted', 800000, 500000, now() - interval '1 day');
+   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','shortlisted', 800000, 500000, now() - interval '1 day');
 reset role;
 
 -- ── schema / RLS ──────────────────────────────────────────────────────────────────────
@@ -217,6 +218,7 @@ select lives_ok(
 -- ── D7 tie order in candidacy_tally ───────────────────────────────────────────────────
 -- The cast above moved user_a to cand_a1, so the tally is a 1–1 tie: a1 (submitted 2 days
 -- ago) must sort before b1 (1 day ago) — ties break on earliest submission.
+-- (Both rows are 'shortlisted'; the tie is about created_at, not status.)
 reset role;
 select results_eq(
   $$ select candidacy_id from public.candidacy_tally('00000000-0000-0000-0000-0000000000ed') $$,

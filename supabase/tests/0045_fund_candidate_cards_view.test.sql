@@ -18,28 +18,29 @@ insert into public.dreams (profile_id, text, status)
   values ('11111111-1111-1111-1111-111111111111', 'Una casa-laboratorio', 'active');
 
 -- one open edition + two candidacies (service_role bypasses the identity gate):
---   user_a → submitted (members-visible);  user_b → rejected (own-only)
+--   user_a → shortlisted (members-visible: the ballot is the SCREENED set from #218 on);
+--   user_b → rejected (own-only)
 set local role service_role;
 insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
                                   min_funding_cents, min_voters, min_candidacies,
                                   split_pct, cost_fee_statement, equity_declared)
   values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'candidacy', true, false,
           100000, 5, 3, 10, 'fixture costs statement', 'none');
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, budget_cents, min_viable_cents)
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, budget_cents, min_viable_cents, rejection_reasons)
 values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000ed',
    '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4',
-   '11111111-1111-1111-1111-111111111111/a-thumb.jpg','p','submitted', 800000, 500000),
+   '11111111-1111-1111-1111-111111111111/a-thumb.jpg','p','shortlisted', 800000, 500000, null),
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000ed',
    '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4',
-   null,'p','rejected', 800000, 500000);
+   null,'p','rejected', 800000, 500000, array['plan_coherent']);
 reset role;
 
 -- ── schema ────────────────────────────────────────────────────────────────────────────
 select has_view('public', 'fund_candidate_cards', 'fund_candidate_cards view exists');
 
 -- ── title resolves to the author's active dream ───────────────────────────────────────
--- as user_b, user_a's submitted candidacy card carries the active dream text as title.
+-- as user_b, user_a's shortlisted candidacy card carries the active dream text as title.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 select is(
