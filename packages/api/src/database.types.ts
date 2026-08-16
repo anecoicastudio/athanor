@@ -3389,6 +3389,10 @@ export type Database = {
       }
       staging_refresh_world: { Args: never; Returns: Json }
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number }
+      verify_plan_phase: {
+        Args: { p_evidence: string; p_phase_id: string }
+        Returns: string
+      }
     }
     Enums: {
       connection_status: "pending" | "accepted" | "declined"

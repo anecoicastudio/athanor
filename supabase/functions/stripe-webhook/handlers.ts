@@ -423,8 +423,10 @@ export async function handleAccountUpdated(db: Db, account: Stripe.Account): Pro
  * fund_payout_ledger row). Only kind='fund_payout' transfers are ours to record; any other
  * transfer (#104's ticket payouts later, a Dashboard manual transfer) acks untouched.
  * The basis rides the transfer's metadata — set by release-fund-payout from the cycle's
- * frozen #232 columns — and the within-basis trigger re-derives it against those columns,
- * so a diverging or over-payable row REFUSES (P0001): this throw makes Stripe retry and
+ * frozen #232 columns, plus #231's plan_phase_id naming the phase whose recorded
+ * verification released the tranche — and the within-basis trigger re-derives it against
+ * those columns, so a diverging, over-payable, wrong-cycle or over-phase-amount row
+ * REFUSES (P0001): this throw makes Stripe retry and
  * leaves the event visible with processed_at NULL, a standing alarm, exactly the
  * assertSettled failure posture. Idempotent: stripe_transfer_id is UNIQUE and the upsert
  * ignores duplicates, so a redelivery inserts nothing.
@@ -446,6 +448,18 @@ export async function handleTransferCreated(db: Db, transfer: Stripe.Transfer): 
   if (poolCents === null || splitPct === null || payableCents === null) {
     throw new Error('fund payout transfer missing its declared-retention basis');
   }
+  // #231's attribution. ABSENT IS LEGAL AND MEANS NULL: every transfer released before the
+  // tranche gate existed carries no phase, and a redelivery of one of those events must
+  // still record. Present-but-malformed is not — it would reach Postgres as a bare 22P02
+  // from a column the message never names — so the shape is checked here and throws like
+  // the basis above. release-fund-payout cannot mint a new unattributed fund payout: its
+  // payload requires planPhaseId.
+  const rawPhaseId = transfer.metadata.plan_phase_id;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof rawPhaseId === 'string' && !uuid.test(rawPhaseId)) {
+    throw new Error('fund payout transfer carries a malformed plan_phase_id');
+  }
+  const planPhaseId = typeof rawPhaseId === 'string' ? rawPhaseId : null;
   const destination = refId(transfer.destination);
   if (!destination) throw new Error('fund payout transfer missing destination');
 
@@ -453,6 +467,7 @@ export async function handleTransferCreated(db: Db, transfer: Stripe.Transfer): 
   const { error } = await db.from('fund_payout_ledger').upsert(
     {
       edition_id: editionId,
+      plan_phase_id: planPhaseId,
       destination_account_id: destination,
       amount_cents: transfer.amount,
       reversed_cents: reversed,

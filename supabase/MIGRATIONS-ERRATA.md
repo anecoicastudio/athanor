@@ -608,3 +608,27 @@ released is the ledger's alone. The three released-shape refusals (`released not
 
 Asserted by: `supabase/tests/0112_fund_payout_ledger.test.sql` (ledger cap + close_cycle
 reading it) and the updated `supabase/tests/0110_fund_closure_rollover.test.sql`.
+
+## `20260816071602_fund_settle_sweep.sql` — the sweep is live since #231
+
+### L7-10 — "Today that answer is zero due tranches BY CONSTRUCTION — the enumeration source is #228/#229's realization-plan schema, which does not exist yet… a deliberately inert skeleton"
+
+True when written, false from `20260816110227_fund_tranche_gate.sql` onward. The
+enumeration source shipped hours later (`20260816073905` gave the phases,
+`20260816082552` the authoring and publication path), and #231 supplied the missing half
+the same header names: the verification slot in `release-fund-payout`'s refusal ladder.
+The sweep now enumerates a published plan's verified, not-yet-fully-released phases and
+can move money; "inert by construction" describes only the window between
+`20260816071602` and `20260816110227`.
+
+What did NOT change is the division of labour that paragraph states, which remains exact:
+the wrapper still carries no eligibility logic, still posts `{"mode":"sweep"}`, and the
+executor still decides whether anything moves. The cadence rationale (daily, 04:41 UTC)
+and the whole key-handling paragraph stand unamended.
+
+The `invoke_fund_settle_sweep()` function comment said the same thing and WAS replaceable,
+so `20260816110227` replaces it in place rather than leaving two sources of the claim.
+
+Asserted by: `supabase/tests/0117_fund_tranche_gate.test.sql` (verification refusals, the
+release gate, per-phase attribution) and
+`supabase/functions/release-fund-payout/logic.test.ts` (sweep-mode enumeration).

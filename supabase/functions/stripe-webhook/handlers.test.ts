@@ -642,6 +642,9 @@ Deno.test(
     assertEquals(call.op, 'upsert');
     assertEquals(call.values, {
       edition_id: 'ed-1',
+      // #231: no phase on the transfer → no attribution. Legal, and the state every
+      // pre-tranche-gate release is in.
+      plan_phase_id: null,
       destination_account_id: 'acct_win',
       amount_cents: 4000,
       reversed_cents: 0,
@@ -657,6 +660,40 @@ Deno.test(
     assertEquals(call.options, { onConflict: 'stripe_transfer_id', ignoreDuplicates: true });
   },
 );
+
+Deno.test('handleTransferCreated attributes the tranche to its plan phase (#231)', async () => {
+  // The one metadata key #228 left for this issue: it is what makes a released tranche
+  // attributable to the phase whose recorded verification released it. The ledger's
+  // within-basis trigger then refuses a foreign cycle or an over-phase-amount row.
+  const db = makeFakeDb();
+  const base = fundTransfer().metadata as Record<string, string>;
+  const phaseId = '22222222-2222-2222-2222-222222222222';
+  await handleTransferCreated(
+    asDb(db),
+    fundTransfer({ metadata: { ...base, plan_phase_id: phaseId } }),
+  );
+  assertEquals(db.calls.length, 1);
+  assertEquals((db.calls[0].values as Record<string, unknown>).plan_phase_id, phaseId);
+});
+
+Deno.test('handleTransferCreated throws on a malformed plan_phase_id (fail loud)', async () => {
+  // Passing it through would surface as a bare 22P02 from a column the message never
+  // names. Absent is legal (above); present-and-wrong is the misconfiguration.
+  const base = fundTransfer().metadata as Record<string, string>;
+  for (const bad of ['', 'not-a-uuid', '22222222-2222-2222-2222-22222222222']) {
+    const db = makeFakeDb();
+    await assertRejects(
+      () =>
+        handleTransferCreated(
+          asDb(db),
+          fundTransfer({ metadata: { ...base, plan_phase_id: bad } }),
+        ),
+      Error,
+      'malformed plan_phase_id',
+    );
+    assertEquals(db.calls.length, 0);
+  }
+});
 
 Deno.test('handleTransferCreated ignores transfers that are not fund payouts', async () => {
   // #104's ticket payouts and Dashboard manual transfers are not this arm's to record.

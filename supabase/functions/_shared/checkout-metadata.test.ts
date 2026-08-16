@@ -224,6 +224,7 @@ Deno.test(
     // rebuilds the ledger row from it. A drifted key would move real money and record
     // nothing — reconciliation would go blind while both halves' own suites stay green.
     const ED = '00000000-0000-0000-0000-0000000000ed';
+    const PHASE = '22222222-2222-2222-2222-222222222222';
     const producer = makeFakeDb({
       'fund_editions.select': [
         {
@@ -234,6 +235,17 @@ Deno.test(
             winner_confirmed_at: '2026-08-15T12:00:00.000Z',
             confirmed_pool_cents: 10000,
             split_pct: 10,
+          },
+        },
+      ],
+      // #231: a verified phase of a published plan — without it the release refuses and
+      // this wire never carries anything.
+      'realization_plan_phases.select': [
+        {
+          data: {
+            amount_cents: 9000,
+            verified_at: '2026-08-16T09:00:00.000Z',
+            realization_plans: { edition_id: ED, published_at: '2026-08-16T08:00:00.000Z' },
           },
         },
       ],
@@ -259,7 +271,7 @@ Deno.test(
       },
       new Request('http://localhost/release-fund-payout', {
         method: 'POST',
-        body: JSON.stringify({ editionId: ED, amountCents: 4000 }),
+        body: JSON.stringify({ editionId: ED, planPhaseId: PHASE, amountCents: 4000 }),
       }),
     );
     assertEquals(res.status, 200);
@@ -284,5 +296,8 @@ Deno.test(
     assertEquals(values.split_pct, 10);
     assertEquals(values.payable_cents, 9000);
     assertEquals(values.destination_account_id, 'acct_win');
+    // #231's key on the same wire: the attribution the gate produced must survive to the
+    // ledger, or the released tranche reconciles to the cycle but to no phase of the plan.
+    assertEquals(values.plan_phase_id, PHASE);
   },
 );
