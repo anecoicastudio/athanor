@@ -43,6 +43,7 @@ export const POSTURE: Record<string, Posture> = {
   'score-engine': 'internal',
   'screen-candidacy': 'internal',
   'stripe-webhook': 'webhook',
+  'verify-plan-phase': 'internal',
 };
 
 const EXPECTED_VERIFY_JWT: Record<Posture, boolean> = {

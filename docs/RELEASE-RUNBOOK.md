@@ -335,12 +335,43 @@ one transaction stamps `published_at`, makes the plan world-readable, writes the
 - After publication nothing — not the winner, not the operator through the client path — can
   edit the plan. It is the public commitment tranches release against (FUND-53).
 - `close-cycle` accepts both `announcement` and `realization`, so §9.3 is unaffected either
-  way. `release-fund-payout` reads the phase list, so a cycle with no published plan has no
-  tranche to release.
+  way. Since #231 `release-fund-payout` takes a `planPhaseId` on every call and reads that
+  phase, so a cycle with no published plan has no tranche to release — there is no longer
+  any payload that releases money without naming a phase.
 
 If the winner is stuck, the failure is theirs to report, not an operator command to run:
 there is no service-role plan-authoring path and adding one would put Athanor's words in the
 dreamer's plan.
+
+### 9.2c Tranche release — no verification, no money (#231)
+
+Money reaches the winner **one phase at a time**, and only after Athanor has recorded that the
+phase met the criteria the winner published. The order is not negotiable and there is no
+release-then-reconcile path: FUND-53 («il denaro raccolto dovrà essere utilizzato secondo il
+progetto approvato») is an **ex-ante** gate.
+
+1. **`verify-plan-phase`** — `{ "planPhaseId": "<uuid>", "evidence": "<what was delivered,
+where it can be seen>" }`. An **admin act with evidence**, the per-phase sibling of §9.3's
+   realized declaration — never a community vote, and never the winner: `verified_at` is
+   granted to no client, so there is no member path to this, by construction. Refuses
+   (no write) for an unknown phase, a plan still in draft, a cycle outside `realization`
+   (or `closed`+`realized`), a phase already verified, and missing or oversized evidence.
+   Writes the `verify_phase` audit row with the phase, what it unlocks, and your evidence.
+2. **`release-fund-payout`** — `{ "editionId": "<uuid>", "planPhaseId": "<uuid>",
+"amountCents": N }`. Refuses `phase not verified` until step 1 has run for that phase.
+   Bounded twice: by the cycle's settled-minus-released (#244) **and** by the phase's own
+   costed `amount_cents` less what already moved against it. The transfer carries the phase
+   on its metadata; the `transfer.created` webhook arm records the attribution.
+
+**You usually do not need step 2.** The daily `fund-settle-sweep` cron (04:41 UTC) enumerates
+every verified, not-yet-fully-released phase and asks for each phase's remainder. Verifying a
+phase is therefore normally the whole operator act — the money follows within a day, or the
+sweep's response says why not (its `refusals` tally names each refusal and its count). Call
+`release-fund-payout` by hand only to move a **partial** tranche or to pay one out immediately.
+
+A phase can be verified only once. If a verification turns out to be wrong after the fact,
+there is no un-verify: the tranche has moved, and the remedy is #221's `realization_failed`
+closure, not a rewritten record.
 
 ### 9.3 Closure and rollover (#221)
 

@@ -525,6 +525,9 @@ verify_jwt = false
 [functions.release-fund-payout]
 verify_jwt = false
 
+[functions.verify-plan-phase]
+verify_jwt = false
+
 # --- User-callable: verify_jwt = true ---
 # These keep the platform gate. supabase-js sends the caller's own access token on
 # Authorization (ES256 since the signing-key migration, verified via JWKS) and the publishable
