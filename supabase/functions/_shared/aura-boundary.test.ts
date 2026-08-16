@@ -98,6 +98,11 @@ Deno.test('NO Aura award trigger fires on a money table', () => {
     'fund_editions',
     'payout_accounts', // W13 writes it (#246); pgTAP 0111 asserts the same boundary in-db
     'fund_payout_ledger', // W14/W15 write it (#247); pgTAP 0112 asserts the same boundary in-db
+    // #228: the plan carries the money the cycle will release, phase by phase. Authoring a
+    // plan or completing a phase must earn nothing — the same claim as "contributing earns
+    // nothing", from the spending side. pgTAP 0114 asserts it in-db.
+    'realization_plans',
+    'realization_plan_phases',
   ];
   for (const table of MONEY_TABLES) {
     // A name no migration creates would pass the assertion below for free. Check it is a real

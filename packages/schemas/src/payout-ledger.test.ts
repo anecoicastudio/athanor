@@ -14,6 +14,7 @@ const releasedRow = {
   payable_cents: 9000,
   status: 'released',
   stripe_transfer_id: 'tr_1LedgerTest',
+  plan_phase_id: null,
   created_at: '2026-08-15T22:00:00+00:00',
   updated_at: '2026-08-15T22:00:00+00:00',
 };
@@ -85,6 +86,15 @@ describe('payoutLedgerSchema', () => {
     expect(() =>
       payoutLedgerSchema.parse({ ...releasedRow, destination_account_id: '' }),
     ).toThrow();
+  });
+
+  it('accepts a phase attribution and keeps null legal (#228)', () => {
+    // A pre-plan release has no phase and must stay representable — the column is nullable
+    // forever, not "nullable until backfill".
+    const attributed = { ...releasedRow, plan_phase_id: '00000000-0000-0000-0000-0000000000f1' };
+    expect(payoutLedgerSchema.parse(attributed)).toEqual(attributed);
+    expect(payoutLedgerSchema.parse(releasedRow).plan_phase_id).toBeNull();
+    expect(() => payoutLedgerSchema.parse({ ...releasedRow, plan_phase_id: 'phase-1' })).toThrow();
   });
 
   it('rejects a non-uuid id or edition_id and an unknown status', () => {

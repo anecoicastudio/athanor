@@ -22,6 +22,11 @@ export const payoutLedgerSchema = z
     // 'reversed' means fully reversed, exactly; a partial reversal stays 'released'.
     status: z.enum(['released', 'reversed']),
     stripe_transfer_id: z.string().min(1), // tr_… — row-level idempotency
+    // #228: the plan phase this transfer funded. Nullable FOREVER — pre-plan releases and
+    // plan-less cycles are legitimate; attribution is a fact about a row, not a
+    // precondition for one. The table's within-basis trigger refuses a phase from another
+    // cycle and caps this phase's released-net at its amount, so it cannot lie.
+    plan_phase_id: z.string().uuid().nullable(),
     created_at: z.string(),
     updated_at: z.string(),
   })
