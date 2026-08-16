@@ -38,7 +38,7 @@ select has_function('public', 'verify_plan_phase', array['uuid', 'text'],
   'verify_plan_phase(uuid, text) exists — the transition that records a verification');
 select ok(
   has_function_privilege('service_role', 'public.verify_plan_phase(uuid,text)', 'execute'),
-  'service_role may call it — an operator-relayed admin act (RELEASE-RUNBOOK §9.4)');
+  'service_role may call it — an operator-relayed admin act (RELEASE-RUNBOOK §9.2c)');
 select ok(
   not has_function_privilege('authenticated', 'public.verify_plan_phase(uuid,text)', 'execute'),
   'a signed-in member may NOT: a winner who could verify their own phase holds the gate on their own money');
