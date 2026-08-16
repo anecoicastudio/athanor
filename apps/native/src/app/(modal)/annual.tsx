@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type CandidacyVote,
   type CandidateCard as CandidateCardModel,
+  type RealizationUpdateCursor,
   candidacyKeys,
   castVote,
   fundKeys,
@@ -15,6 +16,11 @@ import {
   getMyCandidacy,
   getMyLatestPriorCandidacy,
   getMyVote,
+  getRealizationPlan,
+  getRealizationPlanPhases,
+  getRealizationUpdates,
+  realizationPlanKeys,
+  realizationUpdateKeys,
   subscribeFundAggregate,
   voteKeys,
 } from '@athanor/api';
@@ -31,6 +37,7 @@ import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
 import { SectionLabel } from '@/components/SectionLabel';
 import { PhaseList } from '@/components/fund/PhaseList';
+import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
 import { useAuth } from '@/lib/auth-context';
 import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
@@ -185,6 +192,43 @@ export default function AnnualFundScreen() {
     !!myCandidacy &&
     edition.winner_candidacy_id === myCandidacy.id &&
     edition.winner_confirmed_at !== null;
+
+  // ── The progress trail (#230, FUND-26) ──────────────────────────────────────
+  // Realization is the phase this exists for: before it there is no published commitment to
+  // report against, and a closed cycle no longer appears on this screen at all. Keyset, not
+  // offset (rule #9) — the winner posts while the community reads.
+  const realizing = edition?.phase === 'realization';
+  const updatesPage = useInfiniteQuery({
+    queryKey: realizationUpdateKeys.feed(editionId),
+    queryFn: ({ pageParam }) =>
+      getRealizationUpdates(supabase, editionId, {
+        cursor: pageParam as RealizationUpdateCursor | null,
+      }),
+    initialPageParam: null as RealizationUpdateCursor | null,
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: !!editionId && realizing,
+  });
+  const updates = useMemo(
+    () => updatesPage.data?.pages.flatMap((p) => p.rows) ?? [],
+    [updatesPage.data],
+  );
+
+  // The published plan's phases, so a note that names one reads as «Fase 2 · allestimento»
+  // rather than as an id. Public: RLS serves these to anon once the plan is published.
+  const publicPlanQuery = useQuery({
+    queryKey: realizationPlanKeys.byEdition(editionId),
+    queryFn: () => getRealizationPlan(supabase, editionId),
+    enabled: !!editionId && realizing,
+  });
+  const publicPlan = publicPlanQuery.data ?? null;
+  const publicPhasesQuery = useQuery({
+    queryKey: realizationPlanKeys.phases(publicPlan?.id ?? ''),
+    queryFn: () => getRealizationPlanPhases(supabase, publicPlan!.id),
+    enabled: !!publicPlan?.id,
+  });
+  const publicPhases = useMemo(() => publicPhasesQuery.data ?? [], [publicPhasesQuery.data]);
+  // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
+  const nowMs = useRef(Date.now()).current;
 
   // One signing call for the whole ballot, not one per card: `useSignedUrls` keys on the sorted
   // path list, so N cards signing themselves would be N requests and N cache entries for one
@@ -363,6 +407,63 @@ export default function AnnualFundScreen() {
             <Text className="text-center text-[12px] text-muted-foreground">
               {t('fund.plan.entry.hint', locale)}
             </Text>
+          </View>
+        ) : null}
+
+        {/* 4c. Aggiornamenti dal sogno (#230, FUND-26) — the ongoing trail, public to
+            everyone including the signed-out web page (#237) that reads the same rows.
+            No reaction count and no view count anywhere in it (rule #3): the community
+            follows the project, it does not score it. */}
+        {realizing ? (
+          <View className="gap-3">
+            <SectionLabel>{t('fund.progress.title', locale)}</SectionLabel>
+            <Text className="text-[14px] leading-5 text-foreground">
+              {t('fund.progress.lead', locale)}
+            </Text>
+
+            {/* The winner's way in. Shown above their own trail because writing is why they
+                opened this screen; everyone else sees the section without it. */}
+            {isPlanAuthor ? (
+              <View className="gap-2">
+                <Button
+                  label={t('fund.progress.compose.entry.cta', locale)}
+                  onPress={() => router.push('/(modal)/progress')}
+                  variant="light"
+                  // Flat cyan CTA — no glow (rule #4)
+                />
+                <Text className="text-center text-[12px] text-muted-foreground">
+                  {t('fund.progress.compose.entry.hint', locale)}
+                </Text>
+              </View>
+            ) : null}
+
+            {updatesPage.isLoading ? (
+              <ActivityIndicator color={semantic.aura} />
+            ) : updates.length === 0 ? (
+              <Text className="text-[14px] text-muted-foreground">
+                {t('fund.progress.empty', locale)}
+              </Text>
+            ) : (
+              <View className="gap-4">
+                {updates.map((update) => (
+                  <ProgressUpdateCard
+                    key={update.id}
+                    update={update}
+                    phase={publicPhases.find((p) => p.id === update.plan_phase_id) ?? null}
+                    locale={locale}
+                    now={nowMs}
+                  />
+                ))}
+                {updatesPage.hasNextPage ? (
+                  <Button
+                    label={t('fund.progress.more', locale)}
+                    onPress={() => void updatesPage.fetchNextPage()}
+                    variant="ghost"
+                    disabled={updatesPage.isFetchingNextPage}
+                  />
+                ) : null}
+              </View>
+            )}
           </View>
         ) : null}
 

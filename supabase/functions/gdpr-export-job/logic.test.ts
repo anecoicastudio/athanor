@@ -95,6 +95,10 @@ const EXPECTED_SECTIONS: Record<string, { table: string; filter: ExpectedFilter;
     filter: { kind: 'eq', column: 'profile_id' },
     one: true,
   },
+  realization_updates: {
+    table: 'realization_updates',
+    filter: { kind: 'eq', column: 'profile_id' },
+  },
   invites: { table: 'invites', filter: { kind: 'or', columns: ['inviter_id', 'invitee_id'] } },
   consent: { table: 'consent', filter: { kind: 'eq', column: 'profile_id' } },
   verifications: { table: 'verifications', filter: { kind: 'eq', column: 'profile_id' } },

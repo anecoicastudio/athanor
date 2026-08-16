@@ -103,6 +103,12 @@ Deno.test('NO Aura award trigger fires on a money table', () => {
     // nothing", from the spending side. pgTAP 0114 asserts it in-db.
     'realization_plans',
     'realization_plan_phases',
+    // #230: the winner's public progress notes. Not money itself — the reason it belongs
+    // here is that it is the fund's most visible member-writable surface, and «the fund
+    // grants nothing» has to hold for the pleasant half too. A +N-per-post trigger would
+    // make the trail a farm and nothing else in the repo would notice. pgTAP 0116 asserts
+    // the same boundary in-db, triggers included.
+    'realization_updates',
   ];
   for (const table of MONEY_TABLES) {
     // A name no migration creates would pass the assertion below for free. Check it is a real

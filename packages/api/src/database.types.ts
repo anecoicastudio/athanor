@@ -2505,6 +2505,68 @@ export type Database = {
           },
         ]
       }
+      realization_updates: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          edition_id: string
+          id: string
+          plan_phase_id: string | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          edition_id: string
+          id?: string
+          plan_phase_id?: string | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          edition_id?: string
+          id?: string
+          plan_phase_id?: string | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realization_updates_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realization_updates_plan_phase_id_fkey"
+            columns: ["plan_phase_id"]
+            isOneToOne: false
+            referencedRelation: "realization_plan_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realization_updates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "realization_updates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remote_config: {
         Row: {
           key: string

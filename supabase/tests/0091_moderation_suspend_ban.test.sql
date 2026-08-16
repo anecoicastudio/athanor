@@ -259,16 +259,19 @@ select throws_ok(
 reset role;
 
 -- ── (I) coverage: the restrictive net is exactly the declared matrix ─────────────────────
--- 22 social tables × 3 commands + profiles UPDATE = 67; a new social table missing its
+-- 23 social tables × 3 commands + profiles UPDATE = 70; a new social table missing its
 -- three policies (or a dropped one) moves these counts and fails here.
+-- 22 -> 23: public.realization_updates (#230, 20260816101609) — a progress note is a member
+-- speaking in public, so it joins the net; realization_plans deliberately does NOT, because
+-- a moderation action must not freeze a funded project's commitment.
 select is(
   (select count(*)::int from pg_policies
     where schemaname = 'public' and policyname like 'active_write_%' and permissive = 'RESTRICTIVE'),
-  67, 'restrictive write net over public is complete');
+  70, 'restrictive write net over public is complete');
 select is(
   (select count(distinct tablename)::int from pg_policies
     where schemaname = 'public' and policyname like 'active_write_%' and permissive = 'RESTRICTIVE'),
-  23, '23 public tables carry the gate');
+  24, '24 public tables carry the gate');
 select is(
   (select count(*)::int from pg_policies
     where schemaname = 'storage' and tablename = 'objects'
