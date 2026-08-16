@@ -122,6 +122,17 @@ export const EXPORT_SPEC: readonly OwnDataSpec[] = [
   { key: 'fund_contributions', table: 'fund_contributions', mode: 'many', column: 'profile_id' },
   { key: 'circle_memberships', table: 'circle_memberships', mode: 'many', column: 'profile_id' },
   { key: 'payout_accounts', table: 'payout_accounts', mode: 'one', column: 'profile_id' },
+  // #230: the winner's public progress notes. Member-authored prose with a direct FK to
+  // profiles, so it is squarely personal data — and withdrawn notes come with it, because
+  // `deleted_at` hides a row from the world, not from its author.
+  // (realization_plans is NOT here: its FK is to dream_candidacies, which puts it in the
+  // second-degree class 0096's header describes as not auto-swept.)
+  {
+    key: 'realization_updates',
+    table: 'realization_updates',
+    mode: 'many',
+    column: 'profile_id',
+  },
   { key: 'invites', table: 'invites', mode: 'either', columns: ['inviter_id', 'invitee_id'] },
   { key: 'consent', table: 'consent', mode: 'many', column: 'profile_id' },
   { key: 'verifications', table: 'verifications', mode: 'many', column: 'profile_id' },

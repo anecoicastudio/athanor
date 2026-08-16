@@ -25,7 +25,7 @@ insert into gdpr_exported values
   ('notifications'), ('notification_preferences'), ('push_tokens'),
   ('aura_events'), ('aura_scores'), ('stars'),
   ('dream_candidacies'), ('candidacy_votes'), ('fund_contributions'), ('circle_memberships'),
-  ('payout_accounts'),
+  ('payout_accounts'), ('realization_updates'),
   ('invites'), ('consent'), ('verifications'), ('gdpr_export_jobs'), ('gdpr_erasure_requests');
 
 -- personal-data-adjacent tables deliberately NOT in the archive, each with its reason
