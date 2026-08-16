@@ -31,7 +31,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(18);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The declared surface
@@ -62,7 +62,7 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   ('aura_scores',                 'SELECT', 'SELECT'),
   ('stars',                       'SELECT', 'SELECT'),
   -- ── momenti ─────────────────────────────────────────────────────────────────────────
-  ('moments',                     '',       'SELECT,INSERT,UPDATE,DELETE'),
+  ('moments',                     '',       'SELECT,INSERT,UPDATE'),
   ('momento_proposals',           '',       ''),                            -- column-scoped
   ('conversations',               '',       'SELECT'),                      -- created by get_or_create_conversation
   ('messages',                    '',       'SELECT,INSERT'),
@@ -71,27 +71,27 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   ('push_tokens',                 '',       'SELECT,INSERT,UPDATE,DELETE'),
   ('push_receipts',               '',       ''),                            -- service-role only
   -- ── posts and stories ───────────────────────────────────────────────────────────────
-  ('posts',                       '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('post_comments',               '',       'SELECT,INSERT,UPDATE,DELETE'),
+  ('posts',                       '',       'SELECT,INSERT,UPDATE'),
+  ('post_comments',               '',       'SELECT,INSERT,UPDATE'),
   ('post_media',                  '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('post_reactions',              '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('story_segments',              '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('story_reactions',             '',       'SELECT,INSERT,UPDATE,DELETE'),
+  ('post_reactions',              '',       'SELECT,INSERT,DELETE'),
+  ('story_segments',              '',       'SELECT,INSERT,UPDATE'),
+  ('story_reactions',             '',       'SELECT,INSERT,DELETE'),
   -- ── dreams, projects, favours ───────────────────────────────────────────────────────
-  ('dreams',                      'SELECT', 'SELECT,INSERT,UPDATE,DELETE'),
-  ('dream_milestones',            'SELECT', 'SELECT,INSERT,UPDATE,DELETE'),
-  ('dream_candidacies',           '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('milestone_helps',             '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('projects',                    '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('favor_offers',                '',       'SELECT,INSERT,UPDATE,DELETE'),
+  ('dreams',                      'SELECT', 'SELECT,INSERT,UPDATE'),
+  ('dream_milestones',            'SELECT', 'SELECT,INSERT,UPDATE'),
+  ('dream_candidacies',           '',       'SELECT,INSERT,UPDATE'),
+  ('milestone_helps',             '',       'SELECT,INSERT,UPDATE'),
+  ('projects',                    '',       'SELECT,INSERT,UPDATE'),
+  ('favor_offers',                '',       'SELECT,INSERT,UPDATE'),
   ('favor_needs',                 '',       'SELECT'),                      -- view
   -- ── events ──────────────────────────────────────────────────────────────────────────
-  ('events',                      '',       'SELECT,INSERT,UPDATE,DELETE'), -- anon SELECT is column-scoped
+  ('events',                      '',       'SELECT,INSERT,UPDATE'), -- anon SELECT is column-scoped
   ('event_attendance',            '',       'SELECT,INSERT'),
   ('event_live_stats',            'SELECT', 'SELECT'),
   ('event_tickets',               '',       'SELECT'),                      -- Stripe writes it
-  ('rsvps',                       '',       'SELECT,INSERT,UPDATE,DELETE'),
-  ('athanor_days_interest',       '',       'SELECT,INSERT,UPDATE,DELETE'),
+  ('rsvps',                       '',       'SELECT,INSERT,UPDATE'),
+  ('athanor_days_interest',       '',       'SELECT,INSERT'),
   -- ── the fund: money is a cache of Stripe (rule 6), so clients read and never write ──
   ('fund_editions',               'SELECT', 'SELECT'),
   ('fund_aggregates',             'SELECT', 'SELECT'),
@@ -101,7 +101,7 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   ('fund_payout_ledger',          '',       'SELECT'),
   ('fund_candidate_cards',        '',       'SELECT'),                      -- view
   ('payout_accounts',             '',       'SELECT'),                      -- Stripe Connect writes it
-  ('candidacy_votes',             '',       'SELECT,INSERT,UPDATE,DELETE'),
+  ('candidacy_votes',             '',       'SELECT,INSERT,DELETE'),
   ('screening_criteria',          'SELECT', 'SELECT'),
   ('realization_plans',           'SELECT', 'SELECT'),                      -- + column INSERT/UPDATE
   ('realization_plan_phases',     'SELECT', 'SELECT,DELETE'),               -- + column INSERT/UPDATE
@@ -220,6 +220,29 @@ select is_empty(
       where role = 'anon' and priv <> 'SELECT'
         and not (obj = 'email_waitlist' and priv = 'INSERT') $$,
   '#405: anon holds only SELECT, plus INSERT on email_waitlist'
+);
+
+-- A RESTRICTIVE policy grants nothing — it can only subtract from what a PERMISSIVE policy
+-- already allows. #106's moderation net (active_write_insert/update/delete) is restrictive and
+-- sits on most user-content tables, so reading pg_policies without checking `permissive` makes a
+-- table look as though it permits verbs it has never permitted. The first cut of the #405 sweep
+-- made exactly that mistake and re-granted UPDATE on candidacy_votes, whose creating migration
+-- says a vote is immutable. Views are excluded: they carry no policies, so their SELECT is
+-- declared by hand above rather than derived.
+select is_empty(
+  $$ select a.obj || ' / ' || a.role || ' / ' || a.priv
+       from actual_acl a
+       join pg_class c on c.relname = a.obj
+       join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+      where c.relkind in ('r', 'p')
+        and a.priv in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+        and not exists (
+          select 1 from pg_policies p
+           where p.schemaname = 'public' and p.tablename = a.obj
+             and p.permissive = 'PERMISSIVE'
+             and a.role::text = any(p.roles::text[])
+             and p.cmd in (a.priv, 'ALL')) $$,
+  '#405: every client grant on a table has a PERMISSIVE policy behind it (restrictive grants nothing)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
