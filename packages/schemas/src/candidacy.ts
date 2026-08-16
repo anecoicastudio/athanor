@@ -123,19 +123,49 @@ export const candidacyUpdateSchema = dreamCandidacySchema
   );
 export type CandidacyUpdate = z.infer<typeof candidacyUpdateSchema>;
 
-/** The `fund_candidate_cards` view read-model — candidacy + author handle + dream-text title. */
-export const candidateCardSchema = z.object({
-  candidacy_id: z.string().uuid(),
-  edition_id: z.string().uuid(),
-  profile_id: z.string().uuid(),
-  handle: z.string().nullable(),
-  title: z.string().nullable(), // author's active dream text
-  city: z.string().nullable(),
-  category: projectCategorySchema.nullable(), // CHECK-bound since #225
+/**
+ * The `fund_candidate_cards` view read-model — candidacy + author handle + dream-text title,
+ * plus (#227) the ballot numbers and the linked dream's confirmed history.
+ *
+ * The candidacy half is DERIVED from `dreamCandidacySchema` rather than re-declared: the view
+ * passes those five columns through unchanged, and two hand-kept copies of a shape drift the
+ * moment one of them gains a field.
+ */
+export const candidateCardSchema = dreamCandidacySchema
+  .pick({
+    edition_id: true,
+    profile_id: true,
+    city: true,
+    category: true,
+    status: true,
+    video_url: true,
+    thumb_path: true,
+    created_at: true,
+    // #227 — what the vote is about: the budget the dream needs and the minimum viable
+    // amount beside it. min_viable_cents is BALLOT INFORMATION (D11), never the shortfall
+    // gate; the copy that renders it must keep saying so.
+    budget_cents: true,
+    min_viable_cents: true,
+    skills_needed: true,
+    dream_id: true,
+  })
+  .extend({
+    candidacy_id: z.string().uuid(),
+    handle: z.string().nullable(),
+    title: z.string().nullable(), // author's active dream text
 
-  status: candidacyStatusSchema,
-  video_url: z.string().min(1),
-  thumb_path: z.string().nullable(),
-  created_at: z.string(),
-});
+    /**
+     * #227/FUND-50 — the linked dream's CONFIRMED history: milestones done, helps completed.
+     * Aggregates from `athanor.dream_confirmed_counts`, never rows (milestone_helps is
+     * party-scoped and a voter is neither party).
+     *
+     * `null` and `0` are different answers and both are load-bearing: null means there is no
+     * dream to speak for (none linked, or the linked one was soft-deleted), 0 means a live
+     * linked dream with nothing confirmed yet. Only confirmed states count — an offered help
+     * is a promise, and a promise a candidate could ask friends for is exactly the vanity
+     * number rule #3 keeps off this card.
+     */
+    dream_milestones_done: z.number().int().nonnegative().nullable(),
+    dream_helps_confirmed: z.number().int().nonnegative().nullable(),
+  });
 export type CandidateCard = z.infer<typeof candidateCardSchema>;

@@ -149,7 +149,14 @@ export async function updateCandidacy(
   return dreamCandidacySchema.parse(data);
 }
 
-/** One page of an edition's candidate cards, newest-first by (created_at, candidacy_id). */
+/**
+ * One page of an edition's candidate cards, newest-first by (created_at, candidacy_id).
+ *
+ * `select('*')` and the keyset are untouched by #227: the ballot numbers and the linked
+ * dream's confirmed history are columns of `fund_candidate_cards`, not a second read. That is
+ * the whole reason the counts went into the view — a per-card history query would be an N+1
+ * over the page, and a client-side join would return zero helps under party-scoped RLS.
+ */
 export async function getCandidates(
   client: AthanorClient,
   opts: { editionId: string; cursor?: CandidateCursor | null; limit?: number },
@@ -180,6 +187,9 @@ export async function getCandidates(
  * One candidate card by id — reads the `fund_candidate_cards` view filtered by
  * `candidacy_id` so the detail screen works from a deep link (no list row needed).
  * Returns null when absent (e.g. screened out / not visible to the caller).
+ *
+ * Carries the same #227 columns as the list rows, so the detail screen renders budget,
+ * minimum, skills and confirmed history from this one row.
  */
 export async function getCandidateById(
   client: AthanorClient,

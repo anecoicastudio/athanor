@@ -52,6 +52,14 @@ const CARD_ROW = {
   video_url: `${UID}/${CAND1}.mp4`,
   thumb_path: null,
   created_at: '2026-07-02T00:00:00Z',
+  // #227 — the view's ballot columns. No linked dream here, so the confirmed-history
+  // aggregates are null rather than 0 (see candidateCardSchema for why the two differ).
+  budget_cents: 800000,
+  min_viable_cents: 500000,
+  skills_needed: [],
+  dream_id: null,
+  dream_milestones_done: null,
+  dream_helps_confirmed: null,
 };
 
 /** Thenable PostgREST-builder stub: records calls; awaiting resolves to { data, error }. */

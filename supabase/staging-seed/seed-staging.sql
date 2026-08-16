@@ -294,6 +294,12 @@ select md5('help:' || h.helper || ':' || h.ms_handle || ':' || h.ms_pos)::uuid,
 from (values
   ('sara_startup', 'sole_designer',  1, 'skill',       'Ti do una mano coi preventivi, li ho fatti per due anni.', 'completed'),
   ('bea_foto',     'marta_ceramica', 1, 'connection',  'Conosco chi affitta il capannone dietro la stazione.',      'accepted'),
+  -- #227: marta_ceramica is a CANDIDATE whose candidacy links this dream, so her ballot card
+  -- reads its confirmed history. Without a completed help here the card could only ever show
+  -- «Aiuti confermati · 0» and the half of the block that proves the DEFINER aggregate works
+  -- would be untestable by eye on staging. On milestone 0 (the done one), so the two numbers
+  -- describe the same finished piece of work.
+  ('dario_legno',  'marta_ceramica', 0, 'skill',       'Ti aiuto a montare l''impianto, l''ho fatto nel mio laboratorio.', 'completed'),
   ('gio_musica',   'rocco_film',     1, 'skill',       'Ho una camera silenziosa e un fonico paziente.',            'offered'),
   ('dario_legno',  'ele_yoga',       1, 'opportunity', 'Mia zia dirige una casa di riposo a dieci minuti.',         'offered')
 ) as h(helper, ms_handle, ms_pos, type, message, status)
@@ -682,6 +688,31 @@ update public.dream_candidacies c
                 md5('candidacy:ele_yoga')::uuid,
                 md5('candidacy:rocco_film')::uuid);
 
+-- Same role for dream_id (#227): the INSERT below sets it, but the three candidacies are
+-- already on staging and it carries `on conflict do nothing`, so without this the existing
+-- fake world would keep a null link and the ballot's confirmed-history block would never
+-- render there. Scoped by id to the seeded three for the reason stated above — a tester's own
+-- candidacy may legitimately link no dream, and that is a choice #226 made first-class, not a
+-- gap to fill. `where c.dream_id is null` so a tester who edited one of these does not have
+-- their link overwritten.
+-- Same on-conflict-do-nothing reason as the dream_id backfill below: ele_yoga's row already
+-- exists on staging with the pre-#218 'submitted' status.
+update public.dream_candidacies c
+   set status = 'shortlisted'
+ where c.id = md5('candidacy:ele_yoga')::uuid
+   and c.status = 'submitted';
+
+update public.dream_candidacies c
+   set dream_id = d.id
+  from public.dreams d
+ where d.profile_id = c.profile_id
+   and d.deleted_at is null
+   and d.status = 'active'
+   and c.dream_id is null
+   and c.id in (md5('candidacy:marta_ceramica')::uuid,
+                md5('candidacy:ele_yoga')::uuid,
+                md5('candidacy:rocco_film')::uuid);
+
 -- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
 -- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
 -- renders an empty box — the same principle the moments guard above states.
@@ -778,16 +809,29 @@ on conflict do nothing;
 -- same fake-world values 20260815080109 backfilled the pre-existing rows with. category uses
 -- the project_category enum as-is (the old 'craft'/'wellbeing' values fail its CHECK);
 -- skills_needed keys come from @athanor/core SKILLS.
+-- ele_yoga is 'shortlisted' rather than 'submitted' since #227. Not a taste change: #218
+-- narrowed public.is_on_ballot to ('shortlisted','winner') (20260815164809), so the two
+-- 'submitted' rows stopped being visible on the ballot at all and staging's fake ballot became
+-- a single card — enough to hide the category filter (which needs two categories) and to make
+-- the vote look broken. Two shortlisted candidacies in two categories restore a real ballot;
+-- rocco_film stays 'submitted' so the pre-screening state is still represented in the world.
+--
+-- dream_id (#227, FUND-50/D12): each of the three candidates already owns an active dream
+-- with milestones under §2, and the ballot card renders that dream's confirmed history. Left
+-- unset the block could never appear on staging — the feature would look unbuilt rather than
+-- unlinked. md5('dream:' || handle) is the author's OWN dream, which is what the write
+-- policies require of a real submission.
 insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category,
-                                      budget_cents, min_viable_cents, skills_needed)
+                                      budget_cents, min_viable_cents, skills_needed, dream_id)
 select md5('candidacy:' || c.handle)::uuid, md5('fundedition:2027')::uuid, md5('user:' || c.handle)::uuid,
        c.story, c.goal, c.impact,
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '.mp4',
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '-thumb.jpg',
-       c.plan, c.status, c.city, c.category, c.budget_cents, c.min_viable_cents, c.skills_needed
+       c.plan, c.status, c.city, c.category, c.budget_cents, c.min_viable_cents, c.skills_needed,
+       md5('dream:' || c.handle)::uuid
 from (values
   ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'artistic',  800000::bigint,  500000::bigint, array['social-media','fotografia']),
-  ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'submitted',   'Milano', 'volunteer', 1200000::bigint, 600000::bigint, array['coaching','facilitazione']),
+  ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'shortlisted', 'Milano', 'volunteer', 1200000::bigint, 600000::bigint, array['coaching','facilitazione']),
   ('rocco_film',     'Filmo mestieri che stanno sparendo. Ne restano cinque sulla costa.',          'Cinque episodi finiti e distribuiti.',                       'Un archivio di cose che tra dieci anni non ci sono più.','Attrezzatura, viaggi, montaggio.',                       'submitted',   'Genova', 'artistic',  1500000::bigint, 900000::bigint, array['montaggio','sound-design'])
 ) as c(handle, story, goal, impact, plan, status, city, category, budget_cents, min_viable_cents, skills_needed)
 on conflict do nothing;
