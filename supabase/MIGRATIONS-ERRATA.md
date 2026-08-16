@@ -642,6 +642,80 @@ released is the ledger's alone. The three released-shape refusals (`released not
 Asserted by: `supabase/tests/0112_fund_payout_ledger.test.sql` (ledger cap + close_cycle
 reading it) and the updated `supabase/tests/0110_fund_closure_rollover.test.sql`.
 
+## `20260816164834_hosted_grant_sweep.sql` — the derivation counted RESTRICTIVE policies
+
+Corrected in place by `20260816171549_hosted_grant_sweep_permissive_only.sql`, in the same PR.
+
+### L36-37 — "a role gets exactly the verbs its RLS policies mediate"
+
+The method is right; the execution read `pg_policies` without filtering on `permissive`. A
+RESTRICTIVE policy grants nothing — it can only subtract from what a PERMISSIVE policy already
+allows, so a verb whose only policy is restrictive is a verb the table never permitted.
+
+#106's moderation net (`active_write_insert` / `active_write_update` / `active_write_delete`) is
+RESTRICTIVE and sits on most user-content tables. Every table carrying it therefore _looked_ like
+it had INSERT/UPDATE/DELETE policies. The migration restated grants accordingly and wrote them
+into `0121`'s expected list, so the tripwire built to catch over-permissioning would instead have
+certified it.
+
+Seventeen (object, verb) pairs were affected, across sixteen `revoke` statements —
+`athanor_days_interest` is the only table that loses both verbs:
+
+- **UPDATE** — `candidacy_votes`, `post_reactions`, `story_reactions`, `athanor_days_interest`.
+- **DELETE** — `athanor_days_interest`, `posts`, `post_comments`, `story_segments`, `moments`,
+  `dreams`, `dream_milestones`, `dream_candidacies`, `milestone_helps`, `favor_offers`,
+  `projects`, `events`, `rsvps`.
+
+`post_reactions` and `story_reactions` keep DELETE: a reaction is toggled off by deleting it, and
+both have a permissive delete policy. None of the seventeen was reachable — with no permissive
+policy, RLS denies the statement whatever the grant says — which is why the staging smoke passed
+both before and after.
+
+### L49 — "Interest in an Athanor day — the owner's own row, full CRUD (5 policies)"
+
+Not full CRUD. `20260615100305_athanor_days_interest.sql` creates `_select_own` and `_insert_own`
+only; the other three of the five are #106's restrictive write net. The client registers interest
+with an upsert whose `ignoreDuplicates` maps to `on conflict do nothing`, so INSERT alone serves
+it.
+
+### L53 — "Ballot votes — cast, change, withdraw your own (6 policies)"
+
+There is no _change_. `20260618131250_m7_voting.sql:29-46` creates `_select_own`, `_insert_own`
+and `_delete_own`, and says so in terms: «no UPDATE policy/grant: a vote is immutable; changing
+it = delete + insert». The `20260811091835_equal_vote_weight.sql` entry above spells out why that
+matters: an unguarded UPDATE path on `candidacy_votes` is what let a single non-`1.000` weight
+flip `consensusPercent` to the weighted share and zero every other ballot in the displayed
+consensus. That hazard is now bounded by `check (weight = 1.000)`
+(`20260811100616_equal_vote_weight_constraint.sql`), and it concerned `service_role`'s grant
+rather than a client's — but the sweep handed the same verb to `authenticated`, on a table whose
+creating migration declares it immutable. The follow-up revokes it.
+
+### L57-58 — `circle_memberships`: the named revoke was a different migration
+
+The comment credits `20260618204459_m8_circle_memberships.sql` with "its own revoke named `insert,
+update, delete`". That migration does no such thing: `:27-28` is `revoke all … from anon` plus
+`grant select … to authenticated`, and it never names the three verbs. The named revoke is
+`20260618205358_m8_circle_memberships_revoke_authenticated_writes.sql:6`, a separate migration
+written for precisely the reason the sweep describes.
+
+Nothing enforced changes — `circle_memberships` is SELECT-only for clients either way, and the
+sweep restates that correctly. Only the attribution is wrong.
+
+### L181-183 — "Recreated by three separate migrations, each of which restated `revoke all … from anon` / `grant select … to authenticated`"
+
+Only the first did. `20260618131250_m7_voting.sql:158-159` runs the revoke/grant pair — and note
+it revokes from `anon` only, never from `authenticated`.
+`20260812120121_candidacy_thumb_path.sql:18-22` and
+`20260816151600_fund_candidate_cards_ballot_fields.sql:82-84` contain no grant or revoke at all:
+both use `create or replace view` _specifically because_ it preserves the existing ACL, and each
+says so. So the residue has a simpler cause than the comment gives it — `authenticated` was never
+revoked in the first place and kept the hosted default set continuously; the two later
+recreations left it untouched rather than restoring it.
+
+Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — the declared surface, plus
+«every client grant on a table has a PERMISSIVE policy behind it», which is the assertion that
+would have caught all of the above.
+
 ## `20260816071602_fund_settle_sweep.sql` — the sweep is live since #231
 
 ### L7-10 — "Today that answer is zero due tranches BY CONSTRUCTION — the enumeration source is #228/#229's realization-plan schema, which does not exist yet… a deliberately inert skeleton"
