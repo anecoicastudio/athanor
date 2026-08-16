@@ -313,7 +313,34 @@ Run **after `voting_ends_at` has passed**, in this order:
      `confirm` cannot be followed by a decline (withdrawing later is #221's failure path).
 
 Every transition writes an `audit_log` row (`announce`, `void_cycle`, `winner_confirm`,
-`winner_decline`, `declare_winner`, `screen_*`) — the §20 report reads from there.
+`winner_decline`, `declare_winner`, `screen_*`, `publish_plan`) — the §20 report reads from
+there.
+
+### 9.2b The realization plan — the winner's act, not the operator's (#229)
+
+**There is no operator step here, and that is the design.** After the confirmation, the
+winner writes the plan themselves in the app (Fondo → «Il tuo piano»): objective, expected
+result, professionals, suppliers, and the phases — each a date, an amount and the criteria
+its verification is judged against. Every phase amount is costed against
+`confirmed_pool_cents` less the declared `split_pct`, and the database refuses a plan that
+sums past it (`phases exceed declared payable`). The budget the candidacy asked for has no
+bearing on this figure.
+
+The winner then **publishes** it (`publish_realization_plan()`, called from the app). That
+one transaction stamps `published_at`, makes the plan world-readable, writes the
+`publish_plan` audit row — and **moves the cycle from `announcement` to `realization`**. So:
+
+- A cycle sitting in `announcement` with a confirmed winner has **no published plan yet**.
+  That is the state to check before chasing anything else.
+- After publication nothing — not the winner, not the operator through the client path — can
+  edit the plan. It is the public commitment tranches release against (FUND-53).
+- `close-cycle` accepts both `announcement` and `realization`, so §9.3 is unaffected either
+  way. `release-fund-payout` reads the phase list, so a cycle with no published plan has no
+  tranche to release.
+
+If the winner is stuck, the failure is theirs to report, not an operator command to run:
+there is no service-role plan-authoring path and adding one would put Athanor's words in the
+dreamer's plan.
 
 ### 9.3 Closure and rollover (#221)
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { realizationPlanPhaseSchema, realizationPlanSchema } from './realization-plan';
+import {
+  realizationPlanInsertSchema,
+  realizationPlanPhaseInsertSchema,
+  realizationPlanPhaseSchema,
+  realizationPlanPhaseUpdateSchema,
+  realizationPlanSchema,
+  realizationPlanUpdateSchema,
+} from './realization-plan';
 
 /** A published plan as #229 will have written it. */
 const plan = {
@@ -119,5 +126,96 @@ describe('realizationPlanPhaseSchema', () => {
     expect(realizationPlanPhaseSchema.parse(phase).verified_at).toBeNull();
     const verified = { ...phase, verified_at: '2026-10-02T10:00:00+00:00' };
     expect(realizationPlanPhaseSchema.parse(verified)).toEqual(verified);
+  });
+});
+
+describe('realizationPlanInsertSchema (#229 — the winner starts the plan)', () => {
+  const draft = {
+    edition_id: plan.edition_id,
+    candidacy_id: plan.candidacy_id,
+    objective: plan.objective,
+    expected_result: plan.expected_result,
+  };
+
+  it('carries only what the author supplies — never published_at', () => {
+    const parsed = realizationPlanInsertSchema.parse(draft);
+    expect(Object.keys(parsed).sort()).toEqual([
+      'candidacy_id',
+      'edition_id',
+      'expected_result',
+      'objective',
+      'professionals',
+      'suppliers',
+    ]);
+    expect('published_at' in parsed).toBe(false);
+  });
+
+  it('defaults professionals and suppliers to the recorded-as-none empty string', () => {
+    const parsed = realizationPlanInsertSchema.parse(draft);
+    expect(parsed.professionals).toBe('');
+    expect(parsed.suppliers).toBe('');
+  });
+
+  it('keeps the prose bounds of the row it becomes', () => {
+    expect(() => realizationPlanInsertSchema.parse({ ...draft, objective: '   ' })).toThrow();
+    expect(() =>
+      realizationPlanInsertSchema.parse({ ...draft, expected_result: 'x'.repeat(4001) }),
+    ).toThrow();
+  });
+});
+
+describe('realizationPlanUpdateSchema (#229 — a draft edit)', () => {
+  it('never re-targets the plan: edition_id and candidacy_id are not editable', () => {
+    const parsed = realizationPlanUpdateSchema.parse({
+      objective: 'riscritto',
+      edition_id: '00000000-0000-0000-0000-0000000000ff',
+      candidacy_id: '00000000-0000-0000-0000-0000000000ff',
+      published_at: '2026-10-01T10:00:00+00:00',
+    });
+    expect(parsed).toEqual({ objective: 'riscritto' });
+  });
+
+  it('accepts a patch of one field', () => {
+    expect(realizationPlanUpdateSchema.parse({ suppliers: 'una vetreria' })).toEqual({
+      suppliers: 'una vetreria',
+    });
+  });
+
+  it('still refuses a blank objective — partial means optional, not unbounded', () => {
+    expect(() => realizationPlanUpdateSchema.parse({ objective: '  ' })).toThrow();
+  });
+});
+
+describe('realization phase write shapes (#229)', () => {
+  const phaseDraft = {
+    plan_id: phase.plan_id,
+    sort: 1,
+    title: 'Allestimento',
+    scheduled_for: '2026-11-01',
+    amount_cents: 20000,
+    verification_criteria: 'Contratto firmato.',
+  };
+
+  it('an inserted phase never carries verified_at — #231 owns it, no client may set it', () => {
+    const parsed = realizationPlanPhaseInsertSchema.parse({
+      ...phaseDraft,
+      verified_at: '2026-11-02T10:00:00+00:00',
+    });
+    expect('verified_at' in parsed).toBe(false);
+  });
+
+  it('an inserted phase is a tranche: zero euros is not one', () => {
+    expect(() =>
+      realizationPlanPhaseInsertSchema.parse({ ...phaseDraft, amount_cents: 0 }),
+    ).toThrow();
+  });
+
+  it('a phase edit re-costs in place and never moves the phase to another plan', () => {
+    const parsed = realizationPlanPhaseUpdateSchema.parse({
+      amount_cents: 15000,
+      plan_id: '00000000-0000-0000-0000-0000000000ff',
+      verified_at: '2026-11-02T10:00:00+00:00',
+    });
+    expect(parsed).toEqual({ amount_cents: 15000 });
   });
 });

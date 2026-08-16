@@ -27,6 +27,7 @@ export * from './fund';
 export * from './circle';
 export * from './candidacy';
 export * from './votes';
+export * from './realization-plan';
 export * from './search';
 export * from './blocks';
 export * from './reports';

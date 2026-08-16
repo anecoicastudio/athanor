@@ -179,6 +179,13 @@ export default function AnnualFundScreen() {
 
   const candidates = candidatesQuery.data?.items ?? [];
 
+  // #229: the cycle's declared winner, after their viability confirmation (#220).
+  const isPlanAuthor =
+    !!edition?.winner_candidacy_id &&
+    !!myCandidacy &&
+    edition.winner_candidacy_id === myCandidacy.id &&
+    edition.winner_confirmed_at !== null;
+
   // One signing call for the whole ballot, not one per card: `useSignedUrls` keys on the sorted
   // path list, so N cards signing themselves would be N requests and N cache entries for one
   // screen. Posterless candidacies contribute nothing to sign.
@@ -340,6 +347,24 @@ export default function AnnualFundScreen() {
             </>
           )}
         </View>
+
+        {/* 4b. The winner's realization plan (#229). Shown only to the member whose
+            candidacy won AND who has confirmed the dream is deliverable at the snapshotted
+            figure (#220) — that confirmation is what #228's trigger requires before a plan
+            can exist. Everyone else's cycle has nothing to author here, so the block is
+            absent rather than disabled. */}
+        {isPlanAuthor ? (
+          <View className="gap-2">
+            <Button
+              label={t('fund.plan.entry.cta', locale)}
+              onPress={() => router.push('/(modal)/plan')}
+              variant="light"
+            />
+            <Text className="text-center text-[12px] text-muted-foreground">
+              {t('fund.plan.entry.hint', locale)}
+            </Text>
+          </View>
+        ) : null}
 
         {/* 5. Partecipa */}
         <View className="gap-3">

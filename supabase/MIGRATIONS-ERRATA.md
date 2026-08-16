@@ -16,6 +16,54 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260816073905_fund_realization_plans.sql:37-38, 234` — "nothing here writes a plan except the service role" was the deferred decision, not the answer
+
+The header's SEAMS LEFT OPEN paragraph and the RLS section's "#229 writes as `service_role`"
+read as a statement about how plans are written. They were a _placeholder_: #228 deliberately
+shipped no write path and left the choice to #229, which chose the opposite one.
+
+`20260816082552_fund_plan_authoring.sql` gives the **winner** the write path directly:
+column-level INSERT/UPDATE grants plus `*_own_draft` policies, scoped to their own candidacy
+and to `published_at is null`. `published_at` and `realization_plan_phases.verified_at` are
+granted to nobody, so publication stays `publish_realization_plan()` and verification stays
+#231's. The service role can still write everything; it is simply no longer the only writer.
+Both `comment on table` values were replaced in that migration, so the DB objects describe
+the current shape — only the file's prose is stranded.
+
+The same migration's `close_cycle` siblings are stranded the same way and in the same
+direction: `20260815193158:203-205` and `20260815215924:204-206` say "nothing enters
+`'realization'` until #228's plan transition, so `'announcement'` with a confirmed winner is
+the working window for cycle 1". That transition now exists — `publish_realization_plan()`
+moves the cycle to `'realization'` as it publishes — so the _until_ has arrived. The phase
+guard itself is unchanged and still correct: both phases remain closeable.
+
+Verified behaviour lives in `supabase/tests/0115_fund_plan_authoring.test.sql` (the winner
+drafts as a client, the ceiling refuses a client, publication stamps `published_at` **and**
+moves the cycle to `'realization'`, and every client write is refused afterwards) and in
+`0114_fund_realization_plans.test.sql`'s policy catalogue.
+
+---
+
+## `20260816073905_fund_realization_plans.sql:138-229` — both plan triggers were `SECURITY INVOKER` and could not survive a client writer
+
+`realization_plans_binds_winner()` and `realization_plan_phases_within_payable()` both read
+`public.fund_editions … FOR UPDATE`. `SELECT … FOR UPDATE` requires the **UPDATE** privilege
+on the locked table, which no client has on `fund_editions` and none should — so as written
+the guards raised a bare `42501: permission denied for table fund_editions` for the very
+writer #229 made legitimate, before either could reach one of its own named refusals.
+
+`20260816083454_fund_plan_trigger_privileges.sql` replaces both with `SECURITY DEFINER`
+(bodies otherwise verbatim, `search_path` still locked). That also closes a latent hole in
+the second one: an INVOKER guard sums the plan's other phases under the **caller's** RLS, so
+a writer who could not see a sibling row would compute a smaller sum and pass a ceiling that
+is the whole point of the trigger.
+
+Verified behaviour lives in `supabase/tests/0115_fund_plan_authoring.test.sql` — the client
+insert lands, and the ceiling refuses a client with `phases exceed declared payable` rather
+than a privilege error.
+
+---
+
 ## `20260815205504_payout_accounts.sql:9-10` — "Written ONLY by the stripe-webhook `account.updated` branch" is one writer short
 
 The header (and the `comment on table` at L30, plus "The webhook writes as `service_role`" at

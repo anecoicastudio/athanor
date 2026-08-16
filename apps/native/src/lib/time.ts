@@ -93,3 +93,26 @@ export function monthYear(iso: string, locale: Locale): string {
     year: 'numeric',
   });
 }
+
+/**
+ * Parse a Postgres `date` column ('YYYY-MM-DD') as a CALENDAR DAY in the device's zone.
+ *
+ * `new Date('2026-11-01')` is UTC midnight, which is 31 October west of Greenwich — a phase
+ * scheduled for the first of the month would render as the last of the previous one. The
+ * parts are read explicitly instead, and the time is set to noon so a DST shift cannot
+ * carry the day either way.
+ */
+export function parseCalendarDay(dateOnly: string): Date {
+  const [y, m, d] = dateOnly.split('-').map(Number);
+  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1, 12, 0, 0, 0);
+}
+
+/** "17 giugno 2026" / "17 June 2026" from a `date` column — the calendar-day counterpart
+ *  of {@link longDate}, which takes an instant. */
+export function calendarDay(dateOnly: string, locale: Locale): string {
+  return parseCalendarDay(dateOnly).toLocaleDateString(localeTag(locale), {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
