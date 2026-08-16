@@ -14,11 +14,11 @@ import {
 } from '@athanor/api';
 import { consensusForCandidacy, formatFundTotal } from '@athanor/core';
 import { semantic } from '@athanor/config';
-import { type MessageKey, t, tagLabel } from '@athanor/i18n';
+import { t, tagLabel } from '@athanor/i18n';
 import type { VoteState } from '@/components/fund/CandidateCard';
 import { VoteBar } from '@/components/fund/VoteBar';
 import { Pressable, ScrollView, Text, View } from '@/tw';
-import { authorParts, confirmedHistory } from '@/lib/ballot-card';
+import { authorParts, categoryLabel, confirmedHistory } from '@/lib/ballot-card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { Tag } from '@/components/Tag';
 import { ListState } from '@/components/ListState';
@@ -159,10 +159,11 @@ export default function CandidacyDetailScreen() {
       ? 'voted'
       : 'notVoted';
   const title = card.title ?? card.category ?? '';
-  const categoryLabel = card.category
-    ? t(`costellazioni.filter.${card.category}` as MessageKey, locale)
-    : null;
-  const author = authorParts({ handle: card.handle, city: card.city, categoryLabel }).join(' · ');
+  const author = authorParts({
+    handle: card.handle,
+    city: card.city,
+    categoryLabel: categoryLabel(card.category, locale),
+  }).join(' · ');
   const history = confirmedHistory(card);
 
   return (

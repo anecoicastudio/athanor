@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { CandidateCard } from '@athanor/api';
+import { t } from '@athanor/i18n';
 import {
   authorParts,
   ballotFilters,
+  categoryLabel,
   confirmedHistory,
   filterCandidates,
   resolveFilter,
@@ -142,6 +144,23 @@ describe('confirmedHistory', () => {
         card({ dream_id: 'd1', dream_milestones_done: 0, dream_helps_confirmed: 0 }),
       ),
     ).toBeNull();
+  });
+});
+
+describe('categoryLabel', () => {
+  it('localizes the category in both catalogs', () => {
+    expect(categoryLabel('artistic', 'it')).toBe('Artistico');
+    expect(categoryLabel('artistic', 'en')).toBe('Artistic');
+  });
+
+  // The ballot must not invent a second label set: a chip here and a chip in the candidacy
+  // wizard read from the same key, so they cannot drift.
+  it('reads the same keys the wizard and Costellazioni use', () => {
+    expect(categoryLabel('volunteer', 'it')).toBe(t('costellazioni.filter.volunteer', 'it'));
+  });
+
+  it('says nothing for an uncategorised candidacy', () => {
+    expect(categoryLabel(null, 'it')).toBeNull();
   });
 });
 

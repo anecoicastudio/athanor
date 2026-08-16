@@ -1,4 +1,5 @@
 import type { CandidateCard } from '@athanor/api';
+import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
 
 /**
@@ -87,6 +88,19 @@ export function confirmedHistory(card: CandidateCard): ConfirmedHistory | null {
   const helps = card.dream_helps_confirmed ?? 0;
   if (milestones === 0 && helps === 0) return null;
   return { milestones, helps };
+}
+
+/**
+ * The localized label for a candidacy's category, or `null` when it has none (#226 made «no
+ * category» first-class and it must not become an empty segment on the ballot).
+ *
+ * `costellazioni.filter.*` deliberately — the same keys the candidacy wizard writes with and
+ * Costellazioni filters with. One vocabulary, one label set: a chip on the ballot and a chip
+ * in the wizard cannot drift apart, and there is no second copy of five nouns to keep in step
+ * across two catalogs.
+ */
+export function categoryLabel(category: ProjectCategory | null, locale: Locale): string | null {
+  return category === null ? null : t(`costellazioni.filter.${category}` as MessageKey, locale);
 }
 
 /**

@@ -2,10 +2,10 @@ import { ActivityIndicator } from 'react-native';
 import type { CandidateCard as CandidateCardModel } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { formatFundTotal } from '@athanor/core';
-import { type MessageKey, t } from '@athanor/i18n';
+import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import { authorParts, confirmedHistory } from '@/lib/ballot-card';
+import { authorParts, categoryLabel, confirmedHistory } from '@/lib/ballot-card';
 import { auraGlow } from '@/lib/glow';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { VoteBar } from './VoteBar';
@@ -61,13 +61,10 @@ export function CandidateCard({
   onOpen: () => void;
 }) {
   const title = card.title ?? card.category ?? '';
-  const categoryLabel = card.category
-    ? t(`costellazioni.filter.${card.category}` as MessageKey, locale)
-    : null;
   const author = authorParts({
     handle: card.handle,
     city: card.city,
-    categoryLabel,
+    categoryLabel: categoryLabel(card.category, locale),
   }).join(' · ');
   const history = confirmedHistory(card);
 
