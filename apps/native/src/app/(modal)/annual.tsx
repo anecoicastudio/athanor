@@ -32,6 +32,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { AmountRow } from '@/components/fund/AmountRow';
+import { BallotFilterChips } from '@/components/fund/BallotFilterChips';
 import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
 import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
@@ -39,6 +40,12 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { PhaseList } from '@/components/fund/PhaseList';
 import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
 import { useAuth } from '@/lib/auth-context';
+import {
+  type BallotFilter,
+  ballotFilters,
+  filterCandidates,
+  resolveFilter,
+} from '@/lib/ballot-card';
 import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -185,6 +192,18 @@ export default function AnnualFundScreen() {
   );
 
   const candidates = candidatesQuery.data?.items ?? [];
+
+  // Ballot category filter (#227, FUND-11/D43). Client-side on purpose: the page is already
+  // in hand (one keyset page of ~20), so filtering here costs nothing and — unlike a server
+  // `eq('category', …)` — cannot interact with the cursor. Pushing it into the query would
+  // mean a cursor per filter and a page that shrinks as the member taps.
+  const [ballotFilter, setBallotFilter] = useState<BallotFilter>('all');
+  const filters = useMemo(() => ballotFilters(candidates), [candidates]);
+  const activeFilter = resolveFilter(filters, ballotFilter);
+  const visibleCandidates = useMemo(
+    () => filterCandidates(candidates, activeFilter),
+    [candidates, activeFilter],
+  );
 
   // #229: the cycle's declared winner, after their viability confirmation (#220).
   const isPlanAuthor =
@@ -525,7 +544,15 @@ export default function AnnualFundScreen() {
             </Text>
           ) : (
             <View className="gap-4">
-              {candidates.map((card) => (
+              {/* Category filter (#227). No empty state under it by construction: the chips
+                  offer only categories this ballot carries, so a tap always leaves cards. */}
+              <BallotFilterChips
+                filters={filters}
+                active={activeFilter}
+                onChange={setBallotFilter}
+                locale={locale}
+              />
+              {visibleCandidates.map((card) => (
                 <CandidateCard
                   key={card.candidacy_id}
                   card={card}

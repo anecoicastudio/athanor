@@ -2997,19 +2997,32 @@ export type Database = {
       }
       fund_candidate_cards: {
         Row: {
+          budget_cents: number | null
           candidacy_id: string | null
           category: string | null
           city: string | null
           created_at: string | null
+          dream_helps_confirmed: number | null
+          dream_id: string | null
+          dream_milestones_done: number | null
           edition_id: string | null
           handle: string | null
+          min_viable_cents: number | null
           profile_id: string | null
+          skills_needed: string[] | null
           status: string | null
           thumb_path: string | null
           title: string | null
           video_url: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "dream_candidacies_dream_id_fkey"
+            columns: ["dream_id"]
+            isOneToOne: false
+            referencedRelation: "dreams"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dream_candidacies_edition_id_fkey"
             columns: ["edition_id"]

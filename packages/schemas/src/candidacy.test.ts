@@ -232,36 +232,76 @@ describe('candidacyUpdateSchema', () => {
 });
 
 describe('candidateCardSchema', () => {
+  /** A row of `fund_candidate_cards` as PostgREST returns it — no linked dream. */
+  const row = {
+    candidacy_id: '33333333-3333-3333-3333-333333333333',
+    edition_id: '22222222-2222-2222-2222-222222222222',
+    profile_id: '44444444-4444-4444-4444-444444444444',
+    handle: 'marta',
+    title: null,
+    city: 'Torino',
+    category: 'artistic',
+    status: 'submitted',
+    video_url: 'uid/cand.mp4',
+    created_at: '2026-06-18T00:00:00Z',
+    thumb_path: null,
+    budget_cents: 800000,
+    min_viable_cents: 500000,
+    skills_needed: [],
+    dream_id: null,
+    dream_milestones_done: null,
+    dream_helps_confirmed: null,
+  };
+
   it('parses a candidate card with a null title', () => {
-    const card = candidateCardSchema.parse({
-      candidacy_id: '33333333-3333-3333-3333-333333333333',
-      edition_id: '22222222-2222-2222-2222-222222222222',
-      profile_id: '44444444-4444-4444-4444-444444444444',
-      handle: 'marta',
-      title: null,
-      city: 'Torino',
-      category: 'artistic',
-      status: 'submitted',
-      video_url: 'uid/cand.mp4',
-      created_at: '2026-06-18T00:00:00Z',
-      thumb_path: null,
-    });
-    expect(card.title).toBeNull();
+    expect(candidateCardSchema.parse(row).title).toBeNull();
   });
   it('carries the poster path the ballot draws', () => {
-    const card = candidateCardSchema.parse({
-      candidacy_id: '33333333-3333-3333-3333-333333333333',
-      edition_id: '22222222-2222-2222-2222-222222222222',
-      profile_id: '44444444-4444-4444-4444-444444444444',
-      handle: 'marta',
-      title: null,
-      city: 'Torino',
-      category: 'volunteer',
-      status: 'submitted',
-      video_url: 'uid/cand.mp4',
-      created_at: '2026-06-18T00:00:00Z',
-      thumb_path: 'uid/cand-thumb.jpg',
-    });
+    const card = candidateCardSchema.parse({ ...row, thumb_path: 'uid/cand-thumb.jpg' });
     expect(card.thumb_path).toBe('uid/cand-thumb.jpg');
+  });
+
+  // #227 — the two numbers the vote is actually about. A €3.000 dream the pool covers and an
+  // €80.000 one it does not are the same card without them.
+  it('carries both money figures', () => {
+    const card = candidateCardSchema.parse(row);
+    expect(card.budget_cents).toBe(800000);
+    expect(card.min_viable_cents).toBe(500000);
+  });
+
+  // null and 0 are different answers: null = no dream to speak for (none linked, or the
+  // linked one soft-deleted), 0 = a live linked dream with nothing confirmed yet. Collapsing
+  // them would make «hasn't started» and «didn't link» the same sentence on the ballot.
+  it('distinguishes no linked dream (null) from a linked dream with nothing confirmed (0)', () => {
+    expect(candidateCardSchema.parse(row).dream_milestones_done).toBeNull();
+    const fresh = candidateCardSchema.parse({
+      ...row,
+      dream_id: '55555555-5555-5555-5555-555555555555',
+      dream_milestones_done: 0,
+      dream_helps_confirmed: 0,
+    });
+    expect(fresh.dream_milestones_done).toBe(0);
+    expect(fresh.dream_helps_confirmed).toBe(0);
+  });
+
+  it('carries the linked dream and its confirmed history', () => {
+    const card = candidateCardSchema.parse({
+      ...row,
+      skills_needed: ['design', 'video'],
+      dream_id: '55555555-5555-5555-5555-555555555555',
+      dream_milestones_done: 3,
+      dream_helps_confirmed: 2,
+    });
+    expect(card.skills_needed).toEqual(['design', 'video']);
+    expect(card.dream_milestones_done).toBe(3);
+    expect(card.dream_helps_confirmed).toBe(2);
+  });
+
+  // A negative count is not a count. The aggregate cannot produce one, so this pins the
+  // boundary rather than the source: a card is refused, never rendered as «-1 tappe».
+  it('refuses a negative confirmed count', () => {
+    expect(candidateCardSchema.safeParse({ ...row, dream_milestones_done: -1 }).success).toBe(
+      false,
+    );
   });
 });

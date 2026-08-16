@@ -1,9 +1,11 @@
 import { ActivityIndicator } from 'react-native';
 import type { CandidateCard as CandidateCardModel } from '@athanor/api';
 import { semantic } from '@athanor/config';
+import { formatFundTotal } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { authorParts, categoryLabel, confirmedHistory } from '@/lib/ballot-card';
 import { auraGlow } from '@/lib/glow';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { VoteBar } from './VoteBar';
@@ -21,6 +23,21 @@ export type VoteState = 'notVoted' | 'voting' | 'voted' | 'votingClosed' | 'winn
  * scelto ✦» — a moment happened. «Vota» is FLAT aura cyan; «Votato ✦» /
  * «Voto chiuso» are quiet. No vanity counts beyond the sanctioned consensus %
  * (rule #3) — tapping the body opens the detail with the real player.
+ *
+ * #227 adds the two things the vote is actually about: BOTH money figures (a
+ * €3.000 dream the pool covers and an €80.000 one it does not are the same card
+ * without them) and, where the author linked a personal dream, its CONFIRMED
+ * history. Confirmed is the whole line — a completed milestone and a completed
+ * help are evidence of action, an offered help is a promise, and a promise is a
+ * number enthusiasm can inflate. `confirmedHistory` also collapses the block
+ * when there is nothing confirmed yet, rather than printing «· 0» about a dream
+ * planted last week.
+ *
+ * SKILLS ARE NOT HERE, deliberately. `skills_needed` holds up to ten keys, and a
+ * wrapping chip cloud inside a list card is the crowding PR #376's reviewer
+ * named when this data landed unsurfaced. DESIGN.md §9 gives a Card one padding
+ * and one rhythm; ten chips break it and push the vote action below the fold on
+ * every candidate. They render on the detail, where there is a scroll to spend.
  */
 export function CandidateCard({
   card,
@@ -44,6 +61,12 @@ export function CandidateCard({
   onOpen: () => void;
 }) {
   const title = card.title ?? card.category ?? '';
+  const author = authorParts({
+    handle: card.handle,
+    city: card.city,
+    categoryLabel: categoryLabel(card.category, locale),
+  }).join(' · ');
+  const history = confirmedHistory(card);
 
   return (
     <View className="gap-3 rounded-card border border-hair bg-raise p-3">
@@ -96,14 +119,34 @@ export function CandidateCard({
         <Text className="text-[15px] leading-5 text-foreground" numberOfLines={2}>
           {title}
         </Text>
-        <Text className="mt-1 text-[12px] text-muted-foreground">
-          {t('fund.vote.author', locale, {
-            name: card.handle ?? '—',
-            city: card.city ?? '',
-            category: card.category ?? '',
-          })}
-        </Text>
+        <Text className="mt-1 text-[12px] text-muted-foreground">{author}</Text>
       </Pressable>
+
+      {/* The two money figures (#227, FUND-09/D10-D11). Labels muted, numbers foreground —
+          money is status, not a moment, so no cyan and no glow (DESIGN §11 2026-06-12, the
+          same reasoning that keeps the Aura number off `aura`). The «ballot information,
+          not a gate» framing that D11 requires lives on the detail, where there is room for
+          a sentence; the card carries the numbers. */}
+      <View className="flex-row flex-wrap gap-x-4 gap-y-1">
+        <Text className="text-[12px] text-muted-foreground">
+          {t('fund.candidate.budget', locale)}{' '}
+          <Text className="text-foreground">{formatFundTotal(card.budget_cents, locale)}</Text>
+        </Text>
+        <Text className="text-[12px] text-muted-foreground">
+          {t('fund.candidate.minViable', locale)}{' '}
+          <Text className="text-foreground">{formatFundTotal(card.min_viable_cents, locale)}</Text>
+        </Text>
+      </View>
+
+      {/* The linked dream's confirmed history — one quiet line on the card, the full block on
+          the detail. Absent entirely when there is nothing confirmed (see confirmedHistory). */}
+      {history ? (
+        <Text className="text-[12px] text-muted-foreground">
+          {t('fund.candidate.history.milestones', locale, { n: history.milestones })}
+          {' · '}
+          {t('fund.candidate.history.helps', locale, { n: history.helps })}
+        </Text>
+      ) : null}
 
       {/* Consensus bar */}
       <VoteBar percent={consensus} locale={locale} />

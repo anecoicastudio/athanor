@@ -16,6 +16,39 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260816153011_fund_confirmed_counts_service_role.sql:1-9` — the 42501 it names is reachable on a hosted project only, never in a clean replay
+
+The header says a service-role `select … from public.fund_candidate_cards` "failed outright
+with «permission denied for function dream_confirmed_counts»". That is exactly what happened —
+on **staging**, and it cannot happen in a database built from these migrations.
+
+Nothing grants `service_role` SELECT on that view. `20260618131250_m7_voting.sql:158-159`
+revokes from `anon` and grants to `authenticated`, and no later migration widens it. So in
+CI's replay-from-zero the read stops at the VIEW (`permission denied for view
+fund_candidate_cards`) and never reaches the function whose grant this migration adds.
+
+The reason staging disagreed is grant drift: a hosted Supabase project answers
+`has_table_privilege('service_role', 'public.fund_candidate_cards', 'select')` = **true**
+even though no migration says so. CI cannot see that drift, which is why the pgTAP assertion
+written against staging's behaviour passed there and failed in CI on the same commit.
+
+**What the migration DOES is still correct and still wanted.** Wherever `service_role` can
+reach the view — every hosted project today, production included — the view's `LEFT JOIN
+LATERAL` makes EXECUTE on `athanor.dream_confirmed_counts` a precondition for reading _any_
+column of it, so without this grant a privileged read on a hosted project really does raise 42501. Only the "how it was found" framing is misleading: read it as a hosted-projects fix,
+not as something a fresh database exhibits. The second half of the migration (dropping the
+in-body `auth.uid() is not null` clause) stands on its own reasoning, which the file states
+correctly: `athanor` is not an exposed schema and EXECUTE is revoked from `public`/`anon`, so
+the grant is the gate.
+
+Asserted by: `supabase/tests/0045_fund_candidate_cards_view.test.sql` — which now asserts the
+two PRIVILEGES (`service_role` has no SELECT on the view; `service_role` holds EXECUTE on the
+aggregate) instead of performing a read whose outcome depends on which database it runs in.
+Note the consequence: that file can no longer be smoke-run whole against hosted staging, where
+the first of those two assertions fails by drift. CI is the authority for a declared grant.
+
+---
+
 ## `20260816073905_fund_realization_plans.sql:37-38, 234` — "nothing here writes a plan except the service role" was the deferred decision, not the answer
 
 The header's SEAMS LEFT OPEN paragraph and the RLS section's "#229 writes as `service_role`"
