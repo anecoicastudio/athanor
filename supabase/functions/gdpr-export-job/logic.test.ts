@@ -87,6 +87,14 @@ const EXPECTED_SECTIONS: Record<string, { table: string; filter: ExpectedFilter;
   aura_scores: { table: 'aura_scores', filter: { kind: 'eq', column: 'profile_id' }, one: true },
   stars: { table: 'stars', filter: { kind: 'eq', column: 'profile_id' } },
   dream_candidacies: { table: 'dream_candidacies', filter: { kind: 'eq', column: 'profile_id' } },
+  realization_plans: {
+    table: 'realization_plans',
+    filter: { kind: 'in', column: 'candidacy_id', parentKey: 'dream_candidacies' },
+  },
+  realization_plan_phases: {
+    table: 'realization_plan_phases',
+    filter: { kind: 'in', column: 'plan_id', parentKey: 'realization_plans' },
+  },
   candidacy_votes: { table: 'candidacy_votes', filter: { kind: 'eq', column: 'voter_id' } },
   fund_contributions: { table: 'fund_contributions', filter: { kind: 'eq', column: 'profile_id' } },
   circle_memberships: { table: 'circle_memberships', filter: { kind: 'eq', column: 'profile_id' } },
@@ -217,11 +225,15 @@ Deno.test('assembleArchive: one key per section, defaulting null → null / []',
 Deno.test(
   'claim query + every archive query filters by the requester (per-table shape)',
   async () => {
-    // script the three via parents with rows so the join queries actually run
+    // script every via parent with rows so the join queries actually run. realization_plans
+    // is both: a child of dream_candidacies and the parent of its phases, so its scripted
+    // result is what the phases join reads — the two-level chain #400 added.
     const c = ctx({
       'dreams.select': [{ data: [{ id: 'd1' }, { id: 'd2' }] }],
       'posts.select': [{ data: [{ id: 'p1' }] }],
       'event_tickets.select': [{ data: [{ id: 't1' }, { id: 't2' }] }],
+      'dream_candidacies.select': [{ data: [{ id: 'c1' }] }],
+      'realization_plans.select': [{ data: [{ id: 'rp1' }, { id: 'rp2' }] }],
     });
     await processExportJobs(c);
 
@@ -257,9 +269,14 @@ Deno.test(
         const parentCall = c.db.calls.find((k) => k.table === parentTable && k.columns === '*');
         assert(parentCall, `${key}'s parent ${parentTable} queried`);
         // ids come from the scripted parent rows at the top of this test
-        const parentIds = { dreams: ['d1', 'd2'], posts: ['p1'], event_tickets: ['t1', 't2'] }[
-          expected.filter.parentKey
-        ];
+        const parentIds = {
+          dreams: ['d1', 'd2'],
+          posts: ['p1'],
+          event_tickets: ['t1', 't2'],
+          dream_candidacies: ['c1'],
+          realization_plans: ['rp1', 'rp2'],
+        }[expected.filter.parentKey];
+        assert(parentIds, `${key}'s parent ${expected.filter.parentKey} is scripted above`);
         assertEquals(
           call.filters,
           [['in', expected.filter.column, parentIds]],
@@ -273,7 +290,14 @@ Deno.test(
 Deno.test('a requester with no parent rows skips the child join queries entirely', async () => {
   const c = ctx(); // unscripted → every parent resolves data: null → []
   await processExportJobs(c);
-  for (const table of ['dream_milestones', 'post_media', 'event_attendance']) {
+  for (const table of [
+    'dream_milestones',
+    'post_media',
+    'event_attendance',
+    'realization_plans',
+    // two hops down: no candidacy → no plan → no phase, without either query running
+    'realization_plan_phases',
+  ]) {
     assertEquals(
       c.db.calls.filter((k) => k.table === table).length,
       0,
@@ -284,6 +308,64 @@ Deno.test('a requester with no parent rows skips the child join queries entirely
   const archived = JSON.parse(c.uploads[0].body);
   assertEquals(archived.dream_milestones, []);
   assertEquals(archived.event_attendance, []);
+  assertEquals(archived.realization_plan_phases, []);
+});
+
+// ── #400: the winner's plan reaches the archive, not just the spec list ──────
+
+Deno.test("a winner's archive carries the realization plan and its phases", async () => {
+  const PLAN = {
+    id: 'rp1',
+    edition_id: 'ed1',
+    candidacy_id: 'c1',
+    objective: 'Costruire il forno del quartiere',
+    expected_result: 'Si cuoce il pane insieme ogni domenica',
+    professionals: 'Un muratore, un fumista',
+    suppliers: 'Fornace Rossi',
+    published_at: '2026-08-01T09:00:00.000Z',
+  };
+  const PHASES = [
+    {
+      id: 'ph1',
+      plan_id: 'rp1',
+      sort: 1,
+      title: 'Fondazione',
+      scheduled_for: '2026-09-01',
+      amount_cents: 120000,
+      verification_criteria: 'Foto della platea gettata',
+    },
+    {
+      id: 'ph2',
+      plan_id: 'rp1',
+      sort: 2,
+      title: 'Cupola',
+      scheduled_for: '2026-10-15',
+      amount_cents: 340000,
+      verification_criteria: 'Collaudo del fumista',
+    },
+  ];
+  const c = ctx({
+    'dream_candidacies.select': [{ data: [{ id: 'c1', profile_id: REQUESTER }] }],
+    'realization_plans.select': [{ data: [PLAN] }],
+    'realization_plan_phases.select': [{ data: PHASES }],
+  });
+  await processExportJobs(c);
+
+  // the archive itself, not EXPORT_SPEC's membership: the authored prose is in the file
+  const archived = JSON.parse(c.uploads[0].body);
+  assertEquals(archived.realization_plans, [PLAN], 'the plan reaches the archive whole');
+  assertEquals(archived.realization_plan_phases, PHASES, 'every phase reaches it whole');
+  assertEquals(archived.realization_plans[0].objective, PLAN.objective);
+  assertEquals(archived.realization_plan_phases[1].verification_criteria, 'Collaudo del fumista');
+
+  // joined by the candidacy's then the plan's ids, and narrowed by nothing else — a draft
+  // (published_at null) is the author's prose too, so the archive must not filter on it
+  const planCall = c.db.calls.find((k) => k.table === 'realization_plans');
+  assert(planCall, 'the plan is queried through its candidacy');
+  assertEquals(planCall.filters, [['in', 'candidacy_id', ['c1']]]);
+  const phaseCall = c.db.calls.find((k) => k.table === 'realization_plan_phases');
+  assert(phaseCall, 'the phases are queried through their plan');
+  assertEquals(phaseCall.filters, [['in', 'plan_id', ['rp1']]]);
 });
 
 // ── upload failure → requeue ─────────────────────────────────────────────────

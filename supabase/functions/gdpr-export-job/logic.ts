@@ -38,7 +38,8 @@ type QueryResult = { data: unknown };
  * - 'via'    — rows owned through a parent section (`column` ∈ parent row ids): tables with
  *              no owner column of their own (event_attendance) or owned via their parent
  *              content row (dream_milestones, post_media). The parent MUST appear earlier
- *              in this list.
+ *              in this list — it may itself be 'via', which is how realization_plan_phases
+ *              reaches its author three hops out (profiles → candidacy → plan → phase).
  *
  * COMPLETENESS CONTRACT: this list is pinned twice —
  * - logic.test.ts holds an independent literal mirror of (table, filter) pairs, so a
@@ -118,6 +119,28 @@ export const EXPORT_SPEC: readonly OwnDataSpec[] = [
   { key: 'aura_scores', table: 'aura_scores', mode: 'one', column: 'profile_id' },
   { key: 'stars', table: 'stars', mode: 'many', column: 'profile_id' },
   { key: 'dream_candidacies', table: 'dream_candidacies', mode: 'many', column: 'profile_id' },
+  // #400: the winner's realization plan and its phases (#228/#229). Member-authored prose —
+  // objective, expected_result, professionals, suppliers; per phase title, scheduled_for,
+  // amount_cents, verification_criteria — reached through dream_candidacies, so 0096's
+  // FK-to-profiles sweep never sees them and they are on its exported list by hand, the way
+  // its header prescribes for tables below the first degree. Published is not the same as
+  // impersonal: access and portability cover what the member wrote no matter who else may
+  // read it, and erasure already takes both down with the candidacy. Phases follow plans
+  // because the via loop reads `results` as it fills them.
+  {
+    key: 'realization_plans',
+    table: 'realization_plans',
+    mode: 'via',
+    parentKey: 'dream_candidacies',
+    column: 'candidacy_id',
+  },
+  {
+    key: 'realization_plan_phases',
+    table: 'realization_plan_phases',
+    mode: 'via',
+    parentKey: 'realization_plans',
+    column: 'plan_id',
+  },
   { key: 'candidacy_votes', table: 'candidacy_votes', mode: 'many', column: 'voter_id' },
   { key: 'fund_contributions', table: 'fund_contributions', mode: 'many', column: 'profile_id' },
   { key: 'circle_memberships', table: 'circle_memberships', mode: 'many', column: 'profile_id' },
@@ -125,14 +148,6 @@ export const EXPORT_SPEC: readonly OwnDataSpec[] = [
   // #230: the winner's public progress notes. Member-authored prose with a direct FK to
   // profiles, so it is squarely personal data — and withdrawn notes come with it, because
   // `deleted_at` hides a row from the world, not from its author.
-  //
-  // realization_plans / realization_plan_phases (#228/#229) are member-authored prose too
-  // and are in NEITHER list — an OPEN GAP (#400), not a decision. FK to dream_candidacies,
-  // so 0096's sweep never catches them; 0096's header says such tables belong here by hand,
-  // through the `via` mode dream_milestones and post_media use. Nothing technical blocks it
-  // — the via loop reads `results` as it fills them, so a phases-via-plans section works as
-  // long as it is ordered after its parent. It is left to its own change because deciding
-  // what a published plan is in an archive is #228/#229's question, not this one's.
   {
     key: 'realization_updates',
     table: 'realization_updates',

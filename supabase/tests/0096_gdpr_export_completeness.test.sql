@@ -4,9 +4,10 @@
 -- Sweep: every public table with a FK into public.profiles or auth.users carries a member's
 -- personal data and MUST be either exported by gdpr-export-job or explicitly excluded here
 -- with a reason. A new personal-data table fails this test until its export fate is decided.
--- Known limit: second-degree tables (FK into a content table, not into profiles — e.g.
--- dream_milestones, post_media) are not auto-swept; they appear in the exported list by hand
--- and EXPORT_SPEC reaches them via their parent's ids.
+-- Known limit: tables below the first degree (FK into a content table, not into profiles —
+-- dream_milestones, post_media, and the realization_plans → realization_plan_phases chain,
+-- which is three hops out) are not auto-swept; they appear in the exported list by hand and
+-- EXPORT_SPEC reaches them via their parent's ids.
 begin;
 create extension if not exists pgtap with schema extensions;
 
@@ -24,7 +25,8 @@ insert into gdpr_exported values
   ('messages'), ('connection_requests'), ('connections'), ('blocks'), ('reports'),
   ('notifications'), ('notification_preferences'), ('push_tokens'),
   ('aura_events'), ('aura_scores'), ('stars'),
-  ('dream_candidacies'), ('candidacy_votes'), ('fund_contributions'), ('circle_memberships'),
+  ('dream_candidacies'), ('realization_plans'), ('realization_plan_phases'),
+  ('candidacy_votes'), ('fund_contributions'), ('circle_memberships'),
   ('payout_accounts'), ('realization_updates'),
   ('invites'), ('consent'), ('verifications'), ('gdpr_export_jobs'), ('gdpr_erasure_requests');
 
