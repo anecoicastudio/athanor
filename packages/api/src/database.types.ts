@@ -1267,6 +1267,47 @@ export type Database = {
           },
         ]
       }
+      fund_cycle_expenses: {
+        Row: {
+          amount_cents: number
+          category: string
+          created_at: string
+          description: string
+          edition_id: string
+          id: string
+          incurred_on: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          category: string
+          created_at?: string
+          description: string
+          edition_id: string
+          id?: string
+          incurred_on?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          category?: string
+          created_at?: string
+          description?: string
+          edition_id?: string
+          id?: string
+          incurred_on?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_cycle_expenses_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fund_editions: {
         Row: {
           candidacy_window_open: boolean
@@ -3042,6 +3083,23 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fund_edition_expense_totals: {
+        Row: {
+          category: string | null
+          edition_id: string | null
+          entry_count: number | null
+          total_cents: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_cycle_expenses_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
             referencedColumns: ["id"]
           },
         ]
