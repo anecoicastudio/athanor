@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -109,6 +109,10 @@ export default function RealizationPlanScreen() {
   // The server row is the draft's origin exactly once per load; after that the member's
   // typing owns the fields, so a background refetch never overwrites what they are writing.
   const [hydrated, setHydrated] = useState(false);
+  // The phases get their own flag rather than reading «is the list empty?»: an empty list is
+  // a legitimate draft state — the member just removed the last phase — and re-hydrating on
+  // it would resurrect the phase on the next background refetch.
+  const [phasesHydrated, setPhasesHydrated] = useState(false);
 
   useEffect(() => {
     if (hydrated || !plan) return;
@@ -120,9 +124,10 @@ export default function RealizationPlanScreen() {
   }, [hydrated, plan]);
 
   useEffect(() => {
-    if (!plan || phasesQuery.data === undefined) return;
-    setPhases((current) => (current.length === 0 ? draftFromPhases(serverPhases) : current));
-  }, [plan, phasesQuery.data, serverPhases]);
+    if (phasesHydrated || !plan || phasesQuery.data === undefined) return;
+    setPhases(draftFromPhases(serverPhases));
+    setPhasesHydrated(true);
+  }, [phasesHydrated, plan, phasesQuery.data, serverPhases]);
 
   const payable = payableCents(edition?.confirmed_pool_cents ?? 0, edition?.split_pct ?? 0);
   const costed = costedCents(phases);
@@ -135,13 +140,17 @@ export default function RealizationPlanScreen() {
   const proseComplete = objective.trim().length > 0 && expectedResult.trim().length > 0;
   const phasesAllComplete = phases.every(phaseComplete);
 
+  // Monotonic, never derived from the list. A key computed from the current phases can be
+  // handed out twice — remove one of two new phases and the next add recomputes the key the
+  // survivor still holds, which React reads as the same row.
+  const nextPhaseKey = useRef(0);
+
   const addPhase = useCallback(() => {
     setPhases((current) => [
       ...current,
       {
-        // A local key that is not an id: this phase has no row yet. Index-free so removing
-        // an earlier phase cannot make two cards share a key.
-        key: `new-${current.length}-${current.reduce((n, p) => n + p.key.length, 0)}`,
+        // A local key that is not an id: this phase has no row yet.
+        key: `new-${nextPhaseKey.current++}`,
         id: null,
         title: '',
         scheduledFor: dayKey(new Date().toISOString()),
