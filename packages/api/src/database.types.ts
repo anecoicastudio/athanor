@@ -1203,6 +1203,8 @@ export type Database = {
       fund_contributions: {
         Row: {
           amount_cents: number
+          charged_cents: number | null
+          coverage_cents: number
           created_at: string
           currency: string
           edition_id: string
@@ -1215,6 +1217,8 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          charged_cents?: number | null
+          coverage_cents?: number
           created_at?: string
           currency?: string
           edition_id: string
@@ -1227,6 +1231,8 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          charged_cents?: number | null
+          coverage_cents?: number
           created_at?: string
           currency?: string
           edition_id?: string

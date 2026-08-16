@@ -145,6 +145,49 @@ describe('fund pre-payment disclosure (FUND-18, #235)', () => {
     expect(en['fund.disclose.cta']).toContain('{amt}');
   });
 
+  /**
+   * The optional fee coverage (#236 / FUND-51). NOT one of the sixteen facts — it is a
+   * choice offered beneath them — so it is pinned here rather than in DISCLOSURE_KEYS,
+   * which is the spec's block membership and must stay exactly sixteen.
+   */
+  const COVERAGE_KEYS: readonly MessageKey[] = [
+    'fund.disclose.coverage.label',
+    'fund.disclose.coverage.total',
+    'fund.disclose.coverage.optional',
+    'fund.disclose.coverage.notReturned',
+  ];
+
+  test.each(COVERAGE_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the coverage copy shows the payer every figure, in both locales', () => {
+    // The consent is the number. A label that said «copri i costi» without naming the amount
+    // would be asking for a blank cheque on a screen whose whole purpose is that it is not one.
+    expect(it['fund.disclose.coverage.label']).toContain('{fee}');
+    expect(en['fund.disclose.coverage.label']).toContain('{fee}');
+    for (const slot of ['{amt}', '{fee}', '{total}']) {
+      expect(it['fund.disclose.coverage.total'], `it total missing ${slot}`).toContain(slot);
+      expect(en['fund.disclose.coverage.total'], `en total missing ${slot}`).toContain(slot);
+    }
+  });
+
+  test('the coverage copy says it is optional and that a refund does not return it', () => {
+    // PSD2 Art. 62(4): the coverage may never read as a surcharge, so the copy has to say
+    // out loud that declining costs the contributor nothing. FUND-51: and that it is the
+    // contribution that comes back on a refund, never the coverage — stated BEFORE payment,
+    // because afterwards it is a surprise rather than a disclosure.
+    for (const key of ['fund.disclose.coverage.optional', 'fund.disclose.coverage.notReturned']) {
+      expect(it[key as MessageKey].length).toBeGreaterThan(20);
+      expect(en[key as MessageKey].length).toBeGreaterThan(20);
+    }
+    expect(it['fund.disclose.coverage.notReturned'].toLowerCase()).toContain('rimbors');
+    expect(en['fund.disclose.coverage.notReturned'].toLowerCase()).toContain('refund');
+  });
+
   test('the retained-percentage fact carries the per-cycle number in both locales (#232)', () => {
     // D15: the percentage is per-cycle DATA, frozen at open — the consent copy renders the
     // declared figure itself, not an abstract promise that a figure exists somewhere.

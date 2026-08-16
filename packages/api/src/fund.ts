@@ -92,13 +92,21 @@ export class ContributionSessionError extends Error {
  * Start a Stripe Checkout for a Dream-Fund contribution via the create-contribution-session edge fn.
  * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only (rule #6):
  * the fund total moves when the webhook (W3) lands → fund_aggregates → the realtime ticker. Never optimistic.
+ *
+ * `amountCents` is the GIFT. `coverFees` (#236) asks the server to add Stripe's processing on
+ * top so the gift arrives whole — a flag, never a figure: the gross-up is recomputed
+ * server-side, and whatever the disclosure screen showed the payer is display only.
  */
 export async function createContributionSession(
   client: AthanorClient,
   input: ContributionSessionInput,
 ): Promise<{ url: string }> {
   const res = await client.functions.invoke<unknown>('create-contribution-session', {
-    body: { editionId: input.editionId, amountCents: input.amountCents },
+    body: {
+      editionId: input.editionId,
+      amountCents: input.amountCents,
+      coverFees: input.coverFees === true,
+    },
   });
   if (res.error) {
     // On a non-2xx, FunctionsHttpError hangs the Response off `.context` — the JSON body is

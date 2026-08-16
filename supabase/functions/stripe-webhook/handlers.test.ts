@@ -265,10 +265,103 @@ Deno.test('handleContribution writes row then recomputes the aggregate', async (
   const values = upsert.values as Record<string, unknown>;
   assertEquals(values.profile_id, 'prof-1'); // never null — NOT NULL column (#239)
   assertEquals(values.amount_cents, 2500);
+  // #236: this fixture carries no split metadata — the shape of a session minted before the
+  // fee coverage shipped, and still in flight the day it deploys. The gift is the total.
+  assertEquals(values.coverage_cents, 0);
   assertEquals(values.currency, 'eur'); // lowercased
   assertEquals(values.status, 'succeeded');
   assertEquals(rpc.columns, 'recompute_fund_aggregate');
   assertEquals(rpc.values, { p_edition_id: 'ed-1' });
+});
+
+// ── W3 × the optional fee coverage (#236 / FUND-51) ──────────────────────────
+
+/** A contribution session with #236's split metadata, as create-contribution-session mints it. */
+const coveredSession = (giftCents: number, coverageCents: number) =>
+  contributionSession({
+    amount_total: giftCents + coverageCents,
+    metadata: {
+      kind: 'contribution',
+      edition_id: 'ed-1',
+      profile_id: 'prof-1',
+      gift_cents: String(giftCents),
+      coverage_cents: String(coverageCents),
+    },
+  });
+
+Deno.test('handleContribution stores the GIFT in amount_cents, coverage beside it', async () => {
+  // €1,00 gift + €0,27 coverage = €1,27 charged. The pool must move by 100, never by 127:
+  // recompute_fund_aggregate and every FUND-42 computation read amount_cents, and the 27
+  // went to Stripe, not to the fund.
+  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+  await handleContribution(asDb(db), coveredSession(100, 27));
+
+  const values = db.calls[0].values as Record<string, unknown>;
+  assertEquals(values.amount_cents, 100);
+  assertEquals(values.coverage_cents, 27);
+  // charged_cents is generated in the DB — the webhook must not try to state it.
+  assertEquals('charged_cents' in values, false);
+});
+
+Deno.test('handleContribution stores an uncovered contribution unchanged', async () => {
+  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+  await handleContribution(asDb(db), coveredSession(2500, 0));
+
+  const values = db.calls[0].values as Record<string, unknown>;
+  assertEquals(values.amount_cents, 2500);
+  assertEquals(values.coverage_cents, 0);
+});
+
+Deno.test('handleContribution refuses a split that does not reconcile with Stripe', async () => {
+  // Stripe is the source of truth and our two columns are its cache (rule #6). A split that
+  // does not add up to amount_total means our figure and the charge disagree — and the one
+  // the payer's card actually saw is Stripe's. Refuse rather than cache a fiction.
+  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+  await assertRejects(
+    () =>
+      handleContribution(
+        asDb(db),
+        contributionSession({
+          amount_total: 127,
+          metadata: {
+            kind: 'contribution',
+            edition_id: 'ed-1',
+            profile_id: 'prof-1',
+            gift_cents: '100',
+            coverage_cents: '50', // 150 ≠ 127
+          },
+        }),
+      ),
+    Error,
+    'does not reconcile',
+  );
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('handleContribution refuses malformed split metadata', async () => {
+  // ' ' and '' are the interesting ones: Number() maps both to 0, so a blank would have
+  // become a silently valid zero coverage that reconciles against amount_total by accident.
+  for (const coverage of ['abc', '-27', '2.5', ' ', '', '1e3', '0x1f', '99999999999999999999']) {
+    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+    await assertRejects(
+      () =>
+        handleContribution(
+          asDb(db),
+          contributionSession({
+            metadata: {
+              kind: 'contribution',
+              edition_id: 'ed-1',
+              profile_id: 'prof-1',
+              coverage_cents: coverage,
+            },
+          }),
+        ),
+      Error,
+      undefined,
+      `coverage_cents ${JSON.stringify(coverage)} must be refused`,
+    );
+    assertEquals(db.calls.length, 0);
+  }
 });
 
 Deno.test(

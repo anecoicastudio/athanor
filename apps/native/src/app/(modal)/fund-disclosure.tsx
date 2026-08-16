@@ -9,8 +9,9 @@ import {
   fundKeys,
   getActiveEdition,
 } from '@athanor/api';
+import { feeCoverage, formatEuroAmount } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
-import { ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
@@ -64,6 +65,18 @@ export default function FundDisclosureScreen() {
   );
   const [contribErrorKey, setContribErrorKey] = useState<MessageKey>('fund.contribute.error');
 
+  // #236 — the optional fee coverage. UNTICKED, always: CRD 2011/83/EU Art. 22 requires
+  // express consent for any payment additional to the main obligation and expressly excludes
+  // pre-ticked boxes. There is deliberately no «remember my choice» — a remembered tick is a
+  // pre-ticked box wearing a different name, and whether Art. 22 even reaches a donation's
+  // optional coverage is still counsel's question (#250).
+  const [coverFees, setCoverFees] = useState(false);
+
+  // Display only. The server recomputes this from the same formula before it ever reaches
+  // Stripe (create-contribution-session/logic.ts), exactly as it re-floors the amount — the
+  // screen's job is to show the payer the figure, never to name it.
+  const split = validAmount ? feeCoverage(amountCents) : null;
+
   const onAccept = useCallback(async () => {
     if (!validAmount) return;
     setContribPhase('opening');
@@ -71,6 +84,7 @@ export default function FundDisclosureScreen() {
       const { url } = await createContributionSession(supabase, {
         editionId: edition?.id ?? '',
         amountCents,
+        coverFees,
       });
       const result = await WebBrowser.openAuthSessionAsync(url, `${'athanor://'}annual`);
       if (result.type === 'success' && result.url) {
@@ -93,7 +107,7 @@ export default function FundDisclosureScreen() {
       if (copy) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
       setContribPhase('error');
     }
-  }, [validAmount, amountCents, edition?.id, router, qc]);
+  }, [validAmount, amountCents, coverFees, edition?.id, router, qc]);
 
   return (
     <Screen>
@@ -128,6 +142,57 @@ export default function FundDisclosureScreen() {
             ))}
           </View>
         ))}
+
+        {/* The optional fee coverage (#236 / FUND-51) — a CHOICE, not a seventeenth fact, so
+            it sits after the six blocks and immediately above the CTA: the last thing read
+            before consent, and adjacent to the button whose price it changes. Never a
+            surcharge (PSD2 Art. 62(4)) and never pre-ticked (CRD Art. 22). Flat surface, no
+            glow — a money screen, and nothing has happened yet (rule #4). */}
+        {split ? (
+          <View className="rounded-card border border-border bg-surface p-5 gap-3">
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: coverFees }}
+              accessibilityLabel={t('fund.disclose.coverage.label', locale, {
+                fee: formatEuroAmount(split.coverageCents, locale),
+              })}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              className="min-h-[44px] flex-row items-center gap-3"
+              onPress={() => setCoverFees((v) => !v)}
+            >
+              {/* ✓/○ — the app's paired-glyph vocabulary (MilestoneRow/BenefitRow): SHAPE
+                  carries the state, so the tick is legible without relying on colour. */}
+              <Text className={coverFees ? 'text-base text-aura' : 'text-base text-faint'}>
+                {coverFees ? '✓' : '○'}
+              </Text>
+              <Text className="flex-1 text-[14px] leading-5 text-foreground">
+                {t('fund.disclose.coverage.label', locale, {
+                  fee: formatEuroAmount(split.coverageCents, locale),
+                })}
+              </Text>
+            </Pressable>
+
+            {/* The arithmetic, only while the box is ticked — an unticked box charges the
+                gift and nothing else, and showing a total nobody is about to be charged
+                would be the same lie in the other direction. */}
+            {coverFees ? (
+              <Text className="text-[13px] leading-5 text-foreground">
+                {t('fund.disclose.coverage.total', locale, {
+                  amt: formatEuroAmount(split.giftCents, locale),
+                  fee: formatEuroAmount(split.coverageCents, locale),
+                  total: formatEuroAmount(split.chargedCents, locale),
+                })}
+              </Text>
+            ) : null}
+
+            <Text className="text-[12px] leading-4 text-muted-foreground">
+              {t('fund.disclose.coverage.optional', locale)}
+            </Text>
+            <Text className="text-[12px] leading-4 text-muted-foreground">
+              {t('fund.disclose.coverage.notReturned', locale)}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Accept + pay — the sole gateway to createContributionSession. Deliberately the
             last scroll child (consent position), after every block. */}

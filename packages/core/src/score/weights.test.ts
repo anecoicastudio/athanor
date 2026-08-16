@@ -86,7 +86,15 @@ test('CREDITABLE_TYPES is exactly the PRD earning table plus engine decay (rule 
 test('no paid-for action is creditable (rule #1)', () => {
   // Circle membership and fund contributions yield ZERO points. Naming them explicitly means
   // adding one to the set fails here rather than quietly minting score on the read path.
-  for (const paid of ['circle_membership', 'fund_contribution', 'marketplace_purchase']) {
+  // `fund_fee_coverage` (#236): paying Stripe's processing on top of a gift is the most
+  // tempting thing in the product to reward — it costs the payer money and earns the fund
+  // nothing — and rewarding it would price generosity, which is exactly what rule #1 forbids.
+  for (const paid of [
+    'circle_membership',
+    'fund_contribution',
+    'fund_fee_coverage',
+    'marketplace_purchase',
+  ]) {
     expect(CREDITABLE_TYPES.has(paid)).toBe(false);
   }
 });
