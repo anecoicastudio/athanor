@@ -4,13 +4,14 @@
 -- one plan per cycle; a plan's phases can never promise more than the cycle's declared
 -- payable (the same ceiling fund_payout_ledger caps releases at, ruling #244); a ledger
 -- row's phase attribution cannot lie (wrong cycle, or more money than the phase costs);
--- public-read only once published, author + admin read a draft, every client write 42501.
+-- public-read only once published, author + admin read a draft. (The client WRITE path is
+-- #229's and lives in 0115; what stays closed to a client whatever it permits is below.)
 -- Zero Aura from any of it (rule #1).
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(40);
 
 -- fixture: park any live cycle (staging smoke; no-op in CI) — the 0108/0109/0110/0112 pattern
 update public.fund_editions set phase = 'closed', closure_reason = 'realized'
@@ -32,16 +33,24 @@ select ok(
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.realization_plan_phases'::regclass),
   'RLS enabled on realization_plan_phases');
+-- The exhaustive catalogue for both tables lives here, in the structure section — one home,
+-- so a future policy is one edit rather than two that can disagree. The draft-write half
+-- was added by #229; what those policies actually permit is asserted in 0115.
 select policies_are('public', 'realization_plans',
   array['realization_plans_select_published',
         'realization_plans_select_own',
-        'realization_plans_select_admin'],
-  'plans: exactly the published/own/admin selects — no client write policy');
+        'realization_plans_select_admin',
+        'realization_plans_insert_own_draft',
+        'realization_plans_update_own_draft'],
+  'plans: the published/own/admin selects plus the author''s draft insert/update — no delete policy, ever');
 select policies_are('public', 'realization_plan_phases',
   array['realization_plan_phases_select_published',
         'realization_plan_phases_select_own',
-        'realization_plan_phases_select_admin'],
-  'phases: exactly the published/own/admin selects — no client write policy');
+        'realization_plan_phases_select_admin',
+        'realization_plan_phases_insert_own_draft',
+        'realization_plan_phases_update_own_draft',
+        'realization_plan_phases_delete_own_draft'],
+  'phases: the published/own/admin selects plus the author''s draft insert/update/delete');
 select has_trigger('public', 'realization_plans', 'realization_plans_touch_updated_at',
   'realization_plans carries the touch_updated_at trigger');
 select has_trigger('public', 'realization_plan_phases', 'realization_plan_phases_touch_updated_at',
@@ -239,23 +248,21 @@ select is(
   (select count(*)::bigint from public.realization_plans),
   2::bigint, 'an admin reads every plan, draft included');
 
--- ── no client write, in either direction (rule #2 / rule #6) ─────────────────────────────
+-- ── what stays closed to a client, whatever the draft policies permit ────────────────────
+-- The winner DOES author their own plan (#229 — 0115 owns that story, from the client's
+-- side). What #228's invariants still require of any writer is asserted here: no plan is
+-- ever deleted by a client, no phase is self-verified, and the payable ceiling refuses a
+-- member exactly as it refuses the service role.
 set local request.jwt.claims = '{"sub":"01140000-0000-0000-0000-000000000001","role":"authenticated"}';
 select throws_ok(
-  $$ insert into public.realization_plans (edition_id, candidacy_id, objective, expected_result)
-     values ('01140000-0000-0000-0000-0000000000e1', '01140000-0000-0000-0000-0000000000c1', 'o', 'r') $$,
-  '42501', null, 'client cannot insert a plan — even the winner''s own (#229 writes it)');
-select throws_ok(
-  $$ update public.realization_plans set objective = 'riscritto' $$,
-  '42501', null, 'client cannot rewrite a plan');
-select throws_ok(
   $$ delete from public.realization_plans $$,
-  '42501', null, 'client cannot delete a plan');
+  '42501', null, 'client cannot delete a plan — there is no delete policy and no delete grant');
 select throws_ok(
   $$ insert into public.realization_plan_phases (plan_id, sort, title, scheduled_for, amount_cents,
                                                  verification_criteria)
      values ('01140000-0000-0000-0000-0000000000a1', 9, 'fase mia', current_date, 1, 'c') $$,
-  '42501', null, 'client cannot add a phase — no self-served tranche');
+  'P0001', 'phases exceed declared payable',
+  'the ceiling refuses the author too — a1 is already costed to the last cent of payable');
 select throws_ok(
   $$ update public.realization_plan_phases set verified_at = now() $$,
   '42501', null, 'client cannot mark their own phase verified (#231''s gate is service-side)');

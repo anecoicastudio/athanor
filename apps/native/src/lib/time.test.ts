@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calendarDay,
   dateTime,
   dateTimeWithYear,
   dayKey,
@@ -7,6 +8,7 @@ import {
   localeTag,
   longDate,
   monthYear,
+  parseCalendarDay,
   timeAgo,
 } from './time';
 
@@ -171,5 +173,24 @@ describe('monthYear', () => {
 
   it('separates the same month across different years', () => {
     expect(monthYear('2026-06-17T12:00:00', 'it')).not.toBe(monthYear('2027-06-17T12:00:00', 'it'));
+  });
+});
+
+describe('parseCalendarDay / calendarDay', () => {
+  it('reads a date column as the calendar day it names, not as UTC midnight', () => {
+    const d = parseCalendarDay('2026-11-01');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(10);
+    expect(d.getDate()).toBe(1);
+  });
+
+  it('round-trips through dayKey — what is shown is what is stored', () => {
+    expect(dayKey(parseCalendarDay('2026-03-29').toISOString())).toBe('2026-03-29');
+    expect(dayKey(parseCalendarDay('2026-01-01').toISOString())).toBe('2026-01-01');
+  });
+
+  it('renders the long date in both catalogs', () => {
+    expect(calendarDay('2026-06-17', 'it')).toBe('17 giugno 2026');
+    expect(calendarDay('2026-06-17', 'en')).toBe('17 June 2026');
   });
 });

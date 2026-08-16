@@ -3236,6 +3236,7 @@ export type Database = {
           events_count: number
         }[]
       }
+      publish_realization_plan: { Args: { p_plan_id: string }; Returns: string }
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }
         Returns: undefined

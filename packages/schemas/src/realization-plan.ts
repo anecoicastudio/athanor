@@ -34,6 +34,45 @@ export const realizationPlanSchema = z.object({
 export type RealizationPlanRow = z.infer<typeof realizationPlanSchema>;
 
 /**
+ * What the winner supplies when they start the plan (#229). `id`, `created_at`,
+ * `updated_at` and `published_at` are all absent for the same reason: none of them is the
+ * author's to choose — `published_at` in particular is not even a granted column, because
+ * publication is `publish_realization_plan()` and never an UPDATE.
+ *
+ * `professionals` / `suppliers` default to '' rather than being required: the column
+ * records «none» as the empty string, so a first save that says nothing about them is a
+ * first-class state, not an omission to nag about.
+ */
+export const realizationPlanInsertSchema = realizationPlanSchema
+  .pick({
+    edition_id: true,
+    candidacy_id: true,
+    objective: true,
+    expected_result: true,
+  })
+  .extend({
+    professionals: realizationPlanSchema.shape.professionals.default(''),
+    suppliers: realizationPlanSchema.shape.suppliers.default(''),
+  });
+export type RealizationPlanInsert = z.infer<typeof realizationPlanInsertSchema>;
+
+/**
+ * A draft edit. `edition_id` and `candidacy_id` are deliberately absent — an edit never
+ * re-targets a plan at another cycle or another candidacy, and #228's binds_winner trigger
+ * would refuse it anyway. RLS pins the rest: own candidacy, `published_at is null`, both
+ * USING and WITH CHECK.
+ */
+export const realizationPlanUpdateSchema = realizationPlanSchema
+  .pick({
+    objective: true,
+    expected_result: true,
+    professionals: true,
+    suppliers: true,
+  })
+  .partial();
+export type RealizationPlanUpdate = z.infer<typeof realizationPlanUpdateSchema>;
+
+/**
  * Read-model of one plan phase (#228) — a tranche's three facts: when, how much, and what
  * its verification is judged against.
  *
@@ -59,3 +98,35 @@ export const realizationPlanPhaseSchema = z.object({
   updated_at: z.string(),
 });
 export type RealizationPlanPhaseRow = z.infer<typeof realizationPlanPhaseSchema>;
+
+/** A phase the author adds to their draft (#229). `verified_at` is #231's and is granted to
+ *  no client, so it never appears in a write shape here. */
+export const realizationPlanPhaseInsertSchema = realizationPlanPhaseSchema.pick({
+  plan_id: true,
+  sort: true,
+  title: true,
+  scheduled_for: true,
+  amount_cents: true,
+  verification_criteria: true,
+});
+export type RealizationPlanPhaseInsert = z.infer<typeof realizationPlanPhaseInsertSchema>;
+
+/**
+ * A phase edit. `plan_id` is absent — a phase never moves between plans.
+ *
+ * Re-costing is an UPDATE of `amount_cents`, never a delete-and-recreate, and that is a
+ * data-integrity rule rather than a preference: `fund_payout_ledger.plan_phase_id` is ON
+ * DELETE SET NULL, so removing a phase that has funded a tranche clears the attribution
+ * silently instead of refusing. (Deletion is possible only while the plan is a draft, where
+ * nothing can have funded anything — the policy, not the screen, is what says so.)
+ */
+export const realizationPlanPhaseUpdateSchema = realizationPlanPhaseSchema
+  .pick({
+    sort: true,
+    title: true,
+    scheduled_for: true,
+    amount_cents: true,
+    verification_criteria: true,
+  })
+  .partial();
+export type RealizationPlanPhaseUpdate = z.infer<typeof realizationPlanPhaseUpdateSchema>;

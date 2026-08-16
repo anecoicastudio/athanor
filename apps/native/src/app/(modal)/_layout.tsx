@@ -37,6 +37,7 @@ export default function ModalLayout() {
       <Stack.Screen name="fund-disclosure" options={{ presentation: 'modal' }} />
       <Stack.Screen name="candidacy" options={{ presentation: 'modal' }} />
       <Stack.Screen name="candidacy/[id]" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="plan" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura/ledger" options={{ presentation: 'modal' }} />
       <Stack.Screen name="star" options={{ presentation: 'modal' }} />
