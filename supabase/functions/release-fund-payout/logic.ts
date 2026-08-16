@@ -35,6 +35,9 @@ export function payableCents(poolCents: number, splitPct: number): number {
   return Math.floor((poolCents * (100 - splitPct)) / 100);
 }
 
+// #248's pg_cron sweep body — same `mode` convention as push-dispatch's receipt sweep.
+const sweepPayload = z.object({ mode: z.literal('sweep') }).strict();
+
 const payload = z
   .object({
     editionId: z.string().uuid(),
@@ -105,6 +108,17 @@ export async function releaseFundPayout(
   } catch {
     return error('invalid json', 400);
   }
+  // #248's sweep entry point, deliberately inert: the enumeration source for "which
+  // tranche is due" is #228/#229's realization-plan schema, which does not exist yet,
+  // and #231's verification gate has not landed in the ladder below. Until both do
+  // there are no due tranches BY CONSTRUCTION — the sweep must not invent an amount
+  // (FUND-25: tranches release against the plan's phases, each on verification; a
+  // sweep-chosen "full remaining payable" would pass the ladder and move unverified
+  // money). Zero reads, zero transfers; the cron cadence still gets exercised end-to-end.
+  if (sweepPayload.safeParse(body).success) {
+    return json({ mode: 'sweep', dueTranches: 0, transfersRequested: 0 });
+  }
+
   const parsed = payload.safeParse(body);
   if (!parsed.success) return error('invalid payload', 400);
   const { editionId, amountCents } = parsed.data;

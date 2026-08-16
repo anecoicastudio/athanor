@@ -3096,6 +3096,7 @@ export type Database = {
         }[]
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_fund_settle_sweep: { Args: never; Returns: undefined }
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }

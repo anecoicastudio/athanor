@@ -299,3 +299,28 @@ Deno.test('Stripe read failures are failures, not refusals — 502', async () =>
   assertEquals(balRes.status, 502);
   assertEquals((await balRes.json()).error, 'balance lookup failed');
 });
+
+Deno.test('sweep mode is inert until #228/#231 land: 200, zero due, nothing touched', async () => {
+  const { ctx, db, created } = makeCtx();
+  const res = await releaseFundPayout(ctx, post(JSON.stringify({ mode: 'sweep' })));
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { mode: 'sweep', dueTranches: 0, transfersRequested: 0 });
+  // No enumeration source exists yet — the sweep must read nothing and move nothing.
+  assertEquals(db.calls.length, 0);
+  assertEquals(created.length, 0);
+});
+
+Deno.test('sweep payload is strict — extra keys and unknown modes stay refusals', async () => {
+  for (const body of [
+    JSON.stringify({ mode: 'sweep', editionId: ED }),
+    JSON.stringify({ mode: 'sweep', amountCents: 100 }),
+    JSON.stringify({ mode: 'decay' }),
+  ]) {
+    const { ctx, db, created } = makeCtx();
+    const res = await releaseFundPayout(ctx, post(body));
+    assertEquals(res.status, 400, body);
+    assertEquals((await res.json()).error, 'invalid payload');
+    assertEquals(db.calls.length, 0);
+    assertEquals(created.length, 0);
+  }
+});
