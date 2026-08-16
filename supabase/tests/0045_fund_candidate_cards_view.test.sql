@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(20);
+select plan(21);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- three members; handle_new_user auto-creates their profiles rows.
@@ -159,22 +159,36 @@ select is(
   null::int, 'a soft-deleted dream yields no confirmed history'
 );
 
--- A privileged reader must get the counts, not an error. The aggregate sits inside the view
--- now, so EXECUTE on it is a precondition for reading ANY column: the first cut granted it to
--- `authenticated` only and a service-role select on the whole view died with 42501
--- («permission denied for function dream_confirmed_counts»), which is how 20260816153011
--- came to exist. This is the assertion that found it — keep it pointed at the view, not at
--- the function, because the function is not what a privileged surface calls.
-set local role service_role;
+-- ── service_role: two grants, asserted rather than exercised ─────────────────────────
+-- The first cut of this block did `set local role service_role` and READ the view. That is
+-- the mistake this comment exists to stop someone repeating.
+--
+-- Nothing grants service_role SELECT on this view: 20260618131250:158-159 revokes from anon
+-- and grants to `authenticated` only. A HOSTED project says otherwise — staging answers
+-- has_table_privilege('service_role', …, 'select') = TRUE — because hosted grants drift wider
+-- than the migrations that declare them, and CI's clean replay from zero cannot see that
+-- drift. So the read passed on staging (where it exposed a real missing EXECUTE grant, hence
+-- 20260816153011) and died in CI with «permission denied for view», which is the DECLARED
+-- posture and the one a fresh production replay produces.
+--
+-- The lesson generalises: assert the PRIVILEGE, never a read that depends on one. A privilege
+-- is what the migrations state; a successful read only tells you what this particular database
+-- happens to allow today.
 select is(
-  (select dream_milestones_done from public.fund_candidate_cards
-    where candidacy_id='00000000-0000-0000-0000-0000000000a1'),
-  1, 'a service-role reader gets the confirmed history, not a permission error'
+  has_table_privilege('service_role', 'public.fund_candidate_cards', 'select'),
+  false,
+  'no migration grants service_role SELECT on fund_candidate_cards (hosted projects drift wider)'
 );
-reset role;
 
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+-- The EXECUTE grant 20260816153011 added still matters, and matters MORE on a drifted hosted
+-- project than here: wherever service_role can reach the view, the lateral makes EXECUTE on
+-- the aggregate a precondition for reading ANY column of it. Pinned so a future
+-- `create or replace` that drops the grant fails here instead of on a production read.
+select is(
+  has_function_privilege('service_role', 'athanor.dream_confirmed_counts(uuid)', 'execute'),
+  true,
+  'service_role holds EXECUTE on athanor.dream_confirmed_counts'
+);
 
 -- ── visibility: own rejected card visible to author only ──────────────────────────────
 -- user_b sees their own rejected candidacy (own-any-status read on dream_candidacies)
