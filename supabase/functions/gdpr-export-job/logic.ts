@@ -125,8 +125,14 @@ export const EXPORT_SPEC: readonly OwnDataSpec[] = [
   // #230: the winner's public progress notes. Member-authored prose with a direct FK to
   // profiles, so it is squarely personal data — and withdrawn notes come with it, because
   // `deleted_at` hides a row from the world, not from its author.
-  // (realization_plans is NOT here: its FK is to dream_candidacies, which puts it in the
-  // second-degree class 0096's header describes as not auto-swept.)
+  //
+  // realization_plans / realization_plan_phases (#228/#229) are member-authored prose too
+  // and are in NEITHER list — an OPEN GAP (#400), not a decision. FK to dream_candidacies,
+  // so 0096's sweep never catches them; 0096's header says such tables belong here by hand,
+  // through the `via` mode dream_milestones and post_media use. Nothing technical blocks it
+  // — the via loop reads `results` as it fills them, so a phases-via-plans section works as
+  // long as it is ordered after its parent. It is left to its own change because deciding
+  // what a published plan is in an archive is #228/#229's question, not this one's.
   {
     key: 'realization_updates',
     table: 'realization_updates',
