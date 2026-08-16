@@ -129,6 +129,58 @@ describe('payment is unreachable without the disclosure screen (#235)', () => {
   });
 });
 
+/**
+ * #236 / FUND-51 — the optional fee coverage. No component harness exists here (vitest runs
+ * `environment: 'node'`), so these are source-audit assertions like the navigation block
+ * above: they pin the properties that are legal commitments rather than styling.
+ */
+describe('the optional fee coverage ships unticked and stays optional (#236)', () => {
+  const screen = () => read(screenPath(DISCLOSURE_SCREEN));
+
+  it('initialises the box to false', () => {
+    // CRD 2011/83/EU Art. 22 requires express consent for any payment additional to the main
+    // obligation and expressly excludes pre-ticked boxes. `useState(true)` here would be a
+    // legal defect, not a UX preference — which is why it is asserted rather than reviewed.
+    expect(screen()).toContain('const [coverFees, setCoverFees] = useState(false);');
+  });
+
+  it('persists the choice nowhere', () => {
+    // A remembered tick is a pre-ticked box under another name: the second contribution would
+    // arrive already consenting to a payment the payer did not consent to that time.
+    const s = screen();
+    expect(s).not.toContain('AsyncStorage');
+    expect(s).not.toContain('SecureStore');
+    expect(s).not.toContain('MMKV');
+  });
+
+  it('sends the choice to the server rather than an amount', () => {
+    // The gross-up is the server's (create-contribution-session/logic.ts recomputes it before
+    // Stripe is called). The screen may show the figure; it may never name it.
+    const s = screen();
+    expect(s).toContain('coverFees,');
+    expect(s).toContain('feeCoverage(amountCents)');
+    expect(s).not.toContain('coverageCents:');
+  });
+
+  it('keeps the CTA amount on the gift', () => {
+    // The button names what the fund receives. The charge, when it differs, is stated in full
+    // on the line directly above it.
+    expect(screen()).toContain('amt: String(Math.floor(amountCents / 100))');
+  });
+
+  it('renders every piece of the coverage copy through the catalog', () => {
+    const s = screen();
+    for (const key of [
+      'fund.disclose.coverage.label',
+      'fund.disclose.coverage.total',
+      'fund.disclose.coverage.optional',
+      'fund.disclose.coverage.notReturned',
+    ]) {
+      expect(s, `missing ${key}`).toContain(key);
+    }
+  });
+});
+
 describe('the #222 window-refusal handling survived the move (#375 non-regression)', () => {
   it('the disclosure screen keeps the refusal map, the cycleClosed copy and the edition re-read', () => {
     const screen = read(screenPath(DISCLOSURE_SCREEN));

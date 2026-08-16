@@ -184,6 +184,46 @@ describe('contributionSessionInputSchema', () => {
     const r = contributionSessionInputSchema.safeParse({ editionId: 'nope', amountCents: 500 });
     expect(r.success).toBe(false);
   });
+
+  // #236 — the optional fee coverage. Absent is the default state and must stay valid: the
+  // checkbox ships unticked (CRD 2011/83/EU Art. 22 excludes pre-ticked boxes), so the
+  // commonest request carries no flag at all.
+  it('accepts a request with no coverage choice at all', () => {
+    const r = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: 100,
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.coverFees).toBeUndefined();
+  });
+  it.each([true, false])('accepts coverFees %s', (coverFees) => {
+    const r = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: 100,
+      coverFees,
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.coverFees).toBe(coverFees);
+  });
+  // The flag is a CHOICE, not a figure: a client that could name its own coverage could name
+  // zero. The gross-up is the server's, so anything but a boolean is refused at the boundary.
+  it.each([27, '27', 'true', null])('rejects a non-boolean coverFees %s', (coverFees) => {
+    const r = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: 100,
+      coverFees,
+    });
+    expect(r.success).toBe(false);
+  });
+  // The floor is on the GIFT. €0,99 + coverage would clear €1 as a charge and must still fail.
+  it('rejects a sub-€1 gift even when coverage is requested', () => {
+    const r = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: 99,
+      coverFees: true,
+    });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe('fundContributionSchema', () => {
@@ -193,6 +233,8 @@ describe('fundContributionSchema', () => {
       edition_id: '00000000-0000-0000-0000-0000000000ed',
       profile_id: '11111111-1111-1111-1111-111111111111',
       amount_cents: 500,
+      coverage_cents: 0,
+      charged_cents: 500,
       currency: 'eur',
       stripe_checkout_session_id: 'cs_1',
       stripe_payment_intent_id: 'pi_1',
@@ -201,6 +243,27 @@ describe('fundContributionSchema', () => {
       updated_at: '2026-06-18T00:00:00Z',
     });
     expect(r.success).toBe(true);
+  });
+
+  // #236 — the split is part of the row, not an optional extra. A receipt screen that could
+  // not tell the gift from the coverage would show a member «€1,27» for a €1,00 gift.
+  it('parses a covered contribution, gift and coverage separable', () => {
+    const r = fundContributionRow({ amount_cents: 100, coverage_cents: 27, charged_cents: 127 });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.amount_cents).toBe(100);
+    expect(r.success && r.data.coverage_cents).toBe(27);
+    expect(r.success && r.data.charged_cents).toBe(127);
+  });
+  // Both columns are NOT NULL in the DB (coverage defaults to 0; the charge is generated over
+  // two NOT NULL parents). A row that lost either is a row whose receipt cannot be trusted.
+  it.each(['coverage_cents', 'charged_cents'])('rejects a row missing %s', (col) => {
+    expect(fundContributionRow({ [col]: undefined }).success).toBe(false);
+  });
+  it.each(['coverage_cents', 'charged_cents'])('rejects a null %s', (col) => {
+    expect(fundContributionRow({ [col]: null }).success).toBe(false);
+  });
+  it('rejects a negative coverage — it could only mean skimming the gift', () => {
+    expect(fundContributionRow({ coverage_cents: -27 }).success).toBe(false);
   });
 
   // Pins the enum to the DB CHECK (20260808093013 + supabase/tests/0078). 'failed' was the
@@ -228,6 +291,8 @@ function fundContributionRow(over: Record<string, unknown>) {
     edition_id: '00000000-0000-0000-0000-0000000000ed',
     profile_id: '11111111-1111-1111-1111-111111111111',
     amount_cents: 500,
+    coverage_cents: 0,
+    charged_cents: 500,
     currency: 'eur',
     stripe_checkout_session_id: 'cs_1',
     stripe_payment_intent_id: 'pi_1',

@@ -158,10 +158,63 @@ async function recomputeAggregate(db: Db, editionId: string): Promise<void> {
 }
 
 /**
+ * Read one integer-cents figure out of Checkout metadata. Absent → null (the caller decides
+ * what a missing key means); present-but-malformed → throw, because a money row derived from
+ * a value we could not parse is worse than a retry.
+ */
+function metadataCents(session: Stripe.Checkout.Session, key: string): number | null {
+  const raw = session.metadata?.[key];
+  // Only a genuinely absent key means «pre-#236 session». A present-but-empty value is
+  // corruption or tampering, not a default.
+  if (raw === undefined || raw === null) return null;
+  // Digits only, deliberately, rather than Number() + isInteger: `Number(' ')` and
+  // `Number('')` are both 0, so a blank string would silently become a valid zero coverage
+  // and reconcile against amount_total by accident. The regex is the guard the numeric
+  // check cannot be.
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+    throw new Error(`contribution session ${session.id} has a malformed ${key}: ${raw}`);
+  }
+  return Number(raw);
+}
+
+/**
+ * #236 — split a settled contribution into the gift and the optional fee coverage.
+ *
+ * Stripe is the source of truth and `amount_total` is its number; our two columns are the
+ * cache (rule #6). So the split is not merely copied from metadata — it must RECONCILE:
+ * gift + coverage has to equal what Stripe actually charged, or the row is refused. That is
+ * the whole integrity story for a figure create-contribution-session computed minutes
+ * earlier in a different process.
+ *
+ * Absent keys mean a session minted before #236 shipped, and those are still in flight
+ * whenever this deploys: no coverage could be taken then, so the gift IS the total. That
+ * branch must stay, or the first deploy poison-loops every open Checkout.
+ */
+export function contributionSplit(
+  session: Stripe.Checkout.Session,
+  totalCents: number,
+): { giftCents: number; coverageCents: number } {
+  const coverageCents = metadataCents(session, 'coverage_cents') ?? 0;
+  const giftCents = metadataCents(session, 'gift_cents') ?? totalCents - coverageCents;
+  if (giftCents + coverageCents !== totalCents) {
+    throw new Error(
+      `contribution session ${session.id} does not reconcile: gift ${giftCents} + coverage ` +
+        `${coverageCents} != amount_total ${totalCents}`,
+    );
+  }
+  return { giftCents, coverageCents };
+}
+
+/**
  * W3 — a contribution Checkout completed. Write the contribution (service role) and move the
  * live ticker. The ticker is public and realtime, so it must never show money that has not
  * arrived: assertSettled throws rather than writing a row the aggregate would have to
  * un-count later.
+ *
+ * The row stores the GIFT in amount_cents and the optional coverage beside it (#236), because
+ * the pool is the gift: recompute_fund_aggregate and every FUND-42 computation read
+ * amount_cents, and coverage is money that went to Stripe, not to the fund. charged_cents is
+ * generated from the pair and is what reconciles against Stripe's amount_total.
  *
  * Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery inserts nothing,
  * count comes back 0, and the aggregate is left alone because it is already current.
@@ -180,11 +233,14 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
   const profileId = session.metadata?.profile_id;
   if (!profileId) throw new Error('contribution session missing profile_id');
 
+  const { giftCents, coverageCents } = contributionSplit(session, session.amount_total);
+
   const { error, count } = await db.from('fund_contributions').upsert(
     {
       edition_id: editionId,
       profile_id: profileId,
-      amount_cents: session.amount_total,
+      amount_cents: giftCents,
+      coverage_cents: coverageCents,
       currency: (session.currency ?? 'eur').toLowerCase(),
       stripe_checkout_session_id: session.id,
       stripe_payment_intent_id: refId(session.payment_intent),
@@ -203,6 +259,20 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
  * Pull a settled contribution back out of the ticker. Shared by W4 (refund) and W12 (dispute):
  * both mean the money is going away, and both must be idempotent under redelivery.
  * Matches by payment_intent; acks silently when the charge belongs to something else (a ticket).
+ *
+ * A REFUND RETURNS THE CONTRIBUTION, NEVER THE COVERAGE (FUND-51, #236). Stripe does not
+ * return processing on a refund, so returning the coverage would cost the fund money it never
+ * held. There is no refund-initiation code in this repo — every refund is issued by an
+ * operator in the Stripe Dashboard — so that property lives in WHAT THE OPERATOR REFUNDS,
+ * not here. The amount to refund is the row's `amount_cents`, which is already the gift: no
+ * arithmetic, nothing to get wrong at 2am.
+ *
+ * What DOES live here is that the ticker stays exact under either choice. This flip is
+ * whole-row and reads neither `charge.amount_refunded` nor the partial/full distinction, but
+ * it no longer needs to: the aggregate only ever counted `amount_cents`, so un-counting a
+ * reversed contribution removes precisely the gift whether the operator refunded the gift
+ * alone or the entire charge. Before #236 split the column this was the one place a covered
+ * contribution could have over-corrected the public total.
  */
 async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<void> {
   const paymentIntent = refId(paymentIntentRef);

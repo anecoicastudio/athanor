@@ -74,7 +74,12 @@ export type FundAggregate = z.infer<typeof fundAggregateSchema>;
 /** Client → `create-contribution-session` edge-fn input (backend 08 §3.2). Min €1, no max. */
 export const contributionSessionInputSchema = z.object({
   editionId: z.string().uuid(),
-  amountCents: z.number().int().min(100), // ≥ €1 (PRD §4.11)
+  amountCents: z.number().int().min(100), // ≥ €1 (PRD §4.11) — the GIFT, never the charge
+  // #236: the optional fee coverage. Optional in every sense — omitted means declined, which
+  // is what the unticked checkbox sends (CRD 2011/83/EU Art. 22 excludes pre-ticked boxes).
+  // A flag, never an amount: the server does its own gross-up, so a client cannot name the
+  // figure it will be charged (the same reason amountCents is re-floored server-side).
+  coverFees: z.boolean().optional(),
 });
 export type ContributionSessionInput = z.infer<typeof contributionSessionInputSchema>;
 
@@ -83,7 +88,16 @@ export const fundContributionSchema = z.object({
   id: z.string().uuid(),
   edition_id: z.string().uuid(),
   profile_id: z.string().uuid(), // NOT NULL since #239 — contributions are never anonymous (D24)
+  // #236: the split. amount_cents is THE GIFT — the money the fund receives, the figure every
+  // pool computation reads, and the amount an operator refunds (a refund returns the
+  // contribution, never the coverage). coverage_cents is the optional top-up that paid Stripe.
   amount_cents: z.number().int().nonnegative(),
+  coverage_cents: z.number().int().nonnegative(),
+  // Generated column (amount_cents + coverage_cents) = the Checkout session's amount_total,
+  // i.e. the reconciliation handle against Stripe. Non-nullable here although the generated
+  // types say `number | null`: the generator types every generated column as nullable, but an
+  // addition over two NOT NULL columns cannot produce one.
+  charged_cents: z.number().int().nonnegative(),
   currency: z.string(),
   stripe_checkout_session_id: z.string(),
   stripe_payment_intent_id: z.string().nullable(),
