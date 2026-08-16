@@ -28,6 +28,7 @@ export * from './fund';
 export * from './payout-account';
 export * from './payout-ledger';
 export * from './realization-plan';
+export * from './realization-update';
 export * from './candidacy';
 export * from './vote';
 export * from './circle';

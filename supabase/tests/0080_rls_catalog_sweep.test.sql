@@ -48,7 +48,7 @@ select is_empty(
   'rule 2: every table in public/athanor has row level security enabled'
 );
 
--- PRD.md:417 tripwire. 54 tables are created across supabase/migrations/ and each one has a
+-- PRD.md:417 tripwire. 55 tables are created across supabase/migrations/ and each one has a
 -- dedicated file in supabase/tests/. When this count changes, the new table needs its own
 -- pgTAP file before this number is bumped -- that is the whole point of the assertion.
 -- 47 -> 48: athanor.waitlist_throttle (issue #23), covered by 0083_waitlist_rate_limit.
@@ -60,14 +60,15 @@ select is_empty(
 -- 53 -> 54: public.realization_plan_phases (issue #228), same file — the two are one unit
 --           (a phase is meaningless without its plan, and 0114 asserts both sides of every
 --           policy, the winner binding, the payable ceiling and the ledger linkage).
+-- 54 -> 55: public.realization_updates (issue #230), covered by 0116_fund_progress_updates.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  54,
-  'PRD.md:417 tripwire: 54 tables, each with its own pgTAP file (bump only WITH a new test)'
+  55,
+  'PRD.md:417 tripwire: 55 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
