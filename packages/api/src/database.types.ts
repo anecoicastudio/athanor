@@ -1367,6 +1367,7 @@ export type Database = {
           edition_id: string
           id: string
           payable_cents: number
+          plan_phase_id: string | null
           pool_cents: number
           reversed_cents: number
           split_pct: number
@@ -1382,6 +1383,7 @@ export type Database = {
           edition_id: string
           id?: string
           payable_cents: number
+          plan_phase_id?: string | null
           pool_cents: number
           reversed_cents?: number
           split_pct: number
@@ -1397,6 +1399,7 @@ export type Database = {
           edition_id?: string
           id?: string
           payable_cents?: number
+          plan_phase_id?: string | null
           pool_cents?: number
           reversed_cents?: number
           split_pct?: number
@@ -1410,6 +1413,13 @@ export type Database = {
             columns: ["edition_id"]
             isOneToOne: false
             referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fund_payout_ledger_plan_phase_id_fkey"
+            columns: ["plan_phase_id"]
+            isOneToOne: false
+            referencedRelation: "realization_plan_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -2383,6 +2393,114 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realization_plan_phases: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          plan_id: string
+          scheduled_for: string
+          sort: number
+          title: string
+          updated_at: string
+          verification_criteria: string
+          verified_at: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          plan_id: string
+          scheduled_for: string
+          sort: number
+          title: string
+          updated_at?: string
+          verification_criteria: string
+          verified_at?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          plan_id?: string
+          scheduled_for?: string
+          sort?: number
+          title?: string
+          updated_at?: string
+          verification_criteria?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realization_plan_phases_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "realization_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realization_plans: {
+        Row: {
+          candidacy_id: string
+          created_at: string
+          edition_id: string
+          expected_result: string
+          id: string
+          objective: string
+          professionals: string
+          published_at: string | null
+          suppliers: string
+          updated_at: string
+        }
+        Insert: {
+          candidacy_id: string
+          created_at?: string
+          edition_id: string
+          expected_result: string
+          id?: string
+          objective: string
+          professionals?: string
+          published_at?: string | null
+          suppliers?: string
+          updated_at?: string
+        }
+        Update: {
+          candidacy_id?: string
+          created_at?: string
+          edition_id?: string
+          expected_result?: string
+          id?: string
+          objective?: string
+          professionals?: string
+          published_at?: string | null
+          suppliers?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realization_plans_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "dream_candidacies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realization_plans_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "fund_candidate_cards"
+            referencedColumns: ["candidacy_id"]
+          },
+          {
+            foreignKeyName: "realization_plans_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: true
+            referencedRelation: "fund_editions"
             referencedColumns: ["id"]
           },
         ]
