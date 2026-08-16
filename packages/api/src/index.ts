@@ -24,6 +24,7 @@ export * from './conversations';
 export * from './messages';
 export * from './connections';
 export * from './fund';
+export * from './fund-expense';
 export * from './circle';
 export * from './candidacy';
 export * from './votes';
