@@ -1340,6 +1340,7 @@
   "trust.verify.gate": "Verify your identity to continue",
   "trust.verify.success": "Identity verified ✦",
   "trust.verify.error": "Verification didn't go through. Try again.",
+  "trust.verify.unavailable": "Verification isn't available right now. It's not on you — come back later.",
   "trust.verify.toast.started": "Verification started",
   "trust.verify.toast.verified": "Identity verified",
   "verify.a11y.verified": "Identity verified",

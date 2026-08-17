@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
+import { logStripeFailure } from '../_shared/stripe-error.ts';
 
 // Portal-session construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -58,7 +59,10 @@ export async function createCirclePortal(
       buildPortalSessionParams(membership.stripe_customer_id, appBase),
     );
     return json({ url: session.url });
-  } catch {
+  } catch (e) {
+    // Bound, not bare (#416): the response stays exactly as generic as it was, but the Stripe
+    // reason now reaches the function logs instead of vanishing.
+    logStripeFailure('create-circle-portal: billingPortal.sessions.create', e);
     return error('could not open portal', 500);
   }
 }

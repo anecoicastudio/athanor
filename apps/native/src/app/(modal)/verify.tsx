@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
-import { t } from '@athanor/i18n';
+import { t, type MessageKey } from '@athanor/i18n';
 import {
   getVerificationStatus,
   requestVerification,
   subscribeVerifyStatus,
+  VerificationSessionError,
   verifyKeys,
 } from '@athanor/api';
 import { deriveVerifyState } from '@athanor/core';
@@ -17,6 +18,14 @@ import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+
+// The server's `{error}` strings are the stable contract (#103 idiom) — create-verification-session
+// on one side, this map on the other. A configuration refusal (Identity not activated on the
+// account, a key without the permission, an API-version mismatch) is not something retrying can
+// fix, so it must not read as «Riprova» (#416). An unmapped string degrades to the generic copy.
+const VERIFY_ERROR_COPY: Record<string, MessageKey> = {
+  'verification unavailable': 'trust.verify.unavailable',
+};
 
 /**
  * Identity verify sheet (M9 §3.2). Starts a server-created Stripe Identity session, opens the
@@ -31,7 +40,8 @@ export default function VerifyScreen() {
   const qc = useQueryClient();
 
   const [sessionPending, setSessionPending] = useState(false);
-  const [error, setError] = useState(false);
+  // null = no failure. Otherwise the copy key for the failure the server named (#416).
+  const [error, setError] = useState<MessageKey | null>(null);
   const { showToast } = useToast();
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -82,7 +92,7 @@ export default function VerifyScreen() {
   );
 
   const start = useCallback(async () => {
-    setError(false);
+    setError(null);
     try {
       const result = await requestVerification(supabase);
       const url = 'url' in result ? result.url : null;
@@ -93,9 +103,10 @@ export default function VerifyScreen() {
       setSessionPending(false); // browser returned (completed OR cancelled) — re-enable CTA; realtime/poll flips to verified if it actually completed
       // back from the Stripe flow — refetch; realtime/poll carry the rest.
       void qc.invalidateQueries({ queryKey: verifyKeys.status() });
-    } catch {
+    } catch (e) {
       setSessionPending(false);
-      setError(true);
+      const code = e instanceof VerificationSessionError ? e.code : undefined;
+      setError((code ? VERIFY_ERROR_COPY[code] : undefined) ?? 'trust.verify.error');
     }
   }, [locale, qc, showToast]);
 
@@ -155,9 +166,7 @@ export default function VerifyScreen() {
           )}
         </View>
 
-        {error ? (
-          <Text className="text-center text-sm text-error">{t('trust.verify.error', locale)}</Text>
-        ) : null}
+        {error ? <Text className="text-center text-sm text-error">{t(error, locale)}</Text> : null}
 
         {!verified ? (
           <Button

@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
+import { logStripeFailure } from '../_shared/stripe-error.ts';
 
 // Circle-checkout construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -104,7 +105,10 @@ export async function createCircleCheckout(
     );
     if (!session.url) return error('could not start checkout', 500);
     return json({ kind: 'url', url: session.url });
-  } catch {
+  } catch (e) {
+    // Bound, not bare (#416): the response stays exactly as generic as it was, but the Stripe
+    // reason now reaches the function logs instead of vanishing.
+    logStripeFailure('create-circle-checkout: customers.create|checkout.sessions.create', e);
     return error('could not start checkout', 500);
   }
 }
