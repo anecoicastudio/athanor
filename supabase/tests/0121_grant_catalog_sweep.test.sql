@@ -24,14 +24,15 @@
 -- tripwire discipline, applied to grants.
 --
 -- Scope: table-level privileges for `anon` and `authenticated`. Column-level ACLs are asserted
--- separately at the bottom (seven tables carry them deliberately, and `revoke all on table`
--- would silently drop them). service_role is asserted where it is the sole writer.
+-- separately (seven tables carry them deliberately, and `revoke all on table` would silently
+-- drop them). service_role is asserted where it is the sole writer. Since #409 the file also
+-- covers FUNCTION EXECUTE — the axis #408 left out — and the policy→grant direction.
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(22);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The declared surface
@@ -245,6 +246,42 @@ select is_empty(
   '#405: every client grant on a table has a PERMISSIVE policy behind it (restrictive grants nothing)'
 );
 
+-- The other direction, and the reason #409's first residue class turned out to be empty. #408's
+-- open questions listed eleven "policies with no grant behind them" across six tables; every one
+-- of the eleven was an active_write_* policy — restrictive, therefore granting nothing — counted
+-- as if it were permissive. Third sighting of that trap in three changes, so it stops being
+-- something a reader has to remember: a permissive client policy with no privilege behind it is
+-- a vestige, and it fails here.
+--
+-- Column-level ACLs count as the grant: momento_proposals and realization_updates deliberately
+-- hold NO table-level privilege and scope the same verb to named columns instead, so a
+-- table-only reading would report four false vestiges. DELETE is skipped in the column branch
+-- because DELETE is not a column privilege (has_column_privilege would raise, not answer).
+select is_empty(
+  $$ with perm as (
+       select p.tablename::text as obj, r.role::text as role, v.verb::text as priv
+         from pg_policies p
+         cross join lateral unnest(p.roles) as r(role)
+         cross join lateral unnest(
+           case when p.cmd = 'ALL' then array['SELECT','INSERT','UPDATE','DELETE']
+                else array[p.cmd] end) as v(verb)
+        where p.schemaname = 'public'
+          and p.permissive = 'PERMISSIVE'
+          and r.role::text in ('anon', 'authenticated'))
+     select perm.obj || ' / ' || perm.role || ' / ' || perm.priv
+       from perm
+      where not has_table_privilege(perm.role, ('public.' || quote_ident(perm.obj))::regclass, perm.priv)
+        and not exists (
+          select 1 from pg_attribute a
+            join pg_class c on c.oid = a.attrelid
+            join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+           where c.relname = perm.obj
+             and a.attacl is not null
+             and perm.priv in ('SELECT', 'INSERT', 'UPDATE')
+             and has_column_privilege(perm.role, c.oid, a.attnum, perm.priv)) $$,
+  '#409: every PERMISSIVE client policy has a table or column grant behind it (no vestigial policy)'
+);
+
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The root cause: future objects are born narrow
 -- ─────────────────────────────────────────────────────────────────────────────────────
@@ -313,6 +350,71 @@ select is_empty(
        cross join (values ('SELECT'), ('INSERT'), ('UPDATE')) as pv(priv)
       where not has_table_privilege('service_role', t.tbl::text, pv.priv::text) $$,
   '#405: service_role still reads and writes the money, score and webhook tables'
+);
+
+-- service_role is NOT declared object-by-object here, and that is #409's second ruling rather
+-- than an omission. It holds the full arwdDxtm set on every object in this schema, from the
+-- pg_default_acl rows of both grantors — one of which (supabase_admin) no migration can rewrite.
+-- The drift is accepted: service_role bypasses RLS by definition and its key never leaves the
+-- edge-function environment, so a narrower ACL buys no boundary, while a partial narrowing rots
+-- on the next `create table` and breaks a webhook silently. It is also the one surface whose
+-- answer differs between a from-zero replay and every hosted project, so pinning it would encode
+-- one environment's truth as the invariant. The sole-writer assertion above is the part that
+-- holds everywhere, and it is the part that matters.
+
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- Function EXECUTE — the axis #408 declared out of scope (#409)
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- Same residue class, one object type over. PostgreSQL grants EXECUTE to PUBLIC on every new
+-- function, and the pg_default_acl 'f' row adds anon and authenticated on top — #408 fixed the
+-- 'r' row and left 'f' standing, so a new function is still born reachable by both client roles.
+-- That default is deliberately left in place (a narrowed 'f' default would make every future RPC
+-- 42501 unless its migration grants explicitly, and a broken screen is a worse failure mode than
+-- a red test); these assertions are what makes leaving it safe.
+
+create temporary view actual_function_acl as
+  select p.proname::text as fn,
+         case when ax.grantee = 0 then 'public'
+              else pg_get_userbyid(ax.grantee)::text end as role,
+         (p.prorettype = 'trigger'::regtype) as is_trigger
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) ax
+   where n.nspname = 'public'
+     and ax.privilege_type = 'EXECUTE'
+     and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e');
+
+-- A trigger function is invoked by the trigger, never called by a role — EXECUTE on one is a
+-- privilege nobody can use and nobody audits. Stated as a rule and not a list, so it also covers
+-- the trigger functions this schema does not have yet. Seven functions failed this before #409;
+-- fifteen already passed it because their own migrations revoked.
+select is_empty(
+  $$ select fn || ' / ' || role from actual_function_acl
+      where is_trigger and role in ('public', 'anon', 'authenticated') $$,
+  '#409: no trigger function grants EXECUTE to public / anon / authenticated'
+);
+
+-- anon is the unauthenticated internet, and the 'f' default hands it every new function. This is
+-- the assertion that makes a forgotten `revoke execute` loud: the default grants anon and
+-- authenticated together, so anything that reaches authenticated by accident reaches anon too.
+-- Declared one-directionally (nothing wider than this list) on purpose — the presence of these
+-- four depends on whether the 'f' default ACL row exists in the database under test, which is a
+-- platform fact, not a migration fact.
+select is_empty(
+  $$ select fn from actual_function_acl
+      where role = 'anon'
+        and fn not in ('events_nearby', 'f_profile_search', 'f_unaccent', 'is_on_ballot') $$,
+  '#409: anon executes only events_nearby + the three search/ballot helpers'
+);
+
+-- PUBLIC is wider than anon: it includes every future role. The three that keep it are not RPCs —
+-- f_unaccent and f_profile_search are index expressions (an index cannot depend on a privilege
+-- the indexing role might lose) and is_on_ballot is a computed field PostgREST resolves per row.
+select is_empty(
+  $$ select fn from actual_function_acl
+      where role = 'public'
+        and fn not in ('f_profile_search', 'f_unaccent', 'is_on_ballot') $$,
+  '#409: PUBLIC executes only the index-expression and computed-field helpers'
 );
 
 select * from finish();

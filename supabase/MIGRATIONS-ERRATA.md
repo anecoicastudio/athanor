@@ -41,11 +41,20 @@ in-body `auth.uid() is not null` clause) stands on its own reasoning, which the 
 correctly: `athanor` is not an exposed schema and EXECUTE is revoked from `public`/`anon`, so
 the grant is the gate.
 
-Asserted by: `supabase/tests/0045_fund_candidate_cards_view.test.sql` — which now asserts the
-two PRIVILEGES (`service_role` has no SELECT on the view; `service_role` holds EXECUTE on the
-aggregate) instead of performing a read whose outcome depends on which database it runs in.
-Note the consequence: that file can no longer be smoke-run whole against hosted staging, where
-the first of those two assertions fails by drift. CI is the authority for a declared grant.
+Asserted by: `supabase/tests/0045_fund_candidate_cards_view.test.sql`, which asserts the
+PRIVILEGES rather than performing a read whose outcome depends on which database it runs in.
+
+**Amended by #409.** That file used to assert `service_role` has **no** SELECT on the view —
+true in a from-zero replay, false on every hosted project, so the file failed by one assertion
+whenever it was smoke-run against staging. #409 ruled the drift **accepted** (it is not local
+to this view: `service_role` holds the full `arwdDxtm` set on all 59 objects in `public`, from
+`pg_default_acl` rows one of which no migration can rewrite, and the role bypasses RLS by
+definition), so an assertion a hosted project must fail was asserting a fiction. It is replaced
+by the client surface, which answers the same in both worlds: `anon` cannot read the view,
+`authenticated` can. The `service_role` EXECUTE assertion on the aggregate stands — that one is
+declared by `20260816153011` and holds everywhere. What remains environment-dependent is the
+file's own fixtures, which collide (`23505`) with staging's seeded active edition; that is a
+seed collision, not a grant fact.
 
 ---
 

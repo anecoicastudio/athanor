@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(21);
+select plan(22);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- three members; handle_new_user auto-creates their profiles rows.
@@ -159,26 +159,35 @@ select is(
   null::int, 'a soft-deleted dream yields no confirmed history'
 );
 
--- ── service_role: two grants, asserted rather than exercised ─────────────────────────
+-- ── the view's grants, asserted rather than exercised ────────────────────────────────
 -- The first cut of this block did `set local role service_role` and READ the view. That is
--- the mistake this comment exists to stop someone repeating.
+-- the mistake this comment exists to stop someone repeating: assert the PRIVILEGE, never a
+-- read that depends on one. A privilege is what the migrations state; a successful read only
+-- tells you what this particular database happens to allow today.
 --
--- Nothing grants service_role SELECT on this view: 20260618131250:158-159 revokes from anon
--- and grants to `authenticated` only. A HOSTED project says otherwise — staging answers
--- has_table_privilege('service_role', …, 'select') = TRUE — because hosted grants drift wider
--- than the migrations that declare them, and CI's clean replay from zero cannot see that
--- drift. So the read passed on staging (where it exposed a real missing EXECUTE grant, hence
--- 20260816153011) and died in CI with «permission denied for view», which is the DECLARED
--- posture and the one a fresh production replay produces.
---
--- The lesson generalises: assert the PRIVILEGE, never a read that depends on one. A privilege
--- is what the migrations state; a successful read only tells you what this particular database
--- happens to allow today.
+-- The client surface is the half that answers the same everywhere: 20260618131250:158-159
+-- revokes from anon and grants to authenticated, and no later migration widens it. 0121
+-- declares the same two facts in its catalog sweep; they are restated here because this file
+-- is where someone reads what the view is for.
 select is(
-  has_table_privilege('service_role', 'public.fund_candidate_cards', 'select'),
+  has_table_privilege('anon', 'public.fund_candidate_cards', 'select'),
   false,
-  'no migration grants service_role SELECT on fund_candidate_cards (hosted projects drift wider)'
+  'anon cannot read fund_candidate_cards (the ballot is for members)'
 );
+select is(
+  has_table_privilege('authenticated', 'public.fund_candidate_cards', 'select'),
+  true,
+  'authenticated reads fund_candidate_cards (the ballot the voter votes on)'
+);
+
+-- service_role is NOT asserted here, and that is #409's ruling rather than an oversight. This
+-- block used to assert has_table_privilege('service_role', …, 'select') = FALSE — true in a
+-- from-zero replay, false on every hosted project, which is what made this file impossible to
+-- smoke-run whole against staging. The drift is not local to this view: service_role holds the
+-- full arwdDxtm set on all 59 objects in `public`, from pg_default_acl rows one of which no
+-- migration can rewrite. #409 accepted that (service_role bypasses RLS by definition and its
+-- key never leaves the edge-function environment), so an assertion that a hosted project must
+-- fail is asserting a fiction. See MIGRATIONS-ERRATA.md § 20260816153011.
 
 -- The EXECUTE grant 20260816153011 added still matters, and matters MORE on a drifted hosted
 -- project than here: wherever service_role can reach the view, the lateral makes EXECUTE on
