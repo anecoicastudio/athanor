@@ -52,21 +52,86 @@ export const resolveReportInput = z
 export type ResolveReportInput = z.infer<typeof resolveReportInput>;
 
 /**
- * Append-only audit row (admin-read). Mirrors supabase audit_log, which since #219 holds
- * two shapes: moderation rows (report_id + actor_id set) and fund rows ('declare_winner':
- * edition_id set, no report, no user actor — the writer is the service-role edge function).
+ * The audit_log vocabulary, split the way the database splits it. Two CHECK constraints
+ * govern it and both are re-declared whole by whichever migration last widened them —
+ * currently `20260816110227_fund_tranche_gate.sql:43-54`:
+ *
+ * - `audit_log_action_check` admits MODERATION ∪ FUND, in this order;
+ * - `audit_log_fund_shape` names exactly FUND, and demands those rows carry an edition
+ *   and neither a report nor penalty points.
+ *
+ * Two lists rather than one because that second constraint needs the halves apart. The
+ * previous single inline `z.enum` fell twelve actions behind across five migrations before
+ * anything noticed (#392) — so widening the CHECK now means adding the action to the
+ * matching list below, and `audit-log-actions.mirror.test.ts` fails when one side moves alone.
  */
-export const auditLogRow = z.object({
-  id: z.string().uuid(),
-  report_id: z.string().uuid().nullable(),
-  actor_id: z.string().uuid().nullable(),
-  action: z.enum(['dismiss', 'warn', 'penalty', 'suspend', 'ban', 'declare_winner']),
-  penalty_points: z.number().int().nullable(),
-  reason: z.string().nullable(),
-  created_at: z.string(),
-  edition_id: z.string().uuid().nullable(),
-  candidacy_id: z.string().uuid().nullable(),
-});
+/**
+ * `resolve_report` journals its `p_action` verbatim, and `@athanor/api`'s `resolveReport`
+ * derives that from the verdict as `uphold ? (action ?? 'penalty') : 'dismiss'` — so the
+ * moderation half is the four enforcement actions plus the dismissal, and it is DERIVED
+ * rather than re-declared. A fifth enforcement action would then need the CHECK widened too,
+ * which is exactly what the mirror test would say.
+ */
+export const AUDIT_LOG_MODERATION_ACTIONS = ['dismiss', ...MODERATION_ACTIONS] as const;
+
+export const AUDIT_LOG_FUND_ACTIONS = [
+  'declare_winner',
+  'screen_start',
+  'screen_pass',
+  'screen_reject',
+  'screen_reopen',
+  'announce',
+  'void_cycle',
+  'winner_confirm',
+  'winner_decline',
+  'close_cycle',
+  'rollover_cycle',
+  'publish_plan',
+  'verify_phase',
+] as const;
+
+export const AUDIT_LOG_ACTIONS = [
+  ...AUDIT_LOG_MODERATION_ACTIONS,
+  ...AUDIT_LOG_FUND_ACTIONS,
+] as const;
+
+export const auditLogAction = z.enum(AUDIT_LOG_ACTIONS);
+export type AuditLogAction = z.infer<typeof auditLogAction>;
+
+/** Set lookup so the shape refinement below stays O(1) as the fund vocabulary grows. */
+const FUND_ACTIONS: ReadonlySet<string> = new Set(AUDIT_LOG_FUND_ACTIONS);
+
+/**
+ * Append-only audit row (admin-read). Mirrors supabase audit_log, which since #219 holds
+ * two shapes: moderation rows (report_id + actor_id set) and fund rows (edition_id set,
+ * no report, no user actor — the writer is the service-role edge function; 'publish_plan'
+ * alone carries a real actor, being the only fund action a member takes themselves).
+ *
+ * The refinement is `audit_log_fund_shape` in TypeScript. Without it this schema accepted
+ * `{ action: 'declare_winner', report_id: <uuid> }` — a row the database has never been
+ * able to hold.
+ */
+export const auditLogRow = z
+  .object({
+    id: z.string().uuid(),
+    report_id: z.string().uuid().nullable(),
+    actor_id: z.string().uuid().nullable(),
+    action: auditLogAction,
+    penalty_points: z.number().int().nullable(),
+    reason: z.string().nullable(),
+    created_at: z.string(),
+    edition_id: z.string().uuid().nullable(),
+    candidacy_id: z.string().uuid().nullable(),
+  })
+  .refine(
+    (r) =>
+      !FUND_ACTIONS.has(r.action) ||
+      (r.edition_id !== null && r.report_id === null && r.penalty_points === null),
+    {
+      message: 'a fund action carries an edition and neither a report nor penalty points',
+      path: ['edition_id'],
+    },
+  );
 export type AuditLogRow = z.infer<typeof auditLogRow>;
 
 /** Admin queue row shape (read from reports table + reporter join). */
