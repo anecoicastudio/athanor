@@ -1,6 +1,11 @@
 import * as ImagePicker from 'expo-image-picker';
 import { MEDIA_LIMITS } from '@athanor/core';
-import { type PickedMedia, toPickedMedia } from './asset';
+import {
+  type PickedMedia,
+  type VideoPickOutcome,
+  classifyVideoAsset,
+  toPickedMedia,
+} from './asset';
 
 /**
  * SDK-54 `mediaTypes` is an array of the `MediaType` string union
@@ -14,7 +19,10 @@ import { type PickedMedia, toPickedMedia } from './asset';
 // `PickedMedia` + the asset→PickedMedia mapping live in ./asset, which imports
 // expo-image-picker for types only and so stays reachable from the node test
 // runner. Re-exported so existing `from './pick'` imports keep resolving.
-export type { PickedMedia };
+export type { PickedMedia, VideoPickOutcome };
+
+/** A candidacy video pick: an accepted asset, a named rejection, or the member backing out. */
+export type VideoPickResult = VideoPickOutcome | { outcome: 'canceled' };
 
 /** The single selected asset, or null when the user cancelled. */
 function firstAsset(result: ImagePicker.ImagePickerResult): ImagePicker.ImagePickerAsset | null {
@@ -41,6 +49,41 @@ export async function recordVideo(): Promise<PickedMedia | null> {
   });
   const asset = firstAsset(result);
   return asset ? toPickedMedia(asset) : null;
+}
+
+/**
+ * Pick ONE video for the candidacy wizard, from the camera or the library, and say what came
+ * back (#412).
+ *
+ * Separate from `recordVideo`/`pickFromLibrary` because those answer `PickedMedia | null`, and
+ * that `null` conflates three different things — the member cancelled, the video was over the
+ * 60s cap, the asset was not a video. Step 4 has to tell them apart to say anything useful, so
+ * this door returns a classified outcome instead.
+ *
+ * The library launch is videos-only. The candidacy path used to pass `allowVideo: true`, which
+ * offers `['images','videos']`: picking a photo there produced a `PickedMedia` the upload hook
+ * then discarded on `kind !== 'video'` without a word — an eighth silent outcome, closed here
+ * by not offering the choice.
+ *
+ * `videoMaxDuration` is passed to the camera because it genuinely stops the recording; the
+ * library ignores it for selection, which is why the duration cap is re-checked on the asset.
+ */
+export async function pickVideo(source: 'record' | 'library'): Promise<VideoPickResult> {
+  const result =
+    source === 'record'
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ['videos'],
+          videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['videos'],
+          videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
+          exif: false,
+          allowsMultipleSelection: false,
+        });
+  const asset = firstAsset(result);
+  if (!asset) return { outcome: 'canceled' };
+  return classifyVideoAsset(asset);
 }
 
 /**

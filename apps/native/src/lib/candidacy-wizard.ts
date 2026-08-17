@@ -1,7 +1,7 @@
 import { parseEuroIntegerToCents } from '@athanor/core';
 import type { MessageKey } from '@athanor/i18n';
 import type { DreamCandidacy, ProjectCategory } from '@athanor/schemas';
-import type { UploadStatus } from '@/lib/media/use-candidacy-upload';
+import type { UploadStatus } from '@/lib/candidacy-video-status';
 
 /**
  * The seven candidacy steps as data (07 §3.4; #226 added steps 6–7; #385 extracted this).

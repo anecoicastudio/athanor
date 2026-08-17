@@ -26,4 +26,29 @@ describe('MEDIA_LIMITS', () => {
     expect(MEDIA_LIMITS.VIDEO_POSTER_SECONDS).toBeGreaterThan(0);
     expect(MEDIA_LIMITS.VIDEO_POSTER_SECONDS).toBeLessThan(MEDIA_LIMITS.MAX_VIDEO_SECONDS);
   });
+
+  it('caps a video at the size the server-side strip can still process (#412)', () => {
+    // 100 MiB exactly — media-process/index.ts skips anything larger, so a file above this
+    // uploads slowly and then silently misses the strip. Accepting only what the backstop
+    // can process is what makes the cap worth having.
+    expect(MEDIA_LIMITS.MAX_VIDEO_BYTES).toBe(104_857_600);
+    expect(MEDIA_LIMITS.MAX_VIDEO_BYTES).toBe(100 * 1024 * 1024);
+  });
+
+  it('bounds the poster extraction so a hung decoder cannot hold the tile (#412)', () => {
+    // The video is already in Storage by the time the poster runs, so waiting forever for a
+    // frame trades a finished upload for a spinner that never stops. Long enough that a normal
+    // clip finishes, short enough that a member notices nothing.
+    expect(MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS).toBe(15_000);
+    expect(MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS).toBeGreaterThan(0);
+  });
+
+  it('accepts mp4 and quicktime — an iPhone records .mov (#412)', () => {
+    // Mirrors the candidacy-videos bucket's allowed_mime_types (20260817… widening) and the
+    // assertion in supabase/tests/0043_candidacy_videos_storage.test.sql. Rejecting quicktime
+    // would reject the primary capture path on iOS, and Expo Go cannot transcode.
+    expect(MEDIA_LIMITS.VIDEO_MIME_TYPES).toEqual(['video/mp4', 'video/quicktime']);
+    expect(MEDIA_LIMITS.VIDEO_MIME_TYPES).toContain('video/mp4');
+    expect(MEDIA_LIMITS.VIDEO_MIME_TYPES).toContain('video/quicktime');
+  });
 });
