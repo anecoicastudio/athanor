@@ -3,7 +3,11 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/supabase/config.toml"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/config.toml",
+        "$TURBO_ROOT$/supabase/migrations/*.sql"
+      ]
     }
   }
 }
