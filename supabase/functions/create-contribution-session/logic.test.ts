@@ -11,6 +11,7 @@ import {
   createContributionSession,
   feeCoverage,
   isValidContributionAmount,
+  MIN_CONTRIBUTION_CENTS,
   STRIPE_FEE_BPS,
   STRIPE_FEE_FIXED_CENTS,
   type ContributionSessionCtx,
@@ -65,6 +66,17 @@ const run = async (c: Ctx, amountCents: number, coverFees?: unknown) => {
 };
 
 // ── amount floor ─────────────────────────────────────────────────────────────
+//
+// MIN_CONTRIBUTION_CENTS is DUPLICATED here, deliberately: `packages/schemas/src/fund.ts`
+// declares it for every TypeScript caller, but `supabase/functions` lives outside the pnpm
+// workspace and cannot import a workspace package. The two are kept honest the same way the
+// Stripe rate constants below are — by pinning the identical value on both sides, each with a
+// named test. The DB CHECK in 20260618153032_m7_contributions.sql is the third copy, pinned by
+// pgTAP 0118. Change one, change all three (#387).
+
+Deno.test('the contribution floor matches packages/schemas and the DB CHECK', () => {
+  assertEquals(MIN_CONTRIBUTION_CENTS, 100); // €1 — PRD §4.11
+});
 
 Deno.test('isValidContributionAmount: boundary cases', () => {
   assertEquals(isValidContributionAmount(99), false); // below €1

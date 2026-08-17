@@ -24,7 +24,7 @@ import {
   subscribeFundAggregate,
   voteKeys,
 } from '@athanor/api';
-import { consensusForCandidacy } from '@athanor/core';
+import { MIN_CONTRIBUTION_CENTS, consensusForCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
@@ -267,14 +267,15 @@ export default function AnnualFundScreen() {
   };
 
   // ── Contribution amount (payment itself lives behind the disclosure, #235) ──
-  const [amountCents, setAmountCents] = useState<number>(100); // default 1€ chip on
+  // Defaults to the floor: the smallest chip is the one selected on open.
+  const [amountCents, setAmountCents] = useState<number>(MIN_CONTRIBUTION_CENTS);
 
   // FUND-18: the CTA never opens a payment — it pushes the blocking disclosure
   // screen, which is the app's ONLY call site of createContributionSession
   // (pinned by fund-disclosure.test.ts). The window-refusal handling from #222
   // moved there with the payment launch.
   const onContribute = useCallback(() => {
-    if (amountCents < 100) return;
+    if (amountCents < MIN_CONTRIBUTION_CENTS) return;
     router.push({
       pathname: '/(modal)/fund-disclosure',
       params: { amount: String(amountCents) },
@@ -506,7 +507,7 @@ export default function AnnualFundScreen() {
                 })}
                 onPress={onContribute}
                 variant="light"
-                disabled={amountCents < 100}
+                disabled={amountCents < MIN_CONTRIBUTION_CENTS}
                 // Flat cyan CTA — no glow (rule #4)
               />
               <Text className="text-[12px] text-muted-foreground">

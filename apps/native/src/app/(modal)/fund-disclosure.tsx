@@ -9,7 +9,7 @@ import {
   fundKeys,
   getActiveEdition,
 } from '@athanor/api';
-import { feeCoverage, formatEuroAmount } from '@athanor/core';
+import { MIN_CONTRIBUTION_CENTS, feeCoverage, formatEuroAmount } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -51,7 +51,7 @@ export default function FundDisclosureScreen() {
   // rather than inventing a fallback amount.
   const { amount } = useLocalSearchParams<{ amount?: string }>();
   const amountCents = Number.parseInt(amount ?? '', 10);
-  const validAmount = Number.isFinite(amountCents) && amountCents >= 100;
+  const validAmount = Number.isFinite(amountCents) && amountCents >= MIN_CONTRIBUTION_CENTS;
 
   // Cached from annual.tsx in the normal flow; refetched on a direct deep link.
   const editionQuery = useQuery({

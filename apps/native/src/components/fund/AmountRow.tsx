@@ -1,10 +1,17 @@
 import { useState } from 'react';
-import { parseEuroToCents } from '@athanor/core';
+import { MIN_CONTRIBUTION_CENTS, parseEuroToCents } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
 import { Pressable, Text, TextInput, View } from '@/tw';
 
-const PRESETS_CENTS = [100, 500, 1000, 2500] as const;
+// The smallest chip IS the floor — a preset the parser would reject is a chip that cannot be
+// paid. Derived so raising the minimum can never strand it below the line (#387).
+const PRESETS_CENTS = [MIN_CONTRIBUTION_CENTS, 500, 1000, 2500] as const;
+
+// The two strings that QUOTE the floor take it as a variable: copy that states a number is a
+// declaration of that number, and «Il minimo è 1€» would go on reassuring the payer after the
+// floor moved. The catalogs still own the words and the per-locale € placement (#387).
+const MIN_EURO = String(MIN_CONTRIBUTION_CENTS / 100);
 
 export function AmountRow({
   amountCents,
@@ -69,13 +76,15 @@ export function AmountRow({
             value={draft}
             onChangeText={onDraft}
             keyboardType="decimal-pad"
-            placeholder={t('fund.amount.customPlaceholder', locale)}
+            placeholder={t('fund.amount.customPlaceholder', locale, { min: MIN_EURO })}
             placeholderTextColor={semantic.foregroundMuted}
             className="rounded-ctl border border-hair bg-raise px-4 py-3 text-[15px] text-foreground"
             accessibilityLabel={t('fund.amount.custom', locale)}
           />
           {err ? (
-            <Text className="text-[12px] text-error">{t('fund.amount.error', locale)}</Text>
+            <Text className="text-[12px] text-error">
+              {t('fund.amount.error', locale, { min: MIN_EURO })}
+            </Text>
           ) : null}
         </View>
       ) : null}

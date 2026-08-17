@@ -34,9 +34,24 @@ export type ContributionSessionInput = {
   coverFees?: boolean;
 };
 
-/** Server-side floor (rule #10 / PRD §4.11): integer minor units, ≥ €1, no max. */
+/**
+ * The €1 minimum (PRD §4.11). A named constant, never a scattered literal.
+ *
+ * DUPLICATED, deliberately, exactly as the Stripe rate constants below are:
+ * `packages/schemas/src/fund.ts` declares this same number for every TypeScript caller — the
+ * zod schema, `@athanor/core`'s parser, the screens — but `supabase/functions` lives outside
+ * the pnpm workspace and cannot import a workspace package. The DB CHECK in
+ * `20260618153032_m7_contributions.sql` is the third copy and the last line of defence.
+ *
+ * The three are kept honest by pinning the identical value on each side under a named test:
+ * `logic.test.ts` here, `fund.test.ts` in schemas, pgTAP `0118_fund_fee_coverage` for the
+ * CHECK. Change one, change all three (#387).
+ */
+export const MIN_CONTRIBUTION_CENTS = 100;
+
+/** Server-side floor (PRD §4.11): integer minor units, ≥ €1, no max. */
 export function isValidContributionAmount(amountCents: number): boolean {
-  return Number.isInteger(amountCents) && amountCents >= 100;
+  return Number.isInteger(amountCents) && amountCents >= MIN_CONTRIBUTION_CENTS;
 }
 
 /**
@@ -164,7 +179,7 @@ export async function createContributionSession(
   const { userClient, createCheckoutSession, appBase } = ctx;
   const { profileId, editionId, amountCents, coverFees } = input;
 
-  // Server-side floor (rule #10 / PRD §4.11): never trust the client amount; ≥ €1, no max.
+  // Server-side floor (PRD §4.11): never trust the client amount; ≥ €1, no max.
   // The floor is on the GIFT: coverage may not lift a sub-€1 contribution over the line, so
   // this runs before any gross-up.
   if (!isValidContributionAmount(amountCents)) return error('amount must be at least €1', 400);
