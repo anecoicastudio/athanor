@@ -1,3 +1,4 @@
+import { MOMENTO_DECK_REASON_LIMIT, rankReasons } from '@athanor/core';
 import {
   type AcceptMomentResult,
   type MomentoDeckCard,
@@ -22,6 +23,10 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
   const row: MomentoDeckRow = momentoDeckRow.parse(raw);
   // A term the candidate has masked comes back as [] and simply does not render — no empty
   // «Condividete:» line, and no stale one either (the server recomputes them per read).
+  //
+  // The order below is the WIRE order, not the display order: `rankReasons` decides which
+  // of the seven a card with room for three actually shows (#384). Before it, this array's
+  // order silently WAS the policy, and the two hardest-earned terms sat last.
   const terms: MomentoReason[] =
     row.reason_kind === 'new_dream'
       ? [{ kind: 'newDream', tags: [] }]
@@ -46,7 +51,7 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
     handle: row.handle,
     displayName: row.display_name,
     avatarPath: row.avatar_path,
-    reasons: terms,
+    reasons: rankReasons(terms, MOMENTO_DECK_REASON_LIMIT),
     dreamText: row.dream_text,
   });
 }
