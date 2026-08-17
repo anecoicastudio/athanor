@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,14 +13,9 @@ import {
   submitCandidacy,
   updateCandidacy,
 } from '@athanor/api';
-import { MAX_SKILLS, SKILLS, parseEuroIntegerToCents } from '@athanor/core';
+import { MAX_SKILLS, SKILLS } from '@athanor/core';
 import { semantic } from '@athanor/config';
-import {
-  type DreamCandidacy,
-  type FundEdition,
-  type ProjectCategory,
-  projectCategorySchema,
-} from '@athanor/schemas';
+import { type DreamCandidacy, type FundEdition, projectCategorySchema } from '@athanor/schemas';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -31,16 +26,29 @@ import { StepDots } from '@/components/StepDots';
 import { VideoUploadTile } from '@/components/candidacy/VideoUploadTile';
 import { useToast } from '@/components/ToastHost';
 import { useCandidacyUpload } from '@/lib/media/use-candidacy-upload';
+import {
+  TOTAL_STEPS,
+  type WizardDraft,
+  type WizardTextField,
+  type WizardValues,
+  budgetPair,
+  hasStandingVideo,
+  prefillValues,
+  stepAt,
+  stepBlocker,
+  submitBlockers,
+} from '@/lib/candidacy-wizard';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
-
-const TOTAL_STEPS = 7;
 
 /**
  * 7-step candidacy wizard (07 §3.4; #226 added steps 6–7).
  * Steps: 1 story / 2 goal / 3 impact / 4 video / 5 plan + budget / 6 skills / 7 category + dream.
  * Steps 6–7 are optional — an empty declaration is first-class and can never block a submit.
+ *
+ * The steps themselves, their catalog keys and every gating rule live in
+ * `@/lib/candidacy-wizard` (#385) — this file mounts them. Adding a step is one entry there.
  * Gated by identity_verified (real gate — M9 wires the Stripe Identity webhook).
  * Window-closed guard: if no open edition or candidacy_window_open=false → empty-state.
  * No Aura is awarded for candidacy (rule #1, asserted in pgTAP).
@@ -160,21 +168,19 @@ function WizardForm({
   const uid = profile?.id ?? '';
 
   const [step, setStep] = useState(0); // 0–6 (displayed as steps 1–7)
-  const [story, setStory] = useState(initial?.story ?? '');
-  const [goal, setGoal] = useState(initial?.goal ?? '');
-  const [impact, setImpact] = useState(initial?.impact ?? '');
-  const [planText, setPlanText] = useState(initial?.plan ?? '');
-  const [budgetEuro, setBudgetEuro] = useState(
-    initial ? String(Math.round(initial.budget_cents / 100)) : '',
-  );
-  const [minViableEuro, setMinViableEuro] = useState(
-    initial ? String(Math.round(initial.min_viable_cents / 100)) : '',
-  );
-  const [skills, setSkills] = useState<string[]>(initial?.skills_needed ?? []);
-  const [category, setCategory] = useState<ProjectCategory | null>(initial?.category ?? null);
-  const [linkDream, setLinkDream] = useState(Boolean(initial?.dream_id));
+  // One object rather than nine states: `prefillValues` is then the whole prefill path, and
+  // both #226's edit and #221's cross-cycle resubmit mount already filled — state
+  // initialisers, no prefill effects racing the member's typing.
+  const [values, setValues] = useState<WizardValues>(() => prefillValues(initial));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Typing anywhere clears the error caption; tapping a chip on the optional steps does not,
+  // because those steps never raise one.
+  const setText = (field: WizardTextField, value: string) => {
+    setValues((prev) => ({ ...prev, [field]: value }));
+    setError(null);
+  };
 
   // Edit mode passes the existing id so a replacement video overwrites the same storage
   // key. A prefilled fresh submit (#221) gets a NEW id: the row is new and the prior
@@ -190,44 +196,33 @@ function WizardForm({
   });
   const activeDream = dreamQuery.data ?? null;
 
-  // Whole euros typed by the member → integral cents; null when not a plain positive integer.
-  // The parser lives in @athanor/core (#387) — it was an untested inline const here, and the
-  // «numeri interi» promise in the catalogs is a contract worth a test.
-  const budgetCents = parseEuroIntegerToCents(budgetEuro);
-  const minViableCents = parseEuroIntegerToCents(minViableEuro);
-  const budgetValid =
-    budgetCents !== null && minViableCents !== null && minViableCents <= budgetCents;
+  // Whole euros typed by the member → integral cents, or null unless the pair is usable.
+  // The screen submits exactly what the gate accepted (#385); the integer-only parser it
+  // wraps lives in @athanor/core (#387), because «numeri interi» is a copy contract.
+  const budget = budgetPair(values);
 
-  // Edit mode: the stored video stands until a replacement finishes uploading. On a
-  // prefilled fresh submit the prior cycle's video never stands — a new one is required.
-  const hasVideo =
-    upload.status === 'done' ||
-    (mode === 'edit' && initial !== null && upload.status !== 'uploading');
+  const hasVideo = hasStandingVideo({
+    uploadStatus: upload.status,
+    mode,
+    hasInitial: initial !== null,
+  });
 
-  // Whether the user can advance from the current step.
-  const canAdvance = useMemo(() => {
-    if (step === 3) return hasVideo; // video required to leave step 4
-    if (step === 4) return planText.trim().length > 0 && budgetValid;
-    if (step >= 5) return true; // skills / category / dream are optional (#226) — never blocking
-    const fieldForStep = [story, goal, impact];
-    const val = fieldForStep[step];
-    return val !== undefined && val.trim().length > 0;
-  }, [step, story, goal, impact, planText, budgetValid, hasVideo]);
+  // What every gate reads: the typed values plus the one fact that is not typed.
+  const draft: WizardDraft = { ...values, hasVideo };
 
   const toggleSkill = (key: string) =>
-    setSkills((prev) =>
-      prev.includes(key)
-        ? prev.filter((x) => x !== key)
-        : prev.length >= MAX_SKILLS
+    setValues((prev) =>
+      prev.skills.includes(key)
+        ? { ...prev, skills: prev.skills.filter((x) => x !== key) }
+        : prev.skills.length >= MAX_SKILLS
           ? prev
-          : [...prev, key],
+          : { ...prev, skills: [...prev.skills, key] },
     );
 
   const advance = () => {
-    if (!canAdvance) {
-      setError(
-        step === 3 ? t('candidacy.error.video', locale) : t('candidacy.error.empty', locale),
-      );
+    const blocker = stepBlocker(draft, step);
+    if (blocker) {
+      setError(t(blocker, locale));
       return;
     }
     setError(null);
@@ -235,13 +230,11 @@ function WizardForm({
   };
 
   const onSubmit = async () => {
-    // Steps 6–7 never gate, so re-check the step-5 invariants here.
-    if (planText.trim().length === 0 || !budgetValid) {
-      setError(
-        planText.trim().length > 0 && !budgetValid
-          ? t('candidacy.error.budget', locale)
-          : t('candidacy.error.empty', locale),
-      );
+    // Steps 6–7 never gate, so the button re-runs every step's own validator — the same
+    // rules, not a second hand-written copy of them.
+    const [blocker] = submitBlockers(draft);
+    if (blocker) {
+      setError(t(blocker, locale));
       return;
     }
     // id-gate: real precondition — M9 Stripe Identity webhook sets identity_verified.
@@ -252,7 +245,7 @@ function WizardForm({
     // The stored video/poster back a fresh submit never (#221): they live under the prior
     // candidacy's storage key and the new row must own its own object.
     const videoPath = upload.videoPath ?? (mode === 'edit' ? (initial?.video_url ?? null) : null);
-    if (!edition || !videoPath || budgetCents === null || minViableCents === null) return;
+    if (!edition || !videoPath || budget === null) return;
     // A replaced video invalidates the stored poster; an untouched one keeps it.
     const thumbPath = upload.videoPath
       ? upload.thumbPath
@@ -261,7 +254,7 @@ function WizardForm({
         : null;
     // A prior-cycle dream_id may point at a retired dream — a fresh submit links only the
     // author's CURRENT active dream (D12); RLS re-checks ownership either way.
-    const dreamId = linkDream
+    const dreamId = values.linkDream
       ? mode === 'edit'
         ? (initial?.dream_id ?? activeDream?.id ?? null)
         : (activeDream?.id ?? null)
@@ -270,16 +263,16 @@ function WizardForm({
     try {
       if (mode === 'edit' && initial) {
         await updateCandidacy(supabase, initial.id, {
-          story: story.trim(),
-          goal: goal.trim(),
-          impact: impact.trim(),
+          story: values.story.trim(),
+          goal: values.goal.trim(),
+          impact: values.impact.trim(),
           video_url: videoPath,
           thumb_path: thumbPath,
-          plan: planText.trim(),
-          budget_cents: budgetCents,
-          min_viable_cents: minViableCents,
-          skills_needed: skills,
-          category,
+          plan: values.plan.trim(),
+          budget_cents: budget.budgetCents,
+          min_viable_cents: budget.minViableCents,
+          skills_needed: values.skills,
+          category: values.category,
           dream_id: dreamId,
         });
         void qc.invalidateQueries({ queryKey: candidacyKeys.all });
@@ -291,16 +284,16 @@ function WizardForm({
           profileId: uid,
           input: {
             edition_id: edition.id,
-            story: story.trim(),
-            goal: goal.trim(),
-            impact: impact.trim(),
+            story: values.story.trim(),
+            goal: values.goal.trim(),
+            impact: values.impact.trim(),
             video_url: videoPath,
             thumb_path: thumbPath,
-            plan: planText.trim(),
-            budget_cents: budgetCents,
-            min_viable_cents: minViableCents,
-            skills_needed: skills,
-            category,
+            plan: values.plan.trim(),
+            budget_cents: budget.budgetCents,
+            min_viable_cents: budget.minViableCents,
+            skills_needed: values.skills,
+            category: values.category,
             dream_id: dreamId,
           },
         });
@@ -314,9 +307,10 @@ function WizardForm({
   };
 
   const isLast = step === TOTAL_STEPS - 1;
-  // Build the step-scoped i18n key (e.g. 'candidacy.step1.q').
-  const stepNum = (step + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  const stepKey = (part: string) => `candidacy.step${stepNum}.${part}` as MessageKey;
+  // The step being shown. Its copy keys travel with it, so the wizard no longer builds
+  // `candidacy.step${n}.…` out of an index it has to keep in range by hand.
+  const active = stepAt(step);
+  const input = active.input;
 
   return (
     <Screen>
@@ -349,53 +343,29 @@ function WizardForm({
 
         {/* Step content — vertically centred */}
         <View className="grow justify-center">
-          <SectionLabel>{t(stepKey('label'), locale)}</SectionLabel>
+          <SectionLabel>{t(active.label, locale)}</SectionLabel>
           <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
-            {t(stepKey('q'), locale)}
+            {t(active.question, locale)}
           </Text>
-          <Text className="mt-2 text-muted-foreground">{t(stepKey('sub'), locale)}</Text>
+          <Text className="mt-2 text-muted-foreground">{t(active.sub, locale)}</Text>
 
-          <View className="mt-5">
-            {step === 0 ? (
+          {/* One mounted step, driven by WIZARD_STEPS. The four long-form fields were the
+              same control four times over, so they come from `active.input`; the bespoke
+              bodies below switch on the step's KEY, never on its index. The plan step is
+              the one that mixes both, and carries on its container the gap its parts used
+              to get from a wrapper of their own. */}
+          <View className={active.key === 'plan' ? 'mt-5 gap-4' : 'mt-5'}>
+            {input ? (
               <TextInput
                 className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
                 multiline
-                maxLength={4000}
-                placeholder={t('candidacy.step1.placeholder', locale)}
-                value={story}
-                onChangeText={(v) => {
-                  setStory(v);
-                  setError(null);
-                }}
+                maxLength={input.maxLength}
+                placeholder={t(input.placeholder, locale)}
+                value={values[input.field]}
+                onChangeText={(v) => setText(input.field, v)}
               />
             ) : null}
-            {step === 1 ? (
-              <TextInput
-                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-                multiline
-                maxLength={2000}
-                placeholder={t('candidacy.step2.placeholder', locale)}
-                value={goal}
-                onChangeText={(v) => {
-                  setGoal(v);
-                  setError(null);
-                }}
-              />
-            ) : null}
-            {step === 2 ? (
-              <TextInput
-                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-                multiline
-                maxLength={2000}
-                placeholder={t('candidacy.step3.placeholder', locale)}
-                value={impact}
-                onChangeText={(v) => {
-                  setImpact(v);
-                  setError(null);
-                }}
-              />
-            ) : null}
-            {step === 3 ? (
+            {active.key === 'video' ? (
               <View className="gap-3">
                 <VideoUploadTile
                   locale={locale}
@@ -413,19 +383,8 @@ function WizardForm({
                 ) : null}
               </View>
             ) : null}
-            {step === 4 ? (
-              <View className="gap-4">
-                <TextInput
-                  className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
-                  multiline
-                  maxLength={4000}
-                  placeholder={t('candidacy.step5.placeholder', locale)}
-                  value={planText}
-                  onChangeText={(v) => {
-                    setPlanText(v);
-                    setError(null);
-                  }}
-                />
+            {active.key === 'plan' ? (
+              <>
                 {/* Budget + minimum viable (#225): whole euros; the minimum informs the
                     ballot, it is not the shortfall gate (FUND-42 is). */}
                 <View className="flex-row gap-3">
@@ -436,11 +395,8 @@ function WizardForm({
                       keyboardType="number-pad"
                       maxLength={9}
                       placeholder="8000"
-                      value={budgetEuro}
-                      onChangeText={(v) => {
-                        setBudgetEuro(v);
-                        setError(null);
-                      }}
+                      value={values.budgetEuro}
+                      onChangeText={(v) => setText('budgetEuro', v)}
                     />
                   </View>
                   <View className="flex-1 gap-1.5">
@@ -450,33 +406,30 @@ function WizardForm({
                       keyboardType="number-pad"
                       maxLength={9}
                       placeholder="5000"
-                      value={minViableEuro}
-                      onChangeText={(v) => {
-                        setMinViableEuro(v);
-                        setError(null);
-                      }}
+                      value={values.minViableEuro}
+                      onChangeText={(v) => setText('minViableEuro', v)}
                     />
                   </View>
                 </View>
                 <Text className="text-[12px] leading-[18px] text-faint">
                   {t('candidacy.budget.hint', locale)}
                 </Text>
-              </View>
+              </>
             ) : null}
-            {step === 5 ? (
+            {active.key === 'skills' ? (
               // Skills the dream needs (#226, FUND-10) — curated keys, ≤ MAX_SKILLS, optional.
               <View className="flex-row flex-wrap gap-3">
                 {SKILLS.map((key) => (
                   <Chip
                     key={key}
                     label={t(`tag.skill.${key}` as MessageKey, locale)}
-                    selected={skills.includes(key)}
+                    selected={values.skills.includes(key)}
                     onPress={() => toggleSkill(key)}
                   />
                 ))}
               </View>
             ) : null}
-            {step === 6 ? (
+            {active.key === 'category' ? (
               <View className="gap-6">
                 {/* Category (#226, D43) — tapping the selected chip clears it: «no
                     category» stays first-class. */}
@@ -487,8 +440,13 @@ function WizardForm({
                       <Chip
                         key={key}
                         label={t(`costellazioni.filter.${key}` as MessageKey, locale)}
-                        selected={category === key}
-                        onPress={() => setCategory(category === key ? null : key)}
+                        selected={values.category === key}
+                        onPress={() =>
+                          setValues((prev) => ({
+                            ...prev,
+                            category: prev.category === key ? null : key,
+                          }))
+                        }
                       />
                     ))}
                   </View>
@@ -501,8 +459,10 @@ function WizardForm({
                       <View className="flex-row flex-wrap gap-3">
                         <Chip
                           label={t('candidacy.dream.link', locale)}
-                          selected={linkDream}
-                          onPress={() => setLinkDream((v) => !v)}
+                          selected={values.linkDream}
+                          onPress={() =>
+                            setValues((prev) => ({ ...prev, linkDream: !prev.linkDream }))
+                          }
                         />
                       </View>
                       {activeDream ? (
