@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { candidacyThumbPath, candidacyVideoPath } from '@athanor/api';
-import { ensureCameraPermission, ensureLibraryPermission } from './permissions';
+import {
+  type UploadStatus,
+  type VideoFailure,
+  permissionFailure,
+  uploadFailureOutcome,
+} from '@/lib/candidacy-video-status';
+import { ensureCameraPermission, peekLibraryPermission } from './permissions';
 import { extractVideoPoster } from './poster';
-import { pickFromLibrary, recordVideo } from './pick';
-import { uploadFailureStatus, uploadLocalFile } from './upload';
+import { pickVideo } from './pick';
+import { uploadLocalFile } from './upload';
 import type { PickedMedia } from './pick';
 
-export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error' | 'canceled' | 'stalled';
+// The status/failure vocabulary and every status→message decision live in
+// `@/lib/candidacy-video-status` — pure, so the node test runner can collect them (#412),
+// the same argument that put the wizard's steps in `@/lib/candidacy-wizard` (#385/#413).
+export type { UploadStatus, VideoFailure };
 
 /**
  * One-video upload for the candidacy wizard (step 4). Generates the candidacy id
@@ -25,6 +34,12 @@ export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error' | 'canceled' 
  * broken attempt left behind (the #294 orphan decision). Leaving the wizard mid-upload
  * aborts too; nothing keeps transferring for a screen that is gone.
  *
+ * **Every way this can fail says which (#412).** `status` alone could not: a blocked photo
+ * permission, an over-cap video, a refused write and a native throw all collapsed into one
+ * `'error'` that the tile did not even draw, so five outcomes rendered as the idle state and
+ * were all explained by `candidacy.error.video` on Continue. `failure` now travels beside the
+ * status and names the reason; `videoStatusMessage` turns the pair into copy.
+ *
  * A poster frame is extracted and uploaded beside it as `{uid}/{id}-thumb.jpg`, so the ballot
  * card has an image to draw instead of one grey rectangle per candidate (#282). That step is
  * best-effort and returns null on any failure — see `uploadPoster` for why it can never fail the
@@ -36,9 +51,10 @@ export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error' | 'canceled' 
  * server-side video strip is the M10 defence-in-depth backstop (resilience §7.2).
  * The poster is a re-encoded JPEG, so it carries no EXIF either.
  *
- * The ≤60s cap is enforced by `pickFromLibrary`/`recordVideo` (they return null
- * when duration_s > MAX_VIDEO_SECONDS). A null asset is silently ignored; the
- * caller surfaces `media.tooLong` / `candidacy.error.video` to the user.
+ * The Content-Type is the one the picker reported, not a guess: an iPhone records QuickTime
+ * and this used to declare `'video/mp4'` for it unconditionally, so `.mov` bytes landed under
+ * an mp4 label in `storage.objects.metadata`. `classifyVideoAsset` resolves it against
+ * `MEDIA_LIMITS.VIDEO_MIME_TYPES`, which the bucket's `allowed_mime_types` mirrors.
  */
 export function useCandidacyUpload(
   uid: string,
@@ -48,6 +64,8 @@ export function useCandidacyUpload(
   videoPath: string | null;
   thumbPath: string | null;
   status: UploadStatus;
+  /** Why the attempt failed, when `status` is `'error'`. Null otherwise. */
+  failure: VideoFailure | null;
   /** Whole percent 0–100, or null while the total is unknown. */
   progress: number | null;
   pick: () => Promise<void>;
@@ -58,23 +76,29 @@ export function useCandidacyUpload(
   const [videoPath, setVideoPath] = useState<string | null>(null);
   const [thumbPath, setThumbPath] = useState<string | null>(null);
   const [status, setStatus] = useState<UploadStatus>('idle');
+  const [failure, setFailure] = useState<VideoFailure | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
   // Unmount = abandon: abort whatever is in flight so the transfer dies with the screen.
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  async function handle(asset: PickedMedia | null): Promise<void> {
-    if (!asset || asset.kind !== 'video') return;
+  const fail = (reason: VideoFailure) => {
+    setStatus('error');
+    setFailure(reason);
+  };
+
+  async function transfer(asset: PickedMedia, contentType: string): Promise<void> {
     const controller = new AbortController();
     controllerRef.current = controller;
     setProgress(null);
+    setFailure(null);
     setStatus('uploading');
     try {
       const path = candidacyVideoPath(uid, candidacyId);
       // Raw video through the shared tail (#294 rerouted this off its own fetch→arrayBuffer
       // copy): `uploadLocalFile` streams the file and carries the signal + progress.
-      await uploadLocalFile(asset.uri, { bucket: 'candidacy-videos', path }, 'video/mp4', {
+      await uploadLocalFile(asset.uri, { bucket: 'candidacy-videos', path }, contentType, {
         signal: controller.signal,
         onProgress: ({ loaded, total }) => {
           if (total === null || total <= 0) return;
@@ -88,28 +112,53 @@ export function useCandidacyUpload(
       );
       setStatus('done');
     } catch (err) {
-      setStatus(uploadFailureStatus(err));
+      const outcome = uploadFailureOutcome(err);
+      setStatus(outcome.status);
+      setFailure(outcome.failure);
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null;
     }
   }
 
-  // Guarded launchers: this path has no MediaSheet/primer, so ensure the
-  // permission first (denied/blocked → status 'error', surfaced by the wizard's
-  // candidacy.error.video on Continue) and never let a native throw escape.
-  async function launch(kind: 'record' | 'pick'): Promise<void> {
+  /**
+   * Resolve the permission, launch the picker, and report whatever went wrong.
+   *
+   * Camera is a real gate: nothing records without the grant, so a denied or blocked one ends
+   * the attempt with a message and — when blocked — a route into Settings.
+   *
+   * Library is NOT a gate. `PHPickerViewController` has been the default picker on iOS 14+
+   * since expo-image-picker 13 (CHANGELOG #18871); it presents out-of-process and returns an
+   * asset with no photo-library authorization at all, and `launchImageLibraryAsync`'s own docs
+   * say the permission is required «on iOS 10 only». Demanding `granted` anyway is what made
+   * this button permanently inert in Expo Go, where the photo grant is shared across every
+   * project so one «Non consentire» tapped in any of them blocks it forever. So we PEEK
+   * without prompting and launch regardless; the peek is kept only to explain a launch that
+   * then throws — on a platform where the grant does matter, that is the blocked grant, and
+   * it is worth a Settings route rather than a bare «non riuscito».
+   */
+  async function launch(source: 'record' | 'library'): Promise<void> {
+    let libraryBlocked = false;
     try {
-      const perm =
-        kind === 'record' ? await ensureCameraPermission() : await ensureLibraryPermission();
-      if (perm !== 'granted') {
-        setStatus('error');
+      if (source === 'record') {
+        const denial = permissionFailure('camera', await ensureCameraPermission());
+        if (denial) {
+          fail(denial);
+          return;
+        }
+      } else {
+        libraryBlocked = (await peekLibraryPermission()) === 'blocked';
+      }
+      const picked = await pickVideo(source);
+      // Backing out of the picker is not a failure and must not overwrite what the tile says:
+      // a member who cancels after a rejection should still be reading why it was rejected.
+      if (picked.outcome === 'canceled') return;
+      if (picked.outcome === 'rejected') {
+        fail(picked.reason);
         return;
       }
-      const asset =
-        kind === 'record' ? await recordVideo() : await pickFromLibrary({ allowVideo: true });
-      await handle(asset);
+      await transfer(picked.media, picked.contentType);
     } catch {
-      setStatus('error');
+      fail(source === 'library' && libraryBlocked ? 'library-blocked' : 'failed');
     }
   }
 
@@ -118,8 +167,9 @@ export function useCandidacyUpload(
     videoPath,
     thumbPath,
     status,
+    failure,
     progress,
-    pick: () => launch('pick'),
+    pick: () => launch('library'),
     record: () => launch('record'),
     cancel: () => controllerRef.current?.abort(),
   };
@@ -138,10 +188,11 @@ export function useCandidacyUpload(
  * asymmetry deliberately).
  *
  * Extraction reads the *picked* local URI, not the uploaded object — nothing is downloaded back.
- * That's safe here specifically because `handle` above uploads that same `asset.uri` raw, with no
- * processing step in between; unlike `use-moment-upload`, which extracts from `processAndUpload`'s
- * *processed* `localUri` because a future video transcode would otherwise leave the poster reading
- * a frame of a video nobody uploaded (see the caution in `upload.ts`'s `processAndUpload`).
+ * That's safe here specifically because `transfer` above uploads that same `asset.uri` raw, with
+ * no processing step in between; unlike `use-moment-upload`, which extracts from
+ * `processAndUpload`'s *processed* `localUri` because a future video transcode would otherwise
+ * leave the poster reading a frame of a video nobody uploaded (see the caution in `upload.ts`'s
+ * `processAndUpload`).
  *
  * The poster shares the video's `{uid}/…` folder, so it is covered by the same candidacy-videos
  * policies (including the identity-verified + open-window insert gate, which the video just

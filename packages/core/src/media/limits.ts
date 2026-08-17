@@ -32,6 +32,28 @@ export const MEDIA_LIMITS = {
   AVATAR_QUALITY: 0.8,
   /** Hard cap on a personal/post video length. */
   MAX_VIDEO_SECONDS: 60,
+  /**
+   * Hard cap on the bytes of a picked video, checked BEFORE the upload starts (#412).
+   *
+   * 100 MiB is not a taste: it is exactly `MAX_BYTES` in `supabase/functions/media-process`,
+   * which skips any object above it because the edge isolate would OOM holding ~2× the file.
+   * A larger video therefore uploads for minutes over a phone connection and then silently
+   * misses the server-side strip — so the number the client accepts is the number the
+   * backstop can still process, and the member is told «troppo pesante» in one second
+   * instead of finding out never.
+   */
+  MAX_VIDEO_BYTES: 100 * 1024 * 1024,
+  /**
+   * The video container types an upload may declare. Mirrors the `candidacy-videos` bucket's
+   * `allowed_mime_types` and the pgTAP assertion in `0043_candidacy_videos_storage.test.sql`.
+   *
+   * QuickTime is here because an iPhone camera records `.mov`, and Expo Go cannot transcode
+   * (a native module would break App Store Expo Go, which is the only way this app reaches
+   * testers — mobile.md). The alternative to accepting it was mislabelling it `video/mp4`,
+   * which is what `use-candidacy-upload` used to do: the header passed the bucket check while
+   * QuickTime bytes landed under an mp4 label in `storage.objects.metadata`.
+   */
+  VIDEO_MIME_TYPES: ['video/mp4', 'video/quicktime'],
   /** Max media items attached to one post (multi-image). */
   MAX_POST_MEDIA: 10,
   /** Caption character cap (matches moments.caption CHECK). */

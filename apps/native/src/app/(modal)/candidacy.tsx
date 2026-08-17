@@ -49,7 +49,9 @@ import { Screen } from '@/components/Screen';
  *
  * The steps themselves, their catalog keys and every gating rule live in
  * `@/lib/candidacy-wizard` (#385) — this file mounts them. Adding a step is one entry there.
- * Gated by identity_verified (real gate — M9 wires the Stripe Identity webhook).
+ * Gated by identity_verified (real gate — M9 wires the Stripe Identity webhook). The gate is
+ * stated twice on purpose (#412): on step 4, because the candidacy-videos insert policy refuses
+ * the blob without it, and at submit, because the row INSERT refuses too.
  * Window-closed guard: if no open edition or candidacy_window_open=false → empty-state.
  * No Aura is awarded for candidacy (rule #1, asserted in pgTAP).
  *
@@ -367,9 +369,31 @@ function WizardForm({
             ) : null}
             {active.key === 'video' ? (
               <View className="gap-3">
+                {/* id-gate, stated where it bites (#412). Storage refuses the video object
+                    itself unless identity_verified — the candidacy-videos insert policy
+                    (20260617234036) carries the same precondition as the row INSERT — so an
+                    unverified member used to walk four steps, get a 403 that rendered as
+                    nothing, and only meet this sentence on step 7. No glow: a gate is not a
+                    moment (rule #4). */}
+                {!profile?.identity_verified ? (
+                  <View className="gap-2 rounded-card border border-hair bg-raise px-4 py-3">
+                    <Text className="text-[13px] leading-[18px] text-muted-foreground">
+                      {t('candidacy.idGate', locale)}
+                    </Text>
+                    <Pressable
+                      onPress={() => router.push('/(modal)/verify')}
+                      accessibilityRole="button"
+                    >
+                      <Text className="text-[13px] font-semibold text-aura">
+                        {t('candidacy.idGate.cta', locale)}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
                 <VideoUploadTile
                   locale={locale}
                   status={upload.status}
+                  failure={upload.failure}
                   progress={upload.progress}
                   onPick={upload.pick}
                   onRecord={upload.record}
@@ -482,7 +506,9 @@ function WizardForm({
           {/* Error caption */}
           {error ? <Text className="mt-3 text-[13px] text-error">{error}</Text> : null}
 
-          {/* id-gate CTA stub (last step only, unverified identity) */}
+          {/* id-gate CTA (last step, unverified identity). Step 4 carries its own copy of this
+              beside the upload tile (#412) — the same gate, said at both places it decides
+              something: the video write and the row write. */}
           {isLast && !profile?.identity_verified ? (
             <Pressable
               className="mt-4"

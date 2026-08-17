@@ -12,7 +12,10 @@ select plan(12);
 
 select ok((select not public from storage.buckets where id='candidacy-videos'), 'bucket is private');
 select is((select file_size_limit from storage.buckets where id='candidacy-videos'), 209715200::bigint, '200MB limit');
-select is((select allowed_mime_types from storage.buckets where id='candidacy-videos'), array['video/mp4','image/jpeg'], 'mp4 video + jpeg poster');
+-- #412 widened this to accept QuickTime: an iPhone records .mov and the client used to
+-- mislabel it 'video/mp4' to get past this very list. The client mirrors the two video
+-- entries in MEDIA_LIMITS.VIDEO_MIME_TYPES; image/jpeg is the poster frame (#282).
+select is((select allowed_mime_types from storage.buckets where id='candidacy-videos'), array['video/mp4','video/quicktime','image/jpeg'], 'mp4 + quicktime video, jpeg poster');
 select ok(exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='candidacy_videos_insert_own'), 'insert-own policy');
 
 -- The insert gate must match the candidacy precondition (no orphan blobs): the video write
