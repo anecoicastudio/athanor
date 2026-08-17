@@ -41,13 +41,64 @@ export class UploadStalledError extends Error {
   }
 }
 
+/**
+ * The status a storage-api envelope declares inside a body, or null when the body is not one.
+ *
+ * Total by construction, and it must stay that way: this runs while an Error is being built,
+ * and an exception thrown there would replace a nameable failure with a crash. Hence the
+ * `startsWith('{')` fast path (an HTML error page or an empty body never reaches `JSON.parse`)
+ * and the try/catch around the parse itself.
+ */
+function envelopeStatus(body: string): number | null {
+  const trimmed = body.trim();
+  if (!trimmed.startsWith('{')) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  // storage-api sends it as a STRING ("403"); accept a number too rather than depend on that.
+  const raw = (parsed as { statusCode?: unknown }).statusCode;
+  const n = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN;
+  if (!Number.isInteger(n) || n < 100 || n > 599) return null;
+  return n;
+}
+
+/**
+ * The status the server *meant*, as opposed to the one it put on the wire.
+ *
+ * storage-api has two generations: the older one wraps every `StorageBackendError` in an HTTP
+ * 400 and states the real status in the body (`{"statusCode":"403",…}` for an RLS denial,
+ * `"413"` past the bucket ceiling, `"415"` outside `allowed_mime_types`), while the newer one
+ * answers the real status directly. Resolving one effective status here means the copy layer
+ * has a single rule that is correct under both, instead of a special case per generation.
+ *
+ * Only a 400 is ever promoted, and only when the server itself declared the status — so an
+ * ordinary bad request stays a bad request. That precision matters: mislabelling a random 400
+ * as a 403 would tell a member to go verify their identity for a problem that has nothing to
+ * do with it (#412 is an issue about the app saying misleading things — do not add one).
+ */
+export function effectiveHttpStatus(status: number, body: string): number {
+  if (status !== 400) return status;
+  return envelopeStatus(body) ?? status;
+}
+
 /** The server answered outside 2xx. */
 export class UploadHttpError extends Error {
+  /** The status on the wire. Never rewritten — the transport does not lie about what arrived. */
   readonly status: number;
+  /** The response body verbatim; the only place an older storage-api states the real status. */
+  readonly body: string;
+  /** What the server meant (see {@link effectiveHttpStatus}). Map copy from THIS one. */
+  readonly effectiveStatus: number;
   constructor(status: number, body: string) {
     super(`upload-http-${status}${body ? `: ${body}` : ''}`);
     this.name = 'UploadHttpError';
     this.status = status;
+    this.body = body;
+    this.effectiveStatus = effectiveHttpStatus(status, body);
   }
 }
 

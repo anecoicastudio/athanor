@@ -35,6 +35,14 @@ describe('MEDIA_LIMITS', () => {
     expect(MEDIA_LIMITS.MAX_VIDEO_BYTES).toBe(100 * 1024 * 1024);
   });
 
+  it('bounds the poster extraction so a hung decoder cannot hold the tile (#412)', () => {
+    // The video is already in Storage by the time the poster runs, so waiting forever for a
+    // frame trades a finished upload for a spinner that never stops. Long enough that a normal
+    // clip finishes, short enough that a member notices nothing.
+    expect(MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS).toBe(15_000);
+    expect(MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS).toBeGreaterThan(0);
+  });
+
   it('accepts mp4 and quicktime — an iPhone records .mov (#412)', () => {
     // Mirrors the candidacy-videos bucket's allowed_mime_types (20260817… widening) and the
     // assertion in supabase/tests/0043_candidacy_videos_storage.test.sql. Rejecting quicktime

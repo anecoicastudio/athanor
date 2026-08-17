@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { t } from '@athanor/i18n';
 import {
@@ -8,13 +10,19 @@ import {
 import {
   type UploadStatus,
   type VideoFailure,
+  identityGateFailure,
   permissionFailure,
   uploadFailureOutcome,
   videoStatusMessage,
   videoStatusOffersSettings,
 } from './candidacy-video-status';
 
+/** The body an older storage-api wraps an RLS denial in — HTTP 400, real status inside. */
+const RLS_ENVELOPE =
+  '{"statusCode":"403","error":"Unauthorized","message":"new row violates row-level security policy"}';
+
 const FAILURES: readonly VideoFailure[] = [
+  'identity-unverified',
   'camera-denied',
   'camera-blocked',
   'library-denied',
@@ -148,6 +156,28 @@ describe('permissionFailure', () => {
   });
 });
 
+describe('identityGateFailure — refusing before the picker opens (#412)', () => {
+  it('a verified member is not refused', () => {
+    expect(identityGateFailure(true)).toBeNull();
+  });
+
+  it('an unverified member is refused, by name', () => {
+    expect(identityGateFailure(false)).toBe('identity-unverified');
+  });
+
+  it('the refusal says what the GATE says, not what a rejected upload says', () => {
+    // «Il tuo video non è stato accettato» would describe a video that was never picked.
+    expect(videoStatusMessage('error', identityGateFailure(false))).toBe('candidacy.idGate');
+    expect(videoStatusMessage('error', 'identity-unverified')).not.toBe(
+      videoStatusMessage('error', 'refused'),
+    );
+  });
+
+  it('the OS is not what said no, so Settings is not the way out', () => {
+    expect(videoStatusOffersSettings('error', 'identity-unverified')).toBe(false);
+  });
+});
+
 describe('uploadFailureOutcome — Storage answers the interesting refusals distinctly', () => {
   it('cancel and stall stay statuses, carrying no reason', () => {
     expect(uploadFailureOutcome(new UploadCanceledError())).toEqual({
@@ -170,6 +200,39 @@ describe('uploadFailureOutcome — Storage answers the interesting refusals dist
   it("413 is the bucket's size ceiling and 415 its mime allowlist", () => {
     expect(uploadFailureOutcome(new UploadHttpError(413, '')).failure).toBe('too-large');
     expect(uploadFailureOutcome(new UploadHttpError(415, '')).failure).toBe('unsupported-type');
+  });
+
+  it('the 400 an older storage-api wraps an RLS refusal in is still a refusal', () => {
+    // The device regression: this arrived as HTTP 400 and rendered «Caricamento non riuscito»
+    // instead of «Verifica la tua identità», so #412's own acceptance criterion was unmet.
+    expect(uploadFailureOutcome(new UploadHttpError(400, RLS_ENVELOPE))).toEqual({
+      status: 'error',
+      failure: 'refused',
+    });
+  });
+
+  it('a wrapped 413/415 reads the same as a bare one', () => {
+    expect(uploadFailureOutcome(new UploadHttpError(400, '{"statusCode":"413"}')).failure).toBe(
+      'too-large',
+    );
+    expect(uploadFailureOutcome(new UploadHttpError(400, '{"statusCode":"415"}')).failure).toBe(
+      'unsupported-type',
+    );
+  });
+
+  it('a 400 that is merely a bad request stays a plain failure', () => {
+    // Precision matters here: telling a member to verify their identity over an unrelated
+    // 400 would be a NEW instance of the misleading-message defect this issue is about.
+    for (const body of ['', '<html>nope</html>', '{"statusCode":"400","error":"InvalidRequest"}']) {
+      expect(uploadFailureOutcome(new UploadHttpError(400, body)).failure, body).toBe('failed');
+    }
+  });
+
+  it('an expired token is not an identity problem', () => {
+    expect(
+      uploadFailureOutcome(new UploadHttpError(400, '{"statusCode":"401","error":"Invalid JWT"}'))
+        .failure,
+    ).toBe('failed');
   });
 
   it('any other HTTP status is a plain failure, not a guess', () => {
@@ -203,5 +266,56 @@ describe('uploadFailureOutcome — Storage answers the interesting refusals dist
       const { status, failure } = uploadFailureOutcome(err);
       expect(videoStatusMessage(status, failure)).not.toBeNull();
     }
+  });
+});
+
+describe('the launch path refuses before it opens anything (#412, source audit)', () => {
+  // Same idiom as candidacy-wizard.test.ts:364 — `environment: 'node'` cannot render a screen
+  // or drive a picker, so ordering that must hold on device is pinned by reading the source.
+  const SRC = fileURLToPath(new URL('.', import.meta.url).href);
+  const read = (rel: string) => readFileSync(`${SRC}${rel}`, 'utf8');
+
+  it('gates on identity BEFORE any permission prompt or picker launch', () => {
+    // The one assertion that pins «never open the camera». Sliced from the function body so
+    // the import line at the top cannot satisfy it.
+    const source = read('media/use-candidacy-upload.ts');
+    const body = source.slice(source.indexOf('async function launch('));
+    expect(body).not.toBe('');
+    const gate = body.indexOf('identityGateFailure(');
+    expect(gate, 'launch() does not gate on identity at all').toBeGreaterThan(-1);
+    for (const opener of ['ensureCameraPermission(', 'peekLibraryPermission(', 'pickVideo(']) {
+      const at = body.indexOf(opener);
+      // > -1 too, so a rename fails loudly instead of passing vacuously.
+      expect(at, `missing ${opener}`).toBeGreaterThan(-1);
+      expect(gate, `identity gate must precede ${opener}`).toBeLessThan(at);
+    }
+  });
+
+  it('the screen hands the hook the CURRENT flag', () => {
+    expect(read('../app/(modal)/candidacy.tsx')).toContain(
+      'identityVerified: profile?.identity_verified',
+    );
+  });
+
+  it('the buttons stay live — a dead button is the defect this issue was filed about', () => {
+    const source = read('../app/(modal)/candidacy.tsx');
+    expect(source).toContain('onPick={upload.pick}');
+    expect(source).toContain('onRecord={upload.record}');
+  });
+
+  it('the refusal always has a route out', () => {
+    expect(read('../app/(modal)/candidacy.tsx')).toContain("t('candidacy.idGate.cta'");
+  });
+
+  it('the verify sheet re-reads the profile the gate is decided from', () => {
+    // Without this the AuthContext profile is hydrated once per session, and a member who
+    // just verified would find step 4 refusing forever.
+    expect(read('../app/(modal)/verify.tsx')).toContain('refreshProfile()');
+  });
+
+  it('the poster wait is bounded, so a hung decoder cannot hold the tile', () => {
+    const source = read('media/use-candidacy-upload.ts');
+    expect(source).toContain('withTimeout(');
+    expect(source).toContain('VIDEO_POSTER_TIMEOUT_MS');
   });
 });

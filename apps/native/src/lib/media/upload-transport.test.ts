@@ -202,3 +202,70 @@ describe('uploadFailureStatus', () => {
     expect(uploadFailureStatus(new Error('boom'))).toBe('error');
   });
 });
+
+describe('UploadHttpError — the status storage-api MEANT (#412)', () => {
+  // Older storage-api wraps every StorageBackendError in an HTTP 400 and states the real
+  // status inside the body; newer generations answer the real status on the wire. A copy
+  // layer must read the same thing under both, which is what `effectiveStatus` resolves.
+  const RLS_BODY =
+    '{"statusCode":"403","error":"Unauthorized","message":"new row violates row-level security policy"}';
+
+  it('never lies about what arrived on the wire', () => {
+    expect(new UploadHttpError(400, RLS_BODY).status).toBe(400);
+  });
+
+  it('carries the body verbatim, empty included', () => {
+    expect(new UploadHttpError(400, RLS_BODY).body).toBe(RLS_BODY);
+    expect(new UploadHttpError(500, '').body).toBe('');
+  });
+
+  it('promotes the 400 an older storage-api wrapped a 403 in', () => {
+    expect(new UploadHttpError(400, RLS_BODY).effectiveStatus).toBe(403);
+  });
+
+  it('takes a real 403 at its word, no body needed', () => {
+    expect(new UploadHttpError(403, '').effectiveStatus).toBe(403);
+  });
+
+  it('leaves an unrelated 400 exactly where it is', () => {
+    for (const body of [
+      '',
+      'Bad Request',
+      '<html><body>nope</body></html>',
+      '{}',
+      'null',
+      '{"statusCode":"400","error":"InvalidRequest"}',
+      '{"statusCode":"nope"}',
+      '[{"statusCode":"403"}]',
+    ]) {
+      expect(new UploadHttpError(400, body).effectiveStatus, JSON.stringify(body)).toBe(400);
+    }
+  });
+
+  it('never reads an envelope out of a non-400 — the anti-superstition pin', () => {
+    expect(new UploadHttpError(500, '{"statusCode":"403"}').effectiveStatus).toBe(500);
+    expect(new UploadHttpError(404, '{"statusCode":"403"}').effectiveStatus).toBe(404);
+  });
+
+  it('tolerates a numeric statusCode as well as a string one', () => {
+    expect(new UploadHttpError(400, '{"statusCode":403}').effectiveStatus).toBe(403);
+  });
+
+  it('rejects a statusCode outside the HTTP range', () => {
+    expect(new UploadHttpError(400, '{"statusCode":"99"}').effectiveStatus).toBe(400);
+    expect(new UploadHttpError(400, '{"statusCode":"600"}').effectiveStatus).toBe(400);
+    expect(new UploadHttpError(400, '{"statusCode":"403.5"}').effectiveStatus).toBe(400);
+  });
+
+  it('survives a giant non-JSON body without throwing', () => {
+    // Throwing while CONSTRUCTING an error is the worst failure mode there is; the
+    // startsWith('{') fast path exists so a JSON.parse is never even attempted here.
+    expect(new UploadHttpError(400, 'x'.repeat(100_000)).effectiveStatus).toBe(400);
+  });
+
+  it('an expired token stays an expired token, not an identity problem', () => {
+    expect(
+      new UploadHttpError(400, '{"statusCode":"401","error":"Invalid JWT"}').effectiveStatus,
+    ).toBe(401);
+  });
+});

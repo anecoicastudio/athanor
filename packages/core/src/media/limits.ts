@@ -22,6 +22,18 @@ export const MEDIA_LIMITS = {
    */
   VIDEO_POSTER_SECONDS: 0.5,
   /**
+   * How long a poster extraction may run before the caller gives up on it (#412).
+   *
+   * `extractVideoPoster` has no timeout of its own — neither `replaceAsync` nor
+   * `generateThumbnailsAsync` is bounded — and an HEVC clip the decoder must seek, or an
+   * iCloud-backed `PHAsset`, can take a very long time or never settle. That matters because
+   * the candidacy upload awaits the poster BEFORE it reports success: the video is already in
+   * Storage, so an unbounded wait trades a finished upload for a tile that spins forever.
+   * A poster is best-effort by design (it degrades to a null `thumb_path`), so bounding it
+   * costs a thumbnail and saves the submission.
+   */
+  VIDEO_POSTER_TIMEOUT_MS: 15_000,
+  /**
    * Long edge of a processed avatar (#76). The largest an avatar is ever drawn is the 104pt
    * profile hero, so even a 3× screen asks for ~312px; 512 leaves headroom without paying for
    * a camera original that every list row would then downscale on the fly. The bucket's own

@@ -25,7 +25,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function VerifyScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const me = profile?.id;
   const qc = useQueryClient();
@@ -61,12 +61,18 @@ export default function VerifyScreen() {
   useEffect(() => {
     if (state !== 'verified') return;
     setSessionPending(false);
+    // Re-read the AuthContext profile (#412). This query flipping is NOT enough: the context
+    // hydrates `profile` once per session (auth-context keys that effect on [userId, email],
+    // both stable, and onAuthStateChange re-reads it on nothing), so without this every screen
+    // gating on `profile.identity_verified` stays refused until the app restarts — including
+    // candidacy step 4, whose upload buttons now refuse on exactly that flag.
+    void refreshProfile();
     showToast(t('trust.verify.toast.verified', locale), 'moment');
     dismissTimer.current = setTimeout(() => router.back(), 1600);
     return () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
     };
-  }, [state, locale, router, showToast]);
+  }, [state, locale, router, showToast, refreshProfile]);
 
   useEffect(
     () => () => {

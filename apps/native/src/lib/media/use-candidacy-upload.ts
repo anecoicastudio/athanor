@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { candidacyThumbPath, candidacyVideoPath } from '@athanor/api';
+import { MEDIA_LIMITS } from '@athanor/core';
 import {
   type UploadStatus,
   type VideoFailure,
+  identityGateFailure,
   permissionFailure,
   uploadFailureOutcome,
 } from '@/lib/candidacy-video-status';
@@ -11,6 +13,7 @@ import { ensureCameraPermission, peekLibraryPermission } from './permissions';
 import { extractVideoPoster } from './poster';
 import { pickVideo } from './pick';
 import { uploadLocalFile } from './upload';
+import { withTimeout } from './with-timeout';
 import type { PickedMedia } from './pick';
 
 // The status/failure vocabulary and every status→message decision live in
@@ -58,7 +61,16 @@ export type { UploadStatus, VideoFailure };
  */
 export function useCandidacyUpload(
   uid: string,
-  existingId?: string,
+  opts: {
+    /**
+     * `profile.identity_verified`. Required rather than optional-defaulting-to-true: a
+     * forgotten argument must be a type error, not a silently disabled gate. Re-read on every
+     * render, so a member who verifies mid-wizard and comes back finds the buttons working.
+     */
+    identityVerified: boolean;
+    /** Edit flow (#226): reuse the row's id so a replacement PUTs the same storage key. */
+    existingId?: string;
+  },
 ): {
   candidacyId: string;
   videoPath: string | null;
@@ -72,6 +84,7 @@ export function useCandidacyUpload(
   record: () => Promise<void>;
   cancel: () => void;
 } {
+  const { identityVerified, existingId } = opts;
   const [candidacyId] = useState<string>(() => existingId ?? Crypto.randomUUID());
   const [videoPath, setVideoPath] = useState<string | null>(null);
   const [thumbPath, setThumbPath] = useState<string | null>(null);
@@ -107,8 +120,16 @@ export function useCandidacyUpload(
         },
       });
       setVideoPath(path);
+      // Bounded (#412): the video is already in Storage by now, so an unbounded poster does
+      // not delay a success — it HIDES one, leaving the tile spinning at 100% with Continue
+      // disabled, which reads exactly like a failed upload. A poster is best-effort by
+      // contract, so the deadline costs a thumbnail and saves the submission.
       setThumbPath(
-        await uploadPoster(uid, candidacyId, asset.uri, asset.duration_s, controller.signal),
+        await withTimeout(
+          uploadPoster(uid, candidacyId, asset.uri, asset.duration_s, controller.signal),
+          MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
+          null,
+        ),
       );
       setStatus('done');
     } catch (err) {
@@ -137,6 +158,14 @@ export function useCandidacyUpload(
    * it is worth a Settings route rather than a bare «non riuscito».
    */
   async function launch(source: 'record' | 'library'): Promise<void> {
+    // Before the permission, before the picker, before a single byte: Storage refuses this
+    // member's write anyway (the insert policy wants is_identity_verified), and finding that
+    // out after a minute of recording and a whole upload is what the device pass reported.
+    const gate = identityGateFailure(identityVerified);
+    if (gate) {
+      fail(gate);
+      return;
+    }
     let libraryBlocked = false;
     try {
       if (source === 'record') {

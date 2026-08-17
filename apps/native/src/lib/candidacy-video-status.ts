@@ -32,6 +32,7 @@ export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error' | 'canceled' 
  * tile retryable in a way an error does not, and they already had copy before this change.
  */
 export type VideoFailure =
+  | 'identity-unverified'
   | 'camera-denied'
   | 'camera-blocked'
   | 'library-denied'
@@ -55,6 +56,10 @@ export type VideoOutcome = {
  * without choosing its copy — the omission would not compile.
  */
 const FAILURE_MESSAGE: Record<VideoFailure, MessageKey> = {
+  // Refused before anything opened, because Storage would refuse the object anyway. The copy
+  // is the GATE's, not a rejected upload's: «il tuo video non è stato accettato» would describe
+  // a video that was never picked, and this issue exists because the app said misleading things.
+  'identity-unverified': 'candidacy.idGate',
   // Declined but the OS will ask again: say what is missing, the buttons below still work.
   'camera-denied': 'candidacy.step4.cameraDenied',
   'library-denied': 'candidacy.step4.libraryDenied',
@@ -124,21 +129,44 @@ export function permissionFailure(
 }
 
 /**
+ * Whether the member may even try, or is refused before anything opens (#412).
+ *
+ * The `candidacy-videos` insert policy requires `is_identity_verified()`, so an unverified
+ * member's upload is refused by Storage no matter what — after the camera has opened, after a
+ * minute of recording, and after the whole file has gone up the member's connection. The client
+ * already holds that fact on `profile.identity_verified`; spending all of that to re-learn it
+ * from the server is what produced the reported "spinner that never finished".
+ *
+ * The window half of the same policy (`fund_edition_open()`) is deliberately NOT pre-flighted
+ * here: the wizard already renders its own window-closed empty state, so a closed window is a
+ * race rather than a steady state, and a second client-side copy of that rule could disagree
+ * with the server's.
+ */
+export function identityGateFailure(identityVerified: boolean): VideoFailure | null {
+  return identityVerified ? null : 'identity-unverified';
+}
+
+/**
  * An upload rejection → the outcome the tile renders.
  *
  * Supersedes `uploadFailureStatus` on this path, which collapsed everything but cancel and
- * stall into a bare `'error'`. The HTTP statuses are read because Storage answers the three
+ * stall into a bare `'error'`. The statuses are read because Storage answers the three
  * interesting refusals distinctly: 403 is the insert gate (identity/window), 413 is the
  * bucket's 200 MB ceiling, 415 is `allowed_mime_types`. Anything else — a 5xx, a dropped
  * socket, a native throw — is a plain failure, which is honest rather than guessed.
+ *
+ * It reads `effectiveStatus`, not `status`: an older storage-api answers every one of those
+ * three as an HTTP 400 with the real code in the body, and on device that is exactly what
+ * turned a refused write into «Caricamento non riuscito» instead of «verifica la tua
+ * identità» — the acceptance criterion this issue was closed against.
  */
 export function uploadFailureOutcome(err: unknown): VideoOutcome {
   if (err instanceof UploadCanceledError) return { status: 'canceled', failure: null };
   if (err instanceof UploadStalledError) return { status: 'stalled', failure: null };
   if (err instanceof UploadHttpError) {
-    if (err.status === 403) return { status: 'error', failure: 'refused' };
-    if (err.status === 413) return { status: 'error', failure: 'too-large' };
-    if (err.status === 415) return { status: 'error', failure: 'unsupported-type' };
+    if (err.effectiveStatus === 403) return { status: 'error', failure: 'refused' };
+    if (err.effectiveStatus === 413) return { status: 'error', failure: 'too-large' };
+    if (err.effectiveStatus === 415) return { status: 'error', failure: 'unsupported-type' };
   }
   return { status: 'error', failure: 'failed' };
 }

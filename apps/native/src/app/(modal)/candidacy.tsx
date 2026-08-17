@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   candidacyKeys,
@@ -165,9 +165,19 @@ function WizardForm({
   const router = useRouter();
   const qc = useQueryClient();
   const { showToast } = useToast();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const locale = profile?.locale ?? 'it';
   const uid = profile?.id ?? '';
+
+  // Re-read the profile on focus while unverified (#412). The verify sheet refreshes it when
+  // the flag flips while that screen is mounted, but the Stripe webhook can land after the
+  // member has already closed it — and step 4's upload buttons now refuse on this flag, so a
+  // profile that never re-reads would turn a recoverable gate into a permanently dead button.
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.identity_verified) void refreshProfile();
+    }, [profile?.identity_verified, refreshProfile]),
+  );
 
   const [step, setStep] = useState(0); // 0–6 (displayed as steps 1–7)
   // One object rather than nine states: `prefillValues` is then the whole prefill path, and
@@ -187,7 +197,12 @@ function WizardForm({
   // Edit mode passes the existing id so a replacement video overwrites the same storage
   // key. A prefilled fresh submit (#221) gets a NEW id: the row is new and the prior
   // cycle's video object stays under the old candidacy's key, untouched.
-  const upload = useCandidacyUpload(uid, mode === 'edit' ? initial?.id : undefined);
+  const upload = useCandidacyUpload(uid, {
+    // The same precondition Storage enforces on the blob (#412) — checked here so the refusal
+    // costs a tap, not a recording plus a whole upload.
+    identityVerified: profile?.identity_verified ?? false,
+    existingId: mode === 'edit' ? initial?.id : undefined,
+  });
 
   // The author's single active dream — the only dream the wizard offers to link (D12);
   // RLS re-checks ownership server-side either way.
