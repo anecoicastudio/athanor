@@ -1340,6 +1340,7 @@
   "trust.verify.gate": "Verifica la tua identità per continuare",
   "trust.verify.success": "Identità verificata ✦",
   "trust.verify.error": "Verifica non riuscita. Riprova.",
+  "trust.verify.unavailable": "La verifica non è disponibile al momento. Non dipende da te: torna più tardi.",
   "trust.verify.toast.started": "Verifica avviata",
   "trust.verify.toast.verified": "Identità verificata",
   "verify.a11y.verified": "Identità verificata",

@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
+import { logStripeFailure } from '../_shared/stripe-error.ts';
 
 // Ticket-checkout construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -180,7 +181,10 @@ export async function createTicketCheckout(
       return error('could not start checkout', 500);
     }
     return json({ url: session.url });
-  } catch {
+  } catch (e) {
+    // Bound, not bare (#416): the seat release and the generic 500 are unchanged, but the
+    // Stripe reason now reaches the function logs instead of vanishing.
+    logStripeFailure('create-ticket-checkout: checkout.sessions.create', e);
     await releaseSeat();
     return error('could not start checkout', 500);
   }

@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
+import { logStripeFailure } from '../_shared/stripe-error.ts';
 
 // Onboarding construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -123,7 +124,10 @@ export async function createPayoutOnboarding(
     let account: Stripe.Account;
     try {
       account = await createAccount(buildPayoutAccountParams(profileId, email));
-    } catch {
+    } catch (e) {
+      // Bound, not bare (#416): the response stays exactly as generic as it was, but the Stripe
+      // reason now reaches the function logs instead of vanishing.
+      logStripeFailure('create-payout-onboarding: accounts.create', e);
       return error('could not start payout onboarding', 500);
     }
 
@@ -164,7 +168,10 @@ export async function createPayoutOnboarding(
     );
     if (!link.url) return error('could not start payout onboarding', 500);
     return json({ url: link.url });
-  } catch {
+  } catch (e) {
+    // Bound, not bare (#416): the response stays exactly as generic as it was, but the Stripe
+    // reason now reaches the function logs instead of vanishing.
+    logStripeFailure('create-payout-onboarding: accountLinks.create', e);
     return error('could not start payout onboarding', 500);
   }
 }

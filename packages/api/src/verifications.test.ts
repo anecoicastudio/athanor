@@ -125,6 +125,44 @@ describe('requestVerification', () => {
     const client = { functions: { invoke } } as unknown as AthanorClient;
     await expect(requestVerification(client)).rejects.toThrow('no verification session returned');
   });
+
+  // #416: the reason the server gave lives only in the error body. Reading it is what lets the
+  // sheet stop saying «Riprova» against a configuration failure that retrying cannot fix.
+  it.each([
+    ['verification unavailable', 503],
+    ['could not start verification', 500],
+  ])('surfaces the server code %s as a VerificationSessionError', async (code, status) => {
+    const invoke = vi.fn().mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error('non-2xx'), {
+        context: { status, json: () => Promise.resolve({ error: code }) },
+      }),
+    });
+    const client = { functions: { invoke } } as unknown as AthanorClient;
+    await expect(requestVerification(client)).rejects.toMatchObject({
+      name: 'VerificationSessionError',
+      code,
+      status,
+    });
+  });
+
+  it('falls back to the raw error when the body is unreadable', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error('relay down'), {
+        context: { status: 500, json: () => Promise.reject(new Error('not json')) },
+      }),
+    });
+    const client = { functions: { invoke } } as unknown as AthanorClient;
+    await expect(requestVerification(client)).rejects.toThrow('relay down');
+  });
+
+  it('falls back to the raw error when there is no context at all', async () => {
+    // FetchError/RelayError carry no Response — the network never got an answer.
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: new Error('fetch failed') });
+    const client = { functions: { invoke } } as unknown as AthanorClient;
+    await expect(requestVerification(client)).rejects.toThrow('fetch failed');
+  });
 });
 
 describe('subscribeVerifyStatus', () => {
