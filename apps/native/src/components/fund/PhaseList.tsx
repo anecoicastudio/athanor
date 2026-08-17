@@ -1,8 +1,7 @@
 import type { FundPhase } from '@athanor/schemas';
+import { OPEN_CYCLE_PHASES } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
-
-const PHASES: FundPhase[] = ['candidacy', 'screening', 'voting', 'announcement', 'realization'];
 
 /** One numbered phase row. Highlighted when `active`. */
 function PhaseRow({
@@ -57,14 +56,18 @@ function PhaseRow({
 }
 
 /**
- * Ordered list of the 5 open-cycle phases (candidacy → screening → voting → announcement →
+ * Ordered list of the open-cycle phases (candidacy → screening → voting → announcement →
  * realization; `closed` has no row — a closed cycle is not rendered as a step).
  * The row matching `current` is highlighted in cyan + carries the «in corso» chip.
+ *
+ * The list comes from `OPEN_CYCLE_PHASES` (`@athanor/core`), which derives from the zod enum —
+ * this file used to carry a fourth copy of the phase vocabulary (#382), so a phase added to the
+ * cycle silently went unrendered here.
  */
 export function PhaseList({ current, locale }: { current: FundPhase; locale: 'it' | 'en' }) {
   return (
     <View className="gap-0">
-      {PHASES.map((key, i) => (
+      {OPEN_CYCLE_PHASES.map((key, i) => (
         <PhaseRow key={key} index={i + 1} phaseKey={key} active={key === current} locale={locale} />
       ))}
     </View>

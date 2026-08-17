@@ -1,3 +1,5 @@
+import { isBallotOpen } from '@athanor/core';
+import type { FundEdition } from '@athanor/schemas';
 import { listState } from './list-state';
 
 /**
@@ -94,4 +96,74 @@ export function annualFundBody(state: FundCycleState): AnnualFundBody {
     case 'active':
       return 'live';
   }
+}
+
+/**
+ * Is the ballot open for the candidacy the DETAIL screen is showing — `true`, `false`, or `null`
+ * for «not known yet» (#382).
+ *
+ * `(modal)/candidacy/[id].tsx` never queried the edition at all, so its `votingClosed` state was
+ * unreachable while its own docblock claimed it rendered «the same Vota/Votato/Voto-chiuso» as
+ * the card. It now reads `fundKeys.activeEdition()` — the query annual.tsx has already warmed in
+ * the normal flow — and this is the rule that turns that read into an answer.
+ *
+ * Two things the list screen never has to decide:
+ *
+ * 1. **A cached edition may belong to a different cycle.** There is no by-id edition read
+ *    (`getActiveEdition` is the only getter), and a deep link can land on a candidacy from a
+ *    cycle that has since closed. Mismatched ids mean «not this ballot» — closed, fail-closed,
+ *    never the active cycle's window applied to a foreign candidacy.
+ * 2. **An unsettled read is `null`, not closed.** The card query and the edition query settle
+ *    independently here, and «Voto chiuso» asserted while the answer is in flight is the same
+ *    false claim as a flashed no-cycle announcement (#111/#224). A failed read is not evidence
+ *    the ballot shut either.
+ *
+ * The window rule itself is `isBallotOpen` from `@athanor/core` — phase AND window, NULL bounds
+ * shut (#414). Nothing about it is decided here.
+ */
+export function candidacyBallotOpen({
+  status,
+  edition,
+  candidacyEditionId,
+  nowMs,
+}: {
+  /** `query.status` from the `fundKeys.activeEdition()` query. */
+  status: 'pending' | 'error' | 'success';
+  /** `query.data` — the active edition, `null` on a settled empty read. */
+  edition: Pick<FundEdition, 'id' | 'phase' | 'voting_starts_at' | 'voting_ends_at'> | null;
+  /** `card.edition_id` — the cycle the candidacy on screen actually belongs to. */
+  candidacyEditionId: string;
+  nowMs: number;
+}): boolean | null {
+  if (status !== 'success') return null;
+  if (edition === null || edition.id !== candidacyEditionId) return false;
+  return isBallotOpen(edition, nowMs);
+}
+
+/**
+ * The candidacy detail screen's action state — `CandidateCard`'s `VoteState` minus `winner`,
+ * which that screen does not render (its docblock names three states, not four).
+ *
+ * Gate order is the card's, so the two surfaces cannot disagree about what wins: a shut ballot
+ * outranks an in-flight vote, which outranks a recorded one. An unknown ballot behaves as an
+ * open one — see `candidacyBallotOpen` — and the refusal, if it comes, arrives as copy.
+ */
+export type DetailVoteState = 'votingClosed' | 'voting' | 'voted' | 'notVoted';
+
+export function detailVoteState({
+  ballotOpen,
+  pending,
+  votedThis,
+}: {
+  /** `candidacyBallotOpen`'s answer; `null` means not known yet. */
+  ballotOpen: boolean | null;
+  /** the vote mutation is in flight */
+  pending: boolean;
+  /** this member's recorded vote is on THIS candidacy */
+  votedThis: boolean;
+}): DetailVoteState {
+  if (ballotOpen === false) return 'votingClosed';
+  if (pending) return 'voting';
+  if (votedThis) return 'voted';
+  return 'notVoted';
 }

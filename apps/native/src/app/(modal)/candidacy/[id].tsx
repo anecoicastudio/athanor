@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   candidacyKeys,
   castVote,
+  fundKeys,
+  getActiveEdition,
   getCandidateById,
   getEditionTally,
   getMyVote,
@@ -14,11 +16,12 @@ import {
 } from '@athanor/api';
 import { consensusForCandidacy, formatFundTotal } from '@athanor/core';
 import { semantic } from '@athanor/config';
-import { t, tagLabel } from '@athanor/i18n';
-import type { VoteState } from '@/components/fund/CandidateCard';
+import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { VoteBar } from '@/components/fund/VoteBar';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { authorParts, categoryLabel, confirmedHistory } from '@/lib/ballot-card';
+import { candidacyBallotOpen, detailVoteState } from '@/lib/fund-cycle';
+import { castVoteError } from '@/lib/vote-error';
 import { SectionLabel } from '@/components/SectionLabel';
 import { Tag } from '@/components/Tag';
 import { ListState } from '@/components/ListState';
@@ -36,6 +39,15 @@ import { Screen } from '@/components/Screen';
  * action & mutation as the card. Fetches via `getCandidateById` so deep links
  * work. Reduced-motion safe — no entrance animation here; the player only
  * autoplays muted on a loop.
+ *
+ * #382 made the «Voto chiuso» claim above true. This screen queried the candidacy, the tally and
+ * the member's own vote, but never the EDITION — so it knew neither the phase nor the ballot
+ * window, `votingClosed` was unreachable, and the docblock had been describing a state that could
+ * not render. It now reads `fundKeys.activeEdition()` (warmed by annual.tsx in the normal flow,
+ * refetched on a direct deep link, exactly as fund-disclosure.tsx does) and puts the answer
+ * through `candidacyBallotOpen` + `detailVoteState`. Its mutation also had no `onError` at all,
+ * so a refusal from `cast_vote` was indistinguishable from a tap that never registered; there is
+ * room for a sentence on this screen, so the message renders inline.
  *
  * #227 adds what the card has no room for: both money figures WITH the sentence
  * D11 requires beside the minimum (ballot information, never the shortfall gate
@@ -85,6 +97,16 @@ export default function CandidacyDetailScreen() {
     queryFn: () => getMyVote(supabase, editionId, uid!),
     enabled: !!editionId && !!uid,
   });
+  // The cycle itself (#382) — the phase and the ballot window this screen used to render its
+  // action without. Unconditional and un-keyed by id because `getActiveEdition` is the only
+  // getter there is; `candidacyBallotOpen` is what reconciles it with `card.edition_id`.
+  const editionQuery = useQuery({
+    queryKey: fundKeys.activeEdition(),
+    queryFn: () => getActiveEdition(supabase),
+  });
+  // Pinned per render pass, like annual.tsx: a window that closes while the screen sits open is
+  // not caught here, and that residual race is what the refusal copy below is for.
+  const nowMs = useRef(Date.now()).current;
 
   // Refetch the tally on focus — others' votes don't stream (own-row RLS).
   useFocusEffect(
@@ -95,14 +117,26 @@ export default function CandidacyDetailScreen() {
     }, [editionId, qc]),
   );
 
+  // #382: the vote path had NO error handling. «No toast host; the state is the feedback» was
+  // the stated reason, but the state fed back nothing — `isPending` cleared and the action
+  // returned to «Vota», which is what a tap that never fired also looks like. The state now
+  // carries the sentence.
+  const [voteErrorKey, setVoteErrorKey] = useState<MessageKey | null>(null);
+
   const vote = useMutation({
     mutationFn: () => castVote(supabase, { editionId, candidacyId: id }),
+    onMutate: () => setVoteErrorKey(null),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: voteKeys.mine(editionId) });
       qc.invalidateQueries({ queryKey: voteKeys.tally(editionId) });
     },
-    // On error the mutation resets `isPending` → the action falls back to «Vota»
-    // (no toast host; the state is the feedback).
+    onError: (err) => {
+      const { key, editionStale } = castVoteError(err);
+      setVoteErrorKey(key);
+      // 'voting closed' means the cached edition is wrong — re-read it so the action flips to
+      // «Voto chiuso» instead of inviting the same refusal again.
+      if (editionStale) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
+    },
   });
 
   const myVote = myVoteQuery.data ?? null;
@@ -153,11 +187,16 @@ export default function CandidacyDetailScreen() {
   }
 
   const consensus = consensusForCandidacy(tally, card.candidacy_id);
-  const voteState: VoteState = vote.isPending
-    ? 'voting'
-    : myVote?.candidacy_id === card.candidacy_id
-      ? 'voted'
-      : 'notVoted';
+  const voteState = detailVoteState({
+    ballotOpen: candidacyBallotOpen({
+      status: editionQuery.status,
+      edition: editionQuery.data ?? null,
+      candidacyEditionId: card.edition_id,
+      nowMs,
+    }),
+    pending: vote.isPending,
+    votedThis: myVote?.candidacy_id === card.candidacy_id,
+  });
   const title = card.title ?? card.category ?? '';
   const author = authorParts({
     handle: card.handle,
@@ -259,28 +298,44 @@ export default function CandidacyDetailScreen() {
         <VoteBar percent={consensus} locale={locale} />
         <Text className="text-[12px] text-muted-foreground">{t('fund.vote.equal', locale)}</Text>
 
-        {/* Action */}
-        <View className="flex-row items-center justify-start">
-          {voteState === 'voting' ? (
-            <View className="h-[44px] items-center justify-center px-5">
-              <ActivityIndicator color={semantic.aura} />
-            </View>
-          ) : voteState === 'voted' ? (
-            <View className="rounded-full border border-hair px-5 py-3">
-              <Text className="text-[14px] text-foreground">{t('fund.vote.done', locale)}</Text>
-            </View>
-          ) : (
-            <Pressable
-              className="rounded-full bg-aura px-6 py-3"
-              onPress={onVote}
-              accessibilityRole="button"
-              accessibilityLabel={t('fund.vote.cta', locale)}
-            >
-              <Text className="text-[14px] font-semibold tracking-wide text-on-aura">
-                {t('fund.vote.cta', locale)}
-              </Text>
-            </Pressable>
-          )}
+        {/* Action. `votingClosed` is the state this screen claimed to render and could not until
+            #382 gave it the edition: a quiet hairline chip, the same shape CandidateCard uses,
+            never a disabled cyan CTA — nothing happened, so nothing glows (rule #4). */}
+        <View className="gap-2">
+          <View className="flex-row items-center justify-start">
+            {voteState === 'votingClosed' ? (
+              <View className="rounded-full border border-hair px-5 py-3">
+                <Text className="text-[14px] text-muted-foreground">
+                  {t('fund.vote.closed', locale)}
+                </Text>
+              </View>
+            ) : voteState === 'voting' ? (
+              <View className="h-[44px] items-center justify-center px-5">
+                <ActivityIndicator color={semantic.aura} />
+              </View>
+            ) : voteState === 'voted' ? (
+              <View className="rounded-full border border-hair px-5 py-3">
+                <Text className="text-[14px] text-foreground">{t('fund.vote.done', locale)}</Text>
+              </View>
+            ) : (
+              <Pressable
+                className="rounded-full bg-aura px-6 py-3"
+                onPress={onVote}
+                accessibilityRole="button"
+                accessibilityLabel={t('fund.vote.cta', locale)}
+              >
+                <Text className="text-[14px] font-semibold tracking-wide text-on-aura">
+                  {t('fund.vote.cta', locale)}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* The refused vote, said out loud (#382). Same token as the contribution failure on
+              fund-disclosure.tsx — a refusal is not a passive hint. */}
+          {voteErrorKey ? (
+            <Text className="text-[12px] leading-4 text-error">{t(voteErrorKey, locale)}</Text>
+          ) : null}
         </View>
       </ScrollView>
     </FundChrome>

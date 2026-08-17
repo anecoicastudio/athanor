@@ -145,6 +145,37 @@ Deno.test("closed phase → 403 'the cycle is closed', Stripe never called", asy
   }
 });
 
+// ── the phase vocabulary, across the workspace boundary ─────────────────────────────────────
+//
+// `CONTRIBUTION_OPEN_PHASES` is the FOURTH enumeration of the cycle's phases (#382): the CHECK
+// constraint, the zod enum, `@athanor/core`'s `CONTRIBUTION_PHASES`, and this literal. Three of
+// them are now derived from one another; this one cannot be, because `supabase/functions` lives
+// outside the pnpm workspace and has no import path to a workspace package.
+//
+// So it is pinned the way `_shared/config-invariants.test.ts` pins the posture table: read the
+// other side's source off disk and assert agreement. A phase added to the enum and not here
+// silently refuses contributions in that phase with «the cycle is closed» — a 403 on a screen
+// that looks correct, which is the same class of failure as a missing grant.
+const SCHEMA_SOURCE = new URL('../../../packages/schemas/src/fund.ts', import.meta.url);
+
+Deno.test(
+  'CONTRIBUTION_OPEN_PHASES mirrors the zod phase enum, minus the terminal phase',
+  async () => {
+    const source = await Deno.readTextFile(SCHEMA_SOURCE);
+    const block = source.match(/export const fundPhaseSchema = z\.enum\(\[([^\]]*)\]\)/);
+    assert(block, 'fundPhaseSchema = z.enum([...]) not found — this mirror lost its subject');
+    const phases = [...block[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    // Guard the parse itself: an empty or one-element match would make the assertion below pass
+    // for the wrong reason, which is exactly the defect a mirror test exists to prevent.
+    assert(phases.length > 1, `parsed ${phases.length} phases out of the enum`);
+    assert(phases.includes('closed'), 'the enum must still carry the terminal phase');
+    assertEquals(
+      CONTRIBUTION_OPEN_PHASES,
+      phases.filter((p) => p !== 'closed'),
+    );
+  },
+);
+
 Deno.test('every open phase accepts — candidacy through realization (D34)', async () => {
   assertEquals(CONTRIBUTION_OPEN_PHASES, [
     'candidacy',
