@@ -1170,7 +1170,7 @@
   "fund.vote.error": "Il tuo voto non è stato registrato. Riprova.",
   "fund.vote.error.closed": "Il voto è chiuso. Questo ciclo non accetta più voti.",
   "fund.vote.error.notVotable": "Questo sogno non è più sulla scheda.",
-  "fund.vote.error.auth": "Entra per votare.",
+  "fund.vote.error.auth": "Accedi per votare.",
   "fund.candidate.playLabel": "Riproduci il video del sogno",
   "fund.candidate.budget": "Serve",
   "fund.candidate.minViable": "Per partire",

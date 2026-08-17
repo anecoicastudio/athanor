@@ -88,10 +88,14 @@ function instant(iso: string | null): number | null {
 }
 
 /**
- * The ballot window (FUND-15), mirroring `cast_vote`
- * (`20260815090015_cast_vote_window.sql:31-38`): phase `voting`, and `now` within
+ * The ballot window (FUND-15), mirroring `cast_vote`: phase `voting`, and `now` within
  * `[voting_starts_at, voting_ends_at]` — a CLOSED interval on both ends, so the first and last
  * millisecond both vote.
+ *
+ * The gate was written in `20260815090015_cast_vote_window.sql:31-38`; the LIVE body is
+ * `20260815164035_is_on_ballot.sql`, which replaced the candidacy predicate and carries the
+ * window clause verbatim. Read the later one — following the earlier ref alone lands on a
+ * superseded function.
  *
  * The phase is read before the window, matching the SQL's own order, so a cycle in
  * `announcement` reports its phase rather than the window it happens to have outgrown.

@@ -5,7 +5,14 @@ import type { MessageKey } from '@athanor/i18n';
  *
  * `cast_vote`'s `raise exception` strings are the stable contract — the same #103 idiom
  * `CONTRIB_ERROR_COPY` uses for `create-contribution-session`'s `{error}` strings. This map is
- * the client half; `20260815090015_cast_vote_window.sql` is the other, and pgTAP 0103 pins it.
+ * the client half; the live `cast_vote` body (`20260815164035_is_on_ballot.sql`, whose window
+ * gate is verbatim from `20260815090015_cast_vote_window.sql`) is the other.
+ *
+ * pgTAP `0044_candidacy_votes_rls` pins all three messages BY TEXT, not merely by SQLSTATE. That
+ * matters: `throws_ok` takes the expected message as its third argument, every vote assertion in
+ * that file passed `null` there until #382, and a `P0001`-only assertion stays green through any
+ * rewording — which would leave this map matching nothing, every refusal degrading to the
+ * generic sentence, and the stale-edition refetch never firing, with no test pointing at why.
  *
  * It exists because the vote path had NO copy at all. `annual.tsx`'s `onError` only rolled the
  * optimistic cache back and the detail screen had no `onError` whatsoever, so a refusal was

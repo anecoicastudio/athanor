@@ -4,8 +4,9 @@ import { CAST_VOTE_ERROR_COPY, castVoteError } from './vote-error';
 
 describe('CAST_VOTE_ERROR_COPY', () => {
   // The map's keys are `cast_vote`'s own `raise exception` strings, so the copy is only reached
-  // if they still read exactly as the migration writes them. Nothing here can assert the SQL
-  // (pgTAP 0103 does); what this pins is that the map has no invented codes and no dead rows.
+  // if they still read exactly as the migration writes them. The SQL side is pgTAP
+  // `0044_candidacy_votes_rls`, which pins all three by message text; what this pins is the
+  // other direction — that the map has no invented codes and no dead rows.
   it('maps exactly the three refusals cast_vote can raise', () => {
     expect(Object.keys(CAST_VOTE_ERROR_COPY).sort()).toEqual([
       'auth required',
