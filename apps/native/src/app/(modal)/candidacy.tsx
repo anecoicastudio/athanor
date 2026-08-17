@@ -13,7 +13,7 @@ import {
   submitCandidacy,
   updateCandidacy,
 } from '@athanor/api';
-import { MAX_SKILLS, SKILLS } from '@athanor/core';
+import { MAX_SKILLS, SKILLS, canSubmitCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { type DreamCandidacy, type FundEdition, projectCategorySchema } from '@athanor/schemas';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -98,7 +98,12 @@ export default function CandidacyWizard() {
     enabled: (editing || resubmitting) && !!edition && uid !== '',
   });
 
-  const windowClosed = editionQuery.isSuccess && (!edition || !edition.candidacy_window_open);
+  // The rule is `canSubmitCandidacy` (`@athanor/core`), which mirrors `public.fund_edition_open()`
+  // — the flag AND `phase <> 'closed'`. This read used to check the flag alone (#382), so a closed
+  // cycle whose window flag was never lowered offered the wizard over a storage policy and an
+  // INSERT that both refuse. `isSuccess` still gates the claim: an unsettled read is not a shut
+  // window (#111).
+  const windowClosed = editionQuery.isSuccess && (!edition || !canSubmitCandidacy(edition));
 
   // window-closed: no open edition or window shut → empty-state instead of the wizard.
   if (windowClosed) {

@@ -24,7 +24,7 @@ import {
   subscribeFundAggregate,
   voteKeys,
 } from '@athanor/api';
-import { MIN_CONTRIBUTION_CENTS, consensusForCandidacy } from '@athanor/core';
+import { MIN_CONTRIBUTION_CENTS, consensusForCandidacy, isBallotOpen } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
@@ -47,6 +47,7 @@ import {
   resolveFilter,
 } from '@/lib/ballot-card';
 import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
+import { castVoteError } from '@/lib/vote-error';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -160,8 +161,17 @@ export default function AnnualFundScreen() {
       );
       return { previous };
     },
-    onError: (_err, _candidacyId, context) => {
+    onError: (err, _candidacyId, context) => {
       qc.setQueryData(voteKeys.mine(editionId), context?.previous ?? null);
+      // #382: the rollback used to be the WHOLE error path, so a server refusal was
+      // indistinguishable from a tap that never landed — the card flipped back and said
+      // nothing. The ballot is a list, with no per-card slot for a sentence, so the Alert is
+      // the surface here; the detail screen has room and renders its message inline.
+      const { key, editionStale } = castVoteError(err);
+      Alert.alert(t(key, locale));
+      // 'voting closed' means the cached edition is wrong (the window moved, or was never
+      // published). Re-read it so the ballot flips to its real state instead of arguing.
+      if (editionStale) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: voteKeys.mine(editionId) });
@@ -258,9 +268,20 @@ export default function AnnualFundScreen() {
     posterPaths,
   );
 
+  /**
+   * The per-card action state. The ballot rule comes from `isBallotOpen` (`@athanor/core`), which
+   * mirrors `cast_vote` — phase AND the window — instead of the phase alone (#382). The window
+   * columns were already in hand: `getActiveEdition` is `select('*')`, so this screen fetched
+   * `voting_starts_at` / `voting_ends_at` and ignored them, and a `voting` cycle outside its
+   * window (or with the window never published, #414) rendered «Vota» over a vote the server
+   * refuses. A NULL window is treated as shut, exactly as the SQL treats it.
+   *
+   * `nowMs` is pinned per render pass (above), so a window that closes while the screen sits
+   * open is not caught here — that residual race is what the mutation's error copy is for.
+   */
   const voteStateFor = (card: CandidateCardModel): VoteState => {
     if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
-    if (edition && edition.phase !== 'voting') return 'votingClosed';
+    if (edition && !isBallotOpen(edition, nowMs)) return 'votingClosed';
     if (pendingCandidacyId === card.candidacy_id) return 'voting';
     if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
     return 'notVoted';

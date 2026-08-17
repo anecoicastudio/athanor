@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(29);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- two members. The handle_new_user trigger auto-creates their public.profiles rows.
@@ -146,7 +146,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select throws_ok(
   $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
-  'P0001', null, 'cast_vote phase-gated to voting (outside it → P0001)'
+  'P0001', 'voting closed', 'cast_vote phase-gated to voting (outside it → P0001)'
 );
 
 -- ── ballot-open gate (#217, FUND-15) ──────────────────────────────────────────────────
@@ -190,7 +190,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select throws_ok(
   $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
-  'P0001', null, 'a vote before voting_starts_at raises'
+  'P0001', 'voting closed', 'a vote before voting_starts_at raises'
 );
 
 reset role;
@@ -201,7 +201,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select throws_ok(
   $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
-  'P0001', null, 'a vote after voting_ends_at raises'
+  'P0001', 'voting closed', 'a vote after voting_ends_at raises'
 );
 
 reset role;
@@ -213,6 +213,27 @@ set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","r
 select lives_ok(
   $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
   'a vote inside the window succeeds'
+);
+
+-- ── the refusal STRINGS are a client contract (#382) ───────────────────────────────────
+-- `CAST_VOTE_ERROR_COPY` (apps/native/src/lib/vote-error.ts) keys the member-visible sentence
+-- off these exact messages — the same #103 idiom the contribution path uses — so the wording is
+-- API surface, not a diagnostic. The three window/phase assertions above now pin 'voting closed'
+-- by TEXT rather than by SQLSTATE alone; these two pin the remaining refusals. Reword one in a
+-- migration and this file goes red. Without that, the client silently degrades every refusal to
+-- its generic sentence and the stale-edition refetch stops firing — a quieter version of the
+-- silence #382 existed to end, with nothing pointing at the cause.
+select throws_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000ff') $$,
+  'P0001', 'candidacy not votable', 'the not-votable refusal keeps its exact message'
+);
+
+-- No `sub` claim → auth.uid() is null → the auth refusal, on 42501 rather than P0001. Last
+-- assertion that needs this role, and the D7 section below opens with `reset role`.
+set local request.jwt.claims = '{"role":"authenticated"}';
+select throws_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
+  '42501', 'auth required', 'the auth refusal keeps its exact message'
 );
 
 -- ── D7 tie order in candidacy_tally ───────────────────────────────────────────────────

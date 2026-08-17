@@ -109,6 +109,13 @@ function coverageRequested(coverFees: unknown): boolean {
  * realization included — post-snapshot money lands in the same cycle and carries forward.
  * Anything not listed (`closed`, or a phase this build does not know) refuses before
  * Stripe is ever called — money code fails closed.
+ *
+ * DUPLICATED, deliberately, exactly as the constants above are: `@athanor/core`'s
+ * `CONTRIBUTION_PHASES` derives the same five values from the zod enum for every TypeScript
+ * caller, and `supabase/functions` is outside the pnpm workspace with no import path to it.
+ * The two are kept honest by a mirror test in `logic.test.ts` that reads
+ * `packages/schemas/src/fund.ts` off disk and fails if the vocabulary drifts (#382, the
+ * `config-invariants` idiom).
  */
 export const CONTRIBUTION_OPEN_PHASES: readonly string[] = [
   'candidacy',
