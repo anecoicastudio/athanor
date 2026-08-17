@@ -27,7 +27,11 @@ describe('rowToDeckCard', () => {
     profession_pair: ['design', 'sviluppo'],
   };
 
-  it('maps an RPC row to a deck card of structured reasons', () => {
+  // All seven terms fired, and a card has room for three: the row above is exactly the
+  // case #384 was opened on. The three that survive are the ranked ones (`rankReasons`),
+  // not the first three the RPC listed — which used to be shared/seeking/offering every
+  // single time, so verified co-attendance and a complementary craft never showed at all.
+  it('maps an RPC row to a deck card of ranked, capped reasons', () => {
     expect(rowToDeckCard(row)).toEqual({
       id: '11111111-1111-1111-1111-111111111111',
       candidateId: '33333333-3333-3333-3333-333333333333',
@@ -36,15 +40,22 @@ describe('rowToDeckCard', () => {
       avatarPath: 'ma/ma.jpg',
       dreamText: 'Aprire uno studio',
       reasons: [
-        { kind: 'shared', tags: ['creativo'] },
-        { kind: 'seeking', tags: ['mentor'] },
-        { kind: 'offering', tags: ['investitore'] },
-        { kind: 'skills', tags: ['branding', 'sviluppo-web'] },
-        { kind: 'city', tags: ['Milano'] },
         { kind: 'mutualActivity', tags: ['Cena sotto le stelle'] },
         { kind: 'profession', tags: ['design', 'sviluppo'] },
+        { kind: 'seeking', tags: ['mentor'] },
       ],
     });
+  });
+
+  it('drops the ambient term first when four fired and three fit', () => {
+    // «Vicino a te» is the lowest-priority term — a fact about geography, not about
+    // them — so it is the one that yields when the card runs out of room.
+    const card = rowToDeckCard({ ...row, seek_hit: [], offer_hit: [], skills_shared: [] });
+    expect(card.reasons).toEqual([
+      { kind: 'mutualActivity', tags: ['Cena sotto le stelle'] },
+      { kind: 'profession', tags: ['design', 'sviluppo'] },
+      { kind: 'shared', tags: ['creativo'] },
+    ]);
   });
 
   // The reasons are TAG KEYS now, not prose (#273 D) — the card localizes them. A term

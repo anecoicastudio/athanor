@@ -10,8 +10,9 @@ import { AffinityRow } from './AffinityRow';
 /**
  * Per-proposal deck card (frontend §9): avatar + handle + read-only «✦ Aura» chip
  * (rule #1 — Aura is never client-rendered as a real number here; the chip carries
- * no digit at all, so it cannot be read as a score of zero), up to 3 affinity
- * reasons, and the peer's dream quote in the Hanken-italic dream register (the same
+ * no digit at all, so it cannot be read as a score of zero), the affinity reasons the
+ * API already ranked and capped (`rankReasons`, #384 — this card does not re-decide
+ * which ones fit), and the peer's dream quote in the Hanken-italic dream register (the same
  * `font-dream` quote treatment as DreamCard, never a UI font).
  */
 export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: Locale }) {
@@ -36,7 +37,11 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
         </View>
 
         <View className="mt-4 gap-1">
-          {card.reasons.slice(0, 3).map((reason) => (
+          {/* No slice: `rowToDeckCard` already ranked and capped these at
+              MOMENTO_DECK_REASON_LIMIT (#384). Slicing here as well made this component a
+              second, silent copy of the display policy — and since it cut the END of the
+              array, it cut exactly the two hardest-earned terms. */}
+          {card.reasons.map((reason) => (
             <AffinityRow key={reason.kind} reason={reason} locale={locale} />
           ))}
         </View>

@@ -14,14 +14,21 @@ import { PROFESSIONS } from './professions';
 import { SEEKING_TAGS } from './tags';
 
 /**
- * `affinity.ts` is the source of truth for the seeking → identity map, but the thing
- * that actually ranks Momenti is `athanor.seeking_to_identity()` inside a migration.
- * Two copies in two languages: the failure mode is that someone widens one of them
- * and the nightly matcher keeps scoring the old shape, silently, with every test
- * still green. `packages/schemas/src/password.mirror.test.ts` closes the same class
+ * The rulings in `affinity.ts` are made in TypeScript; the thing that actually ranks
+ * Momenti is SQL. Two copies in two languages: the failure mode is that someone widens
+ * one of them and the nightly matcher keeps scoring the old shape, silently, with every
+ * test still green. `packages/schemas/src/password.mirror.test.ts` closes the same class
  * of claim for the auth config.
  *
- * Reads the LAST migration that defines the function rather than a fixed filename —
+ * Every assertion here compares a VALUE — a parsed map, a parsed constant — against the
+ * TypeScript it mirrors. #384 deleted the ones that did not: the weights, the threshold
+ * and the geohash precision used to be pinned with regexes over the matcher's arithmetic
+ * (`case when city_near then 1 else 0 end`), so reformatting the sum silently unpinned
+ * the very number the assertion claimed to guard. They now live in
+ * `athanor.momento_affinity_constants()`, which the scoring expression reads, so a
+ * drifted value changes what the matcher does rather than only what it looks like.
+ *
+ * Reads the LAST migration that defines each function rather than a fixed filename —
  * migrations are append-only, so the current body is whichever one came last.
  */
 /**
@@ -57,6 +64,13 @@ function currentDefinition(fnName: string): string {
   const end = rest.indexOf('$$;', rest.indexOf('as $$') + 1);
   return rest.slice(0, end);
 }
+
+/** The definition with `--` comment lines removed, so prose never feeds a parser. */
+const withoutComments = (sql: string): string =>
+  sql
+    .split('\n')
+    .map((line) => line.replace(/--.*$/, ''))
+    .join('\n');
 
 /** The `('seeking', 'identity')` pairs of the VALUES list, as the map they encode. */
 function sqlMap(): Record<string, string[]> {
@@ -103,78 +117,48 @@ describe('athanor.profession_complements mirrors PROFESSION_COMPLEMENTS (#361)',
   });
 });
 
-describe('the matcher applies MOMENTO_AFFINITY_THRESHOLD', () => {
-  it('run_momenti_matcher filters on affinity >= the constant', () => {
-    // The SQL cannot import the constant, so assert the literal it hardcodes. A
-    // threshold change that lands in TS alone would otherwise ship a matcher that
-    // still proposes on the old bar.
-    const sql = currentDefinition('public\\.run_momenti_matcher');
-    expect(sql).toMatch(new RegExp(`where affinity >= ${MOMENTO_AFFINITY_THRESHOLD}\\b`));
+describe('athanor.momento_affinity_constants mirrors the tunables (#384)', () => {
+  it('encodes exactly the same values', () => {
+    // The `'key', value` arguments of the jsonb_build_object call, read as the object
+    // they build. Compared with toEqual, so an added, dropped or retuned key fails —
+    // and it fails on the VALUE, which is what the scoring expression reads.
+    const sql = withoutComments(currentDefinition('athanor\\.momento_affinity_constants'));
+    const out: Record<string, number> = {};
+    for (const [, key, value] of sql.matchAll(/'([a-z_]+)',\s*(\d+)/g)) out[key!] = Number(value);
+
+    expect(out).toEqual({
+      tag: AFFINITY_WEIGHTS.tag,
+      skill: AFFINITY_WEIGHTS.skill,
+      city: AFFINITY_WEIGHTS.city,
+      activity: AFFINITY_WEIGHTS.activity,
+      profession: AFFINITY_WEIGHTS.profession,
+      threshold: MOMENTO_AFFINITY_THRESHOLD,
+      activity_cap: MUTUAL_ACTIVITY_CAP,
+      geohash_precision: CITY_GEOHASH_MATCH_PRECISION,
+    });
   });
 });
 
-describe('the matcher mirrors AFFINITY_WEIGHTS (#123)', () => {
-  // Same contract as the threshold above: the SQL hardcodes each weight as a literal in
-  // the affinity expression, so a retune that lands in one language alone fails here.
-  it('hardcodes the tag, skill and city weights in the affinity sum', () => {
-    const sql = currentDefinition('public\\.run_momenti_matcher');
-    expect(sql).toMatch(
-      new RegExp(`\\(${AFFINITY_WEIGHTS.tag} \\* \\(coalesce\\(array_length\\(shared`),
-    );
-    expect(sql).toMatch(
-      new RegExp(`\\+ ${AFFINITY_WEIGHTS.skill} \\* coalesce\\(array_length\\(skills_shared`),
-    );
-    expect(sql).toMatch(new RegExp(`case when city_near then ${AFFINITY_WEIGHTS.city} else 0 end`));
-  });
-});
-
-describe('mutual activity mirrors core (#361)', () => {
-  it('run_momenti_matcher weighs the term at AFFINITY_WEIGHTS.activity, capped at MUTUAL_ACTIVITY_CAP', () => {
-    const sql = currentDefinition('public\\.run_momenti_matcher');
-    expect(sql).toMatch(
-      new RegExp(
-        `\\+ ${AFFINITY_WEIGHTS.activity} \\* least\\(${MUTUAL_ACTIVITY_CAP}, coalesce\\(array_length\\(mutual_activity`,
-      ),
-    );
-  });
-
-  it('both functions read verified check-ins, never RSVP intent', () => {
-    // The term is «you were both THERE», not «you both clicked going» — event_attendance
-    // rows exist only behind an organizer scan of a real ticket. A rewrite that quietly
-    // switched to rsvps would make the term free to farm.
+describe('the terms are computed once (#384)', () => {
+  it('the matcher and the deck both go through athanor.momento_terms, and neither re-derives a term', () => {
+    // The one structural claim `supabase/tests/0122_momento_terms_parity.test.sql`
+    // cannot make: parity only catches a second copy once it DISAGREES, and a fresh
+    // copy agrees on the day it is written. This catches it on that day instead.
     for (const fn of ['public\\.run_momenti_matcher', 'public\\.get_momenti_deck']) {
-      const sql = currentDefinition(fn);
-      expect(sql).toContain('public.event_attendance');
-      expect(sql).not.toContain('public.rsvps');
+      const sql = withoutComments(currentDefinition(fn));
+      expect(sql, `${fn} no longer calls athanor.momento_terms`).toContain(
+        'athanor.momento_terms(',
+      );
+      for (const helper of [
+        'athanor.tag_intersect',
+        'athanor.seeking_to_identity',
+        'athanor.profession_complements',
+      ]) {
+        expect(
+          sql,
+          `${fn} scores ${helper} itself instead of projecting the shared terms`,
+        ).not.toContain(helper);
+      }
     }
-  });
-});
-
-describe('profession complementarity mirrors core (#361)', () => {
-  it('run_momenti_matcher weighs the term at AFFINITY_WEIGHTS.profession, once', () => {
-    const sql = currentDefinition('public\\.run_momenti_matcher');
-    expect(sql).toMatch(
-      new RegExp(`case when profession_match then ${AFFINITY_WEIGHTS.profession} else 0 end`),
-    );
-  });
-
-  it('both functions resolve the pair through the shared map function', () => {
-    // The map lives ONCE on the SQL side. A deck that re-encoded the pairs inline
-    // would drift from the matcher the first time the map is retuned.
-    for (const fn of ['public\\.run_momenti_matcher', 'public\\.get_momenti_deck']) {
-      expect(currentDefinition(fn)).toContain('athanor.profession_complements');
-    }
-  });
-});
-
-describe('city proximity compares prefixes at CITY_GEOHASH_MATCH_PRECISION (#123)', () => {
-  it('run_momenti_matcher truncates both geohashes to the constant', () => {
-    const sql = currentDefinition('public\\.run_momenti_matcher');
-    expect(sql).toMatch(new RegExp(`left\\(r\\.city_geohash, ${CITY_GEOHASH_MATCH_PRECISION}\\)`));
-  });
-
-  it('get_momenti_deck recomputes the term at the same precision', () => {
-    const sql = currentDefinition('public\\.get_momenti_deck');
-    expect(sql).toMatch(new RegExp(`left\\(me\\.city_geohash, ${CITY_GEOHASH_MATCH_PRECISION}\\)`));
   });
 });

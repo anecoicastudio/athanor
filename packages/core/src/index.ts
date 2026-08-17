@@ -15,6 +15,7 @@ export * from './onboarding/professions';
 export * from './onboarding/skills';
 export * from './onboarding/geohash';
 export * from './onboarding/affinity';
+export * from './momenti/reasons';
 export * from './onboarding/complete';
 export * from './onboarding/handle';
 export * from './onboarding/validate';

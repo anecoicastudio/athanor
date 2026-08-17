@@ -69,6 +69,10 @@ export function MomentiCard({ locale }: { locale: Locale }) {
   // A card always carries a dream — `get_momenti_deck()` inner-joins the candidate's newest
   // active dream — but `reasons` can be empty when the candidate has masked every term, so the
   // guard below stays.
+  //
+  // [0] is the BEST reason, not the first one the RPC happened to emit: `rowToDeckCard` ranks
+  // them (`rankReasons`, #384). This widget has one line to spend, so it spends it on the term
+  // that says the most — verified co-attendance before a shared identity label.
   const reason = top.reasons[0];
 
   return (
