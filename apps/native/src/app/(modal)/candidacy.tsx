@@ -13,7 +13,7 @@ import {
   submitCandidacy,
   updateCandidacy,
 } from '@athanor/api';
-import { MAX_SKILLS, SKILLS } from '@athanor/core';
+import { MAX_SKILLS, SKILLS, parseEuroIntegerToCents } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import {
   type DreamCandidacy,
@@ -191,10 +191,10 @@ function WizardForm({
   const activeDream = dreamQuery.data ?? null;
 
   // Whole euros typed by the member → integral cents; null when not a plain positive integer.
-  const euroToCents = (v: string): number | null =>
-    /^\d+$/.test(v.trim()) && Number(v.trim()) > 0 ? Number(v.trim()) * 100 : null;
-  const budgetCents = euroToCents(budgetEuro);
-  const minViableCents = euroToCents(minViableEuro);
+  // The parser lives in @athanor/core (#387) — it was an untested inline const here, and the
+  // «numeri interi» promise in the catalogs is a contract worth a test.
+  const budgetCents = parseEuroIntegerToCents(budgetEuro);
+  const minViableCents = parseEuroIntegerToCents(minViableEuro);
   const budgetValid =
     budgetCents !== null && minViableCents !== null && minViableCents <= budgetCents;
 

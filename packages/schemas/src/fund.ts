@@ -71,10 +71,28 @@ export const fundAggregateSchema = z.object({
 });
 export type FundAggregate = z.infer<typeof fundAggregateSchema>;
 
+/**
+ * The minimum contribution: €1 (PRD §4.11). THE declaration for every TypeScript caller —
+ * the schema below derives its floor from it, `@athanor/core` re-exports it for the parser
+ * and the screens, and nothing spells the number again (#387).
+ *
+ * It lives in `packages/schemas`, not in `@athanor/core`, because schemas is the leaf of the
+ * dependency graph: core already depends on schemas, so the reverse import would close a
+ * cycle. A floor is a validation bound before it is domain logic, which makes this its home
+ * rather than a compromise.
+ *
+ * Two declarations remain outside TypeScript's reach and are mirrored by value, not imported:
+ * the DB CHECK in `20260618153032_m7_contributions.sql` (pinned by pgTAP 0118) and
+ * `supabase/functions/create-contribution-session/logic.ts`, which is outside the pnpm
+ * workspace. Change this and change those — each has a named test that fails if you do not.
+ */
+export const MIN_CONTRIBUTION_CENTS = 100;
+
 /** Client → `create-contribution-session` edge-fn input (backend 08 §3.2). Min €1, no max. */
 export const contributionSessionInputSchema = z.object({
   editionId: z.string().uuid(),
-  amountCents: z.number().int().min(100), // ≥ €1 (PRD §4.11) — the GIFT, never the charge
+  // ≥ €1 (PRD §4.11) — the GIFT, never the charge. Derived, never restated.
+  amountCents: z.number().int().min(MIN_CONTRIBUTION_CENTS),
   // #236: the optional fee coverage. Optional in every sense — omitted means declined, which
   // is what the unticked checkbox sends (CRD 2011/83/EU Art. 22 excludes pre-ticked boxes).
   // A flag, never an amount: the server does its own gross-up, so a client cannot name the

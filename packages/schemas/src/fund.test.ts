@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MIN_CONTRIBUTION_CENTS,
   fundEditionSchema,
   fundAggregateSchema,
   contributionSessionInputSchema,
@@ -165,7 +166,33 @@ describe('fundAggregateSchema', () => {
   });
 });
 
+// #387 — the €1 floor is ONE declaration. It lives here rather than in @athanor/core because
+// packages/schemas is the leaf (core depends on schemas; the reverse would be a cycle), and
+// because the floor is a validation bound before it is anything else. @athanor/core re-exports
+// it, so every TS caller still reads one number. The literals below are deliberate: change the
+// constant and these named tests fail, which is the whole point of consolidating it.
+describe('MIN_CONTRIBUTION_CENTS', () => {
+  it('is €1 (PRD §4.11) — the same floor the DB CHECK and the edge function carry', () => {
+    expect(MIN_CONTRIBUTION_CENTS).toBe(100);
+  });
+});
+
 describe('contributionSessionInputSchema', () => {
+  // The schema derives its floor from the constant rather than restating it. Asserted at both
+  // edges so the derivation cannot be silently loosened: one cent below is refused, the floor
+  // itself is accepted.
+  it('derives its floor from MIN_CONTRIBUTION_CENTS', () => {
+    const at = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: MIN_CONTRIBUTION_CENTS,
+    });
+    const below = contributionSessionInputSchema.safeParse({
+      editionId: '00000000-0000-0000-0000-0000000000ed',
+      amountCents: MIN_CONTRIBUTION_CENTS - 1,
+    });
+    expect(at.success).toBe(true);
+    expect(below.success).toBe(false);
+  });
   it('accepts a valid €1 contribution', () => {
     const r = contributionSessionInputSchema.safeParse({
       editionId: '00000000-0000-0000-0000-0000000000ed',

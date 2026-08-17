@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createEvent, eventKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
+import { parseEuroToCents } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -18,7 +19,6 @@ import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { dateTimeWithYear } from '@/lib/time';
-import { parsePriceCents } from '@/lib/price';
 import { Screen } from '@/components/Screen';
 
 const CATEGORIES: EventCategory[] = [
@@ -81,7 +81,9 @@ export default function EventCreateScreen() {
         starts_at: startsAt.toISOString(),
         ends_at: null,
         capacity: capacity ? Number(capacity) : null,
-        price_cents: paid && price ? parsePriceCents(price) : 0,
+        // Floor 0, named: a ticket may be free (`events.price_cents >= 0`), unlike a fund
+        // contribution, whose €1 minimum is the parser's default (#387).
+        price_cents: paid && price ? parseEuroToCents(price, 0) : 0,
         currency: 'eur',
       });
       return createEvent(supabase, parsed);
