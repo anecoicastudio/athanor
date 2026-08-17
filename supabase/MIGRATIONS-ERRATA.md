@@ -16,6 +16,27 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260817180039_verify_phase_evidence_blank_trim.sql` — two refs into the edge function point at the wrong lines
+
+### L10-12 — "the sole caller (verify-plan-phase/logic.ts:61) validates with Zod's .trim().min(1)"
+
+The caller — the `db.rpc('verify_plan_phase', …)` call — is around `:61`. The Zod validation the
+sentence is actually about is `supabase/functions/verify-plan-phase/logic.ts:24`
+(`evidence: z.string().trim().min(1).max(1000)`). The claim itself holds: JS `String.trim()`
+strips `U+00A0` and `U+2028`, so the caller does refuse these strings before the database sees
+them, and the SQL-side trim remains defense in depth.
+
+### L43-44 — "verify-plan-phase/logic.ts:37-61 maps them to client codes"
+
+That range covers a docblock and unrelated body-parsing code. The `REFUSALS` table is
+`logic.ts:40-49` and it is applied at `logic.ts:65-68` — `dbErr.code === 'P0001'` is looked up by
+**message text**, and anything absent from the table becomes a 502. The invariant the sentence
+exists to state is unchanged and is the reason the strings must never be reworded: `'evidence
+required'` and `'evidence too long'` are keys, not prose.
+
+Asserted by: `supabase/tests/0117_fund_tranche_gate.test.sql` (the refusals, pinned by message
+text) and `supabase/functions/verify-plan-phase/logic.test.ts` (the status mapping).
+
 ## `20260816153011_fund_confirmed_counts_service_role.sql:1-9` — the 42501 it names is reachable on a hosted project only, never in a clean replay
 
 The header says a service-role `select … from public.fund_candidate_cards` "failed outright
