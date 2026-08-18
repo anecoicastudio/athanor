@@ -132,6 +132,12 @@ events drift into the past, statuses get flipped by walking the flows.
 - **Events** — the four future events re-stamp to their seeded offsets (+4/+9/+16/+25
   days) once they decay within 3 days of now, with any live-window state cleared;
   `bottega-aperta` stays deliberately past.
+- **Fund ballot window** — `fund_editions.voting_starts_at` / `voting_ends_at` re-stamp
+  to the seeded −7/+23-day span once the ballot comes within 7 days of closing, or was
+  never declared at all. `cast_vote` gates on that window, so without this the fake
+  world's voting goes inert and no re-seed can reopen it (the seed writes the span once,
+  behind `on conflict do nothing`). The two window columns only — the cycle's `phase`,
+  `target_at` and D16 declarations are left exactly as they are.
 - **Statuses & soft-deletes** — seeded dreams, milestones, helps, connection
   requests, RSVPs, posts, comments, moments, projects and favor offers return to
   their seeded states; persona `suspended_until` / `banned_at` are cleared.
@@ -144,8 +150,11 @@ produces zero writes, so an idle hour fires no notifications; persona `moment`
 notifications older than 2 hours are pruned on each run to cap the noise.
 
 What it deliberately does **not** restore: preference toggles (consent, notification
-preferences), reactions, resolved reports, conversations/messages, and the GoTrue
-half of a ban (clear that from the Dashboard — SQL cannot reach it).
+preferences), reactions, resolved reports, conversations/messages, the GoTrue half of
+a ban (clear that from the Dashboard — SQL cannot reach it), and the fund cycle's own
+progress — `phase`, `candidacy_window_open` and the cosmetic `target_at` countdown.
+Walking the cycle forward is real testing, not decay, and re-entering `voting` fires
+the ballot-open trigger; use the full re-seed above to rewind it.
 
 Install once (same two gates as the seed; the function additionally self-gates on the
 staging Vault marker, so it is inert anywhere else):

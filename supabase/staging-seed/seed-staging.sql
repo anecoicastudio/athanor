@@ -60,8 +60,9 @@
 --
 -- COMPANION: refresh-staging.sql installs the hourly `staging_refresh_world()` cron
 -- that keeps this world restored while it is being tested. It carries frozen copies
--- of the semantic-key lists below (stories, events, statuses, content ids) — editing
--- one of those sections here means re-running refresh-staging.sql afterwards.
+-- of the semantic-key lists below (stories, events, statuses, content ids) and of §12's
+-- ballot-window offsets — editing one of those sections here means re-running
+-- refresh-staging.sql afterwards.
 --
 -- The keys are `{uid}/{id}.{ext}` — the same shape the app itself uploads at
 -- (apps/native/src/lib/media/paths.ts), and NOT the `<handle>/stories/<md5>.jpg` this
@@ -770,10 +771,14 @@ on conflict do nothing;
 --     3 candidacies — the same values 20260815075408 backfilled the pre-existing row
 --     with. The voting window is published AND enforced (20260815090015, #217): cast_vote
 --     refuses outside [voting_starts_at, voting_ends_at], so keep the seeded window
---     spanning now() or the fake world's voting stops being walkable. The direct INSERT
---     into phase = 'voting' below deliberately bypasses the ballot-open trigger — it
---     fires on UPDATE OF phase only, precisely so this bootstrap stays legal before the
---     candidacies exist.
+--     spanning now() or the fake world's voting stops being walkable. THIS INSERT IS NOT
+--     THAT MECHANISM (#414): the span is a now()-snapshot written once, and the trailing
+--     `on conflict do nothing` means a re-run neither refreshes it nor ever reaches the
+--     pre-existing row, which predates the two columns carrying values. refresh-staging.sql
+--     §11 re-stamps the window hourly instead — change the offsets here and change them
+--     there too. The direct INSERT into phase = 'voting' below deliberately bypasses the
+--     ballot-open trigger — it fires on UPDATE OF phase only, precisely so this
+--     bootstrap stays legal before the candidacies exist.
 --     `candidacy_votes.weight` is NOT supplied: set_candidacy_vote_weight() is a
 --     BEFORE INSERT trigger that raises 'weight is server-written' for any non-zero
 --     value, service_role included. It writes a constant 1.000 — equal vote (PRD §4.11).
