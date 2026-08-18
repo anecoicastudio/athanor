@@ -104,6 +104,219 @@ describe('hardcoded-string checker', () => {
     expect(roots.some((r) => r?.startsWith('apps/web/'))).toBe(true);
   });
 
+  // --- #433: the six structural blind spots ------------------------------------------------
+  // Each fixture is the reproduction from the issue body, verbatim. Every one of them exited 0
+  // against the regex checker; the AST rewrite is what makes them red.
+
+  it('flags copy under a text-bearing key in an object literal (#433 a)', () => {
+    const { ok, report } = scan({
+      'a-object.tsx': `const options = [{ label: 'Vicino a me', value: 'near' }];\n`,
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Vicino a me');
+  });
+
+  it('flags copy passed to a call other than Alert.alert (#433 b)', () => {
+    const { ok, report } = scan({
+      'b-call.tsx': [
+        `showToast('Non è stato possibile salvare');`,
+        `setError('Riprova tra qualche istante');`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Non è stato possibile salvare');
+    expect(report).toContain('Riprova tra qualche istante');
+  });
+
+  it('flags both arms of a ternary in a text prop (#433 c)', () => {
+    const { ok, report } = scan({
+      'c-ternary.tsx': `export const B = () => <Btn label={on ? 'Attiva' : 'Disattiva ora'} />;\n`,
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Attiva');
+    expect(report).toContain('Disattiva ora');
+  });
+
+  it('flags a JSX text run that sits beside an expression (#433 d)', () => {
+    const { ok, report } = scan({
+      'd-mixed.tsx': `export const S = () => <Text>Ciao {name}, come stai oggi</Text>;\n`,
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('come stai oggi');
+  });
+
+  it('flags a module-scope const that is rendered, at its declaration (#433 f)', () => {
+    // Moving the literal to a const is the first thing a developer reaches for when the gate
+    // complains, and it used to silence it. The report must point at the declaration — line 1 —
+    // because that is where the t() call goes, not at the JSX that reads it.
+    const { ok, report } = scan({
+      'f-const.tsx': [
+        `const TITLE = 'Il tuo Momento ti aspetta';`,
+        `export const S = () => <Text>{TITLE}</Text>;`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Il tuo Momento ti aspetta');
+    expect(report).toMatch(/f-const\.tsx:1\b/);
+  });
+
+  it('leaves a const alone until something renders it (#433 f)', () => {
+    const { ok } = scan({
+      'f-unused.tsx': [
+        `const TITLE = 'Il tuo Momento ti aspetta';`,
+        `export const id = (x: string) => x + TITLE.length;`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(true);
+  });
+
+  it('flags short single-word copy but not acronyms (#433 e)', () => {
+    const { ok, report } = scan({
+      'e-short.tsx': `export const S = () => <><Text>Ciao</Text><Text>Esci</Text></>;\n`,
+      'e-acronyms.tsx': `export const A = () => <><Text>OK</Text><Text>ID</Text><Text>PDF</Text></>;\n`,
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Ciao');
+    expect(report).toContain('Esci');
+    expect(report).not.toContain('e-acronyms');
+  });
+
+  // --- the exclusions the widened passes are most likely to break ----------------------------
+
+  it('does not flag enum-ish values reached by the widened object pass', () => {
+    // `style: 'cancel'` is the canonical one, and it now sits in the same shape as case (a).
+    // `text: 'text-on-aura'` is a Tailwind class under a text-suffixed key; `label:` holding an
+    // i18n key is what half of apps/web's section list looks like.
+    const { ok, report } = scan({
+      'enums.tsx': [
+        `const dialog = { style: 'cancel', variant: 'ghost', mode: 'date' };`,
+        `const classes = { light: { bg: 'bg-aura', text: 'text-on-aura' } };`,
+        `const sections = [{ id: 'manifesto', label: 'landing.manifesto.eyebrow' }];`,
+        ``,
+      ].join('\n'),
+    });
+    expect(report).not.toContain('cancel');
+    expect(report).not.toContain('text-on-aura');
+    expect(report).not.toContain('landing.manifesto.eyebrow');
+    expect(ok).toBe(true);
+  });
+
+  it('still reads Alert.alert titles, bodies and button labels', () => {
+    // The one call the old gate did see. `style:` sits in the same object as `text:` and must
+    // stay out; the labels must stay in, which is why the object pass rejects CODE-shaped
+    // values rather than single words.
+    const { ok, report } = scan({
+      'alert.tsx': [
+        `export const ask = () =>`,
+        `  Alert.alert('Vuoi uscire?', 'Perderai le modifiche', [`,
+        `    { text: 'Annulla', style: 'cancel' },`,
+        `    { text: 'Esci', style: 'destructive' },`,
+        `  ]);`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Vuoi uscire?');
+    expect(report).toContain('Perderai le modifiche');
+    expect(report).toContain('Annulla');
+    expect(report).not.toContain('destructive');
+  });
+
+  it('does not flag developer-facing throws or console output', () => {
+    const { ok, report } = scan({
+      'throws.ts': [
+        `export const key = (v?: string) => {`,
+        `  if (!v) throw new Error('Missing Supabase publishable key');`,
+        `  console.warn('falling back to the legacy anon key');`,
+        `  return v;`,
+        `};`,
+        ``,
+      ].join('\n'),
+    });
+    expect(report).not.toContain('Missing Supabase');
+    expect(report).not.toContain('legacy anon key');
+    expect(ok).toBe(true);
+  });
+
+  it('does not flag Supabase identifiers or Tailwind class lists in call arguments', () => {
+    // The reason the call-argument pass uses a stricter predicate than the JSX passes: position
+    // proves copy inside JSX and proves nothing at all in an argument list.
+    const { ok, report } = scan({
+      'queries.ts': [
+        `export const load = () =>`,
+        `  supabase.from('momento_proposals').select('id, created_at').eq('profile_id', id);`,
+        `export const cls = cn('rounded-full border border-hair bg-raise px-5 py-4');`,
+        `export const mq = () => matchMedia('(prefers-reduced-motion: reduce)');`,
+        `export const log = () => devWarn('[profile] dream load', e);`,
+        ``,
+      ].join('\n'),
+    });
+    expect(report).not.toContain('created_at');
+    expect(report).not.toContain('border-hair');
+    expect(report).not.toContain('prefers-reduced-motion');
+    expect(report).not.toContain('dream load');
+    expect(ok).toBe(true);
+  });
+
+  it('keeps reading a template-literal JSX child, and its ${t(...)} escape', () => {
+    // Pre-existing coverage of the regex gate, carried over: the rewrite must not drop it.
+    const { ok, report } = scan({
+      'tpl.tsx': [
+        'export const A = () => <Text>{`Ciao ${name}, bentornato`}</Text>;',
+        "export const B = () => <Text>{`${t('intro.titolo', locale)} adesso`}</Text>;",
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Ciao , bentornato');
+    expect(report).not.toContain('adesso');
+  });
+
+  it('parses a .ts module as TypeScript, not TSX', () => {
+    // In TSX mode `<T>(x: T) => x` reads as an unclosed element, the rest of the file becomes
+    // JSX text, and the real finding on line 2 is replaced by garbage from line 1.
+    const { ok, report } = scan({
+      'generic.ts': [
+        `export const id = <T>(x: T) => x;`,
+        `export const copy = { title: 'Il tuo Momento ti aspetta' };`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain(`title: "Il tuo Momento ti aspetta"`);
+    expect(report).not.toContain('=> x');
+  });
+
+  it('will not take an ignore directive from a string literal', () => {
+    // A whole-file exemption any string could trigger would be a silent way off the gate.
+    const { ok, report } = scan({
+      'faux.tsx': [
+        `const doc = 'i18n-ignore-file';`,
+        `export const S = () => <Text>Copia non tradotta</Text>;`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Copia non tradotta');
+  });
+
+  it('honours i18n-ignore on the match line and i18n-ignore-file on the file', () => {
+    const { ok, report } = scan({
+      'ignored.tsx': `export const S = () => <Text>Copia non tradotta</Text>; // i18n-ignore\n`,
+      'whole.ts': [
+        `// i18n-ignore-file — this module is its own per-locale content source.`,
+        `export const doc = { title: 'Informativa sulla privacy' };`,
+        ``,
+      ].join('\n'),
+    });
+    expect(report).not.toContain('Copia non tradotta');
+    expect(report).not.toContain('Informativa sulla privacy');
+    expect(ok).toBe(true);
+  });
+
   it('scans every root it is given', () => {
     const root = mkdtempSync(join(tmpdir(), 'i18n-check-'));
     for (const app of ['uno', 'due']) {

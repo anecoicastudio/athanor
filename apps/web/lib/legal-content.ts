@@ -4,6 +4,11 @@ import type { Locale } from '@athanor/i18n';
  * Long-form legal copy lives here as per-locale content (not in the @athanor/i18n
  * UI catalog, which is for short interface strings). Scope: the Athanor presentation
  * site only — the mobile app ships its own, broader policy at store submission.
+ *
+ * i18n-ignore-file — this module IS the translation source for these two documents: every
+ * export is a `Record<Locale, …>`, so IT/EN parity is enforced by the type, not by the
+ * catalog. Rule 5's gate widened to object-literal copy in #433 and would otherwise report
+ * every heading and paragraph here as untranslated.
  */
 export type LegalSection = { heading: string; body: string[] };
 export type LegalDoc = {
