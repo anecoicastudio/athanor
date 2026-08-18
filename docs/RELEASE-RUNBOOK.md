@@ -259,6 +259,64 @@ prefers `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, legacy anon as fallback).
 | Waitlist hardening                                                                                               | ✅ **DONE in code** (issue #23, 2026-08-09). Per-address throttle is a BEFORE INSERT trigger on `email_waitlist` (5 per 10 min, keyed on the `x-forwarded-for` the route forwards onto the Supabase client); over the cap raises `PT429` and the route answers 429. The per-signup Resend email was **removed**, not capped — one send per non-duplicate address meant a fresh address each time mailbombed the inbox, so the Resend-sandbox-sender item is moot and `RESEND_API_KEY`/`WAITLIST_TO` are gone from `apps/web`. Read signups at `/admin/waitlist`. Remaining ops: a Cloudflare rate-limiting rule in front is still worth adding (available on the free plan) (the header is client-supplied, so this is a cost control, not an authorization boundary), and a digest job if push notification of signups is wanted back. |
 | Native OAuth signups drop referral codes (`apps/native/src/app/(auth)/welcome.tsx` OAuth arm)                    | Known nuance — product decision pending; web invite landing implies redemption always happens.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
+### 7.4 Moderation between web releases — the per-handle OG card (#440)
+
+A ban takes effect in the database immediately, but `apps/web` only reaches production at a
+`dev → main` release. Between those two moments the banned member's Open Graph card can still
+unfurl in WhatsApp, Slack or a tweet with their photo and dream quote, even though `/@handle`
+already 404s. This section says how long that lasts and how to cut it short.
+
+**How long it lasts: until the next `apps/web` deploy — not forever.** Measured against the
+production KV namespace on 2026-08-18, not inferred from the docs:
+
+- Every incremental-cache key is `incremental-cache/<BUILD_ID>/<sha256(path)>.cache`, and
+  `BUILD_ID` is Next's per-build nanoid (no `generateBuildId` in `apps/web/next.config.ts`), so
+  it rotates on every build. The deployed value is public at `https://www.athanor.workers.dev/BUILD_ID`.
+- `opennextjs-cloudflare`'s `populate-cache` only ever `kv bulk put`s the _current_ build's
+  assets. It never lists and never deletes, so a deploy neither clears nor overwrites what is
+  already there.
+- Since PR #439, `generateStaticParams` reads through the anon client, so a banned handle is
+  absent from the next build's params. Its old entry is therefore stranded under a dead build
+  prefix — unreachable — and the live prefix has no key for it. The request misses, takes the
+  blocking fallback, and hits the Worker branch in `app/[handle]/opengraph-image.tsx`, which
+  redirects to the generic site-wide card.
+
+So the release cadence is the bound. **A redeploy of `apps/web` is the ordinary fix** and needs no
+key arithmetic — it is the same action as a release.
+
+**To cut a single card without a release**, delete its one key. `/@handle` here is the URL path,
+including the `@`:
+
+```bash
+BUILD_ID=$(curl -s https://www.athanor.workers.dev/BUILD_ID)
+HASH=$(printf '%s' "/@handle/opengraph-image" | shasum -a 256 | cut -d' ' -f1)
+cd apps/web && pnpm exec wrangler kv key delete \
+  --namespace-id 1c0ba79bbbda4e2f8b0b2459e2a0e170 --remote \
+  "incremental-cache/$BUILD_ID/$HASH.cache"
+```
+
+The next request for that path re-renders on demand, hits the Worker branch, and gets the generic
+card. Use `--namespace-id`, not `--binding`: the binding carries both an `id` and a `preview_id`
+and wrangler refuses the ambiguity (see the note in `apps/web/wrangler.jsonc`).
+
+⚠ **Neither path erases the bytes.** Deleting the live key or rotating the build only makes the
+entry unroutable; the KV cache writes no TTL and nothing sweeps old prefixes, so the stranded PNG
+and page HTML stay readable _by key_ indefinitely. On 2026-08-18 the production namespace held 132
+keys across **four** build prefixes — only one live — and an orphan from a dead prefix still
+returned the full prerendered profile page for a handle that no longer exists in the production
+database at all. Two consequences:
+
+- **Erasure (#107, R-8) is not satisfied by a redeploy.** A GDPR erasure that clears the database
+  leaves this residue behind. Whatever implements the erasure cascade has to sweep the namespace
+  by prefix, or the bytes outlive the request.
+- **Orphans accumulate per deploy** and count against the free plan's 1 GB. It is small today —
+  the four observed prefixes run 17 to 46 keys — because production carries few public profiles,
+  but each per-handle card is ~78 KB and every deploy writes a fresh copy of every one of them, so
+  the growth is `profiles × deploys`. #335 tracks the scale seam.
+
+To sweep dead prefixes by hand, list the namespace, keep the prefix matching the live `BUILD_ID`,
+and `wrangler kv bulk delete` the rest.
+
 ---
 
 ## 8. Acceptance Gates (G1–G7)

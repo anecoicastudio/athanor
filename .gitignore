@@ -71,3 +71,7 @@ deno.lock
 .wrangler/
 .dev.vars*
 apps/web/cloudflare-env.d.ts
+
+# `/index` skill output — a generated map of the tree, regenerated on demand and
+# stale the moment it is not. Never a review artifact.
+/PROJECT_INDEX.json
