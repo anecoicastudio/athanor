@@ -5,6 +5,12 @@
 // `i18n-ignore-file` comment, or add a brand token to ALLOWLIST. Both are read off comment
 // tokens, so a string literal that happens to contain the word cannot switch the gate off.
 //
+// The whole-file form is PINNED to EXEMPT_FILES since #443. It switches rule 5 off for an
+// entire file and is invisible in every later diff to that file, so the set of files allowed to
+// carry it is declared here by name: an unlisted file carrying it fails, and a listed file that
+// no longer carries it fails too. Growing the set is then a reviewable line rather than a
+// comment nobody sees again.
+//
 // A TypeScript-AST pass since #433, not regex over comment-masked source. The masker it
 // replaced existed only because a regex cannot tell a comment from a string; the parser can,
 // so that whole class of bug is gone, and «is this literal in copy position?» is a question
@@ -62,6 +68,23 @@ const DEFAULT_ROOTS = [
 const ROOTS = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_ROOTS;
 
 /**
+ * Roots the EXEMPT_FILES guard has anything to say about: the ones it knows by name.
+ *
+ * `EXEMPT_FILES` is a claim about THIS repo's trees, so it can only be judged against those
+ * trees. Pointing the checker at an arbitrary directory — which is exactly what the test
+ * harness does, and the only other way this script is ever invoked — says nothing about whether
+ * `apps/web/lib/legal-content.ts` is still exempt, and must not be read as saying it.
+ *
+ * It is also what keeps the guard's path matching strict. Every guarded path is
+ * `join(<a DEFAULT_ROOTS entry>, …)` and therefore repo-relative in the same shape the list is
+ * written in, so `EXEMPT_FILES` is compared by EQUALITY. A suffix match would have been the
+ * other way to survive an absolute tmpdir root, and it would have let any file whose path
+ * happens to end in a listed one inherit the exemption.
+ */
+const GUARDED_ROOTS = ROOTS.filter((root) => DEFAULT_ROOTS.includes(root));
+const guarded = (p) => GUARDED_ROOTS.some((root) => p === root || p.startsWith(`${root}/`));
+
+/**
  * Text-bearing prop and object-key names. Suffix-matched (case-insensitive on the final word)
  * so component props like `backLabel`, `emptyCta`, `descPlaceholder`, `venuePlaceholder` are
  * covered without listing all ~70 of them. `name`/`variant`/`tone`/`status`/`field` are
@@ -87,6 +110,19 @@ const PROP_EXCEPTIONS = new Set([
 // moved behind `momenti.aura.chip` (#52). Adding an entry is a conscious
 // exception, not a shortcut past rule #5.
 const ALLOWLIST = new Set([]);
+
+/**
+ * The files permitted to carry `i18n-ignore-file`, repo-relative, one per genuine reason.
+ *
+ * `legal-content.ts` IS the translation source for the presentation site's two legal documents:
+ * every export is a `Record<Locale, …>`, so IT/EN parity is enforced by the type rather than by
+ * the catalog, and rule 5's object-literal pass would otherwise report every heading in it.
+ *
+ * A second entry needs the same kind of answer — «this module is itself a per-locale source» —
+ * and not «the gate is noisy here». If the copy is UI copy, it belongs in `@athanor/i18n`; if
+ * one line is the problem, `i18n-ignore` on that line is the smaller instrument.
+ */
+const EXEMPT_FILES = new Set(['apps/web/lib/legal-content.ts']);
 
 /**
  * Prose heuristic for the positions where POSITION ALREADY PROVES COPY — JSX text, JSX
@@ -251,12 +287,17 @@ const hasAncestor = (node, pred) => {
 };
 
 const violations = [];
+/** Files whose `i18n-ignore-file` was honoured this run — the guard's input, and the count. */
+const exempted = [];
 for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
   const raw = readFileSync(file, 'utf8');
   const { script, variant } = kindOf(file);
   const sf = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, script);
   const directive = directives(sf, raw, variant);
-  if (directive.file) continue;
+  if (directive.file) {
+    exempted.push(file);
+    continue;
+  }
   const lineAt = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
   /** `i18n-ignore` anywhere in the match's own lines, or on the line above it. */
   const ignored = (from, to) => {
@@ -407,11 +448,29 @@ for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
   visit(sf);
 }
 
+const unlisted = exempted.filter((f) => guarded(f) && !EXEMPT_FILES.has(f));
+const stale = [...EXEMPT_FILES].filter((f) => guarded(f) && !exempted.includes(f));
+
 if (violations.length) {
   console.error(
     'Hardcoded user-facing strings (wrap in t(), add an i18n-ignore comment, or extend ALLOWLIST):',
   );
   for (const [f, ln, txt] of violations) console.error(`  ${f}:${ln}  ${txt}`);
-  process.exit(1);
 }
-console.log('i18n:check OK — no hardcoded user-facing strings.');
+if (unlisted.length || stale.length) {
+  console.error('EXEMPT_FILES pins which files may carry i18n-ignore-file (rule 5, #443):');
+  for (const f of unlisted)
+    console.error(
+      `  ${f}  carries i18n-ignore-file and is not listed — wrap its copy in t(), or add the path to EXEMPT_FILES and answer for it in review.`,
+    );
+  for (const f of stale)
+    console.error(
+      `  ${f}  is listed but no longer carries i18n-ignore-file — drop the entry, it is permission nobody is using.`,
+    );
+}
+if (violations.length || unlisted.length || stale.length) process.exit(1);
+
+const exempt = exempted.length
+  ? ` (${exempted.length} file${exempted.length === 1 ? '' : 's'} exempt)`
+  : '';
+console.log(`i18n:check OK — no hardcoded user-facing strings${exempt}.`);
