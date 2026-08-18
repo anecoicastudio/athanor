@@ -46,6 +46,34 @@ function scan(files: Record<string, string>): { ok: boolean; report: string } {
   }
 }
 
+/**
+ * Scan a throwaway tree the way CI does: repo-RELATIVE roots, resolved against a cwd that
+ * stands in for the repo root.
+ *
+ * That difference is the whole point. `scan()` above passes an absolute tmpdir, which is what
+ * keeps the exempt-file guard OFF every other fixture in this file — the guard speaks only about
+ * the trees the checker knows by name (`DEFAULT_ROOTS`), because `EXEMPT_FILES` is a statement
+ * about this repo and says nothing about an arbitrary directory. The three fixtures below need
+ * it ON, so they name a real root and let the tmpdir play repo root.
+ */
+function scanRoot(files: Record<string, string>, roots: string[]): { ok: boolean; report: string } {
+  const cwd = mkdtempSync(join(tmpdir(), 'i18n-check-'));
+  for (const [name, body] of Object.entries(files)) {
+    const file = join(cwd, name);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, body, 'utf8');
+  }
+  try {
+    return {
+      ok: true,
+      report: execFileSync(process.execPath, [CHECKER, ...roots], { cwd, encoding: 'utf8' }),
+    };
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string };
+    return { ok: false, report: `${err.stdout ?? ''}${err.stderr ?? ''}` };
+  }
+}
+
 describe('hardcoded-string checker', () => {
   it('passes a tree whose copy all goes through t()', () => {
     const { ok, report } = scan({
@@ -338,5 +366,55 @@ describe('hardcoded-string checker', () => {
     }
     expect(report).toContain('Copia di uno non tradotta');
     expect(report).toContain('Copia di due non tradotta');
+  });
+  it('honours the file EXEMPT_FILES lists, and counts it on the success line', () => {
+    const { ok, report } = scanRoot(
+      {
+        'apps/web/lib/legal-content.ts': [
+          `// i18n-ignore-file — this module is its own per-locale content source.`,
+          `export const doc = { title: 'Informativa sulla privacy' };`,
+          ``,
+        ].join('\n'),
+      },
+      ['apps/web/lib'],
+    );
+    expect(report).not.toContain('Informativa sulla privacy');
+    expect(report).toContain('1 file exempt');
+    expect(ok).toBe(true);
+  });
+
+  it('refuses i18n-ignore-file on a file EXEMPT_FILES does not list', () => {
+    // The hole #443 is about: the directive is one comment line wide and invisible in every
+    // later diff, so the set it may appear in has to be declared rather than discovered.
+    const { ok, report } = scanRoot(
+      {
+        'apps/web/lib/legal-content.ts': [
+          `// i18n-ignore-file — the listed one, so this fixture has exactly one fault.`,
+          `export const doc = { title: 'Informativa sulla privacy' };`,
+          ``,
+        ].join('\n'),
+        'apps/web/lib/rogue.ts': [
+          `// i18n-ignore-file — off you go.`,
+          `export const other = { title: 'Copia non tradotta' };`,
+          ``,
+        ].join('\n'),
+      },
+      ['apps/web/lib'],
+    );
+    expect(ok).toBe(false);
+    expect(report).toContain('apps/web/lib/rogue.ts');
+    expect(report).toContain('EXEMPT_FILES');
+    // The listed file is not the complaint.
+    expect(report).not.toContain('apps/web/lib/legal-content.ts');
+  });
+
+  it('refuses an EXEMPT_FILES entry whose file no longer carries the directive', () => {
+    // Permission nobody uses rots into permission nobody notices.
+    const { ok, report } = scanRoot({ 'apps/web/lib/other.ts': `export const n = 1;\n` }, [
+      'apps/web/lib',
+    ]);
+    expect(ok).toBe(false);
+    expect(report).toContain('apps/web/lib/legal-content.ts');
+    expect(report).toContain('EXEMPT_FILES');
   });
 });
