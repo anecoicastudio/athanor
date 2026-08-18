@@ -12,6 +12,11 @@
 //   * Alert.alert(...) titles, bodies, and button `text:` labels
 //   * a widened text-prop set, matched by NAME SUFFIX rather than a fixed list of six
 //
+// Six shapes it still cannot see — object-literal copy, function arguments other than
+// Alert.alert, ternaries, JSX children mixing text and expressions, short strings, and a
+// constant assigned then rendered — are tracked with reproductions in #433. Each is its own
+// pass; `packages/i18n/src/hardcoded-checker.test.ts` is the harness they land against.
+//
 // Deliberately NOT flagged, and these are the load-bearing exclusions:
 //   * `throw new Error('...')` — developer-facing, intentionally English (supabase.ts,
 //     supabase-key.ts). Never rendered.
