@@ -26,7 +26,16 @@ Deno.serve(async (req) => {
   return createVerificationSession(
     {
       createVerificationSession: (params) => stripe.identity.verificationSessions.create(params),
-      appBase: Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://',
+      // IDENTITY_RETURN_BASE, not APP_DEEPLINK_BASE, and its own var rather than a repoint of
+      // the shared one: Identity needs an https base (logic.ts), while create-circle-checkout,
+      // create-circle-portal, create-contribution-session and create-ticket-checkout all read
+      // APP_DEEPLINK_BASE to build success/cancel URLs that MUST stay `athanor://` — that is
+      // the redirect openAuthSessionAsync matches on to close the sheet. Widening the shared
+      // var to https would restore this redirect by breaking those four.
+      // Unset is the safe state: stripeReturnUrl then omits return_url entirely, which is
+      // exactly the behaviour #417 shipped. Points at apps/web `/app/verify` (#418).
+      appBase:
+        Deno.env.get('IDENTITY_RETURN_BASE') ?? Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://',
     },
     { profileId: auth.user.id },
   );

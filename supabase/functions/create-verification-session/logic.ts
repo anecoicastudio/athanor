@@ -33,7 +33,7 @@ export type VerificationSessionCtx = {
   createVerificationSession: (
     params: Stripe.Identity.VerificationSessionCreateParams,
   ) => Promise<Stripe.Identity.VerificationSession>;
-  /** APP_DEEPLINK_BASE (default 'athanor://') */
+  /** IDENTITY_RETURN_BASE, falling back to APP_DEEPLINK_BASE (default 'athanor://') */
   appBase: string;
   /** where failure lines go; defaults to console.error → the function logs. Injected in tests. */
   logFailure?: StripeFailureSink;
@@ -54,8 +54,13 @@ export type VerificationSessionInput = {
  * costs this flow nothing: the sheet never learned the outcome from the redirect. Identity is
  * asynchronous — the document is reviewed after the browser closes — so the flip has always come
  * from webhook W9 over realtime, and `WebBrowser.openAuthSessionAsync` already treats a dismiss
- * exactly like a redirect. Point APP_DEEPLINK_BASE at an https bounce page and the redirect comes
- * back with no code change.
+ * exactly like a redirect.
+ *
+ * #418 supplies that https base: apps/web serves `/app/verify`, which forwards to
+ * `athanor://verify`, and IDENTITY_RETURN_BASE points here at it. This function needed no change
+ * beyond the env read — the guard below is what made the switch a config change. It is NOT
+ * APP_DEEPLINK_BASE repointed; see the note at the call site in index.ts for why that would
+ * break four other flows.
  */
 export function stripeReturnUrl(appBase: string, path: string): string | undefined {
   const url = `${appBase}${path}`;
