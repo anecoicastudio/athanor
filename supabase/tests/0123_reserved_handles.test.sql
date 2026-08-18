@@ -20,10 +20,25 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(13);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-0000-0000-000000000123', 'alice123@test.dev');
+
+-- ── the premise: the client really does hold the grant ────────────────────────────────────
+-- Everything else here is only worth asserting because of these two. The guard's whole reason
+-- for living in the database is that `authenticated` can write this column directly, so the
+-- claim belongs in a test rather than in a migration comment (MIGRATIONS-ERRATA.md,
+-- 20260818095917) — it should go red if the grant is ever narrowed, not merely mislead a reader.
+-- Granted by name in 20260617225450_m7_candidacy.sql:15-22.
+select ok(
+  has_column_privilege('authenticated', 'public.profiles', 'handle', 'UPDATE'),
+  'authenticated holds UPDATE on profiles.handle — a member can re-claim a handle at will'
+);
+select ok(
+  has_column_privilege('authenticated', 'public.profiles', 'handle', 'INSERT'),
+  'and INSERT — so a client-side reserved check would be bypassable in both directions'
+);
 
 -- ── as the member herself: her own row, her own grant ─────────────────────────────────────
 set local role authenticated;
@@ -67,7 +82,7 @@ select throws_ok(
   $$ update public.profiles set handle = 'Admin'
      where id = 'aaaaaaaa-0000-0000-0000-000000000123' $$,
   '23514', null,
-  'case cannot sneak past: the original regex CHECK admits lowercase only, which is why this constraint needs no lower()'
+  'an uppercase handle is refused by the ORIGINAL regex CHECK (not by this one) — which is exactly why this constraint needs no lower()'
 );
 
 -- The guard must not have grown teeth it should not have: only the brand is a prefix.

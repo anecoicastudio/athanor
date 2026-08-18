@@ -11,9 +11,9 @@
  * reads as official to this member base exactly as `@support` does.
  *
  * THE DATABASE IS THE ENFORCER, not this list. `profiles.handle` carries INSERT and UPDATE for
- * `authenticated` (verified against the hosted catalog's column_privileges, not inferred from
- * the migrations), so a client can set and later change its own handle without passing through
- * any schema here. This constant exists so a client can refuse early with a good message, and
+ * `authenticated` — granted by name in `20260617225450_m7_candidacy.sql:15-22` and pinned by
+ * `supabase/tests/0123_reserved_handles.test.sql` — so a client can set and later change its own
+ * handle without passing through any schema here. This constant exists so a client can refuse early with a good message, and
  * so the CHECK constraint has one authored home; `reserved-handles.mirror.test.ts` is what keeps
  * the two from drifting.
  *
