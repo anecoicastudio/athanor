@@ -47,6 +47,7 @@ export default function AuthCallbackScreen() {
     // that never settles would leave the user on a bare ✦ with no way out — the one
     // inescapable state in the tree. Bound it and fall through to the error UI.
     const timeout = new Promise<{ error: { message: string } }>((resolve) =>
+      // i18n-ignore — a sentinel for the race below, matched by identity, never rendered.
       setTimeout(() => resolve({ error: { message: 'timeout' } }), EXCHANGE_TIMEOUT_MS),
     );
     Promise.race([supabase.auth.exchangeCodeForSession(code), timeout])
