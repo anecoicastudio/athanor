@@ -1,6 +1,6 @@
 // scripts/check-i18n-hardcoded.mjs
 // Hardcoded-string gate (frontend 10 §3.1 I-2), CLAUDE.md rule 5.
-// Flags natural-language literals under apps/native/src that are NOT wrapped in t().
+// Flags natural-language literals under DEFAULT_ROOTS (both apps) that are NOT wrapped in t().
 // Allowlist a line with an `i18n-ignore` comment (any style), or add a brand token
 // to ALLOWLIST.
 //
@@ -23,10 +23,26 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Trees scanned by default. Override by passing roots as arguments — used by the test that
+ * Trees scanned by default. `apps/web` joined `apps/native` in #169 — it was never scanned,
+ * while 44 of its files import `@athanor/i18n`, so rule 5 was enforced on one app of two.
+ * Its directories are listed one by one rather than walking `apps/web` whole: the app also
+ * holds `.next`, `.open-next` and `.wrangler` build output, and `e2e/`, whose literals are
+ * playwright fixtures rather than shipped copy.
+ *
+ * `packages/*` is deliberately absent — no `.tsx` lives there and every pass below is JSX-,
+ * prop- or `Alert.alert`-shaped, so it would be dead scope.
+ *
+ * A root that stops existing throws ENOENT from `walk`, which is the loud failure a silently
+ * narrowed scan would not be. Override by passing roots as arguments — used by the test that
  * pins this file's behaviour against fixtures, never by CI.
  */
-const DEFAULT_ROOTS = ['apps/native/src'];
+const DEFAULT_ROOTS = [
+  'apps/native/src',
+  'apps/web/app',
+  'apps/web/components',
+  'apps/web/lib',
+  'apps/web/utils',
+];
 const ROOTS = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_ROOTS;
 
 /**

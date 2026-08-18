@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -91,6 +91,17 @@ describe('hardcoded-string checker', () => {
     expect(ok).toBe(false);
     expect(report).toContain("Nel '900 tutto cambiò");
     expect(report).not.toContain('Testo commentato');
+  });
+
+  it('scans both apps by default (#169)', () => {
+    // The scan is black-box everywhere else, but the DEFAULT roots are exactly what #169 was
+    // about — `apps/web` went unscanned for its whole life while 44 of its files import the
+    // catalog. Read off the source so a silent narrowing back to one app fails here. A root
+    // that stops existing needs no assertion: `walk` throws ENOENT and CI goes red.
+    const defaults = /const DEFAULT_ROOTS = \[([^\]]*)\]/.exec(readFileSync(CHECKER, 'utf8'));
+    const roots = [...(defaults?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect(roots).toContain('apps/native/src');
+    expect(roots.some((r) => r?.startsWith('apps/web/'))).toBe(true);
   });
 
   it('scans every root it is given', () => {
