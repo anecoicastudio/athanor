@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(17);
 
 -- #437 — organisers are told, before they list a paid event, that settlement is manual and on what
 -- cadence, and create_event holds them to it. #104's deferral of Stripe Connect was granted on that
@@ -105,6 +105,34 @@ select throws_ok($$
   select public.create_event('Bottega aperta','creativi',false, now() + interval '10 days',
     'Officina','Milano', 45.46, 9.19, null, null, null, 2000, 'eur', true)
 $$, '42501', null, 'an unverified organiser cannot list a paid event, acknowledgement or not');
+
+-- ── where the RPC's guarantee stops ───────────────────────────────────────────────────────────
+-- The migration's column comment says settlement_ack_at is «never client-supplied». That is true
+-- of create_event and false of the column: `authenticated` holds TABLE-LEVEL insert/update on
+-- events (20260615094844:67) and both write policies predicate on ownership alone, so the RPC is
+-- not the only way a row is written. Asserted rather than left implicit, because the addendum on
+-- #437 persisted the acknowledgement for its evidentiary value and a forgeable record has less of
+-- that than the comment promises. supabase/MIGRATIONS-ERRATA.md carries the correction and the
+-- reason closing it is a decision of its own. If these three go red, someone has narrowed the
+-- grants — which is the good outcome; update the errata rather than this test's expectations.
+select ok(
+  has_table_privilege('authenticated', 'public.events', 'INSERT'),
+  'authenticated still holds table-level INSERT on events — create_event is not the only write path'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.events', 'UPDATE'),
+  'authenticated still holds table-level UPDATE on events — a stamped row can still be rewritten'
+);
+-- The demonstration, as the unverified organiser: refused through the RPC two assertions above,
+-- accepted as a direct INSERT. No money follows it — create-ticket-checkout re-derives
+-- is_identity_verified itself and fails closed — but the row exists.
+select lives_ok($$
+  insert into public.events (organizer_id, title, category, is_online, venue, geo, starts_at,
+                             price_cents, settlement_ack_at)
+  values ('22222222-2222-2222-2222-222222222222','Bottega, per direttissima','creativi',false,
+          'Officina', extensions.st_point(9.19, 45.46)::extensions.geography,
+          now() + interval '10 days', 2000, now())
+$$, 'a direct INSERT still bypasses both refusals — the guarantee is the RPC''s, not the table''s');
 
 reset role;
 
