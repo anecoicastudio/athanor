@@ -28,6 +28,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/admin" className="text-muted-foreground hover:text-foreground">
               {t('admin.queue.title', locale)}
             </Link>
+            <Link href="/admin/fund" className="text-muted-foreground hover:text-foreground">
+              {t('admin.fund.title', locale)}
+            </Link>
             <Link href="/admin/waitlist" className="text-muted-foreground hover:text-foreground">
               {t('admin.waitlist.title', locale)}
             </Link>

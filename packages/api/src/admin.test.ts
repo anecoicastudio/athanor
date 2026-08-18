@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { REPORT_PENALTY } from '@athanor/core';
-import { getReportDetail, getReportQueue, resolveReport } from './admin';
-import { makeFakeClient } from './test-support/fake-client';
+import {
+  getEditionAuditTrail,
+  getFundEditionIndex,
+  getReportDetail,
+  getReportQueue,
+  resolveReport,
+} from './admin';
+import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import type { AthanorClient } from './client';
 
 describe('resolveReport', () => {
@@ -129,8 +135,6 @@ const reportRow = (over: Record<string, unknown> = {}) => ({
   reporter: { handle: 'elena' },
   ...over,
 });
-
-const asClient = (fake: ReturnType<typeof makeFakeClient>) => fake as unknown as AthanorClient;
 
 describe('resolveReport penalties', () => {
   it.each(['low', 'medium', 'high'] as const)(
@@ -534,5 +538,227 @@ describe('getReportDetail — when the target lookup is skipped', () => {
       'audit_log.select': [{ data: null }],
     });
     expect((await getReportDetail(asClient(fake), R1)).audit).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The fund audit trail (#432). Written by thirteen transitions since #219 and read by
+// nothing until now: `getReportDetail` filters `report_id`, and `audit_log_fund_shape`
+// forbids a fund row from carrying one, so the two halves are mutually exclusive by CHECK.
+// ---------------------------------------------------------------------------
+
+const E1 = '00000000-0000-0000-0000-0000000000a1';
+const E2 = '00000000-0000-0000-0000-0000000000a2';
+const A1 = '00000000-0000-0000-0000-0000000000b1';
+const A2 = '00000000-0000-0000-0000-0000000000b2';
+
+const editionRow = (over: Record<string, unknown> = {}) => ({
+  id: E1,
+  phase: 'realization',
+  target_at: '2026-09-01T00:00:00Z',
+  created_at: '2026-08-01T10:00:00Z',
+  closure_reason: null,
+  winner_candidacy_id: null,
+  ...over,
+});
+
+// A fund audit row: no report, no penalty points, an edition — the shape
+// `audit_log_fund_shape` demands and `auditLogRow`'s refinement mirrors.
+const fundAuditRow = (over: Record<string, unknown> = {}) => ({
+  id: A1,
+  report_id: null,
+  actor_id: null,
+  action: 'declare_winner',
+  penalty_points: null,
+  reason: 'ballot closed, quorum met',
+  created_at: '2026-08-05T09:00:00Z',
+  edition_id: E1,
+  candidacy_id: null,
+  ...over,
+});
+
+describe('getFundEditionIndex', () => {
+  it('lists the cycles newest first, parsed rather than cast', async () => {
+    const fake = makeFakeClient({
+      'fund_editions.select': [
+        { data: [editionRow(), editionRow({ id: E2, created_at: '2026-05-01T10:00:00Z' })] },
+      ],
+    });
+    const page = await getFundEditionIndex(asClient(fake));
+    expect(page.rows.map((r) => r.id)).toEqual([E1, E2]);
+    expect(page.excluded).toBe(0);
+    expect(fake.calls[0]!.modifiers).toContainEqual(['order', 'created_at', { ascending: false }]);
+    expect(fake.calls[0]!.modifiers).toContainEqual(['order', 'id', { ascending: false }]);
+  });
+
+  it('reads one row beyond the page to decide hasMore, and does not return it', async () => {
+    const fake = makeFakeClient({
+      'fund_editions.select': [
+        { data: [editionRow(), editionRow({ id: E2, created_at: '2026-05-01T10:00:00Z' })] },
+      ],
+    });
+    const page = await getFundEditionIndex(asClient(fake), { limit: 1 });
+    expect(fake.calls[0]!.modifiers).toContainEqual(['limit', 2]);
+    expect(page.rows.map((r) => r.id)).toEqual([E1]);
+    expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${E1}`);
+  });
+
+  it('derives the cursor from the raw page tail, so a withheld row cannot overlap the next page', async () => {
+    // The tail row is unparseable. Taking the cursor from the last PARSED row would move it
+    // backwards and serve this page's rows again on the next one — showing the operator the
+    // same cycle twice while still hiding the bad one.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'fund_editions.select': [
+        {
+          data: [
+            editionRow({ phase: 'not_a_phase' }),
+            editionRow({ id: E2, created_at: '2026-05-01T10:00:00Z' }),
+          ],
+        },
+      ],
+    });
+    const page = await getFundEditionIndex(asClient(fake), { limit: 1 });
+    expect(page.rows).toEqual([]);
+    expect(page.excluded).toBe(1);
+    expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${E1}`);
+    expect(warn.mock.calls[0]![0]).toContain(E1);
+    warn.mockRestore();
+  });
+
+  it('pages by keyset, never by offset', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ data: [] }] });
+    await getFundEditionIndex(asClient(fake), { cursor: `2026-08-01T10:00:00Z|${E1}` });
+    expect(fake.calls[0]!.filters).toContainEqual([
+      'or',
+      `created_at.lt.2026-08-01T10:00:00Z,and(created_at.eq.2026-08-01T10:00:00Z,id.lt.${E1})`,
+    ]);
+    expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+
+  it('refuses a half cursor rather than silently restarting at page one', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ data: [] }] });
+    await expect(
+      getFundEditionIndex(asClient(fake), { cursor: '2026-08-01T10:00:00Z' }),
+    ).rejects.toThrow(/malformed fund edition cursor/);
+  });
+
+  it('throws when the database errors', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ error: DB_DOWN }] });
+    await expect(getFundEditionIndex(asClient(fake))).rejects.toEqual(DB_DOWN);
+  });
+
+  it('a null payload is an empty index, not a crash', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ data: null }] });
+    await expect(getFundEditionIndex(asClient(fake))).resolves.toEqual({
+      rows: [],
+      excluded: 0,
+      nextCursor: null,
+    });
+  });
+
+  it('reads the index without writing anything', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ data: [editionRow()] }] });
+    await getFundEditionIndex(asClient(fake));
+    expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
+  });
+});
+
+describe('getEditionAuditTrail', () => {
+  it('reads one cycle’s trail, keyed on the edition rather than on a report', async () => {
+    const fake = makeFakeClient({ 'audit_log.select': [{ data: [fundAuditRow()] }] });
+    const page = await getEditionAuditTrail(asClient(fake), E1);
+    expect(fake.calls[0]!.filters).toContainEqual(['eq', 'edition_id', E1]);
+    expect(fake.calls[0]!.filters.some((f) => f[1] === 'report_id')).toBe(false);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0]!).toMatchObject({ action: 'declare_winner', edition_id: E1 });
+    expect(page.excluded).toBe(0);
+  });
+
+  it('withholds a row whose action the schema has not learned, and says how many', async () => {
+    // #392's failure mode, on the fund half this time: a fourteenth transition added to the
+    // CHECK and not to AUDIT_LOG_FUND_ACTIONS. The trail stays up, one row short and honest.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'audit_log.select': [
+        { data: [fundAuditRow(), fundAuditRow({ id: A2, action: 'unmapped_transition' })] },
+      ],
+    });
+    const page = await getEditionAuditTrail(asClient(fake), E1);
+    expect(page.rows).toHaveLength(1);
+    expect(page.excluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain(A2);
+    warn.mockRestore();
+  });
+
+  it('withholds a fund row the shape refinement forbids', async () => {
+    // A fund action carrying a report id: the enum admits the action, only
+    // `audit_log_fund_shape` (and its Zod mirror) rejects the row.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'audit_log.select': [{ data: [fundAuditRow({ report_id: R1 })] }],
+    });
+    const page = await getEditionAuditTrail(asClient(fake), E1);
+    expect(page.rows).toEqual([]);
+    expect(page.excluded).toBe(1);
+    warn.mockRestore();
+  });
+
+  it('reads one row beyond the page and derives the cursor from the raw tail', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'audit_log.select': [
+        {
+          data: [
+            fundAuditRow({ action: 'unmapped_transition' }),
+            fundAuditRow({ id: A2, created_at: '2026-08-04T09:00:00Z' }),
+          ],
+        },
+      ],
+    });
+    const page = await getEditionAuditTrail(asClient(fake), E1, { limit: 1 });
+    expect(fake.calls[0]!.modifiers).toContainEqual(['limit', 2]);
+    expect(page.rows).toEqual([]);
+    expect(page.excluded).toBe(1);
+    expect(page.nextCursor).toBe(`2026-08-05T09:00:00Z|${A1}`);
+    warn.mockRestore();
+  });
+
+  it('pages by keyset, never by offset', async () => {
+    const fake = makeFakeClient({ 'audit_log.select': [{ data: [] }] });
+    await getEditionAuditTrail(asClient(fake), E1, { cursor: `2026-08-05T09:00:00Z|${A1}` });
+    expect(fake.calls[0]!.filters).toContainEqual([
+      'or',
+      `created_at.lt.2026-08-05T09:00:00Z,and(created_at.eq.2026-08-05T09:00:00Z,id.lt.${A1})`,
+    ]);
+    expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+
+  it('refuses a half cursor rather than silently restarting the trail', async () => {
+    const fake = makeFakeClient({ 'audit_log.select': [{ data: [] }] });
+    await expect(getEditionAuditTrail(asClient(fake), E1, { cursor: `|${A1}` })).rejects.toThrow(
+      /malformed edition audit cursor/,
+    );
+  });
+
+  it('throws when the database errors', async () => {
+    const fake = makeFakeClient({ 'audit_log.select': [{ error: DB_DOWN }] });
+    await expect(getEditionAuditTrail(asClient(fake), E1)).rejects.toEqual(DB_DOWN);
+  });
+
+  it('a null payload is an empty trail, not a crash', async () => {
+    const fake = makeFakeClient({ 'audit_log.select': [{ data: null }] });
+    await expect(getEditionAuditTrail(asClient(fake), E1)).resolves.toEqual({
+      rows: [],
+      excluded: 0,
+      nextCursor: null,
+    });
+  });
+
+  it('reads the trail without writing anything', async () => {
+    const fake = makeFakeClient({ 'audit_log.select': [{ data: [fundAuditRow()] }] });
+    await getEditionAuditTrail(asClient(fake), E1);
+    expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
   });
 });
