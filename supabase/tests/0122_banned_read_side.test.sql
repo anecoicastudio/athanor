@@ -13,7 +13,7 @@
 -- because a behaviour test can pass for the wrong reason and a grant test cannot.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(49);
+select plan(50);
 
 -- ── setup ────────────────────────────────────────────────────────────────────────────────────
 -- alice  — an ordinary member, the observer
@@ -256,6 +256,17 @@ select is(
     where schemaname = 'public' and tablename in ('post_comments','messages','conversations')
       and qual like '%not_banned%'), 0,
   'G11 the ban predicate was NOT composed into post_comments / messages / conversations');
+
+-- G12 exists because this looks like a missing grant and is not. anon holds EXECUTE on
+-- athanor.not_banned (G5) but NOT USAGE on the athanor schema, and the anon policies above
+-- evaluate it anyway: a policy's USING expression is stored as a PARSED tree referencing the
+-- function by OID, so no name resolution happens at execution time, and schema USAGE — a
+-- name-resolution privilege — is never consulted. A1/C1/C2 are the live proof; this pins the
+-- privilege surface so the absence reads as deliberate rather than forgotten. Granting anon
+-- USAGE here would widen its reach into the athanor schema for no behavioural gain, and the
+-- schema is not PostgREST-exposed, so there is no RPC surface to gain either.
+select ok(not has_schema_privilege('anon', 'athanor', 'usage'),
+  'G12 anon deliberately holds NO usage on schema athanor — the anon policies still evaluate');
 
 select * from finish();
 rollback;
