@@ -304,6 +304,28 @@ export default function PersonDetailScreen() {
     );
   }
 
+  // Removed — a banned member (#314). Distinct from `missing` above ON PURPOSE: the RPC still
+  // RESOLVES a banned member, with every identity column NULL and `removed` true, because zero
+  // rows already means «no such person, or blocked». Only one of those answers explains why
+  // this person's replies are still sitting in other members' threads, and «non disponibile»
+  // is not it. Nothing to share (there is no handle, so the header's share slot withholds
+  // itself), no action bar, no dream, no stars — a tombstone offers nothing to do. GDPR erasure
+  // (#107) is a different mechanism and never lands here: it deletes the row, so it renders
+  // `missing`.
+  if (person.removed) {
+    return (
+      <Screen>
+        <ModalHeader
+          title={t('profile.removed.title', locale)}
+          backLabel={t('common.back', locale)}
+        />
+        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
+          <EmptyState>{t('profile.removed.body', locale)}</EmptyState>
+        </ScrollView>
+      </Screen>
+    );
+  }
+
   // Map my prior offers onto each tappa. A declined offer stays declined: the
   // (milestone_id, helper_id) unique index has no deleted_at partial, so re-offering is a
   // 23505 the sheet can only report as «Hai già offerto aiuto» — «Aiuta» here would be a

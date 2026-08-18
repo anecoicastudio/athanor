@@ -47,6 +47,7 @@ describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
     city: 'Milano',
     identity_verified: false,
     founding_member: false,
+    removed: false,
   };
 
   it('calls the RPC and passes NULLed private fields through', async () => {
@@ -63,6 +64,31 @@ describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
   it('returns null for unknown / blocked ids (zero rows)', async () => {
     const { client } = rpcFake('get_person_profile', { data: [] });
     expect(await getProfileById(client, 'nope')).toBeNull();
+  });
+
+  it('passes a banned member through as a tombstone, not as null (#314)', async () => {
+    // The distinction this whole read model turns on: zero rows means «unknown or blocked»,
+    // and a resolved row with removed:true means «this account was removed». Collapsing the
+    // second into the first would attribute a surviving reply to the generic «·».
+    const { client } = rpcFake('get_person_profile', {
+      data: [
+        {
+          ...row,
+          handle: null,
+          display_name: null,
+          avatar_path: null,
+          founding_member: false,
+          identity_verified: false,
+          removed: true,
+        },
+      ],
+    });
+    const person = await getProfileById(client, row.id);
+    expect(person).not.toBeNull();
+    expect(person?.removed).toBe(true);
+    expect(person?.handle).toBeNull();
+    expect(person?.display_name).toBeNull();
+    expect(person?.avatar_path).toBeNull();
   });
 
   it('throws when the RPC errors, rather than reporting the member as missing', async () => {

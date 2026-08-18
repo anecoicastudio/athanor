@@ -158,6 +158,18 @@ export const personProfileSchema = profileSchema
   .extend({
     identity_tags: profileSchema.shape.identity_tags.nullable(),
     seeking: profileSchema.shape.seeking.nullable(),
+    /**
+     * True when this member was BANNED (#314). The row still resolves — that is deliberate —
+     * but every identity and content column above arrives NULL and both badges arrive false,
+     * so there is nothing to render but the tombstone.
+     *
+     * This flag is the whole reason the RPC returns a row at all. Zero rows already means
+     * «no such person, or blocked», and a reply surviving inside someone else's thread would
+     * then be attributed to the same generic «·» that a blocked stranger gets — the ruling
+     * asks for «account removed», which is a different statement. GDPR erasure (#107) is a
+     * separate mechanism and does not surface here: it deletes the row outright.
+     */
+    removed: z.boolean(),
   });
 
 export type Locale = z.infer<typeof localeSchema>;

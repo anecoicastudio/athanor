@@ -3348,6 +3348,7 @@ export type Database = {
           identity_verified: boolean
           mission: string
           profession: string
+          removed: boolean
           seeking: string[]
           skills: string[]
         }[]
