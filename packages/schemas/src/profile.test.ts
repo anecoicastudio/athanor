@@ -97,6 +97,7 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     city: null,
     identity_verified: false,
     founding_member: true,
+    removed: false,
   };
 
   it('carries the name and the avatar another member may render', () => {
@@ -118,6 +119,29 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     const parsed = personProfileSchema.parse({ ...personRow, locale: 'it', visibility: {} });
     expect(parsed).not.toHaveProperty('locale');
     expect(parsed).not.toHaveProperty('visibility');
+  });
+
+  it('parses the tombstone a banned member projects (#314)', () => {
+    // Exactly what get_person_profile returns once banned_at is set: the row RESOLVES, and
+    // carries nothing. The flag is what separates it from a row that never came back at all.
+    const parsed = personProfileSchema.parse({
+      ...personRow,
+      handle: null,
+      display_name: null,
+      avatar_path: null,
+      identity_verified: false,
+      founding_member: false,
+      removed: true,
+    });
+    expect(parsed.removed).toBe(true);
+    expect(parsed.display_name).toBeNull();
+    expect(parsed.avatar_path).toBeNull();
+    expect(parsed.handle).toBeNull();
+  });
+
+  it('rejects a projection with no removed flag — the client must never have to guess', () => {
+    const { removed: _omitted, ...withoutFlag } = personRow;
+    expect(() => personProfileSchema.parse(withoutFlag)).toThrow();
   });
 
   it('strips city_geohash — another member’s cell is never client-visible (#149)', () => {
