@@ -18,7 +18,10 @@ export default defineConfig({
     // Worker threads instead of forked processes — spawn dominated the run. Isolation
     // STAYS on: these tests vi.mock next/* modules per file.
     pool: 'threads',
-    include: ['{app,lib,utils}/**/*.test.ts'],
+    // `components` is in the list because a test there was silently never collected:
+    // `locale-provider.test.ts` landed in 217928e and matched no pattern, so it has never
+    // run. A test that cannot fail is worse than no test — it reads as coverage.
+    include: ['{app,components,lib,utils}/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       include: [

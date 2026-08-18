@@ -1,6 +1,6 @@
 // scripts/check-i18n-hardcoded.mjs
 // Hardcoded-string gate (frontend 10 §3.1 I-2), CLAUDE.md rule 5.
-// Flags natural-language literals under apps/native/src that are NOT wrapped in t().
+// Flags natural-language literals under DEFAULT_ROOTS (both apps) that are NOT wrapped in t().
 // Allowlist a line with an `i18n-ignore` comment (any style), or add a brand token
 // to ALLOWLIST.
 //
@@ -12,6 +12,11 @@
 //   * Alert.alert(...) titles, bodies, and button `text:` labels
 //   * a widened text-prop set, matched by NAME SUFFIX rather than a fixed list of six
 //
+// Six shapes it still cannot see — object-literal copy, function arguments other than
+// Alert.alert, ternaries, JSX children mixing text and expressions, short strings, and a
+// constant assigned then rendered — are tracked with reproductions in #433. Each is its own
+// pass; `packages/i18n/src/hardcoded-checker.test.ts` is the harness they land against.
+//
 // Deliberately NOT flagged, and these are the load-bearing exclusions:
 //   * `throw new Error('...')` — developer-facing, intentionally English (supabase.ts,
 //     supabase-key.ts). Never rendered.
@@ -22,7 +27,28 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ROOT = 'apps/native/src';
+/**
+ * Trees scanned by default. `apps/web` joined `apps/native` in #169 — it was never scanned,
+ * while 44 of its files import `@athanor/i18n`, so rule 5 was enforced on one app of two.
+ * Its directories are listed one by one rather than walking `apps/web` whole: the app also
+ * holds `.next`, `.open-next` and `.wrangler` build output, and `e2e/`, whose literals are
+ * playwright fixtures rather than shipped copy.
+ *
+ * `packages/*` is deliberately absent — no `.tsx` lives there and every pass below is JSX-,
+ * prop- or `Alert.alert`-shaped, so it would be dead scope.
+ *
+ * A root that stops existing throws ENOENT from `walk`, which is the loud failure a silently
+ * narrowed scan would not be. Override by passing roots as arguments — used by the test that
+ * pins this file's behaviour against fixtures, never by CI.
+ */
+const DEFAULT_ROOTS = [
+  'apps/native/src',
+  'apps/web/app',
+  'apps/web/components',
+  'apps/web/lib',
+  'apps/web/utils',
+];
+const ROOTS = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_ROOTS;
 
 /**
  * Text-bearing prop names. Suffix-matched (case-insensitive on the final word) so component
@@ -58,11 +84,24 @@ function* walk(dir) {
   }
 }
 
+/** A `'` preceded by one of these is an apostrophe in prose (`l'evento`, `un po'`), not a quote. */
+const WORD_CHAR = /[A-Za-z0-9\u00C0-\u024F]/;
+
 /**
  * Blank out `//` and block comments, preserving every offset and newline so line numbers
  * stay exact. Naive about regex literals containing `//` or `/*`: worst case it masks a bit
  * too much, which LOSES a finding rather than inventing one — the right way for a floor to
  * be wrong. Strings are preserved (the prop and Alert passes need their contents).
+ *
+ * All three quote characters open a string, so a `//` inside one — i.e. ANY url — no longer
+ * blanks the rest of its line and takes real findings with it (#169). `'` needs two guards to
+ * be safe, because Italian copy is full of apostrophes:
+ *   * it opens a string only when the preceding character is not a word character, so the
+ *     apostrophe in `l'evento` or `un po'` stays what it is;
+ *   * a `'` or `"` string ends at the newline regardless. A quote that never closes on its own
+ *     line was not a string literal (only a backtick may span lines), and bounding it there
+ *     keeps a stray apostrophe from swallowing comment masking for the rest of the file.
+ * Both guards fail toward masking more, which loses a finding rather than inventing one.
  */
 function maskComments(src) {
   let out = '';
@@ -77,15 +116,12 @@ function maskComments(src) {
         i += 2;
         continue;
       }
-      if (c === quote) quote = '';
+      if (c === quote || (c === '\n' && quote !== '`')) quote = '';
       out += c;
       i += 1;
       continue;
     }
-    // An apostrophe inside JSX text (`l'evento`) would open a bogus string, so only `"` and
-    // backtick open one here. `'` string literals are handled by the line-scoped passes,
-    // which do their own quote matching.
-    if (c === '"' || c === '`') {
+    if (c === '"' || c === '`' || (c === "'" && !WORD_CHAR.test(src[i - 1] ?? ''))) {
       quote = c;
       out += c;
       i += 1;
@@ -186,7 +222,7 @@ function topLevelArgs(text) {
 }
 
 const violations = [];
-for (const file of walk(ROOT)) {
+for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
   const raw = readFileSync(file, 'utf8');
   const src = maskComments(raw);
   const rawLines = raw.split('\n');
