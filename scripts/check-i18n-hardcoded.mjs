@@ -1,31 +1,40 @@
 // scripts/check-i18n-hardcoded.mjs
 // Hardcoded-string gate (frontend 10 §3.1 I-2), CLAUDE.md rule 5.
 // Flags natural-language literals under DEFAULT_ROOTS (both apps) that are NOT wrapped in t().
-// Allowlist a line with an `i18n-ignore` comment (any style), or add a brand token
-// to ALLOWLIST.
+// Allowlist a line with an `i18n-ignore` comment (any style), a whole file with
+// `i18n-ignore-file`, or add a brand token to ALLOWLIST.
 //
-// Still a FLOOR, not a wall — it is regex over comment-masked source, not an AST pass —
-// but a wider one than the original single-line `.tsx` scan. It now sees:
-//   * `.ts` as well as `.tsx`  (key selection increasingly lives in plain modules)
-//   * MULTI-LINE JSX text      (Prettier routinely splits <Text> children onto own lines)
-//   * template-literal JSX children
-//   * Alert.alert(...) titles, bodies, and button `text:` labels
-//   * a widened text-prop set, matched by NAME SUFFIX rather than a fixed list of six
+// A TypeScript-AST pass since #433, not regex over comment-masked source. The masker it
+// replaced existed only because a regex cannot tell a comment from a string; the parser can,
+// so that whole class of bug is gone, and «is this literal in copy position?» is a question
+// about the tree rather than about what characters happen to sit either side of it.
 //
-// Six shapes it still cannot see — object-literal copy, function arguments other than
-// Alert.alert, ternaries, JSX children mixing text and expressions, short strings, and a
-// constant assigned then rendered — are tracked with reproductions in #433. Each is its own
-// pass; `packages/i18n/src/hardcoded-checker.test.ts` is the harness they land against.
+// What it sees:
+//   * JSX text children, including a text run that sits beside `{…}` expressions
+//   * JSX expression children — literals, template literals, and BOTH arms of a ternary
+//   * text-bearing props (matched by NAME SUFFIX), including expression-valued ones
+//   * text-bearing keys in object literals (`{ label: 'Vicino a me' }`)
+//   * arguments to any call, under a stricter copy predicate (see `looksLikeCopyArgument`)
+//   * `Alert.alert(...)` titles, bodies, and button `text:` labels
+//   * a module-scope `const` holding copy that is then rendered — reported at the DECLARATION
+//   * short single-word copy (`<Text>Ciao</Text>`), which a 4-character lowercase run missed
 //
 // Deliberately NOT flagged, and these are the load-bearing exclusions:
-//   * `throw new Error('...')` — developer-facing, intentionally English (supabase.ts,
-//     supabase-key.ts). Never rendered.
+//   * `throw new Error('...')` and `new SomeError('...')` — developer-facing, intentionally
+//     English (supabase.ts, supabase-key.ts). Never rendered. `console.*` likewise.
 //   * `*.test.ts(x)` — fixtures, not user-facing copy.
 //   * anything already inside t(...), including `${t(...)}` inside a template literal.
-//   * enum-ish prop values (accessibilityRole="button", variant="ghost", style: 'cancel')
+//   * enum-ish values (`accessibilityRole="button"`, `variant="ghost"`, `style: 'cancel'`)
 //     — reached only through the suffix list and the Alert arg positions, never blanket.
+//   * i18n keys themselves (`label="tag.identity"`, `{ title: 'fund.disclose.where.title' }`).
+//   * code-shaped object values (`{ text: 'text-on-aura' }` — a Tailwind class, not copy).
+//
+// Still a FLOOR, and where it stops is written down: `looksLikeProse` says what a two-character
+// word costs, `looksLikeCopyArgument` says why a call argument is judged more strictly than a
+// JSX child, and `textLiterals` says why the walk stops at calls and at nested JSX.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 
 /**
  * Trees scanned by default. `apps/web` joined `apps/native` in #169 — it was never scanned,
@@ -34,8 +43,9 @@ import { join } from 'node:path';
  * holds `.next`, `.open-next` and `.wrangler` build output, and `e2e/`, whose literals are
  * playwright fixtures rather than shipped copy.
  *
- * `packages/*` is deliberately absent — no `.tsx` lives there and every pass below is JSX-,
- * prop- or `Alert.alert`-shaped, so it would be dead scope.
+ * `packages/*` is deliberately absent — no `.tsx` lives there and the JSX passes would be dead
+ * scope. The object-literal and call-argument passes would not be, but `packages/i18n` IS the
+ * catalog and `packages/core` is pure domain logic, so the copy that matters is in the apps.
  *
  * A root that stops existing throws ENOENT from `walk`, which is the loud failure a silently
  * narrowed scan would not be. Override by passing roots as arguments — used by the test that
@@ -51,21 +61,25 @@ const DEFAULT_ROOTS = [
 const ROOTS = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_ROOTS;
 
 /**
- * Text-bearing prop names. Suffix-matched (case-insensitive on the final word) so component
- * props like `backLabel`, `emptyCta`, `descPlaceholder`, `venuePlaceholder` are covered
- * without listing all ~70 of them. `name`/`variant`/`tone`/`status`/`field` are deliberately
- * absent: their values are identifiers and enum members, not copy.
+ * Text-bearing prop and object-key names. Suffix-matched (case-insensitive on the final word)
+ * so component props like `backLabel`, `emptyCta`, `descPlaceholder`, `venuePlaceholder` are
+ * covered without listing all ~70 of them. `name`/`variant`/`tone`/`status`/`field` are
+ * deliberately absent: their values are identifiers and enum members, not copy.
  */
 const TEXT_PROP_SUFFIX =
   /(?:^|[a-z0-9])(label|title|text|message|placeholder|hint|cta|caption|subtitle|heading|description|body)$/i;
 /**
- * Names that DO end in a text suffix but never carry copy. Both hold non-strings today, so
- * neither can reach the literal/template branches — they are here so that adding a string
- * form later is a conscious decision rather than a surprise CI failure.
+ * Names that DO end in a text suffix but never carry copy.
+ * `onChangeText` is a handler and `tabBarShowLabel` a boolean — both hold non-strings today, so
+ * neither can reach the literal branches; they are here so that adding a string form later is a
+ * conscious decision rather than a surprise CI failure. `context` and `@context` are the suffix
+ * rule misfiring — `…ntext` ends in `text` — and carry JSON-LD's `https://schema.org`.
  */
 const PROP_EXCEPTIONS = new Set([
   'onChangeText', // handler
   'tabBarShowLabel', // boolean
+  'context', // suffix accident: `con|text`
+  '@context', // JSON-LD, same accident
 ]);
 
 // Intentional non-translatable literals. Empty today — the «✦ Aura 0» chip
@@ -73,8 +87,57 @@ const PROP_EXCEPTIONS = new Set([
 // exception, not a shortcut past rule #5.
 const ALLOWLIST = new Set([]);
 
-// prose heuristic: has a letter, and either a space or a >=4-char lowercase run
-const looksLikeProse = (s) => /[A-Za-zÀ-ÿ]/.test(s) && (/\s/.test(s) || /[a-zà-ÿ]{4,}/.test(s));
+/**
+ * Prose heuristic for the positions where POSITION ALREADY PROVES COPY — JSX text, JSX
+ * expression children, text-bearing props. Has a letter, and either a space or a run of
+ * lowercase letters.
+ *
+ * The run was 4 characters, which is what made `<Text>Ciao</Text>` and `<Text>Esci</Text>`
+ * invisible (#433 e). Two is the defensible floor: it is roughly a syllable, and it is what
+ * separates a word from the acronyms the loosening was feared for — `OK`, `ID`, `PDF` and
+ * `A T H A N O R` carry no lowercase run at all and stay excluded by construction rather than
+ * by a hand-kept dictionary. Measured against both apps, dropping 4 to 2 added zero findings.
+ *
+ * What stays below the floor is a two-character word with a single lowercase letter — `Sì`,
+ * `Su`. Nothing structural separates those from `px` or a locale code, so they are left to
+ * review rather than bought with an allowlist.
+ */
+const looksLikeProse = (s) => /[A-Za-zÀ-ÿ]/.test(s) && (/\s/.test(s) || /[a-zà-ÿ]{2,}/.test(s));
+
+/** `tag.identity`, `fund.disclose.where.title` — a key on its way to t(), never copy. */
+const I18N_KEY = /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+$/;
+/**
+ * `text-on-aura`, `created_at`, `https://schema.org` — a single token punctuated the way code is.
+ * A trailing `.` does not count, so `title: 'Ciao.'` stays copy.
+ */
+const codeShaped = (s) => !/\s/.test(s) && /[_:/\\-]|\.\S/.test(s);
+
+/**
+ * A whitespace-separated token that could occur in a sentence: letters/digits with optional
+ * wrapping punctuation, or punctuation alone (an em dash between clauses). Internal hyphens
+ * and underscores are deliberately NOT allowed — `rounded-full` and `created_at` are the two
+ * shapes that flood this position — and neither are square brackets, which is what makes a
+ * `devWarn('[circle] startCheckout', e)` scope tag read as code rather than as a first word.
+ */
+const PROSE_TOKEN = /^[«»“”"'(]*[A-Za-zÀ-ÿ0-9'’]+[.,!?;:…)"'»”]*$/;
+const PUNCT_TOKEN = /^[—–…•·|:;,.!?"'«»“”()-]+$/;
+/**
+ * Copy predicate for CALL ARGUMENTS. Position proves nothing here: every Supabase table and
+ * column name, every Tailwind class list, every router path and every `devWarn('[scope] …')`
+ * is a call argument, and `looksLikeProse` accepts all of them. So the argument pass asks for
+ * an actual sentence — every token prose-shaped, at least two of them words. It misses
+ * `showToast('Salvato')`; it does not cost CI a false failure on `cn(…)` or `select(…)`.
+ */
+const looksLikeCopyArgument = (s) => {
+  const tokens = s.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return false;
+  let words = 0;
+  for (const tok of tokens) {
+    if (PROSE_TOKEN.test(tok)) words += 1;
+    else if (!PUNCT_TOKEN.test(tok)) return false;
+  }
+  return words >= 2;
+};
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -84,216 +147,224 @@ function* walk(dir) {
   }
 }
 
-/** A `'` preceded by one of these is an apostrophe in prose (`l'evento`, `un po'`), not a quote. */
-const WORD_CHAR = /[A-Za-z0-9\u00C0-\u024F]/;
+/** `t(...)` / `i18n.t(...)`: everything inside one is already translated. */
+const isTCall = (n) =>
+  ts.isCallExpression(n) &&
+  ((ts.isIdentifier(n.expression) && n.expression.text === 't') ||
+    (ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 't'));
 
 /**
- * Blank out `//` and block comments, preserving every offset and newline so line numbers
- * stay exact. Naive about regex literals containing `//` or `/*`: worst case it masks a bit
- * too much, which LOSES a finding rather than inventing one — the right way for a floor to
- * be wrong. Strings are preserved (the prop and Alert passes need their contents).
+ * Literals in TEXT position within `node`, i.e. reachable without evaluating anything.
  *
- * All three quote characters open a string, so a `//` inside one — i.e. ANY url — no longer
- * blanks the rest of its line and takes real findings with it (#169). `'` needs two guards to
- * be safe, because Italian copy is full of apostrophes:
- *   * it opens a string only when the preceding character is not a word character, so the
- *     apostrophe in `l'evento` or `un po'` stays what it is;
- *   * a `'` or `"` string ends at the newline regardless. A quote that never closes on its own
- *     line was not a string literal (only a backtick may span lines), and bounding it there
- *     keeps a stray apostrophe from swallowing comment masking for the rest of the file.
- * Both guards fail toward masking more, which loses a finding rather than inventing one.
+ * The walk stops at every node that is not itself a way of choosing between literals —
+ * crucially at calls and at nested JSX. Descending into them is what turns this pass into
+ * noise: `label={tagLabel('tag.identity', tag)}` would report the key, and
+ * `{cond ? <Pressable className="h-11 w-11" /> : null}` would report Tailwind.
  */
-function maskComments(src) {
-  let out = '';
-  let i = 0;
-  let quote = '';
-  while (i < src.length) {
-    const c = src[i];
-    const next = src[i + 1];
-    if (quote) {
-      if (c === '\\') {
-        out += src.slice(i, i + 2);
-        i += 2;
-        continue;
-      }
-      if (c === quote || (c === '\n' && quote !== '`')) quote = '';
-      out += c;
-      i += 1;
-      continue;
+function textLiterals(node, out = []) {
+  const visit = (n) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+      out.push({ node: n, text: n.text });
+      return;
     }
-    if (c === '"' || c === '`' || (c === "'" && !WORD_CHAR.test(src[i - 1] ?? ''))) {
-      quote = c;
-      out += c;
-      i += 1;
-      continue;
+    if (ts.isTemplateExpression(n)) {
+      // A `${t(...)}` anywhere in the template means the copy is already translated and what
+      // is left around it is glue.
+      let translated = false;
+      const seek = (x) => {
+        if (isTCall(x)) translated = true;
+        else ts.forEachChild(x, seek);
+      };
+      n.templateSpans.forEach((s) => seek(s.expression));
+      if (translated) return;
+      const parts = [n.head.text, ...n.templateSpans.map((s) => s.literal.text)];
+      out.push({ node: n, text: parts.join(' '), template: true });
+      return;
     }
-    if (c === '/' && next === '/') {
-      while (i < src.length && src[i] !== '\n') {
-        out += ' ';
-        i += 1;
-      }
-      continue;
+    if (ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isNonNullExpression(n))
+      return visit(n.expression);
+    // `body: ['Prima riga.', 'Seconda riga.']` — a paragraph list is copy as much as a string is.
+    if (ts.isArrayLiteralExpression(n)) return n.elements.forEach(visit);
+    if (ts.isConditionalExpression(n)) {
+      visit(n.whenTrue);
+      visit(n.whenFalse);
+      return;
     }
-    if (c === '/' && next === '*') {
-      const end = src.indexOf('*/', i + 2);
-      const stop = end === -1 ? src.length : end + 2;
-      out += src.slice(i, stop).replace(/[^\n]/g, ' ');
-      i = stop;
-      continue;
+    if (
+      ts.isBinaryExpression(n) &&
+      [
+        ts.SyntaxKind.AmpersandAmpersandToken,
+        ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.QuestionQuestionToken,
+      ].includes(n.operatorToken.kind)
+    ) {
+      visit(n.left);
+      visit(n.right);
     }
-    out += c;
-    i += 1;
-  }
+  };
+  visit(node);
   return out;
 }
 
-/** offset -> 1-based line number. */
-function lineIndex(src) {
-  const starts = [0];
-  for (let i = 0; i < src.length; i += 1) if (src[i] === '\n') starts.push(i + 1);
-  return (offset) => {
-    let lo = 0;
-    let hi = starts.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (starts[mid] <= offset) lo = mid;
-      else hi = mid - 1;
-    }
-    return lo + 1;
-  };
-}
-
-/** Text of the balanced `(...)` starting at `open` (the index of the paren). */
-function balanced(src, open) {
-  let depth = 0;
-  let quote = '';
-  for (let i = open; i < src.length; i += 1) {
-    const c = src[i];
-    if (quote) {
-      if (c === '\\') i += 1;
-      else if (c === quote) quote = '';
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') quote = c;
-    else if (c === '(') depth += 1;
-    else if (c === ')') {
-      depth -= 1;
-      if (depth === 0) return src.slice(open + 1, i);
-    }
-  }
-  return src.slice(open + 1);
-}
-
-/** Blank out every `t(...)` call so only untranslated literals remain. */
-function stripTCalls(text) {
-  let out = text;
-  for (;;) {
-    const m = /\bt\s*\(/.exec(out);
-    if (!m) return out;
-    const inner = balanced(out, m.index + m[0].length - 1);
-    const whole = out.slice(m.index, m.index + m[0].length + inner.length + 1);
-    out = out.slice(0, m.index) + whole.replace(/[^\n]/g, ' ') + out.slice(m.index + whole.length);
-  }
-}
-
-/** Split on top-level commas (ignoring nesting and strings). */
-function topLevelArgs(text) {
-  const parts = [];
-  let depth = 0;
-  let quote = '';
-  let start = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text[i];
-    if (quote) {
-      if (c === '\\') i += 1;
-      else if (c === quote) quote = '';
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') quote = c;
-    else if ('([{'.includes(c)) depth += 1;
-    else if (')]}'.includes(c)) depth -= 1;
-    else if (c === ',' && depth === 0) {
-      parts.push(text.slice(start, i));
-      start = i + 1;
-    }
-  }
-  parts.push(text.slice(start));
-  return parts;
-}
+/** True when any ancestor satisfies `pred`. */
+const hasAncestor = (node, pred) => {
+  for (let n = node.parent; n; n = n.parent) if (pred(n)) return true;
+  return false;
+};
 
 const violations = [];
 for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
   const raw = readFileSync(file, 'utf8');
-  const src = maskComments(raw);
+  if (raw.includes('i18n-ignore-file')) continue;
+  const sf = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const rawLines = raw.split('\n');
-  const lineOf = lineIndex(src);
+  const lineAt = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
   /** `i18n-ignore` anywhere in the match's own lines, or on the line above it. */
-  const ignored = (from, to) => {
-    const a = Math.max(1, lineOf(from) - 1);
-    const b = lineOf(to);
-    return rawLines.slice(a - 1, b).some((l) => l.includes('i18n-ignore'));
+  const ignored = (from, to) =>
+    rawLines
+      .slice(Math.max(0, lineAt(from) - 2), lineAt(to))
+      .some((l) => l.includes('i18n-ignore'));
+  const seen = new Set();
+  /** Report `node`, once per (line, value) — the passes deliberately overlap. */
+  const add = (node, value, what) => {
+    const from = node.getStart(sf);
+    const key = `${lineAt(from)}|${value}`;
+    if (seen.has(key) || ALLOWLIST.has(value) || ignored(from, node.getEnd())) return;
+    seen.add(key);
+    violations.push([file, lineAt(from), what]);
   };
-  const add = (from, to, what) => {
-    if (!ignored(from, to)) violations.push([file, lineOf(from), what]);
-  };
-
-  // --- 1. JSX text nodes, single- AND multi-line -----------------------------------------
-  // `>text</` with the closing-tag slash required, so TS generics (`=> Promise<void>`) and
-  // comparisons (`index < n`) are not matched. Newlines are allowed inside the run now;
-  // `<`, `{`, `}` are not, so the match can only ever be one direct text child.
-  for (const m of src.matchAll(/>([^<>{}]+)<\//g)) {
-    const text = m[1].replace(/\s+/g, ' ').trim();
-    // `=`/`;` never appear in this app's copy but do appear in stray code runs — cheap
-    // insurance that keeps the gate a floor.
-    if (/[=;]/.test(text)) continue;
-    if (looksLikeProse(text) && !ALLOWLIST.has(text)) add(m.index, m.index + m[0].length, text);
-  }
-
-  // --- 2. template-literal JSX children: `>{`…`}</` ---------------------------------------
-  for (const m of src.matchAll(/>\s*\{\s*`([^`]*)`\s*\}\s*<\//g)) {
-    const text = m[1];
-    if (text.includes('${t(')) continue; // interpolated translation
-    const literal = text
+  /** Collapse a literal the way it renders: interpolations become a space. */
+  const rendered = (lit) =>
+    lit.text
       .replace(/\$\{[^}]*\}/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    if (looksLikeProse(literal) && !ALLOWLIST.has(literal))
-      add(m.index, m.index + m[0].length, `\`${literal}\``);
-  }
+  const isTextName = (name) => !PROP_EXCEPTIONS.has(name) && TEXT_PROP_SUFFIX.test(name);
 
-  // --- 3. text-bearing props --------------------------------------------------------------
-  // string literal, `{'literal'}`, or a template literal with no t() inside.
-  const propRe =
-    /\b([a-zA-Z][a-zA-Z0-9_]*)=(?:(["'])((?:[^"'\\\n]|\\.)*?)\2|\{\s*(["'])((?:[^"'\\\n]|\\.)*?)\4\s*\}|\{\s*`([^`]*)`\s*\})/g;
-  for (const m of src.matchAll(propRe)) {
-    const prop = m[1];
-    if (PROP_EXCEPTIONS.has(prop) || !TEXT_PROP_SUFFIX.test(prop)) continue;
-    const tpl = m[6];
-    if (tpl !== undefined && tpl.includes('${t(')) continue;
-    const value = (m[3] ?? m[5] ?? tpl ?? '').replace(/\$\{[^}]*\}/g, ' ').trim();
-    if (looksLikeProse(value) && !ALLOWLIST.has(value))
-      add(m.index, m.index + m[0].length, `${prop}="${value}"`);
-  }
-
-  // --- 4. Alert.alert(...) ----------------------------------------------------------------
-  // Its strings are as user-facing as any <Text>, and the original gate could not see them
-  // at all. Only the two positional message args and button `text:` labels are inspected —
-  // `style: 'cancel' | 'destructive'` are enum values, not copy, and must not be flagged.
-  for (const m of src.matchAll(/\bAlert\s*\.\s*alert\s*\(/g)) {
-    const open = m.index + m[0].length - 1;
-    const args = stripTCalls(balanced(src, open));
-    const parts = topLevelArgs(args);
-    const candidates = [];
-    for (const part of parts.slice(0, 2))
-      for (const lit of part.matchAll(/(["'`])((?:[^"'`\\]|\\.)*?)\1/g)) candidates.push(lit[2]);
-    for (const lit of args.matchAll(/\btext:\s*(["'`])((?:[^"'`\\]|\\.)*?)\1/g))
-      candidates.push(lit[2]);
-    for (const c of candidates) {
-      const value = c.replace(/\$\{[^}]*\}/g, ' ').trim();
-      if (looksLikeProse(value) && !ALLOWLIST.has(value))
-        add(open, open + args.length, `Alert.alert(… "${value}" …)`);
+  /**
+   * Module-scope `const X = 'copy'`. Moving a literal to a constant is the first thing a
+   * developer reaches for when the gate complains, and it used to work — so the declaration is
+   * flagged as soon as the identifier is found in a copy position, and flagged THERE, because
+   * that is where the `t()` call has to go.
+   */
+  const declared = new Map();
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st)) continue;
+    for (const d of st.declarationList.declarations) {
+      if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+      const [lit] = textLiterals(d.initializer);
+      if (!lit || lit.node !== d.initializer) continue;
+      const value = rendered(lit);
+      if (looksLikeProse(value) && !I18N_KEY.test(value) && !codeShaped(value))
+        declared.set(d.name.text, { decl: d, value });
     }
   }
+
+  const visit = (node) => {
+    // --- 1. JSX text children, single- and multi-line, alone or beside `{…}` --------------
+    // A run beside an expression is held to a stricter bar: `{t('intro.titolo')} dell'evento`
+    // is a translated element with an agreement suffix, while `Ciao {name}, come stai oggi`
+    // is a sentence that was never translated at all. Whitespace is what tells them apart.
+    if (ts.isJsxText(node)) {
+      const text = node.text.replace(/\s+/g, ' ').trim();
+      const mixed = (node.parent.children ?? []).some(
+        (c) => ts.isJsxExpression(c) && c.expression !== undefined,
+      );
+      if (text && looksLikeProse(text) && (!mixed || /\s/.test(text))) add(node, text, text);
+    }
+
+    // --- 2. JSX expression children: `{'…'}`, `{`…`}`, `{cond ? '…' : '…'}` ---------------
+    if (
+      ts.isJsxExpression(node) &&
+      node.expression &&
+      (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))
+    ) {
+      for (const lit of textLiterals(node.expression)) {
+        const value = rendered(lit);
+        if (looksLikeProse(value) && !I18N_KEY.test(value))
+          add(lit.node, value, lit.template ? `\`${value}\`` : value);
+      }
+    }
+
+    // --- 3. text-bearing props, literal or expression -------------------------------------
+    if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const prop = node.name.text;
+      if (isTextName(prop)) {
+        const init = ts.isJsxExpression(node.initializer)
+          ? node.initializer.expression
+          : node.initializer;
+        for (const lit of init ? textLiterals(init) : []) {
+          const value = rendered(lit);
+          if (looksLikeProse(value) && !I18N_KEY.test(value))
+            add(lit.node, value, `${prop}="${value}"`);
+        }
+      }
+    }
+
+    // --- 4. text-bearing keys in object literals -------------------------------------------
+    // `{ label: 'Vicino a me' }` renders as surely as a prop does, and `propRe`'s `name=`
+    // could never see it. Identifier-shaped values are rejected here and only here: an object
+    // under a `text` key is as likely to hold a Tailwind class (`{ text: 'text-on-aura' }`) as
+    // copy, and unlike a JSX prop nothing about the position settles it. It is `codeShaped`, not
+    // «one word», so an Alert button's `text: 'Annulla'` is still reported.
+    if (
+      ts.isPropertyAssignment(node) &&
+      (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name))
+    ) {
+      const prop = node.name.text;
+      if (isTextName(prop)) {
+        for (const lit of textLiterals(node.initializer)) {
+          const value = rendered(lit);
+          if (looksLikeProse(value) && !I18N_KEY.test(value) && !codeShaped(value))
+            add(lit.node, value, `${prop}: "${value}"`);
+        }
+      }
+    }
+
+    if (ts.isCallExpression(node) && !isTCall(node)) {
+      const callee = node.expression.getText(sf).replace(/\s+/g, '');
+      // --- 5. Alert.alert(...) -------------------------------------------------------------
+      // Its strings are as user-facing as any <Text>. Only the two positional message args are
+      // inspected here — `style: 'cancel' | 'destructive'` are enum values, not copy, and the
+      // button `text:` labels come through pass 4's `text` suffix.
+      if (callee === 'Alert.alert') {
+        for (const arg of node.arguments.slice(0, 2))
+          for (const lit of textLiterals(arg)) {
+            const value = rendered(lit);
+            if (looksLikeProse(value)) add(lit.node, value, `Alert.alert(… "${value}" …)`);
+          }
+      } else if (!callee.startsWith('console.') && !hasAncestor(node, ts.isThrowStatement)) {
+        // --- 6. arguments to any other call ------------------------------------------------
+        // Where the toasts live: `showToast('Non è stato possibile salvare')`, `setError(…)`.
+        for (const arg of node.arguments)
+          for (const lit of textLiterals(arg)) {
+            const value = rendered(lit);
+            if (looksLikeCopyArgument(value)) add(lit.node, value, `${callee}(… "${value}" …)`);
+          }
+      }
+    }
+
+    // --- 7. a module-scope const, rendered ---------------------------------------------------
+    if (ts.isIdentifier(node) && declared.has(node.text)) {
+      const { decl, value } = declared.get(node.text);
+      const renders =
+        hasAncestor(
+          node,
+          (n) =>
+            ts.isJsxExpression(n) &&
+            n.parent &&
+            (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent)),
+        ) ||
+        hasAncestor(
+          node,
+          (n) => ts.isJsxAttribute(n) && ts.isIdentifier(n.name) && isTextName(n.name.text),
+        );
+      if (node !== decl.name && renders) add(decl, value, `${node.text} = "${value}"`);
+    }
+
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
 }
 
 if (violations.length) {
