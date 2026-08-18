@@ -46,6 +46,33 @@ why it is safe; never ask Stripe Support to switch it.
 created at that same version. Splitting it across code and env is how payload shapes
 drift.
 
+## Return URLs: one scheme var, three https vars (#418)
+
+Stripe validates redirect URLs differently per product, and the difference is not
+documented anywhere plainly — it cost #416/#417 a release cycle to find:
+
+| Product               | Param                        | Accepts `athanor://`?  | Var                                             |
+| --------------------- | ---------------------------- | ---------------------- | ----------------------------------------------- |
+| Checkout              | `success_url` / `cancel_url` | yes                    | `APP_DEEPLINK_BASE`                             |
+| Billing Portal        | `return_url`                 | yes                    | `APP_DEEPLINK_BASE`                             |
+| Identity              | `return_url`                 | **no** (`url_invalid`) | `IDENTITY_RETURN_BASE`                          |
+| Connect Account Links | `return_url` / `refresh_url` | **no** (live mode)     | `PAYOUT_ONBOARDING_RETURN_URL` / `_REFRESH_URL` |
+
+The https vars point at `apps/web`'s `/app/*` hand-off pages, which forward to the
+`athanor://` scheme in the browser. They are deliberately separate from
+`APP_DEEPLINK_BASE`: that var is read by four Checkout-based functions whose URLs must
+stay on the scheme, because that is what `WebBrowser.openAuthSessionAsync` matches on to
+close the sheet. Repointing the shared var would restore Identity's redirect by breaking
+those four.
+
+Both unset states are safe and deliberate, and neither is an error to leave in place:
+Identity omits `return_url` entirely (the verified flip arrives by webhook W9, never by
+the redirect), and `create-payout-onboarding` answers `500 payout onboarding not
+configured` before any Stripe call, so no orphan Connect account can be created.
+
+**Ordering.** `apps/web` reaches production only at a `dev → main` release. Set the
+production values _after_ the pages are live there, or Stripe will redirect members to a 404.
+
 ## Why the mobile app has no Stripe / payment variables
 
 Every payment flow opens a hosted Stripe URL minted by an edge function
@@ -56,7 +83,8 @@ break App Store Expo Go). None of these exist, and adding them would be dead wei
 Metro inlines into the shipped bundle:
 
 `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` (no client SDK to hand it to) ·
-`EXPO_PUBLIC_STRIPE_RETURN_URL` (return URLs built server-side from `APP_DEEPLINK_BASE`)
+`EXPO_PUBLIC_STRIPE_RETURN_URL` (return URLs built server-side from `APP_DEEPLINK_BASE`,
+or from the https vars above)
 · `EXPO_PUBLIC_APP_SCHEME` (declared once, in `app.json` "scheme") ·
 `EXPO_PUBLIC_APPLE_MERCHANT_ID` / `EXPO_PUBLIC_GOOGLE_PAY_TEST_ENV` (need the native SDK)
 · `EXPO_PUBLIC_MERCHANT_COUNTRY` (Checkout takes it from the Stripe account) ·

@@ -88,7 +88,11 @@ Deno.test('#416: a deep-link scheme is never sent as return_url — Stripe 400s 
 Deno.test(
   'an http(s) base IS sent — a bounce page needs no code change to take effect',
   async () => {
-    for (const appBase of ['https://www.athanor.workers.dev/r/', 'http://localhost:3000/r/']) {
+    // #418 made this the live path: IDENTITY_RETURN_BASE resolves to the apps/web hand-off
+    // base, so the built URL is the real `/app/verify` route, which forwards to
+    // `athanor://verify`. The trailing `?status=complete` is ignored by that page — it is a
+    // static route — and is kept only because dropping it would be a change for its own sake.
+    for (const appBase of ['https://www.athanor.workers.dev/app/', 'http://localhost:3000/app/']) {
       const c = { ...ctx(), appBase };
       await run(c);
       assertEquals(c.created[0].return_url, `${appBase}verify?status=complete`);
