@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { trimmedNonBlank } from './primitives';
+import { fundEditionSchema } from './fund';
 
 /** Moderation severity → maps to REPORT_PENALTY in @athanor/core (rule #10). */
 export const REPORT_SEVERITIES = ['low', 'medium', 'high'] as const;
@@ -164,3 +165,21 @@ export const adminReportDetail = adminReportRow.extend({
   auditExcluded: z.number().int().nonnegative(),
 });
 export type AdminReportDetail = z.infer<typeof adminReportDetail>;
+
+/**
+ * Admin fund-audit index row — the subset of a cycle the operator index needs to name one,
+ * order them, and link to its trail (#432).
+ *
+ * Picked from `fundEditionSchema` rather than re-declared (rules/schemas.md): a cycle is one
+ * entity, and the index is a projection of it. Declaring these six fields again would be the
+ * second copy that stops getting the next column's type change.
+ */
+export const adminFundEditionRow = fundEditionSchema.pick({
+  id: true,
+  phase: true,
+  target_at: true,
+  created_at: true,
+  closure_reason: true,
+  winner_candidacy_id: true,
+});
+export type AdminFundEditionRow = z.infer<typeof adminFundEditionRow>;

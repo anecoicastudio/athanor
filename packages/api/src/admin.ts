@@ -1,17 +1,82 @@
-// Moderation API — consumed by the web admin panel (apps/web/app/admin), which reads it
+// Admin API — consumed by the web admin panel (apps/web/app/admin), which reads it
 // from Server Components and Server Actions (no TanStack Query on that surface).
+// Two surfaces live here: moderation (reports + their verdicts) and the fund audit trail
+// (#432), which share `audit_log` and therefore share its parse-at-the-boundary shape.
 import { reportPenaltyPoints } from '@athanor/core';
 import {
   auditLogRow,
+  adminFundEditionRow,
   type ResolveReportInput,
   type AuditLogRow,
   type AdminReportRow,
   type AdminReportDetail,
+  type AdminFundEditionRow,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { keysetFilter } from './pagination';
 
-export type { AdminReportRow, AdminReportDetail } from '@athanor/schemas';
+export type { AdminReportRow, AdminReportDetail, AdminFundEditionRow } from '@athanor/schemas';
+
+/** The columns every `audit_log` reader here selects — one list, so two readers cannot drift. */
+const AUDIT_COLUMNS =
+  'id, report_id, actor_id, action, penalty_points, reason, created_at, edition_id, candidacy_id';
+
+/** The columns every `fund_editions` reader here selects — `adminFundEditionRow`'s exact shape. */
+const EDITION_COLUMNS = 'id, phase, target_at, created_at, closure_reason, winner_candidacy_id';
+
+/**
+ * Structural stand-in for a Zod schema's `safeParse`. This package does not depend on `zod`
+ * — it consumes `@athanor/schemas`' already-built schemas — so the helper below is typed by
+ * shape rather than by importing `ZodTypeAny`, which would mean adding the dependency to get
+ * one generic parameter.
+ */
+type BoundaryParser<T> = {
+  safeParse: (value: unknown) =>
+    | { success: true; data: T }
+    | {
+        success: false;
+        error: { issues: readonly { path: (string | number)[]; message: string }[] };
+      };
+};
+
+/**
+ * Parse a result set row by row: valid rows through, invalid rows withheld and counted.
+ *
+ * #421's shape, extracted once three readers needed it. Per-row `safeParse` rather than this
+ * package's usual `.parse()`-and-throw, because the consequence differs: every other query
+ * boundary feeds a content screen, while these feed operator surfaces. The realistic failure
+ * is the schema lagging the database — #392, which went five actions and five migrations
+ * unnoticed — and on that failure a throw takes the whole view down over one unrecognised
+ * row. Withholding keeps the surface up; returning `excluded` keeps the omission honest,
+ * because silently dropping evidence is the other way to be wrong.
+ *
+ * `table` and `surface` only shape the warning; the caller says which reader spoke.
+ */
+function parseOrWithhold<T>(
+  rows: readonly unknown[] | null | undefined,
+  parser: BoundaryParser<T>,
+  table: string,
+  surface: string,
+): { parsed: T[]; excluded: number } {
+  const parsed: T[] = [];
+  let excluded = 0;
+  for (const row of rows ?? []) {
+    const result = parser.safeParse(row);
+    if (result.success) {
+      parsed.push(result.data);
+      continue;
+    }
+    excluded += 1;
+    // No logger exists in this package; a warning is the only channel that reaches
+    // `wrangler tail`, and the row id plus the failing path is what makes the row findable.
+    console.warn(
+      `[admin] ${table} row ${String((row as { id?: unknown }).id)} withheld from ${surface}: ${result.error.issues
+        .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
+        .join('; ')}`,
+    );
+  }
+  return { parsed, excluded };
+}
 
 const PAGE = 25;
 
@@ -64,24 +129,16 @@ export async function getReportQueue(
 /**
  * Read one report with its append-only audit trail.
  *
- * The audit rows are parsed row by row rather than cast, so `auditLogRow`'s guarantees —
- * the 18-action vocabulary and the `audit_log_fund_shape` refinement (#419) — actually
- * execute at the boundary instead of being a compile-time claim.
- *
- * Per-row `safeParse` rather than this package's usual `.parse()`-and-throw. The idiom
- * differs here because the consequence does: every other query boundary feeds a content
- * screen, while this one feeds the moderation surface. The realistic way a row fails is
- * the schema lagging a widened `audit_log_action_check` — #392, which went five actions
- * and five migrations unnoticed — and on that failure a throw would take the whole
- * moderation detail view down over one unrecognised label. Withholding the row keeps the
- * surface up; returning `auditExcluded` keeps the omission honest, because silently
- * dropping audit evidence is the other way to be wrong.
+ * The audit rows go through `parseOrWithhold` rather than a cast, so `auditLogRow`'s
+ * guarantees — the 18-action vocabulary and the `audit_log_fund_shape` refinement (#419) —
+ * actually execute at the boundary instead of being a compile-time claim. Why withhold
+ * rather than throw is argued at the helper.
  *
  * Which half of the vocabulary can actually trip it is worth being exact about: this query
  * filters on `report_id`, and `audit_log_fund_shape` forbids a fund row from carrying one,
  * so no fund action ever reaches this loop. A widening of the MODERATION half is what would
- * — a fifth enforcement action beside warn/penalty/suspend/ban. The fund half becomes
- * reachable only through a future admin fund-audit surface, which queries by edition.
+ * — a fifth enforcement action beside warn/penalty/suspend/ban. The fund half is read by
+ * `getEditionAuditTrail` below, which keys on the edition instead.
  */
 export async function getReportDetail(
   client: AthanorClient,
@@ -106,28 +163,15 @@ export async function getReportDetail(
   }
   const { data: audit } = await client
     .from('audit_log')
-    .select(
-      'id, report_id, actor_id, action, penalty_points, reason, created_at, edition_id, candidacy_id',
-    )
+    .select(AUDIT_COLUMNS)
     .eq('report_id', id)
     .order('created_at', { ascending: false });
-  const parsedAudit: AuditLogRow[] = [];
-  let auditExcluded = 0;
-  for (const row of audit ?? []) {
-    const parsed = auditLogRow.safeParse(row);
-    if (parsed.success) {
-      parsedAudit.push(parsed.data);
-      continue;
-    }
-    auditExcluded += 1;
-    // No logger exists in this package; a warning is the only channel that reaches
-    // `wrangler tail`, and the row id plus the failing path is what makes the row findable.
-    console.warn(
-      `[admin] audit_log row ${String(row.id)} withheld from the trail: ${parsed.error.issues
-        .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
-        .join('; ')}`,
-    );
-  }
+  const { parsed: parsedAudit, excluded: auditExcluded } = parseOrWithhold<AuditLogRow>(
+    audit,
+    auditLogRow,
+    'audit_log',
+    'the trail',
+  );
   return {
     id: data.id,
     target_type: data.target_type as AdminReportRow['target_type'],
@@ -201,4 +245,154 @@ export async function resolveReport(
 
   const { error } = await client.rpc('resolve_report', rpcArgs);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Fund audit trail (#432). Every fund transition journals an `audit_log` row keyed on
+// `edition_id`; `audit_log_fund_shape` forbids those rows a `report_id`, so the moderation
+// reader above can never return one. These two are the readers that can.
+//
+// Privilege is the same route as the moderation reader — no second one. `audit_log` carries
+// exactly one policy, `audit_log_select_admin` (`20260622142310_m9_admin_moderation.sql`),
+// `for select to authenticated using (athanor.is_admin())`, with no report/edition predicate;
+// the panel reaches it with the caller's own session through `createAuthedClient()`, never a
+// service-role client. A non-admin session reads zero rows rather than being refused, which
+// is RLS working. `fund_editions` is public-readable (`fund_editions_select_public`), so the
+// index below needs no privilege at all — it is here because the audit surface is its only
+// consumer, not because it is admin-gated.
+// ---------------------------------------------------------------------------
+
+/**
+ * The cycles the fund-audit index lists, newest first.
+ *
+ * Cursor-paginated (rule #9) even though a cycle is a months-long object and there will only
+ * ever be a handful: a page size is the only honest way to bound a list that grows forever,
+ * and a `limit` with no cursor would silently truncate the oldest cycles the day there are
+ * more than one page — the same defect this issue exists to fix, one level up.
+ *
+ * Cursor = `${created_at}|${id}`.
+ */
+export async function getFundEditionIndex(
+  client: AthanorClient,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<{ rows: AdminFundEditionRow[]; excluded: number; nextCursor: string | null }> {
+  const limit = opts.limit ?? PAGE;
+  let q = client
+    .from('fund_editions')
+    .select(EDITION_COLUMNS)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1);
+  if (opts.cursor) {
+    const [ts, id] = opts.cursor.split('|');
+    // Same stance as `getReportQueue`: the cursor is opaque and server-issued, so a half of
+    // it missing is a caller bug. Refusing says so; dropping the predicate would restart the
+    // list at page 1 without a word.
+    if (!ts || !id) throw new Error(`malformed fund edition cursor: ${opts.cursor}`);
+    q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  const raw = data ?? [];
+  const hasMore = raw.length > limit;
+  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { parsed, excluded } = parseOrWithhold<AdminFundEditionRow>(
+    page,
+    adminFundEditionRow,
+    'fund_editions',
+    'the cycle index',
+  );
+  // The cursor comes from the last RAW row of the page, not the last parsed one. A withheld
+  // tail row would otherwise move the cursor backwards and serve the next page overlapping
+  // this one — showing an operator the same cycle twice while still hiding the bad row.
+  const last = page[page.length - 1];
+  return {
+    rows: parsed,
+    excluded,
+    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
+  };
+}
+
+/**
+ * One cycle, by id — what the audit view names its trail with.
+ *
+ * Three-state on purpose, because "no such cycle" and "a cycle whose row I could not read"
+ * are different facts and only one of them is a 404. A bare `null` would collapse them, and
+ * the collapse is this issue's own defect one level down: an empty trail rendered for a
+ * mistyped id reads exactly like a real cycle that has not transitioned yet.
+ *
+ * `row === null && excluded === 0` — the cycle does not exist.
+ * `row === null && excluded === 1` — it exists and the schema rejected it; the caller should
+ * still show the trail, which is the part that matters, and say the header is degraded.
+ */
+export async function getFundEdition(
+  client: AthanorClient,
+  id: string,
+): Promise<{ row: AdminFundEditionRow | null; excluded: number }> {
+  const { data, error } = await client
+    .from('fund_editions')
+    .select(EDITION_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { row: null, excluded: 0 };
+  const { parsed, excluded } = parseOrWithhold<AdminFundEditionRow>(
+    [data],
+    adminFundEditionRow,
+    'fund_editions',
+    'the cycle header',
+  );
+  return { row: parsed[0] ?? null, excluded };
+}
+
+/**
+ * One cycle's append-only audit trail, newest first — the thirteen fund transitions
+ * (`declare_winner`, the four `screen_*`, `announce`, `void_cycle`, `winner_confirm`,
+ * `winner_decline`, `close_cycle`, `rollover_cycle`, `publish_plan`, `verify_phase`) that
+ * were being written faithfully and read by nothing.
+ *
+ * Keyed on `edition_id`, which is what makes it the complement of `getReportDetail`'s trail
+ * rather than a widening of it: the two filters are mutually exclusive by CHECK constraint.
+ * `audit_log_edition` on `(edition_id, created_at desc)` already indexes exactly this order.
+ *
+ * Cursor = `${created_at}|${id}`. Rows the schema rejects are withheld and counted, never
+ * dropped in silence — see `parseOrWithhold`.
+ */
+export async function getEditionAuditTrail(
+  client: AthanorClient,
+  editionId: string,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<{ rows: AuditLogRow[]; excluded: number; nextCursor: string | null }> {
+  const limit = opts.limit ?? PAGE;
+  let q = client
+    .from('audit_log')
+    .select(AUDIT_COLUMNS)
+    .eq('edition_id', editionId)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1);
+  if (opts.cursor) {
+    const [ts, id] = opts.cursor.split('|');
+    if (!ts || !id) throw new Error(`malformed edition audit cursor: ${opts.cursor}`);
+    q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  const raw = data ?? [];
+  const hasMore = raw.length > limit;
+  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { parsed, excluded } = parseOrWithhold<AuditLogRow>(
+    page,
+    auditLogRow,
+    'audit_log',
+    'the cycle trail',
+  );
+  // Raw tail, not parsed tail — see `getFundEditionIndex`. It matters more here: the rows a
+  // trail withholds are precisely the ones an operator is looking for.
+  const last = page[page.length - 1];
+  return {
+    rows: parsed,
+    excluded,
+    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
+  };
 }
