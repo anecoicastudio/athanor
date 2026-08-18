@@ -23,10 +23,10 @@
 -- call is one session, which gate 2 requires; see README.md.)
 --
 -- ⚠ KEEP IN STEP WITH seed-staging.sql. Every VALUES list below (stories, events,
--- statuses, content ids) is a frozen copy of the seed's semantic keys. Any seed edit
--- that touches those sections requires re-running THIS file. The momento deck is the
--- exception: it is computed from live profiles with the matcher's own scoring, so it
--- self-heals when tags change.
+-- statuses, content ids) is a frozen copy of the seed's semantic keys, as are §11's
+-- ballot-window offsets. Any seed edit that touches those sections requires re-running
+-- THIS file. The momento deck is the exception: it is computed from live profiles with
+-- the matcher's own scoring, so it self-heals when tags change.
 --
 -- WHAT IT DELIBERATELY DOES NOT RESTORE (and why):
 --   consent / notification_preferences — pure preference toggles; hourly reversion
@@ -40,7 +40,15 @@
 --   GoTrue-side ban state              — profiles.banned_at is cleared, but a ban
 --     applied through the admin panel also lives in the auth server and must be
 --     lifted from the Dashboard (or Admin API). SQL cannot reach it.
---   fund_editions.target_at            — cosmetic countdown; year is hardcoded 2027.
+--   fund_editions.target_at            — cosmetic countdown, and nothing gates on it:
+--     annual.tsx's CountdownGrid and DreamHeroCard are its only readers. The ballot
+--     window beside it is NOT in this list any more — §11 restores it, because
+--     cast_vote does gate on that one (#414).
+--   fund_editions.phase / candidacy_window_open — walking the cycle forward is real
+--     testing, not decay. Re-entering 'voting' also fires the ballot-open trigger,
+--     which demands a declared window AND min_candidacies votable candidacies; the
+--     seed's own INSERT only escapes it by never being an UPDATE. Full pristine
+--     reset to rewind a walked cycle.
 --   tester accounts' own momento decks — sign in as a persona to re-test swiping, or
 --     wait for the nightly matcher.
 --
@@ -69,7 +77,7 @@ end $$;
 
 -- ---------------------------------------------------------------------------------
 -- The refresh. Diff-aware throughout: an untouched world produces zero restorative
--- writes, so an idle hour fires no triggers and produces no notifications (§12's
+-- writes, so an idle hour fires no triggers and produces no notifications (§13's
 -- notification prune is the one bookkeeping delete that may still run).
 --
 -- ⚠ gen:types: once this is installed, the next `pnpm gen:types` run (which reads
@@ -99,6 +107,7 @@ declare
   v_moderation    int  := 0;
   v_stories       int  := 0;
   v_events        int  := 0;
+  v_ballot        int  := 0;
   v_deck_deleted  int  := 0;
   v_deck_inserted int  := 0;
   v_notifs        int  := 0;
@@ -333,7 +342,40 @@ begin
      and (e.starts_at < now() - interval '14 days' or e.deleted_at is not null);
   get diagnostics r = row_count; v_events := v_events + r;
 
-  -- §11 The Momenti deck: every persona holds 3 pending cards, scored exactly the way
+  -- §11 Fund ballot window: the same re-stamp, for the one time-relative column a
+  -- gate actually reads. cast_vote refuses outside [voting_starts_at, voting_ends_at]
+  -- (20260815090015, #217) and NULL null-propagates to a refusal, so a closed or
+  -- undeclared window makes the fake world's ballot inert — every cast and every move
+  -- raises 'voting closed'. The seed writes the span once, at INSERT, behind
+  -- `on conflict do nothing` (seed-staging.sql §12): the pre-existing 2027 row was
+  -- inserted before those columns carried values and can never receive them, and even
+  -- a from-zero seed closes 23 days later with no re-run able to reopen it. Only an
+  -- hourly UPDATE fixes both, which is why this lives here and not in the seed (#414).
+  -- Threshold 7 days, below the seeded +23 so a fresh seed is untouched.
+  --
+  -- THE TWO WINDOW COLUMNS AND NOTHING ELSE — load-bearing, not lucky. All three
+  -- fund_editions guards are column-scoped, and none of them names these two:
+  --   fund_editions_ballot_open         before update OF phase   (20260815090015)
+  --   fund_editions_freeze_declarations when split_pct / cost_fee_statement /
+  --                                     equity_declared changes  (20260815155811, D16)
+  --   fund_editions_freeze_announcement when confirmed_pool_cents /
+  --                                     winner_confirmed_at changes (20260815183252)
+  -- So this UPDATE is legal by construction. Widening the SET list to phase, or to any
+  -- D16 declaration, fires a guard and aborts the whole refresh transaction.
+  update public.fund_editions
+     set voting_starts_at = now() - interval '7 days',
+         voting_ends_at   = now() + interval '23 days'
+   where id = md5('fundedition:2027')::uuid
+     -- Only while the cycle is still on the ballot: a tester who walked it into
+     -- announcement or realization did real testing, and re-opening the window
+     -- underneath them would fight the hand it is meant to serve.
+     and phase = 'voting'
+     and (voting_starts_at is null
+          or voting_ends_at is null
+          or voting_ends_at < now() + interval '7 days');
+  get diagnostics v_ballot = row_count;
+
+  -- §12 The Momenti deck: every persona holds 3 pending cards, scored exactly the way
   -- the matcher scores (visibility-masked tag overlap, affinity >= 2, blocks honored),
   -- so the card's read-time affinity terms render real chips. DELETE+INSERT because
   -- the status guard forbids leaving 'passed'/'accepted', and the pair-unique makes
@@ -407,7 +449,7 @@ begin
     get diagnostics v_deck_inserted = row_count;
   end if;
 
-  -- §12 Notification-noise cap. The «Hai un Momento» fan-out writes AFTER this
+  -- §13 Notification-noise cap. The «Hai un Momento» fan-out writes AFTER this
   -- transaction commits (trigger → pg_net → edge fn), so the just-created rows can
   -- only be pruned on the NEXT run: persona 'moment' notifications older than 2 hours
   -- go. Tester notifications and the action-gated types are never touched.
@@ -427,6 +469,7 @@ begin
     'moderation_cleared',     v_moderation,
     'stories_revived',        v_stories,
     'events_restamped',       v_events,
+    'ballot_restamped',       v_ballot,
     'deck_rows_deleted',      v_deck_deleted,
     'deck_rows_inserted',     v_deck_inserted,
     'moment_notifs_pruned',   v_notifs
