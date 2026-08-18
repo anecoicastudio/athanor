@@ -6,7 +6,8 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/supabase/config.toml",
-        "$TURBO_ROOT$/supabase/migrations/*.sql"
+        "$TURBO_ROOT$/supabase/migrations/*.sql",
+        "$TURBO_ROOT$/packages/i18n/src/catalogs/*.json"
       ]
     }
   }
