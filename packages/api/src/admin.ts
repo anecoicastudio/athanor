@@ -21,6 +21,9 @@ export type { AdminReportRow, AdminReportDetail, AdminFundEditionRow } from '@at
 const AUDIT_COLUMNS =
   'id, report_id, actor_id, action, penalty_points, reason, created_at, edition_id, candidacy_id';
 
+/** The columns every `fund_editions` reader here selects — `adminFundEditionRow`'s exact shape. */
+const EDITION_COLUMNS = 'id, phase, target_at, created_at, closure_reason, winner_candidacy_id';
+
 /**
  * Structural stand-in for a Zod schema's `safeParse`. This package does not depend on `zod`
  * — it consumes `@athanor/schemas`' already-built schemas — so the helper below is typed by
@@ -276,7 +279,7 @@ export async function getFundEditionIndex(
   const limit = opts.limit ?? PAGE;
   let q = client
     .from('fund_editions')
-    .select('id, phase, target_at, created_at, closure_reason, winner_candidacy_id')
+    .select(EDITION_COLUMNS)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(limit + 1);
@@ -308,6 +311,38 @@ export async function getFundEditionIndex(
     excluded,
     nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
   };
+}
+
+/**
+ * One cycle, by id — what the audit view names its trail with.
+ *
+ * Three-state on purpose, because "no such cycle" and "a cycle whose row I could not read"
+ * are different facts and only one of them is a 404. A bare `null` would collapse them, and
+ * the collapse is this issue's own defect one level down: an empty trail rendered for a
+ * mistyped id reads exactly like a real cycle that has not transitioned yet.
+ *
+ * `row === null && excluded === 0` — the cycle does not exist.
+ * `row === null && excluded === 1` — it exists and the schema rejected it; the caller should
+ * still show the trail, which is the part that matters, and say the header is degraded.
+ */
+export async function getFundEdition(
+  client: AthanorClient,
+  id: string,
+): Promise<{ row: AdminFundEditionRow | null; excluded: number }> {
+  const { data, error } = await client
+    .from('fund_editions')
+    .select(EDITION_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { row: null, excluded: 0 };
+  const { parsed, excluded } = parseOrWithhold<AdminFundEditionRow>(
+    [data],
+    adminFundEditionRow,
+    'fund_editions',
+    'the cycle header',
+  );
+  return { row: parsed[0] ?? null, excluded };
 }
 
 /**

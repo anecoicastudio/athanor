@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { REPORT_PENALTY } from '@athanor/core';
 import {
   getEditionAuditTrail,
+  getFundEdition,
   getFundEditionIndex,
   getReportDetail,
   getReportQueue,
@@ -759,6 +760,49 @@ describe('getEditionAuditTrail', () => {
   it('reads the trail without writing anything', async () => {
     const fake = makeFakeClient({ 'audit_log.select': [{ data: [fundAuditRow()] }] });
     await getEditionAuditTrail(asClient(fake), E1);
+    expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
+  });
+});
+
+describe('getFundEdition', () => {
+  it('reads the cycle the audit view names its trail with', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ data: [editionRow()] }] });
+    const found = await getFundEdition(asClient(fake), E1);
+    expect(fake.calls[0]!.filters).toContainEqual(['eq', 'id', E1]);
+    expect(found.row).toMatchObject({ id: E1, phase: 'realization' });
+    expect(found.excluded).toBe(0);
+  });
+
+  it('separates "no such cycle" from "a cycle I could not read"', async () => {
+    // The two collapse into one empty screen if the reader answers `null` to both, and the
+    // collapse is #432's own defect: a cycle that has just opened has no audit rows either,
+    // so a mistyped id would render as a real, quiet cycle.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const absent = makeFakeClient({ 'fund_editions.select': [{ data: [] }] });
+    await expect(getFundEdition(asClient(absent), E1)).resolves.toEqual({
+      row: null,
+      excluded: 0,
+    });
+
+    const unreadable = makeFakeClient({
+      'fund_editions.select': [{ data: [editionRow({ phase: 'not_a_phase' })] }],
+    });
+    await expect(getFundEdition(asClient(unreadable), E1)).resolves.toEqual({
+      row: null,
+      excluded: 1,
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('throws when the database errors', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ error: DB_DOWN }] });
+    await expect(getFundEdition(asClient(fake), E1)).rejects.toEqual(DB_DOWN);
+  });
+
+  it('reads the cycle without writing anything', async () => {
+    const fake = makeFakeClient({ 'fund_editions.select': [{ data: [editionRow()] }] });
+    await getFundEdition(asClient(fake), E1);
     expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
   });
 });
