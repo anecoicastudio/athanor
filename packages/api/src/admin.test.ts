@@ -281,6 +281,8 @@ describe('getReportDetail', () => {
 });
 
 describe('getReportDetail success path', () => {
+  // edition_id / candidacy_id are nullable but not optional on auditLogRow — a moderation
+  // row carries them as null, and omitting them fails the parse the reader now performs.
   const auditRow = {
     id: '00000000-0000-0000-0000-0000000000e1',
     report_id: R1,
@@ -289,6 +291,8 @@ describe('getReportDetail success path', () => {
     penalty_points: -100,
     reason: 'breaks the ethical guidelines',
     created_at: '2026-08-02T09:00:00Z',
+    edition_id: null,
+    candidacy_id: null,
   };
 
   it('assembles the report with its append-only audit trail', async () => {
@@ -311,6 +315,82 @@ describe('getReportDetail success path', () => {
     });
     expect(detail.audit).toHaveLength(1);
     expect(detail.audit[0]!).toMatchObject({ action: 'penalty', penalty_points: -100 });
+    expect(detail.auditExcluded).toBe(0);
+  });
+
+  it('withholds a row the schema rejects instead of typing it as valid', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'audit_log.select': [
+        {
+          data: [
+            auditRow,
+            // A vocabulary the schema has not learned — #392's failure mode, the one the
+            // cast let through typed as an AuditLogAction.
+            { ...auditRow, id: '00000000-0000-0000-0000-0000000000e2', action: 'unmapped_action' },
+          ],
+        },
+      ],
+      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'posts.select': [{ data: [{ id: T1 }] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.audit).toHaveLength(1);
+    expect(detail.audit[0]!.action).toBe('penalty');
+    expect(detail.auditExcluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain('00000000-0000-0000-0000-0000000000e2');
+    warn.mockRestore();
+  });
+
+  it('withholds a fund row whose shape the refinement forbids', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'audit_log.select': [
+        {
+          data: [
+            // A fund action carrying a report and penalty points: the enum admits the
+            // action, only audit_log_fund_shape rejects the row. The cast admitted both.
+            {
+              ...auditRow,
+              id: '00000000-0000-0000-0000-0000000000e3',
+              action: 'verify_phase',
+              edition_id: null,
+            },
+          ],
+        },
+      ],
+      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'posts.select': [{ data: [{ id: T1 }] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.audit).toEqual([]);
+    expect(detail.auditExcluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('reports nothing withheld when the trail is empty', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'audit_log.select': [{ data: [] }],
+      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'posts.select': [{ data: [{ id: T1 }] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.audit).toEqual([]);
+    expect(detail.auditExcluded).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('reads the detail without writing anything', async () => {

@@ -47,7 +47,7 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
       ) : (
         <VerdictForm reportId={report.id} locale={locale} targetType={report.target_type} />
       )}
-      <AuditTrail audit={report.audit} locale={locale} />
+      <AuditTrail audit={report.audit} excluded={report.auditExcluded} locale={locale} />
     </section>
   );
 }
