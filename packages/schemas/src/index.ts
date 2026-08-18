@@ -1,4 +1,5 @@
 export * from './profile';
+export * from './reserved-handles';
 export * from './dream';
 export * from './milestone';
 export * from './help';

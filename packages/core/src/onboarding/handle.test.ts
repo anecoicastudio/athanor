@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { RESERVED_HANDLES, isReservedHandle } from '@athanor/schemas';
 import { suggestHandle } from './handle';
 
 describe('suggestHandle', () => {
@@ -36,5 +37,40 @@ describe('suggestHandle', () => {
 
   test('falls back for empty local part', () => {
     expect(suggestHandle('@example.com')).toBe('aura');
+  });
+});
+
+/**
+ * #430 — the generator has to dodge the reserved list BEFORE the database learns to refuse it.
+ * `flushOnboardingDraft` parses its payload with `onboardingAnswersSchema`, so a reserved
+ * suggestion throws inside the flush, which keeps the draft and retries on every foreground —
+ * a permanent onboarding loop for anyone whose address begins `admin@`. And past the schema the
+ * CHECK raises 23514, which `updateOnboardingProfileWithHandleFallback` does not retry (it
+ * catches 23505 only).
+ */
+describe('suggestHandle avoids reserved handles', () => {
+  test('suffixes a listed handle rather than emitting it', () => {
+    expect(suggestHandle('admin@example.com')).toBe('admin_');
+  });
+
+  test('suffixes an Italian role word too', () => {
+    expect(suggestHandle('supporto@example.com')).toBe('supporto_');
+  });
+
+  test('falls back entirely for a brand-prefixed local part', () => {
+    // A suffix cannot escape a PREFIX rule — `athanor_support_` still starts with `athanor`.
+    expect(suggestHandle('athanor.support@example.com')).toBe('aura');
+  });
+
+  test('never emits a reserved handle, for any reserved local part', () => {
+    for (const reserved of RESERVED_HANDLES) {
+      const suggested = suggestHandle(`${reserved}@example.com`);
+      expect(isReservedHandle(suggested), reserved).toBe(false);
+      expect(suggested.length, reserved).toBeLessThanOrEqual(30);
+    }
+  });
+
+  test('keeps the result within the 30-char cap when suffixing a long brand handle', () => {
+    expect(suggestHandle(`athanor${'a'.repeat(40)}@example.com`)).toBe('aura');
   });
 });

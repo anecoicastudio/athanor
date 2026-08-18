@@ -168,3 +168,25 @@ describe('profileSchema — mission, skills, profession, city (#149)', () => {
     expect(parsed.city_geohash).toBeNull();
   });
 });
+
+describe('profileUpdateSchema handle reservation (#430)', () => {
+  // `handle` carries UPDATE for `authenticated`, so the edit path is a claim path too — a
+  // reserved handle refused only at onboarding would be one PATCH away from being claimed.
+  it('rejects a reserved handle', () => {
+    expect(profileUpdateSchema.safeParse({ handle: 'moderatore' }).success).toBe(false);
+  });
+
+  it('rejects a brand-prefixed handle', () => {
+    expect(profileUpdateSchema.safeParse({ handle: 'athanorofficial' }).success).toBe(false);
+  });
+
+  it('accepts an ordinary handle', () => {
+    expect(profileUpdateSchema.safeParse({ handle: 'stella_prima' }).success).toBe(true);
+  });
+
+  it('still accepts a null handle', () => {
+    // The column is nullable and the read shape stays nullable; the refinement must not turn
+    // "no handle yet" into a validation error.
+    expect(profileUpdateSchema.safeParse({ handle: null }).success).toBe(true);
+  });
+});

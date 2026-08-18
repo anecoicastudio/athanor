@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { nonBlankString, trimmedNonBlank } from './primitives';
+import { isReservedHandle } from './reserved-handles';
 
 /** Mirrors supabase/migrations init_profiles. Update both together. */
 export const localeSchema = z.enum(['it', 'en']);
@@ -9,6 +10,20 @@ export const handleSchema = z
   .min(3)
   .max(30)
   .regex(/^[a-z0-9_]+$/, 'lowercase letters, numbers and underscore only');
+
+/**
+ * The handle shape on a WRITE path — the same characters, minus the reserved words (#430).
+ *
+ * Deliberately a second schema rather than a refinement on `handleSchema`: that one is what
+ * `publicProfileSchema`, `personProfileSchema` and `publicEventSchema` parse rows WITH, and the
+ * reserved list will be widened again. A read schema that refuses reserved handles would start
+ * withholding rows the database still holds on the day the list grows — silently shrinking a
+ * public profile page for a handle that was legal when it was claimed. The database CHECK is
+ * what keeps such rows from existing; this is the early, well-messaged refusal on the way in.
+ */
+export const claimableHandleSchema = handleSchema.refine((h) => !isReservedHandle(h), {
+  message: 'this handle is reserved',
+});
 
 /**
  * Optional human name (#75), read side. 60 is the column CHECK
@@ -101,9 +116,13 @@ export const profileUpdateSchema = profileSchema
     identity_tags: true,
     seeking: true,
   })
-  // The only field whose write shape differs from its read shape: the edit form hands over
-  // whatever was typed, padding included, and the column's CHECK measures `btrim`.
-  .extend({ display_name: displayNameWriteSchema.nullable() })
+  // The two fields whose write shape differs from their read shape: the edit form hands over
+  // whatever was typed, padding included, and the column's CHECK measures `btrim`; and a handle
+  // being CLAIMED is held to the reserved list a handle being READ is not (#430).
+  .extend({
+    display_name: displayNameWriteSchema.nullable(),
+    handle: claimableHandleSchema.nullable(),
+  })
   .partial();
 
 /**

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handleSchema, localeSchema } from './profile';
+import { claimableHandleSchema, localeSchema } from './profile';
 
 /**
  * Onboarding payload. Tag values are generic strings here; membership in the
@@ -7,7 +7,8 @@ import { handleSchema, localeSchema } from './profile';
  * so the vocabulary has a single source. Max 10 mirrors the DB check.
  */
 export const onboardingAnswersSchema = z.object({
-  handle: handleSchema,
+  // `claimableHandleSchema`, not `handleSchema`: this is a claim (#430).
+  handle: claimableHandleSchema,
   locale: localeSchema,
   identity_tags: z.array(z.string().min(1)).min(1).max(10),
   seeking: z.array(z.string().min(1)).min(1).max(10),
