@@ -30,7 +30,7 @@ insert into auth.users (id, email) values
 -- for living in the database is that `authenticated` can write this column directly, so the
 -- claim belongs in a test rather than in a migration comment (MIGRATIONS-ERRATA.md,
 -- 20260818095917) — it should go red if the grant is ever narrowed, not merely mislead a reader.
--- Granted by name in 20260617225450_m7_candidacy.sql:15-22.
+-- Granted by name in 20260617225450_m7_candidacy.sql:16-18, 21-23.
 select ok(
   has_column_privilege('authenticated', 'public.profiles', 'handle', 'UPDATE'),
   'authenticated holds UPDATE on profiles.handle — a member can re-claim a handle at will'

@@ -11,11 +11,11 @@
  * reads as official to this member base exactly as `@support` does.
  *
  * THE DATABASE IS THE ENFORCER, not this list. `profiles.handle` carries INSERT and UPDATE for
- * `authenticated` — granted by name in `20260617225450_m7_candidacy.sql:15-22` and pinned by
- * `supabase/tests/0123_reserved_handles.test.sql` — so a client can set and later change its own
- * handle without passing through any schema here. This constant exists so a client can refuse early with a good message, and
- * so the CHECK constraint has one authored home; `reserved-handles.mirror.test.ts` is what keeps
- * the two from drifting.
+ * `authenticated` — granted by name in `20260617225450_m7_candidacy.sql:16-18, 21-23`, and pinned
+ * by `supabase/tests/0123_reserved_handles.test.sql` — so a client can set and later change its
+ * own handle without passing through any schema here. This constant exists so a client can
+ * refuse early with a good message, and so the CHECK constraint has one authored home;
+ * `reserved-handles.mirror.test.ts` is what keeps the two from drifting.
  *
  * ROLE WORDS ONLY, not brand vocabulary. `aura` is deliberately absent: the score is the
  * product's central term but a member at `@aura` claims no authority, and it is what
@@ -62,7 +62,10 @@ export const RESERVED_HANDLES = [
  */
 export const RESERVED_HANDLE_PREFIX = 'athanor';
 
-/** True when `handle` may not be claimed. Case-insensitive: the client-side call site sees whatever was typed. */
+/**
+ * True when `handle` may not be claimed. Case-insensitive: the client-side call site sees
+ * whatever was typed.
+ */
 export function isReservedHandle(handle: string): boolean {
   const normalised = handle.toLowerCase();
   return (

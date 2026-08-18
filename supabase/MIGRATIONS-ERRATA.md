@@ -22,7 +22,7 @@ The header says `profiles.handle`'s INSERT and UPDATE grants to `authenticated` 
 against this project's `information_schema.column_privileges`, not inferred from the migrations,
 which never mention the grant". The first half is true; the second half is false and checkable.
 
-`20260617225450_m7_candidacy.sql:15-22` grants them by name and comments the column set:
+`20260617225450_m7_candidacy.sql:16-18, 21-23` grants them by name and comments the column set:
 
 ```sql
 revoke update on table public.profiles from authenticated;
