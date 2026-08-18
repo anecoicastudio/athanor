@@ -41,6 +41,28 @@ import { createAnonClient } from '@/utils/supabase/server';
  * update the page within 5 minutes but the card only at release. Same class
  * of staleness the deletion commit accepted for the whole route; called out
  * in the PR for the erasure case.
+ *
+ * What a redeploy does to an ALREADY-cached card (#440, measured against the
+ * production namespace on 2026-08-18, not inferred): every incremental-cache
+ * key is `incremental-cache/<BUILD_ID>/<sha256(path)>.cache`, and BUILD_ID is
+ * Next's per-build nanoid — no `generateBuildId` in next.config.ts, so it
+ * rotates on every build. `populate-cache` only ever `kv bulk put`s the
+ * current build's assets; it never lists and never deletes. So a handle that
+ * drops out of `generateStaticParams` — which is exactly what a ban does now
+ * that `handle-static-params` reads through the anon client (#314 / PR #439)
+ * — is not overwritten. Its entry is stranded under a dead build prefix,
+ * unreachable, and the live prefix simply has no key for it. The next request
+ * therefore misses, takes the blocking fallback (`fallback: null` in the
+ * prerender manifest), and lands in the Worker branch below — the generic
+ * site card. The ban reaches the card at the NEXT DEPLOY, not never: the
+ * exposure is bounded by the release cadence, which is what #440 set out to
+ * establish.
+ *
+ * The stranded bytes are a separate question with a worse answer: nothing
+ * deletes them and the KV cache writes no TTL, so a card stays readable by
+ * key forever even though nothing can route to it. `docs/RELEASE-RUNBOOK.md`
+ * §7.4 has the one-key delete for cutting a card between releases, and #107
+ * is where "unreachable" needs to become "erased".
  */
 export const dynamic = 'force-static';
 export const revalidate = false;
