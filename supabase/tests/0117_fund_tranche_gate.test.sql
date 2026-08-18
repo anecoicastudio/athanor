@@ -18,7 +18,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(39);
+select plan(47);
 
 -- fixture: park any live cycle (staging smoke; no-op in CI) — the 0108/0110/0114/0115 pattern
 update public.fund_editions set phase = 'closed', closure_reason = 'realized'
@@ -151,6 +151,31 @@ select throws_ok(
 select throws_ok(
   $$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', '   ') $$,
   'P0001', 'evidence required', 'whitespace is not evidence');
+
+-- #402: and neither are the blanks bare btrim() left standing. Each string below is
+-- composed with chr() rather than written literally — a literal NBSP in a test file is
+-- invisible to review, which is how this class of hole survives a reading. The first case
+-- is not exotic: bare btrim() strips U+0020 and nothing else, so a tab-only evidence
+-- string reached the gate too.
+select throws_ok(
+  format($$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', %L) $$,
+         chr(x'0009'::int) || chr(x'000A'::int) || chr(x'000D'::int)),
+  'P0001', 'evidence required', 'tabs and newlines are not evidence');
+select throws_ok(
+  format($$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', %L) $$,
+         repeat(chr(x'00A0'::int), 3)),
+  'P0001', 'evidence required', 'a NO-BREAK SPACE string is not evidence');
+select throws_ok(
+  format($$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', %L) $$,
+         chr(x'2028'::int) || chr(x'2029'::int) || chr(x'3000'::int) || chr(x'205F'::int)),
+  'P0001', 'evidence required',
+  'nor the Unicode separators and the wide spaces — the trim is a character set, not a locale''s idea of one');
+select throws_ok(
+  format($$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', %L) $$,
+         chr(x'200B'::int) || chr(x'FEFF'::int) || chr(x'2060'::int)),
+  'P0001', 'evidence required',
+  'nor zero-width characters: the gate asks whether there is evidence, and an invisible string answers no');
+
 select throws_ok(
   $$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', repeat('x', 1001)) $$,
   'P0001', 'evidence too long',
@@ -160,15 +185,21 @@ select is(
   (select verified_at from public.realization_plan_phases
     where id = '01170000-0000-0000-0000-0000000000f1'),
   null,
-  'after five refusals the phase is still unverified — every refusal raised before the write');
+  'after nine refusals the phase is still unverified — every refusal raised before the write');
 select is(
   (select count(*) from public.audit_log where action = 'verify_phase')::int,
   0,
   'and nothing was journalled');
 
 -- ── 4. the transition succeeds, atomically ──────────────────────────────────────────────
+-- The evidence arrives PADDED (#402): a NO-BREAK SPACE and a LINE SEPARATOR in front, a
+-- BOM and a tab behind — the shape a paste out of a PDF or a spreadsheet actually has.
+-- What the gate admitted and what it journals must be the same string, so the padding has
+-- to die once, before both.
 select isnt(
-  public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1', 'foto allestimento + fattura 12/2026'),
+  public.verify_plan_phase('01170000-0000-0000-0000-0000000000f1',
+    chr(x'00A0'::int) || chr(x'2028'::int) || 'foto allestimento + fattura 12/2026'
+      || chr(x'FEFF'::int) || chr(x'0009'::int)),
   null,
   'the transition returns the stamp it wrote');
 
@@ -195,6 +226,16 @@ select ok(
   (select reason from public.audit_log where action = 'verify_phase')
     like '%foto allestimento + fattura 12/2026%',
   'the evidence is journalled');
+select ok(
+  (select reason from public.audit_log where action = 'verify_phase')
+    like '%cents: foto allestimento%',
+  'journalled TRIMMED: the padding does not survive between the composed prefix and the evidence (#402)');
+select ok(
+  (select reason from public.audit_log where action = 'verify_phase')
+    not like '%' || chr(x'00A0'::int) || '%'
+  and (select reason from public.audit_log where action = 'verify_phase')
+    not like '%' || chr(x'FEFF'::int) || '%',
+  'and no blank the check stripped reaches the row — validation and storage share one trim');
 select ok(
   (select reason from public.audit_log where action = 'verify_phase')
     like '%20000 cents%',
@@ -331,6 +372,21 @@ select lives_ok(
      values ('01170000-0000-0000-0000-0000000000e1', 'acct_0117_win', 100, 50000, 10, 45000,
              'tr_0117_legacy') $$,
   'an unattributed row still lands: the pre-#231 corpus stays recordable on redelivery');
+
+-- ── 7b. the bound is measured on the value that gets stored (#402) ──────────────────────
+-- 1000 real characters wrapped in blanks. Under bare btrim() the padding counted toward the
+-- 1000, so evidence exactly within budget was refused as 'evidence too long'. Phase 2 is the
+-- only phase left that still REACHES the evidence checks — the ladder judges evidence last,
+-- after existence and state — which is why this lands here rather than beside §3.
+select lives_ok(
+  format($$ select public.verify_plan_phase('01170000-0000-0000-0000-0000000000f2', %L) $$,
+         repeat(chr(x'2003'::int), 2) || repeat('x', 1000) || repeat(chr(x'00A0'::int), 2)),
+  'evidence of exactly 1000 characters is admitted through its padding — the bound counts what will be stored');
+select is(
+  (select char_length(split_part(reason, 'cents: ', 2)) from public.audit_log
+    where action = 'verify_phase' and reason like '%' || repeat('x', 1000) || '%'),
+  1000,
+  'and exactly those 1000 characters are what the audit row holds — no padding, no truncation');
 
 -- ── 8. rule #1: the gate mints no Aura ──────────────────────────────────────────────────
 -- Verifying a phase is the act that releases money. If ANY of it scored, reputation would
