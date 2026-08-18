@@ -261,6 +261,48 @@ describe('hardcoded-string checker', () => {
     expect(ok).toBe(true);
   });
 
+  it('keeps reading a template-literal JSX child, and its ${t(...)} escape', () => {
+    // Pre-existing coverage of the regex gate, carried over: the rewrite must not drop it.
+    const { ok, report } = scan({
+      'tpl.tsx': [
+        'export const A = () => <Text>{`Ciao ${name}, bentornato`}</Text>;',
+        "export const B = () => <Text>{`${t('intro.titolo', locale)} adesso`}</Text>;",
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Ciao , bentornato');
+    expect(report).not.toContain('adesso');
+  });
+
+  it('parses a .ts module as TypeScript, not TSX', () => {
+    // In TSX mode `<T>(x: T) => x` reads as an unclosed element, the rest of the file becomes
+    // JSX text, and the real finding on line 2 is replaced by garbage from line 1.
+    const { ok, report } = scan({
+      'generic.ts': [
+        `export const id = <T>(x: T) => x;`,
+        `export const copy = { title: 'Il tuo Momento ti aspetta' };`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain(`title: "Il tuo Momento ti aspetta"`);
+    expect(report).not.toContain('=> x');
+  });
+
+  it('will not take an ignore directive from a string literal', () => {
+    // A whole-file exemption any string could trigger would be a silent way off the gate.
+    const { ok, report } = scan({
+      'faux.tsx': [
+        `const doc = 'i18n-ignore-file';`,
+        `export const S = () => <Text>Copia non tradotta</Text>;`,
+        ``,
+      ].join('\n'),
+    });
+    expect(ok).toBe(false);
+    expect(report).toContain('Copia non tradotta');
+  });
+
   it('honours i18n-ignore on the match line and i18n-ignore-file on the file', () => {
     const { ok, report } = scan({
       'ignored.tsx': `export const S = () => <Text>Copia non tradotta</Text>; // i18n-ignore\n`,

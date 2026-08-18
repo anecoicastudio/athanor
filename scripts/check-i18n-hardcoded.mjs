@@ -1,8 +1,9 @@
 // scripts/check-i18n-hardcoded.mjs
 // Hardcoded-string gate (frontend 10 §3.1 I-2), CLAUDE.md rule 5.
 // Flags natural-language literals under DEFAULT_ROOTS (both apps) that are NOT wrapped in t().
-// Allowlist a line with an `i18n-ignore` comment (any style), a whole file with
-// `i18n-ignore-file`, or add a brand token to ALLOWLIST.
+// Allowlist a line with an `i18n-ignore` comment (any style), a whole file with an
+// `i18n-ignore-file` comment, or add a brand token to ALLOWLIST. Both are read off comment
+// tokens, so a string literal that happens to contain the word cannot switch the gate off.
 //
 // A TypeScript-AST pass since #433, not regex over comment-masked source. The masker it
 // replaced existed only because a regex cannot tell a comment from a string; the parser can,
@@ -206,6 +207,43 @@ function textLiterals(node, out = []) {
   return out;
 }
 
+/**
+ * `.ts` must NOT be parsed in TSX mode. TSX reads `<T>(x) => x` as an unclosed element rather
+ * than a generic arrow, so a plain module would misparse and lose its findings silently.
+ */
+const kindOf = (file) =>
+  /\.tsx$/.test(file)
+    ? { script: ts.ScriptKind.TSX, variant: ts.LanguageVariant.JSX }
+    : { script: ts.ScriptKind.TS, variant: ts.LanguageVariant.Standard };
+
+/**
+ * Lines carrying an `i18n-ignore` directive, and whether the file carries `i18n-ignore-file`.
+ *
+ * Read off comment TOKENS, not off the raw text: a whole-file exemption that any string literal
+ * containing `i18n-ignore-file` could trigger would be a silent way to switch the gate off.
+ * Scanned only when the substring is present at all, so the common file pays nothing.
+ */
+function directives(sf, raw, variant) {
+  if (!raw.includes('i18n-ignore')) return { file: false, lines: new Set() };
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, variant, raw);
+  const lines = new Set();
+  let file = false;
+  for (let tok = scanner.scan(); tok !== ts.SyntaxKind.EndOfFileToken; tok = scanner.scan()) {
+    if (
+      tok !== ts.SyntaxKind.SingleLineCommentTrivia &&
+      tok !== ts.SyntaxKind.MultiLineCommentTrivia
+    )
+      continue;
+    const text = scanner.getTokenText();
+    if (!text.includes('i18n-ignore')) continue;
+    if (text.includes('i18n-ignore-file')) file = true;
+    const from = sf.getLineAndCharacterOfPosition(scanner.getTokenStart()).line + 1;
+    const to = sf.getLineAndCharacterOfPosition(scanner.getTokenEnd()).line + 1;
+    for (let l = from; l <= to; l += 1) lines.add(l);
+  }
+  return { file, lines };
+}
+
 /** True when any ancestor satisfies `pred`. */
 const hasAncestor = (node, pred) => {
   for (let n = node.parent; n; n = n.parent) if (pred(n)) return true;
@@ -215,15 +253,17 @@ const hasAncestor = (node, pred) => {
 const violations = [];
 for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
   const raw = readFileSync(file, 'utf8');
-  if (raw.includes('i18n-ignore-file')) continue;
-  const sf = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const rawLines = raw.split('\n');
+  const { script, variant } = kindOf(file);
+  const sf = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, script);
+  const directive = directives(sf, raw, variant);
+  if (directive.file) continue;
   const lineAt = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
   /** `i18n-ignore` anywhere in the match's own lines, or on the line above it. */
-  const ignored = (from, to) =>
-    rawLines
-      .slice(Math.max(0, lineAt(from) - 2), lineAt(to))
-      .some((l) => l.includes('i18n-ignore'));
+  const ignored = (from, to) => {
+    for (let l = Math.max(1, lineAt(from) - 1); l <= lineAt(to); l += 1)
+      if (directive.lines.has(l)) return true;
+    return false;
+  };
   const seen = new Set();
   /** Report `node`, once per (line, value) — the passes deliberately overlap. */
   const add = (node, value, what) => {
