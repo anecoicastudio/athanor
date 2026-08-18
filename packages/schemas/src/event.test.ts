@@ -31,6 +31,7 @@ const baseRow = {
   cover_url: null,
   live_started_at: null,
   live_ended_at: null,
+  settlement_ack_at: null,
   created_at: '2026-06-15T10:00:00.000Z',
   updated_at: '2026-06-15T10:00:00.000Z',
   deleted_at: null,
@@ -45,6 +46,15 @@ describe('eventSchema (read)', () => {
   });
   // baseRow prices the event at 0, which satisfies a floor and a ceiling alike — so the bound
   // could have been inverted and every test here would still pass. A paid event is the case.
+  it('carries the settlement acknowledgement timestamp, null on a free event (#437)', () => {
+    expect(eventSchema.parse(baseRow).settlement_ack_at).toBeNull();
+    const acked = { ...baseRow, price_cents: 2500, settlement_ack_at: '2026-08-18T19:00:00.000Z' };
+    expect(eventSchema.parse(acked).settlement_ack_at).toBe('2026-08-18T19:00:00.000Z');
+    // Absent, not merely null, is a row that predates the column or a projection that forgot it —
+    // EVENT_COLS is an explicit list, so a missing column is a real failure mode here.
+    const { settlement_ack_at: _omitted, ...without } = baseRow;
+    expect(() => eventSchema.parse(without)).toThrow();
+  });
   it('accepts a paid price and rejects a negative one', () => {
     expect(eventSchema.parse({ ...baseRow, price_cents: 2500 }).price_cents).toBe(2500);
     expect(() => eventSchema.parse({ ...baseRow, price_cents: -1 })).toThrow();
@@ -113,8 +123,24 @@ describe('eventCreateSchema', () => {
   // The create input re-declares price_cents and currency rather than picking them, so the read
   // schema's bounds above say nothing about these — they are separate constraints.
   it('accepts a paid price and rejects a negative one', () => {
-    expect(eventCreateSchema.parse({ ...physical, price_cents: 2500 }).price_cents).toBe(2500);
-    expect(() => eventCreateSchema.parse({ ...physical, price_cents: -1 })).toThrow();
+    const paid = { ...physical, price_cents: 2500, settlement_ack: true };
+    expect(eventCreateSchema.parse(paid).price_cents).toBe(2500);
+    expect(() => eventCreateSchema.parse({ ...paid, price_cents: -1 })).toThrow();
+  });
+  it('refuses a paid event with no settlement acknowledgement (#437)', () => {
+    // #104's deferral was granted on the condition that organisers are told, before they list a
+    // paid event, that settlement is manual and on what cadence. This mirrors create_event's own
+    // refusal so the form blocks first; the server check is the load-bearing one, because this
+    // schema runs on a client.
+    const parsed = eventCreateSchema.safeParse({ ...physical, price_cents: 2500 });
+    expect(parsed.success).toBe(false);
+    const issue = parsed.error?.issues.find((i) => i.path[0] === 'settlement_ack');
+    expect(issue?.message).toBe('settlement_ack_required');
+  });
+  it('leaves a free event alone — nothing to settle, nothing to acknowledge (#437)', () => {
+    const parsed = eventCreateSchema.parse(physical);
+    expect(parsed.price_cents).toBe(0);
+    expect(parsed.settlement_ack).toBe(false);
   });
   it('anchors currency to exactly three lowercase letters', () => {
     for (const bad of ['xeur', 'eurx', 'EUR', 'eu', 'euro']) {

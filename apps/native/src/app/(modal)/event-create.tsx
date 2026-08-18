@@ -51,6 +51,11 @@ export default function EventCreateScreen() {
   const [capacity, setCapacity] = useState('');
   const [paid, setPaid] = useState(false);
   const [price, setPrice] = useState('');
+  // #437 — the settlement acknowledgement. UNTICKED, always, and never remembered: CRD 2011/83/EU
+  // Art. 22 excludes pre-ticked boxes, and a remembered tick is a pre-ticked box wearing a
+  // different name (the same reasoning as fund-disclosure.tsx's coverage box). Per event, because
+  // the 14-day promise attaches to an event rather than to the organiser.
+  const [settlementAck, setSettlementAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const requestMyLocation = async () => {
@@ -85,6 +90,9 @@ export default function EventCreateScreen() {
         // contribution, whose €1 minimum is the parser's default (#387).
         price_cents: paid && price ? parseEuroToCents(price, 0) : 0,
         currency: 'eur',
+        // The boolean is all the client gets to say. `settlement_ack_at` is stamped by
+        // create_event from now() — a client-supplied timestamp would be evidence of nothing.
+        settlement_ack: paid && settlementAck,
       });
       return createEvent(supabase, parsed);
     },
@@ -100,6 +108,14 @@ export default function EventCreateScreen() {
     // Paid events require verified identity (PRD §4.13) — gated to M9; block here.
     if (paid) {
       setError(t('event.create.verifyGate', locale));
+      return;
+    }
+    // Unreachable while the gate above returns for every paid event, and deliberately written
+    // anyway: it is correct the moment #416/M9 lifts that gate, and it is not what makes the
+    // disclosure real in the meantime — create_event refuses a paid event with no acknowledgement
+    // regardless of what this file says (#437).
+    if (paid && !settlementAck) {
+      setError(t('event.create.settlement.required', locale));
       return;
     }
     if (title.trim().length === 0) return setError(t('event.create.error', locale));
@@ -279,7 +295,33 @@ export default function EventCreateScreen() {
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"
                 />
-                <Text className="text-[12px] text-faint">{t('event.create.feeNote', locale)}</Text>
+                {/* #437 — how the organiser gets paid, at the point the price is decided rather
+                    than buried in terms. Neutral chrome on purpose: a settlement notice is not a
+                    moment-grade event, so no cyan glow (rule #4), same argument as PriceToggle. */}
+                <View className="gap-3 rounded-card border border-hair bg-raise p-5">
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: settlementAck }}
+                    accessibilityLabel={t('event.create.settlement.ack', locale)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    className="min-h-[44px] flex-row items-center gap-3"
+                    onPress={() => setSettlementAck((v) => !v)}
+                  >
+                    {/* ✓/○ — SHAPE carries the state, so the tick stays legible without relying
+                        on colour (the MilestoneRow/BenefitRow vocabulary). */}
+                    <Text
+                      className={settlementAck ? 'text-base text-aura' : 'text-base text-faint'}
+                    >
+                      {settlementAck ? '✓' : '○'}
+                    </Text>
+                    <Text className="flex-1 text-[14px] leading-5 text-foreground">
+                      {t('event.create.settlement.ack', locale)}
+                    </Text>
+                  </Pressable>
+                  <Text className="text-[12px] leading-4 text-muted-foreground">
+                    {t('event.create.settlement.manual', locale)}
+                  </Text>
+                </View>
                 <Text className="text-[12px] text-aura">
                   {t('event.create.verifySoon', locale)}
                 </Text>

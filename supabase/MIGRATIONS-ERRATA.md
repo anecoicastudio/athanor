@@ -16,6 +16,43 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260818190348_organiser_settlement_ack.sql` — «Never client-supplied» is the RPC's guarantee, not the column's
+
+### The `comment on column public.events.settlement_ack_at` — "Never client-supplied."
+
+True of `create_event`, which takes a boolean and stamps the timestamp from `now()`, and false as a
+statement about the column. `authenticated` holds **table-level** `insert, update` on `public.events`
+(`20260615094844_events.sql:67`), and both `events_insert_own` and `events_update_own`
+(`20260615094844_events.sql:82-91`) predicate on ownership alone — neither restricts which columns a
+row may carry. So an organiser holding a session can bypass the RPC entirely and write
+`settlement_ack_at` to any value on a row they own, along with a `price_cents` the RPC would have
+refused.
+
+What that does and does not cost:
+
+- **No money moves.** `create-ticket-checkout` re-derives `is_identity_verified(event.organizer_id)`
+  itself and fails closed, so a forged row still sells no tickets.
+- **It does weaken the record.** The addendum on #437 persisted the acknowledgement precisely because
+  an unrecorded tick has the evidentiary value of a notice; a forgeable one is not much better.
+
+Closing it means column-scoped `insert`/`update` grants for `authenticated` on `events` — the
+`profiles` pattern that keeps `founding_member` and `identity_verified` unwritable by their owner.
+That flips this table's whole client grant surface and its row in `0121`, and touches every event
+write path, so it is a decision of its own rather than a correction to this migration. A table CHECK
+is **not** the cheaper alternative it looks like: `supabase/staging-seed/seed-staging.sql:353-357`
+inserts three paid events directly with no acknowledgement, so a CHECK would break
+`pnpm staging:refresh` on the next run.
+
+### The header's `create-ticket-checkout/logic.ts:118`
+
+The refusal is at `:125`. The line has moved twice already — #437's own ruling cited `:121` — which is
+why the claim, not the coordinate, is what the test holds.
+
+Asserted by: `supabase/tests/0125_event_settlement_ack.test.sql` — the RPC's refusals and its
+server-side stamp, and, separately, the table-level `insert`/`update` privileges that bound how far
+those refusals reach. If that last group goes red, someone has narrowed the grants and this entry is
+the thing to delete.
+
 ## `20260818095917_reserved_handles.sql:14-18` — the grant IS in the migrations, and is named there
 
 The header says `profiles.handle`'s INSERT and UPDATE grants to `authenticated` were "verified

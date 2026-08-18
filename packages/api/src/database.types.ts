@@ -1022,6 +1022,7 @@ export type Database = {
           live_started_at: string | null
           organizer_id: string
           price_cents: number
+          settlement_ack_at: string | null
           starts_at: string
           stream_url: string | null
           title: string
@@ -1047,6 +1048,7 @@ export type Database = {
           live_started_at?: string | null
           organizer_id: string
           price_cents?: number
+          settlement_ack_at?: string | null
           starts_at: string
           stream_url?: string | null
           title: string
@@ -1072,6 +1074,7 @@ export type Database = {
           live_started_at?: string | null
           organizer_id?: string
           price_cents?: number
+          settlement_ack_at?: string | null
           starts_at?: string
           stream_url?: string | null
           title?: string
@@ -3181,6 +3184,7 @@ export type Database = {
           p_lat?: number
           p_long?: number
           p_price_cents?: number
+          p_settlement_ack?: boolean
           p_starts_at: string
           p_stream_url?: string
           p_title: string
