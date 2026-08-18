@@ -41,6 +41,8 @@ export const eventSchema = z.object({
   cover_url: z.string().nullable(),
   live_started_at: z.string().nullable(),
   live_ended_at: z.string().nullable(),
+  /** When the organiser acknowledged manual settlement for THIS event (#437). Null on free events. */
+  settlement_ack_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: z.string().nullable(),
@@ -83,12 +85,29 @@ export const eventCreateSchema = z
       .string()
       .regex(/^[a-z]{3}$/)
       .default('eur'),
+    /**
+     * The organiser's acknowledgement that settlement is manual, within 14 days of the event
+     * ending, and pays the price minus processing costs (#437/#104). Input-only, like lat/long:
+     * what lands on the row is `settlement_ack_at`, stamped by create_event from `now()`. A
+     * client-supplied timestamp would be evidence of nothing.
+     */
+    settlement_ack: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     if (v.is_online && !v.stream_url)
       ctx.addIssue({ code: 'custom', path: ['stream_url'], message: 'stream_url_required' });
     if (!v.is_online && (v.lat == null || v.long == null))
       ctx.addIssue({ code: 'custom', path: ['lat'], message: 'location_required' });
+    // Mirrors create_event's own refusal so the form blocks before the DB rejects — the same
+    // reason the online/physical rule is duplicated here. The server check is the load-bearing
+    // one: this schema runs on the client, and rule 5's gate is not the only thing a client can
+    // be edited past.
+    if (v.price_cents > 0 && !v.settlement_ack)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['settlement_ack'],
+        message: 'settlement_ack_required',
+      });
   });
 export type EventCreate = z.infer<typeof eventCreateSchema>;
 

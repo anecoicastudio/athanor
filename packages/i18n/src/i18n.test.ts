@@ -222,6 +222,54 @@ describe('fund pre-payment disclosure (FUND-18, #235)', () => {
   });
 });
 
+describe('organiser settlement disclosure (#437, #104)', () => {
+  /**
+   * #104 deferred Stripe Connect past launch on one condition: organisers are TOLD, before they
+   * list a paid event, that settlement is manual and on what cadence. These three keys are that
+   * condition. Pinned by name rather than by count — a count says nothing about which key went
+   * missing, and this block's whole job is that a specific promise stays on screen.
+   */
+  const SETTLEMENT_KEYS: readonly MessageKey[] = [
+    'event.create.settlement.ack',
+    'event.create.settlement.manual',
+    'event.create.settlement.required',
+  ];
+
+  test.each(SETTLEMENT_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the acknowledgement names the cadence as a figure, in both locales', () => {
+    // Same principle as the fund coverage label above: the consent is the number. «Ti paghiamo
+    // dopo l'evento» is not a cadence, it is a mood — and the 14 days is the half of #104's
+    // condition that a court would read.
+    expect(it['event.create.settlement.ack']).toContain('14');
+    expect(en['event.create.settlement.ack']).toContain('14');
+  });
+
+  test('the acknowledgement names the deduction and promises no percentage', () => {
+    // Ruling 3 on #437: the organiser receives the price MINUS the processing costs. «You receive
+    // the full price» and «0% commission» are both forbidden — #104 introduces a platform fee
+    // later, and a promise made now becomes a change of terms then.
+    expect(it['event.create.settlement.ack'].toLowerCase()).toContain('meno');
+    expect(en['event.create.settlement.ack'].toLowerCase()).toContain('minus');
+    for (const key of SETTLEMENT_KEYS) {
+      expect(it[key], `it.${key} promises a percentage`).not.toMatch(/\d\s*%/);
+      expect(en[key], `en.${key} promises a percentage`).not.toMatch(/\d\s*%/);
+    }
+  });
+
+  test('the copy says settlement is done by hand', () => {
+    // The disclosure exists because settlement is manual. Copy that stated only the cadence would
+    // read as an automated payout that happens to be slow, which is the opposite of the fact.
+    expect(it['event.create.settlement.manual'].toLowerCase()).toContain('a mano');
+    expect(en['event.create.settlement.manual'].toLowerCase()).toContain('by hand');
+  });
+});
+
 describe('catalog quality', () => {
   // `?? ''` keeps the failure self-describing if a key is missing from one
   // catalog (the `catalog parity` test catches that first, but don't throw here).

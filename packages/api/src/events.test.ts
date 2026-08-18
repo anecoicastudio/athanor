@@ -124,6 +124,7 @@ function evt(over: Record<string, unknown> = {}) {
     cover_url: null,
     live_started_at: null,
     live_ended_at: null,
+    settlement_ack_at: null,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-01T00:00:00Z',
     deleted_at: null,
@@ -645,6 +646,9 @@ describe('createEvent', () => {
     capacity: 40,
     price_cents: 1500,
     currency: 'eur',
+    // A paid event carries the organiser's settlement acknowledgement, or the schema and the RPC
+    // both refuse it (#437).
+    settlement_ack: true,
   };
 
   it('creates through the create_event rpc so the server builds the geo point', async () => {
@@ -668,7 +672,20 @@ describe('createEvent', () => {
       p_ends_at: '2026-09-01T20:00:00Z',
       p_capacity: 40,
       p_price_cents: 1500,
+      p_settlement_ack: true,
     });
+  });
+
+  it('refuses a paid event with no acknowledgement before the rpc is reached (#437)', async () => {
+    // The client half of the gate. It matters that nothing is SENT: an RPC that refuses is the
+    // durable check, but a request that never leaves is the one the organiser experiences.
+    // `false`, not an absent key — an unticked box is what a client actually sends. The absent
+    // case is the schema's own test (packages/schemas/src/event.test.ts).
+    const fake = makeFakeClient({ 'rpc.create_event': [{ data: E }] });
+    await expect(
+      createEvent(asClient(fake), { ...input, settlement_ack: false }),
+    ).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
   });
 
   it('forwards the currency the organizer chose to the rpc', async () => {
@@ -973,6 +990,7 @@ describe('events — createEvent forwards only the fields that were set', () => 
     capacity: null,
     price_cents: 0,
     currency: 'eur',
+    settlement_ack: false,
   };
 
   it('an online event forwards its stream url and omits the physical-venue fields', async () => {
@@ -998,6 +1016,21 @@ describe('events — createEvent forwards only the fields that were set', () => 
     });
     await createEvent(asClient(fake), base);
     expect(fake.calls[0]!.values).not.toHaveProperty('p_price_cents');
+  });
+
+  it('a free event omits p_settlement_ack, ticked or not (#437)', async () => {
+    // The RPC defaults it to false and stamps nothing on a free event. Sending `false` would be
+    // noise; sending `true` would record an acknowledgement of terms that do not apply.
+    for (const settlement_ack of [false, true]) {
+      const fake = makeFakeClient({
+        'rpc.create_event': [{ data: E }],
+        'events.select': [{ data: evt() }],
+      });
+      await createEvent(asClient(fake), { ...base, settlement_ack });
+      expect(fake.calls[0]!.values, `settlement_ack: ${settlement_ack}`).not.toHaveProperty(
+        'p_settlement_ack',
+      );
+    }
   });
 
   it('throws when the RPC reports an id the follow-up read cannot find', async () => {

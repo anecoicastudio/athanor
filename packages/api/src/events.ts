@@ -41,7 +41,7 @@ export const eventKeys = {
 
 /** Columns the client reads (everything except the geography `geo` column). */
 const EVENT_COLS =
-  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_kairos_day,is_athanor_day,cover_url,live_started_at,live_ended_at,created_at,updated_at,deleted_at';
+  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_kairos_day,is_athanor_day,cover_url,live_started_at,live_ended_at,settlement_ack_at,created_at,updated_at,deleted_at';
 
 const PAGE_SIZE = 20;
 
@@ -187,6 +187,7 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
     p_capacity?: number;
     p_price_cents?: number;
     p_currency?: string;
+    p_settlement_ack?: boolean;
   } = {
     p_title: v.title,
     p_category: v.category,
@@ -202,6 +203,11 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
   if (v.capacity != null) rpcArgs.p_capacity = v.capacity;
   if (v.price_cents !== 0) rpcArgs.p_price_cents = v.price_cents;
   if (v.currency !== 'eur') rpcArgs.p_currency = v.currency;
+  // Sent only for a paid event that carries it, matching the RPC's `default false` and its own
+  // `price_cents > 0` scoping. A free event has nothing to settle, so an acknowledgement on one
+  // would record agreement to terms that do not apply. create_event refuses a paid event without
+  // it and stamps settlement_ack_at from now(); the boolean is all the client ever says (#437).
+  if (v.price_cents > 0 && v.settlement_ack) rpcArgs.p_settlement_ack = true;
 
   const { data: id, error } = await client.rpc('create_event', rpcArgs);
   if (error) throw error;
