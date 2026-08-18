@@ -13,7 +13,7 @@
 -- because a behaviour test can pass for the wrong reason and a grant test cannot.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(51);
 
 -- ── setup ────────────────────────────────────────────────────────────────────────────────────
 -- alice  — an ordinary member, the observer
@@ -222,8 +222,13 @@ select is(
     where n.nspname = 'athanor' and p.proname = 'not_banned'
       and ax.grantee = 0 and ax.privilege_type = 'EXECUTE'), 0,
   'G4 PUBLIC holds no EXECUTE on athanor.not_banned');
-select ok(has_function_privilege('anon', 'athanor.not_banned(uuid)', 'execute'),
-  'G5 anon executes it — the anon shell policy composes it');
+-- anon must NOT reach it: 0080 test 12 forbids a SECURITY DEFINER function executable by anon,
+-- because the default PUBLIC grant makes such a function an elevated endpoint facing the
+-- unauthenticated internet. The anon policies inline `banned_at is null` instead — they test the
+-- profiles row itself, so they need no function. authenticated DOES need it: those policies test
+-- OTHER rows (posts.author_id, moments.owner_id, …) whose banned_at the caller cannot read.
+select ok(not has_function_privilege('anon', 'athanor.not_banned(uuid)', 'execute'),
+  'G5 anon holds NO execute on athanor.not_banned — 0080 test 12 forbids it');
 select ok(has_function_privilege('authenticated', 'athanor.not_banned(uuid)', 'execute'),
   'G6 authenticated executes it');
 select ok(pg_get_function_result('public.get_person_profile(uuid)'::regprocedure) like '%removed boolean%',
@@ -257,16 +262,25 @@ select is(
       and qual like '%not_banned%'), 0,
   'G11 the ban predicate was NOT composed into post_comments / messages / conversations');
 
--- G12 exists because this looks like a missing grant and is not. anon holds EXECUTE on
--- athanor.not_banned (G5) but NOT USAGE on the athanor schema, and the anon policies above
--- evaluate it anyway: a policy's USING expression is stored as a PARSED tree referencing the
--- function by OID, so no name resolution happens at execution time, and schema USAGE — a
--- name-resolution privilege — is never consulted. A1/C1/C2 are the live proof; this pins the
--- privilege surface so the absence reads as deliberate rather than forgotten. Granting anon
--- USAGE here would widen its reach into the athanor schema for no behavioural gain, and the
--- schema is not PostgREST-exposed, so there is no RPC surface to gain either.
-select ok(not has_schema_privilege('anon', 'athanor', 'usage'),
-  'G12 anon deliberately holds NO usage on schema athanor — the anon policies still evaluate');
+-- The anon policies must keep the ban check INLINE. If a later edit "tidies" them back to
+-- athanor.not_banned(), anon needs EXECUTE again and 0080 test 12 goes red — this says why
+-- before that happens, and fails in the same change rather than one job later.
+select ok(
+  (select qual from pg_policies
+    where schemaname = 'public' and tablename = 'profiles'
+      and policyname = 'profiles_select_anon_public') like '%banned_at%',
+  'G12 the anon profiles policy checks banned_at inline, not through the DEFINER function');
+-- The avatar policy is the opposite case and must NOT name banned_at. It lives on
+-- storage.objects and reaches profiles through a subquery, and a policy's cross-table subquery
+-- has the referenced table's column privileges checked against the QUERYING role — so naming a
+-- column anon has no grant on makes EVERY anon avatar read fail 42501, banned or not. It relies
+-- on profiles_select_anon_public one level down instead (20260814151601's documented cascade).
+-- C5/C6 assert the behaviour; this asserts the shape that keeps the behaviour reachable.
+select ok(
+  (select qual from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'avatars_select_anon_shell') not like '%banned_at%',
+  'G13 the anon avatar policy names NO ungranted column — it cascades through profiles RLS');
 
 select * from finish();
 rollback;
