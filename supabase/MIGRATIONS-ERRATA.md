@@ -16,6 +16,38 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260818095917_reserved_handles.sql:14-18` — the grant IS in the migrations, and is named there
+
+The header says `profiles.handle`'s INSERT and UPDATE grants to `authenticated` were "verified
+against this project's `information_schema.column_privileges`, not inferred from the migrations,
+which never mention the grant". The first half is true; the second half is false and checkable.
+
+`20260617225450_m7_candidacy.sql:16-18, 21-23` grants them by name and comments the column set:
+
+```sql
+revoke update on table public.profiles from authenticated;
+grant update (handle, bio, locale, visibility, identity_tags, seeking, updated_at)
+  on table public.profiles to authenticated;
+revoke insert on table public.profiles from authenticated;
+grant insert (id, handle, bio, locale, visibility, identity_tags, seeking)
+  on table public.profiles to authenticated;
+```
+
+The two later migrations that touch these column ACLs (`20260811072211_profile_display_name_avatar.sql`,
+`20260814104755_profiles_mission_skills_city.sql`) are additive and say so, and nothing revokes
+them afterwards, so that grant is still the live one. A grep for it does not come back empty.
+
+**The reasoning the header exists to carry is unaffected**, which is why the SQL needed no change:
+the client genuinely holds the grant, so a client-side reserved-handle check is bypassable and the
+guard has to be a CHECK. Only the provenance sentence is wrong — read it as "the hosted catalog
+confirms the grant `20260617225450` declares", not as a case of hosted drift. The rule it cites
+(`rules/supabase-db.md`: hosted projects drift wider than their migrations) is real and remains
+the reason to query the catalog rather than trust a grep; it is simply not what happened here.
+
+Asserted by: `supabase/tests/0123_reserved_handles.test.sql`, which now pins the privilege itself
+with `has_column_privilege` instead of leaving it as prose — the claim the whole guard rests on
+should fail a test when it stops being true, not merely mislead a reader.
+
 ## `20260817180039_verify_phase_evidence_blank_trim.sql` — two refs into the edge function point at the wrong lines
 
 ### L10-12 — "the sole caller (verify-plan-phase/logic.ts:61) validates with Zod's .trim().min(1)"
