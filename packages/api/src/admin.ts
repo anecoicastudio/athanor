@@ -2,6 +2,7 @@
 // from Server Components and Server Actions (no TanStack Query on that surface).
 import { reportPenaltyPoints } from '@athanor/core';
 import {
+  auditLogRow,
   type ResolveReportInput,
   type AuditLogRow,
   type AdminReportRow,
@@ -60,6 +61,28 @@ export async function getReportQueue(
   return { rows, nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null };
 }
 
+/**
+ * Read one report with its append-only audit trail.
+ *
+ * The audit rows are parsed row by row rather than cast, so `auditLogRow`'s guarantees —
+ * the 18-action vocabulary and the `audit_log_fund_shape` refinement (#419) — actually
+ * execute at the boundary instead of being a compile-time claim.
+ *
+ * Per-row `safeParse` rather than this package's usual `.parse()`-and-throw. The idiom
+ * differs here because the consequence does: every other query boundary feeds a content
+ * screen, while this one feeds the moderation surface. The realistic way a row fails is
+ * the schema lagging a widened `audit_log_action_check` — #392, which went five actions
+ * and five migrations unnoticed — and on that failure a throw would take the whole
+ * moderation detail view down over one unrecognised label. Withholding the row keeps the
+ * surface up; returning `auditExcluded` keeps the omission honest, because silently
+ * dropping audit evidence is the other way to be wrong.
+ *
+ * Which half of the vocabulary can actually trip it is worth being exact about: this query
+ * filters on `report_id`, and `audit_log_fund_shape` forbids a fund row from carrying one,
+ * so no fund action ever reaches this loop. A widening of the MODERATION half is what would
+ * — a fifth enforcement action beside warn/penalty/suspend/ban. The fund half becomes
+ * reachable only through a future admin fund-audit surface, which queries by edition.
+ */
 export async function getReportDetail(
   client: AthanorClient,
   id: string,
@@ -88,6 +111,23 @@ export async function getReportDetail(
     )
     .eq('report_id', id)
     .order('created_at', { ascending: false });
+  const parsedAudit: AuditLogRow[] = [];
+  let auditExcluded = 0;
+  for (const row of audit ?? []) {
+    const parsed = auditLogRow.safeParse(row);
+    if (parsed.success) {
+      parsedAudit.push(parsed.data);
+      continue;
+    }
+    auditExcluded += 1;
+    // No logger exists in this package; a warning is the only channel that reaches
+    // `wrangler tail`, and the row id plus the failing path is what makes the row findable.
+    console.warn(
+      `[admin] audit_log row ${String(row.id)} withheld from the trail: ${parsed.error.issues
+        .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
+        .join('; ')}`,
+    );
+  }
   return {
     id: data.id,
     target_type: data.target_type as AdminReportRow['target_type'],
@@ -99,7 +139,8 @@ export async function getReportDetail(
     resolution: data.resolution,
     reporter_handle: data.reporter?.handle ?? null,
     target_handle,
-    audit: (audit ?? []) as AuditLogRow[],
+    audit: parsedAudit,
+    auditExcluded,
   };
 }
 

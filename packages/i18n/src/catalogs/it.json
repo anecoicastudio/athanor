@@ -1442,6 +1442,7 @@
   "admin.verdict.error": "Qualcosa non ha funzionato.",
   "admin.audit.title": "Registro",
   "admin.audit.empty": "Nessuna decisione ancora.",
+  "admin.audit.withheld": "{count} voci non sono leggibili e non vengono mostrate.",
   "admin.action.dismiss": "Archiviato",
   "admin.action.warn": "Avvertimento",
   "admin.action.penalty": "Penalità",

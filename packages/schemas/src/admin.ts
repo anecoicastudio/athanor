@@ -146,11 +146,21 @@ export const adminReportRow = z.object({
 });
 export type AdminReportRow = z.infer<typeof adminReportRow>;
 
-/** Admin detail shape (report + audit trail + target handle). */
+/**
+ * Admin detail shape (report + audit trail + target handle).
+ *
+ * `auditExcluded` counts the audit rows the reader could not validate and therefore
+ * withheld from `audit`. It exists because an audit trail that silently renders short is
+ * indistinguishable from an audit trail that is short: the panel needs to be able to say
+ * "n entries could not be displayed" rather than quietly show fewer. Zero on every healthy
+ * read; non-zero means the schema and the database disagree about a row (#392's failure
+ * mode) and the trail on screen is incomplete.
+ */
 export const adminReportDetail = adminReportRow.extend({
   note: z.string().nullable(),
   resolution: z.string().nullable(),
   target_handle: z.string().nullable(),
   audit: z.array(auditLogRow),
+  auditExcluded: z.number().int().nonnegative(),
 });
 export type AdminReportDetail = z.infer<typeof adminReportDetail>;

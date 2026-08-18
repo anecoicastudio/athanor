@@ -1442,6 +1442,7 @@
   "admin.verdict.error": "Something went wrong.",
   "admin.audit.title": "Log",
   "admin.audit.empty": "No decisions yet.",
+  "admin.audit.withheld": "{count} entries could not be read and are not shown.",
   "admin.action.dismiss": "Dismissed",
   "admin.action.warn": "Warning",
   "admin.action.penalty": "Penalty",
