@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createMoment, momentKeys } from '@athanor/api';
+import { MEDIA_LIMITS } from '@athanor/core';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/media/with-timeout';
 import {
   momentPath,
   momentThumbPath,
@@ -62,6 +65,37 @@ export function useMomentUpload(uid: string | undefined): {
 }
 
 /**
+ * Bound the poster step, so a decoder that never settles cannot hold the Momento (#462).
+ *
+ * `extractVideoPoster` has no timeout of its own — neither `replaceAsync` nor
+ * `generateThumbnailsAsync` is bounded — and an iCloud-backed `PHAsset` can take a very long
+ * time or never settle. This is awaited INSIDE the `createMoment` argument object, so the row
+ * insert itself waits on it: an unbounded extraction does not delay a success, it hides one,
+ * and the member is left watching an upload that already finished. `withTimeout` never
+ * rejects, so the deadline costs a thumbnail and saves the Momento.
+ *
+ * The controller is what makes the deadline mean something to the work rather than only to the
+ * wait (#449): `extractVideoPoster` checks the signal between native calls and skips the rest.
+ * It buys the steps not yet started, never the one in flight — releasing a `VideoPlayer`
+ * mid-`AVAssetImageGenerator` runs its deinit off the main thread, which crashes. Unlike the
+ * candidacy path there is no outer upload controller to forward from: this hook has no cancel.
+ */
+async function uploadPoster(
+  uid: string,
+  momentId: string,
+  localUri: string,
+  durationS: number | null | undefined,
+): Promise<string | null> {
+  const posterAbort = new AbortController();
+  return withTimeout(
+    extractAndUploadPoster(uid, momentId, localUri, durationS, posterAbort.signal),
+    MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
+    null,
+    { onTimeout: () => posterAbort.abort() },
+  );
+}
+
+/**
  * Extract a poster frame from an uploaded video and put it beside the video, returning the
  * storage path for `thumb_path` — or `null` if any part of that did not work out.
  *
@@ -71,23 +105,30 @@ export function useMomentUpload(uid: string | undefined): {
  * resulting null and gives the tile its own state, so a posterless video is handled rather than
  * hidden — which is what the original `TODO(thumb)` never did.
  *
+ * Swallowed is not the same as unnamed, which is what this used to be (#462): a bare `catch {}`
+ * threw the reason away entirely, and in Expo Go the dev console is the only telemetry there is
+ * — `Sentry.init` is a hard no-op on that runtime (#452), so a failure discarded here was a
+ * report nobody could ever file. `devWarn` is `__DEV__`-only, so it ships nothing.
+ *
  * The poster lands in the same `{uid}/…` folder as the video, so it is covered by the same
  * `moments` storage policies, and the `media_process_enqueue` trigger strips it server-side like
  * any other object in the bucket.
  */
-async function uploadPoster(
+async function extractAndUploadPoster(
   uid: string,
   momentId: string,
   localUri: string,
   durationS: number | null | undefined,
+  extractSignal: AbortSignal,
 ): Promise<string | null> {
   try {
-    const poster = await extractVideoPoster(localUri, durationS);
+    const poster = await extractVideoPoster(localUri, durationS, extractSignal);
     if (!poster) return null;
     const path = momentThumbPath(uid, momentId);
     await uploadLocalFile(poster.uri, { bucket: 'moments', path }, 'image/jpeg');
     return path;
-  } catch {
+  } catch (err) {
+    devWarn('moment.poster', err);
     return null;
   }
 }

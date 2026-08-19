@@ -500,3 +500,66 @@ describe('a held picked video never draws through <Image> (#318, #460)', () => {
     expect(late, 'decide on media.kind first — a ▶ badge over a blank box is the bug').toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 10 — every poster extraction is bounded, and every swallowed failure is named (#462)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `extractVideoPoster` has no timeout of its own — neither `replaceAsync` nor
+ * `generateThumbnailsAsync` is bounded (`MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS` documents why)
+ * — and every caller awaits it while the video is ALREADY in Storage. So an unbounded
+ * extraction never delays a success; it hides one, which reads to the member exactly like a
+ * failure. Bounding it is the caller's job, and two of the three callers did not do it.
+ *
+ * This is generalised deliberately. The equivalent assertions in `candidacy-video-status.test.ts`
+ * name ONE file explicitly — no glob, no walk — which is precisely why the moment and post paths
+ * kept the unbounded shape through #412 and #449 without anything going red. This walks the
+ * tree, so the next caller is a test failure rather than a human rereading the pipeline.
+ *
+ * The scope is «calls `extractVideoPoster`», not «lives under media/»: `use-story-upload.ts`
+ * has a bare catch too, but it wraps a best-effort rollback and story segments have no poster
+ * step at all (`story_segments` has no `thumb_path`), so it is outside this rule by construction
+ * rather than by allowlist.
+ */
+const POSTER_CALLERS: Record<string, string> = {
+  'lib/media/use-candidacy-upload.ts': 'candidacy.poster',
+  'lib/media/use-moment-upload.ts': 'moment.poster',
+  'app/(modal)/post-compose.tsx': 'post.poster',
+};
+
+describe('poster extraction is bounded and never discarded unnamed (#462)', () => {
+  /** `poster.ts` declares the function; a call site is anything else that names it. */
+  const DEFINER = 'lib/media/poster.ts';
+  const callers = FILES.filter((p) => !isTest(p))
+    .filter((p) => stripComments(read(p)).includes('extractVideoPoster('))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .filter((p) => p !== DEFINER)
+    .sort();
+
+  it('the call sites are exactly the ones this section checks', () => {
+    // A new caller must be added to the table above, which is the point: it forces the
+    // bounded/named question to be answered once per path instead of never.
+    expect(callers).toEqual(Object.keys(POSTER_CALLERS).sort());
+  });
+
+  it.each(Object.entries(POSTER_CALLERS))('%s bounds the wait and cancels the work', (file) => {
+    const source = read(`${SRC}${file}`);
+    expect(source, `${file} awaits an unbounded extraction`).toContain('withTimeout(');
+    expect(source).toContain('VIDEO_POSTER_TIMEOUT_MS');
+    // `withTimeout` abandons by design; without `onTimeout` the decoder keeps running and
+    // holding its bitmaps long after the caller stopped listening (#449).
+    expect(source, `${file} stops waiting but never stops the work`).toContain('onTimeout:');
+    expect(source).toMatch(/\.abort\(\)/);
+  });
+
+  it.each(Object.entries(POSTER_CALLERS))('%s names what it swallowed', (file, scope) => {
+    const source = read(`${SRC}${file}`);
+    // Swallowing is correct here — failing a publish because a decoder would not give up a
+    // frame trades a working post for a missing one. Discarding the REASON is not.
+    expect(source, `${file} has a bare catch {} — bind the error and name it`).not.toMatch(
+      /\}\s*catch\s*\{/,
+    );
+    expect(source).toContain(`devWarn('${scope}'`);
+  });
+});

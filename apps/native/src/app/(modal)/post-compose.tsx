@@ -15,8 +15,10 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
 import { type PickedMedia } from '@/lib/media/pick';
 import { extractVideoPoster } from '@/lib/media/poster';
+import { withTimeout } from '@/lib/media/with-timeout';
 import {
   postMediaPath,
   postMediaThumbPath,
@@ -256,6 +258,38 @@ export default function PostComposeScreen() {
 }
 
 /**
+ * Bound the poster step, so a decoder that never settles cannot hold the publish (#462).
+ *
+ * `extractVideoPoster` has no timeout of its own — neither `replaceAsync` nor
+ * `generateThumbnailsAsync` is bounded — and an iCloud-backed `PHAsset` can take a very long
+ * time or never settle. It matters more here than anywhere: this is awaited inside a
+ * `Promise.all` over every attached item and `MEDIA_LIMITS.MAX_POST_MEDIA` is 10, so one
+ * publish could sit behind ten unbounded extractions with the videos already in Storage.
+ * `withTimeout` never rejects, so the deadline costs a thumbnail and saves the post.
+ *
+ * The controller is what makes the deadline mean something to the work rather than only to the
+ * wait (#449): `extractVideoPoster` checks the signal between native calls and skips the rest.
+ * It buys the steps not yet started, never the one in flight — releasing a `VideoPlayer`
+ * mid-`AVAssetImageGenerator` runs its deinit off the main thread, which crashes. One
+ * controller per item, not one for the batch: a slow poster on item 3 must not cancel item 7's.
+ */
+async function uploadPoster(
+  uid: string,
+  postId: string,
+  index: number,
+  localUri: string,
+  durationS: number | null | undefined,
+): Promise<string | null> {
+  const posterAbort = new AbortController();
+  return withTimeout(
+    extractAndUploadPoster(uid, postId, index, localUri, durationS, posterAbort.signal),
+    MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
+    null,
+    { onTimeout: () => posterAbort.abort() },
+  );
+}
+
+/**
  * Extract a poster frame from an uploaded post video and put it beside the mp4, returning the
  * storage path for `thumb_path` — or `null` if any part of that did not work out.
  *
@@ -268,24 +302,31 @@ export default function PostComposeScreen() {
  * caution in `upload.ts`: the day `processVideo` transcodes, a poster taken from the picked file
  * would be a frame of a video nobody uploaded.
  *
+ * Swallowed is not the same as unnamed, which is what this used to be (#462): a bare `catch {}`
+ * threw the reason away entirely, and in Expo Go the dev console is the only telemetry there is
+ * — `Sentry.init` is a hard no-op on that runtime (#452), so a failure discarded here was a
+ * report nobody could ever file. `devWarn` is `__DEV__`-only, so it ships nothing.
+ *
  * The poster shares the video's `{uid}/{postId}/…` folder, so the owner-write post-media storage
  * policies cover it, and `media_process_enqueue` strips it server-side like any other object in
  * the bucket.
  */
-async function uploadPoster(
+async function extractAndUploadPoster(
   uid: string,
   postId: string,
   index: number,
   localUri: string,
   durationS: number | null | undefined,
+  extractSignal: AbortSignal,
 ): Promise<string | null> {
   try {
-    const poster = await extractVideoPoster(localUri, durationS);
+    const poster = await extractVideoPoster(localUri, durationS, extractSignal);
     if (!poster) return null;
     const path = postMediaThumbPath(uid, postId, index);
     await uploadLocalFile(poster.uri, { bucket: 'post-media', path }, 'image/jpeg');
     return path;
-  } catch {
+  } catch (err) {
+    devWarn('post.poster', err);
     return null;
   }
 }
