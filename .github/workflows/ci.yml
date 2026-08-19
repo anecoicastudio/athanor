@@ -9,6 +9,9 @@ jobs:
   node:
     name: lint · typecheck · test
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 93s, max 139s over 16 successful runs). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -35,6 +38,12 @@ jobs:
   e2e:
     name: web e2e (Playwright)
     runs-on: ubuntu-latest
+    # 24 covers setup plus BOTH capped steps below (16 + 6). They look mutually exclusive —
+    # a failed install exits 1 and the smoke step never runs — but an install that merely
+    # runs slow and then succeeds does add to the smoke step, so the sum is reachable.
+    # Measured, this job is 116s at p50 and 400s at its worst; the cap is a ceiling that
+    # turns a hang into a red, never a target. See `bound apt` for what it guards.
+    timeout-minutes: 24
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -51,34 +60,102 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: playwright-${{ runner.os }}-
-      - name: e2e admin smoke
+      # A stalled Ubuntu mirror hung this job twice on 2026-08-19 — 27 min on a PR and
+      # 6 h on the 04:38 dev push — because apt ships NO default timeout. The log both
+      # times: `Ign:` on every azure.archive.ubuntu.com index, a fallback to
+      # archive.ubuntu.com, three InRelease fetches, then 25 minutes of total silence.
+      # `apt-get update` runs as root inside `playwright install --with-deps`, so this
+      # is the one unbounded operation in the job; everything on the Playwright side is
+      # already capped (webServer 120s, per-test 30s, retries 1 → ~4 min worst case).
+      # Giving up on a dead mirror in 15s and retrying is the actual fix; the
+      # timeout-minutes above and below are the belt to this pair of braces.
+      - name: bound apt so a stalled mirror cannot hang the job
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99-ci-timeout >/dev/null <<'EOF'
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          Acquire::ftp::Timeout "15";
+          Acquire::Retries "3";
+          EOF
+      # The two admin smoke tests need only the Next dev server (Playwright webServer
+      # starts `pnpm dev`) + the public Supabase URL and one API key for the SSR client
+      # (publishable preferred, legacy anon accepted while it still exists).
+      # Fail-loud policy (same as the db job's types gate): missing secrets soft-skip
+      # on PRs and feature branches (forks have no secrets) but FAIL on a main push —
+      # `deploy` has `needs: e2e`, so a quiet skip on main would let deploy read
+      # "never ran" as "passed" (#146).
+      #
+      # The guard publishes an output rather than ending in a bare `exit 0`: it no longer
+      # shares a step with the work it gates, and `exit 0` only ever concluded its OWN
+      # step. The two steps below gate on it FAIL-CLOSED (`!= 'false'`, never
+      # `== 'true'`, same convention as the db job's paths filter) so a renamed or broken
+      # guard runs the gate instead of silently skipping it. Skipping STEPS rather than
+      # the job is what keeps `deploy`'s `needs: e2e` satisfiable.
+      - name: check e2e secrets
+        id: e2e-secrets
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
-          # The two admin smoke tests need only the Next dev server (Playwright webServer
-          # starts `pnpm dev`) + the public Supabase URL and one API key for the SSR client
-          # (publishable preferred, legacy anon accepted while it still exists).
-          # Fail-loud policy (same as the db job's types gate): missing secrets soft-skip
-          # on PRs and feature branches (forks have no secrets) but FAIL on a main push.
-          # `deploy` has `needs: e2e`, and a step-level `exit 0` concludes the job
-          # `success` — a quiet skip on main would let deploy read "never ran" as
-          # "passed" (#146).
           if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
             echo "::warning::e2e SKIPPED — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
             if [ "${{ github.ref }}" = "refs/heads/main" ]; then
               echo "::error::e2e gate cannot run on a main push without the Supabase e2e secrets"
               exit 1
             fi
+            echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          pnpm --filter web exec playwright install --with-deps chromium
-          pnpm --filter web test:e2e
+          echo "run=true" >> "$GITHUB_OUTPUT"
+      # Split out from the smoke run so the log says WHICH half stalled. It took a log
+      # tail and an elimination argument to establish that the first time; it should take
+      # a glance at the step duration the next.
+      - name: install chromium + system deps
+        if: steps.e2e-secrets.outputs.run != 'false'
+        # 16, not 13: the two attempts can burn (300+30) + (420+30) = 780s = 13m exactly, and
+        # a cap equal to the worst case leaves nothing for the recovery commands between them
+        # — GitHub's step timeout would fire before the loop's own `::error::` and the run
+        # would go red with a less specific message than it could have. The point of this
+        # step is a legible failure, so the cap has to sit above the loop, not on it.
+        timeout-minutes: 16
+        run: |
+          # Two attempts, each individually bounded. The first is tight — 300s is ~3x the
+          # p50 install of ~110s, so a degraded mirror is abandoned early. The second is
+          # patient — 420s clears the slowest HEALTHY install on record (347s), so a
+          # genuinely slow-but-working run still passes.
+          #
+          # `--kill-after=30` because plain `timeout` only SIGTERMs, and dpkg defers signals
+          # while unpacking precisely so its database is not left corrupt — so without it the
+          # per-attempt bound is a request, not a guarantee, and a stuck grandchild eats the
+          # next attempt's budget. 30s first gives a clean exit room to happen. SIGKILL can
+          # then leave dpkg mid-transaction, which is what the recovery pair below repairs;
+          # the runner is thrown away after the job either way.
+          for attempt in 300 420; do
+            timeout --kill-after=30 "$attempt" pnpm --filter web exec playwright install --with-deps chromium && exit 0
+            echo "::warning::playwright install stalled or failed after ${attempt}s; recovering apt state and retrying"
+            sudo dpkg --configure -a || true
+            sudo apt-get -f install -y || true
+          done
+          echo "::error::playwright install --with-deps failed twice — most likely a stalled Ubuntu mirror, not this diff"
+          exit 1
+      - name: e2e admin smoke
+        if: steps.e2e-secrets.outputs.run != 'false'
+        # Playwright caps itself well inside this: webServer 120s + 2 tests x 2 attempts
+        # x 30s. Measured, the test phase is 10-11s on every run in the sample.
+        timeout-minutes: 6
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: pnpm --filter web test:e2e
 
   edge:
     name: edge functions (deno test)
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 15s, max 17s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v2
@@ -95,6 +172,9 @@ jobs:
   bundle-leak:
     name: native bundle (expo export) · leak scan
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 149s, max 173s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -149,6 +229,9 @@ jobs:
   native-prebuild:
     name: native doctor · prebuild (expo)
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 47s, max 55s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 6
     # Same reason as the db job: the pinned filter action only reads changed files.
     permissions:
       contents: read
@@ -225,6 +308,9 @@ jobs:
   web-build:
     name: web build (OpenNext)
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 63s, max 73s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -266,6 +352,13 @@ jobs:
   db:
     name: migrations · pgTAP · types in sync
     runs-on: ubuntu-latest
+    # The one cap NOT sized from p50 (121s) or max (198s). The "generated types cover the
+    # schema" step below carries a pre-existing ECR-rate-limit retry loop whose backoff alone
+    # is 60+120+180+240 = 600s before attempt 5 begins, on top of `supabase start` (~3 min)
+    # and `supabase test db`. A cap sized from the happy path would kill that loop mid-backoff
+    # and turn "retry instead of failing the gate on infra weather" into the hard failure it
+    # was written to avoid — and `deploy` has `needs: db`. Size this from the loop, not the p50.
+    timeout-minutes: 20
     # The default workflow token is write-scoped org-wide; the pinned third-party
     # filter action below only ever needs to read the PR's changed files.
     permissions:
@@ -369,6 +462,10 @@ jobs:
     needs: [node, e2e, edge, db, bundle-leak, native-prebuild, web-build]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Ceiling, not a target. Deliberately generous: this job runs only on a main push, so it
+    # never appeared in the sample the other caps were sized from. No job in this file had one
+    # until 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
