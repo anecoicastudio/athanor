@@ -129,12 +129,15 @@ export function useCandidacyUpload(
       // not delay a success — it HIDES one, leaving the tile spinning at 100% with Continue
       // disabled, which reads exactly like a failed upload. A poster is best-effort by
       // contract, so the deadline costs a thumbnail and saves the submission.
-      // The deadline must CANCEL the extraction, not merely stop waiting for it (#449):
-      // `extractVideoPoster` holds a decoder and two bitmaps that it frees when its promise
-      // settles, and the assets this deadline exists for are exactly the ones that never
-      // settle. Its own controller, because the attempt's controller is already spent —
-      // aborting that one here would say 'canceled' about an upload that succeeded — but the
-      // attempt's abort is forwarded into it, so leaving the screen frees the decoder too.
+      // The signal stops the extraction rather than only stopping the wait (#449), but it
+      // stops it COOPERATIVELY: `extractVideoPoster` checks the signal between native calls
+      // and skips the rest, and it frees its handles when its promise settles — never from
+      // the abort itself, because releasing a `VideoPlayer` mid-`AVAssetImageGenerator` runs
+      // its deinit off the main thread, which crashes. So this buys the steps not yet taken,
+      // not the one in flight. Its own controller, because the attempt's controller is
+      // already spent — aborting that one here would say 'canceled' about an upload that
+      // succeeded — but the attempt's abort is forwarded into it, so leaving the screen still
+      // cuts the extraction short.
       const posterAbort = new AbortController();
       const abortPoster = () => posterAbort.abort();
       controller.signal.addEventListener('abort', abortPoster);
