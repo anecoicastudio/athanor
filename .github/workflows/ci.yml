@@ -113,11 +113,12 @@ jobs:
       # a glance at the step duration the next.
       - name: install chromium + system deps
         if: steps.e2e-secrets.outputs.run != 'false'
-        # 16, not 13: the two attempts can burn (300+30) + (420+30) = 780s = 13m exactly, and
-        # a cap equal to the worst case leaves nothing for the recovery commands between them
-        # — GitHub's step timeout would fire before the loop's own `::error::` and the run
-        # would go red with a less specific message than it could have. The point of this
-        # step is a legible failure, so the cap has to sit above the loop, not on it.
+        # 16, not 13: the two attempts can burn (300+30) + (420+30) = 780s = 13m exactly, plus
+        # up to 2x45s waiting for apt locks to clear, and a cap equal to the worst case leaves
+        # nothing for the recovery commands between them — GitHub's step timeout would fire
+        # before the loop's own `::error::` and the run would go red with a less specific
+        # message than it could have. The point of this step is a legible failure, so the cap
+        # has to sit above the loop, not on it. Worst case is now 870s = 14m30s.
         timeout-minutes: 16
         run: |
           # Two attempts, each individually bounded. The first is tight — 300s is ~3x the
@@ -131,9 +132,36 @@ jobs:
           # next attempt's budget. 30s first gives a clean exit room to happen. SIGKILL can
           # then leave dpkg mid-transaction, which is what the recovery pair below repairs;
           # the runner is thrown away after the job either way.
+          # The kill above is issued but was never WAITED for, and that cost both attempts on
+          # PR #467 (2026-08-19): the retry began 0.9s after the warning and died on
+          # `/var/lib/apt/lists/lock` (pid 2507) still held by the process being killed; the
+          # second attempt then fired 60ms later, before anything could have changed, and the
+          # step reported "failed twice" three seconds into a 30s kill window. Run 1 of the
+          # same PR lost `dpkg --configure -a` itself to `/var/lib/dpkg/lock-frontend`. Two
+          # changes close that gap.
+          #
+          # 1. apt waits for a held lock instead of failing instantly. This has to be a config
+          #    file rather than a flag: the apt-get that matters is the one `playwright install
+          #    --with-deps` spawns internally, and it takes no arguments from us.
+          echo 'DPkg::Lock::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99lock-timeout >/dev/null
+
+          # 2. the loop waits for the locks to actually clear before recovering and retrying,
+          #    bounded at 45s so a lock that never clears still reaches the legible ::error::
+          #    rather than hanging. 45 > the 30s `--kill-after` window, so a SIGKILLed dpkg has
+          #    room to die first. If `fuser` is absent the check reports "clear" and we degrade
+          #    to today's behaviour, with (1) still helping.
+          wait_for_apt_locks() {
+            for _ in $(seq 1 45); do
+              sudo fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1 || return 0
+              sleep 1
+            done
+            echo "::warning::apt locks still held after 45s; recovering anyway"
+          }
+
           for attempt in 300 420; do
             timeout --kill-after=30 "$attempt" pnpm --filter web exec playwright install --with-deps chromium && exit 0
-            echo "::warning::playwright install stalled or failed after ${attempt}s; recovering apt state and retrying"
+            echo "::warning::playwright install stalled or failed after ${attempt}s; waiting for apt locks, then recovering and retrying"
+            wait_for_apt_locks
             sudo dpkg --configure -a || true
             sudo apt-get -f install -y || true
           done
