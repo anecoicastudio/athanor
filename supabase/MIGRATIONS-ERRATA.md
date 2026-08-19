@@ -38,10 +38,9 @@ What that does and does not cost:
 - **It does weaken the record.** The addendum on #437 persisted the acknowledgement precisely because
   an unrecorded tick has the evidentiary value of a notice; a forgeable one is not much better.
 
-#### Update — `20260819041755_events_column_scoped_client_grants.sql` (#446) closes the UPDATE half
-
-The grants are now column-scoped, the `profiles` pattern that keeps `founding_member` and
-`identity_verified` unwritable by their owner:
+**Amended by #446** (`20260819041755_events_column_scoped_client_grants.sql`), which closes the
+UPDATE half. The grants are now column-scoped, the `profiles` pattern that keeps `founding_member`
+and `identity_verified` unwritable by their owner:
 
 - **UPDATE is gone.** `revoke update … from authenticated`, and `events_update_own` is dropped with
   it (a PERMISSIVE policy with no grant behind it is a vestige `0121` fails on). Nothing in
