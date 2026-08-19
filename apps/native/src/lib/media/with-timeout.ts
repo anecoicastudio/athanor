@@ -2,7 +2,8 @@
  * Bound a best-effort promise, resolving to a fallback if it takes too long (#412).
  *
  * Written for the candidacy poster frame, whose extraction has no timeout of its own and can
- * hang on an HEVC clip or an iCloud-backed asset. That step is awaited AFTER the video is
+ * hang on a long clip or an iCloud-backed asset (an HEVC one no longer reaches it — since #451
+ * the picker transcodes before anything else runs). That step is awaited AFTER the video is
  * already in Storage, so an unbounded wait does not delay a success — it hides one, leaving
  * the step-4 tile spinning at 100% forever with Continue disabled. Indistinguishable from a
  * failed upload, which is the whole family of defect this issue exists to delete.
@@ -13,14 +14,15 @@
  * `upload-transport.ts` uses for its stall watchdog, so the deadline is testable without
  * waiting for it.
  *
- * **Abandoning is not always enough, hence `onTimeout` (#449).** Dropping a late result is the
- * right JS-level semantics, but it says nothing to the work itself, and the work here holds a
- * native video decoder and two bitmaps that are released only when its promise settles. On a
- * slow asset the wizard therefore advanced while that memory stayed alive — on iOS, where the
- * upload also materialises the whole file in native RAM, that is the difference between a
- * finished submission and a jetsam kill. `onTimeout` fires exactly when the fallback wins on
- * the deadline, and never when the work settles first (whether it resolved or threw), so a
- * caller can cancel rather than merely stop listening.
+ * **Abandoning says nothing to the work itself, hence `onTimeout` (#449).** Dropping a late
+ * result is the right JS-level semantics, but the work carries on: `extractVideoPoster` keeps
+ * making native calls, and holds a decoder and two bitmaps until its promise settles. The
+ * memory-pressure kill this hook was first written for turned out not to be the crash — that
+ * was a frame time marshalled as a scalar where iOS wants an array — so what it buys is
+ * narrower than first claimed and still worth having: cancelled work skips every step it has
+ * not started yet. `onTimeout` fires exactly when the fallback wins on the deadline, and never
+ * when the work settles first (whether it resolved or threw), so a caller can stop the work
+ * rather than merely stop listening.
  */
 
 type Timers = {

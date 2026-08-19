@@ -96,9 +96,9 @@ describe('withTimeout (#412)', () => {
   });
 
   it('calls onTimeout when the deadline wins, so the caller can cancel the work (#449)', () => {
-    // Abandoning is not enough: `extractVideoPoster` holds a native decoder and two bitmaps
-    // that are released only when its promise settles, so a dropped result leaves that memory
-    // alive while the wizard moves on. The hook is what turns "give up waiting" into "stop".
+    // Abandoning is not enough: `extractVideoPoster` goes on making native calls after the
+    // caller has stopped listening, and frees its decoder and two bitmaps only when its
+    // promise settles. The hook is what turns "give up waiting" into "stop starting more".
     const clock = fakeTimers();
     const onTimeout = vi.fn();
     void withTimeout(new Promise<null>(() => {}), 15_000, null, {
