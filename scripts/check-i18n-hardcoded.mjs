@@ -258,25 +258,37 @@ const kindOf = (file) =>
  * Read off comment TOKENS, not off the raw text: a whole-file exemption that any string literal
  * containing `i18n-ignore-file` could trigger would be a silent way to switch the gate off.
  * Scanned only when the substring is present at all, so the common file pays nothing.
+ *
+ * Walked off the PARSED tree rather than a raw `ts.createScanner`, since #452. A bare scanner has
+ * no parser to tell it when a `}` closes an interpolation, so it never rescans one as a template
+ * middle/tail: the first `` `…${…}…` `` in a file re-opens as a fresh template token that swallows
+ * everything after it, comments included. The effect was that an `i18n-ignore` following any
+ * interpolated template literal — on its own line or trailing — was silently ignored, and the
+ * header's «any style» was false. It failed CLOSED (a lost directive over-reports, it cannot let
+ * copy through), which is why it survived: the symptom is a finding that will not go away.
  */
-function directives(sf, raw, variant) {
+function directives(sf, raw) {
   if (!raw.includes('i18n-ignore')) return { file: false, lines: new Set() };
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, variant, raw);
   const lines = new Set();
   let file = false;
-  for (let tok = scanner.scan(); tok !== ts.SyntaxKind.EndOfFileToken; tok = scanner.scan()) {
-    if (
-      tok !== ts.SyntaxKind.SingleLineCommentTrivia &&
-      tok !== ts.SyntaxKind.MultiLineCommentTrivia
-    )
-      continue;
-    const text = scanner.getTokenText();
-    if (!text.includes('i18n-ignore')) continue;
+  const note = (pos, end) => {
+    const text = raw.slice(pos, end);
+    if (!text.includes('i18n-ignore')) return;
     if (text.includes('i18n-ignore-file')) file = true;
-    const from = sf.getLineAndCharacterOfPosition(scanner.getTokenStart()).line + 1;
-    const to = sf.getLineAndCharacterOfPosition(scanner.getTokenEnd()).line + 1;
+    const from = sf.getLineAndCharacterOfPosition(pos).line + 1;
+    const to = sf.getLineAndCharacterOfPosition(end).line + 1;
     for (let l = from; l <= to; l += 1) lines.add(l);
-  }
+  };
+  const visit = (node) => {
+    ts.forEachLeadingCommentRange(raw, node.getFullStart(), note);
+    ts.forEachTrailingCommentRange(raw, node.getEnd(), note);
+    node.forEachChild(visit);
+  };
+  visit(sf);
+  // The EndOfFileToken carries the leading trivia of a file whose comments are all at the end,
+  // and `sf.getFullStart()` is 0 — so a directive above the very first statement is covered by
+  // that statement's leading trivia, and a trailing-only file by this.
+  ts.forEachLeadingCommentRange(raw, sf.endOfFileToken.getFullStart(), note);
   return { file, lines };
 }
 
@@ -293,7 +305,7 @@ for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
   const raw = readFileSync(file, 'utf8');
   const { script, variant } = kindOf(file);
   const sf = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, script);
-  const directive = directives(sf, raw, variant);
+  const directive = directives(sf, raw);
   if (directive.file) {
     exempted.push(file);
     continue;
