@@ -318,4 +318,23 @@ describe('the launch path refuses before it opens anything (#412, source audit)'
     expect(source).toContain('withTimeout(');
     expect(source).toContain('VIDEO_POSTER_TIMEOUT_MS');
   });
+
+  it('the poster deadline CANCELS the extraction, it does not just stop waiting (#449)', () => {
+    // `withTimeout` abandons by design. Abandoning a decoder that holds two bitmaps is what
+    // let poster memory outlive the step that needed it, on the one platform where the upload
+    // is already holding the whole file.
+    const source = read('media/use-candidacy-upload.ts');
+    expect(source).toContain('onTimeout:');
+    expect(source).toContain('posterAbort.abort()');
+    // The outer cancel has to reach it too — leaving the screen must not leave a decoder.
+    expect(source).toContain("controller.signal.addEventListener('abort'");
+  });
+
+  it('no failure on the launch path is discarded unnamed (#449)', () => {
+    // `catch {}` with no binding is the #416 defect one screen later: the member is told
+    // «non riuscito» and the reason exists nowhere at all, not even in a dev console.
+    const source = read('media/use-candidacy-upload.ts');
+    expect(source).not.toMatch(/\}\s*catch\s*\{/);
+    expect(source).toContain("devWarn('candidacy.launch'");
+  });
 });

@@ -27,14 +27,16 @@ function fakeTimers() {
 describe('withTimeout (#412)', () => {
   it('resolves with the real value when the work beats the deadline', async () => {
     const clock = fakeTimers();
-    const result = await withTimeout(Promise.resolve('poster'), 15_000, null, clock.timers);
+    const result = await withTimeout(Promise.resolve('poster'), 15_000, null, {
+      timers: clock.timers,
+    });
     expect(result).toBe('poster');
   });
 
   it('disarms the timer once the work has settled', async () => {
     // A timer left armed keeps a handle alive and, in RN, can outlive the screen.
     const clock = fakeTimers();
-    await withTimeout(Promise.resolve('poster'), 15_000, null, clock.timers);
+    await withTimeout(Promise.resolve('poster'), 15_000, null, { timers: clock.timers });
     expect(clock.armed()).toBe(0);
   });
 
@@ -42,7 +44,7 @@ describe('withTimeout (#412)', () => {
     const clock = fakeTimers();
     // A promise that never settles — the hung decoder this exists for.
     const hung = new Promise<string | null>(() => {});
-    const pending = withTimeout(hung, 15_000, null, clock.timers);
+    const pending = withTimeout(hung, 15_000, null, { timers: clock.timers });
     clock.fire();
     await expect(pending).resolves.toBeNull();
   });
@@ -54,7 +56,7 @@ describe('withTimeout (#412)', () => {
     const late = new Promise<string | null>((r) => {
       release = r as (v: string) => void;
     });
-    const pending = withTimeout(late, 15_000, null, clock.timers);
+    const pending = withTimeout(late, 15_000, null, { timers: clock.timers });
     clock.fire();
     release('too-late');
     await expect(pending).resolves.toBeNull();
@@ -63,12 +65,9 @@ describe('withTimeout (#412)', () => {
   it('never rejects — a throwing job resolves to the fallback', async () => {
     // This wraps a best-effort step whose whole contract is that it cannot fail the upload.
     const clock = fakeTimers();
-    const result = await withTimeout(
-      Promise.reject(new Error('decoder died')),
-      15_000,
-      null,
-      clock.timers,
-    );
+    const result = await withTimeout(Promise.reject(new Error('decoder died')), 15_000, null, {
+      timers: clock.timers,
+    });
     expect(result).toBeNull();
     expect(clock.armed()).toBe(0);
   });
@@ -76,7 +75,7 @@ describe('withTimeout (#412)', () => {
   it('carries a non-null fallback through', async () => {
     const clock = fakeTimers();
     const hung = new Promise<string>(() => {});
-    const pending = withTimeout(hung, 1_000, 'fallback', clock.timers);
+    const pending = withTimeout(hung, 1_000, 'fallback', { timers: clock.timers });
     clock.fire();
     await expect(pending).resolves.toBe('fallback');
   });
@@ -91,7 +90,47 @@ describe('withTimeout (#412)', () => {
       },
       clear: () => {},
     };
-    await expect(withTimeout(new Promise<null>(() => {}), 0, null, sync)).resolves.toBeNull();
+    await expect(
+      withTimeout(new Promise<null>(() => {}), 0, null, { timers: sync }),
+    ).resolves.toBeNull();
+  });
+
+  it('calls onTimeout when the deadline wins, so the caller can cancel the work (#449)', () => {
+    // Abandoning is not enough: `extractVideoPoster` holds a native decoder and two bitmaps
+    // that are released only when its promise settles, so a dropped result leaves that memory
+    // alive while the wizard moves on. The hook is what turns "give up waiting" into "stop".
+    const clock = fakeTimers();
+    const onTimeout = vi.fn();
+    void withTimeout(new Promise<null>(() => {}), 15_000, null, {
+      timers: clock.timers,
+      onTimeout,
+    });
+    expect(onTimeout).not.toHaveBeenCalled();
+    clock.fire();
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onTimeout when the work wins', async () => {
+    const clock = fakeTimers();
+    const onTimeout = vi.fn();
+    await withTimeout(Promise.resolve('poster'), 15_000, null, {
+      timers: clock.timers,
+      onTimeout,
+    });
+    clock.fire();
+    expect(onTimeout).not.toHaveBeenCalled();
+  });
+
+  it('does not call onTimeout when the work throws', async () => {
+    // A throw already released everything in the job's own `finally`; cancelling again would
+    // be a second release of handles that are gone.
+    const clock = fakeTimers();
+    const onTimeout = vi.fn();
+    await withTimeout(Promise.reject(new Error('decoder died')), 15_000, null, {
+      timers: clock.timers,
+      onTimeout,
+    });
+    expect(onTimeout).not.toHaveBeenCalled();
   });
 
   it('uses real timers when none are injected', async () => {

@@ -43,6 +43,23 @@ describe('MEDIA_LIMITS', () => {
     expect(MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS).toBeGreaterThan(0);
   });
 
+  it('names the iOS capture quality that keeps a recording out of jetsam range (#449)', () => {
+    // The NAME of an `ImagePicker.UIImagePickerControllerQualityType` member, not its ordinal:
+    // `pick.ts` indexes the enum with it, so a renamed member is a type error rather than a
+    // number that silently means something else. `High` is the picker's default and is what
+    // recorded 4K on the device pass.
+    expect(MEDIA_LIMITS.VIDEO_CAPTURE_QUALITY_IOS).toBe('Medium');
+    expect(MEDIA_LIMITS.VIDEO_CAPTURE_QUALITY_IOS).not.toBe('High');
+  });
+
+  it('names the iOS export preset that transcodes a library pick (#449)', () => {
+    // The NAME of an `ImagePicker.VideoExportPreset` member. Anything other than `Passthrough`
+    // (the default) makes expo-image-picker run an AVAssetExportSession over the picked asset,
+    // so this value is what turns "no compression at all" into a transcode.
+    expect(MEDIA_LIMITS.VIDEO_LIBRARY_EXPORT_PRESET_IOS).toBe('MediumQuality');
+    expect(MEDIA_LIMITS.VIDEO_LIBRARY_EXPORT_PRESET_IOS).not.toBe('Passthrough');
+  });
+
   it('accepts mp4 and quicktime — an iPhone records .mov (#412)', () => {
     // Mirrors the candidacy-videos bucket's allowed_mime_types (20260817… widening) and the
     // assertion in supabase/tests/0043_candidacy_videos_storage.test.sql. Rejecting quicktime
