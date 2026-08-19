@@ -140,9 +140,16 @@ jobs:
           # same PR lost `dpkg --configure -a` itself to `/var/lib/dpkg/lock-frontend`. Two
           # changes close that gap.
           #
-          # 1. apt waits for a held lock instead of failing instantly. This has to be a config
-          #    file rather than a flag: the apt-get that matters is the one `playwright install
+          # 1. apt waits for the two DPKG locks instead of failing instantly. Config rather
+          #    than a flag because the apt-get that matters is the one `playwright install
           #    --with-deps` spawns internally, and it takes no arguments from us.
+          #    Scope, verified against noble's apt source: DPkg::Lock::Timeout feeds
+          #    GetLockMaybeWait() for /var/lib/dpkg/lock-frontend and /var/lib/dpkg/lock only.
+          #    It does NOT cover /var/lib/apt/lists/lock — pkgAcquire::GetLock() takes that one
+          #    through the plain, timeout-unaware overload — and it does not reach the raw
+          #    `dpkg --configure -a` below at all, which reads /etc/dpkg/dpkg.cfg.d instead.
+          #    The lists lock is the one that actually failed on #467, so this line is not what
+          #    fixes that; (2) is. It is kept because the dpkg locks can flake the same way.
           echo 'DPkg::Lock::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99lock-timeout >/dev/null
 
           # 2. the loop waits for the locks to actually clear before recovering and retrying,
@@ -165,7 +172,7 @@ jobs:
             sudo dpkg --configure -a || true
             sudo apt-get -f install -y || true
           done
-          echo "::error::playwright install --with-deps failed twice — most likely a stalled Ubuntu mirror, not this diff"
+          echo "::error::playwright install --with-deps failed twice — a stalled Ubuntu mirror or apt-lock contention, not this diff"
           exit 1
       - name: e2e admin smoke
         if: steps.e2e-secrets.outputs.run != 'false'
