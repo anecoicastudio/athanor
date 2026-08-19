@@ -28,9 +28,12 @@ values
   ('00000000-0000-0000-0000-000000000000', '44444444-4444-4444-4444-444444444444',
    'authenticated','authenticated','d@test.athanor','{"locale":"it"}'::jsonb, now(), now());
 
--- A creates a paid event (capacity 2) and a free event (capacity 2)
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+-- A's paid event (capacity 2) and free event (capacity 2).
+-- Seeded as service_role, not as the organiser: since #446 the client's INSERT grant on
+-- events is column-scoped to the columns create_event writes, and `id` is not one of them.
+-- This fixture wants a deterministic id to reference below, not an ownership check —
+-- 0020_events_rls asserts an organiser's own INSERT.
+set local role service_role;
 insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, capacity)
   values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','11111111-1111-1111-1111-111111111111',
           'Masterclass','formazione',true,'https://stream.athanor.test/x', now() + interval '1 day', 1500, 2),

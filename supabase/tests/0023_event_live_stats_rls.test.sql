@@ -18,9 +18,12 @@ select policies_are('public','event_live_stats',
   array['event_live_stats_select_published'],
   'exactly the expected (published-only read, no client-write) policy (#137)');
 
--- organizer creates an online event; seed a live-stats row as superuser (service-role analog)
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+-- organizer's online event; the live-stats row is seeded below as superuser (service-role analog).
+-- Seeded as service_role, not as the organiser: since #446 the client's INSERT grant on
+-- events is column-scoped to the columns create_event writes, and `id` is not one of them.
+-- This fixture wants a deterministic id to reference below, not an ownership check —
+-- 0020_events_rls asserts an organiser's own INSERT.
+set local role service_role;
 insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at)
   values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','11111111-1111-1111-1111-111111111111',
           'Respiro & Strategia','formazione',true,'https://stream.athanor.test/x', now());

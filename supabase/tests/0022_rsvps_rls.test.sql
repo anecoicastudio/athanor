@@ -20,9 +20,12 @@ select policies_are('public','rsvps',
         'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on rsvps');
 
--- A (organizer) creates a free physical event to RSVP to
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+-- A (organizer) has a free physical event to RSVP to.
+-- Seeded as service_role, not as the organiser: since #446 the client's INSERT grant on
+-- events is column-scoped to the columns create_event writes, and `id` is not one of them.
+-- This fixture wants a deterministic id to reference below, not an ownership check —
+-- 0020_events_rls asserts an organiser's own INSERT.
+set local role service_role;
 insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at)
   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','11111111-1111-1111-1111-111111111111',
           'Notte delle Idee','networking',false,'Spazio X',
