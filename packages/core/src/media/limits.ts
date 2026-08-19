@@ -34,6 +34,22 @@ export const MEDIA_LIMITS = {
    */
   VIDEO_POSTER_TIMEOUT_MS: 15_000,
   /**
+   * How long the poster extractor waits for the player to finish loading its source before it
+   * asks for a frame anyway.
+   *
+   * `replaceAsync` does not mean the item is installed: on iOS it resolves as soon as the
+   * install has been *scheduled* on the main queue, and `generateThumbnailsAsync` then finds
+   * `currentItem == nil` and returns an empty array — a video that uploads perfectly and
+   * arrives with no poster at all. So the extractor waits for the player's `sourceLoad`, and
+   * this is how long that wait may take before it gives up and tries regardless (which is
+   * exactly the old behaviour, so the deadline can only ever cost latency, never an outcome).
+   *
+   * Strictly smaller than `VIDEO_POSTER_TIMEOUT_MS`, which bounds the whole extraction: this
+   * is the first of four steps, and a load deadline at the outer budget would leave nothing
+   * for generate, render and save.
+   */
+  VIDEO_POSTER_LOAD_TIMEOUT_MS: 5_000,
+  /**
    * Long edge of a processed avatar (#76). The largest an avatar is ever drawn is the 104pt
    * profile hero, so even a 3× screen asks for ~312px; 512 leaves headroom without paying for
    * a camera original that every list row would then downscale on the fly. The bucket's own

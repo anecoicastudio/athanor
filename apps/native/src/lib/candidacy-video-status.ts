@@ -111,6 +111,32 @@ export function videoStatusOffersSettings(
   return failure === 'camera-blocked' || failure === 'library-blocked';
 }
 
+/** What the step-4 tile draws in its preview box. */
+export type TilePreview = 'uploading' | 'poster' | 'glyph';
+
+/**
+ * Which of the three the tile is showing.
+ *
+ * The tile had no preview at all: every finished upload ended on a flat `bg-raise` box with a
+ * lit `✦`, so «did my video go up, and which one?» had no visual answer — the same family of
+ * silence `videoStatusMessage` deletes for failures, one state further along. `posterUri` is the
+ * LOCAL JPEG `extractVideoPoster` already wrote to disk, not a signed URL: it is on the device
+ * by the time the upload reports done, so the preview costs no round-trip and survives a dead
+ * connection.
+ *
+ * `uploading` wins over a poster on purpose. A retry PUTs the same storage key, so a poster from
+ * the previous attempt is still in hand while the next video transfers, and drawing it would
+ * answer «which video is this?» with the wrong one.
+ *
+ * A null poster keeps the glyph rather than an empty frame: extraction is best-effort by
+ * contract (`extractVideoPoster` returns null on any failure), so «uploaded, no frame» is an
+ * ordinary outcome and must not look like a broken image.
+ */
+export function videoTilePreview(status: UploadStatus, posterUri: string | null): TilePreview {
+  if (status === 'uploading') return 'uploading';
+  return status === 'done' && posterUri ? 'poster' : 'glyph';
+}
+
 /**
  * A permission verdict → the failure it is, or null when the launch may go ahead.
  *

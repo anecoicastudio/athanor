@@ -43,6 +43,19 @@ describe('MEDIA_LIMITS', () => {
     expect(MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS).toBeGreaterThan(0);
   });
 
+  it('bounds the wait for the player to install its item, inside the poster budget', () => {
+    // `replaceAsync` resolves before `AVPlayer.replaceCurrentItem` has run — it only schedules
+    // that on the main queue — so the extractor waits for the source to actually load before
+    // asking for a frame. The wait has to be strictly smaller than the whole-extraction budget:
+    // it is the FIRST of four steps, and a load deadline at or above the outer one would leave
+    // nothing for generate, render and save.
+    expect(MEDIA_LIMITS.VIDEO_POSTER_LOAD_TIMEOUT_MS).toBe(5_000);
+    expect(MEDIA_LIMITS.VIDEO_POSTER_LOAD_TIMEOUT_MS).toBeGreaterThan(0);
+    expect(MEDIA_LIMITS.VIDEO_POSTER_LOAD_TIMEOUT_MS).toBeLessThan(
+      MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
+    );
+  });
+
   it('names the iOS capture quality that keeps a recording out of jetsam range (#449)', () => {
     // The NAME of an `ImagePicker.UIImagePickerControllerQualityType` member, not its ordinal:
     // `pick.ts` indexes the enum with it, so a renamed member is a type error rather than a

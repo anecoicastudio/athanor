@@ -8,6 +8,79 @@ import { createVideoPlayer, type VideoPlayer, type VideoThumbnail } from 'expo-v
 import { MEDIA_LIMITS, videoPosterTime } from '@athanor/core';
 import { markStep } from '@/lib/crash-trail';
 import { devWarn } from '@/lib/log';
+import { withTimeout } from './with-timeout';
+
+/** `EventSubscription`, without importing `expo-modules-core` — not a dependency of this app. */
+type PlayerSubscription = ReturnType<VideoPlayer['addListener']>;
+
+/**
+ * Load `uri` into `player` and wait for the player to say it actually holds it.
+ *
+ * **`replaceAsync` resolving is not the item being installed.** iOS's async
+ * `replaceCurrentItem` ends by *scheduling* the install — `DispatchQueue.main.async { ref
+ * .replaceCurrentItem(with: playerItem) }` — and returns as soon as that block is queued,
+ * because the KVOs behind it have to fire on the main thread. `generateThumbnailsAsync` then
+ * runs `guard let asset = player.ref.currentItem?.asset else { return [] }` and, finding
+ * nothing installed yet, hands back an empty array rather than an error. That is the whole
+ * defect: a video that uploaded perfectly, a poster that was never taken, and one `[]` that
+ * could not be told apart from a codec the device cannot read. It loses most reliably exactly
+ * when it matters — during an upload, with the main queue busy re-rendering progress.
+ *
+ * `sourceLoad` is the signal that proves the precondition. It is emitted from
+ * `onLoadedPlayerItem`, which the observer calls off the KVO on `AVPlayerItem.status`, and that
+ * KVO only exists for an item the player already holds — so `sourceLoad` implies
+ * `currentItem != nil`. `status === 'readyToPlay'` would NOT do: `onItemStatusChanged` never
+ * assigns it, and the two paths that do (`onTimeControlStatusChanged`,
+ * `onPlayerLikelyToKeepUpChanged`) wait on playback or buffering that a paused, view-less
+ * player may never reach.
+ *
+ * **The deadline can only cost latency, never an outcome.** When nothing is announced within
+ * `VIDEO_POSTER_LOAD_TIMEOUT_MS` this resolves anyway and generation is attempted regardless —
+ * which is precisely the old behaviour. That is what keeps Android, where the thumbnail comes
+ * from the source URI rather than from the player's current item and the race cannot happen,
+ * from paying for an iOS bug with a stalled extraction.
+ *
+ * Subscriptions are taken BEFORE `replaceAsync` — a load announced into no listener would be a
+ * load waited out in full. It never releases a handle: that is the `finally` in
+ * `extractVideoPoster`, for the reason its docblock gives.
+ */
+async function loadSource(player: VideoPlayer, uri: string, signal?: AbortSignal): Promise<void> {
+  // An abort can land between `extractVideoPoster`'s check and this call. Nothing is started
+  // for it: `addEventListener` never fires on an already-aborted signal, so subscribing would
+  // buy a caller who has already left a full-deadline wait, and replacing would buy them a
+  // native decode whose result the next check only discards. This is not the "cancel skips the
+  // step not yet started, never the one in flight" compromise the release comment describes —
+  // no native call is in flight here, so there is nothing to be careful around.
+  if (signal?.aborted) return;
+
+  let announce: () => void = () => {};
+  const loaded = new Promise<void>((resolve) => {
+    announce = resolve;
+  });
+
+  const subscriptions: PlayerSubscription[] = [
+    player.addListener('sourceLoad', () => announce()),
+    // A source that already failed will never announce itself, and waiting out the deadline for
+    // it would turn a fast failure into a slow one for no extra information.
+    player.addListener('statusChange', ({ status }) => {
+      if (status === 'error') announce();
+    }),
+  ];
+  signal?.addEventListener('abort', announce);
+
+  try {
+    await Promise.all([
+      player.replaceAsync(uri),
+      withTimeout(loaded, MEDIA_LIMITS.VIDEO_POSTER_LOAD_TIMEOUT_MS, undefined),
+    ]);
+  } finally {
+    for (const subscription of subscriptions) subscription.remove();
+    signal?.removeEventListener('abort', announce);
+    // Settles the wait `withTimeout` may still be holding — a `replaceAsync` that threw leaves
+    // it pending, and its timer would otherwise outlive the extraction it was bounding.
+    announce();
+  }
+}
 
 /**
  * The single call site of `generateThumbnailsAsync`, and the only place a frame time is
@@ -57,12 +130,11 @@ function generateThumbnails(player: VideoPlayer, atSeconds: number): Promise<Vid
  * only surface this ships to today, so that is not a gap here — but it is why the caller must
  * treat `null` as ordinary.
  *
- * **`replaceAsync` does not guarantee the item is loaded**, so an empty result is a real outcome
- * rather than a theoretical one. The native implementation ends in a `DispatchQueue.main.async`
- * block and resolves before that block runs, so `generateThumbnailsAsync` can find
- * `currentItem == nil` and hand back `[]`. That is why it is `replaceAsync` and not
- * `createVideoPlayer(uri)` — it is still the closest thing to "loaded" the API offers — and why
- * the empty case is logged instead of collapsing quietly into a posterless submission.
+ * **`replaceAsync` does not guarantee the item is loaded**, which is why the source goes in
+ * through `loadSource` rather than through a bare `await player.replaceAsync(uri)` — see that
+ * function for the mechanism. An empty result therefore no longer has a timing explanation, but
+ * it is still logged rather than collapsing quietly into a posterless submission: iOS answers
+ * `[]` instead of an error whenever `currentItem` is nil for any reason at all.
  *
  * Every native handle here is a `SharedObject` that retains a bitmap or a decoder until released:
  * the player, the frame, the manipulator context (which holds the source image alive for as long
@@ -116,7 +188,7 @@ export async function extractVideoPoster(
   try {
     await markStep('poster.player');
     player = createVideoPlayer(null);
-    await player.replaceAsync(uri);
+    await loadSource(player, uri, signal);
 
     if (signal?.aborted) return null;
     await markStep('poster.thumbnails');

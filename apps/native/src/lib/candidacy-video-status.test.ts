@@ -15,6 +15,7 @@ import {
   uploadFailureOutcome,
   videoStatusMessage,
   videoStatusOffersSettings,
+  videoTilePreview,
 } from './candidacy-video-status';
 
 /** The body an older storage-api wraps an RLS denial in — HTTP 400, real status inside. */
@@ -266,6 +267,35 @@ describe('uploadFailureOutcome — Storage answers the interesting refusals dist
       const { status, failure } = uploadFailureOutcome(err);
       expect(videoStatusMessage(status, failure)).not.toBeNull();
     }
+  });
+});
+
+describe('videoTilePreview — step 4 shows the frame it just uploaded', () => {
+  const POSTER = 'file:///cache/poster.jpg';
+
+  it('draws the poster once the upload is done and a frame was extracted', () => {
+    // The reported defect: a video that uploaded perfectly left the tile on a flat box with a
+    // ✦, so «is my video in?» had no visual answer at all.
+    expect(videoTilePreview('done', POSTER)).toBe('poster');
+  });
+
+  it('keeps the glyph when the extraction gave nothing back', () => {
+    // A poster is best-effort by contract (`extractVideoPoster` returns null on any failure),
+    // so the tile must have a state for «uploaded, no frame» that is not a broken image.
+    expect(videoTilePreview('done', null)).toBe('glyph');
+  });
+
+  it('never draws a stale poster over a later attempt', () => {
+    // A retry after a done upload replaces the same storage key. Rendering the previous
+    // attempt's frame while the next one transfers would show the wrong video as the answer.
+    expect(videoTilePreview('uploading', POSTER)).toBe('uploading');
+    for (const status of ['idle', 'error', 'canceled', 'stalled'] as UploadStatus[]) {
+      expect(videoTilePreview(status, POSTER)).toBe('glyph');
+    }
+  });
+
+  it('is uploading whenever the transfer is live, poster or not', () => {
+    expect(videoTilePreview('uploading', null)).toBe('uploading');
   });
 });
 
