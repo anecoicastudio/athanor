@@ -3,12 +3,22 @@
  *
  * XHR rather than `fetch` because RN's fetch has no upload-progress signal, while its
  * XMLHttpRequest dispatches `upload.onprogress` from the native layer and accepts a
- * `{ uri }` body that streams the file from disk — no 200 MB `arrayBuffer()` in the JS
- * heap first.
+ * `{ uri }` body the native layer resolves itself — no `arrayBuffer()` in the JS heap first.
+ *
+ * **What `{ uri }` costs is platform-split, and only Android gets the good half (#449).** On
+ * Android `NetworkingModule` turns it into a file input stream and the request body really is
+ * streamed at constant memory. On iOS `RCTNetworkTask` appends every chunk into one
+ * `NSMutableData` and `RCTNetworking` assigns the result as `request.HTTPBody`, so the entire
+ * file is resident in native memory before a byte leaves — and inside Expo Go that is an OS
+ * jetsam kill, not a catchable error. The JS heap is spared on both; iOS's native heap is not.
+ * The defence is upstream, at the picker (`pick.ts` compresses); #450 removes the allocation.
  *
  * The timeout is a stall watchdog, not a wall-clock cap: a large video on a slow but
  * moving connection must never be killed, a transfer with zero bytes for
  * `UPLOAD_STALL_TIMEOUT_MS` should be. The timer re-arms on every progress event.
+ *
+ * The window before the FIRST progress event is a different measurement and gets its own,
+ * longer budget — see `UPLOAD_FIRST_PROGRESS_TIMEOUT_MS`.
  *
  * Pure module (no expo/supabase imports): XHR construction and timers are injectable,
  * so the abort/stall/progress logic is unit-testable with a fake XHR (same convention
@@ -17,6 +27,23 @@
 
 /** Abort an upload after this long with ZERO bytes moved — stall, not total duration. */
 export const UPLOAD_STALL_TIMEOUT_MS = 30_000;
+
+/**
+ * How long the transport waits for the FIRST progress event before calling it a stall (#449).
+ *
+ * Separate from `UPLOAD_STALL_TIMEOUT_MS` because it measures something else. Between two
+ * progress events, silence means the connection died. Before the first one, silence means the
+ * native layer has not finished preparing the body — and on iOS preparing the body is reading
+ * the whole file (up to `MAX_VIDEO_BYTES`) into memory and letting `NSURLSession` copy it.
+ * Nothing can be on the wire yet, so the stall window was measuring an event that had not been
+ * given a chance to happen, and a large file on a loaded device was aborted as
+ * `UploadStalledError` while it was working.
+ *
+ * Long, but still a bound: a request that never moves at all has to end, or the upload tile
+ * spins at 0% forever with no exit but leaving the screen — the defect family #412 exists to
+ * delete. Three minutes covers the read; nothing legitimate takes longer to produce one byte.
+ */
+export const UPLOAD_FIRST_PROGRESS_TIMEOUT_MS = 180_000;
 
 export type UploadProgress = {
   /** Bytes sent so far. */
@@ -121,7 +148,11 @@ export type UploadXhr = {
 export type XhrUploadRequest = {
   url: string;
   headers: Record<string, string>;
-  /** Handed to `xhr.send` verbatim — on RN `{ uri: 'file://…' }` streams the file natively. */
+  /**
+   * Handed to `xhr.send` verbatim — on RN `{ uri: 'file://…' }` is resolved by the native
+   * networking layer. Streamed from disk on Android, read whole into native memory on iOS; see
+   * the module docblock.
+   */
   body: unknown;
   signal?: AbortSignal;
   onProgress?: (p: UploadProgress) => void;
@@ -135,6 +166,7 @@ type Timers = {
 export type XhrUploadDeps = {
   createXhr?: () => UploadXhr;
   stallTimeoutMs?: number;
+  firstProgressTimeoutMs?: number;
   timers?: Timers;
 };
 
@@ -150,6 +182,7 @@ const realTimers: Timers = {
  */
 export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Promise<void> {
   const stallTimeoutMs = deps.stallTimeoutMs ?? UPLOAD_STALL_TIMEOUT_MS;
+  const firstProgressTimeoutMs = deps.firstProgressTimeoutMs ?? UPLOAD_FIRST_PROGRESS_TIMEOUT_MS;
   const timers = deps.timers ?? realTimers;
 
   return new Promise<void>((resolve, reject) => {
@@ -170,12 +203,12 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
         watchdog = null;
       }
     };
-    const armWatchdog = () => {
+    const armWatchdog = (ms: number) => {
       clearWatchdog();
       watchdog = timers.set(() => {
         abortReason = 'stalled';
         xhr.abort();
-      }, stallTimeoutMs);
+      }, ms);
     };
 
     const onSignalAbort = () => {
@@ -198,7 +231,8 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
     }
 
     xhr.upload.onprogress = (e) => {
-      armWatchdog();
+      // First progress event narrows the window: from here on, silence really is a stall.
+      armWatchdog(stallTimeoutMs);
       req.onProgress?.({ loaded: e.loaded, total: e.lengthComputable ? e.total : null });
     };
     xhr.onload = () =>
@@ -212,7 +246,9 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
         reject(abortReason === 'stalled' ? new UploadStalledError() : new UploadCanceledError()),
       );
 
-    armWatchdog();
+    // Armed on the first-progress budget, not the stall one: `send` is where iOS reads the
+    // whole file, and no progress event can fire until it has (#449).
+    armWatchdog(firstProgressTimeoutMs);
     xhr.send(req.body);
   });
 }

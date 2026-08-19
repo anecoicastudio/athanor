@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { candidacyThumbPath, candidacyVideoPath } from '@athanor/api';
 import { MEDIA_LIMITS } from '@athanor/core';
+import { devWarn } from '@/lib/log';
 import {
   type UploadStatus,
   type VideoFailure,
@@ -48,7 +49,8 @@ export type { UploadStatus, VideoFailure };
  * best-effort and returns null on any failure — see `uploadPoster` for why it can never fail the
  * video. It shares the attempt's abort signal (cancel actually stops the network), and a
  * canceled poster is just another null: the video is already up, so the attempt still ends
- * 'done'.
+ * 'done'. Extraction is cancelled on its own signal, which the deadline and the attempt's
+ * abort both fire (#449).
  *
  * Video is uploaded raw — client-side EXIF strip is image-only (process.ts);
  * server-side video strip is the M10 defence-in-depth backstop (resilience §7.2).
@@ -110,7 +112,10 @@ export function useCandidacyUpload(
     try {
       const path = candidacyVideoPath(uid, candidacyId);
       // Raw video through the shared tail (#294 rerouted this off its own fetch→arrayBuffer
-      // copy): `uploadLocalFile` streams the file and carries the signal + progress.
+      // copy): `uploadLocalFile` hands the native layer a `{ uri }` body and carries the
+      // signal + progress. That body streams from disk on Android and does NOT on iOS, where
+      // the whole file becomes one native allocation before the request leaves (#449) — which
+      // is why the picker compresses (`pick.ts`) and why #450 exists to remove the allocation.
       await uploadLocalFile(asset.uri, { bucket: 'candidacy-videos', path }, contentType, {
         signal: controller.signal,
         onProgress: ({ loaded, total }) => {
@@ -124,13 +129,34 @@ export function useCandidacyUpload(
       // not delay a success — it HIDES one, leaving the tile spinning at 100% with Continue
       // disabled, which reads exactly like a failed upload. A poster is best-effort by
       // contract, so the deadline costs a thumbnail and saves the submission.
-      setThumbPath(
-        await withTimeout(
-          uploadPoster(uid, candidacyId, asset.uri, asset.duration_s, controller.signal),
-          MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
-          null,
-        ),
-      );
+      // The deadline must CANCEL the extraction, not merely stop waiting for it (#449):
+      // `extractVideoPoster` holds a decoder and two bitmaps that it frees when its promise
+      // settles, and the assets this deadline exists for are exactly the ones that never
+      // settle. Its own controller, because the attempt's controller is already spent —
+      // aborting that one here would say 'canceled' about an upload that succeeded — but the
+      // attempt's abort is forwarded into it, so leaving the screen frees the decoder too.
+      const posterAbort = new AbortController();
+      const abortPoster = () => posterAbort.abort();
+      controller.signal.addEventListener('abort', abortPoster);
+      try {
+        setThumbPath(
+          await withTimeout(
+            uploadPoster(
+              uid,
+              candidacyId,
+              asset.uri,
+              asset.duration_s,
+              controller.signal,
+              posterAbort.signal,
+            ),
+            MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
+            null,
+            { onTimeout: abortPoster },
+          ),
+        );
+      } finally {
+        controller.signal.removeEventListener('abort', abortPoster);
+      }
       setStatus('done');
     } catch (err) {
       const outcome = uploadFailureOutcome(err);
@@ -186,7 +212,12 @@ export function useCandidacyUpload(
         return;
       }
       await transfer(picked.media, picked.contentType);
-    } catch {
+    } catch (err) {
+      // Bound, not discarded (#449). The member gets the same deliberately generic copy — a
+      // picker throw is not something they can act on — but the reason has to exist somewhere,
+      // and in Expo Go the dev console is the only telemetry there is: `Sentry.init` is a hard
+      // no-op on that runtime, so a swallowed error here is a report nobody can ever file.
+      devWarn('candidacy.launch', err);
       fail(source === 'library' && libraryBlocked ? 'library-blocked' : 'failed');
     }
   }
@@ -214,7 +245,9 @@ export function useCandidacyUpload(
  * submission for a missing one. A null lands in `thumb_path` and the ballot card draws its own
  * no-poster state instead. The abort signal is threaded through so cancel stops the transfer,
  * but a canceled poster is swallowed like every other poster failure (#294 keeps this
- * asymmetry deliberately).
+ * asymmetry deliberately). `extractSignal` is the second, narrower one: it cancels the frame
+ * extraction alone, so the poster deadline can free a decoder without claiming the finished
+ * video upload was canceled (#449).
  *
  * Extraction reads the *picked* local URI, not the uploaded object — nothing is downloaded back.
  * That's safe here specifically because `transfer` above uploads that same `asset.uri` raw, with
@@ -234,16 +267,18 @@ async function uploadPoster(
   localUri: string,
   durationS: number | null | undefined,
   signal: AbortSignal,
+  extractSignal: AbortSignal,
 ): Promise<string | null> {
   try {
-    const poster = await extractVideoPoster(localUri, durationS);
+    const poster = await extractVideoPoster(localUri, durationS, extractSignal);
     if (!poster) return null;
     const path = candidacyThumbPath(uid, candidacyId);
     await uploadLocalFile(poster.uri, { bucket: 'candidacy-videos', path }, 'image/jpeg', {
       signal,
     });
     return path;
-  } catch {
+  } catch (err) {
+    devWarn('candidacy.poster', err);
     return null;
   }
 }

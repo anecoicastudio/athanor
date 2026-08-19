@@ -33,12 +33,17 @@ export function newMediaId(): string {
 }
 
 /**
- * Stream a local file into a bucket, with cancel / stall-watchdog / progress (#294).
+ * Send a local file into a bucket, with cancel / stall-watchdog / progress (#294).
  *
- * Sends the XHR body as `{ uri }` — RN's networking layer streams the file from disk, so a
+ * Sends the XHR body as `{ uri }`, which RN's networking layer resolves natively — so a
  * 200 MB video never lands in the JS heap the way the old `fetch(uri).arrayBuffer()` read
- * did. The request mirrors the storage-js upsert upload byte for byte (storage-request.ts),
- * so a retry still overwrites the same key cleanly. Throws on failure.
+ * did. What it costs in NATIVE memory is platform-split, and this used to claim otherwise
+ * (#449): Android streams the file from disk at constant memory, iOS reads all of it into one
+ * contiguous allocation and hands that to `NSURLSession`. So the JS heap is safe everywhere
+ * and the iOS native heap is not — `pick.ts` compresses the input to keep the allocation
+ * survivable inside Expo Go, and #450 is the issue that removes it. The request mirrors the
+ * storage-js upsert upload byte for byte (storage-request.ts), so a retry still overwrites the
+ * same key cleanly. Throws on failure.
  *
  * Split out of `processAndUpload` because a video Momento uploads twice: the video itself, then
  * the poster frame `extractVideoPoster` saved (#131). Same bytes-to-Storage tail, one copy.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  UPLOAD_FIRST_PROGRESS_TIMEOUT_MS,
   UPLOAD_STALL_TIMEOUT_MS,
   UploadCanceledError,
   UploadHttpError,
@@ -94,8 +95,8 @@ describe('xhrUpload', () => {
       url: 'https://x.test/storage/v1/object/moments/u1/m1.mp4',
     });
     expect(xhr.headers).toEqual({ apikey: 'k', 'content-type': 'video/mp4' });
-    // `{ uri }` must reach xhr.send untouched — RN's networking layer is what
-    // understands it (convertRequestBody streams the file natively).
+    // `{ uri }` must reach xhr.send untouched — RN's networking layer is what understands it
+    // (convertRequestBody). Whether that streams is platform-split; see the module docblock.
     expect(xhr.sent).toEqual({ uri: 'file:///tmp/m1.mp4' });
     xhr.respond(200);
     await expect(promise).resolves.toBeUndefined();
@@ -142,12 +143,29 @@ describe('xhrUpload', () => {
     expect(clock.pending).toBeNull();
   });
 
-  it('aborts and rejects UploadStalledError when no progress arrives inside the stall window', async () => {
+  it('waits the FIRST-PROGRESS window, not the stall window, before the first byte (#449)', async () => {
+    // On iOS everything between send() and the first progress event is the native layer
+    // reading the whole file into memory — no bytes are on the wire yet and none can be. The
+    // stall window measures silence BETWEEN progress events and is far too short to cover
+    // that read, so arming it pre-send aborted a working upload of a large file as 'stalled'.
+    const { clock } = start();
+    expect(clock.pending?.ms).toBe(UPLOAD_FIRST_PROGRESS_TIMEOUT_MS);
+    expect(UPLOAD_FIRST_PROGRESS_TIMEOUT_MS).toBeGreaterThan(UPLOAD_STALL_TIMEOUT_MS);
+  });
+
+  it('still aborts and rejects UploadStalledError if the first byte never arrives', async () => {
+    // The longer window is a bound, not an amnesty: a request that never moves at all must
+    // still end, or the tile spins forever with no way out but leaving the screen.
     const { xhr, clock, promise } = start();
-    expect(clock.pending?.ms).toBe(UPLOAD_STALL_TIMEOUT_MS);
     clock.fire();
     expect(xhr.abortCalls).toBe(1);
     await expect(promise).rejects.toBeInstanceOf(UploadStalledError);
+  });
+
+  it('drops to the stall window once bytes are actually moving', async () => {
+    const { xhr, clock } = start();
+    xhr.progress(1, 100);
+    expect(clock.pending?.ms).toBe(UPLOAD_STALL_TIMEOUT_MS);
   });
 
   it('re-arms the watchdog on every progress event — moving bytes never stall out', async () => {

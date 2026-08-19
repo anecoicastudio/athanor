@@ -56,6 +56,36 @@ export const MEDIA_LIMITS = {
    */
   MAX_VIDEO_BYTES: 100 * 1024 * 1024,
   /**
+   * iOS capture quality for an in-app recording (#449). The **name** of an
+   * `ImagePicker.UIImagePickerControllerQualityType` member, indexed into that enum at the call
+   * site — this package imports no expo, and a name means a renamed member is a type error
+   * rather than an ordinal that quietly changes meaning.
+   *
+   * The picker's default is `High`, which on an iPhone records at the device maximum: 4K/60 is
+   * ~400 MB per minute. That number is not merely large, it is fatal. `xhr.send({ uri })`
+   * streams on Android but on iOS materialises the whole file in one native allocation
+   * (`RCTNetworkTask.mm` appends into an NSMutableData, then `RCTNetworking.mm` assigns it as
+   * `HTTPBody`), so the bytes the picker hands back are bytes that must fit in RAM inside Expo
+   * Go. Recording at `Medium` is what keeps them under the OS jetsam threshold.
+   */
+  VIDEO_CAPTURE_QUALITY_IOS: 'Medium',
+  /**
+   * iOS export preset for a video picked from the library (#449). The **name** of an
+   * `ImagePicker.VideoExportPreset` member, indexed at the call site for the same reason as
+   * `VIDEO_CAPTURE_QUALITY_IOS`.
+   *
+   * The default is `Passthrough`, which is literally "do not compress": a 33-second 4K clip
+   * arrives at ~220 MB and is refused by `MAX_VIDEO_BYTES` before it can even crash. Any other
+   * member makes expo-image-picker run an `AVAssetExportSession` over the asset and hand back
+   * the transcoded mp4 instead — `MediaHandler.swift`'s `handleVideo(from: PHPickerResult)`
+   * does this independently of which native controller presented the picker, so it applies on
+   * iOS 14+ where selection goes through `PHPickerViewController`.
+   *
+   * `MediumQuality` is the conservative choice. If it reads too soft on device,
+   * `H264_1280x720` is the predictable alternative and this constant is the only edit.
+   */
+  VIDEO_LIBRARY_EXPORT_PRESET_IOS: 'MediumQuality',
+  /**
    * The video container types an upload may declare. Mirrors the `candidacy-videos` bucket's
    * `allowed_mime_types` and the pgTAP assertion in `0043_candidacy_videos_storage.test.sql`.
    *
