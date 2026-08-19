@@ -415,6 +415,7 @@ function WizardForm({
                   status={upload.status}
                   failure={upload.failure}
                   progress={upload.progress}
+                  posterUri={upload.posterUri}
                   onPick={upload.pick}
                   onRecord={upload.record}
                   onCancel={upload.cancel}

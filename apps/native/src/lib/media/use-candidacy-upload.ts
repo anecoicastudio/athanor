@@ -45,7 +45,8 @@ export type { UploadStatus, VideoFailure };
  * status and names the reason; `videoStatusMessage` turns the pair into copy.
  *
  * A poster frame is extracted and uploaded beside it as `{uid}/{id}-thumb.jpg`, so the ballot
- * card has an image to draw instead of one grey rectangle per candidate (#282). That step is
+ * card has an image to draw instead of one grey rectangle per candidate (#282), and so step 4
+ * can show the member which video it just accepted rather than a bare glyph. That step is
  * best-effort and returns null on any failure — see `uploadPoster` for why it can never fail the
  * video. It shares the attempt's abort signal (cancel actually stops the network), and a
  * canceled poster is just another null: the video is already up, so the attempt still ends
@@ -77,6 +78,11 @@ export function useCandidacyUpload(
   candidacyId: string;
   videoPath: string | null;
   thumbPath: string | null;
+  /**
+   * The extracted poster frame's LOCAL file URI, for the tile to draw. Not the uploaded object:
+   * it is already on disk when the upload reports done, so the preview needs no signed URL.
+   */
+  posterUri: string | null;
   status: UploadStatus;
   /** Why the attempt failed, when `status` is `'error'`. Null otherwise. */
   failure: VideoFailure | null;
@@ -90,6 +96,7 @@ export function useCandidacyUpload(
   const [candidacyId] = useState<string>(() => existingId ?? Crypto.randomUUID());
   const [videoPath, setVideoPath] = useState<string | null>(null);
   const [thumbPath, setThumbPath] = useState<string | null>(null);
+  const [posterUri, setPosterUri] = useState<string | null>(null);
   const [status, setStatus] = useState<UploadStatus>('idle');
   const [failure, setFailure] = useState<VideoFailure | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -108,6 +115,12 @@ export function useCandidacyUpload(
     controllerRef.current = controller;
     setProgress(null);
     setFailure(null);
+    // A retry PUTs the same storage key, so the previous attempt's frame is still in hand — and
+    // it describes the video being replaced, so drawing it beside the new upload would answer
+    // «which video is this?» with the wrong one. Only the DISPLAYED frame is cleared: `thumbPath`
+    // is submit state, gated on `videoPath` by the screen, and clearing it here would change what
+    // a failed retry submits rather than what it shows.
+    setPosterUri(null);
     setStatus('uploading');
     try {
       const path = candidacyVideoPath(uid, candidacyId);
@@ -142,21 +155,21 @@ export function useCandidacyUpload(
       const abortPoster = () => posterAbort.abort();
       controller.signal.addEventListener('abort', abortPoster);
       try {
-        setThumbPath(
-          await withTimeout(
-            uploadPoster(
-              uid,
-              candidacyId,
-              asset.uri,
-              asset.duration_s,
-              controller.signal,
-              posterAbort.signal,
-            ),
-            MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
-            null,
-            { onTimeout: abortPoster },
+        const poster = await withTimeout(
+          uploadPoster(
+            uid,
+            candidacyId,
+            asset.uri,
+            asset.duration_s,
+            controller.signal,
+            posterAbort.signal,
           ),
+          MEDIA_LIMITS.VIDEO_POSTER_TIMEOUT_MS,
+          null,
+          { onTimeout: abortPoster },
         );
+        setThumbPath(poster?.path ?? null);
+        setPosterUri(poster?.localUri ?? null);
       } finally {
         controller.signal.removeEventListener('abort', abortPoster);
       }
@@ -229,6 +242,7 @@ export function useCandidacyUpload(
     candidacyId,
     videoPath,
     thumbPath,
+    posterUri,
     status,
     failure,
     progress,
@@ -239,8 +253,10 @@ export function useCandidacyUpload(
 }
 
 /**
- * Extract a poster frame from the picked video and put it beside the uploaded mp4, returning the
- * storage path for `thumb_path` — or `null` if any part of that did not work out.
+ * Extract a poster frame from the picked video and put it beside the uploaded mp4, returning both
+ * the storage path for `thumb_path` and the frame's own local file URI — or `null` if any part of
+ * that did not work out. The local URI is what step 4 draws: the JPEG is already on the device by
+ * the time this resolves, so the tile's preview costs neither a signed URL nor a download.
  *
  * Swallowing the failure is the design, exactly as in `use-moment-upload`. By the time this runs
  * the video is already in Storage and the member is one tap from submitting an application;
@@ -271,7 +287,7 @@ async function uploadPoster(
   durationS: number | null | undefined,
   signal: AbortSignal,
   extractSignal: AbortSignal,
-): Promise<string | null> {
+): Promise<{ path: string; localUri: string } | null> {
   try {
     const poster = await extractVideoPoster(localUri, durationS, extractSignal);
     if (!poster) return null;
@@ -279,7 +295,7 @@ async function uploadPoster(
     await uploadLocalFile(poster.uri, { bucket: 'candidacy-videos', path }, 'image/jpeg', {
       signal,
     });
-    return path;
+    return { path, localUri: poster.uri };
   } catch (err) {
     devWarn('candidacy.poster', err);
     return null;

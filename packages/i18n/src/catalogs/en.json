@@ -1243,6 +1243,7 @@
   "candidacy.step4.sub": "One minute, in your own words. It's what the community will see.",
   "candidacy.step4.upload": "Record or upload",
   "candidacy.step4.uploadHint": "Up to 60 seconds",
+  "candidacy.step4.preview": "Preview of the video you uploaded.",
   "candidacy.step4.cameraDenied": "Without the camera we can't record your video.",
   "candidacy.step4.libraryDenied": "Without photo access we can't open your library.",
   "candidacy.step4.refused": "Your video wasn't accepted. Verify your identity and try again.",
