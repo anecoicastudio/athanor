@@ -17,7 +17,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(26);
+select plan(27);
 
 -- ── fixtures for the behavioural read assertions (postgres, before any role switch) ───
 -- A owns the segment, B is an ordinary member, C is blocked by A.
@@ -91,6 +91,14 @@ select is(
 select ok(
   (select 'video/mp4' = any(allowed_mime_types) from storage.buckets where id = 'story-segments'),
   'story-segments allowed_mime_types contains video/mp4'
+);
+-- #461 widened this bucket to accept QuickTime: an iPhone records .mov and the client used to
+-- mislabel it 'video/mp4' to get past this very list. Pinned as the WHOLE array, the way 0043
+-- pins candidacy-videos, so a later sweep cannot drop a type while still "containing" mp4.
+select is(
+  (select allowed_mime_types from storage.buckets where id = 'story-segments'),
+  array['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'],
+  'story-segments accepts mp4 + quicktime video and three image types'
 );
 
 -- ── the policy set is exactly the four we own ────────────────────────────────────────

@@ -1,16 +1,18 @@
 import * as Crypto from 'expo-crypto';
 import { storageUploadAuth } from '@/lib/supabase';
 import type { PickedMedia } from './pick';
+import { resolveVideoContentType } from './asset';
 import type { UploadTarget } from './paths';
 import { processImage, processVideo } from './process';
 import { buildStorageUploadRequest } from './storage-request';
-import { xhrUpload, type UploadProgress } from './upload-transport';
+import { UnsupportedMediaTypeError, xhrUpload, type UploadProgress } from './upload-transport';
 
 // Pure path builders + types live in paths.ts (unit-testable, no expo imports);
 // re-exported here so callers keep importing from './upload'. Same door for the
 // transport's error taxonomy — callers map failures without a second import.
 export * from './paths';
 export {
+  UnsupportedMediaTypeError,
   UploadCanceledError,
   UploadHttpError,
   UploadStalledError,
@@ -82,6 +84,16 @@ export async function uploadLocalFile(
  * Awaitable and throws on failure so the caller can surface `uploadErrorKey(err)` + offer
  * retry. `opts` threads cancel/progress through to the transport; even without it, every
  * caller now gets the no-progress watchdog for free (#294).
+ *
+ * **A video's Content-Type is resolved, never asserted (#461).** This declared `'video/mp4'`
+ * for every video regardless of what the picker actually handed back, and that string reaches
+ * the wire verbatim: the buckets filter on the declared header, not on the bytes, so an iPhone
+ * `.mov` always passed the check while QuickTime bytes landed under an mp4 label in
+ * `storage.objects.metadata`. `resolveVideoContentType` is the same door the candidacy path has
+ * used since #412 — one resolver, not a second copy that drifts — and a container outside
+ * `MEDIA_LIMITS.VIDEO_MIME_TYPES` is now refused by name before a byte moves, rather than
+ * relabelled into acceptance. A picker that names no type at all still resolves to mp4: silence
+ * is not evidence of a bad container.
  */
 export async function processAndUpload(
   item: PickedMedia,
@@ -107,11 +119,16 @@ export async function processAndUpload(
     height = processed.height;
     contentType = 'image/jpeg';
   } else {
+    // Before the processing pass, not after: `processVideo` is a passthrough today, so a
+    // container the bucket refuses would otherwise be discovered only once the bytes are
+    // already on the wire and the 415 comes back as «non riuscito».
+    const resolved = resolveVideoContentType(item.mimeType);
+    if (resolved === null) throw new UnsupportedMediaTypeError(item.mimeType);
     const processed = await processVideo(item.uri);
     localUri = processed.uri;
     width = item.width;
     height = item.height;
-    contentType = 'video/mp4';
+    contentType = resolved;
   }
 
   await uploadLocalFile(localUri, target, contentType, opts);

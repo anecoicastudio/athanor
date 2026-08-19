@@ -69,6 +69,29 @@ export class UploadStalledError extends Error {
 }
 
 /**
+ * The picked container is outside `MEDIA_LIMITS.VIDEO_MIME_TYPES`, so nothing was sent (#461).
+ *
+ * Decided BEFORE the transport runs — it is the one member of this taxonomy that never touched
+ * the wire — but it lives here because `uploadErrorKey` is the single door from a media failure
+ * to a message, and a second door is how a refusal ends up unnamed.
+ *
+ * It exists at all because the alternative is the bug: `processAndUpload` used to declare every
+ * video `video/mp4` regardless of what it actually was, which passed the bucket's
+ * `allowed_mime_types` check on the header while the real bytes landed under an mp4 label. A
+ * container the buckets refuse has to be refused HERE, by name, rather than mislabelled into
+ * acceptance.
+ */
+export class UnsupportedMediaTypeError extends Error {
+  /** The type the picker reported, or undefined when it named none. For the dev log only. */
+  readonly mimeType: string | undefined;
+  constructor(mimeType: string | undefined) {
+    super(`unsupported-media-type${mimeType ? `: ${mimeType}` : ''}`);
+    this.name = 'UnsupportedMediaTypeError';
+    this.mimeType = mimeType;
+  }
+}
+
+/**
  * The status a storage-api envelope declares inside a body, or null when the body is not one.
  *
  * Total by construction, and it must stay that way: this runs while an Error is being built,
@@ -254,12 +277,19 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
 }
 
 /**
- * The i18n key an upload failure surfaces under. Cancelled and stalled read differently
- * from a plain failure (#294) — same catch sites, three messages.
+ * The i18n key an upload failure surfaces under. Cancelled, stalled and an unreadable container
+ * each read differently from a plain failure (#294, #461) — same catch sites, four messages.
+ *
+ * `media.unsupportedType` is the copy the candidacy tile already shows for the same refusal
+ * (`candidacy-video-status.ts`), so the compose flows now say the one thing a member can act on
+ * — «prova con un altro video» — instead of a generic «non riuscito» they can only repeat.
  */
-export function uploadErrorKey(err: unknown): 'media.canceled' | 'media.stalled' | 'media.failed' {
+export function uploadErrorKey(
+  err: unknown,
+): 'media.canceled' | 'media.stalled' | 'media.unsupportedType' | 'media.failed' {
   if (err instanceof UploadCanceledError) return 'media.canceled';
   if (err instanceof UploadStalledError) return 'media.stalled';
+  if (err instanceof UnsupportedMediaTypeError) return 'media.unsupportedType';
   return 'media.failed';
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   UPLOAD_FIRST_PROGRESS_TIMEOUT_MS,
   UPLOAD_STALL_TIMEOUT_MS,
+  UnsupportedMediaTypeError,
   UploadCanceledError,
   UploadHttpError,
   UploadStalledError,
@@ -204,12 +205,26 @@ describe('xhrUpload', () => {
 });
 
 describe('uploadErrorKey', () => {
-  it('maps the three failure shapes to their catalog keys', () => {
+  it('maps the four failure shapes to their catalog keys', () => {
     expect(uploadErrorKey(new UploadCanceledError())).toBe('media.canceled');
     expect(uploadErrorKey(new UploadStalledError())).toBe('media.stalled');
     expect(uploadErrorKey(new UploadHttpError(500, ''))).toBe('media.failed');
     expect(uploadErrorKey(new Error('boom'))).toBe('media.failed');
     expect(uploadErrorKey('not-an-error')).toBe('media.failed');
+  });
+
+  it('a refused container is named, not folded into the generic failure (#461)', () => {
+    // The whole point of the pair: the member is told the format is the problem, which is
+    // something they can act on. `media.failed` would be the mislabel's silence in words.
+    expect(uploadErrorKey(new UnsupportedMediaTypeError('video/x-matroska'))).toBe(
+      'media.unsupportedType',
+    );
+    expect(uploadErrorKey(new UnsupportedMediaTypeError(undefined))).toBe('media.unsupportedType');
+  });
+
+  it('carries the reported type for the dev log, without putting it on screen', () => {
+    expect(new UnsupportedMediaTypeError('video/x-matroska').mimeType).toBe('video/x-matroska');
+    expect(new UnsupportedMediaTypeError(undefined).mimeType).toBeUndefined();
   });
 });
 

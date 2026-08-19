@@ -21,7 +21,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(26);
 
 -- ── fixtures for the behavioural read assertions (postgres, before any role switch) ───
 -- A owns the media, B is an ordinary member, C is blocked by A.
@@ -75,6 +75,20 @@ select is(
 select ok(
   (select 'audio/mpeg' = any(allowed_mime_types) from storage.buckets where id = 'post-media'),
   'post-media allowed_mime_types contains audio/mpeg'
+);
+-- #461 widened both buckets to accept QuickTime: an iPhone records .mov and the client used to
+-- mislabel it 'video/mp4' to get past this very list. Pinned as the WHOLE array, the way
+-- 0043 pins candidacy-videos, so a later sweep cannot drop a type while still "containing" mp4.
+-- The client mirrors the two video entries in MEDIA_LIMITS.VIDEO_MIME_TYPES.
+select is(
+  (select allowed_mime_types from storage.buckets where id = 'post-media'),
+  array['image/jpeg','image/png','image/webp','video/mp4','video/quicktime','audio/mp4','audio/mpeg'],
+  'post-media accepts mp4 + quicktime video, three image types, two audio types'
+);
+select is(
+  (select allowed_mime_types from storage.buckets where id = 'moments'),
+  array['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'],
+  'moments accepts mp4 + quicktime video and three image types'
 );
 
 -- ── RLS is on at all ─────────────────────────────────────────────────────────────────
