@@ -24,6 +24,28 @@ const player = {
 const createVideoPlayer = vi.fn((_source: unknown) => player);
 const manipulate = vi.fn((_source: unknown) => context);
 
+/**
+ * Real `crash-trail`, mocked storage: the point of the markers is the ORDER in which they land
+ * relative to the native calls, and a mocked `markStep` would assert nothing about that.
+ */
+const trail = vi.hoisted(() => new Map<string, string>());
+const trailSteps = (): string[] => {
+  const raw = trail.get('athanor.crash-trail.v1');
+  return raw ? (JSON.parse(raw) as { steps: { s: string }[] }).steps.map((e) => e.s) : [];
+};
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getItem: async (k: string) => trail.get(k) ?? null,
+    setItem: async (k: string, v: string) => {
+      trail.set(k, v);
+    },
+    removeItem: async (k: string) => {
+      trail.delete(k);
+    },
+  },
+}));
+
 vi.mock('expo-video', () => ({
   createVideoPlayer: (source: unknown) => createVideoPlayer(source),
 }));
@@ -133,6 +155,57 @@ describe('failures stay best-effort', () => {
     expect(context.release).toHaveBeenCalledTimes(1);
     expect(frame.release).toHaveBeenCalledTimes(1);
     expect(player.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * `crash-trail` holds its ring in module state, which this file imports once — so these assert
+ * the TAIL of the trail rather than the whole of it. That is the honest shape anyway: what the
+ * next launch reads is the last thing reached, not the whole history.
+ */
+describe('durable step markers land before the native call they mark (#452)', () => {
+  it('has already written `poster.thumbnails` by the time generation starts', async () => {
+    // The whole feature turns on this ordering. #449 died inside this call with no JS exception;
+    // a marker still in flight would have died with it, leaving the next launch nothing to read.
+    let stepsAtCallTime: string[] = [];
+    player.generateThumbnailsAsync.mockImplementation(async () => {
+      stepsAtCallTime = trailSteps();
+      return [frame];
+    });
+
+    await extractVideoPoster('file:///clip.mp4', 12);
+
+    expect(stepsAtCallTime.slice(-2)).toEqual(['poster.player', 'poster.thumbnails']);
+  });
+
+  it('marks the render and save boundaries, then closes the extraction out', async () => {
+    let stepsAtSaveTime: string[] = [];
+    image.saveAsync.mockImplementation(async () => {
+      stepsAtSaveTime = trailSteps();
+      return saved;
+    });
+
+    await extractVideoPoster('file:///clip.mp4', 12);
+
+    expect(stepsAtSaveTime.slice(-4)).toEqual([
+      'poster.player',
+      'poster.thumbnails',
+      'poster.render',
+      'poster.save',
+    ]);
+    // `release` brackets the frees — expo's own comment calls that teardown a crash site — and
+    // `done` is what stops a successful extraction reading as the last thing before a crash.
+    expect(trailSteps().slice(-2)).toEqual(['poster.release', 'poster.done']);
+  });
+
+  it('marks nothing when the caller aborted before any native handle was taken', async () => {
+    const before = trailSteps();
+    const controller = new AbortController();
+    controller.abort();
+
+    await extractVideoPoster('file:///clip.mp4', 12, controller.signal);
+
+    expect(trailSteps()).toEqual(before);
   });
 });
 

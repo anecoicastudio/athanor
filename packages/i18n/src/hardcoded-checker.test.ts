@@ -345,6 +345,28 @@ describe('hardcoded-string checker', () => {
     expect(ok).toBe(true);
   });
 
+  it('honours i18n-ignore after an interpolated template literal (#452)', () => {
+    // A bare `ts.createScanner` has no parser to tell it a `}` closes an interpolation, so it
+    // never rescans one as a template tail: the first `${…}` re-opened as a fresh template token
+    // and swallowed every comment after it. Both directives here were invisible, and the header's
+    // «any style» was false. It failed CLOSED — a lost directive over-reports — which is exactly
+    // why nobody chased it: the symptom is a finding that will not go away.
+    const { ok, report } = scan({
+      'trailing.ts': `export const d = { message: \`x \${1} y ms\` }; // i18n-ignore\n`,
+      'later.ts': [
+        'export const a = `x ${1} y`;',
+        '// i18n-ignore',
+        `export const b = { message: 'questa deve essere ignorata' };`,
+        `export const c = { message: 'questa deve essere segnalata' };`,
+        ``,
+      ].join('\n'),
+    });
+    expect(report).not.toContain('trailing.ts');
+    expect(report).not.toContain('questa deve essere ignorata');
+    expect(report).toContain('questa deve essere segnalata');
+    expect(ok).toBe(false); // `c` is the one real finding in the fixture
+  });
+
   it('scans every root it is given', () => {
     const root = mkdtempSync(join(tmpdir(), 'i18n-check-'));
     for (const app of ['uno', 'due']) {

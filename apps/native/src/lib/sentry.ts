@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
 import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
+import type { TrailEntry } from '@/lib/crash-trail';
 
 /**
  * Crash reporting (P1.4 / RUNBOOK B-3, B-5, §3.5.1). Two hard rules:
@@ -17,9 +18,23 @@ import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
  *     bodies/urls, free-form extra, breadcrumb text, and token-shaped strings (RUNBOOK §3.5.1
  *     denylist: never log chat content, email, profile text, or tokens).
  *
- * Expo Go has no Sentry native module, so init no-ops there — crash reporting is a dev-build /
- * EAS-build feature. DSN comes from `EXPO_PUBLIC_SENTRY_DSN` (public by design); source maps
- * upload with the server-only `SENTRY_AUTH_TOKEN` EAS secret at build time.
+ * **Expo Go gets a degraded Sentry, not none (#452).** The previous version of this comment said
+ * init no-ops there, and our own gate was what made that true — `Sentry.init` itself does not
+ * bail. What Expo Go cannot load is the project's custom native code, and the SDK is built for
+ * exactly that: `enableNative` resolves to `NATIVE.isNativeAvailable()`, `makeNativeTransportFactory`
+ * then returns null, and `init` falls through to `makeFetchTransport` (`dist/js/sdk.js`,
+ * `dist/js/transports/native.js` in @sentry/react-native@7.2.0). So in Expo Go:
+ *
+ *  - JS errors, messages and breadcrumbs DO transmit, over the fetch transport;
+ *  - native crash capture, offline envelope caching, mobile replay and the expo context do NOT.
+ *
+ * That is the difference between a tester's crash being invisible and being triageable, and Expo
+ * Go is the only surface reaching testers today (`rules/mobile.md`). Events carry an `expo_go`
+ * tag so a triager can tell which runtime produced them — and knows a native process death left
+ * nothing here (that one is `crash-trail.ts`'s job, and #83's).
+ *
+ * DSN comes from `EXPO_PUBLIC_SENTRY_DSN` (public by design); source maps upload with the
+ * server-only `SENTRY_AUTH_TOKEN` EAS secret at build time.
  */
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -118,14 +133,42 @@ function beforeBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
 
 /** Install Sentry (idempotent). Called by SentryConsentGate on first consent grant. */
 export function initSentry(): void {
-  if (initialized || !DSN || isExpoGo) return;
+  if (initialized || !DSN) return;
   initialized = true;
   Sentry.init({
     dsn: DSN,
     sendDefaultPii: false, // never attach IP / cookies / default user
     beforeSend,
     beforeBreadcrumb,
+    // A boolean, so it carries nothing about the person — it says which capture surfaces the
+    // event's runtime actually had (see the header). scrubEvent leaves tags alone deliberately.
+    initialScope: { tags: { expo_go: isExpoGo } },
   });
+}
+
+/**
+ * Send the previous run's step trail (#452). Called once, after `initSentry`, when the run before
+ * this one stopped where it stood — the case where nothing else reaches Sentry, because a native
+ * process death raises no JS exception for the SDK to catch.
+ *
+ * The steps go up as breadcrumbs through the top-level `Sentry.addBreadcrumb`, which is the path
+ * that runs `beforeBreadcrumb` (a scope's own `addBreadcrumb` does not) — so they are dropped
+ * pre-consent and redacted like any other crumb, and `scrubEvent` re-scrubs them on the way out.
+ * No-ops before init, so a revoked consent means nothing leaves.
+ */
+export function captureTrail(steps: readonly TrailEntry[]): void {
+  if (!initialized || steps.length === 0) return;
+  for (const step of steps) {
+    Sentry.addBreadcrumb({
+      category: 'app.lifecycle',
+      level: 'info',
+      // i18n-ignore — a step name and a millisecond offset, not copy.
+      message: `${step.s} +${step.t}ms`,
+    });
+  }
+  // A Sentry event title, never rendered to a member — so it stays out of @athanor/i18n. It
+  // needs no exemption today; reword it into plain prose and the checker will rightly ask for one.
+  Sentry.captureMessage('crash-trail: previous session did not exit cleanly', 'warning');
 }
 
 /** Tear Sentry down when consent is revoked / on logout. */

@@ -6,6 +6,7 @@ import {
 } from 'expo-image-manipulator';
 import { createVideoPlayer, type VideoPlayer, type VideoThumbnail } from 'expo-video';
 import { MEDIA_LIMITS, videoPosterTime } from '@athanor/core';
+import { markStep } from '@/lib/crash-trail';
 import { devWarn } from '@/lib/log';
 
 /**
@@ -76,6 +77,15 @@ function generateThumbnails(player: VideoPlayer, atSeconds: number): Promise<Vid
  * `ios/VideoPlayer.swift` says exactly that ("causes crashes"). An abort that lands mid-call
  * therefore costs one native call's worth of latency before the handles go — the alternative
  * traded a bounded wait for an unbounded crash.
+ *
+ * **The `markStep` calls are durable diagnostics, not logging (#452).** This function is the
+ * proven case: #449 killed the process inside `generateThumbnailsAsync` with no JS exception, so
+ * the `catch` below never ran, `devWarn` never fired, and the queued Metro line died with the
+ * process. Each marker is awaited immediately before a native call that can do that again, which
+ * is the only ordering that works — an un-awaited marker is in flight when the process dies, and
+ * buys exactly nothing. `crash-trail.ts` carries the evidence that an awaited write means bytes
+ * on disk, and pays for it with one bridge round-trip per marker. `poster.done` exists so a
+ * completed extraction does not read as the crash point on the next launch.
  */
 export async function extractVideoPoster(
   uri: string,
@@ -98,13 +108,18 @@ export async function extractVideoPoster(
     }
   };
 
+  // Cheaper than constructing a decoder we would release on the next line. Outside the `try`
+  // because it holds nothing: there is no handle for the `finally` to free and no marker for it
+  // to spend a bridge round-trip on.
+  if (signal?.aborted) return null;
+
   try {
-    // Cheaper than constructing a decoder we would release on the next line.
-    if (signal?.aborted) return null;
+    await markStep('poster.player');
     player = createVideoPlayer(null);
     await player.replaceAsync(uri);
 
     if (signal?.aborted) return null;
+    await markStep('poster.thumbnails');
     const frames = await generateThumbnails(player, videoPosterTime(durationS));
     frame = frames[0] ?? null;
 
@@ -118,10 +133,12 @@ export async function extractVideoPoster(
       return null;
     }
 
+    await markStep('poster.render');
     context = ImageManipulator.manipulate(frame);
     image = await context.renderAsync();
 
     if (signal?.aborted) return null;
+    await markStep('poster.save');
     const saved = await image.saveAsync({
       compress: MEDIA_LIMITS.VIDEO_POSTER_QUALITY,
       format: SaveFormat.JPEG,
@@ -131,9 +148,11 @@ export async function extractVideoPoster(
     devWarn('poster.extract', err);
     return null;
   } finally {
+    await markStep('poster.release');
     freeHandle(image);
     freeHandle(context);
     freeHandle(frame);
     freeHandle(player);
+    await markStep('poster.done');
   }
 }

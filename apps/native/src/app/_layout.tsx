@@ -23,9 +23,12 @@ import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ToastProvider } from '@/components/ToastHost';
 import { BrandSplash } from '@/components/boot/BrandSplash';
+import { AppErrorScreen } from '@/components/boot/AppErrorScreen';
 import { BootGate } from '@/components/boot/BootGate';
+import { CrashTrailGate } from '@/components/boot/CrashTrailGate';
 import { ProfileErrorScreen } from '@/components/boot/ProfileErrorScreen';
 import { SentryConsentGate } from '@/components/boot/SentryConsentGate';
+import { markStep } from '@/lib/crash-trail';
 import { asyncStoragePersister, queryClient, shouldDehydrateQuery } from '@/lib/query-client';
 SplashScreen.preventAutoHideAsync();
 // Settles a dangling OAuth browser session on resume (required for the web target;
@@ -33,7 +36,8 @@ SplashScreen.preventAutoHideAsync();
 WebBrowser.maybeCompleteAuthSession();
 // NOTE: Sentry is NOT initialized here. Init is deferred to SentryConsentGate (fires only
 // once the user grants diagnostics consent) so no telemetry leaves the device before consent
-// (B-5). Sentry.wrap below is safe pre-init — it just captures nothing until init runs.
+// (B-5). Sentry.wrap and Sentry.ErrorBoundary below are both safe pre-init — they capture
+// nothing until init runs.
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { session, profile, loading, flushing, profileError, refreshProfile, signOut } = useAuth();
@@ -101,6 +105,7 @@ function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded) {
+      void markStep('boot.fonts');
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
@@ -125,6 +130,8 @@ function RootLayout() {
           <StatusBar style="light" />
           {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
           <SentryConsentGate />
+          {/* Reads back the previous run's durable step trail, marks this run's lifecycle (no UI). */}
+          <CrashTrailGate />
           {/* Toast state lives above the router (#117); the pill renders inside the
             focused Screen's viewport — a root-level mount would sit under (modal)'s
             native modal layer. */}
@@ -153,6 +160,25 @@ function RootLayout() {
   );
 }
 
-// Sentry.wrap adds the crash-reporting error boundary + touch/navigation breadcrumbs.
-// Harmless when init no-oped (Expo Go / no DSN); events only flow once consent is granted.
-export default Sentry.wrap(RootLayout);
+/**
+ * Two distinct things, and the comment that used to sit here conflated them (#452).
+ *
+ * `Sentry.wrap` is NOT an error boundary — verified in @sentry/react-native@7.2.0's `sdk.js`, it
+ * composes TouchEventBoundary → ReactNativeProfiler → FeedbackWidgetProvider and catches nothing.
+ * Its touch and navigation breadcrumbs are worth keeping, so it stays.
+ *
+ * `Sentry.ErrorBoundary` (re-exported from @sentry/react) is the real one: it turns a render fatal
+ * into AppErrorScreen instead of a white screen, and reports it once Sentry is initialized. It
+ * wraps RootLayout rather than living inside it, so a throw in RootLayout's own body — fonts,
+ * providers — is caught too. `fallback` must be a stable component reference: the boundary renders
+ * it with createElement, so an inline arrow would remount the fallback on every render.
+ *
+ * Both are safe before init: `captureException` with no client warns and returns.
+ */
+export default Sentry.wrap(function RootLayoutWithBoundary() {
+  return (
+    <Sentry.ErrorBoundary fallback={AppErrorScreen}>
+      <RootLayout />
+    </Sentry.ErrorBoundary>
+  );
+});
