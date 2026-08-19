@@ -16,10 +16,16 @@ import { devWarn } from '@/lib/log';
  * `times: number | number[]`, and the first half of that union is a lie: iOS declares
  * `times: [CMTime]?` and `expo-modules-core` converts it with `DynamicArrayType`, which calls
  * `jsValue.getArray()` with no `isObject()` check — the only guard is an `assert(isObject())`
- * inside `EXCJavaScriptValue`, and asserts are compiled out of a Release build, which is what
+ * inside `EXJavaScriptValue`, and asserts are compiled out of a Release build, which is what
  * Expo Go ships. A bare number therefore has its double bit pattern dereferenced as an object
  * pointer: a deterministic `EXC_BAD_ACCESS` with no JS exception, so nothing is catchable and
- * nothing reaches Metro. Android tolerates the scalar, which is why this survived review.
+ * nothing reaches Metro.
+ *
+ * Android does not tolerate it either — it fails differently, which is why this went unseen for
+ * so long. `VideoModule.kt` declares `times: List<Duration>`, non-nullable, so a scalar raises a
+ * catchable Kotlin conversion error that `extractVideoPoster`'s `catch` turns into a `null`
+ * poster: no crash, no log, just a thumbnail that never appears. Video posters have therefore
+ * never worked on either platform, and passing the array repairs both.
  *
  * Taking a scalar `atSeconds` and wrapping it here keeps that ABI detail at the boundary that
  * owns it: `videoPosterTime` stays a pure `number` in `@athanor/core`, where array-ness would
