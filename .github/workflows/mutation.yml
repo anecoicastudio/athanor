@@ -31,6 +31,9 @@ jobs:
   core:
     name: packages/core mutation score
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 203s, max 210s over 6 successful runs).
+    # Same reason as ci.yml: without one, a wedged step runs for 6 hours.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -53,6 +56,9 @@ jobs:
   schemas:
     name: packages/schemas mutation score
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 203s, max 210s over 6 successful runs).
+    # Same reason as ci.yml: without one, a wedged step runs for 6 hours.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
