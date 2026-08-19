@@ -79,16 +79,31 @@ export default function StoryComposeScreen() {
 
           {media ? (
             <View className="relative h-40 w-40">
-              <Image
-                source={{ uri: media.uri }}
-                style={{ width: 160, height: 160, borderRadius: 8 }}
-                resizeMode="cover"
-              />
               {media.kind === 'video' ? (
-                <View className="absolute bottom-1 left-1">
-                  <Text className="text-[12px] text-foreground">▶</Text>
+                // An <Image> handed a video file URI draws nothing (#318, swept here by #460) —
+                // this tile was a blank box with a 12px ▶ pinned to its corner. Same no-poster
+                // state post-compose and the feed card fall back to: dark fill, centred faint ▶
+                // (MomentTile pairing — wrapper announces, glyph is decorative).
+                <View
+                  className="h-40 w-40 items-center justify-center rounded-[8px] bg-raise-2"
+                  accessible
+                  accessibilityLabel={t('media.noPoster.video', locale)}
+                >
+                  <Text
+                    className="text-4xl text-faint"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    ▶
+                  </Text>
                 </View>
-              ) : null}
+              ) : (
+                <Image
+                  source={{ uri: media.uri }}
+                  style={{ width: 160, height: 160, borderRadius: 8 }}
+                  resizeMode="cover"
+                />
+              )}
               {isUploading ? (
                 <View
                   className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
