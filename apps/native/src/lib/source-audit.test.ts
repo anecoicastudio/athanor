@@ -459,3 +459,44 @@ describe('keyboard avoidance goes through the one wrapper (#163)', () => {
     expect(hits).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 9 — a screen that HOLDS a picked video must be able to draw it (#318, #460)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * An RN `<Image>` handed a video file URI renders nothing — no error, no placeholder, just a
+ * blank 160×160 box with a corner glyph. Both composers shipped exactly that, and both were
+ * fixed one at a time (#318 for post-compose, #460 for story-compose): the same sweep missed
+ * twice, which is what this section exists to make loud the third time.
+ *
+ * The discovery rule is «holds a pick in state». `grid.tsx` and `ProfileView.tsx` also open a
+ * video-capable MediaSheet, but they hand the pick straight to `addMoment` and never draw it,
+ * so they have nothing to branch on and no `<Image>` at all. A screen that KEEPS a
+ * `PickedMedia` draws it — and a video has no frame to draw, so it owes the no-poster surface
+ * that `media.noPoster.video` announces.
+ */
+describe('a held picked video never draws through <Image> (#318, #460)', () => {
+  const HOLDERS = FILES.filter((p) => !isTest(p)).filter((p) =>
+    /useState<[^>]*PickedMedia/.test(stripComments(read(p))),
+  );
+
+  it('every composer that holds a pick names the no-poster surface', () => {
+    expect(HOLDERS.length, 'no composer holds PickedMedia — has the state moved?').toBeGreaterThan(
+      0,
+    );
+    const missing = HOLDERS.filter((p) => !read(p).includes("'media.noPoster.video'")).map(rel);
+    expect(missing, 'a held video draws nothing — give it the no-poster fill + label').toEqual([]);
+  });
+
+  it('the kind branch comes BEFORE the drawing surface, not after it', () => {
+    // Comment-stripped: both files quote `<Image>` in the prose explaining this very branch.
+    const late = HOLDERS.filter((p) => {
+      const src = stripComments(read(p));
+      const image = src.indexOf('<Image');
+      const branch = src.indexOf("kind === 'video'");
+      return image === -1 || branch === -1 || branch > image;
+    }).map(rel);
+    expect(late, 'decide on media.kind first — a ▶ badge over a blank box is the bug').toEqual([]);
+  });
+});
