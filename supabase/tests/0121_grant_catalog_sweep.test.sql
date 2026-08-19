@@ -32,7 +32,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(26);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The declared surface
@@ -87,7 +87,7 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   ('favor_offers',                '',       'SELECT,INSERT,UPDATE'),
   ('favor_needs',                 '',       'SELECT'),                      -- view
   -- ── events ──────────────────────────────────────────────────────────────────────────
-  ('events',                      '',       'SELECT,INSERT,UPDATE'), -- anon SELECT is column-scoped
+  ('events',                      '',       'SELECT'),               -- anon SELECT + auth INSERT column-scoped
   ('event_attendance',            '',       'SELECT,INSERT'),
   ('event_live_stats',            'SELECT', 'SELECT'),
   ('event_tickets',               '',       'SELECT'),                      -- Stripe writes it
@@ -334,6 +334,20 @@ select ok(has_column_privilege('authenticated', 'public.notifications', 'read_at
 -- events: anon reads the published columns only; the organiser's private fields are withheld.
 select ok(has_column_privilege('anon', 'public.events', 'title', 'SELECT'),
   'events: anon still reads the public event columns');
+
+-- events / authenticated (#446): the organiser's INSERT is scoped to the columns create_event
+-- writes, and UPDATE is gone entirely. RLS filters rows and never columns, so before this the
+-- ownership predicate on events_insert_own / events_update_own let an organiser write fee_pct,
+-- is_athanor_day and settlement_ack_at straight through PostgREST. Asserted as PRIVILEGES: a
+-- write that fails could always be RLS swallowing it rather than the grant refusing it.
+select ok(has_column_privilege('authenticated', 'public.events', 'title', 'INSERT'),
+  'events: the organiser still inserts the columns create_event writes');
+select ok(not has_column_privilege('authenticated', 'public.events', 'fee_pct', 'INSERT'),
+  'events: nobody sets their own platform fee (fee_pct is server config, PRD §4.6)');
+select ok(not has_column_privilege('authenticated', 'public.events', 'is_athanor_day', 'INSERT'),
+  'events: nobody flags their own event as an Athanor day (it gates the Circle-premium chip)');
+select ok(not has_table_privilege('authenticated', 'public.events', 'UPDATE'),
+  'events: no client UPDATE at all — nothing in the app updates an event, and the live window is swept server-side');
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The other half: the sole writers kept writing

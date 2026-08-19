@@ -21,10 +21,13 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 ### The `comment on column public.events.settlement_ack_at` — "Never client-supplied."
 
 True of `create_event`, which takes a boolean and stamps the timestamp from `now()`, and false as a
-statement about the column. `authenticated` holds **table-level** `insert, update` on `public.events`
+statement about the column. **Half of that is now closed** — see the update below — but the sentence
+in the migration is still not true as written.
+
+As applied, `authenticated` held **table-level** `insert, update` on `public.events`
 (`20260615094844_events.sql:67`), and both `events_insert_own` and `events_update_own`
-(`20260615094844_events.sql:82-91`) predicate on ownership alone — neither restricts which columns a
-row may carry. So an organiser holding a session can bypass the RPC entirely and write
+(`20260615094844_events.sql:82-91`) predicated on ownership alone — neither restricted which columns
+a row may carry. So an organiser holding a session could bypass the RPC entirely and write
 `settlement_ack_at` to any value on a row they own, along with a `price_cents` the RPC would have
 refused.
 
@@ -35,13 +38,37 @@ What that does and does not cost:
 - **It does weaken the record.** The addendum on #437 persisted the acknowledgement precisely because
   an unrecorded tick has the evidentiary value of a notice; a forgeable one is not much better.
 
-Closing it means column-scoped `insert`/`update` grants for `authenticated` on `events` — the
-`profiles` pattern that keeps `founding_member` and `identity_verified` unwritable by their owner.
-That flips this table's whole client grant surface and its row in `0121`, and touches every event
-write path, so it is a decision of its own rather than a correction to this migration. A table CHECK
-is **not** the cheaper alternative it looks like: `supabase/staging-seed/seed-staging.sql:353-357`
-inserts three paid events directly with no acknowledgement, so a CHECK would break
-`pnpm staging:refresh` on the next run.
+#### Update — `20260819041755_events_column_scoped_client_grants.sql` (#446) closes the UPDATE half
+
+The grants are now column-scoped, the `profiles` pattern that keeps `founding_member` and
+`identity_verified` unwritable by their owner:
+
+- **UPDATE is gone.** `revoke update … from authenticated`, and `events_update_own` is dropped with
+  it (a PERMISSIVE policy with no grant behind it is a vestige `0121` fails on). Nothing in
+  `apps/native`, `apps/web`, `packages/api` or `supabase/functions` updates an event; the live
+  window is swept by `live_window_sweep()` under `pg_cron`, and erasure is the service-role GDPR
+  job. **A stamped `settlement_ack_at` can no longer be rewritten.**
+- **INSERT is scoped to the fourteen columns `create_event` writes.** `fee_pct`, `is_kairos_day`,
+  `is_athanor_day`, `cover_url`, `live_started_at`, `live_ended_at`, `id` and the timestamps are
+  no longer client-writable at all.
+
+**The INSERT half survives, by construction.** `create_event` is `SECURITY INVOKER`
+(`20260818190348_organiser_settlement_ack.sql:58`), so its INSERT runs with the caller's privileges
+and `price_cents` and `settlement_ack_at` _have_ to stay in the caller's grant. A direct INSERT can
+therefore still create a paid event carrying a self-supplied `settlement_ack_at` and no verified
+identity, skipping both of `create_event`'s refusals. Only row **creation** — an existing row is now
+immutable to its owner.
+
+Grants cannot express "`price_cents > 0` requires X". Closing the remainder needs a validating
+trigger or a DEFINER rewrite of `create_event`, and both are decisions of their own: a trigger fires
+for fixtures too, and `supabase/staging-seed/seed-staging.sql:353-357` inserts three paid events
+directly with no acknowledgement, by organisers who are not `identity_verified` — so a CHECK or a
+naive trigger breaks `pnpm staging:refresh` on the next run.
+
+Read the migration's own grants note (`:33-38`, "Grants are deliberately untouched. `authenticated`
+holds table-level select/insert/update on public.events") as a statement about the day it was
+applied. Its warning still stands and is the reason #446 used named-verb revokes: `revoke all on
+table public.events` would drop the anon column ACLs.
 
 ### The header's `create-ticket-checkout/logic.ts:118`
 
@@ -49,9 +76,11 @@ The refusal is at `:125`. The line has moved twice already — #437's own ruling
 why the claim, not the coordinate, is what the test holds.
 
 Asserted by: `supabase/tests/0125_event_settlement_ack.test.sql` — the RPC's refusals and its
-server-side stamp, and, separately, the table-level `insert`/`update` privileges that bound how far
-those refusals reach. If that last group goes red, someone has narrowed the grants and this entry is
-the thing to delete.
+server-side stamp, and, separately, the privileges that bound how far those refusals reach: no
+client UPDATE, no table-level INSERT, `settlement_ack_at` still insertable by column, the surviving
+direct-INSERT bypass, and `fee_pct` refused at the privilege layer. `0121_grant_catalog_sweep` holds
+the catalog-wide statement. If the direct-INSERT assertion goes red, someone has closed the
+remainder and this entry is the thing to delete.
 
 ## `20260818095917_reserved_handles.sql:14-18` — the grant IS in the migrations, and is named there
 
