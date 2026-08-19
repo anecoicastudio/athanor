@@ -104,10 +104,15 @@ function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded) {
-      void markStep('boot.fonts');
-      SplashScreen.hideAsync();
-    }
+    if (!fontsLoaded) return;
+    // Awaited, per `markStep`'s contract: the marker has to be ON DISK before the native call it
+    // marks, and `hideAsync` is that call. Fire-and-forget here would make `boot.fonts` a no-op in
+    // exactly the case it exists for — a process that dies at the splash-hide boundary. The cost
+    // is one bridge round-trip before the splash lifts, on a path that already awaited the fonts.
+    void (async () => {
+      await markStep('boot.fonts');
+      await SplashScreen.hideAsync();
+    })();
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {
