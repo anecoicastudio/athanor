@@ -38,12 +38,13 @@ jobs:
   e2e:
     name: web e2e (Playwright)
     runs-on: ubuntu-latest
-    # 24 covers setup plus BOTH capped steps below (16 + 6). They look mutually exclusive —
+    # 14 covers setup plus BOTH capped steps below (6 + 6). They look mutually exclusive —
     # a failed install exits 1 and the smoke step never runs — but an install that merely
     # runs slow and then succeeds does add to the smoke step, so the sum is reachable.
     # Measured, this job is 116s at p50 and 400s at its worst; the cap is a ceiling that
-    # turns a hang into a red, never a target. See `bound apt` for what it guards.
-    timeout-minutes: 24
+    # turns a hang into a red, never a target. Was 24 while the install step could spend
+    # 16 minutes inside apt; dropping --with-deps retired that budget along with the risk.
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -53,30 +54,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Chromium is a ~150MB download per run; cache Playwright's browser store.
-      # `playwright install` below still runs (it apt-installs system deps) but skips
-      # the download when the store already holds the pinned build.
+      # `playwright install` below still runs but skips the download when the store
+      # already holds the pinned build.
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: playwright-${{ runner.os }}-
-      # A stalled Ubuntu mirror hung this job twice on 2026-08-19 — 27 min on a PR and
-      # 6 h on the 04:38 dev push — because apt ships NO default timeout. The log both
-      # times: `Ign:` on every azure.archive.ubuntu.com index, a fallback to
-      # archive.ubuntu.com, three InRelease fetches, then 25 minutes of total silence.
-      # `apt-get update` runs as root inside `playwright install --with-deps`, so this
-      # is the one unbounded operation in the job; everything on the Playwright side is
-      # already capped (webServer 120s, per-test 30s, retries 1 → ~4 min worst case).
-      # Giving up on a dead mirror in 15s and retrying is the actual fix; the
-      # timeout-minutes above and below are the belt to this pair of braces.
-      - name: bound apt so a stalled mirror cannot hang the job
-        run: |
-          sudo tee /etc/apt/apt.conf.d/99-ci-timeout >/dev/null <<'EOF'
-          Acquire::http::Timeout "15";
-          Acquire::https::Timeout "15";
-          Acquire::ftp::Timeout "15";
-          Acquire::Retries "3";
-          EOF
       # The two admin smoke tests need only the Next dev server (Playwright webServer
       # starts `pnpm dev`) + the public Supabase URL and one API key for the SSR client
       # (publishable preferred, legacy anon accepted while it still exists).
@@ -111,68 +95,43 @@ jobs:
       # Split out from the smoke run so the log says WHICH half stalled. It took a log
       # tail and an elimination argument to establish that the first time; it should take
       # a glance at the step duration the next.
-      - name: install chromium + system deps
+      - name: install chromium
         if: steps.e2e-secrets.outputs.run != 'false'
-        # 16, not 13: the two attempts can burn (300+30) + (420+30) = 780s = 13m exactly, plus
-        # up to 2x45s waiting for apt locks to clear, and a cap equal to the worst case leaves
-        # nothing for the recovery commands between them — GitHub's step timeout would fire
-        # before the loop's own `::error::` and the run would go red with a less specific
-        # message than it could have. The point of this step is a legible failure, so the cap
-        # has to sit above the loop, not on it. Worst case is now 870s = 14m30s.
-        timeout-minutes: 16
+        # 6, not 16. The apt path this step used to take is gone, and with it the 13-minute
+        # worst case it needed headroom above. A CDN download of one browser is minutes at
+        # worst; a cap of 6 still sits above the loop rather than on it, so the loop's own
+        # ::error:: is what goes red.
+        timeout-minutes: 6
         run: |
-          # Two attempts, each individually bounded. The first is tight — 300s is ~3x the
-          # p50 install of ~110s, so a degraded mirror is abandoned early. The second is
-          # patient — 420s clears the slowest HEALTHY install on record (347s), so a
-          # genuinely slow-but-working run still passes.
+          # No `--with-deps`, deliberately. It put apt — and therefore an Ubuntu mirror — on
+          # the critical path of every PR, and PR #467 lost three consecutive runs to that:
+          # apt hung fetching archive.ubuntu.com InRelease and never returned, the stalled
+          # apt-get outlived `timeout --kill-after=30` (which signals the direct child, not
+          # the grandchild that holds the lock), and both retries then died on
+          # /var/lib/apt/lists/lock held by a process that was never going to release it.
           #
-          # `--kill-after=30` because plain `timeout` only SIGTERMs, and dpkg defers signals
-          # while unpacking precisely so its database is not left corrupt — so without it the
-          # per-attempt bound is a request, not a guarantee, and a stuck grandchild eats the
-          # next attempt's budget. 30s first gives a clean exit room to happen. SIGKILL can
-          # then leave dpkg mid-transaction, which is what the recovery pair below repairs;
-          # the runner is thrown away after the job either way.
-          # The kill above is issued but was never WAITED for, and that cost both attempts on
-          # PR #467 (2026-08-19): the retry began 0.9s after the warning and died on
-          # `/var/lib/apt/lists/lock` (pid 2507) still held by the process being killed; the
-          # second attempt then fired 60ms later, before anything could have changed, and the
-          # step reported "failed twice" three seconds into a 30s kill window. Run 1 of the
-          # same PR lost `dpkg --configure -a` itself to `/var/lib/dpkg/lock-frontend`. Two
-          # changes close that gap.
+          # What --with-deps was actually buying, from those same logs: NINE packages, all
+          # fonts — fonts-freefont-ttf, fonts-ipafont-gothic, fonts-tlwg-loma-otf,
+          # fonts-unifont, fonts-wqy-zenhei, xfonts-cyrillic and three xfonts-* plumbing
+          # packages. Every other Chromium dependency was already "the newest version" on the
+          # runner image. So the mirror was on the critical path to supply CJK, Thai and
+          # Cyrillic fallback faces.
           #
-          # 1. apt waits for the two DPKG locks instead of failing instantly. Config rather
-          #    than a flag because the apt-get that matters is the one `playwright install
-          #    --with-deps` spawns internally, and it takes no arguments from us.
-          #    Scope, verified against noble's apt source: DPkg::Lock::Timeout feeds
-          #    GetLockMaybeWait() for /var/lib/dpkg/lock-frontend and /var/lib/dpkg/lock only.
-          #    It does NOT cover /var/lib/apt/lists/lock — pkgAcquire::GetLock() takes that one
-          #    through the plain, timeout-unaware overload — and it does not reach the raw
-          #    `dpkg --configure -a` below at all, which reads /etc/dpkg/dpkg.cfg.d instead.
-          #    The lists lock is the one that actually failed on #467, so this line is not what
-          #    fixes that; (2) is. It is kept because the dpkg locks can flake the same way.
-          echo 'DPkg::Lock::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99lock-timeout >/dev/null
-
-          # 2. the loop waits for the locks to actually clear before recovering and retrying,
-          #    bounded at 45s so a lock that never clears still reaches the legible ::error::
-          #    rather than hanging. 45 > the 30s `--kill-after` window, so a SIGKILLed dpkg has
-          #    room to die first. If `fuser` is absent the check reports "clear" and we degrade
-          #    to today's behaviour, with (1) still helping.
-          wait_for_apt_locks() {
-            for _ in $(seq 1 45); do
-              sudo fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1 || return 0
-              sleep 1
-            done
-            echo "::warning::apt locks still held after 45s; recovering anyway"
-          }
-
-          for attempt in 300 420; do
-            timeout --kill-after=30 "$attempt" pnpm --filter web exec playwright install --with-deps chromium && exit 0
-            echo "::warning::playwright install stalled or failed after ${attempt}s; waiting for apt locks, then recovering and retrying"
-            wait_for_apt_locks
-            sudo dpkg --configure -a || true
-            sudo apt-get -f install -y || true
+          # This suite needs none of them: two tests in apps/web/e2e/admin.spec.ts (an
+          # unauthenticated /admin redirect and "the login screen renders the email form"),
+          # locale it-IT, no screenshot or snapshot assertions, against an app that
+          # self-hosts its faces via next/font/local (#329) rather than resolving system
+          # fonts. If a later test does render CJK/Thai text or compares screenshots, add the
+          # specific fonts package back as its own step — not the whole --with-deps set.
+          #
+          # Two attempts remain, because Playwright's CDN can flake like any CDN. They are
+          # short: nothing here can wedge a system lock, so a failure is just a failure.
+          for attempt in 1 2; do
+            timeout 240 pnpm --filter web exec playwright install chromium && exit 0
+            echo "::warning::playwright install attempt ${attempt} failed or stalled; retrying"
+            sleep 5
           done
-          echo "::error::playwright install --with-deps failed twice — a stalled Ubuntu mirror or apt-lock contention, not this diff"
+          echo "::error::playwright install failed twice — most likely Playwright's CDN, not this diff"
           exit 1
       - name: e2e admin smoke
         if: steps.e2e-secrets.outputs.run != 'false'
