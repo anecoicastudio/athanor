@@ -68,7 +68,23 @@ Screenshots (IT+EN, iPhone 6.9"/6.1", iPad 13", Pixel 8), privacy-nutrition (iOS
 
 ### P1.6 — Auth hardening `[manual-you]` — 🟡 PARTIAL 2026-08-10
 
-**MFA (TOTP)** and the **password policy** (8 + lower/upper/digit) are enabled on both hosted projects. **Leaked-password protection (HaveIBeenPwned) remains off — HTTP 402, Pro plan only.** Detail in **Appendix D**.
+**MFA (TOTP)** and the **password policy** (8 + lower/upper/digit) are enabled on both hosted projects. **Leaked-password protection (HaveIBeenPwned) remains off — HTTP 402, Pro plan only.** Detail in **Appendix D**. As of 2026-08-20 that gap is an **accepted risk**, not pending work — see **P1.8**, which also records the signup-confirmation ruling (#70).
+
+### P1.8 — Accepted risks at launch (dated rulings) — recorded 2026-08-20
+
+Two auth gaps are **deliberately shipped**, not outstanding work. Both were decided on 2026-08-20 and both close their issues as `not planned` rather than `completed`. They are recorded here so a later audit reads them as choices rather than oversights, and so the reversal steps are written down while the reasoning is fresh.
+
+- **Leaked-password protection stays off (#91, closed).** HIBP is Pro-only and the Management API returns HTTP 402 for it on the free plan. Decided alongside #96: Athanor launches on the Supabase free tier. Users can register with a password known to be in a breach corpus, and nothing warns them. Compensating controls are the ordinary password policy (8 + lower/upper/digit) and MFA/TOTP, both live on **both** projects — see **Appendix D**. Reversal is a single settings flip on the day the project moves to Pro, and it should be flipped that same day.
+
+- **Signup email confirmation stays off (#70, closed).** `mailer_autoconfirm = true` on production, verified against the Management API on 2026-08-20. Nothing verifies that a person controls the address they sign up with, and **that address is what password recovery later trusts** — this is the sharper of the two risks. The 2026-08-10 redirect allow-list continues to protect password recovery, magic links and OAuth; it does not protect signup, which never redirects anywhere.
+
+  It was not a switch we declined to flip. There is **no SMTP provider on either project** (`[auth.email.smtp]` commented out in `supabase/config.toml`, `smtp_host` null on both hosted projects), so every confirmation mail would go through Supabase's built-in mailer at **2 per hour**, documented as not for production. Free SMTP tiers are ample but require DKIM/SPF records on a domain you control, and `www.athanor.workers.dev` cannot host DNS records.
+
+  Note the asymmetry between environments: **staging has confirmations ON** (`mailer_autoconfirm = false`), so the flow stays exercisable there without changing production.
+
+  Reversal, in this order — flipping first is the failure mode that tests clean and breaks at the third real signup: a domain you control with DKIM/SPF verified → custom SMTP on the hosted project → `rate_limit_email_sent` raised off 2 → `mailer_autoconfirm` false → re-run the `generate_link` check. Pin the untested duplicate-email branch at `apps/native/src/app/(auth)/welcome.tsx:120` **before** flipping: with confirmations ON, a signup for an existing address returns 200 with an obfuscated user rather than 422, and an empty `identities` array is the only tell.
+
+Still genuinely outstanding, and **not** on this list: **#72** — TOTP is enabled on both projects with no client enrol or verify surface. That is unfinished work, not an accepted risk, and it is the more honest measure of how far auth hardening actually got.
 
 ### P1.7 — Tag-visibility authenticated smoke `[manual-you]` (recorded 2026-08-08)
 
