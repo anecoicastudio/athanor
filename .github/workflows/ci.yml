@@ -38,13 +38,15 @@ jobs:
   e2e:
     name: web e2e (Playwright)
     runs-on: ubuntu-latest
-    # 14 covers setup plus BOTH capped steps below (6 + 6). They look mutually exclusive —
+    # 17 covers setup plus BOTH capped steps below (9 + 6). They look mutually exclusive —
     # a failed install exits 1 and the smoke step never runs — but an install that merely
     # runs slow and then succeeds does add to the smoke step, so the sum is reachable.
     # Measured, this job is 116s at p50 and 400s at its worst; the cap is a ceiling that
     # turns a hang into a red, never a target. Was 24 while the install step could spend
     # 16 minutes inside apt; dropping --with-deps retired that budget along with the risk.
-    timeout-minutes: 14
+    # It has to stay above 9 + 6, or the job cap fires before the step cap and the same
+    # legibility is lost one level up.
+    timeout-minutes: 17
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -97,11 +99,14 @@ jobs:
       # a glance at the step duration the next.
       - name: install chromium
         if: steps.e2e-secrets.outputs.run != 'false'
-        # 6, not 16. The apt path this step used to take is gone, and with it the 13-minute
-        # worst case it needed headroom above. A CDN download of one browser is minutes at
-        # worst; a cap of 6 still sits above the loop rather than on it, so the loop's own
-        # ::error:: is what goes red.
-        timeout-minutes: 6
+        # 9, not 16 and not 6. The apt path this step used to take is gone, and with it the
+        # 13-minute worst case it needed headroom above. The loop below can still burn
+        # 2x240 + 2x5 = 490s = 8m10s if both attempts stall their full budget, so the cap has
+        # to clear 490s — at 6 it would have sat BELOW the loop, and GitHub's step timeout
+        # would have fired 115s into attempt 2, killing the run before the loop's own
+        # ::error:: could say why. That is the failure this step has now been rewritten twice
+        # to avoid, and the first draft of this rewrite reintroduced it.
+        timeout-minutes: 9
         run: |
           # No `--with-deps`, deliberately. It put apt — and therefore an Ubuntu mirror — on
           # the critical path of every PR, and PR #467 lost three consecutive runs to that:
