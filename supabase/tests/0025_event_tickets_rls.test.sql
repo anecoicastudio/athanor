@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(9);
+select plan(11);
 
 -- organizer A + attendee B (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -73,6 +73,30 @@ set local role anon; set local request.jwt.claims = '';
 select throws_ok($$ select * from public.event_tickets $$,
   '42501', null, 'anon cannot read tickets');
 reset role;
+
+-- Realtime publication membership. subscribeTicket() uses postgres_changes, which delivers
+-- nothing at all for an unpublished table while still reporting SUBSCRIBED — the #88 walk
+-- found the buyer's ticket subscription dead on staging AND production for exactly this
+-- reason. A behaviour test cannot catch it (the client sees silence either way), so assert
+-- the catalog.
+select is(
+  (select count(*)::int from pg_publication_tables
+   where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'event_tickets'),
+  1, 'event_tickets is published to supabase_realtime (subscribeTicket depends on it)');
+
+-- The payload is the whole row because authenticated is granted SELECT on the whole row.
+-- Stated as an identity, not a literal column list: event_tickets carries a signed QR door
+-- pass, so the day someone narrows the grant on a column (the profiles pattern,
+-- 20260811084600) without narrowing the publication, realtime would keep broadcasting it.
+-- This goes red then; a hand-written list would silently stay true.
+select bag_eq(
+  $$ select unnest(attnames)::text from pg_publication_tables
+      where pubname='supabase_realtime' and schemaname='public' and tablename='event_tickets' $$,
+  $$ select column_name::text from information_schema.column_privileges
+      where table_schema='public' and table_name='event_tickets'
+        and grantee='authenticated' and privilege_type='SELECT' $$,
+  'the event_tickets realtime payload IS the authenticated SELECT grant, not merely similar to it'
+);
 
 select * from finish();
 rollback;
