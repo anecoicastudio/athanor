@@ -180,6 +180,16 @@ keychain entry `supabase login` created) and prints the function's jsonb summary
 Verify: `select jobname, schedule, active from cron.job;` shows `staging-refresh-world`,
 and `cron.job_run_details` keeps each run's summary in `return_message`.
 
+**The bytes reaper cannot touch a seeded story while this job runs (#31).** Since
+`20260821075230` the nightly `prune-expired-story-segments` (03:17) also asks the
+`story-segment-reaper` edge function to delete, through the Storage API, every object in
+`story-segments` whose row has been expired or soft-deleted for over an hour. The hourly
+refresh keeps every seeded row live (`expires_at = now() + 20h`, in place, no re-upload), so
+a seeded object is never a candidate — `select * from public.story_segment_reap_candidates(1000)`
+on staging is the check, and it returns nothing while the refresh is healthy. If the refresh is
+**off for more than ~21 h** the seeded rows expire, the next nightly pass frees their bytes, and
+a later refresh or re-seed revives rows that point at nothing: re-run `pnpm staging:media`.
+
 ⚠ **Keep it in step with the seed.** The refresh function carries frozen copies of the
 seed's semantic-key lists (stories, events, statuses, content ids). Any edit to those
 sections of `seed-staging.sql` requires re-running `refresh-staging.sql`. The deck is
