@@ -12,6 +12,7 @@ const notif = (patch: Partial<Notification>): Notification =>
     entity_ref: null,
     read_at: null,
     created_at: '2026-06-17T12:00:00.000Z',
+    updated_at: '2026-06-17T12:00:00.000Z',
     ...patch,
   }) as Notification;
 
