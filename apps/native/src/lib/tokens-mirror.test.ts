@@ -31,9 +31,6 @@ const NAME_MAP: Record<keyof typeof semantic, string> = {
   foregroundMuted: 'muted-foreground', // diverges — not `foreground-muted`
   aura: 'aura',
   border: 'line', // diverges — the CSS calls it `line`
-  bandAlt: 'band-alt',
-  inkOnLight: 'ink-on-light',
-  inkMutedOnLight: 'ink-muted-on-light',
   success: 'success',
   error: 'error',
   ink2: 'ink-2',

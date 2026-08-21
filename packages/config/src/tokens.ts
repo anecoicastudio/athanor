@@ -18,15 +18,12 @@ export const semantic = {
   foregroundMuted: '#9A9DB5', // foreground dimmed — secondary text
   aura: '#2BD0D2', // glowing cyan — the light; action + meaning, glow = moments
   border: '#241B3A', // violet hairline
-  bandAlt: '#241B3A', // alternate band — muted violet, section striping
-  inkOnLight: '#0A0A1A', // text on rare light chips/print
-  inkMutedOnLight: '#5C6478', // secondary on light chips/print
   success: '#36B37E', // confirmations, check-in OK (emerald — distinct from aura)
   error: '#E0476B', // input error ring, destructive (raspberry — rose family)
   ink2: '#C9C3DE', // body copy on dark — softer than foreground
   // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.97 on
   // raise, ~4.69 on raise2 — every surface it is actually used on clears AA.
-  // (It would NOT on bandAlt/border #241B3A ≈4.44; nothing pairs them today.)
+  // (It would NOT on border #241B3A ≈4.44; nothing pairs them today.)
   // These ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts
   // recomputes them from these values, so a retune here fails there. Note each figure
   // names a SURFACE — `raise`/`raise2` are translucent, so a chip nested inside a card
