@@ -8,6 +8,7 @@ import {
   UploadStalledError,
 } from '@/lib/media/upload-transport';
 import {
+  type StandingVideo,
   type UploadStatus,
   type VideoFailure,
   identityGateFailure,
@@ -276,26 +277,95 @@ describe('videoTilePreview — step 4 shows the frame it just uploaded', () => {
   it('draws the poster once the upload is done and a frame was extracted', () => {
     // The reported defect: a video that uploaded perfectly left the tile on a flat box with a
     // ✦, so «is my video in?» had no visual answer at all.
-    expect(videoTilePreview('done', POSTER)).toBe('poster');
+    expect(videoTilePreview('done', POSTER, null)).toBe('poster');
   });
 
   it('keeps the glyph when the extraction gave nothing back', () => {
     // A poster is best-effort by contract (`extractVideoPoster` returns null on any failure),
     // so the tile must have a state for «uploaded, no frame» that is not a broken image.
-    expect(videoTilePreview('done', null)).toBe('glyph');
+    expect(videoTilePreview('done', null, null)).toBe('glyph');
   });
 
   it('never draws a stale poster over a later attempt', () => {
     // A retry after a done upload replaces the same storage key. Rendering the previous
     // attempt's frame while the next one transfers would show the wrong video as the answer.
-    expect(videoTilePreview('uploading', POSTER)).toBe('uploading');
+    expect(videoTilePreview('uploading', POSTER, null)).toBe('uploading');
     for (const status of ['idle', 'error', 'canceled', 'stalled'] as UploadStatus[]) {
-      expect(videoTilePreview(status, POSTER)).toBe('glyph');
+      expect(videoTilePreview(status, POSTER, null)).toBe('glyph');
     }
   });
 
   it('is uploading whenever the transfer is live, poster or not', () => {
-    expect(videoTilePreview('uploading', null)).toBe('uploading');
+    expect(videoTilePreview('uploading', null, null)).toBe('uploading');
+  });
+});
+
+describe('videoTilePreview — edit mode draws the video that already stands (#463)', () => {
+  const POSTER = 'file:///cache/poster.jpg';
+  const STORED: StandingVideo = { thumbPath: 'uid/cand-thumb.jpg' };
+  const STORED_NO_POSTER: StandingVideo = { thumbPath: null };
+
+  it('draws the stored poster before any replacement is attempted', () => {
+    // The reported defect: a candidacy opened for editing showed the muted ◓ — the same pixel
+    // as never having picked anything — with its video and poster sitting in Storage.
+    expect(videoTilePreview('idle', null, STORED)).toBe('standing');
+  });
+
+  it('says «a video, no still» for a standing video whose poster was never extracted', () => {
+    // `thumb_path === null` is a STATE the row states, not a failure to load. The decision is
+    // made on the model field, never on the signed URL: branching on the URL would draw the
+    // no-poster ▶ while a real poster is still signing — #135 rebuilt on this tile.
+    expect(videoTilePreview('idle', null, STORED_NO_POSTER)).toBe('standing-no-poster');
+  });
+
+  it('keeps the glyph when nothing stands — a fresh submit, prefilled or not', () => {
+    expect(videoTilePreview('idle', null, null)).toBe('glyph');
+  });
+
+  it('lets a live replacement outrank the stored poster', () => {
+    // The member already chose to replace it; the old frame beside the spinner would answer
+    // «which video is this?» with the one on its way out.
+    expect(videoTilePreview('uploading', null, STORED)).toBe('uploading');
+    expect(videoTilePreview('uploading', POSTER, STORED)).toBe('uploading');
+  });
+
+  it('draws a finished replacement from ITS frame, never the stored one', () => {
+    // A replacement PUTs the same storage keys, so the stored poster now describes an object
+    // that no longer exists as such. The local frame is the truth; no frame means the lit ✦.
+    expect(videoTilePreview('done', POSTER, STORED)).toBe('poster');
+    expect(videoTilePreview('done', null, STORED)).toBe('glyph');
+  });
+
+  it('hands a failed replacement to the live-attempt rules, not back to the stored poster', () => {
+    // Deliberately narrow: the stored poster is drawn on `idle` only. Once an attempt has been
+    // made, `videoStatusMessage` names the failure and the keepHint says the stored video still
+    // stands — the tile does not pretend the attempt never happened.
+    for (const status of ['error', 'canceled', 'stalled'] as UploadStatus[]) {
+      expect(videoTilePreview(status, null, STORED)).toBe('glyph');
+      expect(videoTilePreview(status, null, STORED_NO_POSTER)).toBe('glyph');
+    }
+  });
+});
+
+describe('the tile threads the signing state it is handed (#463, source audit)', () => {
+  // Same idiom as below: `environment: 'node'` cannot render the `.tsx` tile, so the shape that
+  // keeps #135 out of it — URL plus isLoading, model field for «never coming» — is pinned by
+  // reading the source.
+  const SRC = fileURLToPath(new URL('.', import.meta.url).href);
+  const tile = () => readFileSync(`${SRC}../components/candidacy/VideoUploadTile.tsx`, 'utf8');
+
+  it('hands MediaFrame the signing query isLoading for the stored poster, not a literal', () => {
+    expect(tile()).toContain('isLoading={isLoadingStandingPoster}');
+  });
+
+  it('decides «no poster» from the row, not from the signed URL', () => {
+    const source = tile();
+    // The row-based decision is `videoTilePreview`'s; the tile only switches on its answer.
+    expect(source).toContain("preview === 'standing-no-poster'");
+    // The URL is absent while signing too, so a `standingPosterUrl ? … : ▶` would draw «no
+    // poster» over a poster that is 200ms from appearing — #135 rebuilt.
+    // `?\s`, not `?`: the optional prop declaration `standingPosterUrl?:` is the shape we want.
+    expect(source).not.toMatch(/standingPosterUrl\s*\?\s/);
   });
 });
 

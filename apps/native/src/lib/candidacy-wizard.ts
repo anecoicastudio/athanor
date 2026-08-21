@@ -1,7 +1,7 @@
 import { parseEuroIntegerToCents } from '@athanor/core';
 import type { MessageKey } from '@athanor/i18n';
 import type { DreamCandidacy, ProjectCategory } from '@athanor/schemas';
-import type { UploadStatus } from '@/lib/candidacy-video-status';
+import type { StandingVideo, UploadStatus } from '@/lib/candidacy-video-status';
 
 /**
  * The seven candidacy steps as data (07 §3.4; #226 added steps 6–7; #385 extracted this).
@@ -111,6 +111,23 @@ export function hasStandingVideo(input: {
 }): boolean {
   if (input.uploadStatus === 'done') return true;
   return input.mode === 'edit' && input.hasInitial && input.uploadStatus !== 'uploading';
+}
+
+/**
+ * The stored video the step-4 tile may draw before any replacement (#463), or null when none
+ * stands. The same asymmetry as `hasStandingVideo`, on the poster: edit mode (#226) opens on
+ * the row's own objects, while a prefilled fresh submit (#221) is a NEW row whose prior-cycle
+ * poster lives under the prior candidacy's key and must never be drawn as this submit's.
+ *
+ * Mirrors the submit-time rule in the screen (`thumb_path` is kept only in edit mode), so what
+ * the member sees on step 4 is what the row will carry if they change nothing.
+ */
+export function standingVideo(input: {
+  readonly mode: WizardMode;
+  readonly initial: Pick<DreamCandidacy, 'thumb_path'> | null;
+}): StandingVideo | null {
+  if (input.mode !== 'edit' || input.initial === null) return null;
+  return { thumbPath: input.initial.thumb_path };
 }
 
 /**

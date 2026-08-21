@@ -11,6 +11,7 @@ import {
   canAdvance,
   hasStandingVideo,
   prefillValues,
+  standingVideo,
   stepAt,
   stepBlocker,
   submitBlockers,
@@ -219,6 +220,32 @@ describe('hasStandingVideo — the #221/#226 asymmetry', () => {
   });
 });
 
+describe('standingVideo — the stored poster stands exactly where the video does (#463)', () => {
+  it('edit mode hands the tile the stored poster path', () => {
+    expect(standingVideo({ mode: 'edit', initial: CANDIDACY })).toEqual({
+      thumbPath: 'uid/candidacy-thumb.jpg',
+    });
+  });
+
+  it('edit mode with a posterless row still says a video stands', () => {
+    // Not «nothing»: the row's `thumb_path` is null because extraction gave nothing back when
+    // the video first went up, and the tile has a ▶ for that state.
+    expect(standingVideo({ mode: 'edit', initial: { ...CANDIDACY, thumb_path: null } })).toEqual({
+      thumbPath: null,
+    });
+  });
+
+  it('a prefilled FRESH submit inherits no poster (#221) — the same asymmetry as hasStandingVideo', () => {
+    // The prior cycle's objects live under the prior candidacy's storage key; drawing its
+    // poster on a new row would show a video this submit will not carry.
+    expect(standingVideo({ mode: 'fresh', initial: CANDIDACY })).toBeNull();
+  });
+
+  it('edit mode with no row behaves like a fresh submit', () => {
+    expect(standingVideo({ mode: 'edit', initial: null })).toBeNull();
+  });
+});
+
 describe('per-step gating', () => {
   it('lets a complete draft leave every step', () => {
     const draft = draftWith();
@@ -392,6 +419,15 @@ describe('the screen renders THIS module (#385, source audit)', () => {
     const source = screen();
     expect(source).not.toContain('parseEuroIntegerToCents');
     expect(source).not.toContain('parseEuroToCents');
+  });
+
+  it('signs and draws the standing poster on step 4 (#463)', () => {
+    const source = screen();
+    expect(source).toContain('standingVideo(');
+    // The ballot's signer against the same bucket, not a second one (`signMediaUrls` behind it).
+    expect(source).toMatch(/useSignedUrls\(\s*'candidacy-videos'/);
+    // The signing query's isLoading reaches the tile — dropping it is #135.
+    expect(source).toContain('isLoadingStandingPoster={');
   });
 
   it('keeps both prefill paths wired (#226 edit, #221 cross-cycle resubmit)', () => {

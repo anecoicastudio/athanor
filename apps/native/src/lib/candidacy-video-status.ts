@@ -111,11 +111,22 @@ export function videoStatusOffersSettings(
   return failure === 'camera-blocked' || failure === 'library-blocked';
 }
 
+/**
+ * The video that already stands when the wizard opens in edit mode (#226), before any
+ * replacement — the row's `thumb_path`, which is a storage path, not a URL. `null` thumbPath is
+ * a STATE the row states: extraction was best-effort when the video first went up, so «a video,
+ * no still» is an ordinary row and not a failure to load. `candidacy-wizard`'s `standingVideo`
+ * decides when one stands; the screen signs the path; this module only decides what to draw.
+ */
+export type StandingVideo = {
+  readonly thumbPath: string | null;
+};
+
 /** What the step-4 tile draws in its preview box. */
-export type TilePreview = 'uploading' | 'poster' | 'glyph';
+export type TilePreview = 'uploading' | 'poster' | 'standing' | 'standing-no-poster' | 'glyph';
 
 /**
- * Which of the three the tile is showing.
+ * Which of the five the tile is showing.
  *
  * The tile had no preview at all: every finished upload ended on a flat `bg-raise` box with a
  * lit `✦`, so «did my video go up, and which one?» had no visual answer — the same family of
@@ -131,10 +142,27 @@ export type TilePreview = 'uploading' | 'poster' | 'glyph';
  * A null poster keeps the glyph rather than an empty frame: extraction is best-effort by
  * contract (`extractVideoPoster` returns null on any failure), so «uploaded, no frame» is an
  * ordinary outcome and must not look like a broken image.
+ *
+ * `standing` is the edit-mode opening (#463): the row's video and poster are in Storage and the
+ * tile used to draw the muted `◓` over them — the same pixel as never having picked anything,
+ * with only the keepHint sentence saying otherwise. It is a SEPARATE input from `posterUri`, not
+ * a widening of the `done` rule, and it is drawn on `idle` only: once an attempt has been made
+ * the live-attempt rules above own the tile, so a failed replacement still names its failure
+ * rather than quietly pretending nothing happened. `standing-no-poster` is decided on the row's
+ * field, never on the signed URL — that distinction is what keeps «still signing» from rendering
+ * as «no poster» (#135, the way the ballot card already draws it).
  */
-export function videoTilePreview(status: UploadStatus, posterUri: string | null): TilePreview {
+export function videoTilePreview(
+  status: UploadStatus,
+  posterUri: string | null,
+  standing: StandingVideo | null,
+): TilePreview {
   if (status === 'uploading') return 'uploading';
-  return status === 'done' && posterUri ? 'poster' : 'glyph';
+  if (status === 'done') return posterUri ? 'poster' : 'glyph';
+  if (status === 'idle' && standing) {
+    return standing.thumbPath === null ? 'standing-no-poster' : 'standing';
+  }
+  return 'glyph';
 }
 
 /**
