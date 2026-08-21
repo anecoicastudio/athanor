@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleSchema, publicProfileSchema } from './public-profile';
+import { handleSchema, publicProfileSchema, publicHandleEntrySchema } from './public-profile';
 
 describe('handleSchema', () => {
   it('accepts a valid handle', () => {
@@ -75,5 +75,29 @@ describe('publicProfileSchema', () => {
         dream: null,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('publicHandleEntrySchema', () => {
+  it('accepts a handle + updated_at pair and strips the id the reader selects for its warning', () => {
+    const parsed = publicHandleEntrySchema.parse({
+      id: 'p1',
+      handle: 'sole',
+      updated_at: '2026-08-01T10:00:00Z',
+    });
+    expect(parsed).toEqual({ handle: 'sole', updated_at: '2026-08-01T10:00:00Z' });
+  });
+
+  it('withholds a handle the route could never resolve rather than prerendering a 404', () => {
+    expect(
+      publicHandleEntrySchema.safeParse({ handle: 'Not A Handle', updated_at: 'x' }).success,
+    ).toBe(false);
+    expect(publicHandleEntrySchema.safeParse({ handle: null, updated_at: 'x' }).success).toBe(
+      false,
+    );
+  });
+
+  it('requires updated_at — the sitemap lastModified', () => {
+    expect(publicHandleEntrySchema.safeParse({ handle: 'sole' }).success).toBe(false);
   });
 });

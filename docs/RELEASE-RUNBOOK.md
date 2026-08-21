@@ -282,6 +282,13 @@ production KV namespace on 2026-08-18, not inferred from the docs:
   prefix — unreachable — and the live prefix has no key for it. The request misses, takes the
   blocking fallback, and hits the Worker branch in `app/[handle]/opengraph-image.tsx`, which
   redirects to the generic site-wide card.
+- Since #335, `generateStaticParams` is **capped** to the `PRERENDER_HANDLE_LIMIT` most recently
+  updated handles and the next `PRERENDER_EVENT_LIMIT` events (`apps/web/lib/prerender-limits.ts`,
+  with the KV-write arithmetic). A member outside that set has no prerendered card at all — their
+  og:image is the generic site card on every request, not only until the next deploy — and their
+  page renders on first hit, then caches for five minutes at a time. Editing the profile moves
+  it back into the set at the next build. The `web build` CI job asserts the caps against the
+  manifest (`pnpm --filter web test:prerender`).
 
 So the release cadence is the bound. **A redeploy of `apps/web` is the ordinary fix** and needs no
 key arithmetic — it is the same action as a release.

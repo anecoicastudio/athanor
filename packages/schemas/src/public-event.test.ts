@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { publicEventSchema } from './public-event';
+import { publicEventSchema, upcomingEventEntrySchema } from './public-event';
 
 const row = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -59,5 +59,21 @@ describe('publicEventSchema', () => {
 
   it('rejects an organizer handle that is not a valid handle', () => {
     expect(publicEventSchema.safeParse({ ...row, organizer_handle: 'Sole' }).success).toBe(false);
+  });
+});
+
+describe('upcomingEventEntrySchema', () => {
+  const entry = { id: '00000000-0000-0000-0000-0000000000e1', updated_at: '2026-08-01T10:00:00Z' };
+
+  it('accepts an id + updated_at pair', () => {
+    expect(upcomingEventEntrySchema.parse(entry)).toEqual(entry);
+  });
+
+  it('rejects a non-uuid id', () => {
+    expect(upcomingEventEntrySchema.safeParse({ ...entry, id: 'nope' }).success).toBe(false);
+  });
+
+  it('stays strict: a widened select fails loudly instead of carrying an unasked column', () => {
+    expect(upcomingEventEntrySchema.safeParse({ ...entry, stream_url: 'x' }).success).toBe(false);
   });
 });

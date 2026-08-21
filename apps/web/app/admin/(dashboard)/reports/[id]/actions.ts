@@ -4,13 +4,15 @@ import { redirect } from 'next/navigation';
 import { resolveReportInput } from '@athanor/schemas';
 import { resolveReport } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
+import { isAdmin } from '@/lib/is-admin';
 
 /**
  * submitVerdict — server action invoked by VerdictForm.
  *
  * Defense-in-depth: explicitly calls getUser() (never getSession) and checks
- * app_metadata.role === 'admin' before proceeding. The resolve_report RPC also
- * re-checks is_admin() server-side as a second layer.
+ * isAdmin() before proceeding — the one tested implementation of the rule, never
+ * the predicate inlined (#62). The resolve_report RPC also re-checks is_admin()
+ * server-side as a second layer.
  * No Aura path here: resolveReport calls the RPC, which delegates Aura emission
  * to the score-engine edge function (rule #1).
  */
@@ -25,7 +27,7 @@ export async function submitVerdict(formData: FormData) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if ((user?.app_metadata as { role?: string } | undefined)?.role !== 'admin') {
+  if (!isAdmin(user)) {
     throw new Error('Forbidden');
   }
   await resolveReport(supabase, parsed);

@@ -1,21 +1,30 @@
 // Admin API — consumed by the web admin panel (apps/web/app/admin), which reads it
 // from Server Components and Server Actions (no TanStack Query on that surface).
-// Two surfaces live here: moderation (reports + their verdicts) and the fund audit trail
-// (#432), which share `audit_log` and therefore share its parse-at-the-boundary shape.
+// Three surfaces live here: moderation (reports + their verdicts), the fund audit trail
+// (#432) — those two share `audit_log` and its parse-at-the-boundary shape — and the
+// pre-launch waitlist (#335), read through its admin RPCs.
 import { reportPenaltyPoints } from '@athanor/core';
 import {
   auditLogRow,
   adminFundEditionRow,
+  waitlistAdminRowSchema,
   type ResolveReportInput,
   type AuditLogRow,
   type AdminReportRow,
   type AdminReportDetail,
   type AdminFundEditionRow,
+  type WaitlistAdminRow,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { keysetFilter } from './pagination';
+import { parseOrWithhold } from './parse-or-withhold';
 
-export type { AdminReportRow, AdminReportDetail, AdminFundEditionRow } from '@athanor/schemas';
+export type {
+  AdminReportRow,
+  AdminReportDetail,
+  AdminFundEditionRow,
+  WaitlistAdminRow,
+} from '@athanor/schemas';
 
 /** The columns every `audit_log` reader here selects — one list, so two readers cannot drift. */
 const AUDIT_COLUMNS =
@@ -23,60 +32,6 @@ const AUDIT_COLUMNS =
 
 /** The columns every `fund_editions` reader here selects — `adminFundEditionRow`'s exact shape. */
 const EDITION_COLUMNS = 'id, phase, target_at, created_at, closure_reason, winner_candidacy_id';
-
-/**
- * Structural stand-in for a Zod schema's `safeParse`. This package does not depend on `zod`
- * — it consumes `@athanor/schemas`' already-built schemas — so the helper below is typed by
- * shape rather than by importing `ZodTypeAny`, which would mean adding the dependency to get
- * one generic parameter.
- */
-type BoundaryParser<T> = {
-  safeParse: (value: unknown) =>
-    | { success: true; data: T }
-    | {
-        success: false;
-        error: { issues: readonly { path: (string | number)[]; message: string }[] };
-      };
-};
-
-/**
- * Parse a result set row by row: valid rows through, invalid rows withheld and counted.
- *
- * #421's shape, extracted once three readers needed it. Per-row `safeParse` rather than this
- * package's usual `.parse()`-and-throw, because the consequence differs: every other query
- * boundary feeds a content screen, while these feed operator surfaces. The realistic failure
- * is the schema lagging the database — #392, which went five actions and five migrations
- * unnoticed — and on that failure a throw takes the whole view down over one unrecognised
- * row. Withholding keeps the surface up; returning `excluded` keeps the omission honest,
- * because silently dropping evidence is the other way to be wrong.
- *
- * `table` and `surface` only shape the warning; the caller says which reader spoke.
- */
-function parseOrWithhold<T>(
-  rows: readonly unknown[] | null | undefined,
-  parser: BoundaryParser<T>,
-  table: string,
-  surface: string,
-): { parsed: T[]; excluded: number } {
-  const parsed: T[] = [];
-  let excluded = 0;
-  for (const row of rows ?? []) {
-    const result = parser.safeParse(row);
-    if (result.success) {
-      parsed.push(result.data);
-      continue;
-    }
-    excluded += 1;
-    // No logger exists in this package; a warning is the only channel that reaches
-    // `wrangler tail`, and the row id plus the failing path is what makes the row findable.
-    console.warn(
-      `[admin] ${table} row ${String((row as { id?: unknown }).id)} withheld from ${surface}: ${result.error.issues
-        .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
-        .join('; ')}`,
-    );
-  }
-  return { parsed, excluded };
-}
 
 const PAGE = 25;
 
@@ -389,6 +344,77 @@ export async function getEditionAuditTrail(
   );
   // Raw tail, not parsed tail — see `getFundEditionIndex`. It matters more here: the rows a
   // trail withholds are precisely the ones an operator is looking for.
+  const last = page[page.length - 1];
+  return {
+    rows: parsed,
+    excluded,
+    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
+  };
+}
+
+// ── Pre-launch waitlist ──────────────────────────────────────────────────────────────────
+// Read through SECURITY DEFINER RPCs that re-check `is_admin()` server-side: `email_waitlist`
+// has no SELECT policy at all, so the function is the only read path and this package never
+// gates on a client-side role (it is plumbing). Both moved here from waitlist.ts with #335 —
+// that module keeps the public write boundary the landing uses; the panel's reads belong
+// with the panel's other reads.
+
+/**
+ * Admin-only count of waitlist signups (the "how many are interested" number). Raises 42501
+ * for non-admins; surfaced, never turned into a zero.
+ */
+export async function getWaitlistCount(client: AthanorClient): Promise<number> {
+  const { data, error } = await client.rpc('admin_waitlist_count');
+  if (error) throw error;
+  return data ?? 0;
+}
+
+/**
+ * The RPC clamps `p_limit` to 1000 and this reader asks for `limit + 1` to learn whether a
+ * next page exists, so a page of 1000 could never see its probe row and a cursor walk would
+ * end a page early with no error. Refused up front instead.
+ */
+export const WAITLIST_PAGE_CEILING = 999;
+
+/**
+ * One page of the waitlist, newest first. Cursor = `${created_at}|${id}`, the same opaque
+ * shape as every reader here, but the keyset predicate lives INSIDE `admin_list_waitlist`
+ * (migration 20260821085655) rather than in a PostgREST filter — the table is unreadable by
+ * clients, so the DEFINER function is where the `(created_at, id) <` comparison has to run.
+ * Same probe-row contract as `getReportQueue`, same raw-tail cursor as `getFundEditionIndex`,
+ * rows parsed and withheld rather than cast (api.md).
+ */
+export async function getWaitlistPage(
+  client: AthanorClient,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<{ rows: WaitlistAdminRow[]; excluded: number; nextCursor: string | null }> {
+  const limit = opts.limit ?? PAGE;
+  if (limit < 1 || limit > WAITLIST_PAGE_CEILING) {
+    throw new Error(`waitlist page size out of range (1..${WAITLIST_PAGE_CEILING}): ${limit}`);
+  }
+  const args: { p_limit: number; p_before_created_at?: string; p_before_id?: string } = {
+    p_limit: limit + 1,
+  };
+  if (opts.cursor) {
+    const [ts, id] = opts.cursor.split('|');
+    // Opaque and server-issued, so a half of it is a caller bug — same stance as the
+    // report queue: refuse, never quietly restart at page one.
+    if (!ts || !id) throw new Error(`malformed waitlist cursor: ${opts.cursor}`);
+    args.p_before_created_at = ts;
+    args.p_before_id = id;
+  }
+  const { data, error } = await client.rpc('admin_list_waitlist', args);
+  if (error) throw error;
+  const raw = data ?? [];
+  const hasMore = raw.length > limit;
+  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { parsed, excluded } = parseOrWithhold(
+    page,
+    waitlistAdminRowSchema,
+    'email_waitlist',
+    'the waitlist page',
+  );
+  // Raw tail, not parsed tail — a withheld last row must not move the cursor backwards.
   const last = page[page.length - 1];
   return {
     rows: parsed,

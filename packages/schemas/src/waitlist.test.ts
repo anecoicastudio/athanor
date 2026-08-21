@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { waitlistInsertSchema } from './waitlist';
+import { waitlistAdminRowSchema, waitlistInsertSchema } from './waitlist';
 
 describe('waitlistInsertSchema', () => {
   it('normalizes email (trim + lowercase) — the dedup contract', () => {
@@ -26,5 +26,37 @@ describe('waitlistInsertSchema', () => {
     expect(() =>
       waitlistInsertSchema.parse({ email: 'a@b.com', source: 'x'.repeat(81) }),
     ).toThrow();
+  });
+});
+
+describe('waitlistAdminRowSchema', () => {
+  const row = {
+    id: '10000000-0000-4000-8000-000000000001',
+    email: 'a@b.it',
+    locale: 'it',
+    source: 'landing-hero',
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('accepts the RPC projection, null source included', () => {
+    expect(waitlistAdminRowSchema.parse(row)).toEqual(row);
+    expect(waitlistAdminRowSchema.parse({ ...row, source: null }).source).toBeNull();
+  });
+
+  it('requires the id — it is the keyset tie-break (#335)', () => {
+    const { id: _id, ...noId } = row;
+    expect(waitlistAdminRowSchema.safeParse(noId).success).toBe(false);
+    expect(waitlistAdminRowSchema.safeParse({ ...row, id: 'not-a-uuid' }).success).toBe(false);
+  });
+
+  it('mirrors the column CHECK on locale', () => {
+    expect(waitlistAdminRowSchema.safeParse({ ...row, locale: 'fr' }).success).toBe(false);
+  });
+
+  it('does not re-validate the address shape: a stored row is evidence, not input', () => {
+    // The insert schema normalises and `.email()`s; re-applying that on the way out would
+    // withhold a signup the database accepted, which on an export reads as a smaller list.
+    expect(waitlistAdminRowSchema.safeParse({ ...row, email: 'odd' }).success).toBe(true);
+    expect(waitlistAdminRowSchema.safeParse({ ...row, email: 'ab' }).success).toBe(false);
   });
 });

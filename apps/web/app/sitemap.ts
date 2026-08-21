@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
+import { listPublicHandles, listUpcomingEventIds } from '@athanor/api';
 import { SITE_URL } from '@/lib/site';
+import { SITEMAP_EVENT_LIMIT, SITEMAP_HANDLE_LIMIT } from '@/lib/prerender-limits';
 
 /*
  * Hourly, not build-frozen. This route now prerenders (it stopped awaiting cookies),
@@ -23,26 +25,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // /sitemap.xml server-rendered on every crawl.
     const { createAnonClient } = await import('@/utils/supabase/server');
     const supabase = createAnonClient();
-    const { data } = await supabase
-      .from('profiles')
-      .select('handle, updated_at')
-      .not('handle', 'is', null);
-    handleEntries = (data ?? [])
-      .filter((p): p is { handle: string; updated_at: string } => Boolean(p.handle))
-      .map((p) => ({
-        url: `${SITE_URL}/@${p.handle}`,
-        lastModified: new Date(p.updated_at),
-      }));
-
-    // Upcoming events only. A past event keeps its permalink and still renders, but
-    // asking a crawler to keep revisiting an evening that already happened spends the
-    // crawl budget the upcoming ones need.
-    const { data: events } = await supabase
-      .from('events')
-      .select('id, updated_at')
-      .is('deleted_at', null)
-      .gte('starts_at', lastModified.toISOString());
-    eventEntries = (events ?? []).map((e) => ({
+    // Both bounded (#335, lib/prerender-limits.ts): this runs in the Worker once an hour
+    // and serialises the whole list in memory. Most recently changed first, so the cap
+    // drops the quietest pages, not the newest. Upcoming events only: a past event keeps
+    // its permalink and still renders, but asking a crawler to keep revisiting an evening
+    // that already happened spends the crawl budget the upcoming ones need.
+    const [handles, events] = await Promise.all([
+      listPublicHandles(supabase, { limit: SITEMAP_HANDLE_LIMIT }),
+      listUpcomingEventIds(supabase, { limit: SITEMAP_EVENT_LIMIT, now: lastModified }),
+    ]);
+    if (handles.excluded + events.excluded > 0) {
+      console.warn(
+        `sitemap: ${handles.excluded} profile and ${events.excluded} event row(s) withheld (schema mismatch)`,
+      );
+    }
+    handleEntries = handles.entries.map((p) => ({
+      url: `${SITE_URL}/@${p.handle}`,
+      lastModified: new Date(p.updated_at),
+    }));
+    eventEntries = events.entries.map((e) => ({
       url: `${SITE_URL}/event/${e.id}`,
       lastModified: new Date(e.updated_at),
       // An event page changes little but matters most right before it happens, and the

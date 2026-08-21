@@ -1,6 +1,12 @@
-import { type PublicProfile, publicProfileSchema } from '@athanor/schemas';
+import {
+  type PublicHandleEntry,
+  type PublicProfile,
+  publicHandleEntrySchema,
+  publicProfileSchema,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { signMediaUrls } from './storage';
+import { parseOrWithhold } from './parse-or-withhold';
 
 /**
  * The public @handle read-model (frontend 02 §6): assembled from anon, visibility-gated
@@ -78,4 +84,43 @@ export async function getPublicProfileByHandle(
     bio,
     dream,
   });
+}
+
+/**
+ * The N most recently changed public handles, newest change first — what `/[handle]`
+ * prerenders and what the sitemap lists (#335).
+ *
+ * Bounded on purpose, and the caller names the bound: on the web deployment a prerendered
+ * route is a build-time render plus a KV write per deploy and a Worker invocation plus a KV
+ * read per view, so an unbounded list scales the build and the free-plan quota 1:1 with
+ * signups. `dynamicParams` serves everything past the cap on demand. Ordered by `updated_at`
+ * rather than `created_at` so an active member stays in the set; the `id` tie-break keeps
+ * the order total, which is what makes the cut deterministic between two builds of the same
+ * data.
+ *
+ * Anon-gated like every read here: RLS hides members whose identity facet is 'members', so a
+ * handle outside the set is simply not returned. Rows the schema rejects are withheld and
+ * counted, never thrown (api.md): one odd row must not un-prerender the route, and a silent
+ * drop would be the failure that looks like success. `id` is selected only so a withheld
+ * row is findable in the warning.
+ */
+export async function listPublicHandles(
+  client: AthanorClient,
+  opts: { limit: number },
+): Promise<{ entries: PublicHandleEntry[]; excluded: number }> {
+  const { data, error } = await client
+    .from('profiles')
+    .select('id, handle, updated_at')
+    .not('handle', 'is', null)
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(opts.limit);
+  if (error) throw error;
+  const { parsed, excluded } = parseOrWithhold(
+    data,
+    publicHandleEntrySchema,
+    'profiles',
+    'the public handle index',
+  );
+  return { entries: parsed, excluded };
 }

@@ -39,3 +39,14 @@ export const publicProfileSchema = z.object({
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 export type PublicMilestone = z.infer<typeof publicMilestoneSchema>;
+
+/**
+ * One entry of the public handle index — what `/[handle]` prerenders and what the sitemap
+ * lists (#335): the route segment and the row's last change, nothing else. Picked from the
+ * read-model rather than re-declared, so a handle the route could never resolve is withheld
+ * from the index instead of prerendered into a 404.
+ */
+export const publicHandleEntrySchema = publicProfileSchema
+  .pick({ handle: true })
+  .extend({ updated_at: z.string() });
+export type PublicHandleEntry = z.infer<typeof publicHandleEntrySchema>;
