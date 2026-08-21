@@ -30,30 +30,37 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // drops the quietest pages, not the newest. Upcoming events only: a past event keeps
     // its permalink and still renders, but asking a crawler to keep revisiting an evening
     // that already happened spends the crawl budget the upcoming ones need.
-    const [handles, events] = await Promise.all([
+    //
+    // Settled independently, so one failing index does not empty the other for a whole
+    // revalidate window — a transient error on profiles must not advertise zero upcoming
+    // events for an hour. A row either reader withheld is logged by the reader (api.md).
+    const [handles, events] = await Promise.allSettled([
       listPublicHandles(supabase, { limit: SITEMAP_HANDLE_LIMIT }),
       listUpcomingEventIds(supabase, { limit: SITEMAP_EVENT_LIMIT, now: lastModified }),
     ]);
-    if (handles.excluded + events.excluded > 0) {
-      console.warn(
-        `sitemap: ${handles.excluded} profile and ${events.excluded} event row(s) withheld (schema mismatch)`,
-      );
+    if (handles.status === 'fulfilled') {
+      handleEntries = handles.value.entries.map((p) => ({
+        url: `${SITE_URL}/@${p.handle}`,
+        lastModified: new Date(p.updated_at),
+      }));
+    } else {
+      console.warn('sitemap: profile lookup failed, shipping no profile entries:', handles.reason);
     }
-    handleEntries = handles.entries.map((p) => ({
-      url: `${SITE_URL}/@${p.handle}`,
-      lastModified: new Date(p.updated_at),
-    }));
-    eventEntries = events.entries.map((e) => ({
-      url: `${SITE_URL}/event/${e.id}`,
-      lastModified: new Date(e.updated_at),
-      // An event page changes little but matters most right before it happens, and the
-      // hourly revalidate above means a new one appears here within the hour.
-      changeFrequency: 'daily' as const,
-      priority: 0.6,
-    }));
+    if (events.status === 'fulfilled') {
+      eventEntries = events.value.entries.map((e) => ({
+        url: `${SITE_URL}/event/${e.id}`,
+        lastModified: new Date(e.updated_at),
+        // An event page changes little but matters most right before it happens, and the
+        // hourly revalidate above means a new one appears here within the hour.
+        changeFrequency: 'daily' as const,
+        priority: 0.6,
+      }));
+    } else {
+      console.warn('sitemap: event lookup failed, shipping no event entries:', events.reason);
+    }
   } catch (e) {
-    // env/network unavailable at build → ship the static sitemap only. Logged
-    // because a silent empty sitemap is indistinguishable from "no profiles yet".
+    // env unavailable at build (no client can be made) → ship the static sitemap only.
+    // Logged because a silent empty sitemap is indistinguishable from "no profiles yet".
     console.warn('sitemap: profile/event lookup failed, shipping static entries only:', e);
   }
 

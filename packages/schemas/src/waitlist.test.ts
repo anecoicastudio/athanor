@@ -59,4 +59,18 @@ describe('waitlistAdminRowSchema', () => {
     expect(waitlistAdminRowSchema.safeParse({ ...row, email: 'odd' }).success).toBe(true);
     expect(waitlistAdminRowSchema.safeParse({ ...row, email: 'ab' }).success).toBe(false);
   });
+
+  it('mirrors the column CHECK on length (3..320), not the insert schema', () => {
+    const at = (n: number) => `${'a'.repeat(n - 6)}@b.it`.padEnd(n, 'x');
+    expect(waitlistAdminRowSchema.safeParse({ ...row, email: at(320) }).success).toBe(true);
+    expect(waitlistAdminRowSchema.safeParse({ ...row, email: at(321) }).success).toBe(false);
+  });
+
+  it('requires created_at as a string — it is half of the cursor', () => {
+    expect(waitlistAdminRowSchema.safeParse({ ...row, created_at: 1700000000 }).success).toBe(
+      false,
+    );
+    const { created_at: _ts, ...noTs } = row;
+    expect(waitlistAdminRowSchema.safeParse(noTs).success).toBe(false);
+  });
 });

@@ -951,6 +951,23 @@ describe('getWaitlistPage', () => {
     await expect(getWaitlistPage(asClient(fake))).rejects.toThrow('not an admin');
   });
 
+  it('issues no cursor when the OLD RPC answers without ids — production lagging the migration', async () => {
+    // Web deploys on the release merge; the production `db push` is a manual step that can
+    // trail it. In that window the old admin_list_waitlist(p_limit) still accepts the call
+    // and returns rows with no `id`: every row is withheld (counted, not hidden), and the
+    // cursor must be null — `…|undefined` would pass decodeCursor only to fail in the RPC.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { id: _omit, ...legacy } = waitlistRow();
+    const fake = makeFakeClient({
+      'rpc.admin_list_waitlist': [
+        { data: [legacy, { ...legacy, created_at: '2026-07-01T10:00:00Z' }] },
+      ],
+    });
+    const page = await getWaitlistPage(asClient(fake), { limit: 1 });
+    expect(page).toEqual({ rows: [], excluded: 1, nextCursor: null });
+    warn.mockRestore();
+  });
+
   it('a null payload is an empty page, not a crash', async () => {
     const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: null }] });
     await expect(getWaitlistPage(asClient(fake))).resolves.toEqual({

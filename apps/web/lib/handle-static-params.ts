@@ -12,18 +12,15 @@ import { PRERENDER_HANDLE_LIMIT } from '@/lib/prerender-limits';
  *
  * Bounded to the PRERENDER_HANDLE_LIMIT most recently changed handles (#335) —
  * lib/prerender-limits.ts says why and what it costs. The query itself lives in
- * @athanor/api (`listPublicHandles`): this app no longer names a table.
+ * @athanor/api (`listPublicHandles`): this app no longer names a table. A row the
+ * reader could not validate is withheld and logged by the reader itself (api.md),
+ * so one odd row never un-prerenders the route.
  */
 export async function handleStaticParams(): Promise<{ handle: string }[]> {
   try {
-    const { entries, excluded } = await listPublicHandles(createAnonClient(), {
+    const { entries } = await listPublicHandles(createAnonClient(), {
       limit: PRERENDER_HANDLE_LIMIT,
     });
-    // Withheld, not thrown (api.md): one odd row must not un-prerender the route. Loud,
-    // because a build that quietly prerenders fewer handles looks like a smaller world.
-    if (excluded > 0) {
-      console.warn(`[handle] ${excluded} profile row(s) withheld from prerender (schema mismatch)`);
-    }
     // The route rejects a segment without the leading @ (lib/resolve-handle.ts).
     return entries.map((p) => ({ handle: `@${p.handle}` }));
   } catch (e) {

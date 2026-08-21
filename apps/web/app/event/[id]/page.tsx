@@ -25,13 +25,11 @@ export const revalidate = 300;
 
 export async function generateStaticParams() {
   try {
-    const { entries, excluded } = await listUpcomingEventIds(createAnonClient(), {
+    // A row the reader could not validate is withheld and logged by the reader itself
+    // (api.md) — one odd row must not un-prerender the route.
+    const { entries } = await listUpcomingEventIds(createAnonClient(), {
       limit: PRERENDER_EVENT_LIMIT,
     });
-    // Withheld, not thrown (api.md): one odd row must not un-prerender the route.
-    if (excluded > 0) {
-      console.warn(`[event] ${excluded} event row(s) withheld from prerender (schema mismatch)`);
-    }
     return entries.map((e) => ({ id: e.id }));
   } catch (e) {
     // env/network unavailable at build → prerender nothing, serve every event on demand.

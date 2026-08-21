@@ -15,9 +15,11 @@ export const dynamic = 'force-dynamic';
 export default async function AdminWaitlist({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<{ cursor?: string | string[] }>;
 }) {
-  const { cursor } = await searchParams;
+  const { cursor: rawCursor } = await searchParams;
+  // `?cursor=a&cursor=b` arrives as an array; the first is the link that was clicked.
+  const cursor = Array.isArray(rawCursor) ? rawCursor[0] : rawCursor;
   const [supabase, locale] = await Promise.all([createAuthedClient(), getLocale()]);
   const [count, { rows, excluded, nextCursor }] = await Promise.all([
     getWaitlistCount(supabase),
@@ -44,7 +46,7 @@ export default async function AdminWaitlist({
         </span>
       </p>
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && excluded === 0 ? (
         <p className="text-muted-foreground">{t('admin.waitlist.empty', locale)}</p>
       ) : (
         <table className="w-full text-left text-sm">

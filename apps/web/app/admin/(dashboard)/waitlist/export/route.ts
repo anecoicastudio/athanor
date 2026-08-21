@@ -58,14 +58,9 @@ export async function GET() {
         controller.close();
         return;
       }
-      const { rows, excluded, nextCursor } = pending;
-      if (excluded > 0) {
-        // The file cannot carry this (a comment line breaks every CSV parser) and the panel
-        // shows the same count on screen; logged so an export is never silently short.
-        console.warn(
-          `[waitlist export] ${excluded} row(s) withheld from the CSV (schema mismatch)`,
-        );
-      }
+      // A row the reader withheld is logged by the reader and counted on the panel; the
+      // file cannot carry it (a comment line breaks every CSV parser).
+      const { rows, nextCursor } = pending;
       if (rows.length > 0) {
         controller.enqueue(encoder.encode(rows.map((r) => `\r\n${csvLine(r)}`).join('')));
       }

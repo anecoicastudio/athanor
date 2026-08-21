@@ -16,7 +16,7 @@ import {
   type WaitlistAdminRow,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
-import { keysetFilter } from './pagination';
+import { decodeCursor, keysetFilter, probePage, tailCursor } from './pagination';
 import { parseOrWithhold } from './parse-or-withhold';
 
 export type {
@@ -52,20 +52,14 @@ export async function getReportQueue(
   if (opts.status === 'resolved') q = q.in('status', ['upheld', 'dismissed']);
   else q = q.eq('status', opts.status);
   if (opts.cursor) {
-    // keyset: rows strictly "after" the cursor in (created_at desc, id desc).
-    const [ts, id] = opts.cursor.split('|');
-    // The cursor is opaque and server-issued, so a half of it missing is a caller bug. Rejecting
-    // says so; interpolating it built the literal filter `id.lt.undefined` (PostgREST then failed
-    // on the uuid), and silently dropping the predicate would restart a moderator's queue at
-    // page 1 without a word — the failure mode that looks like it worked.
-    if (!ts || !id) throw new Error(`malformed report cursor: ${opts.cursor}`);
+    // keyset: rows strictly "after" the cursor in (created_at desc, id desc). A half cursor is
+    // refused, never dropped — decodeCursor carries the queue-restarting failure that taught us.
+    const { ts, id } = decodeCursor(opts.cursor, 'report');
     q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;
-  const raw = data ?? [];
-  const hasMore = raw.length > limit;
-  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { page, hasMore } = probePage(data ?? [], limit);
   const rows: AdminReportRow[] = page.map((r) => ({
     id: r.id,
     // `reports.target_type` is a text column; the union lives in the schema. Same narrowing
@@ -77,8 +71,7 @@ export async function getReportQueue(
     created_at: r.created_at,
     reporter_handle: r.reporter?.handle ?? null,
   }));
-  const last = rows[rows.length - 1];
-  return { rows, nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null };
+  return { rows, nextCursor: tailCursor(page, hasMore) };
 }
 
 /**
@@ -239,33 +232,22 @@ export async function getFundEditionIndex(
     .order('id', { ascending: false })
     .limit(limit + 1);
   if (opts.cursor) {
-    const [ts, id] = opts.cursor.split('|');
-    // Same stance as `getReportQueue`: the cursor is opaque and server-issued, so a half of
-    // it missing is a caller bug. Refusing says so; dropping the predicate would restart the
-    // list at page 1 without a word.
-    if (!ts || !id) throw new Error(`malformed fund edition cursor: ${opts.cursor}`);
+    const { ts, id } = decodeCursor(opts.cursor, 'fund edition');
     q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;
-  const raw = data ?? [];
-  const hasMore = raw.length > limit;
-  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { page, hasMore } = probePage(data ?? [], limit);
   const { parsed, excluded } = parseOrWithhold<AdminFundEditionRow>(
     page,
     adminFundEditionRow,
     'fund_editions',
     'the cycle index',
   );
-  // The cursor comes from the last RAW row of the page, not the last parsed one. A withheld
-  // tail row would otherwise move the cursor backwards and serve the next page overlapping
-  // this one — showing an operator the same cycle twice while still hiding the bad row.
-  const last = page[page.length - 1];
-  return {
-    rows: parsed,
-    excluded,
-    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
-  };
+  // The cursor comes from the last RAW row of the page, not the last parsed one (tailCursor):
+  // a withheld tail row would otherwise serve the next page overlapping this one — showing an
+  // operator the same cycle twice while still hiding the bad row.
+  return { rows: parsed, excluded, nextCursor: tailCursor(page, hasMore) };
 }
 
 /**
@@ -327,29 +309,21 @@ export async function getEditionAuditTrail(
     .order('id', { ascending: false })
     .limit(limit + 1);
   if (opts.cursor) {
-    const [ts, id] = opts.cursor.split('|');
-    if (!ts || !id) throw new Error(`malformed edition audit cursor: ${opts.cursor}`);
+    const { ts, id } = decodeCursor(opts.cursor, 'edition audit');
     q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
   const { data, error } = await q;
   if (error) throw error;
-  const raw = data ?? [];
-  const hasMore = raw.length > limit;
-  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { page, hasMore } = probePage(data ?? [], limit);
   const { parsed, excluded } = parseOrWithhold<AuditLogRow>(
     page,
     auditLogRow,
     'audit_log',
     'the cycle trail',
   );
-  // Raw tail, not parsed tail — see `getFundEditionIndex`. It matters more here: the rows a
-  // trail withholds are precisely the ones an operator is looking for.
-  const last = page[page.length - 1];
-  return {
-    rows: parsed,
-    excluded,
-    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
-  };
+  // Raw tail, not parsed tail (tailCursor). It matters more here: the rows a trail withholds
+  // are precisely the ones an operator is looking for.
+  return { rows: parsed, excluded, nextCursor: tailCursor(page, hasMore) };
 }
 
 // ── Pre-launch waitlist ──────────────────────────────────────────────────────────────────
@@ -372,7 +346,9 @@ export async function getWaitlistCount(client: AthanorClient): Promise<number> {
 /**
  * The RPC clamps `p_limit` to 1000 and this reader asks for `limit + 1` to learn whether a
  * next page exists, so a page of 1000 could never see its probe row and a cursor walk would
- * end a page early with no error. Refused up front instead.
+ * end a page early with no error. Refused up front instead. The two numbers are pinned
+ * separately — pgTAP 0127 asserts the clamp is exactly 1000, admin.test.ts asserts this is
+ * 999 — so moving either alone goes red.
  */
 export const WAITLIST_PAGE_CEILING = 999;
 
@@ -396,29 +372,21 @@ export async function getWaitlistPage(
     p_limit: limit + 1,
   };
   if (opts.cursor) {
-    const [ts, id] = opts.cursor.split('|');
-    // Opaque and server-issued, so a half of it is a caller bug — same stance as the
-    // report queue: refuse, never quietly restart at page one.
-    if (!ts || !id) throw new Error(`malformed waitlist cursor: ${opts.cursor}`);
+    const { ts, id } = decodeCursor(opts.cursor, 'waitlist');
     args.p_before_created_at = ts;
     args.p_before_id = id;
   }
   const { data, error } = await client.rpc('admin_list_waitlist', args);
   if (error) throw error;
-  const raw = data ?? [];
-  const hasMore = raw.length > limit;
-  const page = hasMore ? raw.slice(0, limit) : raw;
+  const { page, hasMore } = probePage(data ?? [], limit);
   const { parsed, excluded } = parseOrWithhold(
     page,
     waitlistAdminRowSchema,
     'email_waitlist',
     'the waitlist page',
   );
-  // Raw tail, not parsed tail — a withheld last row must not move the cursor backwards.
-  const last = page[page.length - 1];
-  return {
-    rows: parsed,
-    excluded,
-    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
-  };
+  // Raw tail, not parsed tail (tailCursor) — and no cursor at all when the tail row carries
+  // no `id`, which is what the OLD RPC answers while production still lags this migration:
+  // every row withheld, and no "load more" into a page that cannot exist.
+  return { rows: parsed, excluded, nextCursor: tailCursor(page, hasMore) };
 }

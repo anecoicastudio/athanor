@@ -40,15 +40,12 @@ describe('handleStaticParams', () => {
     expect(PRERENDER_HANDLE_LIMIT).toBe(100);
   });
 
-  it('warns about withheld rows and still prerenders the rest', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  it('prerenders what parsed when the reader withheld rows — never nothing', async () => {
     listPublicHandles.mockResolvedValue({
       entries: [{ handle: 'sole', updated_at: '2026-08-01T10:00:00Z' }],
       excluded: 2,
     });
     await expect(handleStaticParams()).resolves.toEqual([{ handle: '@sole' }]);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('2 profile row(s) withheld'));
-    warn.mockRestore();
   });
 
   it('prerenders nothing — loudly — when the database is unreachable at build time', async () => {

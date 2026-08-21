@@ -156,12 +156,9 @@ describe('GET /admin/waitlist/export — streaming the cursor walk (#335)', () =
     expect(await (await GET()).text()).toBe(HEADER);
   });
 
-  it('logs withheld rows instead of silently shortening the file', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  it('ships what parsed when the reader withheld rows — the reader logs which', async () => {
     getWaitlistPage.mockResolvedValue(page([row()], null, 2));
-    await (await GET()).text();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('2 row(s) withheld'));
-    warn.mockRestore();
+    expect((await (await GET()).text()).split('\r\n')).toHaveLength(2);
   });
 });
 

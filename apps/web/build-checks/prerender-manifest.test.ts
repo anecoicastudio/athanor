@@ -29,7 +29,7 @@ const ALWAYS_STATIC = [
 /** Dynamic families that must stay prerenderable — present in `dynamicRoutes`. */
 const DYNAMIC_FAMILIES = ['/[handle]', '/[handle]/opengraph-image', '/event/[id]'];
 /**
- * Database-independent routes measured on 2026-08-21: 17. A floor below that, so a build
+ * Database-independent routes measured on 2026-08-21: 19. A floor below that, so a build
  * against an empty or unreachable database still passes; zero is the regression. Ratchet
  * up only (core.md precedent).
  */
