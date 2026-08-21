@@ -59,14 +59,26 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   const { showToast } = useToast();
   const { session } = useAuth();
 
+  // Never rejects: both callers fire it as `void requestLocation()` (mount + the retry button).
   const requestLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
+    let pos: Location.LocationObject;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setDenied(true);
+        return;
+      }
+      setDenied(false);
+      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+    } catch (e) {
+      // Location services off, a fix that timed out, a prompt that never resolved — until #179
+      // this rejection went unhandled and the panel sat blank with no way back. Say so, and
+      // reuse the denied state: its «Consenti la posizione» action is the retry.
+      devWarn('[live] requestLocation', e);
       setDenied(true);
+      showToast(t('live.map.locationError', locale));
       return;
     }
-    setDenied(false);
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
     setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     try {
       const [place] = await Location.reverseGeocodeAsync(pos.coords);

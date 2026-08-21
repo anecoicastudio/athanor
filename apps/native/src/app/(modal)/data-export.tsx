@@ -64,7 +64,9 @@ export default function DataExportScreen() {
               label={t('gdpr.export.download', locale)}
               onPress={() => {
                 const url = job.data?.download_url;
-                if (url) void Linking.openURL(url);
+                if (url) {
+                  Linking.openURL(url).catch(() => showToast(t('gdpr.export.linkError', locale)));
+                }
               }}
             />
           </View>

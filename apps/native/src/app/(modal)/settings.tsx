@@ -232,11 +232,19 @@ export default function SettingsScreen() {
           />
           <SettingsRow
             title={t('settings.legal.terms', locale)}
-            onPress={() => void WebBrowser.openBrowserAsync(LEGAL_TERMS_URL)}
+            onPress={() => {
+              WebBrowser.openBrowserAsync(LEGAL_TERMS_URL).catch(() =>
+                showToast(t('settings.legal.error', locale)),
+              );
+            }}
           />
           <SettingsRow
             title={t('settings.legal.privacy', locale)}
-            onPress={() => void WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL)}
+            onPress={() => {
+              WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL).catch(() =>
+                showToast(t('settings.legal.error', locale)),
+              );
+            }}
           />
           <SettingsRow
             title={t('settings.invite.title', locale)}

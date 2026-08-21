@@ -18,7 +18,7 @@ vi.mock('expo-constants', () => ({
 }));
 vi.mock('@sentry/react-native', () => ({
   init: vi.fn(),
-  close: vi.fn(),
+  close: vi.fn(() => Promise.resolve(true)),
   addBreadcrumb: vi.fn(),
   captureMessage: vi.fn(),
 }));

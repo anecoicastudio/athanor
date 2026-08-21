@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
 import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
 import type { TrailEntry } from '@/lib/crash-trail';
+import { devWarn } from '@/lib/log';
 
 /**
  * Crash reporting (P1.4 / RUNBOOK B-3, B-5, §3.5.1). Two hard rules:
@@ -175,5 +176,7 @@ export function captureTrail(steps: readonly TrailEntry[]): void {
 export function closeSentry(): void {
   if (!initialized) return;
   initialized = false;
-  void Sentry.close();
+  // Best-effort flush: `initialized` is already false, so a failed close must not become an
+  // unhandled rejection on logout / consent revoke (#179).
+  Sentry.close().catch((e: unknown) => devWarn('[sentry] close', e));
 }
