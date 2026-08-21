@@ -104,9 +104,9 @@
 `stripe-webhook` was built around a standing alarm. Every delivery lands a `stripe_webhook_events`
 row **before** any work happens, and `processed_at` is stamped only after processing succeeded — so
 a row with `processed_at` still NULL is money Stripe has taken that Athanor has not acted on. The
-handler says so in as many words (`supabase/functions/stripe-webhook/handlers.ts:46` and `:500`:
-"a standing, queryable alarm"). Nothing queries it: no `pg_cron` job, no edge function, no Sentry
-rule.
+handler says so in as many words — "a standing, queryable alarm"
+(`supabase/functions/stripe-webhook/handlers.ts:46`), echoed as "a standing alarm" at `:500`.
+Nothing queries it: no `pg_cron` job, no edge function, no Sentry rule.
 
 **Ruling (2026-08-21, #474): this stays a manual check the operator runs, not a built alarm.**
 Pre-launch volume is single digits, an automated alarm would need a delivery surface for
@@ -185,9 +185,9 @@ event, `stripe events resend <event_id> --webhook-endpoint=<endpoint_id>` for 30
 **Stripe's retry budget is the clock.** In live mode Stripe retries a failing delivery with
 exponential backoff **for up to three days** and then stops (a sandbox event gets three attempts
 within a few hours). A row still NULL after that window will never self-heal, and repeated failures
-also count toward Stripe disabling the endpoint — the concern behind #473 and behind §5's
-ordering note on delayed-notification rails. Three days is therefore the outer bound on how late
-this check can run and still be recoverable by retry.
+also count toward Stripe disabling the endpoint — the concern behind #473 and behind the
+delayed-notification ordering note in `docs/PRODUCTION-READINESS.md` Appendix A step 4. Three days
+is therefore the outer bound on how late this check can run and still be recoverable by retry.
 
 **Cadence.** Once on go/no-go day (R-9), then every morning through launch week, then whenever a
 payment complaint arrives. It costs one query.
