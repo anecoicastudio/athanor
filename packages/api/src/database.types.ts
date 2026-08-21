@@ -3361,6 +3361,7 @@ export type Database = {
       invoke_fund_settle_sweep: { Args: never; Returns: undefined }
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
+      invoke_story_segment_reaper: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
       is_on_ballot: {
         Args: { c: Database["public"]["Tables"]["dream_candidacies"]["Row"] }
@@ -3380,6 +3381,7 @@ export type Database = {
           events_count: number
         }[]
       }
+      prune_expired_story_segments: { Args: never; Returns: undefined }
       publish_realization_plan: { Args: { p_plan_id: string }; Returns: string }
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }
@@ -3471,6 +3473,12 @@ export type Database = {
       }
       staging_refresh_world: { Args: never; Returns: Json }
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number }
+      story_segment_reap_candidates: {
+        Args: { p_grace?: string; p_limit?: number }
+        Returns: {
+          name: string
+        }[]
+      }
       verify_plan_phase: {
         Args: { p_evidence: string; p_phase_id: string }
         Returns: string

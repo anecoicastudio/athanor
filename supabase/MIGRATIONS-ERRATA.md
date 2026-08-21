@@ -16,6 +16,34 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260821075230_story_segment_bytes_reaper.sql` — the definer rationale and the two-arm policy claim
+
+Both corrected by `20260821082216_story_segment_reaper_review_fixes.sql` in the same PR (#31);
+the behaviour is held by `supabase/tests/0126_story_segment_bytes_reaper.test.sql`. Recorded here
+because the file had reached staging before review caught them.
+
+### `story_segment_reap_candidates` — "SECURITY DEFINER because it reads storage.objects across every owner folder and joins a table whose own policy would otherwise hide the expired rows"
+
+Wrong for its only grantee. `service_role` carries BYPASSRLS and SELECT on both
+`storage.objects` and `public.story_segments`, so an INVOKER function returns identical rows —
+the `gdpr_erase_fund_footprint` precedent (`20260815131925`, "definer rights would add nothing").
+The follow-up migration replaces it as `security invoker`; 0126 asserts `isnt_definer`. The
+sentence generalising the pg_net-caller convention ("definer + locked search_path + revoked
+client EXECUTE is the audited shape of every cron/pg_net helper here") to a data-reading RPC is
+the part not to copy: it applies to functions that only POST, not to functions that read.
+
+### Header, "The owner-folder regex and `athanor.not_blocked` from the SELECT policy are NOT mirrored"
+
+Incomplete. The policy the predicate inverts is the one `20260818114947_banned_read_side_hiding.sql`
+recreated, and it has a **third** viewer-side arm, `athanor.not_banned(...)`. It is omitted for the
+same reason as the other two (it is about who may read, not whether the segment is alive — a
+banned author's live or pinned segment keeps its bytes), but the header lists only two and cites
+`20260809151111` as the policy's text. 0126 no longer compares the RPC against a hand-typed copy
+of the predicate; it reads `storage.objects` as a member under the real policy and asserts that
+no candidate is readable and that the readable set is the bucket minus the candidates.
+
+---
+
 ## `20260818190348_organiser_settlement_ack.sql` — «Never client-supplied» is the RPC's guarantee, not the column's
 
 ### The `comment on column public.events.settlement_ack_at` — "Never client-supplied."

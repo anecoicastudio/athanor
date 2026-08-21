@@ -41,6 +41,7 @@ export const POSTURE: Record<string, Posture> = {
   'push-dispatch': 'internal',
   'release-fund-payout': 'internal',
   'score-engine': 'internal',
+  'story-segment-reaper': 'internal',
   'screen-candidacy': 'internal',
   'stripe-webhook': 'webhook',
   'verify-plan-phase': 'internal',
