@@ -39,6 +39,7 @@ import { FundTicker } from '@/components/fund/FundTicker';
 import { SectionLabel } from '@/components/SectionLabel';
 import { PhaseList } from '@/components/fund/PhaseList';
 import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
+import { ViralCard } from '@/components/fund/ViralCard';
 import { useAuth } from '@/lib/auth-context';
 import {
   type BallotFilter,
@@ -597,19 +598,8 @@ export default function AnnualFundScreen() {
           <PhaseList current={edition.phase} locale={locale} />
         </View>
 
-        {/* 8. Il motore virale — cyan-wash card */}
-        <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
-          <SectionLabel tone="aura">{t('fund.viral.label', locale)}</SectionLabel>
-          <Text className="text-[14px] leading-5 text-foreground">
-            {t('fund.viral.tagline1', locale)}
-          </Text>
-          <Text className="text-[14px] leading-5 text-foreground">
-            {t('fund.viral.tagline2', locale)}
-          </Text>
-          <Text className="text-[14px] leading-5 text-foreground">
-            {t('fund.viral.tagline3', locale)}
-          </Text>
-        </View>
+        {/* 8. Il motore virale — cyan-wash card, now carrying the referral share (#242) */}
+        <ViralCard locale={locale} />
       </ScrollView>
     </Screen>
   );

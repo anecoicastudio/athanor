@@ -5,7 +5,7 @@ import { getMyReferralCode, inviteKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text } from '@/tw';
-import { INVITE_URL_BASE } from '@/lib/links';
+import { inviteShareMessage } from '@/lib/invite-share';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -24,9 +24,12 @@ export function InviteCard({ locale }: { locale: Locale }) {
 
   const invite = async () => {
     try {
-      const link = code ? ` ${INVITE_URL_BASE}/${code}` : '';
       const { action } = await Share.share({
-        message: `${t('home.invite', locale)} — ${t('app.name', locale)}${link}`,
+        message: inviteShareMessage({
+          lead: t('home.invite', locale),
+          appName: t('app.name', locale),
+          code,
+        }),
       });
       if (action === Share.sharedAction) {
         setSent(true);

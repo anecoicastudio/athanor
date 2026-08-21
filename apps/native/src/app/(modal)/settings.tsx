@@ -25,7 +25,8 @@ import { useToast } from '@/components/ToastHost';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
-import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
+import { inviteShareMessage } from '@/lib/invite-share';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
@@ -251,9 +252,12 @@ export default function SettingsScreen() {
             description={t('settings.invite.desc', locale)}
             onPress={() => {
               // Share fires even while the code query is loading — link just omitted.
-              const link = referralCode ? ` ${INVITE_URL_BASE}/${referralCode}` : '';
               Share.share({
-                message: `${t('home.invite', locale)} — ${t('app.name', locale)}${link}`,
+                message: inviteShareMessage({
+                  lead: t('home.invite', locale),
+                  appName: t('app.name', locale),
+                  code: referralCode,
+                }),
               })
                 .then(({ action }) => {
                   if (action === Share.sharedAction) {

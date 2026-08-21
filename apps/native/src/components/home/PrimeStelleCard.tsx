@@ -10,7 +10,7 @@ import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
-import { INVITE_URL_BASE } from '@/lib/links';
+import { inviteShareMessage } from '@/lib/invite-share';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -37,9 +37,12 @@ export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback
 
   const invite = async () => {
     try {
-      const link = code ? ` ${INVITE_URL_BASE}/${code}` : '';
       const { action } = await Share.share({
-        message: `${t('prime.card.title', locale)} — ${t('app.name', locale)}${link}`,
+        message: inviteShareMessage({
+          lead: t('prime.card.title', locale),
+          appName: t('app.name', locale),
+          code,
+        }),
       });
       if (action === Share.sharedAction) {
         showToast(t('home.invite.done', locale), 'success');
