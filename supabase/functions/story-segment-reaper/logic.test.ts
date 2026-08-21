@@ -8,8 +8,10 @@ import { MAX_ROUNDS, REMOVE_BATCH, reapStorySegments, type ReaperPorts } from '.
 // "deleting the metadata doesn't remove the object in the underlying storage provider").
 // What this file asserts is the loop's discipline: batch size is the API's ceiling, every
 // round re-lists instead of paginating (removed objects vanish from the candidate set, so a
-// cursor would skip), a stalled API stops the loop instead of spinning, and a bounded number
-// of rounds so one nightly run cannot hold the isolate forever.
+// cursor would skip), exhaustion means "nothing new listed" and never "a short list", a name
+// the API left behind is counted once and not retried in the same run, a round that deletes
+// nothing is not an error (a concurrent pass may have won), and a bounded number of rounds so
+// one pass answers inside pg_net's timeout.
 
 type Scripted = {
   lists?: ({ data?: unknown; error?: { message: string } | null } | 'full')[];
@@ -28,7 +30,11 @@ function makePorts(s: Scripted = {}) {
     listCandidates: (limit) => {
       listCalls.push(limit);
       const next = lists.shift();
-      if (next === 'full') return Promise.resolve({ data: names(limit), error: null });
+      // 'full' = a fresh, distinct full batch — what a real backlog looks like round after
+      // round once the previous batch is gone.
+      if (next === 'full') {
+        return Promise.resolve({ data: names(limit, `r${listCalls.length}`), error: null });
+      }
       return Promise.resolve({ data: next?.data ?? [], error: next?.error ?? null });
     },
     remove: (paths) => {
@@ -54,36 +60,58 @@ Deno.test('nothing to reap → 200, exhausted, and remove() is never called', as
   assertEquals(removeCalls, []);
 });
 
-Deno.test('a partial batch is removed in one round with exactly the listed paths', async () => {
-  const listed = names(3);
-  const { ports, removeCalls } = makePorts({ lists: [{ data: listed }] });
-  const res = await reapStorySegments(ports);
-  assertEquals(res.status, 200);
-  assertEquals(await res.json(), { reaped: 3, unremoved: 0, rounds: 1, exhausted: true });
-  assertEquals(removeCalls, [listed.map((r) => r.name)]);
-});
+Deno.test(
+  'a partial batch is removed with exactly the listed paths, then an empty list ends the run',
+  async () => {
+    const listed = names(3);
+    const { ports, removeCalls } = makePorts({ lists: [{ data: listed }, { data: [] }] });
+    const res = await reapStorySegments(ports);
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), { reaped: 3, unremoved: 0, rounds: 2, exhausted: true });
+    assertEquals(removeCalls, [listed.map((r) => r.name)]);
+  },
+);
 
-Deno.test('a full batch re-lists; a following partial batch ends the run', async () => {
-  const { ports, listCalls, removeCalls } = makePorts({
-    lists: ['full', { data: names(7, 'v') }],
-  });
-  const res = await reapStorySegments(ports);
-  assertEquals(res.status, 200);
-  assertEquals(await res.json(), {
-    reaped: REMOVE_BATCH + 7,
-    unremoved: 0,
-    rounds: 2,
-    exhausted: true,
-  });
-  assertEquals(listCalls, [REMOVE_BATCH, REMOVE_BATCH]);
-  assertEquals(removeCalls.length, 2);
-  assertEquals(removeCalls[0].length, REMOVE_BATCH);
-});
+Deno.test(
+  'full → partial → empty: every round re-lists, the empty list is what ends it',
+  async () => {
+    const { ports, listCalls, removeCalls } = makePorts({
+      lists: ['full', { data: names(7, 'v') }, { data: [] }],
+    });
+    const res = await reapStorySegments(ports);
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), {
+      reaped: REMOVE_BATCH + 7,
+      unremoved: 0,
+      rounds: 3,
+      exhausted: true,
+    });
+    assertEquals(listCalls, [REMOVE_BATCH, REMOVE_BATCH, REMOVE_BATCH]);
+    assertEquals(removeCalls.length, 2);
+    assertEquals(removeCalls[0].length, REMOVE_BATCH);
+  },
+);
+
+Deno.test(
+  'a short list is NOT exhaustion (PostgREST max-rows can truncate below the batch)',
+  async () => {
+    // Operator lowers the API's max-rows to 500: every RPC answer is short on a healthy
+    // backlog. Inferring "drained" from the length would reap 500 a night and report success.
+    const { ports, removeCalls } = makePorts({
+      lists: [{ data: names(500, 'a') }, { data: names(500, 'b') }, { data: [] }],
+    });
+    const res = await reapStorySegments(ports);
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), { reaped: 1000, unremoved: 0, rounds: 3, exhausted: true });
+    assertEquals(removeCalls.length, 2);
+  },
+);
 
 Deno.test('the batch handed to remove() never exceeds the Storage API ceiling', async () => {
   // A misbehaving RPC returning more rows than asked must not produce an oversized remove().
   const { ports, removeCalls } = makePorts({ lists: [{ data: names(REMOVE_BATCH + 50) }] });
-  await reapStorySegments(ports);
+  const res = await reapStorySegments(ports);
+  assertEquals(res.status, 200);
   assertEquals(removeCalls.length, 1);
   assertEquals(removeCalls[0].length, REMOVE_BATCH);
 });
@@ -136,51 +164,73 @@ Deno.test('a remove error → 500 carrying what was already reaped', async () =>
   });
 });
 
-Deno.test('the API deleting nothing stops the loop (stalled) instead of spinning', async () => {
-  const { ports, listCalls } = makePorts({
-    lists: ['full', 'full', 'full'],
-    removes: [{ data: [] }],
-  });
-  const res = await reapStorySegments(ports);
-  assertEquals(res.status, 500);
-  assertEquals(await res.json(), {
-    reaped: 0,
-    unremoved: REMOVE_BATCH,
-    rounds: 1,
-    exhausted: false,
-    stalled: true,
-  });
-  assertEquals(listCalls.length, 1);
-});
+Deno.test(
+  'a round that deletes nothing is not an error: a concurrent pass may have won',
+  async () => {
+    // The operator invokes by hand while the 03:17 pass is mid-loop: both list the same oldest
+    // batch, the other run deletes it, this run's remove() answers with nothing. Count it,
+    // keep going; the next list says whether anything is left.
+    const { ports, listCalls } = makePorts({
+      lists: ['full', { data: [] }],
+      removes: [{ data: [] }],
+    });
+    const res = await reapStorySegments(ports);
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), {
+      reaped: 0,
+      unremoved: REMOVE_BATCH,
+      rounds: 2,
+      exhausted: true,
+    });
+    assertEquals(listCalls.length, 2);
+  },
+);
 
-Deno.test('paths the API did not delete are counted, not retried in the same run', async () => {
-  const listed = names(4, 'p');
-  const { ports } = makePorts({
-    lists: [{ data: listed }],
-    removes: [{ data: listed.slice(0, 3) }],
-  });
-  const res = await reapStorySegments(ports);
-  assertEquals(res.status, 200);
-  assertEquals(await res.json(), { reaped: 3, unremoved: 1, rounds: 1, exhausted: true });
-});
+Deno.test(
+  'a name the API left behind is counted once and not retried in the same run',
+  async () => {
+    // The RPC lists oldest-first, so a leftover heads the very next batch. Without the
+    // attempted-set it would be handed to remove() and counted again every round.
+    const listed = names(4, 'p');
+    const { ports, removeCalls } = makePorts({
+      lists: [{ data: listed }, { data: [listed[3]] }],
+      removes: [{ data: listed.slice(0, 3) }],
+    });
+    const res = await reapStorySegments(ports);
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), { reaped: 3, unremoved: 1, rounds: 2, exhausted: true });
+    assertEquals(removeCalls.length, 1);
+  },
+);
 
-Deno.test('a bucket that never drains stops after MAX_ROUNDS, reporting not exhausted', async () => {
-  const { ports, listCalls, removeCalls } = makePorts({
-    lists: Array.from({ length: MAX_ROUNDS + 5 }, () => 'full' as const),
-  });
-  const res = await reapStorySegments(ports);
-  assertEquals(res.status, 200);
-  assertEquals(await res.json(), {
-    reaped: MAX_ROUNDS * REMOVE_BATCH,
-    unremoved: 0,
-    rounds: MAX_ROUNDS,
-    exhausted: false,
-  });
-  assertEquals(listCalls.length, MAX_ROUNDS);
-  assertEquals(removeCalls.length, MAX_ROUNDS);
-});
+Deno.test(
+  'a bucket that never drains stops after MAX_ROUNDS, reporting not exhausted',
+  async () => {
+    const { ports, listCalls, removeCalls } = makePorts({
+      lists: Array.from({ length: MAX_ROUNDS + 5 }, () => 'full' as const),
+    });
+    const res = await reapStorySegments(ports);
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), {
+      reaped: MAX_ROUNDS * REMOVE_BATCH,
+      unremoved: 0,
+      rounds: MAX_ROUNDS,
+      exhausted: false,
+    });
+    assertEquals(listCalls.length, MAX_ROUNDS);
+    assertEquals(removeCalls.length, MAX_ROUNDS);
+  },
+);
 
 Deno.test('REMOVE_BATCH is the documented Storage API ceiling', () => {
   // supabase.com/docs/guides/storage/management/delete-objects: remove() takes at most 1000.
   assertEquals(REMOVE_BATCH, 1000);
+});
+
+Deno.test('MAX_ROUNDS keeps one pass inside the 30 s pg_net gives the reply', () => {
+  // invoke_story_segment_reaper() posts with timeout_milliseconds := 30000. A round is one
+  // RPC plus one ≤ 1000-key Storage delete (1–5 s); five rounds answer in time, twenty would
+  // not, and a timed-out reply is the only observable the runbook has. Raising this means
+  // raising the timeout in a migration too.
+  assertEquals(MAX_ROUNDS, 5);
 });

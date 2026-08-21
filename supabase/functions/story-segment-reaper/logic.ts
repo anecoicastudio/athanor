@@ -11,11 +11,13 @@ import { json } from '../_shared/respond.ts';
  * you'll still be billed for it" — supabase.com/docs/guides/storage/schema/design), which is
  * the same reason erasure-job removes candidacy videos through `storage.from().remove()`.
  *
- * WHAT gets reaped is not decided here. `story_segment_reap_candidates` (security definer,
- * service_role-only, pgTAP 0126) lists objects in the bucket with no descriptor row that was
- * live or pinned within the last hour — the SELECT policy's inverse with a grace margin, so a
- * `pinned` step is never a candidate, an in-flight upload (object older than the row, or a
- * row whose upload is still running) is never a candidate, and the hourly staging refresh that
+ * WHAT gets reaped is not decided here. `story_segment_reap_candidates` (service_role-only,
+ * pgTAP 0126) lists objects in the bucket with no descriptor row that was live or pinned
+ * within the last hour — the SELECT policy's descriptor predicate inverted, with a grace
+ * margin (its viewer-side arms — owner folder, blocks, bans — are about who may read, not
+ * whether the segment is alive, and are deliberately not mirrored). So a pinned, undeleted
+ * step is never a candidate, an in-flight upload (a row whose upload is still running, or an
+ * object younger than the grace) is never a candidate, and the hourly staging refresh that
  * revives seeded rows in place always wins against a nightly pass. This file is only the loop.
  *
  * Each round RE-LISTS rather than paginating: removed objects leave the candidate set, so a
@@ -28,11 +30,13 @@ export const STORY_SEGMENTS_BUCKET = 'story-segments';
 export const REMOVE_BATCH = 1000;
 
 /**
- * Rounds per invocation. 20 × 1000 objects is far beyond a day's worth of expiring segments;
- * the bound exists so a pathological backlog is drained across nights instead of holding one
- * isolate past its wall-clock limit. The response says `exhausted: false` when it trips.
+ * Rounds per invocation — 5 × 1000 objects. Sized to ANSWER inside the 30 s pg_net allows
+ * `invoke_story_segment_reaper()` (a round is one RPC plus one Storage API delete of ≤ 1000
+ * keys, realistically 1–5 s), not to drain any backlog in one go: a populated bucket on first
+ * deploy drains ≤ 5000 a night and the response says `exhausted: false` until it is done.
+ * Nothing is lost by waiting a night; a pg_net timeout on the reply would be.
  */
-export const MAX_ROUNDS = 20;
+export const MAX_ROUNDS = 5;
 
 export type RpcResult = { data: unknown; error: { message: string } | null };
 export type RemoveResult = {
@@ -53,18 +57,22 @@ const candidateRows = z.array(z.object({ name: z.string().min(1) }));
 export type ReapSummary = {
   /** objects the Storage API reports deleted */
   reaped: number;
-  /** listed-but-not-deleted in this run (the API answered without them); re-listed next night */
+  /**
+   * listed and handed to remove(), but not in the API's answer — counted ONCE and never
+   * retried in this run (a concurrent pass may have taken them, or the API left them); they
+   * are re-listed tomorrow if still there
+   */
   unremoved: number;
+  /** list rounds performed */
   rounds: number;
-  /** true when a round listed fewer than REMOVE_BATCH — the candidate set is drained */
+  /** true when a round listed nothing new — the candidate set is drained */
   exhausted: boolean;
-  /** a round removed nothing at all: stop rather than spin on an API that is not deleting */
-  stalled?: true;
   error?: string;
 };
 
 export async function reapStorySegments(ports: ReaperPorts): Promise<Response> {
   const summary: ReapSummary = { reaped: 0, unremoved: 0, rounds: 0, exhausted: false };
+  const attempted = new Set<string>();
 
   while (summary.rounds < MAX_ROUNDS) {
     summary.rounds++;
@@ -74,19 +82,31 @@ export async function reapStorySegments(ports: ReaperPorts): Promise<Response> {
     const parsed = candidateRows.safeParse(listed.data ?? []);
     if (!parsed.success) return json({ ...summary, error: 'list: malformed rows' }, 500);
 
-    // Dedupe and clamp: the RPC clamps p_limit too, but the API ceiling is enforced here as
-    // well so a widened RPC can never produce an oversized remove().
-    const paths = [...new Set(parsed.data.map((r) => r.name))].slice(0, REMOVE_BATCH);
+    // Names already handed to remove() this run are not retried: the API answered without
+    // them once, and the RPC lists oldest-first, so a leftover would head every later batch
+    // and be counted again. Dedupe and clamp in the same pass — the RPC clamps p_limit too,
+    // but the API ceiling is enforced here as well so nothing upstream can shape what
+    // reaches remove().
+    const paths: string[] = [];
+    for (const { name } of parsed.data) {
+      if (attempted.has(name)) continue;
+      attempted.add(name);
+      paths.push(name);
+      if (paths.length === REMOVE_BATCH) break;
+    }
+    // Exhaustion is "the list had nothing new", never "the list was short": PostgREST's
+    // max-rows setting can truncate an RPC result below REMOVE_BATCH on a healthy backlog.
     if (paths.length === 0) return json({ ...summary, exhausted: true });
 
     const removed = await ports.remove(paths);
     if (removed.error) return json({ ...summary, error: `remove: ${removed.error.message}` }, 500);
 
+    // The API reports only what it deleted. Fewer than asked is not an error: a concurrent
+    // run (the operator invoking by hand during the nightly pass) may have taken them first,
+    // or the API left them — either way they are counted once here and re-listed tomorrow.
     const n = removed.data?.length ?? 0;
     summary.reaped += n;
     summary.unremoved += paths.length - n;
-    if (n === 0) return json({ ...summary, stalled: true }, 500);
-    if (paths.length < REMOVE_BATCH) return json({ ...summary, exhausted: true });
   }
 
   return json(summary);

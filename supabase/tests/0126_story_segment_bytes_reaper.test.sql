@@ -1,29 +1,31 @@
 -- Story-segment bytes reaper (#31): the deletion half of the story-segment storage gap.
 --
 -- 20260809151111 hides an expired/soft-deleted segment's object; 20260614230935 soft-deletes
--- the rows; 20260821075230 adds the part that frees the bytes. Deletion goes through the
--- Storage API (the edge function), so what SQL owns — and what this file asserts — is the
--- candidate predicate `story_segment_reap_candidates`, the pg_net caller, the extended
--- nightly wrapper, and the rescheduled job. The predicate is the storage SELECT policy's
--- descriptor predicate INVERTED with a 1 h grace, and the three cases the issue names are
--- each a fixture row below: a pinned step is never a candidate, an in-flight upload is never
--- a candidate, and a seeded row the hourly staging refresh revives in place is never a
--- candidate while the refresh runs — nor after it catches up from a gap.
+-- the rows; 20260821075230 (+ 20260821082216, the review follow-up) adds the part that frees
+-- the bytes. Deletion goes through the Storage API (the edge function), so what SQL owns —
+-- and what this file asserts — is the candidate predicate `story_segment_reap_candidates`,
+-- the pg_net caller, the extended nightly wrapper, and the rescheduled job. The predicate is
+-- the storage SELECT policy's descriptor predicate INVERTED with a 1 h grace, and the three
+-- cases the issue names are each a fixture row below: a pinned, undeleted step is never a
+-- candidate, an in-flight upload is never a candidate, and a seeded row the hourly staging
+-- refresh revives in place is never a candidate while the refresh runs — nor after it
+-- catches up from a gap. The inverse relationship is checked against the REAL policy, read
+-- as a member, not against a copy of its text.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(49);
+select plan(51);
 
 -- ── 1. the candidate enumeration: shape and grants ───────────────────────────
 select has_function('public', 'story_segment_reap_candidates', array['integer', 'interval'],
   'story_segment_reap_candidates(p_limit, p_grace) exists');
+select isnt_definer('public', 'story_segment_reap_candidates', array['integer', 'interval'],
+  'story_segment_reap_candidates is security INVOKER — service_role needs no definer rights (20260821082216)');
 select is(
-  (select prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'story_segment_reap_candidates'),
-  true, 'story_segment_reap_candidates is security definer (reads storage.objects across owner folders)');
-select is(
-  (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'story_segment_reap_candidates'),
+  (select proconfig from pg_proc
+    where oid = 'public.story_segment_reap_candidates(integer, interval)'::regprocedure),
   array['search_path=""'], 'story_segment_reap_candidates locks search_path to empty');
+select volatility_is('public', 'story_segment_reap_candidates', array['integer', 'interval'], 'stable',
+  'story_segment_reap_candidates is STABLE: it lists, the Storage API deletes');
 select ok(not has_function_privilege('anon', 'public.story_segment_reap_candidates(integer, interval)', 'execute'),
   'anon cannot enumerate reap candidates');
 select ok(not has_function_privilege('authenticated', 'public.story_segment_reap_candidates(integer, interval)', 'execute'),
@@ -32,21 +34,14 @@ select ok(not has_function_privilege('public', 'public.story_segment_reap_candid
   'public cannot enumerate reap candidates');
 select ok(has_function_privilege('service_role', 'public.story_segment_reap_candidates(integer, interval)', 'execute'),
   'service_role — the reaper''s client — can');
-select is(
-  (select provolatile from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'story_segment_reap_candidates'),
-  's', 'story_segment_reap_candidates is STABLE: it lists, the Storage API deletes');
 
 -- ── 2. the pg_net caller ─────────────────────────────────────────────────────
 select has_function('public', 'invoke_story_segment_reaper', array[]::text[],
   'invoke_story_segment_reaper exists');
+select is_definer('public', 'invoke_story_segment_reaper', array[]::text[],
+  'invoke_story_segment_reaper is security definer (posts HTTP only, like every pg_net caller)');
 select is(
-  (select prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'invoke_story_segment_reaper'),
-  true, 'invoke_story_segment_reaper is security definer (posts HTTP only)');
-select is(
-  (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'invoke_story_segment_reaper'),
+  (select proconfig from pg_proc where oid = 'public.invoke_story_segment_reaper()'::regprocedure),
   array['search_path=""'], 'invoke_story_segment_reaper locks search_path to empty');
 select ok(not has_function_privilege('anon', 'public.invoke_story_segment_reaper()', 'execute'),
   'anon cannot invoke the reaper');
@@ -56,25 +51,22 @@ select ok(not has_function_privilege('public', 'public.invoke_story_segment_reap
   'public cannot invoke the reaper');
 -- reads config through the resolver, so a Vault rotation is picked up (rule 8) …
 select ok(
-  (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'invoke_story_segment_reaper') like '%runtime_setting%',
+  (select prosrc from pg_proc where oid = 'public.invoke_story_segment_reaper()'::regprocedure)
+    like '%runtime_setting%',
   'the caller resolves url/key through athanor.runtime_setting');
 -- … and presents it on the apikey header, never a hand-built Authorization bearer.
 select ok(
-  (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'invoke_story_segment_reaper') like '%edge_auth_headers%',
+  (select prosrc from pg_proc where oid = 'public.invoke_story_segment_reaper()'::regprocedure)
+    like '%edge_auth_headers%',
   'the caller builds headers through athanor.edge_auth_headers');
 
 -- ── 3. the extended nightly wrapper ──────────────────────────────────────────
 select has_function('public', 'prune_expired_story_segments', array[]::text[],
   'prune_expired_story_segments exists');
+select isnt_definer('public', 'prune_expired_story_segments', array[]::text[],
+  'prune_expired_story_segments is security invoker (does its own DML, like live_window_sweep)');
 select is(
-  (select prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'prune_expired_story_segments'),
-  false, 'prune_expired_story_segments is security invoker (does its own DML, like live_window_sweep)');
-select is(
-  (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'prune_expired_story_segments'),
+  (select proconfig from pg_proc where oid = 'public.prune_expired_story_segments()'::regprocedure),
   array['search_path=""'], 'prune_expired_story_segments locks search_path to empty');
 select ok(not has_function_privilege('anon', 'public.prune_expired_story_segments()', 'execute'),
   'anon cannot run the prune');
@@ -82,12 +74,22 @@ select ok(not has_function_privilege('authenticated', 'public.prune_expired_stor
   'authenticated cannot run the prune');
 select ok(not has_function_privilege('public', 'public.prune_expired_story_segments()', 'execute'),
   'public cannot run the prune');
+-- The post rides on DML: it must be exception-guarded so a broken pg_net half can never roll
+-- back the row prune (20260821082216; the enqueue_media_process shape).
+select ok(
+  (select prosrc from pg_proc where oid = 'public.prune_expired_story_segments()'::regprocedure)
+    like '%exception when others%',
+  'the reaper post is exception-guarded — a failed post never rolls back the row prune');
 
--- ── fixtures (postgres, no role switch: the predicate is service-role-side) ──
+-- ── fixtures (postgres, before any role switch) ──────────────────────────────
+-- A authors every segment; V is an ordinary member (not blocked, not banned) who reads the
+-- bucket under the real storage SELECT policy in §4.
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
-   'authenticated', 'authenticated', 'reaper_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+   'authenticated', 'authenticated', 'reaper_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
+   'authenticated', 'authenticated', 'reaper_v@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 
 -- Descriptor rows. Object keys follow the real layout {uid}/{id}.{ext}
 -- (apps/native/src/lib/media/paths.ts); every object below is inserted with an explicit
@@ -200,33 +202,32 @@ select is(
 select is((select count(*)::int from public.story_segment_reap_candidates(0)), 1,
   'p_limit = 0 is clamped to 1 — a zero never means "everything"');
 
--- The relationship with the storage SELECT policy, stated as a property: at grace 0 the
--- candidate set IS the set of bucket objects whose descriptor predicate
--- (`deleted_at is null and (expires_at > now() or pinned)`, 20260809151111) fails. The
--- owner-folder regex and not_blocked are viewer-side guards and are deliberately not part of
--- the inverse (see the migration header).
-select is_empty(
-  $$
-  with hidden as (
-    select o.name
-      from storage.objects o
-     where o.bucket_id = 'story-segments'
-       and not exists (
-         select 1 from public.story_segments s
-          where s.storage_path = o.name
-            and s.deleted_at is null
-            and (s.expires_at > now() or s.pinned))
-  ),
-  cand as (
-    select name from public.story_segment_reap_candidates(1000, interval '0')
-  )
-  (select name from hidden except select name from cand)
-  union all
-  (select name from cand except select name from hidden)
-  $$,
-  'at grace 0 the candidate set IS the storage SELECT policy''s hidden set — inverses by construction');
+-- The relationship with the storage SELECT policy, checked against the REAL policy rather than
+-- a copy of its text: at grace 0 the candidate set and what an ordinary member can read must
+-- partition the bucket. The member is V — not the author, not blocked, not banned — so the
+-- policy's viewer-side arms (owner-folder regex, not_blocked, not_banned; 20260818114947) all
+-- pass and only the descriptor predicate decides. A fourth arm added to the policy tomorrow
+-- shows up here as a readable candidate or an unreadable non-candidate.
+create temporary table cand0 as
+  select name from public.story_segment_reap_candidates(1000, interval '0');
+grant select on cand0 to authenticated;
 
--- The staging refresh, verbatim in shape (refresh-staging.sql §6): revive K in place. No
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+select is(
+  (select count(*)::int from storage.objects o join cand0 c on c.name = o.name),
+  0, 'at grace 0 no candidate is readable by a member under the live storage SELECT policy');
+-- Scoped to the fixture owner folder: on a populated stack (staging's seeded world) the bucket
+-- holds other members' live objects too, and they are readable without being fixtures.
+select is(
+  (select count(*)::int from storage.objects o
+    where o.bucket_id = 'story-segments'
+      and o.name like '11111111-1111-1111-1111-111111111111/%'),
+  (select 10 - count(*)::int from cand0 where name like '11111111-1111-1111-1111-111111111111/%'),
+  'what a member can read of the fixtures is exactly the ten objects minus the candidates — inverses, by the real policy');
+reset role;
+
+-- The staging refresh, verbatim in shape (refresh-staging.sql §9): revive K in place. No
 -- re-upload happens there, so the object stays 40 days old — and must leave the set anyway.
 update public.story_segments
    set expires_at = now() + interval '20 hours', deleted_at = null
