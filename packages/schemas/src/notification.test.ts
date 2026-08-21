@@ -12,8 +12,31 @@ describe('notificationSchema', () => {
       entity_ref: { kind: 'momento', id: 'abc' },
       read_at: null,
       created_at: '2026-06-20T10:00:00Z',
+      updated_at: '2026-06-20T10:00:00Z',
     };
     expect(notificationSchema.parse(row).type).toBe('moment');
+  });
+
+  // #180 — updated_at is NOT NULL in the DB and is what records when read_at flipped. A row
+  // reaching the client without it means the select-list lost the column, which must fail loudly
+  // rather than silently parse into a Notification that cannot say when it was read.
+  it('requires updated_at', () => {
+    const row: Record<string, unknown> = {
+      id: '11111111-1111-1111-1111-111111111111',
+      recipient_id: '22222222-2222-2222-2222-222222222222',
+      type: 'moment',
+      template_key: 'notif.tpl.moment',
+      params: {},
+      entity_ref: null,
+      read_at: null,
+      created_at: '2026-06-20T10:00:00Z',
+      updated_at: '2026-06-20T11:30:00Z',
+    };
+    expect(notificationSchema.parse(row).updated_at).toBe('2026-06-20T11:30:00Z');
+
+    const { updated_at: _dropped, ...without } = row;
+    expect(() => notificationSchema.parse(without)).toThrow();
+    expect(() => notificationSchema.parse({ ...row, updated_at: null })).toThrow();
   });
 
   it('rejects an unknown type', () => {
@@ -27,6 +50,7 @@ describe('notificationSchema', () => {
         entity_ref: null,
         read_at: null,
         created_at: '2026-06-20T10:00:00Z',
+        updated_at: '2026-06-20T10:00:00Z',
       }),
     ).toThrow();
   });
@@ -48,6 +72,7 @@ describe('notificationSchema', () => {
       entity_ref: { kind: 'report', id: '33333333-3333-3333-3333-333333333333' },
       read_at: null,
       created_at: '2026-08-13T10:00:00Z',
+      updated_at: '2026-08-13T10:00:00Z',
     };
     const parsed = notificationSchema.parse(row);
     expect(parsed.type).toBe('moderation');
@@ -64,6 +89,7 @@ describe('notificationSchema', () => {
       entity_ref: { kind: 'gdprExport', id: '33333333-3333-3333-3333-333333333333' },
       read_at: null,
       created_at: '2026-08-13T10:00:00Z',
+      updated_at: '2026-08-13T10:00:00Z',
     };
     const parsed = notificationSchema.parse(row);
     expect(parsed.type).toBe('gdprExport');
@@ -82,6 +108,7 @@ describe('notificationSchema', () => {
       entity_ref: null,
       read_at: null,
       created_at: '2026-06-20T10:00:00Z',
+      updated_at: '2026-06-20T10:00:00Z',
     };
     expect(notificationSchema.parse(row).template_key).toBe('notif.tpl.generic');
   });
@@ -96,6 +123,7 @@ describe('notificationSchema', () => {
       entity_ref: null,
       read_at: null,
       created_at: '2026-06-20T10:00:00Z',
+      updated_at: '2026-06-20T10:00:00Z',
     };
     expect(notificationSchema.parse(row).template_key).toBe('notif.tpl.connectionAccepted');
   });
@@ -112,6 +140,7 @@ describe('notificationSchema', () => {
         entity_ref: { kind: 'milestone_help', id: 'abc' },
         read_at: null,
         created_at: '2026-06-20T10:00:00Z',
+        updated_at: '2026-06-20T10:00:00Z',
       };
       expect(notificationSchema.parse(row).template_key).toBe(key);
     }

@@ -1936,6 +1936,7 @@ export type Database = {
           recipient_id: string
           template_key: string
           type: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -1946,6 +1947,7 @@ export type Database = {
           recipient_id: string
           template_key: string
           type: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -1956,6 +1958,7 @@ export type Database = {
           recipient_id?: string
           template_key?: string
           type?: string
+          updated_at?: string
         }
         Relationships: [
           {

@@ -76,5 +76,9 @@ export const notificationSchema = z.object({
   entity_ref: entityRefSchema,
   read_at: z.string().nullish(),
   created_at: z.string(),
+  // #180: read_at is client-updatable, so the row changes; updated_at records when. NOT NULL in
+  // the DB (20260821164731) and written only by the touch trigger — authenticated holds
+  // update(read_at) alone, so this value cannot be forged by the client that flipped it.
+  updated_at: z.string(),
 });
 export type Notification = z.infer<typeof notificationSchema>;
