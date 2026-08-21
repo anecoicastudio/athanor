@@ -92,12 +92,118 @@
 | R-1 | **Env / secrets** — `EXPO_PUBLIC_*` only in the app bundle (Foundation §2 — no service key in the client). Secrets (Sentry DSN, EAS submit credentials, APNs/FCM keys, Supabase anon key) in EAS secrets + Supabase vault + Cloudflare Workers secrets. Verify no secret in the JS bundle (grep the export).                                                                                                                                                                                                                                                                             | `⬜ ops`                                | After `eas build`, download the `.app`/`.apk`, unzip, and `grep -ri "service_role\|sb_secret_\|sentry_dsn\|sk_live"` over the extracted JS bundle. Any hit is a release blocker. `.env.example` must be kept current.                                                                                                                                                                                                                                                                         |
 | R-2 | **Feature flags** — `useFeatureFlags()` reads the `remote_config` table at boot. Four well-known flag keys gate Fase-1 features. Remote-toggleable without a store build.                                                                                                                                                                                                                                                                                                                                                                                                                | `✅ code`                               | `apps/native/src/hooks/use-remote-config.ts` exports `useFeatureFlags()`. Current flags and their defaults: `fund_surfaces_enabled` (default OFF — client visibility for fund surfaces; the legal gate is `fund_editions.contributions_enabled`, PRD §4.11), `prime_stelle_enabled` (default OFF — launch cohort gate). See §6 for how to flip flags as service_role. ⚠ Production `remote_config` still carries the flag under its pre-rename key — run the §6.5 rename at the next release. |
 | R-3 | **Rollback** — JS-only regression: republish the previous `expo-updates` build via `eas update`. Native regression: halt phased release (App Store Connect phased-release pause; Play staged-rollout halt) and expedite a new store build.                                                                                                                                                                                                                                                                                                                                               | `⬜ ops`                                | Document who can trigger each path and how. Rehearse OTA rollback before launch (publish a known-good update, confirm devices pick it up within the `staleTime` window).                                                                                                                                                                                                                                                                                                                      |
-| R-4 | **Monitoring (Sentry)** — Sentry project live (B-3); alerts on crash-free-sessions drop, new-issue spikes, and release-health regression. `mcp__sentry__*` tools available in this environment for querying issues during incident response. Dashboards: crash-free %, slow-frames, cold-start.                                                                                                                                                                                                                                                                                          | `⬜ ops`                                | Configure Sentry project, DSN, release-health alerts, and dashboard before widening rollout.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| R-4 | **Monitoring (Sentry)** — Sentry project live (B-3); alerts on crash-free-sessions drop, new-issue spikes, and release-health regression. `mcp__sentry__*` tools available in this environment for querying issues during incident response. Dashboards: crash-free %, slow-frames, cold-start.                                                                                                                                                                                                                                                                                          | `⬜ ops`                                | Configure Sentry project, DSN, release-health alerts, and dashboard before widening rollout. The Stripe webhook backlog is **not** covered by Sentry: it is the manual query in §4.1, run on go/no-go day and daily through launch week (#474).                                                                                                                                                                                                                                               |
 | R-5 | **Versioning** — Settings version footer reads `Constants.expoConfig.version` (never hardcoded). `app.json` semver + `eas.json` `autoIncrement` for native build numbers. OTA update id available in debug/support info. `app.json version`, `package.json`, and the store version must be aligned per release.                                                                                                                                                                                                                                                                          | `✅ code`                               | `apps/native/src/app/(modal)/settings.tsx` reads `Constants.expoConfig?.version` and renders via `t('settings.version', locale, { version })`.                                                                                                                                                                                                                                                                                                                                                |
 | R-6 | **CI gates green before tagging** — `typecheck · lint · core unit ≥90% · schemas contract · pgTAP (incl. "client cannot write score") · edge-fn deno test`. Stop quality-gate (typecheck+lint), literal-hex hook, migration append-only hook pass. `athanor-reviewer` run on the release diff (CLAUDE.md). **No _mobile_ e2e gate exists**: `apps/web` came back in merge `34ff635` and CI runs its Playwright smoke again as the `web e2e (Playwright)` job, but the Maestro flows of B-8 were never authored — until B-8 lands, the mobile happy path is a manual pass, not a CI gate. | `🔁 verify`                             | Run the full CI suite on the release branch. Confirm `athanor-reviewer` returns PASS with zero Blockers.                                                                                                                                                                                                                                                                                                                                                                                      |
 | R-7 | **EAS Build on release tag** — production profile builds both platforms; uploads Sentry symbols/source maps; submits via `eas submit`. Runtime-version policy set so native changes force a store build while JS-only fixes ship OTA.                                                                                                                                                                                                                                                                                                                                                    | `⬜ ops`                                | Configure `eas.json` production profile with `sentry-cli` upload step, correct `runtimeVersion` policy, and submit credentials. Tag the release commit and trigger the EAS build. **Not true today (2026-08-19):** the `base` profile disables the upload for every profile, production included — deliberate while `SENTRY_AUTH_TOKEN`/org/project are unset on EAS, reversed by deleting that one key. #466.                                                                                |
 | R-8 | **GDPR / data-residency final check** — Supabase EU/Frankfurt region confirmed (project `kwzeiqvrnnaagccyoose`, Frankfurt); consent captured at signup (M9); self-serve export + ≤30-day erasure wired (M9 `gdpr-export-job` + `erasure-job` edge functions, both deployed); privacy-policy URL live (S-11); no third-party tracker in the build (B-4).                                                                                                                                                                                                                                  | `✅ code` (`⬜ ops` for the legal gate) | Supabase EU region ✅. M9 consent + GDPR export/erasure slices are shipped and both edge functions are deployed. The erasure cascade is **legal-gated**: its retention-gated steps stay commented in `erasure-job/logic.ts` until counsel clears the retention window, so requests queue without erasing. Clear that gate before going live.                                                                                                                                                  |
 | R-9 | **Go / no-go** — gates G1–G7 green; Prime Stelle cohort list ready; staged-rollout % set; rollback rehearsed; sign-off recorded.                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `⬜ ops`                                | Review §10 (acceptance gates G1–G7) line by line. No submission until every gate is green. Record sign-off with date and approver.                                                                                                                                                                                                                                                                                                                                                            |
+
+### 4.1 Webhook backlog — the daily `processed_at IS NULL` check (#474, ruling 2026-08-21)
+
+`stripe-webhook` was built around a standing alarm. Every delivery lands a `stripe_webhook_events`
+row **before** any work happens, and `processed_at` is stamped only after processing succeeded — so
+a row with `processed_at` still NULL is money Stripe has taken that Athanor has not acted on. The
+handler says so in as many words — "a standing, queryable alarm"
+(`supabase/functions/stripe-webhook/handlers.ts:46`), echoed as "a standing alarm" at `:500`.
+Nothing queries it: no `pg_cron` job, no edge function, no Sentry rule.
+
+**Ruling (2026-08-21, #474): this stays a manual check the operator runs, not a built alarm.**
+Pre-launch volume is single digits, an automated alarm would need a delivery surface for
+backend-only conditions that does not exist yet (and would become its own launch dependency), and
+an alarm wired today would be red from its first tick for a reason a query already explains (see
+the baseline warning below). Revisit when live-mode volume makes a daily eye impractical — the
+query below is exactly what such an alarm would run.
+
+**Run it against production only** (`kwzeiqvrnnaagccyoose`). Staging breaks payments deliberately
+during QA and `staging-refresh-world` rewrites the world hourly, so a NULL there is expected noise,
+not signal.
+
+The table is service-role only — `revoke all … from anon, authenticated`, RLS on with zero policies
+— so the check needs a privileged connection: **Dashboard → SQL Editor** on the production project.
+Do **not** `supabase link` production to run it: `supabase/.temp/linked-project.json` is a single
+global that `db push` and `functions deploy` obey, and leaving it pointed at production is how an
+unintended migration push happens. Against staging, `supabase db query --linked` is fine.
+
+**1. Triage — the three states in one row of counts.**
+
+```sql
+select
+  count(*)                                                            as total,
+  count(*) filter (where processed_at is not null)                    as processed,
+  count(*) filter (where processed_at is null and claimed_at is null) as never_claimed,
+  count(*) filter (where processed_at is null
+                    and claimed_at >= now() - interval '10 minutes')  as in_flight,
+  count(*) filter (where processed_at is null
+                    and claimed_at <  now() - interval '10 minutes')  as stale_claim
+from public.stripe_webhook_events
+where received_at > now() - interval '7 days';
+```
+
+The timestamp column is `received_at` — there is no `created_at` on this table. The ten minutes is
+`LEASE_MS` (`supabase/functions/stripe-webhook/handlers.ts:19`, `10 * 60_000`); re-derive it from
+there if it ever changes, because the window has to exceed the lease or a healthy in-flight
+delivery reads as an alarm.
+
+The three unprocessed states are not the same thing:
+
+- **`in_flight`** — claimed inside the lease window. A delivery is being processed right now, or an
+  isolate crashed and its lease has not expired yet. Benign. Recheck after the lease.
+- **`stale_claim`** — claimed, lease expired, never finished: an isolate died mid-processing.
+  Stripe's next retry re-claims and reprocesses it; if Stripe's retry budget has run out (below),
+  nothing will.
+- **`never_claimed`** — either the row is seconds old, or `processEvent` threw, released the lease
+  and returned 500. Sustained non-zero here is the failure mode #473 found on production.
+
+**2. The rows behind a non-zero count.**
+
+```sql
+select event_id, type, received_at, claimed_at,
+       date_trunc('second', now() - received_at) as age
+from public.stripe_webhook_events
+where processed_at is null
+  and received_at < now() - interval '15 minutes'
+order by received_at
+limit 50;
+```
+
+Fifteen minutes is the lease plus margin. Never `select *` here — `payload` holds the entire Stripe
+event: amounts, customer identifiers, email.
+
+**3. What the operator does with a row.** Take its `event_id` to the Stripe Dashboard → Developers
+→ Events and read the delivery attempts and the endpoint's responses, then read the `stripe-webhook`
+function logs for the same id (the throw path logs `process failed <event_id>`). Per rule 6 the
+money moved regardless — Stripe is the source of truth and these rows are only a cache — so a
+persistent NULL means a member may have paid for a ticket, a Circle month or a fund contribution
+and received nothing for it. That is the reading, and it is why this count is checked rather than
+assumed.
+
+Recovery is a resend, never a database edit: Dashboard **Resend** works for 15 days after the
+event, `stripe events resend <event_id> --webhook-endpoint=<endpoint_id>` for 30. Do not hand-stamp
+`processed_at` — that marks an event done without doing it and permanently suppresses the retry.
+
+**Stripe's retry budget is the clock.** In live mode Stripe retries a failing delivery with
+exponential backoff **for up to three days** and then stops (a sandbox event gets three attempts
+within a few hours). A row still NULL after that window will never self-heal, and repeated failures
+also count toward Stripe disabling the endpoint — the concern behind #473 and behind the
+delayed-notification ordering note in `docs/PRODUCTION-READINESS.md` Appendix A step 4. Three days
+is therefore the outer bound on how late this check can run and still be recoverable by retry.
+
+**Cadence.** Once on go/no-go day (R-9), then every morning through launch week, then whenever a
+payment complaint arrives. It costs one query.
+
+⚠ **Production is not zero today.** #473 measured **9 rows, every one `processed_at` NULL, oldest
+2026-08-18**, on production: deliveries from the _test-mode_ Stripe account, which is registered as
+an endpoint on production as well as on staging. They can never process — the profiles and events
+they reference do not exist there — and they are not real money. Until #473's cleanup runs, the
+honest baseline for this check is those nine rows: read `total` and the `event_id`s, not merely
+"non-zero". After #473 the baseline is zero and any non-zero is real.
+
+**Performance.** `stripe_webhook_events` carries exactly one index, the `event_id` primary key, so
+both queries are sequential scans. At this table's size that is the right answer and no index is
+warranted. If the ledger ever grows enough for the daily check to drag, the fix is a partial index
+(`… (received_at) where processed_at is null`) rather than a wider one — but that is a migration,
+and nothing today needs it.
 
 ---
 
