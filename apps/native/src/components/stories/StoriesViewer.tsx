@@ -73,6 +73,7 @@ export function StoriesViewer({
   onAddMoment,
   onPin,
   onDelete,
+  onChromeHeight,
 }: {
   segments: StorySegment[];
   urls: Record<string, string>;
@@ -98,6 +99,11 @@ export function StoriesViewer({
   onReact: (segment: StorySegment) => void;
   /** Sends the reply into the DM without leaving the viewer; rejects on failure. */
   onSendReply: (body: string) => Promise<void>;
+  /**
+   * Measured height of the bottom chrome, so the host can lift the toast band clear of it
+   * (#102). Fires again whenever the composer grows or the keyboard lifts the bar.
+   */
+  onChromeHeight?: (height: number) => void;
   onMakeDream: () => void;
   onAddMoment: () => void;
   onPin: (segment: StorySegment) => void;
@@ -300,7 +306,11 @@ export function StoriesViewer({
           {...pan.panHandlers}
         />
 
-        <SafeAreaView edges={['bottom']} className="gap-3 bg-background/70 px-5 pb-3 pt-3">
+        <SafeAreaView
+          edges={['bottom']}
+          className="gap-3 bg-background/70 px-5 pb-3 pt-3"
+          onLayout={(e) => onChromeHeight?.(e.nativeEvent.layout.height)}
+        >
           {current.caption ? (
             <Text className="text-[14px] text-foreground">{current.caption}</Text>
           ) : null}

@@ -563,3 +563,134 @@ describe('poster extraction is bounded and never discarded unnamed (#462)', () =
     expect(source).toContain(`devWarn('${scope}'`);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 11 — transient feedback is a Toast, not a single-OK Alert (#102)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `Alert.alert(msg)` with no button array is a toast wearing a modal: it stops the screen,
+ * demands a tap, and covers the very region the feedback refers to. Since #117 there is a
+ * global host, so the alternative costs one `useToast()` call — which is why the shape kept
+ * reappearing on screens written after #102 was filed (it named three; two more had grown by
+ * the time it was worked).
+ *
+ * This is NOT a blanket ban, and the register below is the point rather than a loophole.
+ * `plan.tsx` and `annual.tsx` argue the opposite case in prose at the call site and the
+ * argument holds — a refusal that is news about money, or that has no inline slot to land in,
+ * is acknowledged rather than caught in the 2.5s a toast holds; `progress.tsx` is plan's
+ * sibling on the same ledger and inherits it. Note how narrow the exemption is even there:
+ * both fund screens toast their *client-side* validation misses (`fund.plan.error.incomplete`,
+ * `fund.progress.error.empty`) and spend the Alert only on a server refusal. A new bare
+ * `Alert.alert` fails this and forces that distinction to be drawn once, here, not never.
+ */
+const SINGLE_OK_ALERTS: Record<string, string> = {
+  'app/(modal)/annual.tsx':
+    'a ballot card has no slot for a sentence, so the refusal needs one (#382)',
+  'app/(modal)/plan.tsx': 'a server refusal about money is acknowledged, not held for 2.5s',
+  'app/(modal)/progress.tsx': 'same: a refusal on the realization ledger is news about money',
+};
+
+/**
+ * 1-based line of every `Alert.alert(` whose argument list carries no top-level comma — i.e. a
+ * lone message with no button array. Paren/brace depth and string quotes are tracked, so a
+ * comma inside `t('k', locale)` or inside the copy itself does not count. Deliberately naive
+ * about `${}` in a template literal: no call site uses one, and the failure mode is to read a
+ * two-argument alert as single-OK, which over-reports rather than inventing silence.
+ */
+function singleOkAlerts(src: string): number[] {
+  const CALL = 'Alert.alert(';
+  const out: number[] = [];
+  for (let at = src.indexOf(CALL); at !== -1; at = src.indexOf(CALL, at + 1)) {
+    let depth = 0;
+    let quote = '';
+    let comma = false;
+    for (let i = at + CALL.length; i < src.length; i += 1) {
+      const c = src[i] as string;
+      if (quote) {
+        if (c === '\\') i += 1;
+        else if (c === quote) quote = '';
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') quote = c;
+      else if (c === '(' || c === '[' || c === '{') depth += 1;
+      else if (c === ')' && depth === 0) break;
+      else if (c === ')' || c === ']' || c === '}') depth -= 1;
+      else if (c === ',' && depth === 0) {
+        comma = true;
+        break;
+      }
+    }
+    if (!comma) out.push(src.slice(0, at).split('\n').length);
+  }
+  return out;
+}
+
+describe('transient feedback goes through the toast host (#102)', () => {
+  it('the screens that announce through a bare Alert are exactly the exempt ones', () => {
+    const sites = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      singleOkAlerts(stripComments(read(p))).map(
+        (line) => `${rel(p).replace('apps/native/src/', '')}:${line}`,
+      ),
+    );
+    const users = [...new Set(sites.map((s) => s.slice(0, s.lastIndexOf(':'))))].sort();
+    const stray = sites.filter((s) => !(s.slice(0, s.lastIndexOf(':')) in SINGLE_OK_ALERTS));
+    const register = Object.entries(SINGLE_OK_ALERTS)
+      .map(([file, why]) => `  ${file} — ${why}`)
+      .join('\n');
+    expect(
+      users,
+      `single-OK Alert.alert outside the register:\n  ${stray.join('\n  ')}\n` +
+        `Announce with useToast().showToast(...), or register the screen above with the ` +
+        `reason it must block.\nRegistered exemptions:\n${register}`,
+    ).toEqual(Object.keys(SINGLE_OK_ALERTS).sort());
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 12 — the toast band clears chrome that OVERLAYS the content, not just a footer (#102)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `Screen footer` reserves space below the content, so the band clears a pinned action bar by
+ * construction (#117). A full-bleed screen cannot use it: the story viewer's composer and dream
+ * CTA float OVER the story, and moving them into a footer would put the story behind the bar
+ * instead of under it — the `bg-background/70` chrome would reveal the Screen background rather
+ * than the photo. So the viewer measures its bar and the viewport lifts the band by that much.
+ *
+ * Measured rather than a constant on purpose: the composer grows with a multi-line draft and the
+ * keyboard lifts it, which is exactly when a hardcoded offset would be wrong. That is also why
+ * this is asserted as a WIRING CHAIN — every link is invisible on its own, and dropping any one
+ * of them silently restores the ~24pt overlap that #102's own fix introduced.
+ */
+describe('the full-bleed viewer lifts the toast band over its overlay chrome (#102)', () => {
+  const host = () => read(`${SRC}components/ToastHost.tsx`);
+  const screen = () => read(`${SRC}components/Screen.tsx`);
+
+  it('the viewport actually applies the inset it accepts', () => {
+    expect(host(), 'ToastViewport takes bottomInset but never positions with it').toMatch(
+      /bottom:\s*bottomInset/,
+    );
+  });
+
+  it('Screen forwards its toastInset to the viewport', () => {
+    // Screen is the only thing that mounts a viewport, so a dropped prop here silently
+    // pins every band back to the screen edge.
+    expect(screen()).toMatch(/<ToastViewport\s+bottomInset=\{toastInset\}\s*\/>/);
+  });
+
+  it.each(
+    FILES.filter((p) => !isTest(p))
+      .filter((p) => p !== `${SRC}components/stories/StoriesViewer.tsx`)
+      .filter((p) => stripComments(read(p)).includes('<StoriesViewer'))
+      .map((p) => rel(p).replace('apps/native/src/', '')),
+  )('%s measures the viewer chrome and hands it to Screen', (file) => {
+    const source = stripComments(read(`${SRC}${file}`));
+    expect(source, `${file} mounts the viewer without measuring its overlay chrome`).toContain(
+      'onChromeHeight=',
+    );
+    expect(source, `${file} measures the chrome but never lifts the toast band`).toMatch(
+      /toastInset=\{/,
+    );
+  });
+});

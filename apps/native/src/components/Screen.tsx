@@ -36,7 +36,8 @@ import { ToastViewport } from '@/components/ToastHost';
  * inset and the toast band clears it by construction. In footer mode,
  * content-alignment classNames (`items-center` …) stop reaching the children —
  * they stay on the SafeAreaView; pad/align inside the footer-less content
- * instead.
+ * instead. `toastInset` is the full-bleed escape hatch for chrome that overlays
+ * the content and so cannot be a `footer` at all.
  */
 export type ScreenProps = React.ComponentProps<typeof SafeAreaView> & {
   className?: string;
@@ -44,12 +45,17 @@ export type ScreenProps = React.ComponentProps<typeof SafeAreaView> & {
   gutter?: boolean;
   /** Pinned action bar below the content region (#117). The toast band sits above it, not on it. */
   footer?: React.ReactNode;
+  /**
+   * Height of chrome that OVERLAYS the content instead of sitting below it, so the toast band
+   * clears it the way `footer` does. Only a full-bleed screen needs this; prefer `footer`.
+   */
+  toastInset?: number;
 };
 
 // Erased generic, same idiom as src/tw: exact public props, widened impl for useCssElement.
 const SafeAreaViewImpl = SafeAreaView as unknown as React.ComponentType<Record<string, unknown>>;
 
-export function Screen({ className, gutter, footer, children, ...rest }: ScreenProps) {
+export function Screen({ className, gutter, footer, toastInset, children, ...rest }: ScreenProps) {
   const content = (
     <>
       {/* Sanction banner (#312) rides every Screen the way the toast viewport does,
@@ -57,7 +63,7 @@ export function Screen({ className, gutter, footer, children, ...rest }: ScreenP
         only on the tab roots. Renders nothing in good standing. */}
       <SuspendedNotice />
       {children}
-      <ToastViewport />
+      <ToastViewport bottomInset={toastInset} />
     </>
   );
   return useCssElement(

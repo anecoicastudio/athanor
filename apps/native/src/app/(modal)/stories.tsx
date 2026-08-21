@@ -24,6 +24,7 @@ import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
 import { Text } from '@/tw';
 import { Screen } from '@/components/Screen';
+import { useToast } from '@/components/ToastHost';
 
 export default function StoriesScreen() {
   const { authorId, handle } = useLocalSearchParams<{ authorId: string; handle?: string }>();
@@ -34,6 +35,11 @@ export default function StoriesScreen() {
   const myId = session?.user.id;
   const targetId = authorId === 'me' ? (myId ?? '') : authorId;
   const { seenIds, markSeen } = useStorySeen();
+  const { showToast } = useToast();
+  // The viewer's composer and dream CTA float OVER the story, so they cannot be a `Screen
+  // footer` — that would put the story behind them instead of under them. They report their
+  // measured height instead and the toast band clears it the same way (#102).
+  const [chromeHeight, setChromeHeight] = useState(0);
 
   // The session (#298): the route carries only the entry person; the ordered author list is
   // derived once, from the rail already warm in the cache (community just rendered it), via the
@@ -143,8 +149,9 @@ export default function StoriesScreen() {
     // Screen with no edges: the viewer is full-bleed and owns its safe areas
     // internally, but the wrapper still mounts the toast viewport (#117) —
     // without it the reply-sent/reply-error toast has nowhere to render.
-    <Screen edges={[]}>
+    <Screen edges={[]} toastInset={chromeHeight}>
       <StoriesViewer
+        onChromeHeight={setChromeHeight}
         segments={segments}
         urls={urls}
         urlsLoading={urlsLoading}
@@ -176,7 +183,7 @@ export default function StoriesScreen() {
           await queryClient.invalidateQueries({
             queryKey: [...storyKeys.reactions(seg.id), 'viewer'],
           });
-          Alert.alert(t('story.react.toast', locale));
+          showToast(t('story.react.toast', locale), 'success');
         }}
         onSendReply={async (body) => {
           // Reply sends into the DM in the background (#297) — the viewer is never left.
@@ -216,7 +223,7 @@ export default function StoriesScreen() {
                     });
                     router.back();
                   } catch {
-                    Alert.alert(t('story.own.delete.error', locale));
+                    showToast(t('story.own.delete.error', locale));
                   }
                 })();
               },
