@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { AccessibilityInfo, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { View } from '@/tw';
 import { Toast, type ToastTone } from '@/components/Toast';
 
 /**
@@ -104,8 +105,16 @@ export function useToast(): Pick<ToastApi, 'showToast'> {
  * Rendered by `Screen`, never used directly. Requires a navigation context —
  * `Screen` only mounts inside the router (routes, or RN-Modal subtrees of a
  * route like the Lightbox, which inherit the route's context).
+ *
+ * `bottomInset` lifts the whole band off the screen bottom. A screen whose
+ * chrome OVERLAYS its content — the full-bleed story viewer, whose composer and
+ * dream CTA float over the story rather than sitting below it — cannot use a
+ * `Screen footer` to reserve that space without putting the story behind the bar
+ * instead of under it. It reports the bar's measured height instead, and the
+ * band clears it the same way it clears a footer. Default 0: every other screen
+ * is unchanged.
  */
-export function ToastViewport() {
+export function ToastViewport({ bottomInset = 0 }: { bottomInset?: number }) {
   const api = useContext(ToastApiContext);
   const { toast, topViewport } = useContext(ToastRenderContext);
   const idRef = useRef<number | null>(null);
@@ -123,5 +132,15 @@ export function ToastViewport() {
   );
 
   if (!toast || idRef.current === null || topViewport !== idRef.current) return null;
-  return <Toast label={toast.label} tone={toast.tone} />;
+  // Measured, not a constant: the composer grows with a multi-line draft and the
+  // keyboard lifts it, so a hardcoded offset would be wrong in exactly the states
+  // where the collision is worst.
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: bottomInset }}
+    >
+      <Toast label={toast.label} tone={toast.tone} />
+    </View>
+  );
 }

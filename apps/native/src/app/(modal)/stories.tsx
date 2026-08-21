@@ -36,6 +36,10 @@ export default function StoriesScreen() {
   const targetId = authorId === 'me' ? (myId ?? '') : authorId;
   const { seenIds, markSeen } = useStorySeen();
   const { showToast } = useToast();
+  // The viewer's composer and dream CTA float OVER the story, so they cannot be a `Screen
+  // footer` — that would put the story behind them instead of under them. They report their
+  // measured height instead and the toast band clears it the same way (#102).
+  const [chromeHeight, setChromeHeight] = useState(0);
 
   // The session (#298): the route carries only the entry person; the ordered author list is
   // derived once, from the rail already warm in the cache (community just rendered it), via the
@@ -145,8 +149,9 @@ export default function StoriesScreen() {
     // Screen with no edges: the viewer is full-bleed and owns its safe areas
     // internally, but the wrapper still mounts the toast viewport (#117) —
     // without it the reply-sent/reply-error toast has nowhere to render.
-    <Screen edges={[]}>
+    <Screen edges={[]} toastInset={chromeHeight}>
       <StoriesViewer
+        onChromeHeight={setChromeHeight}
         segments={segments}
         urls={urls}
         urlsLoading={urlsLoading}

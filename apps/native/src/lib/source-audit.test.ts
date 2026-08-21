@@ -646,3 +646,51 @@ describe('transient feedback goes through the toast host (#102)', () => {
     ).toEqual(Object.keys(SINGLE_OK_ALERTS).sort());
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 12 — the toast band clears chrome that OVERLAYS the content, not just a footer (#102)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `Screen footer` reserves space below the content, so the band clears a pinned action bar by
+ * construction (#117). A full-bleed screen cannot use it: the story viewer's composer and dream
+ * CTA float OVER the story, and moving them into a footer would put the story behind the bar
+ * instead of under it — the `bg-background/70` chrome would reveal the Screen background rather
+ * than the photo. So the viewer measures its bar and the viewport lifts the band by that much.
+ *
+ * Measured rather than a constant on purpose: the composer grows with a multi-line draft and the
+ * keyboard lifts it, which is exactly when a hardcoded offset would be wrong. That is also why
+ * this is asserted as a WIRING CHAIN — every link is invisible on its own, and dropping any one
+ * of them silently restores the ~24pt overlap that #102's own fix introduced.
+ */
+describe('the full-bleed viewer lifts the toast band over its overlay chrome (#102)', () => {
+  const host = () => read(`${SRC}components/ToastHost.tsx`);
+  const screen = () => read(`${SRC}components/Screen.tsx`);
+
+  it('the viewport actually applies the inset it accepts', () => {
+    expect(host(), 'ToastViewport takes bottomInset but never positions with it').toMatch(
+      /bottom:\s*bottomInset/,
+    );
+  });
+
+  it('Screen forwards its toastInset to the viewport', () => {
+    // Screen is the only thing that mounts a viewport, so a dropped prop here silently
+    // pins every band back to the screen edge.
+    expect(screen()).toMatch(/<ToastViewport\s+bottomInset=\{toastInset\}\s*\/>/);
+  });
+
+  it.each(
+    FILES.filter((p) => !isTest(p))
+      .filter((p) => p !== `${SRC}components/stories/StoriesViewer.tsx`)
+      .filter((p) => stripComments(read(p)).includes('<StoriesViewer'))
+      .map((p) => rel(p).replace('apps/native/src/', '')),
+  )('%s measures the viewer chrome and hands it to Screen', (file) => {
+    const source = stripComments(read(`${SRC}${file}`));
+    expect(source, `${file} mounts the viewer without measuring its overlay chrome`).toContain(
+      'onChromeHeight=',
+    );
+    expect(source, `${file} measures the chrome but never lifts the toast band`).toMatch(
+      /toastInset=\{/,
+    );
+  });
+});
