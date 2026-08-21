@@ -4,7 +4,7 @@ import type { ComponentType } from 'react';
  * Sacred-geometry glyphs (DESIGN.md §6): built from the Mandorla vocabulary —
  * circles, triangles, points. Stroke 1.2, `currentColor`, never filled except
  * the center point. No icon pack, no aura cyan, no mandala gradient (those are
- * logo/hero only). One per pillar + a Ripples motif (Il Nome) and a Plus marker.
+ * logo/hero only). One per pillar + a Ripples motif (Il Nome).
  */
 type GlyphProps = { size?: number; className?: string };
 
@@ -104,17 +104,6 @@ export function Ring({ size = 28, className }: GlyphProps) {
     <>
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" />
-    </>,
-  );
-}
-
-// Center point — the «+» seam marker (DESIGN.md center-point glyph).
-export function Plus({ size = 14, className }: GlyphProps) {
-  return svg(
-    size,
-    className,
-    <>
-      <path d="M12 5 V19 M5 12 H19" />
     </>,
   );
 }
