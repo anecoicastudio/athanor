@@ -31,6 +31,7 @@ import { isRunEnd } from '@/lib/chat-runs';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useToast } from '@/components/ToastHost';
 
 type Row =
   | { type: 'marker'; key: string; label: string }
@@ -48,6 +49,7 @@ export default function ChatScreen() {
   // older history (scroll-up pagination) doesn't yank the reader back to the bottom.
   const atBottomRef = useRef(true);
   const [draft, setDraft] = useState('');
+  const { showToast } = useToast();
 
   const headerQuery = useQuery({
     queryKey: conversationKeys.detail(conversationId),
@@ -135,7 +137,9 @@ export default function ChatScreen() {
       await queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
       await queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
     },
-    onError: () => Alert.alert(t('chat.failed', locale)),
+    // A failed send is transient and the draft survives it, so the retry the copy offers is
+    // the composer still sitting there — a modal over the thread would only hide it (#102).
+    onError: () => showToast(t('chat.failed', locale)),
   });
 
   const trimmed = draft.trim();
