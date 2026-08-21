@@ -67,3 +67,25 @@ describe('storySegmentInsertSchema', () => {
     }
   });
 });
+
+describe('storySegmentInsertSchema shape', () => {
+  // Picked from the row (rules/schemas.md); the literal key list is what a flipped pick flag
+  // fails, where "defaults the optional fields" above passes for whatever the pick kept.
+  it('carries exactly author, kind, path and the three defaulted fields', () => {
+    expect(Object.keys(storySegmentInsertSchema.shape).sort()).toEqual([
+      'author_id',
+      'caption',
+      'duration_s',
+      'is_step',
+      'kind',
+      'storage_path',
+    ]);
+  });
+
+  it('requires author_id, kind and storage_path', () => {
+    for (const key of ['author_id', 'kind', 'storage_path'] as const) {
+      const { [key]: _dropped, ...without } = baseInsert;
+      expect(storySegmentInsertSchema.safeParse(without).success).toBe(false);
+    }
+  });
+});

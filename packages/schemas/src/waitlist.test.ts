@@ -74,3 +74,21 @@ describe('waitlistAdminRowSchema', () => {
     expect(waitlistAdminRowSchema.safeParse(noTs).success).toBe(false);
   });
 });
+
+describe('waitlist locale', () => {
+  // Both shapes take the locale from profile.ts's localeSchema — one vocabulary, not three
+  // copies of it; the literal list here is what a dropped member fails.
+  it('is it | en on the row and on the insert', () => {
+    expect(waitlistAdminRowSchema.shape.locale.options).toEqual(['it', 'en']);
+    expect(waitlistInsertSchema.shape.locale.removeDefault().options).toEqual(['it', 'en']);
+    expect(waitlistInsertSchema.safeParse({ email: 'a@b.com', locale: 'fr' }).success).toBe(false);
+    const enRow = {
+      id: '10000000-0000-4000-8000-000000000001',
+      email: 'a@b.it',
+      locale: 'en',
+      source: null,
+      created_at: '2026-01-01T00:00:00Z',
+    };
+    expect(waitlistAdminRowSchema.parse(enRow).locale).toBe('en');
+  });
+});

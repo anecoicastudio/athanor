@@ -77,3 +77,14 @@ describe('upcomingEventEntrySchema', () => {
     expect(upcomingEventEntrySchema.safeParse({ ...entry, stream_url: 'x' }).success).toBe(false);
   });
 });
+
+describe('publicEventSchema currency', () => {
+  // Both anchors matter: without `^` 'xeur' passes, without `$` 'eurx' does — and either would
+  // render a currency Stripe does not recognise on a public page.
+  it('anchors currency to exactly three lowercase letters', () => {
+    for (const bad of ['xeur', 'eurx', 'EUR', 'eu']) {
+      expect(publicEventSchema.safeParse({ ...row, currency: bad }).success).toBe(false);
+    }
+    expect(publicEventSchema.parse({ ...row, currency: 'chf' }).currency).toBe('chf');
+  });
+});

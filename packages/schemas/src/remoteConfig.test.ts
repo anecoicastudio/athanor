@@ -74,3 +74,24 @@ describe('remoteConfig schemas', () => {
     ).toBe(false);
   });
 });
+
+describe('remoteConfig shapes', () => {
+  // `.passthrough()` keeps the extra keys, but `enabled` is still the one key every flag must
+  // carry — a flag object with no `enabled` is a misconfigured flag, not a disabled one.
+  it('rejects a feature flag without enabled', () => {
+    expect(featureFlagSchema.safeParse({ rolloutPct: 50 }).success).toBe(false);
+  });
+
+  // The snapshot's maintenance is the normalized form: eta is present-and-nullable, never
+  // absent, because it is written from RemoteConfigSnapshot and not from raw jsonb.
+  it('requires eta on a persisted maintenance section, null included', () => {
+    const base = { minAppVersion: null, flags: {}, savedAt: '2026-08-07T10:00:00Z' };
+    expect(
+      remoteConfigSnapshotSchema.parse({ ...base, maintenance: { enabled: false, eta: null } })
+        .maintenance,
+    ).toEqual({ enabled: false, eta: null });
+    expect(
+      remoteConfigSnapshotSchema.safeParse({ ...base, maintenance: { enabled: false } }).success,
+    ).toBe(false);
+  });
+});

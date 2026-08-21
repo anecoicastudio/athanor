@@ -102,8 +102,6 @@ export const profileSchema = z.object({
 
 export const profileUpdateSchema = profileSchema
   .pick({
-    handle: true,
-    display_name: true,
     avatar_path: true,
     bio: true,
     mission: true,
@@ -116,9 +114,11 @@ export const profileUpdateSchema = profileSchema
     identity_tags: true,
     seeking: true,
   })
-  // The two fields whose write shape differs from their read shape: the edit form hands over
-  // whatever was typed, padding included, and the column's CHECK measures `btrim`; and a handle
-  // being CLAIMED is held to the reserved list a handle being READ is not (#430).
+  // The two fields whose write shape differs from their read shape, added here rather than
+  // picked above and overridden (a picked entry the extend replaces is a flag that does nothing):
+  // the edit form hands over whatever was typed, padding included, and the column's CHECK
+  // measures `btrim`; and a handle being CLAIMED is held to the reserved list a handle being
+  // READ is not (#430).
   .extend({
     display_name: displayNameWriteSchema.nullable(),
     handle: claimableHandleSchema.nullable(),
@@ -144,17 +144,16 @@ export const personProfileSchema = profileSchema
     avatar_path: true,
     bio: true,
     mission: true,
-    identity_tags: true,
-    seeking: true,
     skills: true,
     profession: true,
     city: true,
     identity_verified: true,
     founding_member: true,
   })
-  // visibility-gated fields arrive NULL when hidden (bio and the #149 fields
-  // are already nullable). city_geohash is deliberately absent: the RPC never
-  // projects another member's cell (20260814104755).
+  // visibility-gated fields arrive NULL when hidden (bio and the #149 fields are already
+  // nullable); identity_tags and seeking join here with the nullable wrapper rather than being
+  // picked above and overridden. city_geohash is deliberately absent: the RPC never projects
+  // another member's cell (20260814104755).
   .extend({
     identity_tags: profileSchema.shape.identity_tags.nullable(),
     seeking: profileSchema.shape.seeking.nullable(),

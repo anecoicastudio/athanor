@@ -219,3 +219,38 @@ describe('realization phase write shapes (#229)', () => {
     expect(parsed).toEqual({ amount_cents: 15000 });
   });
 });
+
+// The write shapes are projections of their rows (rules/schemas.md). Asserted as the literal
+// key list: a flipped pick flag drops a column from the edit surface — plan_id staying out of
+// the phase edit is the one a test above pins; the ones that must stay IN had no guard.
+describe('realization write shapes', () => {
+  it('realizationPlanUpdateSchema edits exactly the four prose columns', () => {
+    expect(Object.keys(realizationPlanUpdateSchema.shape).sort()).toEqual([
+      'expected_result',
+      'objective',
+      'professionals',
+      'suppliers',
+    ]);
+  });
+
+  it('realizationPlanPhaseInsertSchema carries exactly the six author-supplied phase columns', () => {
+    expect(Object.keys(realizationPlanPhaseInsertSchema.shape).sort()).toEqual([
+      'amount_cents',
+      'plan_id',
+      'scheduled_for',
+      'sort',
+      'title',
+      'verification_criteria',
+    ]);
+  });
+
+  it('realizationPlanPhaseUpdateSchema edits exactly the five — never plan_id', () => {
+    expect(Object.keys(realizationPlanPhaseUpdateSchema.shape).sort()).toEqual([
+      'amount_cents',
+      'scheduled_for',
+      'sort',
+      'title',
+      'verification_criteria',
+    ]);
+  });
+});

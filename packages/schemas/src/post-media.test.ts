@@ -114,3 +114,19 @@ describe('postMediaInsertSchema', () => {
     expect(() => postMediaInsertSchema.parse(withoutPosition)).toThrow();
   });
 });
+
+describe('thumb_path', () => {
+  // Every row and insert in this file carries thumb_path: null, which satisfies any bound. A
+  // real poster key has to parse and an empty one must not — on the row and the insert alike,
+  // since the insert re-declares the field rather than picking it.
+  it('accepts a poster key and rejects an empty one, on the row and the insert', () => {
+    expect(
+      postMediaSchema.parse({ ...imageRow, thumb_path: 'uid/post/0-thumb.jpg' }).thumb_path,
+    ).toBe('uid/post/0-thumb.jpg');
+    expect(() => postMediaSchema.parse({ ...imageRow, thumb_path: '' })).toThrow();
+    expect(
+      postMediaInsertSchema.parse({ ...baseInsert, thumb_path: 'uid/post/0-thumb.jpg' }).thumb_path,
+    ).toBe('uid/post/0-thumb.jpg');
+    expect(() => postMediaInsertSchema.parse({ ...baseInsert, thumb_path: '' })).toThrow();
+  });
+});

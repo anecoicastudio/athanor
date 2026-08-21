@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { handleSchema, publicProfileSchema, publicHandleEntrySchema } from './public-profile';
+import {
+  handleSchema,
+  publicHandleEntrySchema,
+  publicMilestoneSchema,
+  publicProfileSchema,
+} from './public-profile';
 
 describe('handleSchema', () => {
   it('accepts a valid handle', () => {
@@ -99,5 +104,17 @@ describe('publicHandleEntrySchema', () => {
 
   it('requires updated_at — the sitemap lastModified', () => {
     expect(publicHandleEntrySchema.safeParse({ handle: 'sole' }).success).toBe(false);
+  });
+});
+
+describe('publicMilestoneSchema', () => {
+  it('status is open | in_progress | done — the tappa vocabulary, derived from milestone.ts', () => {
+    expect(publicMilestoneSchema.shape.status.options).toEqual(['open', 'in_progress', 'done']);
+    for (const status of ['open', 'in_progress', 'done']) {
+      expect(publicMilestoneSchema.parse({ id: 'm1', body: 'x', status }).status).toBe(status);
+    }
+    expect(publicMilestoneSchema.safeParse({ id: 'm1', body: 'x', status: 'paused' }).success).toBe(
+      false,
+    );
   });
 });

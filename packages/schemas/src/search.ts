@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { starKeySchema } from './aura';
 import { avatarPathSchema, displayNameSchema } from './profile';
 
 export const searchScopeSchema = z.enum(['all', 'people', 'projects', 'events', 'marketplace']);
@@ -23,9 +24,8 @@ export const searchFiltersSchema = z
   .object({
     auraMin: z.number().int().min(0).max(1000).optional(),
     city: z.string().max(80).optional(),
-    star: z
-      .enum(['visionario', 'creatore', 'mentor', 'innovatore', 'collaboratore', 'ambasciatore'])
-      .optional(),
+    // The Six Stars themselves (aura.ts STAR_KEYS) — one vocabulary, not a second copy of it.
+    star: starKeySchema.optional(),
   })
   .partial();
 export type SearchFilters = z.infer<typeof searchFiltersSchema>;

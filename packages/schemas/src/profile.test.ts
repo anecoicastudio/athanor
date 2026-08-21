@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { personProfileSchema, profileSchema, profileUpdateSchema } from './profile';
+import {
+  cityGeohashSchema,
+  localeSchema,
+  personProfileSchema,
+  profileSchema,
+  profileUpdateSchema,
+} from './profile';
 
 const validRow = {
   id: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11',
@@ -212,5 +218,81 @@ describe('profileUpdateSchema handle reservation (#430)', () => {
     // The column is nullable and the read shape stays nullable; the refinement must not turn
     // "no handle yet" into a validation error.
     expect(profileUpdateSchema.safeParse({ handle: null }).success).toBe(true);
+  });
+});
+
+describe('profile vocabularies (mirror the column enums)', () => {
+  it('locale is it | en — IT canonical, EN the mirror', () => {
+    expect(localeSchema.options).toEqual(['it', 'en']);
+    for (const bad of ['de', 'IT', '']) {
+      expect(localeSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('a visibility facet is public | members | private', () => {
+    expect(profileSchema.shape.visibility.valueSchema.options).toEqual([
+      'public',
+      'members',
+      'private',
+    ]);
+    const parsed = profileSchema.parse({
+      ...validRow,
+      visibility: { bio: 'members', dream: 'private' },
+    });
+    expect(parsed.visibility).toEqual({ bio: 'members', dream: 'private' });
+    expect(profileSchema.safeParse({ ...validRow, visibility: { bio: 'friends' } }).success).toBe(
+      false,
+    );
+  });
+
+  // Both anchors matter: without `^` a six-character string matches on its last five cells,
+  // without `$` on its first five — and either would store a cell the column CHECK refuses.
+  it('anchors the geohash to exactly five cells', () => {
+    expect(cityGeohashSchema.safeParse('u0nd9').success).toBe(true);
+    expect(cityGeohashSchema.safeParse('u0nd9x').success).toBe(false);
+    expect(cityGeohashSchema.safeParse('xu0nd9').success).toBe(false);
+  });
+});
+
+// The write and projection shapes are DERIVED from profileSchema (rules/schemas.md). Asserted
+// as the literal key list rather than one property at a time: a flipped pick flag drops a
+// column from the surface, and every "accepts X" test above still passes for the columns it
+// kept.
+describe('profile derived shapes', () => {
+  it('profileUpdateSchema edits exactly the thirteen member-owned columns', () => {
+    expect(Object.keys(profileUpdateSchema.shape).sort()).toEqual([
+      'avatar_path',
+      'bio',
+      'city',
+      'city_geohash',
+      'display_name',
+      'handle',
+      'identity_tags',
+      'locale',
+      'mission',
+      'profession',
+      'seeking',
+      'skills',
+      'visibility',
+    ]);
+  });
+
+  it('personProfileSchema projects exactly the third-person columns plus the removed flag', () => {
+    expect(Object.keys(personProfileSchema.shape).sort()).toEqual([
+      'avatar_path',
+      'bio',
+      'city',
+      'display_name',
+      'founding_member',
+      'handle',
+      'id',
+      'identity_tags',
+      'identity_verified',
+      'mission',
+      'profession',
+      'removed',
+      'seeking',
+      'skills',
+    ]);
   });
 });

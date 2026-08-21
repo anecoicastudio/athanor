@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { projectInsertSchema, projectSchema } from './project';
+import {
+  projectCategorySchema,
+  projectInsertSchema,
+  projectSchema,
+  projectStatusSchema,
+} from './project';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -89,5 +94,50 @@ describe('projectInsertSchema', () => {
       '50/50 sui ricavi',
     );
     expect(() => projectInsertSchema.parse({ ...base, terms: 'x'.repeat(501) })).toThrow();
+  });
+});
+
+// Mirrors community_projects — the literal list, never a loop over the constant.
+describe('project vocabularies', () => {
+  test('category is startup | artistic | business | scientific | volunteer', () => {
+    expect(projectCategorySchema.options).toEqual([
+      'startup',
+      'artistic',
+      'business',
+      'scientific',
+      'volunteer',
+    ]);
+    for (const bad of ['craft', 'spam', '']) {
+      expect(projectCategorySchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  test('status is open | closed', () => {
+    expect(projectStatusSchema.options).toEqual(['open', 'closed']);
+    expect(projectStatusSchema.safeParse('archived').success).toBe(false);
+  });
+});
+
+describe('projectInsertSchema shape', () => {
+  test('carries exactly author, category, title, description and terms — status is server-set', () => {
+    expect(Object.keys(projectInsertSchema.shape).sort()).toEqual([
+      'author_id',
+      'category',
+      'description',
+      'terms',
+      'title',
+    ]);
+  });
+
+  test('requires author_id and category', () => {
+    const base = {
+      author_id: '22222222-2222-2222-2222-222222222222',
+      title: 'Cerco socio',
+      category: 'startup',
+    };
+    for (const key of ['author_id', 'category'] as const) {
+      const { [key]: _dropped, ...without } = base;
+      expect(projectInsertSchema.safeParse(without).success).toBe(false);
+    }
   });
 });

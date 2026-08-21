@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localeSchema } from './profile';
 
 /**
  * Joining the waitlist — the single write boundary. Email is normalized here
@@ -7,7 +8,7 @@ import { z } from 'zod';
  */
 export const waitlistInsertSchema = z.object({
   email: z.string().trim().toLowerCase().email('invalid email').max(320),
-  locale: z.enum(['it', 'en']).default('it'),
+  locale: localeSchema.default('it'),
   source: z.string().max(80).optional(),
 });
 
@@ -27,7 +28,7 @@ export type WaitlistInsert = z.infer<typeof waitlistInsertSchema>;
 export const waitlistAdminRowSchema = z.object({
   id: z.string().uuid(),
   email: z.string().min(3).max(320),
-  locale: z.enum(['it', 'en']),
+  locale: localeSchema,
   source: z.string().nullable(),
   created_at: z.string(),
 });

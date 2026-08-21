@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { helpInsertSchema, helpRespondSchema, helpSchema } from './help';
+import {
+  helpInsertSchema,
+  helpRespondSchema,
+  helpSchema,
+  helpStatusSchema,
+  helpTypeSchema,
+} from './help';
 
 const validRow = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -65,5 +71,26 @@ describe('helpRespondSchema', () => {
   });
   it('rejects offered as a response target', () => {
     expect(() => helpRespondSchema.parse({ status: 'offered' })).toThrow();
+  });
+});
+
+// Mirrors milestone_helps — the literal list, never a loop over the constant.
+describe('help vocabularies', () => {
+  it('type is skill | connection | opportunity — no contribution in Fase 1', () => {
+    expect(helpTypeSchema.options).toEqual(['skill', 'connection', 'opportunity']);
+  });
+
+  it('status is offered → accepted | declined → completed', () => {
+    expect(helpStatusSchema.options).toEqual(['offered', 'accepted', 'declined', 'completed']);
+    for (const bad of ['withdrawn', 'pending', '']) {
+      expect(helpStatusSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('respond targets are the vocabulary minus offered — each reachable, offered never', () => {
+    expect(helpRespondSchema.shape.status.options).toEqual(['accepted', 'declined', 'completed']);
+    for (const status of ['accepted', 'declined', 'completed']) {
+      expect(helpRespondSchema.parse({ status }).status).toBe(status);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { notificationSchema, NOTIFICATION_TYPES } from './notification';
+import { entityRefSchema, notificationSchema, NOTIFICATION_TYPES } from './notification';
 
 describe('notificationSchema', () => {
   it('parses a valid notification row', () => {
@@ -115,5 +115,21 @@ describe('notificationSchema', () => {
       };
       expect(notificationSchema.parse(row).template_key).toBe(key);
     }
+  });
+});
+
+describe('entityRefSchema — the routing target of a tapped notification', () => {
+  it('is kind + id, read back unchanged, and nullish for a row that routes nowhere', () => {
+    expect(entityRefSchema.parse({ kind: 'momento', id: 'abc' })).toEqual({
+      kind: 'momento',
+      id: 'abc',
+    });
+    expect(entityRefSchema.parse(null)).toBeNull();
+    expect(entityRefSchema.parse(undefined)).toBeUndefined();
+  });
+
+  it('rejects a ref without an id or without a kind — half a target routes nowhere', () => {
+    expect(entityRefSchema.safeParse({ kind: 'momento' }).success).toBe(false);
+    expect(entityRefSchema.safeParse({ id: 'abc' }).success).toBe(false);
   });
 });

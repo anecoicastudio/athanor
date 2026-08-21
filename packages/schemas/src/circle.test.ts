@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
-  circleMembershipSchema,
   circleCheckoutInputSchema,
   circleCheckoutResultSchema,
+  circleMembershipSchema,
+  circlePlanSchema,
+  circleStatusSchema,
 } from './circle';
 
 describe('circle schemas', () => {
@@ -29,5 +31,19 @@ describe('circle schemas', () => {
   test('accepts both checkout-result kinds (iOS IAP indirection)', () => {
     expect(circleCheckoutResultSchema.parse({ kind: 'url', url: 'https://x' }).kind).toBe('url');
     expect(circleCheckoutResultSchema.parse({ kind: 'iap', productId: 'p' }).kind).toBe('iap');
+  });
+});
+
+// The Stripe subscription mirror — the literal list, never a loop over the constant.
+describe('circle vocabularies', () => {
+  test('plan is monthly | annual', () => {
+    expect(circlePlanSchema.options).toEqual(['monthly', 'annual']);
+  });
+
+  test('status is active | past_due | canceled | incomplete — the four the webhook caches', () => {
+    expect(circleStatusSchema.options).toEqual(['active', 'past_due', 'canceled', 'incomplete']);
+    for (const bad of ['trialing', 'unpaid', 'cancelled', '']) {
+      expect(circleStatusSchema.safeParse(bad).success).toBe(false);
+    }
   });
 });

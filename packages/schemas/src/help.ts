@@ -28,9 +28,10 @@ export const helpInsertSchema = z.object({
   link: helpLinkSchema.optional(),
 });
 
-/** Owner transitions an offer — only the reachable non-'offered' targets. */
+/** Owner transitions an offer — the status vocabulary minus 'offered', derived so a new status
+ *  has to be named here to be a response target rather than silently becoming one. */
 export const helpRespondSchema = z.object({
-  status: z.enum(['accepted', 'declined', 'completed']),
+  status: helpStatusSchema.exclude(['offered']),
 });
 
 export type HelpType = z.infer<typeof helpTypeSchema>;
