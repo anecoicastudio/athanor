@@ -26,6 +26,7 @@ import { StepDots } from '@/components/StepDots';
 import { VideoUploadTile } from '@/components/candidacy/VideoUploadTile';
 import { useToast } from '@/components/ToastHost';
 import { useCandidacyUpload } from '@/lib/media/use-candidacy-upload';
+import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import {
   TOTAL_STEPS,
   type WizardDraft,
@@ -34,6 +35,7 @@ import {
   budgetPair,
   hasStandingVideo,
   prefillValues,
+  standingVideo,
   stepAt,
   stepBlocker,
   submitBlockers,
@@ -229,6 +231,16 @@ function WizardForm({
     hasInitial: initial !== null,
   });
 
+  // Edit mode opens on a video that already stands, so step 4 draws its stored poster instead of
+  // the «nothing picked» glyph (#463). Same signer and bucket as the ballot (`annual.tsx`), and
+  // the same rule as the submit path below: the poster stands only in edit mode. A posterless
+  // row signs nothing — the query is disabled on an empty list and `isLoading` stays false.
+  const standing = standingVideo({ mode, initial });
+  const { urls: standingUrls, isLoading: isLoadingStandingPoster } = useSignedUrls(
+    'candidacy-videos',
+    standing?.thumbPath ? [standing.thumbPath] : [],
+  );
+
   // What every gate reads: the typed values plus the one fact that is not typed.
   const draft: WizardDraft = { ...values, hasVideo };
 
@@ -416,6 +428,11 @@ function WizardForm({
                   failure={upload.failure}
                   progress={upload.progress}
                   posterUri={upload.posterUri}
+                  standing={standing}
+                  standingPosterUrl={
+                    standing?.thumbPath ? standingUrls[standing.thumbPath] : undefined
+                  }
+                  isLoadingStandingPoster={isLoadingStandingPoster}
                   onPick={upload.pick}
                   onRecord={upload.record}
                   onCancel={upload.cancel}

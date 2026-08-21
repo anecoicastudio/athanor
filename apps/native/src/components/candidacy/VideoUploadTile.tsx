@@ -4,6 +4,7 @@ import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import {
+  type StandingVideo,
   type UploadStatus,
   type VideoFailure,
   videoStatusMessage,
@@ -23,6 +24,19 @@ type Props = {
    * signed: the JPEG is on the device the moment the upload reports done.
    */
   posterUri: string | null;
+  /**
+   * The video that already stands in edit mode, before any replacement (#463) — from
+   * `standingVideo`, null on a fresh submit. Its `thumbPath` is a storage path: the screen signs
+   * it and hands the result down as the two props below.
+   */
+  standing: StandingVideo | null;
+  /**
+   * Signed URL for `standing.thumbPath`, from the screen's `useSignedUrls`. Undefined until it
+   * signs, or forever.
+   */
+  standingPosterUrl?: string;
+  /** That signing query's `isLoading`. Thread it — dropping it is #135 (see the frame below). */
+  isLoadingStandingPoster: boolean;
   onPick: () => void;
   onRecord: () => void;
   onCancel: () => void;
@@ -47,6 +61,14 @@ type Props = {
  * video, a refused write and a native throw were all rendered as «nothing happened». The
  * status→key decision is `videoStatusMessage`, unit-tested next door; a `blocked` grant also
  * gets the Settings route, because it is the one failure the member cannot clear from in here.
+ *
+ * Edit mode opens on a video that already stands (#463). That used to render as the muted `◓`
+ * — pixel-identical to never having picked anything — with only the keepHint sentence saying a
+ * video existed. The stored poster now draws through the same signed-URL path the ballot card
+ * uses (`useSignedUrls('candidacy-videos')` on the screen, one signer), with the same four
+ * states: the poster, the `MediaFrame` loading fill while it signs, a faint ▶ when the row has
+ * no poster at all, and `MediaFrame`'s unavailable state when the object is gone. «No poster» is
+ * decided on `standing.thumbPath`, never on the URL — the URL is absent while signing too.
  */
 export function VideoUploadTile({
   locale,
@@ -54,13 +76,16 @@ export function VideoUploadTile({
   failure,
   progress,
   posterUri,
+  standing,
+  standingPosterUrl,
+  isLoadingStandingPoster,
   onPick,
   onRecord,
   onCancel,
 }: Props) {
   const message = videoStatusMessage(status, failure);
   const offersSettings = videoStatusOffersSettings(status, failure);
-  const preview = videoTilePreview(status, posterUri);
+  const preview = videoTilePreview(status, posterUri, standing);
 
   return (
     <View className="gap-3">
@@ -98,6 +123,34 @@ export function VideoUploadTile({
               locale={locale}
               className="aspect-video w-2/3 rounded-ctl"
             />
+          </View>
+        ) : preview === 'standing' ? (
+          // The stored poster, signed. Three states, not two: `url` absent with `isLoading` true
+          // is the loading fill, absent with it false is «unavailable» — a `url ? … : ▶` here
+          // would announce «no preview» about a poster 200ms from appearing (#135). Which of the
+          // two standing branches applies was decided on the ROW by `videoTilePreview`.
+          <View accessible accessibilityLabel={t('candidacy.step4.preview', locale)}>
+            <MediaFrame
+              kind="video"
+              url={standingPosterUrl}
+              isLoading={isLoadingStandingPoster}
+              locale={locale}
+              className="aspect-video w-2/3 rounded-ctl"
+            />
+          </View>
+        ) : preview === 'standing-no-poster' ? (
+          // A standing video whose poster was never extracted: a STATE the row states, not a
+          // failure, so `media.unavailable.video` would be a lie — same hand-rolled ▶ as the
+          // ballot card, faint because nothing happened here (rule #4).
+          <View accessible accessibilityLabel={t('media.noPoster.video', locale)}>
+            <Text
+              className="text-4xl text-faint"
+              // Decorative: the wrapper announces the sentence (same pairing as MediaFrame).
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              ▶
+            </Text>
           </View>
         ) : (
           <Text
