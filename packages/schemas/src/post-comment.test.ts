@@ -53,3 +53,27 @@ describe('postCommentInsertSchema', () => {
     expect(() => postCommentInsertSchema.parse({ ...base, id: 'not-a-uuid' })).toThrow();
   });
 });
+
+describe('postCommentInsertSchema shape', () => {
+  test('carries exactly post, author, body, parent and the optional client id', () => {
+    expect(Object.keys(postCommentInsertSchema.shape).sort()).toEqual([
+      'author_id',
+      'body',
+      'id',
+      'parent_id',
+      'post_id',
+    ]);
+  });
+
+  test('requires post_id and author_id', () => {
+    const base = {
+      post_id: '22222222-2222-2222-2222-222222222222',
+      author_id: '33333333-3333-3333-3333-333333333333',
+      body: 'ciao',
+    };
+    for (const key of ['post_id', 'author_id'] as const) {
+      const { [key]: _dropped, ...without } = base;
+      expect(postCommentInsertSchema.safeParse(without).success).toBe(false);
+    }
+  });
+});

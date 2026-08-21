@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   attendanceSchema,
   checkInResultSchema,
+  eventCategorySchema,
   eventCreateSchema,
   eventLiveStatsSchema,
   eventNearbySchema,
@@ -9,6 +10,7 @@ import {
   rsvpSchema,
   rsvpStatusSchema,
   ticketSchema,
+  ticketStatusSchema,
 } from './event';
 
 const baseRow = {
@@ -135,6 +137,7 @@ describe('eventCreateSchema', () => {
     const parsed = eventCreateSchema.safeParse({ ...physical, price_cents: 2500 });
     expect(parsed.success).toBe(false);
     const issue = parsed.error?.issues.find((i) => i.path[0] === 'settlement_ack');
+    expect(issue?.code).toBe('custom');
     expect(issue?.message).toBe('settlement_ack_required');
   });
   it('leaves a free event alone — nothing to settle, nothing to acknowledge (#437)', () => {
@@ -300,5 +303,36 @@ describe('checkInResultSchema', () => {
   });
   it('rejects an unknown verdict', () => {
     expect(() => checkInResultSchema.parse({ result: 'exploded' })).toThrow();
+  });
+});
+
+// Mirrors public.event_category / event_tickets.status — the literal list, never a loop over
+// the constant: a blanked member narrows the boundary and a loop would not notice.
+describe('event vocabularies', () => {
+  it('eventCategorySchema is the nine categories, in enum order', () => {
+    expect(eventCategorySchema.options).toEqual([
+      'business',
+      'networking',
+      'spiritualita',
+      'formazione',
+      'musica',
+      'arte',
+      'benessere',
+      'creativi',
+      'evoluzione',
+    ]);
+  });
+
+  it('rejects a category outside the enum, blank included', () => {
+    for (const bad of ['sport', 'music', 'cultura', '']) {
+      expect(eventCategorySchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('ticketStatusSchema is pending → paid → checked_in, or refunded', () => {
+    expect(ticketStatusSchema.options).toEqual(['pending', 'paid', 'checked_in', 'refunded']);
+    for (const bad of ['cancelled', 'gifted', 'expired', '']) {
+      expect(ticketStatusSchema.safeParse(bad).success).toBe(false);
+    }
   });
 });

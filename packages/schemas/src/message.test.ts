@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { messageSchema, messageInsertSchema } from './message';
+import { messageInsertSchema, messageKind, messageSchema } from './message';
 
 describe('messageSchema', () => {
   test('parses a user row (snake_case)', () => {
@@ -41,5 +41,14 @@ describe('messageInsertSchema', () => {
         body: '   ',
       }),
     ).toThrow();
+  });
+});
+
+describe('messageKind', () => {
+  test('is user | system | prompt — the three row kinds, in that order', () => {
+    expect(messageKind.options).toEqual(['user', 'system', 'prompt']);
+    for (const bad of ['bot', 'media', '']) {
+      expect(messageKind.safeParse(bad).success).toBe(false);
+    }
   });
 });

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { AUDIT_LOG_ACTIONS, auditLogRow, resolveReportInput } from './admin';
+import {
+  AUDIT_LOG_ACTIONS,
+  adminFundEditionRow,
+  adminReportDetail,
+  adminReportRow,
+  auditLogRow,
+  resolveReportInput,
+} from './admin';
 
 describe('resolveReportInput', () => {
   it('accepts a dismiss verdict without severity', () => {
@@ -222,6 +229,137 @@ describe('auditLogRow', () => {
     // refinement that rejected it would be stricter than the constraint it mirrors.
     expect(auditLogRow.safeParse({ ...moderation, edition_id: crypto.randomUUID() }).success).toBe(
       true,
+    );
+  });
+});
+
+describe('resolveReportInput — refine routing', () => {
+  const base = { reportId: crypto.randomUUID(), resolution: 'x' };
+
+  // The `path` on each refine is the field a form attaches the error to. The severity-required
+  // path is pinned above; the other four were blankable unseen, and a refine that reports
+  // against the wrong field is one a form renders nowhere.
+  it('routes each refine failure to the field it is about', () => {
+    const actionOnDismiss = resolveReportInput.safeParse({
+      ...base,
+      verdict: 'dismiss',
+      action: 'ban',
+    });
+    expect(actionOnDismiss.success).toBe(false);
+    expect(actionOnDismiss.error?.issues[0]?.path).toEqual(['action']);
+
+    const severityOnWarn = resolveReportInput.safeParse({
+      ...base,
+      verdict: 'uphold',
+      action: 'warn',
+      severity: 'low',
+    });
+    expect(severityOnWarn.success).toBe(false);
+    expect(severityOnWarn.error?.issues[0]?.path).toEqual(['severity']);
+
+    const suspendWithoutDays = resolveReportInput.safeParse({
+      ...base,
+      verdict: 'uphold',
+      action: 'suspend',
+    });
+    expect(suspendWithoutDays.success).toBe(false);
+    expect(suspendWithoutDays.error?.issues[0]?.path).toEqual(['suspendDays']);
+
+    const daysWithoutSuspend = resolveReportInput.safeParse({
+      ...base,
+      verdict: 'uphold',
+      action: 'ban',
+      suspendDays: 7,
+    });
+    expect(daysWithoutSuspend.success).toBe(false);
+    expect(daysWithoutSuspend.error?.issues[0]?.path).toEqual(['suspendDays']);
+  });
+
+  // severity prices the Aura deduction (core maps it, rule #10), and a dismiss deducts nothing.
+  // Only the uphold arm was exercised before, so the `verdict === 'uphold'` guard could have
+  // been a constant `true` and a priced dismiss would have parsed.
+  it('rejects a severity on a dismiss — nothing is priced when nothing is upheld', () => {
+    const r = resolveReportInput.safeParse({ ...base, verdict: 'dismiss', severity: 'high' });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(['severity']);
+  });
+});
+
+describe('admin read shapes', () => {
+  it('a queue row carries exactly what the queue renders', () => {
+    expect(Object.keys(adminReportRow.shape)).toEqual([
+      'id',
+      'target_type',
+      'target_id',
+      'category',
+      'status',
+      'created_at',
+      'reporter_handle',
+    ]);
+  });
+
+  it('target_type is the reports vocabulary — person, post, behavior — and nothing else', () => {
+    expect(adminReportRow.shape.target_type.options).toEqual(['person', 'post', 'behavior']);
+    for (const bad of ['comment', 'event', 'message', '']) {
+      expect(adminReportRow.shape.target_type.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('the detail is the queue row plus note, resolution, target handle and the audit trail with its withheld count', () => {
+    expect(Object.keys(adminReportDetail.shape)).toEqual([
+      'id',
+      'target_type',
+      'target_id',
+      'category',
+      'status',
+      'created_at',
+      'reporter_handle',
+      'note',
+      'resolution',
+      'target_handle',
+      'audit',
+      'auditExcluded',
+    ]);
+  });
+});
+
+// #432 — the fund-audit index row is a projection of the cycle, not a second declaration of
+// it. The six pick flags are what keep it one: a flipped flag drops a column the index names,
+// orders by or links on, and a parse of a full cycle row would still succeed.
+describe('adminFundEditionRow', () => {
+  const cycle = {
+    id: '00000000-0000-0000-0000-0000000000ed',
+    phase: 'realization',
+    target_at: '2026-12-31T00:00:00+00:00',
+    created_at: '2026-06-01T00:00:00+00:00',
+    closure_reason: null,
+    winner_candidacy_id: '00000000-0000-0000-0000-0000000000ca',
+  };
+
+  it('picks exactly the six index columns from the cycle, in index order', () => {
+    expect(Object.keys(adminFundEditionRow.shape)).toEqual([
+      'id',
+      'phase',
+      'target_at',
+      'created_at',
+      'closure_reason',
+      'winner_candidacy_id',
+    ]);
+  });
+
+  it('parses an index row and strips the money columns the index never shows', () => {
+    const parsed = adminFundEditionRow.parse({
+      ...cycle,
+      goal_cents: 500000,
+      confirmed_pool_cents: 12000,
+    });
+    expect(parsed).toEqual(cycle);
+  });
+
+  it('keeps the cycle’s own constraints — phase is the fund vocabulary, ids are uuids', () => {
+    expect(adminFundEditionRow.safeParse({ ...cycle, phase: 'archived' }).success).toBe(false);
+    expect(adminFundEditionRow.safeParse({ ...cycle, winner_candidacy_id: 'cand-1' }).success).toBe(
+      false,
     );
   });
 });

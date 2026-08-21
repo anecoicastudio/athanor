@@ -103,3 +103,27 @@ describe('payoutLedgerSchema', () => {
     expect(() => payoutLedgerSchema.parse({ ...releasedRow, status: 'pending' })).toThrow();
   });
 });
+
+describe('payoutLedgerSchema — cross-field issues', () => {
+  // The over-reversal case above also flips status to 'reversed', which the status/arithmetic
+  // refine rejects on its own — so the `reversed > amount` check could have been a constant
+  // `false` and the suite would stay green. A reversal past the amount while the status still
+  // says released isolates it: exactly one issue, from exactly that check.
+  it('rejects a reversal past the amount even while the status still says released', () => {
+    const r = payoutLedgerSchema.safeParse({ ...releasedRow, reversed_cents: 4001 });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.code)).toEqual(['custom']);
+  });
+
+  it('reports each cross-field failure as a custom issue, not a shape error', () => {
+    for (const broken of [
+      { ...releasedRow, amount_cents: 9001 },
+      { ...releasedRow, payable_cents: 9001 },
+      { ...releasedRow, status: 'reversed' },
+    ]) {
+      const r = payoutLedgerSchema.safeParse(broken);
+      expect(r.success).toBe(false);
+      expect(r.error?.issues[0]?.code).toBe('custom');
+    }
+  });
+});

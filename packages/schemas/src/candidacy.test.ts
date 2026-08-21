@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   candidacyInsertSchema,
+  candidacyStatusSchema,
   candidacyUpdateSchema,
   candidateCardSchema,
   dreamCandidacySchema,
@@ -303,5 +304,128 @@ describe('candidateCardSchema', () => {
     expect(candidateCardSchema.safeParse({ ...row, dream_milestones_done: -1 }).success).toBe(
       false,
     );
+  });
+});
+
+describe('candidacyStatusSchema', () => {
+  it('is the dream_candidacies.status vocabulary, in lifecycle order', () => {
+    expect(candidacyStatusSchema.options).toEqual([
+      'submitted',
+      'screening',
+      'shortlisted',
+      'rejected',
+      'winner',
+      'voided',
+    ]);
+  });
+
+  it('has no synonym a client could reach for', () => {
+    for (const bad of ['won', 'approved', 'draft', 'archived', '']) {
+      expect(candidacyStatusSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+// The three write/view shapes are DERIVED from dreamCandidacySchema (rules/schemas.md).
+// Asserted as the literal key list: a flipped pick flag silently drops a field — and for the
+// insert, also stops requiring it — while every single-property test above stays green.
+describe('candidacy derived shapes', () => {
+  it('candidacyInsertSchema carries exactly the author-supplied fields plus the four defaulted ones', () => {
+    expect(Object.keys(candidacyInsertSchema.parse(validInsert)).sort()).toEqual([
+      'budget_cents',
+      'category',
+      'dream_id',
+      'edition_id',
+      'goal',
+      'impact',
+      'min_viable_cents',
+      'plan',
+      'skills_needed',
+      'story',
+      'thumb_path',
+      'video_url',
+    ]);
+  });
+
+  it('candidacyInsertSchema requires each picked field — a submit missing one is refused', () => {
+    for (const key of ['edition_id', 'story', 'goal', 'impact', 'video_url', 'plan'] as const) {
+      const { [key]: _dropped, ...without } = validInsert;
+      expect(candidacyInsertSchema.safeParse(without).success).toBe(false);
+    }
+  });
+
+  it('candidacyInsertSchema rejects an empty skill key and keeps a real one (FUND-10)', () => {
+    expect(candidacyInsertSchema.safeParse({ ...validInsert, skills_needed: [''] }).success).toBe(
+      false,
+    );
+    expect(
+      candidacyInsertSchema.parse({ ...validInsert, skills_needed: ['fotografia'] }).skills_needed,
+    ).toEqual(['fotografia']);
+  });
+
+  it('candidacyUpdateSchema accepts exactly the eleven editable columns and carries each through', () => {
+    const fullPatch = {
+      story: 's',
+      goal: 'g',
+      impact: 'i',
+      video_url: 'v',
+      thumb_path: null,
+      plan: 'p',
+      budget_cents: 2,
+      min_viable_cents: 1,
+      skills_needed: ['x'],
+      category: null,
+      dream_id: null,
+    };
+    expect(Object.keys(candidacyUpdateSchema.parse(fullPatch)).sort()).toEqual([
+      'budget_cents',
+      'category',
+      'dream_id',
+      'goal',
+      'impact',
+      'min_viable_cents',
+      'plan',
+      'skills_needed',
+      'story',
+      'thumb_path',
+      'video_url',
+    ]);
+  });
+
+  it('candidateCardSchema is the candidacy projection plus the view’s own columns — nothing re-declared', () => {
+    expect(Object.keys(candidateCardSchema.shape).sort()).toEqual([
+      'budget_cents',
+      'candidacy_id',
+      'category',
+      'city',
+      'created_at',
+      'dream_helps_confirmed',
+      'dream_id',
+      'dream_milestones_done',
+      'edition_id',
+      'handle',
+      'min_viable_cents',
+      'profile_id',
+      'skills_needed',
+      'status',
+      'thumb_path',
+      'title',
+      'video_url',
+    ]);
+  });
+
+  // The refine's `path` is what the wizard keys its field-level error off.
+  it('both write shapes route the minimum-above-budget failure to min_viable_cents', () => {
+    const insert = candidacyInsertSchema.safeParse({
+      ...validInsert,
+      budget_cents: 500000,
+      min_viable_cents: 500001,
+    });
+    expect(insert.error?.issues[0]?.path).toEqual(['min_viable_cents']);
+    const update = candidacyUpdateSchema.safeParse({
+      budget_cents: 500000,
+      min_viable_cents: 500001,
+    });
+    expect(update.error?.issues[0]?.path).toEqual(['min_viable_cents']);
   });
 });

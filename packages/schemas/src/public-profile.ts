@@ -1,15 +1,16 @@
 import { z } from 'zod';
+import { milestoneStatusSchema } from './milestone';
 // Import and re-export the canonical handleSchema from profile (mirrors profiles.handle CHECK
 // ^[a-z0-9_]{3,30}$) so the package index can export * from both files without a name clash.
 import { displayNameSchema, handleSchema } from './profile';
 export { handleSchema };
 export type Handle = string;
 
-/** A public tappa summary (mirrors public.milestone_status). */
+/** A public tappa summary — the status is milestone.ts's vocabulary, not a second copy of it. */
 export const publicMilestoneSchema = z.object({
   id: z.string(),
   body: z.string(),
-  status: z.enum(['open', 'in_progress', 'done']),
+  status: milestoneStatusSchema,
 });
 
 /**
