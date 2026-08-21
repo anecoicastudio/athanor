@@ -3111,10 +3111,15 @@ export type Database = {
     Functions: {
       accept_momento: { Args: { p_proposal_id: string }; Returns: Json }
       admin_list_waitlist: {
-        Args: { p_limit?: number }
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_limit?: number
+        }
         Returns: {
           created_at: string
           email: string
+          id: string
           locale: string
           source: string
         }[]

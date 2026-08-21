@@ -1,5 +1,11 @@
-import { type PublicEvent, publicEventSchema } from '@athanor/schemas';
+import {
+  type PublicEvent,
+  type UpcomingEventEntry,
+  publicEventSchema,
+  upcomingEventEntrySchema,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { parseOrWithhold } from './parse-or-withhold';
 
 export const publicEventKeys = {
   all: ['publicEvent'] as const,
@@ -67,4 +73,38 @@ export async function getPublicEventById(
     ...publicColumns,
     organizer_handle: organizer?.handle ?? null,
   });
+}
+
+/**
+ * The next N upcoming events, soonest first — what `/event/[id]` prerenders and what the
+ * sitemap lists (#335). Same bound, same reason as `listPublicHandles`: prerendering costs a
+ * render and a KV write per route per deploy, and the events people open are the ones about
+ * to happen. `now` is injectable so a build and a test agree on the cutoff; the default is
+ * the clock, as in `getEventsCalendar`.
+ *
+ * `deleted_at is null` is repeated even though anon RLS already hides deleted rows, so the
+ * query is correct under any client and uses the partial indexes. Rows the schema rejects
+ * are withheld and counted, never thrown (api.md).
+ */
+export async function listUpcomingEventIds(
+  client: AthanorClient,
+  opts: { limit: number; now?: Date },
+): Promise<{ entries: UpcomingEventEntry[]; excluded: number }> {
+  const cutoff = (opts.now ?? new Date()).toISOString();
+  const { data, error } = await client
+    .from('events')
+    .select('id, updated_at')
+    .is('deleted_at', null)
+    .gte('starts_at', cutoff)
+    .order('starts_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(opts.limit);
+  if (error) throw error;
+  const { parsed, excluded } = parseOrWithhold(
+    data,
+    upcomingEventEntrySchema,
+    'events',
+    'the upcoming-events index',
+  );
+  return { entries: parsed, excluded };
 }

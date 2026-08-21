@@ -6,7 +6,10 @@ import {
   getFundEditionIndex,
   getReportDetail,
   getReportQueue,
+  getWaitlistCount,
+  getWaitlistPage,
   resolveReport,
+  WAITLIST_PAGE_CEILING,
 } from './admin';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
 import type { AthanorClient } from './client';
@@ -804,5 +807,179 @@ describe('getFundEdition', () => {
     const fake = makeFakeClient({ 'fund_editions.select': [{ data: [editionRow()] }] });
     await getFundEdition(asClient(fake), E1);
     expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
+  });
+});
+
+// ── waitlist ─────────────────────────────────────────────────────────────────────────────
+// Both readers go through SECURITY DEFINER RPCs that re-check is_admin() server-side; this
+// package is plumbing (api rule) and never gates on a client-side role.
+describe('getWaitlistCount', () => {
+  it('calls the admin_waitlist_count RPC with no client-supplied arguments', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_waitlist_count': [{ data: 42 }] });
+    await expect(getWaitlistCount(asClient(fake))).resolves.toBe(42);
+
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0]).toMatchObject({
+      table: 'rpc',
+      op: 'rpc',
+      columns: 'admin_waitlist_count',
+    });
+    // nothing the caller could use to widen the scope — the RPC derives the check itself
+    expect(fake.calls[0]!.values).toBeUndefined();
+  });
+
+  it('coalesces a null count to zero', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_waitlist_count': [{ data: null }] });
+    await expect(getWaitlistCount(asClient(fake))).resolves.toBe(0);
+  });
+
+  it('surfaces the 42501 a non-admin gets instead of reporting zero', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_waitlist_count': [{ error: { code: '42501', message: 'not an admin' } }],
+    });
+    await expect(getWaitlistCount(asClient(fake))).rejects.toThrow('not an admin');
+  });
+});
+
+const W1 = '10000000-0000-4000-8000-000000000001';
+const W2 = '10000000-0000-4000-8000-000000000002';
+const waitlistRow = (over: Record<string, unknown> = {}) => ({
+  id: W1,
+  email: 'a@b.it',
+  locale: 'it',
+  source: 'landing-hero',
+  created_at: '2026-08-01T10:00:00Z',
+  ...over,
+});
+
+describe('getWaitlistPage', () => {
+  it('asks the RPC for one row beyond the page, and never an offset (rule #9)', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: [waitlistRow()] }] });
+    const page = await getWaitlistPage(asClient(fake));
+
+    expect(fake.calls[0]).toMatchObject({ op: 'rpc', columns: 'admin_list_waitlist' });
+    // 25 + the probe row; no cursor halves on page one, and no range modifier ever
+    expect(fake.calls[0]!.values).toEqual({ p_limit: 26 });
+    expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+    expect(page.rows.map((r) => r.id)).toEqual([W1]);
+    expect(page.excluded).toBe(0);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('returns the page parsed, with source null where the column is null', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_waitlist': [{ data: [waitlistRow(), waitlistRow({ id: W2, source: null })] }],
+    });
+    const page = await getWaitlistPage(asClient(fake));
+    expect(page.rows.map((r) => r.source)).toEqual(['landing-hero', null]);
+  });
+
+  it('reads one row beyond the page to decide hasMore, and does not return it', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_waitlist': [
+        { data: [waitlistRow(), waitlistRow({ id: W2, created_at: '2026-07-01T10:00:00Z' })] },
+      ],
+    });
+    const page = await getWaitlistPage(asClient(fake), { limit: 1 });
+    expect(fake.calls[0]!.values).toEqual({ p_limit: 2 });
+    expect(page.rows.map((r) => r.id)).toEqual([W1]);
+    expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${W1}`);
+  });
+
+  it('sends the cursor as the two RPC halves the keyset runs on', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: [] }] });
+    await getWaitlistPage(asClient(fake), { cursor: `2026-08-01T10:00:00Z|${W1}` });
+    expect(fake.calls[0]!.values).toEqual({
+      p_limit: 26,
+      p_before_created_at: '2026-08-01T10:00:00Z',
+      p_before_id: W1,
+    });
+  });
+
+  it('refuses a half cursor rather than silently restarting at page one', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: [] }] });
+    await expect(getWaitlistPage(asClient(fake), { cursor: 'garbage' })).rejects.toThrow(
+      /malformed waitlist cursor/,
+    );
+    await expect(
+      getWaitlistPage(asClient(fake), { cursor: '2026-08-01T10:00:00Z|' }),
+    ).rejects.toThrow(/malformed waitlist cursor/);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('refuses a page the RPC clamp would silently cut short', async () => {
+    // The function clamps p_limit to 1000 and the probe asks for limit + 1: a page of 1000
+    // could never see its probe row, so a walk would end a page early with no error.
+    const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: [] }] });
+    await expect(
+      getWaitlistPage(asClient(fake), { limit: WAITLIST_PAGE_CEILING + 1 }),
+    ).rejects.toThrow(/out of range/);
+    await expect(getWaitlistPage(asClient(fake), { limit: 0 })).rejects.toThrow(/out of range/);
+    expect(fake.calls).toEqual([]);
+    await expect(
+      getWaitlistPage(asClient(fake), { limit: WAITLIST_PAGE_CEILING }),
+    ).resolves.toBeTruthy();
+    expect(fake.calls[0]!.values).toEqual({ p_limit: 1000 });
+  });
+
+  it('withholds a row the schema rejects and counts it; the cursor still comes from the raw tail', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'rpc.admin_list_waitlist': [
+        {
+          data: [
+            waitlistRow({ locale: 'fr' }),
+            waitlistRow({ id: W2, created_at: '2026-07-01T10:00:00Z' }),
+          ],
+        },
+      ],
+    });
+    const page = await getWaitlistPage(asClient(fake), { limit: 1 });
+    expect(page.rows).toEqual([]);
+    expect(page.excluded).toBe(1);
+    expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${W1}`);
+    // the warning names the row by id — and never by address
+    expect(warn.mock.calls[0]![0]).toContain(W1);
+    expect(warn.mock.calls[0]![0]).not.toContain('a@b.it');
+    warn.mockRestore();
+  });
+
+  it('surfaces the 42501 a non-admin gets instead of an empty page', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_waitlist': [{ error: { code: '42501', message: 'not an admin' } }],
+    });
+    await expect(getWaitlistPage(asClient(fake))).rejects.toThrow('not an admin');
+  });
+
+  it('issues no cursor when the OLD RPC answers without ids — production lagging the migration', async () => {
+    // Web deploys on the release merge; the production `db push` is a manual step that can
+    // trail it. In that window the old admin_list_waitlist(p_limit) still accepts the call
+    // and returns rows with no `id`: every row is withheld (counted, not hidden), and the
+    // cursor must be null — `…|undefined` would pass decodeCursor only to fail in the RPC.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { id: _omit, ...legacy } = waitlistRow();
+    const fake = makeFakeClient({
+      'rpc.admin_list_waitlist': [
+        { data: [legacy, { ...legacy, created_at: '2026-07-01T10:00:00Z' }] },
+      ],
+    });
+    const page = await getWaitlistPage(asClient(fake), { limit: 1 });
+    expect(page).toEqual({ rows: [], excluded: 1, nextCursor: null });
+    warn.mockRestore();
+  });
+
+  it('a null payload is an empty page, not a crash', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: null }] });
+    await expect(getWaitlistPage(asClient(fake))).resolves.toEqual({
+      rows: [],
+      excluded: 0,
+      nextCursor: null,
+    });
+  });
+
+  it('reads without writing anything', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: [waitlistRow()] }] });
+    await getWaitlistPage(asClient(fake));
+    expect(fake.calls.every((c) => c.op === 'rpc')).toBe(true);
   });
 });

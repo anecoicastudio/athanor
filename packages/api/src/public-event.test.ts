@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import { getPublicEventById, publicEventKeys } from './public-event';
+import { getPublicEventById, listUpcomingEventIds, publicEventKeys } from './public-event';
 
 const EVENT_ID = '00000000-0000-0000-0000-0000000000e1';
 const ORGANIZER_ID = '00000000-0000-0000-0000-0000000000f1';
@@ -122,6 +122,71 @@ describe('public-event api', () => {
     });
     await expect(getPublicEventById(asClient(fake), EVENT_ID)).rejects.toMatchObject({
       code: '57P01',
+    });
+  });
+});
+
+describe('listUpcomingEventIds', () => {
+  const NOW = new Date('2026-08-21T09:00:00.000Z');
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: EVENT_ID,
+    updated_at: '2026-08-01T10:00:00Z',
+    ...over,
+  });
+
+  it('reads the next N upcoming, undeleted events soonest first, from the injected clock', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [entry()] }] });
+    const res = await listUpcomingEventIds(asClient(fake), { limit: 50, now: NOW });
+    expect(res).toEqual({ entries: [entry()], excluded: 0 });
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('events');
+    expect(call.op).toBe('select');
+    expect(call.columns).toBe('id, updated_at');
+    expect(call.filters).toEqual([
+      ['is', 'deleted_at', null],
+      ['gte', 'starts_at', NOW.toISOString()],
+    ]);
+    expect(call.modifiers).toEqual([
+      ['order', 'starts_at', { ascending: true }],
+      ['order', 'id', { ascending: true }],
+      ['limit', 50],
+    ]);
+  });
+
+  it('defaults the cutoff to the clock', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    const before = Date.now();
+    await listUpcomingEventIds(asClient(fake), { limit: 5 });
+    const gte = fake.calls[0]!.filters.find((f) => f[0] === 'gte')!;
+    const cutoff = Date.parse(String(gte[2]));
+    expect(cutoff).toBeGreaterThanOrEqual(before);
+    expect(cutoff).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('withholds a row the schema rejects and counts it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'events.select': [{ data: [entry({ id: 'not-a-uuid' }), entry()] }],
+    });
+    const res = await listUpcomingEventIds(asClient(fake), { limit: 5, now: NOW });
+    expect(res.entries.map((e) => e.id)).toEqual([EVENT_ID]);
+    expect(res.excluded).toBe(1);
+    expect(warn.mock.calls[0]![0]).toContain('not-a-uuid');
+    warn.mockRestore();
+  });
+
+  it('throws when the database errors', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ error: DB_DOWN }] });
+    await expect(listUpcomingEventIds(asClient(fake), { limit: 5, now: NOW })).rejects.toEqual(
+      DB_DOWN,
+    );
+  });
+
+  it('a null payload is an empty index, not a crash', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: null }] });
+    await expect(listUpcomingEventIds(asClient(fake), { limit: 5, now: NOW })).resolves.toEqual({
+      entries: [],
+      excluded: 0,
     });
   });
 });

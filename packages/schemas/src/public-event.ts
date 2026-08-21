@@ -37,3 +37,14 @@ export const publicEventSchema = z
   })
   .strict();
 export type PublicEvent = z.infer<typeof publicEventSchema>;
+
+/**
+ * One entry of the upcoming-events index — what `/event/[id]` prerenders and what the
+ * sitemap lists (#335). Picked from the public read-model, and therefore still `.strict()`:
+ * a widened select fails here rather than silently carrying a column the index never asked
+ * for.
+ */
+export const upcomingEventEntrySchema = publicEventSchema
+  .pick({ id: true })
+  .extend({ updated_at: z.string() });
+export type UpcomingEventEntry = z.infer<typeof upcomingEventEntrySchema>;

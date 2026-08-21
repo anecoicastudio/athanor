@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import { getPublicProfileByHandle } from './public-profile';
+import { getPublicProfileByHandle, listPublicHandles } from './public-profile';
 
 type Row = Record<string, unknown> | null;
 
@@ -157,6 +157,65 @@ describe('getPublicProfileByHandle — shell name + signed avatar', () => {
     });
     await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).rejects.toMatchObject({
       code: '57P01',
+    });
+  });
+});
+
+describe('listPublicHandles', () => {
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: 'p1',
+    handle: 'sole',
+    updated_at: '2026-08-01T10:00:00Z',
+    ...over,
+  });
+
+  it('reads the bounded index, most recently changed first, keyed by (updated_at, id)', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [{ data: [entry(), entry({ id: 'p2', handle: 'gio_musica' })] }],
+    });
+    const res = await listPublicHandles(asClient(fake), { limit: 100 });
+    expect(res).toEqual({
+      entries: [
+        { handle: 'sole', updated_at: '2026-08-01T10:00:00Z' },
+        { handle: 'gio_musica', updated_at: '2026-08-01T10:00:00Z' },
+      ],
+      excluded: 0,
+    });
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('profiles');
+    expect(call.op).toBe('select');
+    expect(call.columns).toBe('id, handle, updated_at');
+    expect(call.filters).toContainEqual(['not', 'handle', 'is', null]);
+    // The limit is the whole point (#335): a total order, then a cap, never an offset.
+    expect(call.modifiers).toEqual([
+      ['order', 'updated_at', { ascending: false }],
+      ['order', 'id', { ascending: false }],
+      ['limit', 100],
+    ]);
+  });
+
+  it('withholds a handle the route could never resolve and counts it, instead of prerendering a 404', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'profiles.select': [{ data: [entry({ handle: 'Not A Handle' }), entry({ id: 'p2' })] }],
+    });
+    const res = await listPublicHandles(asClient(fake), { limit: 10 });
+    expect(res.entries.map((e) => e.handle)).toEqual(['sole']);
+    expect(res.excluded).toBe(1);
+    expect(warn.mock.calls[0]![0]).toContain('p1');
+    warn.mockRestore();
+  });
+
+  it('throws when the database errors — a build must not quietly prerender nothing', async () => {
+    const fake = makeFakeClient({ 'profiles.select': [{ error: DB_DOWN }] });
+    await expect(listPublicHandles(asClient(fake), { limit: 10 })).rejects.toEqual(DB_DOWN);
+  });
+
+  it('a null payload is an empty index, not a crash', async () => {
+    const fake = makeFakeClient({ 'profiles.select': [{ data: null }] });
+    await expect(listPublicHandles(asClient(fake), { limit: 10 })).resolves.toEqual({
+      entries: [],
+      excluded: 0,
     });
   });
 });

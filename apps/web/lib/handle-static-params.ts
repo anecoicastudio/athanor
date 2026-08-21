@@ -1,4 +1,6 @@
+import { listPublicHandles } from '@athanor/api';
 import { createAnonClient } from '@/utils/supabase/server';
+import { PRERENDER_HANDLE_LIMIT } from '@/lib/prerender-limits';
 
 /**
  * Shared generateStaticParams body for the /[handle] segment — the page AND its
@@ -8,23 +10,19 @@ import { createAnonClient } from '@/utils/supabase/server';
  * Workers "render on demand" means the redirect branch — every card generic).
  * One list, two exports, so the two routes cannot prerender different sets.
  *
- * ⚠ Unbounded select, same as before the extraction — #335 tracks the scale
- * seam, and it now costs one Satori render (~0.3 s) per handle at build too.
+ * Bounded to the PRERENDER_HANDLE_LIMIT most recently changed handles (#335) —
+ * lib/prerender-limits.ts says why and what it costs. The query itself lives in
+ * @athanor/api (`listPublicHandles`): this app no longer names a table. A row the
+ * reader could not validate is withheld and logged by the reader itself (api.md),
+ * so one odd row never un-prerenders the route.
  */
 export async function handleStaticParams(): Promise<{ handle: string }[]> {
   try {
-    const supabase = createAnonClient();
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('handle')
-      .not('handle', 'is', null);
-    if (error) throw error;
-    return (
-      (data ?? [])
-        .filter((p): p is { handle: string } => Boolean(p.handle))
-        // The route rejects a segment without the leading @ (lib/resolve-handle.ts).
-        .map((p) => ({ handle: `@${p.handle}` }))
-    );
+    const { entries } = await listPublicHandles(createAnonClient(), {
+      limit: PRERENDER_HANDLE_LIMIT,
+    });
+    // The route rejects a segment without the leading @ (lib/resolve-handle.ts).
+    return entries.map((p) => ({ handle: `@${p.handle}` }));
   } catch (e) {
     // env/network unavailable at build → prerender nothing, serve every handle on
     // demand. Loud on purpose: silently returning [] looks identical to "no

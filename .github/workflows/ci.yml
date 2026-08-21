@@ -347,6 +347,11 @@ jobs:
             exit 0
           fi
           pnpm exec opennextjs-cloudflare build
+          # The manifest that build just wrote is what OpenNext ships; assert it (#335): the
+          # always-static routes are in it, the dynamic families stay prerenderable, and the
+          # per-handle / per-event caps hold. Kept out of the unit suite so it can never pass
+          # without a build — apps/web/build-checks/prerender-manifest.test.ts.
+          pnpm exec vitest run --config vitest.prerender.config.ts
 
   db:
     name: migrations · pgTAP · types in sync
