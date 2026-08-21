@@ -7,6 +7,7 @@ import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
+import { devWarn } from '@/lib/log';
 import { momentSignPaths } from '@/lib/media/moment-media';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
@@ -73,9 +74,16 @@ export default function GridScreen() {
               // best-effort byte removal (owner storage-delete policy); M9 GDPR job is the backstop.
               // The poster goes with it — it is a second object in the same bucket, and leaving
               // it behind orphans bytes the row no longer points at (#131).
-              void supabase.storage
+              // Not awaited on purpose — the row is already gone and the grid should not wait
+              // on bytes. Both failure shapes (a storage-js `{ error }` and a thrown network
+              // error) are dev-logged rather than left as an unhandled rejection (#179).
+              supabase.storage
                 .from('moments')
-                .remove(m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path]);
+                .remove(m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path])
+                .then(({ error }) => {
+                  if (error) devWarn('[moment] remove bytes', error);
+                })
+                .catch((e: unknown) => devWarn('[moment] remove bytes', e));
               if (uid) return queryClient.invalidateQueries({ queryKey: momentKeys.list(uid) });
             })
             .catch(() => setError(t('media.failed', locale)));

@@ -9,7 +9,7 @@ vi.mock('expo-constants', () => ({
 }));
 vi.mock('@sentry/react-native', () => ({
   init: vi.fn(),
-  close: vi.fn(),
+  close: vi.fn(() => Promise.resolve(true)),
 }));
 
 process.env.EXPO_PUBLIC_SENTRY_DSN = 'https://public@sentry.example/1';
@@ -48,6 +48,18 @@ describe('initSentry / closeSentry lifecycle', () => {
     expect(Sentry.close).toHaveBeenCalledTimes(1);
     initSentry();
     expect(Sentry.init).toHaveBeenCalledTimes(2);
+  });
+
+  // #179: `void Sentry.close()` let a failed flush surface as an unhandled rejection on logout /
+  // consent revoke. Vitest fails the run on an unhandled rejection, so the red state of this
+  // test is the run itself going red, not an assertion.
+  it('a rejected close() is dev-logged, never an unhandled rejection', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    initSentry();
+    Sentry.close.mockRejectedValueOnce(new Error('flush failed'));
+    closeSentry();
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('[sentry] close', expect.any(Error)));
+    warn.mockRestore();
   });
 });
 
