@@ -55,6 +55,16 @@ function configuredHost(origin: string): string {
   if (url.protocol !== 'https:') {
     throw new Error(`EXPO_PUBLIC_SITE_ORIGIN must be an https origin, got ${origin}`);
   }
+  // `URL.origin` is scheme://host[:port] and nothing else, so one comparison rejects a
+  // trailing slash, a path, a query and embedded credentials. Rejected rather than
+  // normalised, because `links.ts` concatenates the raw variable: `https://x/` would claim
+  // host `x` here and hand out `https://x//terms` there, which is the same class of
+  // silent split this file exists to close.
+  if (url.origin !== origin) {
+    throw new Error(
+      `EXPO_PUBLIC_SITE_ORIGIN must be a bare origin with no path or trailing slash, got ${origin}`,
+    );
+  }
   return url.host;
 }
 

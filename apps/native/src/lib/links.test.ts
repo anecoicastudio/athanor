@@ -129,10 +129,22 @@ describe('the dynamic config only moves the host', () => {
     expect(androidPathPrefixes(config)).toEqual(androidPathPrefixes(STATIC));
   });
 
-  it('rejects a configured origin that is not an https URL', async () => {
-    for (const bad of ['not-a-url', 'http://www.athanor.workers.dev']) {
+  it('rejects a configured origin that is not a bare https origin', () => {
+    // links.ts concatenates the raw variable, so anything past scheme://host[:port] splits
+    // the two sides apart again: `https://host/` hands out `https://host//terms` while the
+    // claimed domain is still `host`.
+    for (const bad of [
+      'not-a-url',
+      'http://www.athanor.workers.dev',
+      'https://www.athanor.workers.dev/',
+      'https://www.athanor.workers.dev/base',
+      'https://www.athanor.workers.dev?a=1',
+      'https://x:y@www.athanor.workers.dev',
+    ]) {
       process.env.EXPO_PUBLIC_SITE_ORIGIN = bad;
-      expect(() => resolveAppConfig({ config: staticConfig() })).toThrow(/EXPO_PUBLIC_SITE_ORIGIN/);
+      expect(() => resolveAppConfig({ config: staticConfig() }), bad).toThrow(
+        /EXPO_PUBLIC_SITE_ORIGIN/,
+      );
     }
   });
 });
