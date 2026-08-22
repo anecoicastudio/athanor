@@ -4,7 +4,8 @@ import { ActivityIndicator } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
@@ -247,8 +248,7 @@ export default function WelcomeScreen() {
               <Text className="text-xs font-medium text-muted-foreground">
                 {t('auth.name.label', locale)}
               </Text>
-              <TextInput
-                className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+              <Input
                 autoCapitalize="words"
                 autoComplete="name"
                 placeholder={t('auth.name.placeholder', locale)}
@@ -262,8 +262,7 @@ export default function WelcomeScreen() {
             <Text className="text-xs font-medium text-muted-foreground">
               {t('auth.email.label', locale)}
             </Text>
-            <TextInput
-              className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+            <Input
               autoCapitalize="none"
               autoComplete="email"
               inputMode="email"
@@ -277,8 +276,7 @@ export default function WelcomeScreen() {
             <Text className="text-xs font-medium text-muted-foreground">
               {t('auth.password.label', locale)}
             </Text>
-            <TextInput
-              className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+            <Input
               autoCapitalize="none"
               autoComplete={login ? 'current-password' : 'new-password'}
               secureTextEntry

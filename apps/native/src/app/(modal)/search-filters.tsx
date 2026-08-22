@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -134,10 +134,8 @@ export default function SearchFiltersScreen() {
         {/* ── Città ── */}
         <View className="gap-3">
           <SectionLabel tone="foreground">{t('search.filter.section.city', locale)}</SectionLabel>
-          <TextInput
-            className="rounded-full border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
+          <Input
             placeholder={t('search.filter.city.placeholder', locale)}
-            placeholderTextColor={semantic.foregroundMuted}
             value={city}
             onChangeText={setCity}
             autoCorrect={false}

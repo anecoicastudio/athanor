@@ -4,10 +4,10 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -75,10 +75,8 @@ export default function ProjectComposeScreen() {
 
           <View className="gap-2">
             <SectionLabel>{t('project.compose.titleLabel', locale)}</SectionLabel>
-            <TextInput
-              className="rounded-full border border-hair bg-raise p-4 text-[15px] text-foreground"
+            <Input
               placeholder={t('project.compose.titlePlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={title}
               onChangeText={setTitle}
               maxLength={140}
@@ -113,7 +111,6 @@ export default function ProjectComposeScreen() {
             <TextInput
               className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
               placeholder={t('project.compose.descPlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={description}
               onChangeText={setDescription}
               multiline

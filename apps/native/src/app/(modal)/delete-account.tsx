@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { requestErasure } from '@athanor/api';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
@@ -69,14 +69,12 @@ export default function DeleteAccountScreen() {
           <Text className="text-[13px] text-muted-foreground">
             {t('account.delete.confirmField', locale)}
           </Text>
-          <TextInput
+          <Input
             value={confirm}
             onChangeText={setConfirm}
             autoCapitalize="characters"
             autoCorrect={false}
             placeholder={word}
-            placeholderTextColor={semantic.faint}
-            className="rounded-full border border-hair bg-raise px-4 py-3 text-base text-foreground"
             accessibilityLabel={t('account.delete.confirmField', locale)}
           />
         </View>

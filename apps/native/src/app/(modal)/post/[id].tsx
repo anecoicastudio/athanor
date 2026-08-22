@@ -19,10 +19,10 @@ import {
   subscribeComments,
   togglePostReaction,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostComment } from '@athanor/schemas';
-import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
@@ -302,10 +302,10 @@ export default function PostDetailScreen() {
         />
 
         <View className="flex-row items-center gap-2 border-t border-hair bg-background px-5 py-3">
-          <TextInput
-            className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[14px] text-foreground"
+          <Input
+            className="flex-1"
+            size="sm"
             placeholder={t('comment.placeholder', locale)}
-            placeholderTextColor={semantic.faint}
             value={draft}
             onChangeText={setDraft}
             multiline
