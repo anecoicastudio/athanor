@@ -26,12 +26,18 @@
 --
 -- ⚠ AURA. Rule 1 says only the score-engine writes `aura_events`/`aura_scores`, and
 -- this file never touches them. But it is not Aura-neutral: §1 sets
--- `identity_verified = true` on the three fund-candidacy authors, and the M6 trigger
--- `profiles_aura_identity` awards **+50 each (150 total) for a verification that never
--- happened**. That is deliberate — `dream_candidacies_insert_own_verified` requires a
--- verified profile, so without it the candidacy flow cannot be walked from the app at
--- all — and it is disclosed here rather than hidden. Re-runs award nothing further
--- (the trigger tests false→true) and the engine dedupes on (profile_id, type, ref_id).
+-- `identity_verified = true` on SIX profiles, and the M6 trigger
+-- `profiles_aura_identity` awards **+50 each (300 total) for a verification that never
+-- happened**. That is deliberate in both halves, and disclosed here rather than hidden:
+--   • the three fund-candidacy authors (marta_ceramica, ele_yoga, rocco_film), because
+--     `dream_candidacies_insert_own_verified` requires a verified profile — without it
+--     the candidacy flow cannot be walked from the app at all;
+--   • the three paid-event organisers (tino_chef, gio_musica, dario_legno), because
+--     #448's `events_enforce_paid_gate` refuses a paid event whose organiser is not
+--     verified. A paid event by an unverified organiser is a row that can no longer
+--     exist, so seeding one would model an impossible world rather than a fake one.
+-- Re-runs award nothing further (the trigger tests false→true) and the engine dedupes
+-- on (profile_id, type, ref_id).
 --
 -- The other M6 triggers mostly do NOT fire on seeded data, so do not expect a
 -- populated Aura tab: milestone/help awards are AFTER UPDATE and these rows are
@@ -214,15 +220,15 @@ from (values
   ('sole_designer',  'Designer. Studio piccolo, progetti che lasciano il mondo un po'' più chiaro.',  'it', array['creativo','freelance'],       array['collaborazioni','connessioni'], '{"bio":"public","dream":"public"}'::jsonb, false, true),
   ('luna_dev',       'Developer. Building things that help people sleep better.',                     'en', array['freelance','creativo'],       array['collaborazioni','crescita'],    '{"bio":"public","dream":"public"}'::jsonb, false, true),
   ('marta_ceramica', 'Ceramista. Tornio, smalti, e un forno che merita di essere acceso più spesso.', 'it', array['artista','freelance'],        array['business','connessioni'],       '{"bio":"public","dream":"public"}'::jsonb, true,  true),
-  ('gio_musica',     'Produttore. Registro in una cantina con ottima acustica e pessimo wifi.',       'it', array['artista','creativo'],         array['collaborazioni','eventi'],      '{"bio":"public"}'::jsonb,                  false, false),
+  ('gio_musica',     'Produttore. Registro in una cantina con ottima acustica e pessimo wifi.',       'it', array['artista','creativo'],         array['collaborazioni','eventi'],      '{"bio":"public"}'::jsonb,                  true,  false),
   ('ele_yoga',       'Insegnante di yoga. Porto la pratica dove di solito non arriva.',               'it', array['coach','freelance'],          array['connessioni','eventi'],         '{"bio":"public","dream":"public"}'::jsonb, true,  false),
-  ('tino_chef',      'Cuoco. Cerco produttori che facciano le cose come si facevano.',                'it', array['imprenditore','creativo'],    array['business','collaborazioni'],    '{"bio":"public"}'::jsonb,                  false, false),
+  ('tino_chef',      'Cuoco. Cerco produttori che facciano le cose come si facevano.',                'it', array['imprenditore','creativo'],    array['business','collaborazioni'],    '{"bio":"public"}'::jsonb,                  true,  false),
   -- vera_erbe is the one deliberately-private profile: the 'private' tier is the
   -- least-walked branch of athanor.field_visible (M10), and nothing else here covers it.
   ('vera_erbe',      'Herbalist. I pick, I dry, I listen.',                                           'en', array['artista','freelance'],        array['crescita','connessioni'],       '{"bio":"private","dream":"private"}'::jsonb, false, false),
   ('rocco_film',     'Filmmaker. Documentari corti su mestieri che stanno sparendo.',                 'it', array['artista','creativo'],         array['collaborazioni','crescita'],    '{"bio":"public","dream":"public"}'::jsonb, true,  false),
   ('sara_startup',   'Founder. Second time around, slower on purpose.',                               'en', array['imprenditore','investitore'], array['mentorship','business'],        '{"bio":"public"}'::jsonb,                  false, false),
-  ('dario_legno',    'Falegname. Legno di recupero, giunti a vista, niente viti.',                    'it', array['artista','mentor'],           array['eventi','collaborazioni'],      '{"bio":"public","dream":"public"}'::jsonb, false, false),
+  ('dario_legno',    'Falegname. Legno di recupero, giunti a vista, niente viti.',                    'it', array['artista','mentor'],           array['eventi','collaborazioni'],      '{"bio":"public","dream":"public"}'::jsonb, true,  false),
   ('nina_poeta',     'Scrivo. Per lo più la sera, per lo più a mano.',                                'it', array['creativo','artista'],         array['crescita','connessioni'],       '{}'::jsonb,                                false, false),
   ('bea_foto',       'Fotografa. Ritratti lunghi, pellicola quando posso.',                           'it', array['freelance','artista'],        array['collaborazioni','eventi'],      '{"bio":"public","dream":"public"}'::jsonb, false, false)
 ) as p(handle, bio, locale, identity_tags, seeking, visibility, identity_verified, founding_member)
@@ -338,9 +344,16 @@ on conflict do nothing;
 -- 4. Events. `events_online_or_physical` requires geo on every non-online event, so
 --    each physical one carries a real point — st_point takes (long, lat), matching
 --    create_event(). currency is lowercase per its check (`^[a-z]{3}$`).
+--
+--    settlement_ack_at is stamped on the paid rows and left null on the free ones,
+--    mirroring create_event exactly. #448's events_enforce_paid_gate is a BEFORE INSERT
+--    trigger, so it fires here too — this file writes as the owner, not through the RPC,
+--    and a trigger does not care which. Together with the three organisers verified in
+--    §1, that is what keeps the three paid events insertable at all.
 -- ---------------------------------------------------------------------------------
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
-                           starts_at, ends_at, capacity, price_cents, currency, is_kairos_day, is_athanor_day)
+                           starts_at, ends_at, capacity, price_cents, currency, is_kairos_day, is_athanor_day,
+                           settlement_ack_at)
 select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.category::public.event_category, e.is_online, e.venue, e.city,
        case when e.is_online then null
@@ -348,7 +361,8 @@ select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.stream_url,
        now() + (e.starts_in_days || ' days')::interval,
        now() + (e.starts_in_days || ' days')::interval + interval '2 hours',
-       e.capacity, e.price_cents, 'eur', e.is_kairos, false
+       e.capacity, e.price_cents, 'eur', e.is_kairos, false,
+       case when e.price_cents > 0 then now() else null end
 from (values
   ('cena-condivisa', 'tino_chef',     'Cena condivisa: si cucina insieme', 'creativi',   false, 'Cascina Bianca',       'Milano',  9.19, 45.46, null,                                    4, 12, 1500, false),
   ('yoga-alba',      'ele_yoga',      'Pratica all''alba, sul tetto',      'benessere',  false, 'Tetto di via Volta',   'Milano',  9.18, 45.48, null,                                    9, 20,    0, false),
@@ -782,8 +796,10 @@ on conflict do nothing;
 --     `candidacy_votes.weight` is NOT supplied: set_candidacy_vote_weight() is a
 --     BEFORE INSERT trigger that raises 'weight is server-written' for any non-zero
 --     value, service_role included. It writes a constant 1.000 — equal vote (PRD §4.11).
---     Candidacy authors are exactly the identity_verified accounts from §1, so the
---     create/edit flow is actually walkable from the app.
+--     Candidacy authors are all identity_verified in §1, so the create/edit flow is
+--     actually walkable from the app. They are no longer the ONLY verified accounts:
+--     since #448 the three paid-event organisers are verified too, because the gate
+--     refuses a paid event whose organiser is not.
 --     Contributions are NOT seeded — those are Stripe's to create, in test mode.
 -- ---------------------------------------------------------------------------------
 insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
@@ -879,7 +895,7 @@ on conflict do nothing;
 commit;
 
 -- ---------------------------------------------------------------------------------
--- Summary — read this after running. `aura_events` is engine-written: expect 3
+-- Summary — read this after running. `aura_events` is engine-written: expect 6
 -- (the disclosed identity_verified awards), and only if the score-engine and its
 -- GUCs are deployed. `stars` is engine-only and should be 0 here.
 -- ---------------------------------------------------------------------------------

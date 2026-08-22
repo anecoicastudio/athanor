@@ -17,10 +17,17 @@ values
 -- events is column-scoped to the columns create_event writes, and `id` is not one of them.
 -- This fixture wants a deterministic id to reference below, not an ownership check —
 -- 0020_events_rls asserts an organiser's own INSERT.
+--
+-- A is identity-verified and the row carries settlement_ack_at because #448 gates paid events on
+-- every write path — the events_enforce_paid_gate trigger fires for service_role too, unlike RLS.
+-- A paid event by an unverified organiser is a row that can no longer exist; a fixture that made
+-- one would be modelling an impossible world (0125 owns the refusals themselves).
+update public.profiles set identity_verified = true
+  where id = '11111111-1111-1111-1111-111111111111';
 set local role service_role;
-insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents)
+insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, settlement_ack_at)
   values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','11111111-1111-1111-1111-111111111111',
-          'Masterclass','formazione',true,'https://stream.athanor.test/x', now() + interval '1 day', 1500);
+          'Masterclass','formazione',true,'https://stream.athanor.test/x', now() + interval '1 day', 1500, now());
 reset role;
 
 -- service-role analog (superuser): the webhook issues B's paid ticket

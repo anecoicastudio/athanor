@@ -78,7 +78,10 @@ already-seeded database, act in the app instead.
 The engine writes asynchronously, so the summary the file prints at the end shows
 `aura_events` and `notifications` at 0 even on a healthy run. Re-count them a few
 seconds later: on the 2026-08-10 staging run they settled at 3 `aura_events`,
-3 `aura_scores` and 20 `notifications`.
+3 `aura_scores` and 20 `notifications`. Expect **6 and 6** from a fresh seed since
+#448 — the three paid-event organisers are `identity_verified` now, because
+`events_enforce_paid_gate` refuses a paid event whose organiser is not, and each
+verification carries the same disclosed +50 the three candidacy authors do.
 
 ## Signing in
 
