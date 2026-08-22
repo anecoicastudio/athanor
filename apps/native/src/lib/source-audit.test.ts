@@ -858,7 +858,7 @@ describe('a crash-trail marker is awaited, or justified in place (#488)', () => 
 });
 
 // ---------------------------------------------------------------------------------------
-// 13 — the signed-in locale is resolved in exactly one place (#331)
+// 14 — the signed-in locale is resolved in exactly one place (#331)
 // ---------------------------------------------------------------------------------------
 
 /**
@@ -932,5 +932,89 @@ describe('the signed-in locale is resolved in exactly one place (#331)', () => {
       users,
       'a signed-in surface reading deviceLocale directly has gone around useLocale() (#331)',
     ).toEqual([...DEVICE_LOCALE_OK].sort());
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 15 — no text field renders its placeholder in the platform grey (#499)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `placeholderTextColor` is the one color RN takes as a VALUE rather than a class, so a field
+ * that omits it type-checks, lints, renders, and quietly draws its placeholder in the platform
+ * default instead of `foregroundMuted`. Twelve did (#499); sixteen did before #333. Nothing else
+ * in the toolchain can see it — NativeWind has no `placeholder:` variant on native, so there is
+ * no class for a linter to miss either.
+ *
+ * The fix is a primitive (`Input` for the pill, `Field` for the hero-radius block), and both omit
+ * `placeholderTextColor` from their prop types so it cannot be handed back. This guard covers the
+ * raw `<TextInput>`s that remain — the compose bars and the fund controls, which have their own
+ * shapes and are not worth a third primitive.
+ *
+ * Cutting each element at its first `/>` is deliberately naive: no `<TextInput>` in this tree
+ * takes children or a JSX-valued prop, and if that ever changes the cut lands EARLY, which loses
+ * coverage rather than inventing a failure — the same trade `stripComments` makes.
+ */
+describe('placeholders are a token, never the platform default (#499)', () => {
+  /** `[path:line, attribute text]` for every `<TextInput …/>` element in the tree. */
+  const textInputs = (): [string, string][] =>
+    CODE_LINES.flatMap(([p, ls]) => {
+      const src = ls.join('\n');
+      const out: [string, string][] = [];
+      for (const m of src.matchAll(/<TextInput[\s>]/g)) {
+        const start = m.index;
+        const end = src.indexOf('/>', start);
+        if (end === -1) continue;
+        const line = src.slice(0, start).split('\n').length;
+        out.push([`${rel(p)}:${line}`, src.slice(start, end)]);
+      }
+      return out;
+    });
+
+  it('every TextInput that shows a placeholder colors it', () => {
+    const bare = textInputs()
+      .filter(([, attrs]) => /\bplaceholder[=\s]/.test(attrs))
+      .filter(([, attrs]) => !/\bplaceholderTextColor\b/.test(attrs));
+    expect(
+      bare.map(([at]) => at),
+      'a placeholder is rendering in the platform grey — route it through Field/Input, or pass ' +
+        'placeholderTextColor={semantic.foregroundMuted} (#499)',
+    ).toEqual([]);
+  });
+
+  /**
+   * The primitive is the reason the list above stays short, so the ways in are pinned by name.
+   * A newly hand-rolled hero-radius field is the regression this catches: it would satisfy the
+   * assertion above just by pasting the prop, which is exactly the drift #499 removed.
+   *
+   * Matched on the ELEMENT's own attributes, not on the file — a file-level match would also
+   * name every screen that merely wraps something in a `rounded-hero` container.
+   *
+   * The three compose screens are the rest of this family — same `rounded-hero border border-hair
+   * bg-raise` shape — and they are deliberately NOT routed through `Field` yet. #499 defined its
+   * twelve as the fields missing `placeholderTextColor`, and these three already pass it; folding
+   * them in would change padding (`p-4` → `px-5 py-4`), type (15pt → 18pt) and height (arbitrary
+   * `min-h-[80px]`/`[120px]`) on three screens no issue has asked for, and would widen the size
+   * taxonomy from three spellings to five — a design decision to take deliberately, not as a side
+   * effect of a placeholder fix. Listed so the next reader inherits the reason, not the mystery.
+   */
+  const HERO_NOT_YET_ROUTED = [
+    'app/(modal)/post-compose.tsx',
+    'app/(modal)/project-compose.tsx',
+    'app/(modal)/story-compose.tsx',
+  ];
+
+  it('the hero-radius block field exists in exactly one place', () => {
+    const users = [
+      ...new Set(
+        textInputs()
+          .filter(([, attrs]) => /\brounded-hero\b/.test(attrs))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      users,
+      'a hero-radius text field has been hand-rolled again — use the Field primitive (#499)',
+    ).toEqual([...HERO_NOT_YET_ROUTED, 'components/Field.tsx'].sort());
   });
 });

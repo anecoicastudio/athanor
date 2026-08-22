@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { getActiveDream, upsertActiveDream } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { ScrollView, Text, TextInput } from '@/tw';
+import { ScrollView, Text } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
@@ -84,10 +85,10 @@ export default function DreamEditorScreen() {
           {t('dream.editor.sub', locale)}
         </Text>
 
-        <TextInput
-          className={`min-h-36 rounded-hero border bg-raise px-5 py-4 font-dream text-lg text-foreground ${
-            error ? 'border-error' : 'border-hair'
-          }`}
+        <Field
+          size="lg"
+          register="dream"
+          error={error ? t('dream.error.empty', locale) : null}
           multiline
           maxLength={500}
           editable={loaded && !saving}
@@ -98,10 +99,6 @@ export default function DreamEditorScreen() {
             if (error) setError(false);
           }}
         />
-
-        {error ? (
-          <Text className="text-sm text-error">{t('dream.error.empty', locale)}</Text>
-        ) : null}
 
         {/* light + glow = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
         <Button

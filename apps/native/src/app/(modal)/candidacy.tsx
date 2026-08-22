@@ -13,8 +13,9 @@ import { MAX_SKILLS, SKILLS, canSubmitCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { type DreamCandidacy, type FundEdition, projectCategorySchema } from '@athanor/schemas';
 import { t, type MessageKey } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -382,8 +383,9 @@ function WizardForm({
               to get from a wrapper of their own. */}
           <View className={active.key === 'plan' ? 'mt-5 gap-4' : 'mt-5'}>
             {input ? (
-              <TextInput
-                className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+              <Field
+                size="lg"
+                register="dream"
                 multiline
                 maxLength={input.maxLength}
                 placeholder={t(input.placeholder, locale)}
@@ -444,8 +446,7 @@ function WizardForm({
                 <View className="flex-row gap-3">
                   <View className="flex-1 gap-1.5">
                     <SectionLabel>{t('candidacy.budget.label', locale)}</SectionLabel>
-                    <TextInput
-                      className="rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+                    <Field
                       keyboardType="number-pad"
                       maxLength={9}
                       placeholder="8000"
@@ -455,8 +456,7 @@ function WizardForm({
                   </View>
                   <View className="flex-1 gap-1.5">
                     <SectionLabel>{t('candidacy.budget.min.label', locale)}</SectionLabel>
-                    <TextInput
-                      className="rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+                    <Field
                       keyboardType="number-pad"
                       maxLength={9}
                       placeholder="5000"

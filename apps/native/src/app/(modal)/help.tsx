@@ -4,9 +4,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { helpKeys, offerHelp } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { HelpType, Milestone } from '@athanor/schemas';
-import { ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
@@ -229,8 +230,8 @@ export default function HelpScreen() {
           ))}
         </View>
 
-        <TextInput
-          className="min-h-36 rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+        <Field
+          size="lg"
           multiline
           maxLength={500}
           editable={!saving}

@@ -3,9 +3,10 @@ import { updateProfile } from '@athanor/api';
 import { IDENTITY_TAGS, MAX_SKILLS, PROFESSIONS, SEEKING_TAGS, SKILLS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
 import { LocaleChips } from '@/components/LocaleChips';
@@ -152,8 +153,7 @@ export function ProfileEditForm({
         </View>
 
         <SectionLabel>{t('profile.name.label', locale)}</SectionLabel>
-        <TextInput
-          className="rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+        <Field
           maxLength={60}
           placeholder={t('profile.name.empty', locale)}
           value={displayName}
@@ -199,8 +199,7 @@ export function ProfileEditForm({
         setVis={setVis}
         locale={locale}
       >
-        <TextInput
-          className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+        <Field
           multiline
           maxLength={500}
           placeholder={t('profile.bio.empty', locale)}
@@ -218,8 +217,7 @@ export function ProfileEditForm({
         setVis={setVis}
         locale={locale}
       >
-        <TextInput
-          className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+        <Field
           multiline
           maxLength={500}
           placeholder={t('profile.mission.empty', locale)}
