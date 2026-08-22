@@ -48,13 +48,30 @@ read it before trusting a migration's comments. The pgTAP tests are the source o
 ```bash
 pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
-cd apps/native && pnpm exec expo start      # run the app in Expo Go
+cd apps/native && pnpm exec expo start      # run the app in Expo Go — see the tunnel note below
 pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
 **Point the app at staging**, not at a local database: put the staging Supabase URL +
 publishable key (provided at onboarding) in `apps/native/.env`. `EXPO_PUBLIC_*` variables
 only — a service-role key must never appear in this repo or the app.
+
+**On a physical device, only `--tunnel` can complete a sign-up confirmation.** Plain
+`expo start` serves Metro over your LAN, so the app's redirect is
+`exp://<LAN-IP>:8081/--/auth-callback` — and GoTrue refuses a private-LAN redirect
+target. It does not error: it silently substitutes Site URL, so the confirmation mail
+opens a web page and the app never signs in. The account **is** confirmed; only the
+return trip is broken, and no allow-list entry fixes it (#73).
+
+```bash
+cd apps/native && pnpm exec expo start --tunnel
+```
+
+That gives Metro a public `*.exp.direct` host, which the staging allow-list already
+matches. The first `--tunnel` run asks to install `@expo/ngrok` — say yes; it installs
+**globally**, not into this repo, and nothing is added to any `package.json`.
+Everything else (feed, dreams, hot reload) is fine over plain LAN, and the **iOS
+Simulator** needs no tunnel: its `127.0.0.1` is the Mac, which GoTrue allows.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns
