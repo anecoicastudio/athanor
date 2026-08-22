@@ -58,7 +58,18 @@ export const MEDIA_LIMITS = {
   AVATAR_MAX_EDGE: 512,
   /** JPEG quality for the avatar encode (0–1). A face at 512px, not a photograph to zoom into. */
   AVATAR_QUALITY: 0.8,
-  /** Hard cap on a personal/post video length. */
+  /**
+   * Hard cap on a personal/post video length.
+   *
+   * Enforced in three places, and the header's "single source" claim is only as true as they
+   * agree: the picker refuses a longer asset on every path (`toPickedMedia` /
+   * `classifyVideoAsset`), `packages/schemas` refuses to parse one, and `moments`,
+   * `story_segments` and `post_media` each carry a `between 0 and 60` CHECK so a client that
+   * is not our app cannot write one either. `post_media` was the exception until #56 — its
+   * CHECK said 1200 for two months while this line said 60, which is the shape of drift a
+   * constant cannot detect on its own. `packages/schemas/src/post-media-duration.mirror.test.ts`
+   * now pins this number to the schema and to the SQL.
+   */
   MAX_VIDEO_SECONDS: 60,
   /**
    * Hard cap on the bytes of a picked video, checked BEFORE the upload starts (#412).

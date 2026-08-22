@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(13);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -95,6 +95,42 @@ select throws_ok(
   $$ insert into public.post_media (post_id, kind, storage_path, position)
      values ('aaaaaaaa-0000-0000-0000-000000000001', 'video', 'post-media/11111111/vid1.mp4', 0) $$,
   '23505', null, 'duplicate (post_id, position) is rejected by unique index'
+);
+
+-- 10/11. duration_s is capped at 60 seconds (#56). Nothing asserted this bound before —
+-- the app enforced 60 on every picker path while the CHECK said 1200, so the gap was
+-- reachable only by a client that is not our app, and only a constraint can refuse that.
+-- Both arms run at the test-runner role after reset: this is a privilege-independent
+-- constraint, and a check violation is 23514 whoever writes the row.
+select throws_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position, duration_s)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', 'video',
+             'post-media/11111111/vid61.mp4', 1, 61) $$,
+  '23514', null, 'a clip longer than 60s is rejected by post_media_duration_s_check'
+);
+
+select lives_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position, duration_s)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', 'video',
+             'post-media/11111111/vid60.mp4', 2, 60) $$,
+  'a clip of exactly 60s is accepted — the cap is inclusive, as the schema and picker are'
+);
+
+-- 12. exactly ONE duration CHECK on the column. The narrowing migration (#56) drops the
+-- constraint and re-adds it under the same auto-generated name; `drop constraint if exists`
+-- means a name that did not match would make the drop a no-op and leave BOTH the old bound
+-- and the new one in the catalog. The effective bound would still be 60, so nothing visible
+-- would break — and the 1200 constraint would be unremovable, since the migration that
+-- would have dropped it is already applied and migrations are append-only. supabase-db.md
+-- is explicit that hosted catalogs drift wider than the migrations declaring them and that a
+-- from-zero replay cannot see it, so the count is asserted rather than assumed.
+select results_eq(
+  $$ select count(*)::int from pg_constraint
+      where conrelid = 'public.post_media'::regclass
+        and contype = 'c'
+        and pg_get_constraintdef(oid) like '%duration_s%' $$,
+  $$ values (1) $$,
+  'post_media carries exactly one duration_s CHECK — the narrowing replaced it, not doubled it'
 );
 
 select * from finish();

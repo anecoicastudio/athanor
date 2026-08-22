@@ -34,11 +34,14 @@ describe('postMediaSchema', () => {
     }
   });
 
-  it('bounds duration_s to ≤1200s, integer, non-negative (mirrors the post_media CHECK)', () => {
+  it('bounds duration_s to ≤60s, integer, non-negative (mirrors the post_media CHECK)', () => {
     const audio = { ...imageRow, kind: 'audio', storage_path: 'uid/post/0.m4a' };
-    expect(postMediaSchema.parse({ ...audio, duration_s: 1200 }).duration_s).toBe(1200);
+    expect(postMediaSchema.parse({ ...audio, duration_s: 60 }).duration_s).toBe(60);
     expect(postMediaSchema.parse({ ...audio, duration_s: 0 }).duration_s).toBe(0);
-    for (const bad of [1201, -1, 90.5]) {
+    // 61 and 1200: the boundary, and the bound this column used to carry (#56). A clip of
+    // twenty minutes was accepted here until the schema and the CHECK were narrowed to the
+    // 60 the app has always enforced, so it is the one over-length value worth naming.
+    for (const bad of [61, 1200, -1, 90.5]) {
       expect(() => postMediaSchema.parse({ ...audio, duration_s: bad })).toThrow();
     }
   });
@@ -86,6 +89,20 @@ describe('postMediaInsertSchema', () => {
         height: 1080,
       }),
     ).toMatchObject({ kind: 'video', duration_s: 45, width: 1920, height: 1080 });
+  });
+
+  it('carries the same ≤60s duration bound as the row, which it re-declares', () => {
+    // The insert does not `.pick()` duration_s, it `.extend()`s a fresh one — so the row's
+    // assertion above says nothing at all about this one, and an upload goes through THIS
+    // schema. #56 narrowed both; only a test that names both keeps them narrowed.
+    expect(
+      postMediaInsertSchema.parse({ ...baseInsert, kind: 'video', duration_s: 60 }).duration_s,
+    ).toBe(60);
+    for (const bad of [61, 1200, -1, 90.5]) {
+      expect(() =>
+        postMediaInsertSchema.parse({ ...baseInsert, kind: 'video', duration_s: bad }),
+      ).toThrow();
+    }
   });
 
   it('drops nothing from the row shape it was picked from', () => {
