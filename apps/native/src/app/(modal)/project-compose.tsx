@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
+import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
@@ -111,6 +112,7 @@ export default function ProjectComposeScreen() {
             <TextInput
               className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
               placeholder={t('project.compose.descPlaceholder', locale)}
+              placeholderTextColor={semantic.foregroundMuted}
               value={description}
               onChangeText={setDescription}
               multiline
