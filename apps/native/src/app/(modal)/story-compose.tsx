@@ -160,7 +160,7 @@ export default function StoryComposeScreen() {
             locale={locale}
             onPick={setMedia}
             onClose={() => setSheetOpen(false)}
-            onError={() => setError(t('media.failed', locale))}
+            onError={(key) => setError(t(key, locale))}
           />
 
           {/* P2.5 hint-truth: no create-hint — the engine never rewards posting (anti-gaming). */}

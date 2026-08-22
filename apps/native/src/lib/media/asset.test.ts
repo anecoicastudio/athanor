@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { MEDIA_LIMITS } from '@athanor/core';
-import { classifyVideoAsset, resolveVideoContentType, toPickedMedia } from './asset';
+import {
+  REJECTION_MESSAGE,
+  classifyVideoAsset,
+  resolveVideoContentType,
+  toPickedMedia,
+} from './asset';
+
+/** The accepted media, or undefined when the door refused — keeps the kind/duration cases terse. */
+const picked = (a: Parameters<typeof toPickedMedia>[0]) => {
+  const r = toPickedMedia(a);
+  return r.outcome === 'picked' ? r.media : undefined;
+};
 
 const asset = (patch: Partial<ImagePickerAsset>): ImagePickerAsset =>
   ({
@@ -13,36 +24,36 @@ const asset = (patch: Partial<ImagePickerAsset>): ImagePickerAsset =>
 
 describe('toPickedMedia — kind', () => {
   it("type 'video' → video", () => {
-    expect(toPickedMedia(asset({ type: 'video' }))?.kind).toBe('video');
+    expect(picked(asset({ type: 'video' }))?.kind).toBe('video');
   });
 
   it("type 'image' → image", () => {
-    expect(toPickedMedia(asset({ type: 'image' }))?.kind).toBe('image');
+    expect(picked(asset({ type: 'image' }))?.kind).toBe('image');
   });
 
   it('an unresolved type falls back to image rather than dropping the asset', () => {
-    expect(toPickedMedia(asset({ type: undefined }))?.kind).toBe('image');
+    expect(picked(asset({ type: undefined }))?.kind).toBe('image');
   });
 
   it('livePhoto and pairedVideo are coerced to image', () => {
-    expect(toPickedMedia(asset({ type: 'livePhoto' }))?.kind).toBe('image');
-    expect(toPickedMedia(asset({ type: 'pairedVideo' as never }))?.kind).toBe('image');
+    expect(picked(asset({ type: 'livePhoto' }))?.kind).toBe('image');
+    expect(picked(asset({ type: 'pairedVideo' as never }))?.kind).toBe('image');
   });
 });
 
 describe('toPickedMedia — duration', () => {
   it('milliseconds are converted to whole seconds', () => {
-    expect(toPickedMedia(asset({ type: 'video', duration: 45_000 }))?.duration_s).toBe(45);
+    expect(picked(asset({ type: 'video', duration: 45_000 }))?.duration_s).toBe(45);
   });
 
   it('rounds to the nearest second', () => {
-    expect(toPickedMedia(asset({ type: 'video', duration: 45_600 }))?.duration_s).toBe(46);
-    expect(toPickedMedia(asset({ type: 'video', duration: 45_400 }))?.duration_s).toBe(45);
+    expect(picked(asset({ type: 'video', duration: 45_600 }))?.duration_s).toBe(46);
+    expect(picked(asset({ type: 'video', duration: 45_400 }))?.duration_s).toBe(45);
   });
 
   it('a missing duration stays undefined, not 0', () => {
-    expect(toPickedMedia(asset({ type: 'image' }))?.duration_s).toBeUndefined();
-    expect(toPickedMedia(asset({ type: 'video', duration: null }))?.duration_s).toBeUndefined();
+    expect(picked(asset({ type: 'image' }))?.duration_s).toBeUndefined();
+    expect(picked(asset({ type: 'video', duration: null }))?.duration_s).toBeUndefined();
   });
 });
 
@@ -53,31 +64,62 @@ describe('toPickedMedia — the 60s video cap', () => {
     const at = toPickedMedia(
       asset({ type: 'video', duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS) }),
     );
-    expect(at).not.toBeNull();
-    expect(at?.duration_s).toBe(MEDIA_LIMITS.MAX_VIDEO_SECONDS);
+    expect(at.outcome).toBe('picked');
+    expect(at.outcome === 'picked' && at.media.duration_s).toBe(MEDIA_LIMITS.MAX_VIDEO_SECONDS);
   });
 
-  it('a video one second past the cap returns null — the caller shows media.tooLong', () => {
+  /**
+   * The title of this test was true of nothing for two months (#507). The door returned a bare
+   * `null`, `MediaSheet` had no arm for it, and the caller showed no message at all — so the
+   * assertion below is the one that makes the sentence above it a fact.
+   */
+  it('a video one second past the cap is rejected — the caller shows media.tooLong', () => {
     const over = asset({ type: 'video', duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 1) });
-    expect(toPickedMedia(over)).toBeNull();
+    const result = toPickedMedia(over);
+    expect(result).toEqual({ outcome: 'rejected', reason: 'too-long' });
+    expect(result.outcome === 'rejected' && REJECTION_MESSAGE[result.reason]).toBe('media.tooLong');
   });
 
   it('the cap applies to videos only — a long-"duration" image still maps', () => {
     const image = asset({ type: 'image', duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 120) });
-    expect(toPickedMedia(image)).not.toBeNull();
+    expect(toPickedMedia(image).outcome).toBe('picked');
   });
 
   it('a video with no reported duration is not rejected', () => {
-    expect(toPickedMedia(asset({ type: 'video', duration: null }))).not.toBeNull();
+    expect(toPickedMedia(asset({ type: 'video', duration: null })).outcome).toBe('picked');
+  });
+});
+
+/**
+ * The copy each refusal names itself with. Asserted here and not only through
+ * `candidacy-video-status.test.ts` because that file now reads this map by spread: if the two
+ * ever diverge again it will be because someone added a member here, and this is where the
+ * omission has to be loud.
+ */
+describe('REJECTION_MESSAGE — every refusal names itself', () => {
+  it('maps each reason to its own key, never collapsing to media.failed', () => {
+    expect(REJECTION_MESSAGE).toEqual({
+      'too-long': 'media.tooLong',
+      'too-large': 'media.tooLarge',
+      'unsupported-type': 'media.unsupportedType',
+    });
+  });
+
+  it('is what candidacy and compose both read, so one refusal has one sentence', () => {
+    // `classifyVideoAsset` produces all three; `toPickedMedia` produces the first. Both hand
+    // the reason to this map rather than to a switch of their own.
+    const reasons = classifyVideoAsset(asset({ type: 'image' }));
+    expect(reasons).toEqual({ outcome: 'rejected', reason: 'unsupported-type' });
+    expect(REJECTION_MESSAGE[reasons.outcome === 'rejected' ? reasons.reason : 'too-long']).toBe(
+      'media.unsupportedType',
+    );
   });
 });
 
 describe('toPickedMedia — dimensions and passthrough', () => {
   it('carries uri, dimensions and mimeType across', () => {
-    const picked = toPickedMedia(
-      asset({ type: 'image', uri: 'file:///tmp/b.png', mimeType: 'image/png' }),
-    );
-    expect(picked).toMatchObject({
+    const media = picked(asset({ type: 'image', uri: 'file:///tmp/b.png', mimeType: 'image/png' }));
+    expect(media).toMatchObject({
       uri: 'file:///tmp/b.png',
       width: 1200,
       height: 1500,
@@ -86,16 +128,16 @@ describe('toPickedMedia — dimensions and passthrough', () => {
   });
 
   it('zero dimensions collapse to undefined rather than a 0 that breaks aspect ratios', () => {
-    const picked = toPickedMedia(asset({ type: 'image', width: 0, height: 0 }));
-    expect(picked?.width).toBeUndefined();
-    expect(picked?.height).toBeUndefined();
+    const media = picked(asset({ type: 'image', width: 0, height: 0 }));
+    expect(media?.width).toBeUndefined();
+    expect(media?.height).toBeUndefined();
   });
 
   it('carries the reported byte size across, and an unreported one stays undefined', () => {
-    expect(toPickedMedia(asset({ type: 'video', fileSize: 1_234 }))?.bytes).toBe(1_234);
-    expect(toPickedMedia(asset({ type: 'video' }))?.bytes).toBeUndefined();
+    expect(picked(asset({ type: 'video', fileSize: 1_234 }))?.bytes).toBe(1_234);
+    expect(picked(asset({ type: 'video' }))?.bytes).toBeUndefined();
     // 0 bytes is the picker saying nothing useful, not a zero-length file worth uploading.
-    expect(toPickedMedia(asset({ type: 'video', fileSize: 0 }))?.bytes).toBeUndefined();
+    expect(picked(asset({ type: 'video', fileSize: 0 }))?.bytes).toBeUndefined();
   });
 });
 
@@ -146,8 +188,9 @@ describe('classifyVideoAsset — a rejection says which (#412)', () => {
   });
 
   it('a video one second past the cap is rejected as too-long — not as nothing', () => {
-    // The reported defect: `toPickedMedia` returned null here and the hook early-returned
-    // without touching status, so the tile never left `idle`.
+    // The reported defect: `toPickedMedia` answered a bare null here (it names the reason
+    // since #507) and the hook early-returned without touching status, so the tile never
+    // left `idle`.
     const out = classifyVideoAsset(video({ duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 1) }));
     expect(out).toEqual({ outcome: 'rejected', reason: 'too-long' });
   });

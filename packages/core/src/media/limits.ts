@@ -80,6 +80,17 @@ export const MEDIA_LIMITS = {
    * misses the server-side strip — so the number the client accepts is the number the
    * backstop can still process, and the member is told «troppo pesante» in one second
    * instead of finding out never.
+   *
+   * **Raising this re-arms #450.** It is now the only bound left on the contiguous iOS
+   * allocation: `MAX_VIDEO_SECONDS` stopped being one when #56 settled at 60s, because seconds
+   * do not bound bytes — a 60s 4K clip and a 60s 720p clip differ by an order of magnitude.
+   * On iOS `xhr.send({ uri })` materialises the whole file in one native buffer before the
+   * request leaves (`RCTNetworkTask.mm` → `NSMutableData` → `HTTPBody`), so the largest number
+   * this constant permits is the largest single allocation an upload asks the OS for, inside
+   * Expo Go, where there is no native uploader to fall back to. #450 is DEFERRED, not fixed —
+   * blocked on #508's SDK 54 pin — and this ceiling is what makes deferring it survivable.
+   * There is a good product reason to want longer, heavier video one day; take it together
+   * with #450, not before it.
    */
   MAX_VIDEO_BYTES: 100 * 1024 * 1024,
   /**

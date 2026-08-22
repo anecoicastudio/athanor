@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { MEDIA_LIMITS } from '@athanor/core';
 import {
+  type MediaPickOutcome,
   type PickedMedia,
   type VideoPickOutcome,
   classifyVideoAsset,
@@ -29,10 +30,19 @@ import {
 // `PickedMedia` + the asset→PickedMedia mapping live in ./asset, which imports
 // expo-image-picker for types only and so stays reachable from the node test
 // runner. Re-exported so existing `from './pick'` imports keep resolving.
-export type { PickedMedia, VideoPickOutcome };
+export type { MediaPickOutcome, PickedMedia, VideoPickOutcome };
 
 /** A candidacy video pick: an accepted asset, a named rejection, or the member backing out. */
 export type VideoPickResult = VideoPickOutcome | { outcome: 'canceled' };
+
+/**
+ * A compose-flow pick: the same three endings as {@link VideoPickResult} (#507).
+ *
+ * `canceled` is a separate arm rather than a `null` for the reason #412 gave: the member
+ * backing out is the one ending that must stay silent, and it is only distinguishable from a
+ * refusal if the shape says so.
+ */
+export type MediaPickResult = MediaPickOutcome | { outcome: 'canceled' };
 
 /** The single selected asset, or null when the user cancelled. */
 function firstAsset(result: ImagePicker.ImagePickerResult): ImagePicker.ImagePickerAsset | null {
@@ -41,18 +51,19 @@ function firstAsset(result: ImagePicker.ImagePickerResult): ImagePicker.ImagePic
 }
 
 /** Open the camera to take a photo. Requires the camera permission be granted. */
-export async function capturePhoto(): Promise<PickedMedia | null> {
+export async function capturePhoto(): Promise<MediaPickResult> {
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: ['images'],
     quality: MEDIA_LIMITS.IMAGE_QUALITY,
     exif: false,
   });
   const asset = firstAsset(result);
-  return asset ? toPickedMedia(asset) : null;
+  if (!asset) return { outcome: 'canceled' };
+  return toPickedMedia(asset);
 }
 
 /** Open the camera to record a video, capped at MAX_VIDEO_SECONDS. */
-export async function recordVideo(): Promise<PickedMedia | null> {
+export async function recordVideo(): Promise<MediaPickResult> {
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: ['videos'],
     videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
@@ -60,17 +71,19 @@ export async function recordVideo(): Promise<PickedMedia | null> {
       ImagePicker.UIImagePickerControllerQualityType[MEDIA_LIMITS.VIDEO_CAPTURE_QUALITY_IOS],
   });
   const asset = firstAsset(result);
-  return asset ? toPickedMedia(asset) : null;
+  if (!asset) return { outcome: 'canceled' };
+  return toPickedMedia(asset);
 }
 
 /**
  * Pick ONE video for the candidacy wizard, from the camera or the library, and say what came
  * back (#412).
  *
- * Separate from `recordVideo`/`pickFromLibrary` because those answer `PickedMedia | null`, and
- * that `null` conflates three different things — the member cancelled, the video was over the
- * 60s cap, the asset was not a video. Step 4 has to tell them apart to say anything useful, so
- * this door returns a classified outcome instead.
+ * Separate from `recordVideo`/`pickFromLibrary` because it applies the byte cap and the
+ * container check too, and because its library launch is videos-only: those doors accept images
+ * as well, so `classifyVideoAsset` would refuse every photo as an unsupported type. Both kinds
+ * of door now answer a named outcome — this one was first (#412), the compose doors followed
+ * (#507) — so what remains separate is which rules apply, not whether a refusal can speak.
  *
  * The library launch is videos-only. The candidacy path used to pass `allowVideo: true`, which
  * offers `['images','videos']`: picking a photo there produced a `PickedMedia` the upload hook
@@ -106,9 +119,7 @@ export async function pickVideo(source: 'record' | 'library'): Promise<VideoPick
  * Open the library to pick one item. `allowVideo` widens the media types to
  * include video; single-selection only (multi-image compose is a later task).
  */
-export async function pickFromLibrary(opts?: {
-  allowVideo?: boolean;
-}): Promise<PickedMedia | null> {
+export async function pickFromLibrary(opts?: { allowVideo?: boolean }): Promise<MediaPickResult> {
   const mediaTypes: ImagePicker.MediaType[] = opts?.allowVideo ? ['images', 'videos'] : ['images'];
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes,
@@ -121,5 +132,6 @@ export async function pickFromLibrary(opts?: {
     videoExportPreset: ImagePicker.VideoExportPreset[MEDIA_LIMITS.VIDEO_LIBRARY_EXPORT_PRESET_IOS],
   });
   const asset = firstAsset(result);
-  return asset ? toPickedMedia(asset) : null;
+  if (!asset) return { outcome: 'canceled' };
+  return toPickedMedia(asset);
 }

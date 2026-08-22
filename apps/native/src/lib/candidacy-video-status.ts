@@ -1,4 +1,5 @@
 import type { MessageKey } from '@athanor/i18n';
+import { REJECTION_MESSAGE } from '@/lib/media/asset';
 import type { PermStatus } from '@/lib/media/permission-status';
 import {
   UploadCanceledError,
@@ -68,9 +69,9 @@ const FAILURE_MESSAGE: Record<VideoFailure, MessageKey> = {
   'camera-blocked': 'permission.blocked.body',
   'library-blocked': 'permission.blocked.body',
   // Rejected before a byte moved — `classifyVideoAsset` decided these from the picked asset.
-  'too-long': 'media.tooLong',
-  'too-large': 'media.tooLarge',
-  'unsupported-type': 'media.unsupportedType',
+  // Spread rather than restated: the compose door refuses on the same vocabulary and would
+  // otherwise carry a second copy of this copy, free to drift (#507).
+  ...REJECTION_MESSAGE,
   // Storage said no: the insert gate wants identity_verified AND an open window
   // (20260617234036_m7_candidacy_video_insert_gate). Naming identity is the useful half —
   // a member can act on it, and the window is stated by the wizard's own empty state.
