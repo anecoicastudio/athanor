@@ -1,6 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { auraKeys, getAuraScore } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
@@ -19,7 +17,7 @@ import { StarsMiniRow } from '@/components/home/StarsMiniRow';
 import { WeekSlot } from '@/components/home/WeekSlot';
 import { auraSnapshotOrNull } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useAuraScore } from '@/hooks/use-aura-score';
 
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
@@ -60,12 +58,7 @@ export default function HomeScreen() {
   const userId = session?.user.id ?? '';
 
   // Read-only Aura snapshot (M6 score-engine fills the values; rule #1, never client-written).
-  // Shares auraKeys.score + getAuraScore with profile.tsx (one queryFn per key).
-  const auraQuery = useQuery({
-    queryKey: auraKeys.score(userId),
-    queryFn: () => getAuraScore(supabase, userId),
-    enabled: !!userId,
-  });
+  const auraQuery = useAuraScore(userId);
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
   if (!profile) {

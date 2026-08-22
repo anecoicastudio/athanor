@@ -43,6 +43,12 @@ export default defineConfig({
       // Lines/statements stay near half because the denominator is still dominated by the ~28
       // modules that need a renderer or a device. A component harness is what unlocks the rest;
       // until then these move when logic leaves .tsx. Never lower a floor to make a run green.
+      //
+      // Measured 2026-08-22 after #332 moved 10 repeated query wirings into src/hooks:
+      // 56.96/94.11/81.74/56.96. The floors are deliberately UNMOVED, on #413's precedent —
+      // the jump is not new discipline, it is a block of already-tested logic entering the
+      // include globs at once, and functions went slightly DOWN (81.90 -> 81.74) because each
+      // hook contributes one `useX` wrapper no node-environment test can run.
       thresholds: {
         lines: 50,
         branches: 91,

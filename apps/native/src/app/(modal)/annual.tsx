@@ -9,7 +9,6 @@ import {
   candidacyKeys,
   castVote,
   fundKeys,
-  getActiveEdition,
   getCandidates,
   getEditionTally,
   getFundAggregate,
@@ -52,16 +51,14 @@ import { castVoteError } from '@/lib/vote-error';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
   const router = useRouter();
   const locale = profile?.locale ?? 'it';
   // ── Edition query ────────────────────────────────────────────────────────────
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
 
   const edition = editionQuery.data ?? null;
 

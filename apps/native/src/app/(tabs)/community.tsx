@@ -5,7 +5,6 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   type FeedCursor,
   getFeedPage,
-  getPersonStory,
   getStoryRail,
   postKeys,
   storyKeys,
@@ -26,6 +25,7 @@ import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
+import { usePersonStory } from '@/hooks/use-person-story';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
 const STORY_COMPOSE_HREF = '/(modal)/story-compose' as const;
@@ -74,11 +74,7 @@ export default function CommunityScreen() {
   // Own live-segment presence drives the «Il tuo passo» ring (#298): with a live segment it
   // opens the viewer (and the chain), without one it opens the composer. Also warms
   // storyKeys.person(myId) so the viewer's session can include you without a refetch.
-  const myStoryQuery = useQuery({
-    queryKey: storyKeys.person(myId ?? ''),
-    queryFn: () => getPersonStory(supabase, myId as string),
-    enabled: Boolean(myId),
-  });
+  const myStoryQuery = usePersonStory(myId);
   const myHasLive = (myStoryQuery.data?.segments ?? []).some(
     (s) => !s.deleted_at && new Date(s.expires_at).getTime() > Date.now(),
   );

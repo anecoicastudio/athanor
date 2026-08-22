@@ -1,26 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Share } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   blockKeys,
   blockUser,
-  getActiveDream,
-  getAuraScore,
   getBlockStatus,
-  getMomentsPage,
   getOrCreateConversation,
-  getProfileById,
   getProfileStatCounts,
-  getStars,
-  listMilestones,
-  listMyHelpsForMilestones,
-  momentKeys,
   profileKeys,
   unblockUser,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { AuraSnapshot, Help, Locale, Milestone, PersonProfile, Star } from '@athanor/schemas';
+import type { Locale } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
@@ -37,9 +29,17 @@ import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
+import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useActiveDream } from '@/hooks/use-active-dream';
+import { useAuraScore } from '@/hooks/use-aura-score';
+import { useMilestones } from '@/hooks/use-milestones';
+import { useMomentsPage } from '@/hooks/use-moments-page';
+import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
+import { useProfile } from '@/hooks/use-profile';
+import { useStars } from '@/hooks/use-stars';
 
 /**
  * Person Detail — read-only third-person profile (M2, frontend `02` §3.5). Mirrors the own
@@ -55,29 +55,22 @@ export default function PersonDetailScreen() {
   const { session, profile } = useAuth();
   const locale: Locale = profile?.locale ?? 'it';
 
-  const [person, setPerson] = useState<PersonProfile | null | 'missing'>(null);
-  const [dreamText, setDreamText] = useState<string | null>(null);
-  const [tappe, setTappe] = useState<Milestone[]>([]);
-  // `null` until the read lands — a placeholder zero here would claim ANOTHER member has earned
-  // nothing, on the strength of the viewer's own connection (issue #10).
-  const [aura, setAura] = useState<AuraSnapshot | null>(null);
-  // Same contract for the stars, and here it matters most: `[]` would claim ANOTHER member has
-  // earned none of the six, on the strength of the viewer's own connection (issue #16).
-  const [stars, setStars] = useState<Star[] | null>(null);
-  const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { showToast } = useToast();
 
   // Self guard — never double-render the own profile; bounce to the owner tab.
   const isSelf = id != null && id === session?.user?.id;
+  // One subject for every read on this screen. `null` while the deep link has no id yet, and
+  // on the own profile — which is redirecting, and must not spend a request on the way out.
+  const personId = isSelf ? null : id;
 
   const qc = useQueryClient();
 
   const isBlocked =
     useQuery({
-      queryKey: blockKeys.status(id ?? ''),
-      queryFn: () => getBlockStatus(supabase, id as string),
-      enabled: Boolean(id) && !isSelf,
+      queryKey: blockKeys.status(personId ?? ''),
+      queryFn: () => getBlockStatus(supabase, personId as string),
+      enabled: Boolean(personId),
     }).data ?? false;
 
   const blockMutation = useMutation({
@@ -96,11 +89,6 @@ export default function PersonDetailScreen() {
       showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
-
-  // Derived once: the `missing` branch renders the header too, so every consumer of the
-  // handle needs the same guard. Two copies of this expression drift the moment
-  // PersonProfile grows another sentinel alongside 'missing'.
-  const personHandle = person != null && person !== 'missing' ? person.handle : null;
 
   const openMenu = () => {
     const handle = personHandle ?? '';
@@ -133,18 +121,14 @@ export default function PersonDetailScreen() {
   };
 
   // Read-only: the viewed person's live momenti (members-read RLS). No add/delete here.
-  const momentsQuery = useQuery({
-    queryKey: momentKeys.list(id ?? ''),
-    queryFn: () => getMomentsPage(supabase, id as string),
-    enabled: Boolean(id) && !isSelf,
-  });
+  const momentsQuery = useMomentsPage(personId);
   const moments = momentsQuery.data?.moments ?? [];
 
   // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).
   const statCounts = useQuery({
-    queryKey: profileKeys.statCounts(id ?? ''),
-    queryFn: () => getProfileStatCounts(supabase, id as string),
-    enabled: Boolean(id) && !isSelf,
+    queryKey: profileKeys.statCounts(personId ?? ''),
+    queryFn: () => getProfileStatCounts(supabase, personId as string),
+    enabled: Boolean(personId),
     staleTime: 60_000,
   }).data;
   // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
@@ -154,87 +138,48 @@ export default function PersonDetailScreen() {
     if (isSelf) router.replace('/(tabs)/profile');
   }, [isSelf, router]);
 
-  // Imperative load on mount (mirrors profile.tsx; cancelled-guard).
-  useEffect(() => {
-    if (isSelf || !id || !session) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const p = await getProfileById(supabase, id);
-        if (cancelled) return;
-        if (!p) {
-          setPerson('missing');
-          return;
-        }
-        setPerson(p);
-        const d = await getActiveDream(supabase, id);
-        if (cancelled) return;
-        setDreamText(d?.text ?? null);
-        let milestoneIds: string[] = [];
-        if (d?.id) {
-          const ms = await listMilestones(supabase, d.id);
-          if (cancelled) return;
-          setTappe(ms);
-          milestoneIds = ms.map((m) => m.id);
-        }
-        // Aura + stars fail on their own terms. Folded into the outer catch, a timeout on
-        // either one marked the whole PERSON «non disponibile» — and before this branch even
-        // reached that catch it had already rendered a zero Aura with six dark stars. Their
-        // absence is a `null` snapshot («—»), not a verdict about the profile (issue #10).
-        try {
-          const a = await getAuraScore(supabase, id);
-          if (cancelled) return;
-          setAura(a);
-          // Earned-only via RLS for others' profiles (rule #3).
-          const earnedStars = await getStars(supabase, id);
-          if (cancelled) return;
-          setStars(earnedStars);
-        } catch {
-          // aura and stars both stay null — the hero renders «—» rather than a false zero, and
-          // the stars block a single «—» rather than a grid asserting nothing was earned.
-        }
-        // A rejection AFTER unmount lands in that catch rather than a `cancelled` return,
-        // so re-check before spending another request.
-        if (cancelled) return;
-        // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an
-        // older one on this dream and render an already-helped tappa as un-helped.
-        const { rows: helps } = await listMyHelpsForMilestones(
-          supabase,
-          session.user.id,
-          milestoneIds,
-        );
-        if (cancelled) return;
-        setMyHelps(helps);
-      } catch {
-        if (!cancelled) setPerson('missing');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isSelf, session]);
+  // The person, their dream and its tappe — the same three reads the offer-help sheet makes
+  // about the same person, so whichever of the two opens second finds them cached. They
+  // replace one imperative `useEffect` chain whose `cancelled` flag was hand-rolled cache
+  // invalidation; TanStack's own is what the flag was standing in for.
+  const personQuery = useProfile(personId);
+  const person = personQuery.data ?? null;
+  const dreamQuery = useActiveDream(personId);
+  const dreamText = dreamQuery.data?.text ?? null;
+  const milestonesQuery = useMilestones(dreamQuery.data?.id);
+  const tappe = milestonesQuery.data ?? [];
 
-  // Refetch my helps on focus so a fresh offer flips the tappa to «In attesa» after the sheet closes.
-  useFocusEffect(
-    useCallback(() => {
-      if (isSelf || !session || tappe.length === 0) return;
-      let cancelled = false;
-      listMyHelpsForMilestones(
-        supabase,
-        session.user.id,
-        tappe.map((m) => m.id),
-      )
-        .then(({ rows }) => {
-          if (!cancelled) setMyHelps(rows);
-        })
-        .catch(() => {
-          // keep the prior helps; the next focus reconciles
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [isSelf, session, tappe]),
+  // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an older one
+  // on this dream and render an already-helped tappa as un-helped. The offer sheet invalidates
+  // `helpKeys.mine(uid)` when a write lands, so this settles behind it with no focus-refetch —
+  // which is what the `useFocusEffect` that used to sit here was doing by hand.
+  const myHelpsQuery = useMyHelpsForDream(
+    session?.user.id,
+    dreamQuery.data?.id,
+    tappe.map((m) => m.id),
   );
+  const myHelps = myHelpsQuery.data?.rows ?? [];
+
+  // The four legs compose into ONE verdict, exactly as the loader's single catch did: any of
+  // them throwing makes the screen «non disponibile». Splitting them would let a failed tappe
+  // read render «non ha ancora scritto il suo sogno» — a claim about another member made from
+  // the viewer's own broken connection (#111).
+  const personFailed =
+    personQuery.isError || dreamQuery.isError || milestonesQuery.isError || myHelpsQuery.isError;
+
+  // Aura and stars fail on their OWN terms, and did before this too: folded in above, a timeout
+  // on either marked the whole person «non disponibile». Their absence is a `null` snapshot
+  // («—»), never a verdict about the profile (issues #10, #16). Two queries and not one for the
+  // same reason — a live score beside six stars claiming nothing was earned is issue #16.
+  const auraQuery = useAuraScore(personId);
+  const aura = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
+  // Earned-only via RLS for others' profiles (rule #3).
+  const starsQuery = useStars(personId);
+  const stars = starsOrNull(starsQuery.data, starsQuery.isError);
+
+  // Derived once: the «non disponibile» branch renders the header too, so every consumer of
+  // the handle needs the same guard, and a banned member resolves with `handle` NULL (#314).
+  const personHandle = person?.handle ?? null;
 
   // Native share sheet, via the one builder both profile surfaces use. Built at render so
   // the control can be withheld when there is nothing to share — the `missing` branch
@@ -280,13 +225,14 @@ export default function PersonDetailScreen() {
   // Self → already redirecting; render nothing.
   if (isSelf) return null;
 
-  // Loading.
-  if (person === null) {
+  // Loading — nothing is known about the person yet. A leg that threw is the branch below,
+  // so this asks whether the read has settled, not whether there is data.
+  if (!personFailed && personQuery.isPending) {
     return <LoadingScreen />;
   }
 
   // Unavailable / not found.
-  if (person === 'missing') {
+  if (personFailed || person === null) {
     return (
       <Screen>
         <ModalHeader

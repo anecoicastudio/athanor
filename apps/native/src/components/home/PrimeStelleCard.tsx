@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
 import { Share } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { getMyReferralCode, inviteKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
@@ -11,7 +9,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { inviteShareMessage } from '@/lib/invite-share';
-import { supabase } from '@/lib/supabase';
+import { useReferralCode } from '@/hooks/use-referral-code';
 
 /**
  * «Le Prime Stelle» — founding-cohort launch card (frontend 10 §3.6 PS-4/PS-5),
@@ -27,11 +25,7 @@ export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback
   const { showToast } = useToast();
 
   // Same session-gated read the InviteCard uses; only fires when the card is live.
-  const { data: code, isPending } = useQuery({
-    queryKey: inviteKeys.code(),
-    queryFn: () => getMyReferralCode(supabase),
-    enabled,
-  });
+  const { data: code, isPending } = useReferralCode(enabled);
 
   if (!enabled) return fallback ?? null;
 

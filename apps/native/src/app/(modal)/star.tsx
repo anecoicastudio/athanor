@@ -1,13 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { getStars, starKeys } from '@athanor/api';
 import { t, type MessageKey } from '@athanor/i18n';
 import { starKeySchema, type Locale } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useStars } from '@/hooks/use-stars';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { localeTag } from '@/lib/time';
 import { starsOrNull } from '@/lib/aura-display';
@@ -32,11 +30,7 @@ export default function StarScreen() {
   const parseResult = starKeySchema.safeParse(rawStarId);
   const starId = parseResult.success ? parseResult.data : null;
 
-  const query = useQuery({
-    queryKey: starKeys.list(me),
-    queryFn: () => getStars(supabase, me),
-    enabled: !!me,
-  });
+  const query = useStars(me);
 
   // `null` = the read failed. This screen has its own query, so it can fail on its own terms
   // even when the grid that linked here rendered fine — and `?? []` made every star look

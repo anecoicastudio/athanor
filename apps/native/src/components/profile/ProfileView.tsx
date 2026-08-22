@@ -2,16 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import {
-  auraKeys,
-  getAuraScore,
-  getMomentsPage,
-  getProfileStatCounts,
-  getStars,
-  momentKeys,
-  profileKeys,
-  starKeys,
-} from '@athanor/api';
+import { getProfileStatCounts, profileKeys } from '@athanor/api';
 import { profileCompleteness } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot, Locale, Profile, StarKey } from '@athanor/schemas';
@@ -29,6 +20,9 @@ import { momentSignPaths } from '@/lib/media/moment-media';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
+import { useMomentsPage } from '@/hooks/use-moments-page';
+import { useAuraScore } from '@/hooks/use-aura-score';
+import { useStars } from '@/hooks/use-stars';
 
 /**
  * Read-mode Profilo stack: hero → stat line → Sei Stelle → Momenti (frontend 02
@@ -53,11 +47,7 @@ export function ProfileView({
 
   // Live own momenti (rule #9: getMomentsPage is keyset). First page (24) is enough
   // for MVP — infinite scroll on the full grid is deferred.
-  const momentsQuery = useQuery({
-    queryKey: momentKeys.list(userId),
-    queryFn: () => getMomentsPage(supabase, userId),
-    enabled: Boolean(userId),
-  });
+  const momentsQuery = useMomentsPage(userId);
   const moments = momentsQuery.data?.moments ?? [];
   // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
   // video itself, and both read this one map (#131).
@@ -67,21 +57,13 @@ export function ProfileView({
   const { addMoment } = useMomentUpload(userId);
 
   // Read-only Aura snapshot — TanStack. `null` until it lands, never a stand-in zero.
-  const auraQuery = useQuery({
-    queryKey: auraKeys.score(userId),
-    queryFn: () => getAuraScore(supabase, userId),
-    enabled: Boolean(userId),
-  });
+  const auraQuery = useAuraScore(userId);
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
   // Stars for the Six Stars grid — TanStack (engine dormant → [] → all unearned). `null` when
   // the read failed: this query is INDEPENDENT of the Aura one above, so `?? []` let the hero
   // show a real score while the grid below claimed six unearned stars (issue #16).
-  const starsQuery = useQuery({
-    queryKey: starKeys.list(userId),
-    queryFn: () => getStars(supabase, userId),
-    enabled: Boolean(userId),
-  });
+  const starsQuery = useStars(userId);
   const stars = starsOrNull(starsQuery.data, starsQuery.isError);
 
   // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).

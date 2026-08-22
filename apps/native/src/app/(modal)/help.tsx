@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import {
-  dreamKeys,
-  getActiveDream,
-  helpKeys,
-  listMilestones,
-  listMyHelpsForMilestones,
-  milestoneKeys,
-  offerHelp,
-} from '@athanor/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { helpKeys, offerHelp } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { HelpType, Locale, Milestone } from '@athanor/schemas';
 import { ScrollView, Text, TextInput, View } from '@/tw';
@@ -29,6 +21,9 @@ import { MODAL_A11Y } from '@/lib/a11y';
 // A unique violation here means you already offered help on this tappa.
 import { isUniqueViolation } from '@/lib/pg-error';
 import { Screen } from '@/components/Screen';
+import { useActiveDream } from '@/hooks/use-active-dream';
+import { useMilestones } from '@/hooks/use-milestones';
+import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
 
 const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
 
@@ -61,42 +56,28 @@ export default function HelpScreen() {
   const [picked, setPicked] = useState<Milestone | null>(null);
   const [type, setType] = useState<HelpType | null>(null);
   const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<'type' | 'already' | 'generic' | null>(null);
   const { showToast } = useToast();
+  const qc = useQueryClient();
 
   // Picker mode only when the caller named a person instead of a tappa. A `milestoneId`
   // always wins, so the per-tappa flow is byte-for-byte what it was.
   const pickerMode = !milestoneId && Boolean(userId);
 
-  const dreamQuery = useQuery({
-    queryKey: dreamKeys.byProfile(userId ?? ''),
-    queryFn: () => getActiveDream(supabase, userId as string),
-    enabled: pickerMode,
-  });
+  // The three reads cascade: no picker → no dream → no tappe → no helps, so each leg's own
+  // `enabled` is the whole gate and `pickerMode` is named once. Person Detail runs the same
+  // three hooks over the same person, so whichever surface opens second finds them cached.
+  const dreamQuery = useActiveDream(pickerMode ? userId : null);
   const dreamId = dreamQuery.data?.id ?? null;
 
-  const milestonesQuery = useQuery({
-    queryKey: milestoneKeys.list(dreamId ?? ''),
-    queryFn: () => listMilestones(supabase, dreamId as string),
-    enabled: pickerMode && dreamId != null,
-  });
+  const milestonesQuery = useMilestones(dreamId);
   const tappe = milestonesQuery.data ?? [];
 
-  // Scoped to this dream's tappe, exactly as the person-detail card reads them: an unscoped
-  // page of my newest offers could miss an older one on this dream and offer a tappa the
-  // unique index forbids. The dream id joins the `mine` prefix so two dreams cannot share
-  // one cache entry, while `helpKeys.mine` still invalidates both.
-  const myHelpsQuery = useQuery({
-    queryKey: [...helpKeys.mine(session?.user.id ?? ''), dreamId ?? ''],
-    queryFn: () =>
-      listMyHelpsForMilestones(
-        supabase,
-        session?.user.id as string,
-        tappe.map((m) => m.id),
-      ),
-    enabled: pickerMode && Boolean(session) && tappe.length > 0,
-  });
+  const myHelpsQuery = useMyHelpsForDream(
+    session?.user.id,
+    dreamId,
+    tappe.map((m) => m.id),
+  );
 
   const options = helpableMilestones(tappe, myHelpsQuery.data?.rows ?? []);
 
@@ -125,7 +106,31 @@ export default function HelpScreen() {
     void myHelpsQuery.refetch();
   };
 
-  const submit = async () => {
+  const offer = useMutation({
+    mutationFn: (milestone_id: string) =>
+      offerHelp(supabase, session?.user.id as string, {
+        milestone_id,
+        type: type as HelpType,
+        message: message.trim() || undefined,
+      }),
+    onSuccess: () => {
+      // Every dream's scoped entry hangs off the `mine` prefix, so this one call also settles
+      // the Person Detail card the sheet was opened from — which is why neither screen needs a
+      // focus-refetch any more.
+      void qc.invalidateQueries({ queryKey: helpKeys.mine(session?.user.id ?? '') });
+      // The host keeps the toast alive across the pop (#117).
+      showToast(t('help.toast.offered', locale), 'moment');
+      setTimeout(() => router.back(), 700);
+    },
+    onError: (e) => setError(isUniqueViolation(e) ? 'already' : 'generic'),
+  });
+
+  // `isSuccess` as well as `isPending`: the sheet pops 700ms after the write lands, and for
+  // those 700ms `isPending` is already false — a re-enabled CTA there is a second offer the
+  // unique index can only answer with a 23505.
+  const saving = offer.isPending || offer.isSuccess;
+
+  const submit = () => {
     if (saving) return;
     // One id whichever way the sheet was entered — the picker feeds the same submit.
     const targetMilestoneId = milestoneId ?? picked?.id;
@@ -133,26 +138,8 @@ export default function HelpScreen() {
       setError('type');
       return;
     }
-    setSaving(true);
     setError(null);
-    try {
-      await offerHelp(supabase, session.user.id, {
-        milestone_id: targetMilestoneId,
-        type,
-        message: message.trim() || undefined,
-      });
-      // The host keeps the toast alive across the pop (#117).
-      showToast(t('help.toast.offered', locale), 'moment');
-      setTimeout(() => router.back(), 700);
-    } catch (e) {
-      if (isUniqueViolation(e)) {
-        setError('already');
-        setSaving(false);
-      } else {
-        setError('generic');
-        setSaving(false);
-      }
-    }
+    offer.mutate(targetMilestoneId);
   };
 
   // The picker step: shown until a tappa is chosen. Once `picked` is set the sheet falls

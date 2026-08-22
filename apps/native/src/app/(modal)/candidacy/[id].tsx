@@ -7,7 +7,6 @@ import {
   candidacyKeys,
   castVote,
   fundKeys,
-  getActiveEdition,
   getCandidateById,
   getEditionTally,
   getMyVote,
@@ -32,6 +31,7 @@ import { listState } from '@/lib/list-state';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
  * Candidate detail (M7 §3.4). Honest MVP: a signed-URL video player + title +
@@ -100,10 +100,7 @@ export default function CandidacyDetailScreen() {
   // The cycle itself (#382) — the phase and the ballot window this screen used to render its
   // action without. Unconditional and un-keyed by id because `getActiveEdition` is the only
   // getter there is; `candidacyBallotOpen` is what reconciles it with `card.edition_id`.
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
   // Pinned per render pass, like annual.tsx: a window that closes while the screen sits open is
   // not caught here, and that residual race is what the refusal copy below is for.
   const nowMs = useRef(Date.now()).current;

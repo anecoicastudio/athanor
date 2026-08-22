@@ -5,9 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   candidacyKeys,
   dreamKeys,
-  fundKeys,
   getActiveDream,
-  getActiveEdition,
   getMyCandidacy,
   getMyLatestPriorCandidacy,
   submitCandidacy,
@@ -43,6 +41,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
  * 7-step candidacy wizard (07 §3.4; #226 added steps 6–7).
@@ -81,10 +80,7 @@ export default function CandidacyWizard() {
   const editing = edit === '1';
   const resubmitting = !editing && resubmit === '1';
 
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
   const edition = editionQuery.data ?? null;
 
   // Edit/resubmit mode only: the row that prefills the form. Never fetched on a fresh

@@ -1,6 +1,4 @@
 import { Share } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { getMyReferralCode, inviteKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
@@ -9,7 +7,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { inviteShareMessage } from '@/lib/invite-share';
-import { supabase } from '@/lib/supabase';
+import { useReferralCode } from '@/hooks/use-referral-code';
 
 /**
  * «Il motore virale» — block 8 of `(modal)/annual` (FUND-SPEC §8, FUND-22 / #242).
@@ -38,11 +36,7 @@ export function ViralCard({ locale }: { locale: Locale }) {
   const { showToast } = useToast();
 
   // Session-gated read, same as InviteCard/PrimeStelleCard — only fires when the CTA is live.
-  const { data: code } = useQuery({
-    queryKey: inviteKeys.code(),
-    queryFn: () => getMyReferralCode(supabase),
-    enabled: shareEnabled,
-  });
+  const { data: code } = useReferralCode(shareEnabled);
 
   const share = async () => {
     try {

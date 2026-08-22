@@ -2,13 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
-import {
-  acceptMoment,
-  getMomentiDeck,
-  getMomentiSuggestion,
-  momentiKeys,
-  passMoment,
-} from '@athanor/api';
+import { acceptMoment, getMomentiSuggestion, momentiKeys, passMoment } from '@athanor/api';
 import type { MomentoDeckCard } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { Screen } from '@/components/Screen';
@@ -20,6 +14,7 @@ import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
 /**
  * The Momenti tab (frontend §1/§2): few, curated proposals on a swipe deck.
@@ -37,7 +32,7 @@ export default function MomentiScreen() {
   const [acceptToast, setAcceptToast] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const deck = useQuery({ queryKey: momentiKeys.deck(), queryFn: () => getMomentiDeck(supabase) });
+  const deck = useMomentiDeck();
   const cards = deck.data ?? [];
   const startedEmpty = deck.isSuccess && cards.length === 0;
 
