@@ -4,6 +4,7 @@ import { getProfileIdByHandle } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { handleSchema } from '@athanor/schemas';
 import { Text, View } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -74,9 +75,5 @@ export default function HandleCatchScreen() {
     );
   }
 
-  return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-2xl text-muted-foreground">✦</Text>
-    </View>
-  );
+  return <LoadingScreen />;
 }

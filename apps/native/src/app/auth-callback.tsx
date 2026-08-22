@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { supabase } from '@/lib/supabase';
@@ -81,9 +82,5 @@ export default function AuthCallbackScreen() {
     );
   }
 
-  return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-2xl text-muted-foreground">✦</Text>
-    </View>
-  );
+  return <LoadingScreen />;
 }

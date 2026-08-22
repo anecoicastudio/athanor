@@ -22,6 +22,7 @@ import {
 import { t } from '@athanor/i18n';
 import type { AuraSnapshot, Help, Locale, Milestone, PersonProfile, Star } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
@@ -281,11 +282,7 @@ export default function PersonDetailScreen() {
 
   // Loading.
   if (person === null) {
-    return (
-      <Screen className="items-center justify-center">
-        <Text className="text-2xl text-muted-foreground">✦</Text>
-      </Screen>
-    );
+    return <LoadingScreen />;
   }
 
   // Unavailable / not found.
