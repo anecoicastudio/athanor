@@ -1,14 +1,6 @@
 import { dayBucket } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { localeTag, t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-
-/**
- * BCP-47 tag for `toLocaleDateString` — the single home for the it-IT/en-GB
- * mapping previously hand-rolled at four call sites.
- */
-export function localeTag(locale: Locale): 'it-IT' | 'en-GB' {
-  return locale === 'it' ? 'it-IT' : 'en-GB';
-}
 
 /** Compact relative-time string, localised via `time.*` i18n keys.
  *

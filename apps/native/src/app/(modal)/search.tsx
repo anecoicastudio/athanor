@@ -15,7 +15,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { CircleGate } from '@/components/circle/CircleGate';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { type SearchFilterParams, parseFilters, serializeFilters } from '@/lib/search-filters';
@@ -78,8 +78,7 @@ function deriveRoute(result: SearchResult): string {
 }
 
 export default function SearchScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
 
   // ── Filters from route params (written back by search-filters sheet, Task 9) ──

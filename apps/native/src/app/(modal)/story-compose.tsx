@@ -9,6 +9,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { type PickedMedia } from '@/lib/media/pick';
 import { uploadErrorKey } from '@/lib/media/upload';
@@ -26,9 +27,9 @@ import { Screen } from '@/components/Screen';
  * the ring that appears afterwards.
  */
 export default function StoryComposeScreen() {
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = session?.user.id;
 
   const [media, setMedia] = useState<PickedMedia | null>(null);

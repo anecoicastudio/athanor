@@ -3,7 +3,7 @@ import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
 import { Screen } from '@/components/Screen';
 import { Button } from '@/components/Button';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * Unmatched-route catcher. Single-segment strays fall into `[handle].tsx`
@@ -14,8 +14,7 @@ import { useAuth } from '@/lib/auth-context';
  */
 export default function NotFoundScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   return (
     <Screen>

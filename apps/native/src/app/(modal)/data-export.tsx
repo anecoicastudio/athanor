@@ -6,7 +6,7 @@ import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
@@ -18,8 +18,7 @@ import { Screen } from '@/components/Screen';
  * CTA — no glow (rule #4).
  */
 export default function DataExportScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
   const { showToast } = useToast();
 

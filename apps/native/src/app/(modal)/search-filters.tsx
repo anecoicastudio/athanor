@@ -7,8 +7,8 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
+import { useLocale } from '@/hooks/use-locale';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 import {
@@ -47,8 +47,7 @@ import {
 
 export default function SearchFiltersScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   // ── Member guard (defence-in-depth) ──────────────────────────────────────────
   const { data: entitlement, isLoading: entitlementLoading } = useEntitlement();

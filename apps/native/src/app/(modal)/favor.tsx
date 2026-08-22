@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { favorKeys, getOrCreateConversation, passFavor } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import type { FavorNeed, Locale } from '@athanor/schemas';
+import type { FavorNeed } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Button } from '@/components/Button';
@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { FavorRow } from '@/components/costellazioni/FavorRow';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useOpenNeeds } from '@/hooks/use-open-needs';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -32,8 +33,8 @@ import { Screen } from '@/components/Screen';
  */
 export default function FavorScreen() {
   const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const queryClient = useQueryClient();
 
   const [helpingId, setHelpingId] = useState<string | null>(null);

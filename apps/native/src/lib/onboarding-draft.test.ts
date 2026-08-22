@@ -15,6 +15,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
+import { deviceLocale } from './locale';
 import {
   clearDraft,
   hasDraftAnswers,
@@ -62,11 +63,15 @@ describe('saveDraft / loadDraft', () => {
     await expect(loadDraft()).resolves.toBeNull();
   });
 
+  // `locale: deviceLocale` and not `'it'` (#331): a stored draft that predates the locale
+  // field follows the device, the same rule useLocale() applies to a profile without one.
+  // Asserting the constant cannot catch a regression BACK to 'it' on an Italian machine —
+  // `source-audit.test.ts` is what does that, by failing on any hardcoded locale fallback.
   it('missing fields fall back to safe defaults', async () => {
     store.mem.set(KEY, JSON.stringify({ v: DRAFT_VERSION }));
     expect(await loadDraft()).toEqual({
       v: DRAFT_VERSION,
-      locale: 'it',
+      locale: deviceLocale,
       identity_tags: [],
       seeking: [],
       dream: '',

@@ -19,6 +19,7 @@ import { t } from '@athanor/i18n';
 import { StoriesViewer } from '@/components/stories/StoriesViewer';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
 import { Text } from '@/tw';
@@ -28,10 +29,10 @@ import { usePersonStory } from '@/hooks/use-person-story';
 
 export default function StoriesScreen() {
   const { authorId, handle } = useLocalSearchParams<{ authorId: string; handle?: string }>();
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const myId = session?.user.id;
   const targetId = authorId === 'me' ? (myId ?? '') : authorId;
   const { seenIds, markSeen } = useStorySeen();

@@ -6,6 +6,7 @@ import { getProjectsPage, type ProjectCursor, projectKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
+import { useLocale } from '@/hooks/use-locale';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 import { ProjectCard } from '@/components/costellazioni/ProjectCard';
@@ -16,17 +17,15 @@ import {
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/project-compose' as const;
 const FAVOR_HREF = '/(modal)/favor' as const;
 
 export default function CostellazioniScreen() {
-  const { profile } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<ProjectFilter>('all');
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   const query = useInfiniteQuery({
     queryKey: projectKeys.list(filter),

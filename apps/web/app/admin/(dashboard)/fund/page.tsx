@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { t } from '@athanor/i18n';
+import { localeTag, t } from '@athanor/i18n';
 import { getFundEditionIndex } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
 import { getLocale } from '@/lib/get-locale';
@@ -28,8 +28,7 @@ export default async function AdminFundIndex({
   const { cursor } = await searchParams;
   const [supabase, locale] = await Promise.all([createAuthedClient(), getLocale()]);
   const { rows, excluded, nextCursor } = await getFundEditionIndex(supabase, { cursor });
-  const day = (iso: string) =>
-    new Date(iso).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB');
+  const day = (iso: string) => new Date(iso).toLocaleDateString(localeTag(locale));
 
   return (
     <section className="flex flex-col gap-4">

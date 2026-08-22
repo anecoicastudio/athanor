@@ -32,6 +32,7 @@ import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * Candidate detail (M7 §3.4). Honest MVP: a signed-URL video player + title +
@@ -64,7 +65,7 @@ import { useActiveEdition } from '@/hooks/use-active-edition';
 export default function CandidacyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = profile?.id;
   const qc = useQueryClient();
 

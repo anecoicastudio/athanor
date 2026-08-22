@@ -3,17 +3,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import {
-  type Locale,
-  REPORT_CATEGORIES,
-  type ReportCategory,
-  type ReportTargetType,
-} from '@athanor/schemas';
+import { REPORT_CATEGORIES, type ReportCategory, type ReportTargetType } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
@@ -29,8 +24,7 @@ import { Screen } from '@/components/Screen';
 export default function ReportScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const { targetType, targetId } = useLocalSearchParams<{
     targetType?: ReportTargetType;
     targetId?: string;

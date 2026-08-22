@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
@@ -15,9 +16,9 @@ import { Screen } from '@/components/Screen';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session, profile } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const [opening, setOpening] = useState(false);
   const [openFailed, setOpenFailed] = useState(false);
 

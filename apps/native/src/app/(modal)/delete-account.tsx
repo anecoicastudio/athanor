@@ -8,6 +8,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -21,8 +22,8 @@ import { Screen } from '@/components/Screen';
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
-  const { profile, signOut: endSession } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const { signOut: endSession } = useAuth();
+  const locale = useLocale();
   const [confirm, setConfirm] = useState('');
   const { showToast } = useToast();
   const signOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

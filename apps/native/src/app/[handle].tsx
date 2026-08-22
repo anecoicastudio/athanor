@@ -7,6 +7,7 @@ import { Text, View } from '@/tw';
 import { Screen } from '@/components/Screen';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -21,11 +22,11 @@ import { supabase } from '@/lib/supabase';
  */
 export default function HandleCatchScreen() {
   const { handle: raw } = useLocalSearchParams<{ handle: string }>();
-  const { session, profile, loading } = useAuth();
+  const { session, loading } = useAuth();
   const router = useRouter();
   const [unavailable, setUnavailable] = useState(false);
 
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const userId = session?.user.id ?? null;
 
   useEffect(() => {

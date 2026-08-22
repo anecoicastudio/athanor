@@ -1,9 +1,8 @@
 import { Tabs } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
-import { deviceLocale } from '@/lib/locale';
 import {
   CommunityGlyph,
   CostellazioniGlyph,
@@ -17,8 +16,7 @@ export default function TabsLayout() {
   // numeric count (rule #3 / DESIGN §8). (tabs) renders inside the query provider.
   const deck = useMomentiDeck();
   const hasUnseen = (deck.data?.length ?? 0) > 0;
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? deviceLocale;
+  const locale = useLocale();
 
   return (
     <Tabs

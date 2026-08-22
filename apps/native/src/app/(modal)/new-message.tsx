@@ -14,7 +14,7 @@ import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -26,8 +26,7 @@ import { Screen } from '@/components/Screen';
  * picker with the chat. DMs are connections-only by design (M5).
  */
 export default function NewMessageScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
 
   const [search, setSearch] = useState('');

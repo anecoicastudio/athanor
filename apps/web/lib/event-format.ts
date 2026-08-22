@@ -1,4 +1,4 @@
-import type { Locale } from '@athanor/i18n';
+import { localeTag, type Locale } from '@athanor/i18n';
 
 /**
  * The zone every public event time is printed in.
@@ -13,11 +13,6 @@ import type { Locale } from '@athanor/i18n';
  * column that does not exist, and Athanor's events are Italian today.
  */
 export const EVENT_TIME_ZONE = 'Europe/Rome';
-
-/** BCP-47 tag for Intl — mirrors apps/native/src/lib/time.ts `localeTag`. */
-function localeTag(locale: Locale): 'it-IT' | 'en-GB' {
-  return locale === 'it' ? 'it-IT' : 'en-GB';
-}
 
 /** "1 set 2026, 18:00 CEST" / "1 Sep 2026, 18:00 CEST". */
 export function eventDateTime(iso: string, locale: Locale): string {

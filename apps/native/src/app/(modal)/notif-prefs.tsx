@@ -13,6 +13,7 @@ import {
 import type { NotifPrefInput, NotificationPreference } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -36,7 +37,7 @@ const PREF_ROWS: { key: string; type: NotifPrefInput['type'] }[] = [
 
 export default function NotifPrefsScreen() {
   const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
 
   // ── Per-type preferences ───────────────────────────────────────────────────

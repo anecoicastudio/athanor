@@ -17,6 +17,7 @@ import { ProfileEditForm } from '@/components/profile/ProfileEditForm';
 import { ProfileView } from '@/components/profile/ProfileView';
 import { useAuth } from '@/lib/auth-context';
 import { profileShareMessage } from '@/lib/profile-share';
+import { useLocale } from '@/hooks/use-locale';
 import { useOwnDream } from '@/hooks/use-own-dream';
 import { useStarCelebration } from '@/hooks/use-star-celebration';
 
@@ -66,7 +67,7 @@ function ProfileEditor({
   const { showToast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile.locale;
+  const locale = useLocale();
 
   const dream = useOwnDream(userId);
   const { starFlash } = useStarCelebration(userId, locale);

@@ -856,3 +856,81 @@ describe('a crash-trail marker is awaited, or justified in place (#488)', () => 
     ).toEqual(Object.keys(VOID_MARKERS).sort());
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 13 — the signed-in locale is resolved in exactly one place (#331)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Fifty-eight screens each wrote their own `profile?.locale ?? 'it'`, in four spellings, and
+ * the tab bar wrote `?? deviceLocale` — so an English-device member read Italian everywhere
+ * except the tabs. The ruling made the tab bar right: no stored locale follows the DEVICE.
+ * That is now `useLocale()`, and this section is what stops the fifty-ninth copy.
+ *
+ * The failure this guards is silent. A resurrected `?? 'it'` type-checks, lints, renders, and
+ * is only visible to a member whose device is not Italian — which is nobody on the dev
+ * machine.
+ *
+ * `deviceLocale` stays legal in exactly the places that have no profile to read: the funnel
+ * and the boot screens that draw before (or instead of) a session, the draft store, and the
+ * two hooks. Anywhere else it means a signed-in screen went around the hook.
+ */
+describe('the signed-in locale is resolved in exactly one place (#331)', () => {
+  const RESOLVER = 'hooks/use-locale.ts';
+
+  /** No profile exists yet (or at all) on these, so they read the device directly. */
+  const DEVICE_LOCALE_OK = [
+    RESOLVER,
+    'hooks/use-draft-locale.ts',
+    'lib/locale.ts',
+    'lib/onboarding-draft.ts',
+    'app/(onboarding)/index.tsx',
+    'components/boot/AppErrorScreen.tsx',
+    'components/boot/BrandSplash.tsx',
+    'components/boot/ForceUpdateScreen.tsx',
+    'components/boot/MaintenanceScreen.tsx',
+    'components/boot/ProfileErrorScreen.tsx',
+  ];
+
+  it('no screen hardcodes a locale fallback', () => {
+    const hits = codeLines().filter(([, text]) => /locale\s*\?\?\s*['"](it|en)['"]/.test(text));
+    expect(
+      hits.map(([at, text]) => `${at} ${text.trim()}`),
+      'a hardcoded locale fallback is back — use useLocale() (#331)',
+    ).toEqual([]);
+  });
+
+  /**
+   * Reading the column at all, not just reading it WITH a fallback. The `?? 'it'` spelling is
+   * the one the issue counted, but two screens held a non-null `profile` and wrote a bare
+   * `const locale = profile.locale;` — same resolution, no `??` to grep for, and the first
+   * version of this guard sailed straight past both.
+   */
+  const PROFILE_LOCALE_OK = [
+    RESOLVER,
+    // The locale PICKER's initial value — editing the stored column, not resolving a display
+    // locale from it. The one read that must NOT become useLocale().
+    'components/profile/ProfileEditForm.tsx',
+  ];
+
+  it('no screen resolves a display locale off a profile itself', () => {
+    const hits = codeLines()
+      .filter(([at]) => !PROFILE_LOCALE_OK.some((ok) => at.includes(ok)))
+      .filter(([, text]) => /\bprofile\??\.locale\b/.test(text));
+    expect(
+      hits.map(([at, text]) => `${at} ${text.trim()}`),
+      `only ${RESOLVER} may read profile.locale for display — every screen calls useLocale()`,
+    ).toEqual([]);
+  });
+
+  it('deviceLocale is read only where there is no profile to read', () => {
+    const users = CODE_LINES.filter(([p]) => !isTest(p))
+      .filter(([, ls]) => ls.some((t) => /\bdeviceLocale\b/.test(t)))
+      .map(([p]) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(
+      users,
+      'a signed-in surface reading deviceLocale directly has gone around useLocale() (#331)',
+    ).toEqual([...DEVICE_LOCALE_OK].sort());
+  });
+});

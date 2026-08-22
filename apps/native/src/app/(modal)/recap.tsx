@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { auraKeys } from '@athanor/api';
 import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
@@ -13,6 +12,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { useStars } from '@/hooks/use-stars';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { weekRecapIsEmpty } from '@/lib/week-slot';
@@ -26,8 +26,8 @@ import { Screen } from '@/components/Screen';
  */
 export default function RecapScreen() {
   const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   // Week recap: shared queryFn (lib/week-recap) — one fetch shape per auraKeys.recap key.

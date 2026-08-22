@@ -41,6 +41,7 @@ import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * 7-step candidacy wizard (07 §3.4; #226 added steps 6–7).
@@ -73,7 +74,7 @@ import { useActiveEdition } from '@/hooks/use-active-edition';
 export default function CandidacyWizard() {
   const router = useRouter();
   const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = profile?.id ?? '';
   const { edit, resubmit } = useLocalSearchParams<{ edit?: string; resubmit?: string }>();
   const editing = edit === '1';
@@ -168,7 +169,7 @@ function WizardForm({
   const qc = useQueryClient();
   const { showToast } = useToast();
   const { profile, refreshProfile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = profile?.id ?? '';
 
   // Re-read the profile on focus while unverified (#412). The verify sheet refreshes it when

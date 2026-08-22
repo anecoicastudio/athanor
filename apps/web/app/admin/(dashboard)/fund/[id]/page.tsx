@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { t } from '@athanor/i18n';
+import { localeTag, t } from '@athanor/i18n';
 import { getEditionAuditTrail, getFundEdition } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
 import { getLocale } from '@/lib/get-locale';
@@ -35,8 +35,7 @@ export default async function AdminFundAudit({
     getEditionAuditTrail(supabase, id, { cursor }),
   ]);
   if (!edition.row && edition.excluded === 0) notFound();
-  const day = (iso: string) =>
-    new Date(iso).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB');
+  const day = (iso: string) => new Date(iso).toLocaleDateString(localeTag(locale));
 
   return (
     <section className="flex flex-col gap-5">

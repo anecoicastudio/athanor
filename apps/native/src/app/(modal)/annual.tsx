@@ -52,11 +52,12 @@ import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   // ── Edition query ────────────────────────────────────────────────────────────
   const editionQuery = useActiveEdition();
 

@@ -30,6 +30,7 @@ import { useAuth } from '@/lib/auth-context';
 import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * The winner tells the community how it is going (#230, FUND-26).
@@ -46,8 +47,8 @@ import { useActiveEdition } from '@/hooks/use-active-edition';
  * behalf what would have been allowed.
  */
 export default function ProgressScreen() {
-  const { profile, session } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const uid = session?.user.id ?? '';
   const qc = useQueryClient();
   const { showToast } = useToast();

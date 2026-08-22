@@ -10,10 +10,10 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
-import { useAuth } from '@/lib/auth-context';
 import { DISCLOSURE_BLOCKS } from '@/lib/fund-disclosure';
 import { supabase } from '@/lib/supabase';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
 
 // The server's `{error}` strings are the stable contract (#103 idiom) — the D34 window
 // gate in create-contribution-session on one side, this map on the other. A window
@@ -38,10 +38,9 @@ const CONTRIB_ERROR_COPY: Record<string, MessageKey> = {
  * (`@/lib/fund-disclosure`) — the spec owns block membership, the catalog owns the words.
  */
 export default function FundDisclosureScreen() {
-  const { profile } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   // The amount was chosen on annual.tsx; an absent/garbled param disables the CTA
   // rather than inventing a fallback amount.

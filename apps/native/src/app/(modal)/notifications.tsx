@@ -18,7 +18,7 @@ import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
 import { routeForNotification } from '@/lib/notification-route';
@@ -34,8 +34,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
 
   // ── Notification list (keyset, created_at desc) ───────────────────────────

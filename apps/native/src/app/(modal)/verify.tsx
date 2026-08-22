@@ -15,6 +15,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -35,7 +36,7 @@ const VERIFY_ERROR_COPY: Record<string, MessageKey> = {
 export default function VerifyScreen() {
   const router = useRouter();
   const { profile, refreshProfile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const me = profile?.id;
   const qc = useQueryClient();
 

@@ -15,6 +15,7 @@ import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
+import { useLocale } from '@/hooks/use-locale';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ListState } from '@/components/ListState';
@@ -42,7 +43,7 @@ const BENEFITS = [
 export default function CircleScreen() {
   const { profile } = useAuth();
   const qc = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const profileId = profile?.id ?? '';
 
   // ── Local UI state ──────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
@@ -89,8 +90,8 @@ function FilterPills({
  * Read-only — no Aura writes (rule #1). Engine is dormant; empty is the normal state.
  */
 export default function LedgerScreen() {
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   const [filter, setFilter] = useState<LedgerFilter>('all');

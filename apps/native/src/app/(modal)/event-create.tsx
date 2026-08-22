@@ -15,7 +15,7 @@ import { EVENT_HREF } from '@/components/live/EventRow';
 import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { dateTimeWithYear } from '@/lib/time';
@@ -34,10 +34,9 @@ const CATEGORIES: EventCategory[] = [
 ];
 
 export default function EventCreateScreen() {
-  const { profile } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<EventCategory>('networking');
