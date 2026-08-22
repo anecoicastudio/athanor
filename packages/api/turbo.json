@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/deploy-check.mjs",
+        "$TURBO_ROOT$/supabase/config.toml",
+        "$TURBO_ROOT$/supabase/functions/*/index.ts"
+      ]
+    }
+  }
+}

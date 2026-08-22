@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "gen:types": "supabase gen types --lang typescript --project-id ${SUPABASE_TYPES_PROJECT_ID:-eralyiwkfrpqsawivegz} > packages/api/src/database.types.ts.tmp && mv packages/api/src/database.types.ts.tmp packages/api/src/database.types.ts",
+    "deploy:check": "node scripts/deploy-check.mjs",
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs",
     "staging:media": "node scripts/upload-staging-media.mjs",
     "staging:refresh": "node scripts/staging-refresh.mjs"
