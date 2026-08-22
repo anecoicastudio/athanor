@@ -900,13 +900,26 @@ describe('the signed-in locale is resolved in exactly one place (#331)', () => {
     ).toEqual([]);
   });
 
-  it('no screen resolves a profile locale itself', () => {
+  /**
+   * Reading the column at all, not just reading it WITH a fallback. The `?? 'it'` spelling is
+   * the one the issue counted, but two screens held a non-null `profile` and wrote a bare
+   * `const locale = profile.locale;` — same resolution, no `??` to grep for, and the first
+   * version of this guard sailed straight past both.
+   */
+  const PROFILE_LOCALE_OK = [
+    RESOLVER,
+    // The locale PICKER's initial value — editing the stored column, not resolving a display
+    // locale from it. The one read that must NOT become useLocale().
+    'components/profile/ProfileEditForm.tsx',
+  ];
+
+  it('no screen resolves a display locale off a profile itself', () => {
     const hits = codeLines()
-      .filter(([at]) => !at.includes(RESOLVER))
-      .filter(([, text]) => /\w+\?\.locale\s*\?\?/.test(text));
+      .filter(([at]) => !PROFILE_LOCALE_OK.some((ok) => at.includes(ok)))
+      .filter(([, text]) => /\bprofile\??\.locale\b/.test(text));
     expect(
       hits.map(([at, text]) => `${at} ${text.trim()}`),
-      `only ${RESOLVER} may resolve profile.locale — every screen calls useLocale()`,
+      `only ${RESOLVER} may read profile.locale for display — every screen calls useLocale()`,
     ).toEqual([]);
   });
 

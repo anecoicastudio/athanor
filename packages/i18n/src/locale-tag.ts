@@ -11,7 +11,8 @@ import type { Locale } from './t';
  * things a member actually reads — day-before-month dates and a 24-hour clock.
  *
  * `packages/core` formats currency with the same mapping and CANNOT call this — core
- * imports only `@athanor/schemas` (PRD §5 rule 4). Those copies stay hand-rolled by design.
+ * imports only `@athanor/schemas` (CLAUDE.md, monorepo map). Those copies stay hand-rolled
+ * by design.
  */
 export function localeTag(locale: Locale): 'it-IT' | 'en-GB' {
   return locale === 'it' ? 'it-IT' : 'en-GB';

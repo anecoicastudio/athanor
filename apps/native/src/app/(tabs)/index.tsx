@@ -18,6 +18,7 @@ import { WeekSlot } from '@/components/home/WeekSlot';
 import { auraSnapshotOrNull } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraScore } from '@/hooks/use-aura-score';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
@@ -54,6 +55,8 @@ import { useAuraScore } from '@/hooks/use-aura-score';
  */
 export default function HomeScreen() {
   const { profile, session } = useAuth();
+  // Above the `if (!profile)` bail below: a hook cannot sit after an early return.
+  const locale = useLocale();
   const router = useRouter();
   const userId = session?.user.id ?? '';
 
@@ -65,7 +68,6 @@ export default function HomeScreen() {
     return <LoadingScreen />;
   }
 
-  const locale = profile.locale;
   const greeting = t(`home.greeting.${greetingFor(new Date().getHours())}` as MessageKey, locale);
 
   // `messages` opens the conversations list (M5); search (M8) → search modal;
