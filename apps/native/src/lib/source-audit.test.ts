@@ -119,6 +119,19 @@ const CODE_LINES = FILES.map((p) => [p, stripComments(read(p)).split('\n')] as c
 const codeLines = (): [string, string][] =>
   CODE_LINES.flatMap(([p, ls]) => ls.map((t, i) => [`${rel(p)}:${i + 1}`, t] as [string, string]));
 
+/**
+ * `app.config.ts` (#486) is evaluated by Node at config time, not bundled by Metro, so the two
+ * inlining rules below do not bind it — a computed read there would resolve fine. The
+ * `.env.example` rule does bind it: it reads EXPO_PUBLIC_SITE_ORIGIN to decide which host the
+ * binary claims as a universal link, and an EAS build missing that variable resolves a
+ * different host from the one `links.ts` hands URLs out on — silently, which is #486 itself.
+ */
+const BUILD_TIME_CONFIG = `${NATIVE}app.config.ts`;
+const configLines = (): [string, string][] =>
+  stripComments(read(BUILD_TIME_CONFIG))
+    .split('\n')
+    .map((t, i) => [`${rel(BUILD_TIME_CONFIG)}:${i + 1}`, t] as [string, string]);
+
 describe('env reads survive Metro inlining', () => {
   it('never reads process.env with a computed key', () => {
     // `process.env[name]`, and `process.env` handed to a function that will subscript it.
@@ -145,7 +158,7 @@ describe('env reads survive Metro inlining', () => {
       [...example.matchAll(/^[ \t]*([A-Z0-9_]+)\s*=/gm)].map((m) => m[1] as string),
     );
 
-    const reads = codeLines().flatMap(([where, t]) =>
+    const reads = [...codeLines(), ...configLines()].flatMap(([where, t]) =>
       [...t.matchAll(/process\s*\.\s*env\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)/g)].map(
         (m) => [where, m[1] as string] as const,
       ),
@@ -162,6 +175,7 @@ describe('env reads survive Metro inlining', () => {
     expect([...new Set(reads.map(([, n]) => n))].sort()).toEqual([
       'EXPO_PUBLIC_MAPBOX_TOKEN',
       'EXPO_PUBLIC_SENTRY_DSN',
+      'EXPO_PUBLIC_SITE_ORIGIN',
       'EXPO_PUBLIC_SUPABASE_ANON_KEY',
       'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
       'EXPO_PUBLIC_SUPABASE_URL',
@@ -188,7 +202,7 @@ const SECRET_PATTERNS: [string, RegExp][] = [
 ];
 
 describe('no server-side secret ever reaches the client bundle', () => {
-  const targets = () => [...FILES, `${NATIVE}app.json`, `${NATIVE}eas.json`];
+  const targets = () => [...FILES, `${NATIVE}app.json`, `${NATIVE}eas.json`, BUILD_TIME_CONFIG];
 
   it.each(SECRET_PATTERNS)('contains no %s', (_label, pattern) => {
     const hits = targets().flatMap((p) =>
