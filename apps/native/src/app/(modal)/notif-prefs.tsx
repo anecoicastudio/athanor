@@ -31,7 +31,6 @@ const PREF_ROWS: { key: string; type: NotifPrefInput['type'] }[] = [
   { key: 'notif.prefs.dream', type: 'dreamMilestone' },
   { key: 'notif.prefs.review', type: 'review' },
   { key: 'notif.prefs.events', type: 'eventReminder' },
-  { key: 'notif.prefs.fund', type: 'fundMilestone' },
   { key: 'notif.prefs.projects', type: 'projectResponse' },
 ];
 

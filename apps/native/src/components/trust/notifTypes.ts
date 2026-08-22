@@ -17,7 +17,6 @@ import type { Notification } from '@athanor/schemas';
  *  sprout   → ◉  (filled circle — growth)
  *  feather  → ◇  (diamond — review/quality)
  *  sundot   → ◷  (clock face — reminder)
- *  ankh     → ◎  (ring/circle — fund milestone)
  *  vesica2  → ◈  (diamond in square — projects)
  *  link     → ◌  (dashed circle — connection)
  *  triangle → △  (outline triangle — moderation warn, #313)
@@ -30,7 +29,6 @@ export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
   dreamMilestone: { glyph: '◉', accentClass: 'bg-raise-2', celebratory: false },
   review: { glyph: '◇', accentClass: 'bg-raise-2', celebratory: false },
   eventReminder: { glyph: '◷', accentClass: 'bg-raise-2', celebratory: false },
-  fundMilestone: { glyph: '◎', accentClass: 'bg-raise-2', celebratory: false },
   projectResponse: { glyph: '◈', accentClass: 'bg-raise-2', celebratory: false },
   connection: { glyph: '◌', accentClass: 'bg-raise-2', celebratory: false },
   // #313 warn verdicts — neutral fill like every non-moment type; a sanction is not a moment.
@@ -46,7 +44,6 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   dreamMilestone: 'notif.type.dreamMilestone',
   review: 'notif.type.review',
   eventReminder: 'notif.type.eventReminder',
-  fundMilestone: 'notif.type.fundMilestone',
   projectResponse: 'notif.type.projectResponse',
   connection: 'notif.type.connection',
   moderation: 'notif.type.moderation',

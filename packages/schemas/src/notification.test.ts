@@ -55,11 +55,13 @@ describe('notificationSchema', () => {
     ).toThrow();
   });
 
-  it('exposes the 9 canonical types', () => {
+  it('exposes the 8 canonical types', () => {
     // 7 from M9 + 'moderation' (#313 warn verdicts) + 'gdprExport' (#129 export delivery)
-    expect(NOTIFICATION_TYPES).toHaveLength(9);
+    // − 'fundMilestone' (#241: no producer and no fan-out-to-many to build one on; #127 re-adds).
+    expect(NOTIFICATION_TYPES).toHaveLength(8);
     expect(NOTIFICATION_TYPES).toContain('moderation');
     expect(NOTIFICATION_TYPES).toContain('gdprExport');
+    expect(NOTIFICATION_TYPES).not.toContain('fundMilestone');
   });
 
   it('admits the warn template key (#313)', () => {
