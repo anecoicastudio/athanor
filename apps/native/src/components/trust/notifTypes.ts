@@ -17,7 +17,6 @@ import type { Notification } from '@athanor/schemas';
  *  sprout   → ◉  (filled circle — growth)
  *  feather  → ◇  (diamond — review/quality)
  *  sundot   → ◷  (clock face — reminder)
- *  ankh     → ◎  (ring/circle — fund milestone)
  *  vesica2  → ◈  (diamond in square — projects)
  *  link     → ◌  (dashed circle — connection)
  *  triangle → △  (outline triangle — moderation warn, #313)
