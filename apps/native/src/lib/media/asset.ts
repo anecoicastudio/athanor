@@ -1,5 +1,6 @@
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { MEDIA_LIMITS } from '@athanor/core';
+import type { MessageKey } from '@athanor/i18n';
 
 /**
  * A single picked asset, normalized into the shape the rest of the media
@@ -27,6 +28,34 @@ export type VideoPickOutcome =
   | { outcome: 'picked'; media: PickedMedia; contentType: string }
   | { outcome: 'rejected'; reason: VideoRejection };
 
+/**
+ * What a compose-flow pick amounted to (#507). Same two arms as {@link VideoPickOutcome} minus
+ * the Content-Type, which only the candidacy upload declares.
+ *
+ * The `rejected` arm exists because the bare `null` this replaces was swallowed whole: an
+ * over-cap video reached `MediaSheet` as the same value a Cancel produces, so the sheet closed
+ * saying nothing at all. That silence is the defect — not, as #507's title reads, a wrong
+ * sentence. There was no sentence.
+ */
+export type MediaPickOutcome =
+  | { outcome: 'picked'; media: PickedMedia }
+  | { outcome: 'rejected'; reason: VideoRejection };
+
+/**
+ * The i18n key each rejection names itself with.
+ *
+ * A `Record<VideoRejection, …>` rather than a switch so a new rejection cannot be added without
+ * choosing its copy — the omission would not compile. It lives here, beside the type, and
+ * `candidacy-video-status.ts` spreads it into its own wider `FAILURE_MESSAGE`: the three shared
+ * reasons are therefore spelled once, and the two doors cannot drift into different sentences
+ * for the same refusal.
+ */
+export const REJECTION_MESSAGE: Record<VideoRejection, MessageKey> = {
+  'too-long': 'media.tooLong',
+  'too-large': 'media.tooLarge',
+  'unsupported-type': 'media.unsupportedType',
+};
+
 /** The picker asset → PickedMedia, with no acceptance rules applied. */
 function normalize(asset: ImagePickerAsset): PickedMedia {
   const isVideo = asset.type === 'video';
@@ -46,24 +75,32 @@ function normalize(asset: ImagePickerAsset): PickedMedia {
 }
 
 /**
- * Map a picker asset → PickedMedia. Returns `null` if a video exceeds the 60s cap.
+ * Map a picker asset → a named outcome for the `MediaSheet` compose flow.
  * `livePhoto`/`pairedVideo` are coerced to `image` (we never request them, but be defensive),
  * as is a rare Android ContentProvider `null` type.
  *
- * This is the LOSSY door — it cannot say why it returned null, which is exactly why the
- * candidacy path uses {@link classifyVideoAsset} instead (#412). It stays as it was for the
- * `MediaSheet` compose flow, whose own null-handling predates that distinction.
+ * This used to be the LOSSY door: it answered `PickedMedia | null`, so a video over the 60s cap
+ * was the same value as a Cancel and `MediaSheet` had nothing to branch on. That is why the
+ * candidacy path went to {@link classifyVideoAsset} instead (#412) — and why the compose flow,
+ * left behind, refused long videos in total silence until #507. Both doors now name their
+ * refusals; the difference between them is which rules they apply, not what they can say.
+ *
+ * Only `'too-long'` is produced here, because duration is the only rule this door enforces: it
+ * also accepts images, so the byte and container checks `classifyVideoAsset` makes have no
+ * meaning for half its traffic. The reason is typed as the full {@link VideoRejection} anyway
+ * so the two doors share one vocabulary, and so a rule added here later needs no call-site
+ * change — {@link REJECTION_MESSAGE} already has copy for every member.
  */
-export function toPickedMedia(asset: ImagePickerAsset): PickedMedia | null {
+export function toPickedMedia(asset: ImagePickerAsset): MediaPickOutcome {
   const media = normalize(asset);
   if (
     media.kind === 'video' &&
     media.duration_s != null &&
     media.duration_s > MEDIA_LIMITS.MAX_VIDEO_SECONDS
   ) {
-    return null; // over cap → caller shows media.tooLong
+    return { outcome: 'rejected', reason: 'too-long' };
   }
-  return media;
+  return { outcome: 'picked', media };
 }
 
 /**

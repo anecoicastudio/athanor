@@ -1018,3 +1018,91 @@ describe('placeholders are a token, never the platform default (#499)', () => {
     ).toEqual([...HERO_NOT_YET_ROUTED, 'components/Field.tsx'].sort());
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 16 — the upload transport is a single seam (#450)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * On iOS, `xhr.send({ uri })` does not stream: `RCTNetworkTask.mm` appends the whole file into
+ * an `NSMutableData` and `RCTNetworking.mm` assigns it as `HTTPBody`, so a picked video becomes
+ * one contiguous native allocation before the request leaves. That is #450, and it was
+ * DEFERRED rather than fixed — blocked on #508's SDK 54 pin, because the replacement
+ * (`expo/fetch`, or a native uploader) is not reachable from App Store Expo Go today.
+ *
+ * The deferral is only safe because the eventual swap is one module: `XMLHttpRequest` is
+ * constructed in exactly one file, so however many upload surfaces get built on top of
+ * `uploadWithProgress`, none of them adds a second place to fix. That property was true by
+ * luck. This makes it true by assertion — a second `new XMLHttpRequest()` anywhere in the tree
+ * silently doubles the cost of #450, and nothing else would say so.
+ *
+ * Comments are stripped first: `upload-transport.ts` names the type in prose, and #450's own
+ * reasoning is the kind of thing a future docblock will quote.
+ */
+describe('the upload transport is a single seam (#450)', () => {
+  const TRANSPORT = 'lib/media/upload-transport.ts';
+
+  it('XMLHttpRequest is used in exactly one file, and it is the transport', () => {
+    const users = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => /\bXMLHttpRequest\b/.test(text))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      users,
+      'XMLHttpRequest has escaped the transport — #450 (iOS buffers the whole body in native ' +
+        'memory) is deferred on the promise that its fix is one module. Route the upload ' +
+        `through ${TRANSPORT} instead.`,
+    ).toEqual([TRANSPORT]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 17 — a video-capable picker can always say why it refused (#507)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `MediaSheet`'s `onError` is the only way a refusal reaches the screen. Omit it on a sheet
+ * that accepts video and an over-cap pick closes the sheet in silence — which is exactly the
+ * bug #507 closed, in all four compose surfaces at once, for two months.
+ *
+ * Scoped to `allowVideo` because it is the only rule the compose door enforces: an avatar sheet
+ * (`(onboarding)/index.tsx`, `ProfileEditForm.tsx`) takes stills only, and `toPickedMedia` never
+ * refuses a still. Those two may keep omitting `onError` — a picker that THREW is still worth
+ * saying, but that is a separate, weaker claim than this one, and widening the guard to cover it
+ * would be inventing a requirement no issue has asked for.
+ *
+ * Cutting each element at its first `/>` is the same naive slice section 15 makes, for the same
+ * reason: no `<MediaSheet>` in this tree takes children, and if one ever does the cut lands
+ * EARLY, losing coverage rather than inventing a failure.
+ */
+describe('a video-capable picker can always say why it refused (#507)', () => {
+  /** `[path:line, attribute text]` for every `<MediaSheet …/>` element in the tree. */
+  const sheets = (): [string, string][] =>
+    CODE_LINES.flatMap(([p, ls]) => {
+      const src = ls.join('\n');
+      const out: [string, string][] = [];
+      for (const m of src.matchAll(/<MediaSheet[\s>]/g)) {
+        const start = m.index;
+        const end = src.indexOf('/>', start);
+        if (end === -1) continue;
+        const line = src.slice(0, start).split('\n').length;
+        out.push([`${rel(p)}:${line}`, src.slice(start, end)]);
+      }
+      return out;
+    });
+
+  it('every MediaSheet that accepts video wires onError', () => {
+    expect(sheets().length, 'no MediaSheet found — has the component moved?').toBeGreaterThan(0);
+    const mute = sheets()
+      .filter(([, attrs]) => /\ballowVideo\b/.test(attrs))
+      .filter(([, attrs]) => !/\bonError\b/.test(attrs));
+    expect(
+      mute.map(([at]) => at),
+      'a video-capable MediaSheet has no onError — an over-cap video would close the sheet ' +
+        'without a word (#507). Pass onError={(key) => setError(t(key, locale))}.',
+    ).toEqual([]);
+  });
+});

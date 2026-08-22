@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Modal, Platform } from 'react-native';
-import { t } from '@athanor/i18n';
+import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { PermissionPrimer } from '@/components/media/PermissionPrimer';
@@ -11,7 +11,14 @@ import {
   peekLibraryPermission,
   type PermStatus,
 } from '@/lib/media/permissions';
-import { capturePhoto, pickFromLibrary, recordVideo, type PickedMedia } from '@/lib/media/pick';
+import {
+  capturePhoto,
+  pickFromLibrary,
+  recordVideo,
+  type MediaPickResult,
+  type PickedMedia,
+} from '@/lib/media/pick';
+import { REJECTION_MESSAGE } from '@/lib/media/asset';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Which source a row launches once its permission is granted. */
@@ -52,8 +59,16 @@ export function MediaSheet({
   locale: Locale;
   onPick: (m: PickedMedia) => void;
   onClose: () => void;
-  /** Native picker threw (camera unavailable, interrupted…) — surface `media.failed`. */
-  onError?: () => void;
+  /**
+   * Something is worth saying and it is not a pick: the key to render (#507).
+   *
+   * Two sources. The picker THREW (camera unavailable, interrupted…) → `media.failed`, which is
+   * all a thrown exception supports. Or the asset was REFUSED by a rule we wrote — today only
+   * the 60s cap — and then the key names the rule: «Il video può durare al massimo 60 secondi.»
+   * A refusal reported as `media.failed` would be a lie, and reported as nothing at all was the
+   * bug: the sheet closed on an over-cap video without a word.
+   */
+  onError?: (key: MessageKey) => void;
   allowVideo?: boolean;
 }) {
   // The source the user tapped + the primer's permission status. `null` source
@@ -71,10 +86,14 @@ export function MediaSheet({
   async function doLaunch(source: Source) {
     setBusy(true);
     try {
-      const picked = await pickForSource(source, allowVideo);
-      if (picked) onPick(picked);
+      const result = await pickForSource(source, allowVideo);
+      // `canceled` is the one ending that stays silent — the member backed out and knows it.
+      // It used to be indistinguishable from a refusal, which is how an over-cap video came to
+      // close the sheet saying nothing (#507).
+      if (result.outcome === 'picked') onPick(result.media);
+      else if (result.outcome === 'rejected') onError?.(REJECTION_MESSAGE[result.reason]);
     } catch {
-      onError?.();
+      onError?.('media.failed');
     } finally {
       setBusy(false);
       launchLock.current = false;
@@ -222,7 +241,7 @@ function Row({
 
 // --- helpers ---------------------------------------------------------------
 
-function pickForSource(source: Source, allowVideo: boolean): Promise<PickedMedia | null> {
+function pickForSource(source: Source, allowVideo: boolean): Promise<MediaPickResult> {
   if (source === 'photo') return capturePhoto();
   if (source === 'video') return recordVideo();
   return pickFromLibrary({ allowVideo });
