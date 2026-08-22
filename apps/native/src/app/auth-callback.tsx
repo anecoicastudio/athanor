@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { Screen } from '@/components/Screen';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
@@ -66,19 +67,23 @@ export default function AuthCallbackScreen() {
 
   if (failed) {
     return (
-      <View className="flex-1 items-center justify-center gap-6 bg-background px-8">
-        <Text className="text-center text-base text-muted-foreground">
-          {t('auth.error.invalidLink', locale)}
-        </Text>
-        <Button
-          variant="outline"
-          label={t('auth.login.cta', locale)}
-          // mode:'login' or welcome renders the SIGNUP copy — and someone whose
-          // confirmation link expired already has an account, so the signup form
-          // would only answer them with «email already taken».
-          onPress={() => router.replace({ pathname: '/(auth)/welcome', params: { mode: 'login' } })}
-        />
-      </View>
+      <Screen>
+        <View className="flex-1 items-center justify-center gap-6 px-8">
+          <Text className="text-center text-base text-muted-foreground">
+            {t('auth.error.invalidLink', locale)}
+          </Text>
+          <Button
+            variant="outline"
+            label={t('auth.login.cta', locale)}
+            // mode:'login' or welcome renders the SIGNUP copy — and someone whose
+            // confirmation link expired already has an account, so the signup form
+            // would only answer them with «email already taken».
+            onPress={() =>
+              router.replace({ pathname: '/(auth)/welcome', params: { mode: 'login' } })
+            }
+          />
+        </View>
+      </Screen>
     );
   }
 
