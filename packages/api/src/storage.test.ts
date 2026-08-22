@@ -1,18 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
-import { signMediaUrls, uploadToBucket } from './storage';
+import { removeFromBucket, signMediaUrls, uploadToBucket } from './storage';
 
-/** Storage stub: client.storage.from(bucket) → { upload, createSignedUrls } vi.fns. */
+/** Storage stub: client.storage.from(bucket) → { upload, createSignedUrls, remove } vi.fns. */
 function storageStub(
   signed: Array<{ path: string | null; signedUrl: string | null }> | null = [],
   signError: unknown = null,
   uploadError: unknown = null,
+  removeError: unknown = null,
 ) {
   const upload = vi.fn().mockResolvedValue({ data: null, error: uploadError });
   const createSignedUrls = vi.fn().mockResolvedValue({ data: signed, error: signError });
-  const from = vi.fn().mockReturnValue({ upload, createSignedUrls });
+  const remove = vi.fn().mockResolvedValue({ data: null, error: removeError });
+  const from = vi.fn().mockReturnValue({ upload, createSignedUrls, remove });
   const client = { storage: { from } } as unknown as AthanorClient;
-  return { client, from, upload, createSignedUrls };
+  return { client, from, upload, createSignedUrls, remove };
 }
 
 describe('uploadToBucket', () => {
@@ -83,5 +85,33 @@ describe('signMediaUrls', () => {
   it('throws on signing error', async () => {
     const { client } = storageStub(null, new Error('sign failed'));
     await expect(signMediaUrls(client, 'moments', ['a.jpg'])).rejects.toThrow('sign failed');
+  });
+});
+
+describe('removeFromBucket', () => {
+  it('removes the deduped, falsy-filtered paths from the named bucket', async () => {
+    const { client, from, remove } = storageStub();
+    await removeFromBucket(client, 'moments', ['a.jpg', 'a.jpg', '', 'b.jpg']);
+    expect(from).toHaveBeenCalledWith('moments');
+    expect(remove).toHaveBeenCalledWith(['a.jpg', 'b.jpg']);
+  });
+
+  it('no-ops on an empty list rather than issuing a request that deletes nothing', async () => {
+    const { client, remove } = storageStub();
+    await removeFromBucket(client, 'moments', []);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('all-falsy paths short-circuit the same way', async () => {
+    const { client, remove } = storageStub();
+    await removeFromBucket(client, 'moments', ['', '']);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('throws the resolved `{ error }` storage-js reports, so one .catch covers both shapes', async () => {
+    const { client } = storageStub([], null, null, new Error('object not found'));
+    await expect(removeFromBucket(client, 'moments', ['a.jpg'])).rejects.toThrow(
+      'object not found',
+    );
   });
 });

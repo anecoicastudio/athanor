@@ -24,6 +24,26 @@ export async function uploadToBucket(
 }
 
 /**
+ * Delete objects from a private bucket. Dedupes and drops falsy paths like `signMediaUrls`,
+ * and no-ops on an empty list rather than issuing a request that deletes nothing.
+ *
+ * Throws on failure, like `uploadToBucket`. storage-js reports a failed remove as a resolved
+ * `{ error }` and a network fault as a rejection, so a caller that handles only one of the two
+ * leaves the other unhandled (#179) — collapsing both into a throw here means one `.catch` at
+ * the call site covers it.
+ */
+export async function removeFromBucket(
+  client: AthanorClient,
+  bucket: MediaBucketName,
+  paths: string[],
+): Promise<void> {
+  const unique = [...new Set(paths)].filter(Boolean);
+  if (unique.length === 0) return;
+  const { error } = await client.storage.from(bucket).remove(unique);
+  if (error) throw error;
+}
+
+/**
  * Signed-URL lifetime per bucket, in seconds.
  *
  * `story-segments` is the outlier and the reason this table exists rather than a single default.

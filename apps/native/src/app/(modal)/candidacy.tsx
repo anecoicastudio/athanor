@@ -4,10 +4,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   candidacyKeys,
-  dreamKeys,
-  fundKeys,
-  getActiveDream,
-  getActiveEdition,
   getMyCandidacy,
   getMyLatestPriorCandidacy,
   submitCandidacy,
@@ -43,6 +39,8 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useActiveDream } from '@/hooks/use-active-dream';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
  * 7-step candidacy wizard (07 §3.4; #226 added steps 6–7).
@@ -81,10 +79,7 @@ export default function CandidacyWizard() {
   const editing = edit === '1';
   const resubmitting = !editing && resubmit === '1';
 
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
   const edition = editionQuery.data ?? null;
 
   // Edit/resubmit mode only: the row that prefills the form. Never fetched on a fresh
@@ -213,11 +208,7 @@ function WizardForm({
 
   // The author's single active dream — the only dream the wizard offers to link (D12);
   // RLS re-checks ownership server-side either way.
-  const dreamQuery = useQuery({
-    queryKey: dreamKeys.byProfile(uid),
-    queryFn: () => getActiveDream(supabase, uid),
-    enabled: uid !== '',
-  });
+  const dreamQuery = useActiveDream(uid);
   const activeDream = dreamQuery.data ?? null;
 
   // Whole euros typed by the member → integral cents, or null unless the pair is usable.

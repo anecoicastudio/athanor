@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { momentKeys, removeFromBucket, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
@@ -20,6 +20,7 @@ import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 import { Screen } from '@/components/Screen';
+import { useMomentsPage } from '@/hooks/use-moments-page';
 
 /**
  * Full Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). Owner mode
@@ -37,11 +38,7 @@ export default function GridScreen() {
   const queryClient = useQueryClient();
 
   // Live momenti (rule #9: keyset). First page (24) only — infinite scroll deferred.
-  const momentsQuery = useQuery({
-    queryKey: momentKeys.list(ownerId ?? ''),
-    queryFn: () => getMomentsPage(supabase, ownerId as string),
-    enabled: Boolean(ownerId),
-  });
+  const momentsQuery = useMomentsPage(ownerId);
   const moments = momentsQuery.data?.moments ?? [];
   // Posters as well as media: the tiles draw a video's poster, the Lightbox plays the video
   // itself, and both read this one map (#131).
@@ -75,15 +72,14 @@ export default function GridScreen() {
               // The poster goes with it — it is a second object in the same bucket, and leaving
               // it behind orphans bytes the row no longer points at (#131).
               // Not awaited on purpose — the row is already gone and the grid should not wait
-              // on bytes. Both failure shapes (a storage-js `{ error }` and a thrown network
-              // error) are dev-logged rather than left as an unhandled rejection (#179).
-              supabase.storage
-                .from('moments')
-                .remove(m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path])
-                .then(({ error }) => {
-                  if (error) devWarn('[moment] remove bytes', error);
-                })
-                .catch((e: unknown) => devWarn('[moment] remove bytes', e));
+              // on bytes. `removeFromBucket` throws on both failure shapes (a storage-js
+              // `{ error }` and a network rejection), so one `.catch` dev-logs each rather than
+              // leaving either as an unhandled rejection (#179).
+              removeFromBucket(
+                supabase,
+                'moments',
+                m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path],
+              ).catch((e: unknown) => devWarn('[moment] remove bytes', e));
               if (uid) return queryClient.invalidateQueries({ queryKey: momentKeys.list(uid) });
             })
             .catch(() => setError(t('media.failed', locale)));

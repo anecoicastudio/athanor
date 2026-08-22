@@ -4,11 +4,9 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  auraKeys,
   blockKeys,
   blockUser,
   conversationKeys,
-  getAuraScore,
   getConversation,
   getMessagesPage,
   type MessageCursor,
@@ -29,6 +27,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
 import { useAuth } from '@/lib/auth-context';
+import { useAuraScore } from '@/hooks/use-aura-score';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
@@ -60,11 +59,7 @@ export default function ChatScreen() {
 
   // Peer Aura for the header (read-only).
   const peerId = peer?.peerId;
-  const peerAuraQuery = useQuery({
-    queryKey: auraKeys.score(peerId ?? ''),
-    queryFn: () => getAuraScore(supabase, peerId as string),
-    enabled: Boolean(peerId),
-  });
+  const peerAuraQuery = useAuraScore(peerId);
   // `--` rather than 0 on a failed read: the header chip sits next to the person's handle, so
   // a coalesced zero reads as a claim about them rather than about our request.
   const peerScore = auraDisplayValue(peerAuraQuery.data?.score, peerAuraQuery.isError);

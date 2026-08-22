@@ -7,7 +7,6 @@ import {
   createRealizationPlan,
   deleteRealizationPlanPhase,
   fundKeys,
-  getActiveEdition,
   getMyCandidacy,
   getRealizationPlan,
   getRealizationPlanPhases,
@@ -39,6 +38,7 @@ import {
 } from '@/lib/plan-draft';
 import { supabase } from '@/lib/supabase';
 import { calendarDay, dayKey } from '@/lib/time';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
  * The winner's realization plan (#229, FUND-25) — authored AFTER the cycle chose the dream,
@@ -62,10 +62,7 @@ export default function RealizationPlanScreen() {
   const qc = useQueryClient();
   const { showToast } = useToast();
 
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
   const edition = editionQuery.data ?? null;
 
   const myCandidacyQuery = useQuery({

@@ -1,6 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { getMomentiDeck, momentiKeys } from '@athanor/api';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
@@ -10,7 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { DreamQuote } from '@/components/DreamQuote';
 import { SectionLabel } from '@/components/SectionLabel';
 import { topWaitingMomento } from '@/lib/momenti-home';
-import { supabase } from '@/lib/supabase';
+import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
 /**
  * Home block «Hai un Momento» (PRD 01-m1-identity §4.4 block 6, DESIGN §8.2) — issue #185.
@@ -32,7 +30,7 @@ import { supabase } from '@/lib/supabase';
  * 90 days with no undo (`packages/api/src/momenti.ts:111-121`). A stray tap on a scrolling Home
  * must not be able to spend either. Don't "restore" the buttons from the mockup.
  *
- * Same `momentiKeys.deck()` key and queryFn as the tab-bar badge, with NO options: TanStack
+ * Same `useMomentiDeck()` entry as the tab-bar badge, with NO options: TanStack
  * dedupes the two observers, so this block costs zero extra network (`staleTime: 30_000`,
  * `lib/query-client.ts:13`). Adding `enabled` / `refetchInterval` / `staleTime` here would fork
  * this observer's behaviour from the badge's for no gain — Home would then be able to show a
@@ -60,7 +58,7 @@ import { supabase } from '@/lib/supabase';
 export function MomentiCard({ locale }: { locale: Locale }) {
   const router = useRouter();
 
-  const deck = useQuery({ queryKey: momentiKeys.deck(), queryFn: () => getMomentiDeck(supabase) });
+  const deck = useMomentiDeck();
   const top = topWaitingMomento(deck.data);
 
   // Nothing waits, or nothing is known yet — the slot collapses entirely (see docblock).

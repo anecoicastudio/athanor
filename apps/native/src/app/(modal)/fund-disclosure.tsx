@@ -2,13 +2,8 @@ import { useCallback, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ContributionSessionError,
-  createContributionSession,
-  fundKeys,
-  getActiveEdition,
-} from '@athanor/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { ContributionSessionError, createContributionSession, fundKeys } from '@athanor/api';
 import { MIN_CONTRIBUTION_CENTS, feeCoverage, formatEuroAmount } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -18,6 +13,7 @@ import { Screen } from '@/components/Screen';
 import { useAuth } from '@/lib/auth-context';
 import { DISCLOSURE_BLOCKS } from '@/lib/fund-disclosure';
 import { supabase } from '@/lib/supabase';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 // The server's `{error}` strings are the stable contract (#103 idiom) — the D34 window
 // gate in create-contribution-session on one side, this map on the other. A window
@@ -54,10 +50,7 @@ export default function FundDisclosureScreen() {
   const validAmount = Number.isFinite(amountCents) && amountCents >= MIN_CONTRIBUTION_CENTS;
 
   // Cached from annual.tsx in the normal flow; refetched on a direct deep link.
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
   const edition = editionQuery.data ?? null;
 
   const [contribPhase, setContribPhase] = useState<'idle' | 'opening' | 'canceled' | 'error'>(

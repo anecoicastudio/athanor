@@ -7,8 +7,6 @@ import {
   candidacyKeys,
   deleteRealizationUpdate,
   editRealizationUpdate,
-  fundKeys,
-  getActiveEdition,
   getMyCandidacy,
   getRealizationPlan,
   getRealizationPlanPhases,
@@ -31,6 +29,7 @@ import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
  * The winner tells the community how it is going (#230, FUND-26).
@@ -53,10 +52,7 @@ export default function ProgressScreen() {
   const qc = useQueryClient();
   const { showToast } = useToast();
 
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
   const edition = editionQuery.data ?? null;
 
   const myCandidacyQuery = useQuery({

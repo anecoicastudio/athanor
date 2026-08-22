@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { fundKeys, getActiveEdition, getFundAggregate } from '@athanor/api';
+import { fundKeys, getFundAggregate } from '@athanor/api';
 import { formatFundTotal, timeRemaining } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
@@ -9,6 +9,7 @@ import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { dreamHeroSlot, fundCycleState } from '@/lib/fund-cycle';
 import { supabase } from '@/lib/supabase';
+import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
  * Compact dream-hero card for the Home tab (PRD 07-m7-countdown-edition §3.2, block 1).
@@ -31,11 +32,7 @@ import { supabase } from '@/lib/supabase';
 export function DreamHeroCard({ locale }: { locale: Locale }) {
   const router = useRouter();
 
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-    refetchInterval: 60_000,
-  });
+  const editionQuery = useActiveEdition({ refetchInterval: 60_000 });
 
   const edition = editionQuery.data ?? null;
 

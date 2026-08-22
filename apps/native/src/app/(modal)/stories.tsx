@@ -6,7 +6,6 @@ import { buildStorySession } from '@athanor/core';
 import {
   getAuthorStoryCount,
   getOrCreateConversation,
-  getPersonStory,
   getViewerStoryReaction,
   pinStoryStep,
   sendMessage,
@@ -25,6 +24,7 @@ import { supabase } from '@/lib/supabase';
 import { Text } from '@/tw';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
+import { usePersonStory } from '@/hooks/use-person-story';
 
 export default function StoriesScreen() {
   const { authorId, handle } = useLocalSearchParams<{ authorId: string; handle?: string }>();
@@ -67,11 +67,7 @@ export default function StoriesScreen() {
   const currentAuthorId = session298[ai] ?? targetId;
   const isOwn = currentAuthorId === myId;
 
-  const personQuery = useQuery({
-    queryKey: storyKeys.person(currentAuthorId),
-    queryFn: () => getPersonStory(supabase, currentAuthorId),
-    enabled: Boolean(currentAuthorId),
-  });
+  const personQuery = usePersonStory(currentAuthorId);
   const segments = personQuery.data?.segments ?? [];
   const [first] = segments;
   // The viewer owns its own segment index; the host only needs the first for reaction gating.
@@ -85,11 +81,7 @@ export default function StoriesScreen() {
   // Prefetch the next person while the current one plays (#298): their segments and the signed
   // URL of their first segment, so the handoff is not a blank frame.
   const nextAuthorId = session298[ai + 1];
-  const nextQuery = useQuery({
-    queryKey: storyKeys.person(nextAuthorId ?? ''),
-    queryFn: () => getPersonStory(supabase, nextAuthorId as string),
-    enabled: Boolean(nextAuthorId),
-  });
+  const nextQuery = usePersonStory(nextAuthorId);
   useSignedUrls(
     'story-segments',
     (nextQuery.data?.segments ?? []).slice(0, 1).map((s) => s.storage_path),

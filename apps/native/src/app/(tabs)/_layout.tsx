@@ -1,10 +1,8 @@
 import { Tabs } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
-import { getMomentiDeck, momentiKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
+import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 import { deviceLocale } from '@/lib/locale';
 import {
   CommunityGlyph,
@@ -17,7 +15,7 @@ import {
 export default function TabsLayout() {
   // ✦ badge: light a single cyan spark when ≥1 pending Momento waits — never a
   // numeric count (rule #3 / DESIGN §8). (tabs) renders inside the query provider.
-  const deck = useQuery({ queryKey: momentiKeys.deck(), queryFn: () => getMomentiDeck(supabase) });
+  const deck = useMomentiDeck();
   const hasUnseen = (deck.data?.length ?? 0) > 0;
   const { profile } = useAuth();
   const locale = profile?.locale ?? deviceLocale;

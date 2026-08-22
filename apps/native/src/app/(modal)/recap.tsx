@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { auraKeys, getStars, starKeys } from '@athanor/api';
+import { auraKeys } from '@athanor/api';
 import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useStars } from '@/hooks/use-stars';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { weekRecapIsEmpty } from '@/lib/week-slot';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -38,11 +38,7 @@ export default function RecapScreen() {
   });
 
   // Stars: for «Prossima stella» block via pickNextStar.
-  const starsQuery = useQuery({
-    queryKey: starKeys.list(me),
-    queryFn: () => getStars(supabase, me),
-    enabled: !!me,
-  });
+  const starsQuery = useStars(me);
 
   const recap = recapQuery.data;
   // `?? []` is safe HERE and nowhere else (issue #16): the only consumer is pickNextStar, which

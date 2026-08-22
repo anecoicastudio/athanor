@@ -4,15 +4,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useQuery } from '@tanstack/react-query';
-import {
-  auraKeys,
-  blockKeys,
-  getAuraScore,
-  getBlockedCount,
-  getMyReferralCode,
-  inviteKeys,
-  updateProfile,
-} from '@athanor/api';
+import { blockKeys, getBlockedCount, updateProfile } from '@athanor/api';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
@@ -32,6 +24,8 @@ import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
+import { useReferralCode } from '@/hooks/use-referral-code';
+import { useAuraScore } from '@/hooks/use-aura-score';
 
 /**
  * Settings (PRD §4, M1 §3.4) — account hub. M1 ships full chrome; most rows
@@ -61,19 +55,11 @@ export default function SettingsScreen() {
   });
 
   // Personal referral code, appended to the Invite row's share link (P4.1).
-  const { data: referralCode } = useQuery({
-    queryKey: inviteKeys.code(),
-    queryFn: () => getMyReferralCode(supabase),
-  });
+  const { data: referralCode } = useReferralCode();
 
-  // Read-only Aura snapshot. Shares auraKeys.score + getAuraScore with profile.tsx/Home
-  // (one queryFn per key).
+  // Read-only Aura snapshot — the entry profile.tsx and Home also read.
   const userId = session?.user.id ?? '';
-  const { data: auraSnapshot, isError: auraIsError } = useQuery({
-    queryKey: auraKeys.score(userId),
-    queryFn: () => getAuraScore(supabase, userId),
-    enabled: !!userId,
-  });
+  const { data: auraSnapshot, isError: auraIsError } = useAuraScore(userId);
   const aura = auraDisplayValue(auraSnapshot?.score, auraIsError);
 
   const switchLocale = async (next: Locale) => {
