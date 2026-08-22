@@ -22,10 +22,14 @@ select policies_are('public','event_attendance',
   'exactly the expected policies on event_attendance');
 
 -- setup (service role, bypasses RLS): A organizes a paid event; B holds a paid ticket
+-- A is identity-verified and the row carries settlement_ack_at: #448's events_enforce_paid_gate
+-- refuses a paid event without both, on every write path including service_role's.
+update public.profiles set identity_verified = true
+  where id = '11111111-1111-1111-1111-111111111111';
 set local role service_role;
-insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents)
+insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, settlement_ack_at)
 values ('aaaaaaaa-0000-0000-0000-00000000aaaa','11111111-1111-1111-1111-111111111111',
-        'Notte Live','networking',true,'https://x.test', now() + interval '1 day', 1500);
+        'Notte Live','networking',true,'https://x.test', now() + interval '1 day', 1500, now());
 insert into public.event_tickets (id, user_id, event_id, status, qr_token)
 values ('bbbbbbbb-0000-0000-0000-00000000bbbb','22222222-2222-2222-2222-222222222222',
         'aaaaaaaa-0000-0000-0000-00000000aaaa','paid','signed.real.token');

@@ -33,12 +33,18 @@ values
 -- events is column-scoped to the columns create_event writes, and `id` is not one of them.
 -- This fixture wants a deterministic id to reference below, not an ownership check —
 -- 0020_events_rls asserts an organiser's own INSERT.
+-- A is identity-verified and the paid row carries settlement_ack_at: #448's
+-- events_enforce_paid_gate refuses a paid event without both, on every write path including
+-- service_role's. The free row (0) never fires the trigger — its WHEN clause tests price_cents > 0
+-- — and stays exactly as it was, which is the free-path fixture the rsvps arm below needs.
+update public.profiles set identity_verified = true
+  where id = '11111111-1111-1111-1111-111111111111';
 set local role service_role;
-insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, capacity)
+insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, capacity, settlement_ack_at)
   values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','11111111-1111-1111-1111-111111111111',
-          'Masterclass','formazione',true,'https://stream.athanor.test/x', now() + interval '1 day', 1500, 2),
+          'Masterclass','formazione',true,'https://stream.athanor.test/x', now() + interval '1 day', 1500, 2, now()),
          ('ffffffff-ffff-ffff-ffff-ffffffffffff','11111111-1111-1111-1111-111111111111',
-          'Cerchio aperto','benessere',true,'https://stream.athanor.test/y', now() + interval '1 day', 0, 2);
+          'Cerchio aperto','benessere',true,'https://stream.athanor.test/y', now() + interval '1 day', 0, 2, null);
 reset role;
 
 -- ── paid path: claim_event_seat ──────────────────────────────────────────────────────────

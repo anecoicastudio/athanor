@@ -16,6 +16,32 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260822103819_paid_event_insert_gate.sql` — two comments, both about how the file points at other things
+
+Neither changes what the SQL does. Both are recorded rather than fixed because the migration had
+already reached staging when they were caught, and rule #7 does not let a comment be edited in
+place.
+
+### The WHEN-clause note's `20260812225214:186-190`
+
+The `create trigger rsvps_enforce_capacity` statement it cites as the precedent spans **185-189**;
+`:186` lands one line inside it and `:190` is past its semicolon. The claim is right and the
+coordinate is one off in both directions. Every other reference in that file — `20260818190348:70-80`
+and `:72,78`, `20260617225450:27-39`, `20260815164809:228`, `20260615094844:31` — was checked
+against the tree in the same pass and holds.
+
+### "SECURITY INVOKER (the default, stated by omission as elsewhere in this schema)"
+
+`enforce_paid_event_gate()` **is** invoker, and invoker **is** PostgreSQL's default, so the function
+is what the sentence says it is — `pg_proc.prosecdef` is false and `0121` reads that axis, not the
+prose. What is wrong is "as elsewhere in this schema": omission is the minority here.
+`touch_updated_at`, `favor_offers_guard`, `fund_editions_ballot_open_check`,
+`guard_momento_status_change` and `milestone_helps_guard` all write `security invoker` out;
+`realization_updates_binds_winner` is the only prior function that leaves it implicit. **The
+convention is to state it.** Do not read that sentence as licence to omit the clause in the next
+trigger function — a security-relevant declaration an auditor has to infer from a default is worth
+one keyword.
+
 ## `20260821075230_story_segment_bytes_reaper.sql` — the definer rationale and the two-arm policy claim
 
 Both corrected by `20260821082216_story_segment_reaper_review_fixes.sql` in the same PR (#31);
@@ -79,18 +105,39 @@ and `identity_verified` unwritable by their owner:
   `is_athanor_day`, `cover_url`, `live_started_at`, `live_ended_at`, `id` and the timestamps are
   no longer client-writable at all.
 
-**The INSERT half survives, by construction.** `create_event` is `SECURITY INVOKER`
-(`20260818190348_organiser_settlement_ack.sql:58`), so its INSERT runs with the caller's privileges
-and `price_cents` and `settlement_ack_at` _have_ to stay in the caller's grant. A direct INSERT can
-therefore still create a paid event carrying a self-supplied `settlement_ack_at` and no verified
-identity, skipping both of `create_event`'s refusals. Only row **creation** — an existing row is now
-immutable to its owner.
+**The INSERT half survived #446 by construction, and #448 closed it.** `create_event` is
+`SECURITY INVOKER` (`20260818190348_organiser_settlement_ack.sql:58`), so its INSERT runs with the
+caller's privileges and `price_cents` and `settlement_ack_at` _have_ to stay in the caller's grant.
+Grants cannot express "`price_cents > 0` requires X" — that is a predicate over values, and the
+privilege system has no way to state one. So until 2026-08-22 a direct INSERT still created a paid
+event carrying a self-supplied `settlement_ack_at` and no verified identity, skipping both of
+`create_event`'s refusals.
 
-Grants cannot express "`price_cents > 0` requires X". Closing the remainder needs a validating
-trigger or a DEFINER rewrite of `create_event`, and both are decisions of their own: a trigger fires
-for fixtures too, and `supabase/staging-seed/seed-staging.sql:353-357` inserts three paid events
-directly with no acknowledgement, by organisers who are not `identity_verified` — so a CHECK or a
-naive trigger breaks `pnpm staging:refresh` on the next run.
+**Amended again by #448** (`20260822103819_paid_event_insert_gate.sql`): a `before insert on
+public.events` trigger, `events_enforce_paid_gate`, raising `create_event`'s own `22023` when a row
+with `price_cents > 0` carries no `settlement_ack_at` and its own `42501` when the organiser is not
+`identity_verified` — same codes, same messages, same order, so a refusal is indistinguishable by
+path. The price test is the trigger's `when` clause, so a free event never fires it, and the gate
+reaches every writer including `service_role`, which is more than a policy could have done.
+
+INSERT only, deliberately: `authenticated` has held no UPDATE since #446, so there is no client
+UPDATE path for an `or update` arm to gate, and such an arm would instead fire against the
+service-role and `pg_cron` writers that legitimately update unrelated columns on rows predating the
+trigger — `staging-seed/refresh-staging.sql` re-stamps two paid events hourly that way. The
+migration states that choice in full; `0125` pins it as `tgtype = 7`.
+
+The fixture churn a trigger was always going to cost was paid in the same change. The three paid
+events in `supabase/staging-seed/seed-staging.sql` now carry `settlement_ack_at`, and their
+organisers (`tino_chef`, `gio_musica`, `dario_legno`) are `identity_verified` — +150 more disclosed
+seed Aura, recorded in that file's own header. The four pgTAP fixtures that insert a paid event
+(`0025`, `0026`, `0079`, `0090`) do the same; the four that only `select` `price_cents` or insert
+free events are untouched. `pnpm staging:refresh` only UPDATEs, so it never fires the trigger.
+
+**What is still not true as written**, and why this entry is amended rather than deleted: the column
+comment's «Never client-supplied». The trigger enforces that an acknowledgement was _made_ — the
+thing no privilege could express — but on a direct INSERT the _timestamp itself_ is still the
+caller's, because only `create_event` stamps it from `now()`. The sentence remains the RPC's
+guarantee, narrowed from "presence and value are both forgeable" to "the value is".
 
 Read the migration's own grants note (`:33-38`, "Grants are deliberately untouched. `authenticated`
 holds table-level select/insert/update on public.events") as a statement about the day it was
@@ -103,11 +150,12 @@ The refusal is at `:125`. The line has moved twice already — #437's own ruling
 why the claim, not the coordinate, is what the test holds.
 
 Asserted by: `supabase/tests/0125_event_settlement_ack.test.sql` — the RPC's refusals and its
-server-side stamp, and, separately, the privileges that bound how far those refusals reach: no
-client UPDATE, no table-level INSERT, `settlement_ack_at` still insertable by column, the surviving
-direct-INSERT bypass, and `fee_pct` refused at the privilege layer. `0121_grant_catalog_sweep` holds
-the catalog-wide statement. If the direct-INSERT assertion goes red, someone has closed the
-remainder and this entry is the thing to delete.
+server-side stamp; the privileges that bound how far those refusals reach (no client UPDATE, no
+table-level INSERT, `settlement_ack_at` still insertable by column, `fee_pct` refused at the
+privilege layer); and, since #448, the trigger's shape plus both of its refusals on the direct path,
+as `authenticated` and as `service_role`, with a free event shown still going through.
+`0121_grant_catalog_sweep` holds the catalog-wide statement, including the `revoke execute` a
+trigger function owes it.
 
 ## `20260818095917_reserved_handles.sql:14-18` — the grant IS in the migrations, and is named there
 
