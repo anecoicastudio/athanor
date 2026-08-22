@@ -62,7 +62,7 @@ export const MEDIA_LIMITS = {
    * Hard cap on a personal/post video length.
    *
    * Enforced in three places, and the header's "single source" claim is only as true as they
-   * agree: the picker refuses a longer asset here on every path (`toPickedMedia` /
+   * agree: the picker refuses a longer asset on every path (`toPickedMedia` /
    * `classifyVideoAsset`), `packages/schemas` refuses to parse one, and `moments`,
    * `story_segments` and `post_media` each carry a `between 0 and 60` CHECK so a client that
    * is not our app cannot write one either. `post_media` was the exception until #56 — its

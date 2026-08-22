@@ -78,13 +78,25 @@ function currentDatabaseBound(): number {
   return last;
 }
 
-/** `MEDIA_LIMITS.MAX_VIDEO_SECONDS` as packages/core spells it. */
+/**
+ * `MEDIA_LIMITS.MAX_VIDEO_SECONDS` as packages/core spells it.
+ *
+ * `matchAll` and a count, not `match`: without the `g` flag `.match()` returns the FIRST hit,
+ * so a second `MAX_VIDEO_SECONDS:` appearing anywhere above the real one would be read in its
+ * place — quietly, and quite possibly with the value this test wants to see. Anchored to the
+ * start of a line so prose in a docblock cannot be mistaken for the declaration, and required
+ * to be unique so any other arrangement fails loudly instead of guessing.
+ */
 function coreMaxVideoSeconds(): number {
   const limits = join(ROOT, 'packages', 'core', 'src', 'media', 'limits.ts');
   if (!existsSync(limits)) throw new Error(`packages/core media limits not found at ${limits}`);
-  const declared = readFileSync(limits, 'utf8').match(/MAX_VIDEO_SECONDS:\s*(\d+)\s*,/)?.[1];
-  if (declared === undefined) throw new Error('MAX_VIDEO_SECONDS not found in core media limits');
-  return Number(declared);
+  const found = [...readFileSync(limits, 'utf8').matchAll(/^\s*MAX_VIDEO_SECONDS:\s*(\d+)\s*,/gm)];
+  if (found.length !== 1) {
+    throw new Error(
+      `expected exactly one MAX_VIDEO_SECONDS literal in core media limits, found ${found.length}`,
+    );
+  }
+  return Number(found[0]![1]);
 }
 
 describe('the post clip cap is one number in three places', () => {

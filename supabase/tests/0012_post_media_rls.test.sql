@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(13);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -114,6 +114,23 @@ select lives_ok(
      values ('aaaaaaaa-0000-0000-0000-000000000001', 'video',
              'post-media/11111111/vid60.mp4', 2, 60) $$,
   'a clip of exactly 60s is accepted — the cap is inclusive, as the schema and picker are'
+);
+
+-- 12. exactly ONE duration CHECK on the column. The narrowing migration (#56) drops the
+-- constraint and re-adds it under the same auto-generated name; `drop constraint if exists`
+-- means a name that did not match would make the drop a no-op and leave BOTH the old bound
+-- and the new one in the catalog. The effective bound would still be 60, so nothing visible
+-- would break — and the 1200 constraint would be unremovable, since the migration that
+-- would have dropped it is already applied and migrations are append-only. supabase-db.md
+-- is explicit that hosted catalogs drift wider than the migrations declaring them and that a
+-- from-zero replay cannot see it, so the count is asserted rather than assumed.
+select results_eq(
+  $$ select count(*)::int from pg_constraint
+      where conrelid = 'public.post_media'::regclass
+        and contype = 'c'
+        and pg_get_constraintdef(oid) like '%duration_s%' $$,
+  $$ values (1) $$,
+  'post_media carries exactly one duration_s CHECK — the narrowing replaced it, not doubled it'
 );
 
 select * from finish();
