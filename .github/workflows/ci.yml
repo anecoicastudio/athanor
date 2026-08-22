@@ -5,6 +5,18 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Supersede in-flight runs of this workflow on the same ref. A second push to a PR branch
+# makes the first run's remaining jobs pure waste — #454 sat 27 minutes on one before it was
+# cancelled by hand. github.ref is refs/pull/<n>/merge on a PR, so the group is per PR, not
+# per branch, and two PRs never contend.
+#
+# `main` is exempt on purpose. The `deploy` job below runs only from a main push; cancelling
+# that run mid-flight would leave Cloudflare half-updated with no red check saying so.
+# Cancelling a PR check costs nothing, cancelling a deploy costs a partial release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   node:
     name: lint · typecheck · test
@@ -35,9 +47,66 @@ jobs:
       - run: pnpm i18n:check
       - run: pnpm format:check
 
+  # PR path-trim for the e2e job below. Unlike the db and native-prebuild filters, this one
+  # gates the JOB rather than its steps: the cost this exists to remove is the job itself
+  # (116s at p50, 400s at its worst), not its last two steps.
+  #
+  # That is safe here and would not be safe there, for one reason — this gate can only fire
+  # on a pull_request, and `deploy` (which has `needs: e2e`) runs only on a main push. On
+  # every event where a skipped job would strand `deploy`, the condition on e2e is true and
+  # the job runs in full. The comments on the db and native-prebuild jobs still hold for
+  # them; they are not being contradicted.
+  #
+  # A job skipped by `if:` still reports its check run, with conclusion `skipped`, which
+  # satisfies branch protection — `deploy web (Cloudflare Workers)` has done exactly that on
+  # every PR. A workflow-level `paths:` filter would not report at all and would block every
+  # PR that missed the filter, permanently. `web e2e (Playwright)` is one of the 7 required
+  # checks, so that distinction is the whole risk of this change.
+  changes:
+    name: changed paths (web)
+    runs-on: ubuntu-latest
+    # Only pull_request runs need the answer. Pushes to dev/main always run everything, so
+    # drift a trimmed PR skipped surfaces on the next dev push at latest.
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 3
+    # The pinned third-party action only ever reads the PR's changed files.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+    # No checkout: on pull_request events the action reads the changed-file list from the
+    # REST API and never touches a working tree.
+    steps:
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            web:
+              # Everything the two admin smoke tests can actually see. `packages/**` is not
+              # over-broad here: apps/web/next.config.ts transpiles all five workspace
+              # packages by name, and the two routes under test import @athanor/i18n and
+              # @athanor/config directly — the login button label the suite selects on comes
+              # out of the i18n catalog, so a catalog-only change can turn the test red.
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              # The job must test itself, same as the db and native-prebuild filters.
+              - '.github/workflows/ci.yml'
+
   e2e:
     name: web e2e (Playwright)
     runs-on: ubuntu-latest
+    needs: changes
+    # FAIL-CLOSED, the same convention as the two step-level filters (`!= 'false'`, never
+    # `== 'true'`): when `changes` is skipped — every push event — or breaks, its output is
+    # empty and this job runs in full. `!cancelled()` is what makes that true. Without a
+    # status function here, GitHub ANDs an implicit success() over `needs`, and a failed or
+    # skipped `changes` would skip this job on a main push too, which is the one way this
+    # filter could strand `deploy`.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.web != 'false') }}
     # 17 covers setup plus BOTH capped steps below (9 + 6). They look mutually exclusive —
     # a failed install exits 1 and the smoke step never runs — but an install that merely
     # runs slow and then succeeds does add to the smoke step, so the sum is reachable.
@@ -76,7 +145,8 @@ jobs:
       # step. The two steps below gate on it FAIL-CLOSED (`!= 'false'`, never
       # `== 'true'`, same convention as the db job's paths filter) so a renamed or broken
       # guard runs the gate instead of silently skipping it. Skipping STEPS rather than
-      # the job is what keeps `deploy`'s `needs: e2e` satisfiable.
+      # the job is what keeps `deploy`'s `needs: e2e` satisfiable on a main push — and the
+      # job-level path gate above is scoped to pull_request events for the same reason.
       - name: check e2e secrets
         id: e2e-secrets
         env:
