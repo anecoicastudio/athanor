@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { t } from '@athanor/i18n';
+import { localeTag, t } from '@athanor/i18n';
 import { getReportDetail } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
 import { getLocale } from '@/lib/get-locale';
@@ -31,7 +31,7 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
         </p>
         <p className="text-xs text-muted-foreground">
           {t('admin.report.filed', locale)}{' '}
-          {new Date(report.created_at).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB')}
+          {new Date(report.created_at).toLocaleDateString(localeTag(locale))}
         </p>
       </header>
       {report.note && (

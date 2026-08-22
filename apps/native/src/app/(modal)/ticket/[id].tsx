@@ -8,6 +8,7 @@ import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -15,7 +16,7 @@ import { Screen } from '@/components/Screen';
 export default function TicketViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); // id = eventId
   const { profile } = useAuth();
-  const locale = (profile?.locale ?? 'it') as 'it' | 'en';
+  const locale = useLocale();
   const uid = profile?.id ?? null;
 
   const ticketQ = useQuery({

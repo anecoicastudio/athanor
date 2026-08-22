@@ -20,6 +20,7 @@ import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -35,7 +36,7 @@ import { Screen } from '@/components/Screen';
 export default function TrustScreen() {
   const router = useRouter();
   const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const verified = profile?.identity_verified ?? false;
   const qc = useQueryClient();
   const { showToast } = useToast();

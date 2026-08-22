@@ -1,13 +1,13 @@
 import { useLocalSearchParams } from 'expo-router';
-import { t, type MessageKey } from '@athanor/i18n';
-import { starKeySchema, type Locale } from '@athanor/schemas';
+import { localeTag, t, type MessageKey } from '@athanor/i18n';
+import { starKeySchema } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { useStars } from '@/hooks/use-stars';
 import { MODAL_A11Y } from '@/lib/a11y';
-import { localeTag } from '@/lib/time';
 import { starsOrNull } from '@/lib/aura-display';
 import { starCellState, starGlyph } from '@/lib/star';
 import { Screen } from '@/components/Screen';
@@ -20,8 +20,8 @@ import { Screen } from '@/components/Screen';
  * Rule #1: read-only, no Aura writes.
  */
 export default function StarScreen() {
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   const { starId: rawStarId } = useLocalSearchParams<{ starId: string }>();

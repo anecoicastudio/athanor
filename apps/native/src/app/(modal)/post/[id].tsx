@@ -30,6 +30,7 @@ import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { PostMedia } from '@/components/feed/PostMedia';
 import { ReactionStar } from '@/components/feed/ReactionStar';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { prependComment } from '@/lib/comment-cache';
 import { listState } from '@/lib/list-state';
@@ -38,10 +39,10 @@ import { Screen } from '@/components/Screen';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const myId = session?.user.id;
 
   const [draft, setDraft] = useState('');

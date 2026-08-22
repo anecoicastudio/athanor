@@ -20,7 +20,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { ConnectionRequestRow } from '@/components/connections/ConnectionRequestRow';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { SegmentedToggle } from '@/components/connections/SegmentedToggle';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -33,8 +33,7 @@ type Segment = 'requests' | 'connections';
  * cyan accent on the active segment, no glow (rule #4); all copy via i18n (rule #5).
  */
 export default function ConnectionsScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
 

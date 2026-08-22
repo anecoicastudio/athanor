@@ -12,6 +12,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -25,10 +26,10 @@ const CATEGORIES: ProjectCategory[] = [
 ];
 
 export default function ProjectComposeScreen() {
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('startup');
   const [description, setDescription] = useState('');

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Locale } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
+import { deviceLocale } from '@/lib/locale';
 
 /**
  * Pre-auth onboarding draft. The funnel (`(onboarding)/index.tsx`) now runs
@@ -48,7 +49,7 @@ export async function loadDraft(): Promise<OnboardingDraft | null> {
     if (parsed?.v !== VERSION) return null; // version bump invalidates old drafts
     return {
       v: VERSION,
-      locale: (parsed.locale ?? 'it') as Locale,
+      locale: parsed.locale ?? deviceLocale,
       identity_tags: Array.isArray(parsed.identity_tags) ? parsed.identity_tags : [],
       seeking: Array.isArray(parsed.seeking) ? parsed.seeking : [],
       dream: typeof parsed.dream === 'string' ? parsed.dream : '',

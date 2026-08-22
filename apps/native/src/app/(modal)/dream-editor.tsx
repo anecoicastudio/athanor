@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { getActiveDream, upsertActiveDream } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, TextInput } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -19,8 +19,8 @@ import { Screen } from '@/components/Screen';
  */
 export default function DreamEditorScreen() {
   const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const userId = session?.user.id;
 
   const [text, setText] = useState('');

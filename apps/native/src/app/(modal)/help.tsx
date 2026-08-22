@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { helpKeys, offerHelp } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { HelpType, Locale, Milestone } from '@athanor/schemas';
+import type { HelpType, Milestone } from '@athanor/schemas';
 import { ScrollView, Text, TextInput, View } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
@@ -22,6 +22,7 @@ import { MODAL_A11Y } from '@/lib/a11y';
 import { isUniqueViolation } from '@/lib/pg-error';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
+import { useLocale } from '@/hooks/use-locale';
 import { useMilestones } from '@/hooks/use-milestones';
 import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
 
@@ -45,8 +46,8 @@ const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
  */
 export default function HelpScreen() {
   const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const { milestoneId, need, userId } = useLocalSearchParams<{
     milestoneId?: string;
     need?: string;

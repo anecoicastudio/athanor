@@ -11,6 +11,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { longDate } from '@/lib/time';
@@ -49,8 +50,8 @@ function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) 
  * (created_at, id) — never offset (rule #9). RLS scopes rows to the owner (rule #3).
  */
 export default function PaymentsScreen() {
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   const query = useInfiniteQuery({

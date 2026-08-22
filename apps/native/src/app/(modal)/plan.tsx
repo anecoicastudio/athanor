@@ -39,6 +39,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { calendarDay, dayKey } from '@/lib/time';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * The winner's realization plan (#229, FUND-25) — authored AFTER the cycle chose the dream,
@@ -56,8 +57,8 @@ import { useActiveEdition } from '@/hooks/use-active-edition';
  * database will refuse a write regardless.
  */
 export default function RealizationPlanScreen() {
-  const { profile, session } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const uid = session?.user.id ?? '';
   const qc = useQueryClient();
   const { showToast } = useToast();

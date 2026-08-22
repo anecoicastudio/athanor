@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
 import { usePersonStory } from '@/hooks/use-person-story';
@@ -36,7 +37,7 @@ export default function CommunityScreen() {
   const router = useRouter();
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [hasNew, setHasNew] = useState(false);
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   const query = useInfiniteQuery({
     queryKey: postKeys.feed(filter),

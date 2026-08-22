@@ -14,6 +14,7 @@ import { Button } from '@/components/Button';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { type PickedMedia } from '@/lib/media/pick';
@@ -32,10 +33,10 @@ import { Screen } from '@/components/Screen';
 const CATEGORIES: PostCategory[] = ['business', 'human', 'creative', 'evolution'];
 
 export default function PostComposeScreen() {
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<PostCategory>('human');
   const [isStep, setIsStep] = useState(false);

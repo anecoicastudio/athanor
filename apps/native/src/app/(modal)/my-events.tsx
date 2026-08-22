@@ -4,13 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsByOrganizer } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { ScrollView, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { EVENT_HREF, EventRow } from '@/components/live/EventRow';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -22,9 +22,9 @@ import { Screen } from '@/components/Screen';
  * Flat light CTA, no glow (rule #4). Bounded 50-row read, small by nature.
  */
 export default function MyEventsScreen() {
-  const { session, profile } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = session?.user.id ?? '';
 
   const query = useQuery({

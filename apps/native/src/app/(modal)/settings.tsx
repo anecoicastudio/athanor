@@ -24,6 +24,7 @@ import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
+import { useLocale } from '@/hooks/use-locale';
 import { useReferralCode } from '@/hooks/use-referral-code';
 import { useAuraScore } from '@/hooks/use-aura-score';
 
@@ -44,7 +45,7 @@ export default function SettingsScreen() {
   const [langBusy, setLangBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const email = session?.user.email ?? '';
   const version = Constants.expoConfig?.version ?? '1.0.0';
 

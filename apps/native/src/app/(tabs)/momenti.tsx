@@ -12,8 +12,8 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
 import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
-import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/hooks/use-locale';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
 /**
@@ -23,8 +23,7 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * the glow is reserved for a real match (#4). Aura is never written here (#1).
  */
 export default function MomentiScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
   const qc = useQueryClient();
   const deckRef = useRef<SwipeDeckHandle | null>(null);

@@ -12,7 +12,6 @@ import {
   unblockUser,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
@@ -35,6 +34,7 @@ import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
 import { useAuraScore } from '@/hooks/use-aura-score';
+import { useLocale } from '@/hooks/use-locale';
 import { useMilestones } from '@/hooks/use-milestones';
 import { useMomentsPage } from '@/hooks/use-moments-page';
 import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
@@ -52,8 +52,8 @@ import { useStars } from '@/hooks/use-stars';
 export default function PersonDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { showToast } = useToast();

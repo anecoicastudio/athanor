@@ -3,11 +3,11 @@ import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { useLocale } from '@/hooks/use-locale';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 
@@ -22,8 +22,7 @@ import { Screen } from '@/components/Screen';
  * Registered with `animation: 'fade'` (not presentation:'modal') like match.tsx.
  */
 export default function LevelOverlay() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
   const { tier = '' } = useLocalSearchParams<{ tier: string }>();
 

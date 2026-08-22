@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addMilestone } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
@@ -21,8 +20,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function MilestoneScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const { dreamId } = useLocalSearchParams<{ dreamId?: string }>();
 
   const [body, setBody] = useState('');

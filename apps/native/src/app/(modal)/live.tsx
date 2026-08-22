@@ -9,15 +9,14 @@ import { MapPanel } from '@/components/live/MapPanel';
 import { OnlinePanel } from '@/components/live/OnlinePanel';
 import { PanelTabs, type LivePanel } from '@/components/live/PanelTabs';
 import { VicinoPanel } from '@/components/live/VicinoPanel';
-import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
+import { useLocale } from '@/hooks/use-locale';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 
 export default function LiveScreen() {
-  const { profile } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const [panel, setPanel] = useState<LivePanel>('vicino');
   const { data: entitlement } = useEntitlement();
   const premiumEnabled = entitlement?.features.premiumEvents ?? false;

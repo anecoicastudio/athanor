@@ -3,9 +3,8 @@ import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Pressable, Text } from '@/tw';
 import { Avatar } from '@/components/Avatar';
+import { useLocale } from '@/hooks/use-locale';
 import { useProfile } from '@/hooks/use-profile';
-import { useAuth } from '@/lib/auth-context';
-import { deviceLocale } from '@/lib/locale';
 
 /**
  * Post/comment author identity — Avatar + handle. Tap → person detail (M2 read view).
@@ -21,8 +20,7 @@ import { deviceLocale } from '@/lib/locale';
  */
 export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; size?: 'sm' | 'md' }) {
   const router = useRouter();
-  const { profile: me } = useAuth();
-  const locale = me?.locale ?? deviceLocale;
+  const locale = useLocale();
   const { data: profile } = useProfile(authorId);
   const handle = profile?.handle ?? null;
   const label = profile?.removed

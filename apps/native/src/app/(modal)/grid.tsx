@@ -20,6 +20,7 @@ import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
 import { Screen } from '@/components/Screen';
+import { useLocale } from '@/hooks/use-locale';
 import { useMomentsPage } from '@/hooks/use-moments-page';
 
 /**
@@ -29,9 +30,9 @@ import { useMomentsPage } from '@/hooks/use-moments-page';
  * back to owner mode.
  */
 export default function GridScreen() {
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const { userId } = useLocalSearchParams<{ userId?: string }>();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = session?.user?.id;
   const readOnly = Boolean(userId) && userId !== uid;
   const ownerId = readOnly ? (userId as string) : uid;

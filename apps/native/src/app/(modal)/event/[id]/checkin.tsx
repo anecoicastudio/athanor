@@ -15,7 +15,7 @@ import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { type Verdict, verdictText } from '@/lib/ticket-verdict';
@@ -23,9 +23,8 @@ import { Screen } from '@/components/Screen';
 
 export default function CheckinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [count, setCount] = useState(0);

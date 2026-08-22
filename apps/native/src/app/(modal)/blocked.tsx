@@ -8,7 +8,7 @@ import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -24,8 +24,7 @@ import { Screen } from '@/components/Screen';
  * tell it from the truth.
  */
 export default function BlockedScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const { showToast } = useToast();

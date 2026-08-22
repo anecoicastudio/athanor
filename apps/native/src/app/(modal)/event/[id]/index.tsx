@@ -26,6 +26,7 @@ import { TicketBar } from '@/components/live/TicketBar';
 import { CircleGate } from '@/components/circle/CircleGate';
 import { ListState } from '@/components/ListState';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
@@ -38,7 +39,7 @@ export default function EventDetailScreen() {
   const { profile } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = profile?.id ?? null;
   const [confirmation, setConfirmation] = useState<string | null>(null);
   // Auto-dismiss the inline confirmation so it never lingers under an idle bar (no toast host yet).

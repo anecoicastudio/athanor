@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { localeTag } from '@athanor/i18n';
 import {
   calendarDay,
   dateTime,
   dateTimeWithYear,
   dayKey,
   ledgerDayLabel,
-  localeTag,
   longDate,
   monthYear,
   parseCalendarDay,
@@ -15,13 +15,6 @@ import {
 // Fixed reference instant so every relative computation is deterministic.
 const NOW = new Date('2026-06-17T12:00:00').getTime();
 const isoAgo = (seconds: number) => new Date(NOW - seconds * 1000).toISOString();
-
-describe('localeTag', () => {
-  it('maps both locales to their BCP-47 tag', () => {
-    expect(localeTag('it')).toBe('it-IT');
-    expect(localeTag('en')).toBe('en-GB');
-  });
-});
 
 describe('timeAgo', () => {
   it('under 60s → "now" in both locales', () => {

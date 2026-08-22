@@ -28,6 +28,7 @@ import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraScore } from '@/hooks/use-aura-score';
+import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
@@ -38,8 +39,8 @@ type Row =
 
 export default function ChatScreen() {
   const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
-  const { profile, session } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const myId = session?.user.id;
   const router = useRouter();
   const queryClient = useQueryClient();
