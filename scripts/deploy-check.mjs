@@ -144,9 +144,27 @@ export function postureDrift({ postures, deployed }) {
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
+/**
+ * Epoch milliseconds from whatever `updated_at` turned out to be. The API returns ms today
+ * (verified 2026-08-22), and the age column is the report's ONLY staleness signal — a seconds
+ * value would print an age in the tens of millions of days without a word, and an ISO string
+ * would print `?` on every row. So normalise rather than trust: nothing here predates 2001,
+ * which is where 1e12 ms sits.
+ */
+function toMillis(updatedAt) {
+  if (typeof updatedAt === 'number' && Number.isFinite(updatedAt))
+    return updatedAt < 1e12 ? updatedAt * 1000 : updatedAt;
+  if (typeof updatedAt === 'string') {
+    const parsed = Date.parse(updatedAt);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
 /** Human age of a deploy. Clock injected — a function that reads it internally cannot be tested. */
-export function formatAge(updatedAtMs, nowMs) {
-  if (typeof updatedAtMs !== 'number' || !Number.isFinite(updatedAtMs)) return '?';
+export function formatAge(updatedAt, nowMs) {
+  const updatedAtMs = toMillis(updatedAt);
+  if (updatedAtMs === null) return '?';
   const minutes = Math.floor((nowMs - updatedAtMs) / 60_000);
   if (minutes < 0) return 'just now';
   if (minutes < 60) return `${minutes}m`;
@@ -192,21 +210,21 @@ async function api(path, token, init = {}) {
   });
   const text = await res.text();
   if (res.status === 401)
-    die(
+    throw new Error(
       `Management API rejected the token (401). Re-run \`supabase login\`, or refresh SUPABASE_ACCESS_TOKEN.`,
     );
-  if (!res.ok) die(`Management API error ${res.status} on ${path}:\n${text}`);
+  if (!res.ok) throw new Error(`Management API error ${res.status} on ${path}:\n${text}`);
   try {
     return JSON.parse(text);
   } catch {
-    return die(`could not parse Management API response for ${path}:\n${text}`);
+    throw new Error(`could not parse Management API response for ${path}:\n${text}`);
   }
 }
 
 /** Deployed functions for one project, keyed by slug. */
 async function fetchFunctions(ref, token) {
   const list = await api(`/projects/${ref}/functions`, token);
-  if (!Array.isArray(list)) die(`unexpected /functions response for ${ref}`);
+  if (!Array.isArray(list)) throw new Error(`unexpected /functions response for ${ref}`);
   return list;
 }
 
@@ -232,10 +250,15 @@ async function main() {
   const postures = parseConfigPostures(readFileSync(join(dir, 'supabase', 'config.toml'), 'utf8'));
 
   const token = accessToken();
-  const [stagingFns, productionFns] = await Promise.all([
-    fetchFunctions(STAGING_REF, token),
-    fetchFunctions(PRODUCTION_REF, token),
-  ]);
+  let stagingFns, productionFns;
+  try {
+    [stagingFns, productionFns] = await Promise.all([
+      fetchFunctions(STAGING_REF, token),
+      fetchFunctions(PRODUCTION_REF, token),
+    ]);
+  } catch (e) {
+    die(e.message);
+  }
   const stagingSlugs = stagingFns.map((f) => f.slug).sort();
   const productionSlugs = productionFns.map((f) => f.slug).sort();
   const now = Date.now();
@@ -267,31 +290,51 @@ async function main() {
   ])
     if (slugs.length) console.log(`\n  ⚠ ${label}: ${slugs.join(', ')}`);
 
-  const drift = postureDrift({ postures, deployed: [...stagingFns, ...productionFns] });
+  const drift = [
+    ['staging', stagingFns],
+    ['production', productionFns],
+  ].flatMap(([project, fns]) =>
+    postureDrift({ postures, deployed: fns }).map((d) => ({ ...d, project })),
+  );
   if (drift.length) {
     console.log('\n  ⚠ deployed verify_jwt disagrees with supabase/config.toml (rule 8):');
     for (const d of drift)
-      console.log(`      ${d.slug}  config ${d.declared} → deployed ${d.deployed}`);
+      console.log(
+        `      ${d.project.padEnd(11)} ${d.slug}  config ${d.declared} → deployed ${d.deployed}`,
+      );
   }
 
-  const [stagingSecrets, productionSecrets] = await Promise.all([
-    fetchSecretNames(STAGING_REF, token),
-    fetchSecretNames(PRODUCTION_REF, token),
-  ]);
-  const secrets = diffSecrets({ staging: stagingSecrets, production: productionSecrets });
-  console.log('\nVault secret names   (names only — no value is ever read)\n');
-  console.log(`  staging     ${String(stagingSecrets.length).padStart(3)}`);
-  console.log(`  production  ${String(productionSecrets.length).padStart(3)}`);
-  console.log(`  staging-only     ${secrets.stagingOnly.join(', ') || 'none'}`);
-  console.log(`  production-only  ${secrets.productionOnly.join(', ') || 'none'}`);
-  if (secrets.expectedStagingOnly.length)
-    console.log(
-      `  expected staging-only, NOT drift: ${secrets.expectedStagingOnly.join(', ')} — guards seed-staging.sql; must never exist on production`,
-    );
-  if (secrets.unexpectedOnProduction.length)
-    console.log(
-      `\n  ⚠⚠ ON PRODUCTION AND MUST NOT BE: ${secrets.unexpectedOnProduction.join(', ')} — this arms the staging seed against production. Remove it.`,
-    );
+  // Deliberately non-fatal. The Vault comparison is the secondary half; letting a failed
+  // `database/query` exit here would lose the function verdict below, which is the half that
+  // gates — and it would exit 1 for a reason indistinguishable from an undeployed function.
+  let stagingSecrets, productionSecrets;
+  try {
+    [stagingSecrets, productionSecrets] = await Promise.all([
+      fetchSecretNames(STAGING_REF, token),
+      fetchSecretNames(PRODUCTION_REF, token),
+    ]);
+  } catch (e) {
+    console.log(`\n  ⚠ could not read Vault names, section skipped: ${e.message}`);
+  }
+  const secrets =
+    stagingSecrets && productionSecrets
+      ? diffSecrets({ staging: stagingSecrets, production: productionSecrets })
+      : null;
+  if (secrets) {
+    console.log('\nVault secret names   (names only — no value is ever read)\n');
+    console.log(`  staging     ${String(stagingSecrets.length).padStart(3)}`);
+    console.log(`  production  ${String(productionSecrets.length).padStart(3)}`);
+    console.log(`  staging-only     ${secrets.stagingOnly.join(', ') || 'none'}`);
+    console.log(`  production-only  ${secrets.productionOnly.join(', ') || 'none'}`);
+    if (secrets.expectedStagingOnly.length)
+      console.log(
+        `  expected staging-only, NOT drift: ${secrets.expectedStagingOnly.join(', ')} — guards seed-staging.sql; must never exist on production`,
+      );
+    if (secrets.unexpectedOnProduction.length)
+      console.log(
+        `\n  ⚠⚠ ON PRODUCTION AND MUST NOT BE: ${secrets.unexpectedOnProduction.join(', ')} — this arms the staging seed against production. Remove it.`,
+      );
+  }
 
   // The one gate. Absence only — see the header.
   const failures = [

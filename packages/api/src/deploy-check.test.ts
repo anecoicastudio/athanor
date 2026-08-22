@@ -297,5 +297,16 @@ describe('formatAge', () => {
   it('returns ? rather than NaN when the API omits updated_at', () => {
     expect(formatAge(undefined, now)).toBe('?');
     expect(formatAge('nope', now)).toBe('?');
+    expect(formatAge(null, now)).toBe('?');
+  });
+
+  it('normalises the unit instead of trusting it', () => {
+    // The age column is the report's only staleness signal, and #472 exists because a STALE
+    // deploy failed silently. A seconds-valued `updated_at` would print `29000000d` and an ISO
+    // string would print `?` on every row — both read as "nothing to see here".
+    const threeDays = 3 * 86_400_000;
+    expect(formatAge(now - threeDays, now)).toBe('3d');
+    expect(formatAge((now - threeDays) / 1000, now)).toBe('3d');
+    expect(formatAge(new Date(now - threeDays).toISOString(), now)).toBe('3d');
   });
 });
