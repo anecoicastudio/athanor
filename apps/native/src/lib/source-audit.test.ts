@@ -708,3 +708,151 @@ describe('the full-bleed viewer lifts the toast band over its overlay chrome (#1
     );
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 13 — every crash-trail marker is awaited, or justified in place (#488)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `markStep`'s contract is that its write has RESOLVED before the native boundary it marks —
+ * `lib/crash-trail.ts` states it outright: "So `await markStep(…)` means the bytes are on disk."
+ * A fire-and-forget marker dies with the process exactly like a queued console line, so it is a
+ * no-op in the one case the trail exists for. That contract was broken once already, in the PR
+ * that introduced it: `boot.fonts` was fired and forgotten immediately before
+ * `SplashScreen.hideAsync()` — the very boundary it marks — and nothing went red. No type error,
+ * no lint warning, no failing test, and no missing marker until an unreproducible crash hands
+ * back a trail that stops one step early.
+ *
+ * Lint cannot close this, for two independent reasons. `apps/native/eslint.config.js` is
+ * `eslint-config-expo/flat` plus an `ignores` block and nothing else, so
+ * `@typescript-eslint/no-floating-promises` — configured only in
+ * `packages/config/eslint/library.js`, which this app does not extend — is not running here at
+ * all. And even where it runs it defaults to `ignoreVoid: true`, so `void markStep(…)` satisfies
+ * it; `void` is precisely the form both the deliberate sites and the accidental one take.
+ *
+ * So the rule cannot be "never `void` a marker": two call sites legitimately do, because a
+ * synchronous `AppState` listener cannot await and iOS leaves seconds of runway after
+ * `didEnterBackground`. It has to tell JUSTIFIED apart from ACCIDENTAL, and that is what the
+ * `crash-trail:void-ok` line marker and the register below do together — the marker makes the
+ * decision visible where the call is, the register makes it cost a sentence somewhere a reviewer
+ * reads. Both are required and the set is pinned, so widening the exemption and quietly dropping
+ * one are equally loud.
+ *
+ * Test files are deliberately out of scope. A test that forgets to await a marker asserts against
+ * a store that has not been written and fails as a test, loudly, in the same run — which is the
+ * failure mode this section exists to manufacture for shipped code, not one it needs to
+ * manufacture again. `isTest` is also how every other section here scopes itself, and
+ * `crash-trail.test.ts` uses forms a call-form rule would have to grow special cases for
+ * (`const marking = markStep(…).then(…)`, `first.markStep(…)`) without buying anything.
+ */
+
+/** `crash-trail.ts` declares `markStep`; a call site is anything else that names it. */
+const TRAIL_DEFINER = `${SRC}lib/crash-trail.ts`;
+
+/** What a deliberately un-awaited marker must carry, on the call's own line. */
+const VOID_OK = 'crash-trail:void-ok';
+
+/**
+ * The complete register of markers that may be fired and forgotten, keyed `<file>#<step>` so it
+ * survives the lines moving and so one file can hold both an awaited marker and an exempt one.
+ * A `void markStep` outside this table fails; a listed site that loses its `crash-trail:void-ok`
+ * fails too, so removing an exemption is as visible as adding one.
+ */
+const VOID_MARKERS: Record<string, string> = {
+  'components/boot/CrashTrailGate.tsx#app.background':
+    'a synchronous AppState listener cannot await, and iOS leaves seconds of runway after didEnterBackground',
+  'components/boot/CrashTrailGate.tsx#app.active':
+    'same listener, same constraint — and unlike the media markers there is no native call to get in front of',
+};
+
+type MarkStepCall = { line: number; form: string; step: string };
+
+/**
+ * Every `markStep(` in comment-stripped source, with the keyword that consumes it and the step it
+ * writes. The keyword is the identifier immediately to its left, so a bare call reports an empty
+ * form rather than being missed — the whole point is that the accidental shape is the one with
+ * nothing in front of it. A `.` or a longer identifier to the left means a different binding
+ * (`first.markStep(`), which is skipped.
+ *
+ * Only `await` counts as consumption, deliberately. `return markStep(…)` hands the promise to a
+ * caller who may well await it, and would pass a laxer rule — but «may well» is the reasoning that
+ * lost `boot.fonts`, and there is no such call site to accommodate. A form that is genuinely fine
+ * gets registered like any other, which costs one sentence and makes the reasoning readable.
+ *
+ * The step argument is read up to the first `)`, which is naive about a computed argument — no
+ * call site has one, and the failure mode is a key that matches no register entry, i.e. a loud
+ * failure rather than a silent pass.
+ */
+function markStepCalls(src: string): MarkStepCall[] {
+  const CALL = 'markStep(';
+  const out: MarkStepCall[] = [];
+  for (let at = src.indexOf(CALL); at !== -1; at = src.indexOf(CALL, at + 1)) {
+    const before = src.slice(0, at);
+    if (/[.$\w]$/.test(before)) continue;
+    const end = src.indexOf(')', at + CALL.length);
+    const arg = end === -1 ? '' : src.slice(at + CALL.length, end).trim();
+    out.push({
+      line: before.split('\n').length,
+      form: /([A-Za-z]+)\s*$/.exec(before)?.[1] ?? '',
+      step: /^'([\w.]+)'$/.exec(arg)?.[1] ?? arg,
+    });
+  }
+  return out;
+}
+
+describe('a crash-trail marker is awaited, or justified in place (#488)', () => {
+  const sites = FILES.filter((p) => !isTest(p))
+    .filter((p) => p !== TRAIL_DEFINER)
+    .flatMap((p) => {
+      const raw = read(p).split('\n');
+      const file = rel(p).replace('apps/native/src/', '');
+      return markStepCalls(stripComments(read(p))).map((c) => ({
+        at: `${file}:${c.line}`,
+        key: `${file}#${c.step}`,
+        form: c.form,
+        marked: (raw[c.line - 1] ?? '').includes(VOID_OK),
+      }));
+    });
+
+  it('finds the call sites at all', () => {
+    // A rename or a moved import would empty this list and make every assertion below
+    // vacuously true, which is the one way a convention test fails open.
+    expect(sites.length, 'no markStep call site found — has it been renamed?').toBeGreaterThan(0);
+  });
+
+  it('no marker is fired and forgotten', () => {
+    const loose = sites
+      .filter((s) => s.form !== 'await' && !(s.form === 'void' && s.marked))
+      .map((s) => {
+        const why =
+          s.form === 'void'
+            ? '`void`, with no `' + VOID_OK + '` marker'
+            : s.form
+              ? 'consumed by `' + s.form + '`, which does not wait for it'
+              : 'a bare call — nothing waits for it';
+        return `${s.at} — ${why}`;
+      });
+    expect(
+      loose,
+      `markStep is not awaited at:\n  ${loose.join('\n  ')}\n` +
+        `Await it — the write has to be ON DISK before the boundary it marks, or the marker is ` +
+        `a no-op in exactly the crash it exists for. If the call site genuinely cannot await, ` +
+        `end the line with \`// ${VOID_OK}\` and register it in VOID_MARKERS with the reason.`,
+    ).toEqual([]);
+  });
+
+  it('the fire-and-forget markers are exactly the registered ones', () => {
+    const marked = sites
+      .filter((s) => s.form === 'void' && s.marked)
+      .map((s) => s.key)
+      .sort();
+    const register = Object.entries(VOID_MARKERS)
+      .map(([key, why]) => `  ${key} — ${why}`)
+      .join('\n');
+    expect(
+      marked,
+      `the \`${VOID_OK}\` call sites do not match VOID_MARKERS. A new one has to be argued for ` +
+        `here, and a removed one has to be taken out here.\nRegistered exemptions:\n${register}`,
+    ).toEqual(Object.keys(VOID_MARKERS).sort());
+  });
+});
