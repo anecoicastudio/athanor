@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addMilestone } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
@@ -65,10 +66,8 @@ export default function MilestoneScreen() {
 
         <View className="gap-2">
           <SectionLabel tone="aura">{t('milestone.field.label', locale)}</SectionLabel>
-          <TextInput
-            className={`rounded-hero border bg-raise px-5 py-4 text-lg text-foreground ${
-              error ? 'border-error' : 'border-hair'
-            }`}
+          <Field
+            error={error ? t('milestone.error.empty', locale) : null}
             maxLength={200}
             editable={!saving}
             placeholder={t('milestone.field.placeholder', locale)}
@@ -79,10 +78,6 @@ export default function MilestoneScreen() {
             }}
           />
         </View>
-
-        {error ? (
-          <Text className="text-sm text-error">{t('milestone.error.empty', locale)}</Text>
-        ) : null}
 
         {/* flat light CTA — adding a tappa is not moment-grade, so no glow (rule #4). */}
         <Button

@@ -5,8 +5,9 @@ import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { LocaleChips } from '@/components/LocaleChips';
 import { MediaSheet } from '@/components/media/MediaSheet';
@@ -222,8 +223,9 @@ export default function OnboardingScreen() {
                   {t('onboarding.dream.title', locale)}
                 </Text>
                 <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
-                <TextInput
-                  className="min-h-32 rounded-hero border border-hair bg-raise px-5 py-4 font-dream text-lg text-foreground"
+                <Field
+                  size="lg"
+                  register="dream"
                   multiline
                   maxLength={500}
                   placeholder={t('onboarding.dream.placeholder', locale)}

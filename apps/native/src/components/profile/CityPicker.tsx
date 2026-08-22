@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CITY_GEOHASH_PRECISION, encodeGeohash } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { CitySuggestion, Locale } from '@athanor/schemas';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
+import { Field } from '@/components/Field';
 import { citySearchAvailable, searchCities } from '@/lib/city-search';
 
 /**
@@ -57,8 +58,7 @@ export function CityPicker({
 
   return (
     <View className="gap-2">
-      <TextInput
-        className="rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+      <Field
         maxLength={80}
         placeholder={t('profile.city.empty', locale)}
         value={city}

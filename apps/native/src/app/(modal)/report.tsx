@@ -4,8 +4,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { REPORT_CATEGORIES, type ReportCategory, type ReportTargetType } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
@@ -128,8 +129,7 @@ export default function ReportScreen() {
             </View>
 
             {/* optional note */}
-            <TextInput
-              className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+            <Field
               multiline
               maxLength={2000}
               editable={!report.isPending}
