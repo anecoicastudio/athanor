@@ -4,8 +4,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   candidacyKeys,
-  dreamKeys,
-  getActiveDream,
   getMyCandidacy,
   getMyLatestPriorCandidacy,
   submitCandidacy,
@@ -41,6 +39,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useActiveDream } from '@/hooks/use-active-dream';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
@@ -209,11 +208,7 @@ function WizardForm({
 
   // The author's single active dream — the only dream the wizard offers to link (D12);
   // RLS re-checks ownership server-side either way.
-  const dreamQuery = useQuery({
-    queryKey: dreamKeys.byProfile(uid),
-    queryFn: () => getActiveDream(supabase, uid),
-    enabled: uid !== '',
-  });
+  const dreamQuery = useActiveDream(uid);
   const activeDream = dreamQuery.data ?? null;
 
   // Whole euros typed by the member → integral cents, or null unless the pair is usable.

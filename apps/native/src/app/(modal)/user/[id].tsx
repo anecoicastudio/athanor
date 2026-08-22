@@ -73,10 +73,17 @@ export default function PersonDetailScreen() {
       enabled: Boolean(personId),
     }).data ?? false;
 
+  // Both also drop the cached profile. `getProfileById` resolves to NULL for a blocked pair,
+  // so blocking changes this screen's answer — but `useProfile` holds its row for 5 minutes,
+  // and the imperative loader it replaced refetched on every mount. Without this, re-opening a
+  // member you just blocked renders them normally for the rest of that window; unblocking
+  // strands the `null` the «non disponibile» branch is drawn from, and that branch carries the
+  // kebab the unblock was reached through.
   const blockMutation = useMutation({
     mutationFn: () => blockUser(supabase, id as string),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
+      void qc.invalidateQueries({ queryKey: profileKeys.detail(id as string) });
       showToast(t('block.toast.blocked', locale), 'success');
       router.back();
     },
@@ -86,6 +93,7 @@ export default function PersonDetailScreen() {
     mutationFn: () => unblockUser(supabase, id as string),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
+      void qc.invalidateQueries({ queryKey: profileKeys.detail(id as string) });
       showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
@@ -151,8 +159,14 @@ export default function PersonDetailScreen() {
 
   // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an older one
   // on this dream and render an already-helped tappa as un-helped. The offer sheet invalidates
-  // `helpKeys.mine(uid)` when a write lands, so this settles behind it with no focus-refetch —
-  // which is what the `useFocusEffect` that used to sit here was doing by hand.
+  // `helpKeys.mine(uid)` when a write lands, so MY OWN new offer settles behind it — which is
+  // what the `useFocusEffect` that used to sit here was doing by hand.
+  //
+  // What that does NOT cover is the dream owner accepting or declining while this screen sits
+  // mounted: no invalidation can, since the write happens on their device. RN fires neither
+  // `refetchOnWindowFocus` nor `refetchOnReconnect` (nothing wires `focusManager`), and
+  // returning from a pushed route does not remount, so a tappa can hold «In attesa» until the
+  // screen is popped and re-entered. Realtime on `milestone_helps` is the fix, not a refetch.
   const myHelpsQuery = useMyHelpsForDream(
     session?.user.id,
     dreamQuery.data?.id,
@@ -161,11 +175,20 @@ export default function PersonDetailScreen() {
   const myHelps = myHelpsQuery.data?.rows ?? [];
 
   // The four legs compose into ONE verdict, exactly as the loader's single catch did: any of
-  // them throwing makes the screen «non disponibile». Splitting them would let a failed tappe
-  // read render «non ha ancora scritto il suo sogno» — a claim about another member made from
-  // the viewer's own broken connection (#111).
+  // them failing to LOAD makes the screen «non disponibile». Splitting them would let a failed
+  // tappe read render «non ha ancora scritto il suo sogno» — a claim about another member made
+  // from the viewer's own broken connection (#111).
+  //
+  // `isLoadingError`, never `isError`: the latter is also true when a BACKGROUND REFETCH fails
+  // over data already in hand, and the helps entry refetches behind the offer sheet on every
+  // successful write. A dropped connection at that moment would replace a fully rendered
+  // profile with «non disponibile» — something the imperative loader, which ran once at mount,
+  // could not do. Stale wins, the same doctrine `lib/list-state.ts` encodes for the lists.
   const personFailed =
-    personQuery.isError || dreamQuery.isError || milestonesQuery.isError || myHelpsQuery.isError;
+    personQuery.isLoadingError ||
+    dreamQuery.isLoadingError ||
+    milestonesQuery.isLoadingError ||
+    myHelpsQuery.isLoadingError;
 
   // Aura and stars fail on their OWN terms, and did before this too: folded in above, a timeout
   // on either marked the whole person «non disponibile». Their absence is a `null` snapshot
