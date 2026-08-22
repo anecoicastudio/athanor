@@ -3,7 +3,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getProfileIdByHandle } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { handleSchema } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -64,16 +65,11 @@ export default function HandleCatchScreen() {
         <Text className="text-center text-base text-muted-foreground">
           {t('profile.unavailable', locale)}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('notFound.home', locale)}
+        <Button
+          variant="outline"
+          label={t('notFound.home', locale)}
           onPress={() => router.replace('/(tabs)')}
-          className="min-h-[44px] items-center justify-center rounded-full border border-hair bg-raise px-6"
-        >
-          <Text className="text-sm font-semibold text-foreground">
-            {t('notFound.home', locale)}
-          </Text>
-        </Pressable>
+        />
       </View>
     );
   }

@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 
 /**
@@ -23,14 +24,11 @@ export default function NotFoundScreen() {
       <Text className="text-center text-base text-muted-foreground">
         {t('notFound.body', locale)}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('notFound.home', locale)}
+      <Button
+        variant="outline"
+        label={t('notFound.home', locale)}
         onPress={() => router.replace('/(tabs)')}
-        className="min-h-[44px] items-center justify-center rounded-full border border-hair bg-raise px-6"
-      >
-        <Text className="text-sm font-semibold text-foreground">{t('notFound.home', locale)}</Text>
-      </Pressable>
+      />
     </View>
   );
 }
