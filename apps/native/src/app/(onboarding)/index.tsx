@@ -13,6 +13,7 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { SectionLabel } from '@/components/SectionLabel';
 import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
+import { toggleTag } from '@/lib/tags';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { Screen } from '@/components/Screen';
 
@@ -69,9 +70,6 @@ export default function OnboardingScreen() {
       t('onboarding.a11y.step', locale, { n: String(step + 1), total: String(STEPS) }),
     );
   }, [step, locale]);
-
-  const toggle = (list: string[], set: (v: string[]) => void, tag: string) =>
-    set(list.includes(tag) ? list.filter((x) => x !== tag) : [...list, tag]);
 
   // Persist the latest answers on every transition so a relaunch resumes here.
   const persist = (next: {
@@ -183,7 +181,7 @@ export default function OnboardingScreen() {
                       key={tag}
                       label={tagLabel('tag.identity', tag)}
                       selected={identity.includes(tag)}
-                      onPress={() => toggle(identity, setIdentity, tag)}
+                      onPress={() => setIdentity(toggleTag(identity, tag))}
                     />
                   ))}
                 </View>
@@ -210,7 +208,7 @@ export default function OnboardingScreen() {
                       key={tag}
                       label={tagLabel('tag.seeking', tag)}
                       selected={seeking.includes(tag)}
-                      onPress={() => toggle(seeking, setSeeking, tag)}
+                      onPress={() => setSeeking(toggleTag(seeking, tag))}
                     />
                   ))}
                 </View>
