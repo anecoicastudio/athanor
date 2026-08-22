@@ -7,9 +7,9 @@ import {
   getConnectionsPage,
   getOrCreateConversation,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { FlatList, TextInput, View } from '@/tw';
+import { FlatList, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
@@ -63,10 +63,8 @@ export default function NewMessageScreen() {
       <ModalHeader title={t('messages.new', locale)} backLabel={t('common.back', locale)} />
 
       <View className="px-5 pb-3">
-        <TextInput
-          className="rounded-full border border-hair bg-raise px-5 py-3 text-foreground"
+        <Input
           placeholder={t('connection.list.search', locale)}
-          placeholderTextColor={semantic.faint}
           value={search}
           onChangeText={setSearch}
           autoCapitalize="none"

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { setPendingReferral } from '@/lib/referral';
 import { useAuth } from '@/lib/auth-context';
-import { Text, View } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 
 /** Deep-link catcher: stash the code, then hand off to the normal entry flow. */
 export default function InviteCatchScreen() {
@@ -17,9 +17,5 @@ export default function InviteCatchScreen() {
     })();
   }, [code, session, router]);
 
-  return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-2xl text-muted-foreground">✦</Text>
-    </View>
-  );
+  return <LoadingScreen />;
 }

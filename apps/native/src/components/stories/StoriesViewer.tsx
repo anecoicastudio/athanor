@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
-import { semantic } from '@athanor/config';
 import type { Locale, StorySegment } from '@athanor/schemas';
-import { Pressable, SafeAreaView, Text, TextInput, View } from '@/tw';
+import { Pressable, SafeAreaView, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { useToast } from '@/components/ToastHost';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
@@ -358,10 +358,10 @@ export function StoriesViewer({
               {/* Real composer (#297): send stays in the viewer. Send is a FLAT cyan surface —
                   same rule #4 reading as the chat send button; a routine send is not a glow. */}
               <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
+                <Input
+                  className="flex-1"
+                  size="sm"
                   placeholder={t('story.reply.placeholder', locale, { name })}
-                  placeholderTextColor={semantic.faint}
                   value={reply}
                   onChangeText={setReply}
                   onFocus={() => setPaused(true)}

@@ -17,10 +17,10 @@ import {
   subscribeMessages,
 } from '@athanor/api';
 import { dayBucket, memberLabel } from '@athanor/core';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
-import { FlatList, Pressable, Text, TextInput, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
@@ -276,10 +276,10 @@ export default function ChatScreen() {
         {/* chat bar — send is a FLAT cyan surface (rule #4: cyan is allowed on the send button,
           but the glow is reserved for moment-grade events; a routine send is not one). */}
         <View className="flex-row items-end gap-2 border-t border-hair bg-background px-4 py-3">
-          <TextInput
-            className="flex-1 rounded-full border border-hair bg-raise px-4 py-2 text-[15px] text-foreground"
+          <Input
+            className="flex-1"
+            size="sm"
             placeholder={t('chat.input.placeholder', locale)}
-            placeholderTextColor={semantic.faint}
             value={draft}
             onChangeText={setDraft}
             multiline

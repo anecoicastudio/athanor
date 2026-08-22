@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
+import { Screen } from '@/components/Screen';
+import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 
 /**
@@ -16,21 +18,20 @@ export default function NotFoundScreen() {
   const locale = profile?.locale ?? 'it';
 
   return (
-    <View className="flex-1 items-center justify-center gap-6 bg-background px-8">
-      <Text className="text-center text-lg font-semibold text-foreground">
-        {t('notFound.title', locale)}
-      </Text>
-      <Text className="text-center text-base text-muted-foreground">
-        {t('notFound.body', locale)}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('notFound.home', locale)}
-        onPress={() => router.replace('/(tabs)')}
-        className="min-h-[44px] items-center justify-center rounded-full border border-hair bg-raise px-6"
-      >
-        <Text className="text-sm font-semibold text-foreground">{t('notFound.home', locale)}</Text>
-      </Pressable>
-    </View>
+    <Screen>
+      <View className="flex-1 items-center justify-center gap-6 px-8">
+        <Text className="text-center text-lg font-semibold text-foreground">
+          {t('notFound.title', locale)}
+        </Text>
+        <Text className="text-center text-base text-muted-foreground">
+          {t('notFound.body', locale)}
+        </Text>
+        <Button
+          variant="outline"
+          label={t('notFound.home', locale)}
+          onPress={() => router.replace('/(tabs)')}
+        />
+      </View>
+    </Screen>
   );
 }

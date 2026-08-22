@@ -1,10 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
-import { semantic } from '@athanor/config';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
@@ -191,43 +191,23 @@ export default function WelcomeScreen() {
           <>
             <View className="mt-7 gap-3">
               {APPLE_ENABLED ? (
-                <Pressable
-                  className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
-                    busy ? 'opacity-40' : ''
-                  }`}
+                <Button
+                  variant="outline"
+                  label={t('auth.apple.cta', locale)}
                   disabled={busy}
+                  loading={oauthBusy === 'apple'}
                   onPress={() => handleOAuth('apple')}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('auth.apple.cta', locale)}
-                >
-                  {oauthBusy === 'apple' ? (
-                    <ActivityIndicator color={semantic.foreground} />
-                  ) : (
-                    <Text className="font-semibold text-foreground">
-                      {t('auth.apple.cta', locale)}
-                    </Text>
-                  )}
-                </Pressable>
+                />
               ) : null}
 
               {GOOGLE_ENABLED ? (
-                <Pressable
-                  className={`h-[52px] flex-row items-center justify-center rounded-full border border-hair bg-raise ${
-                    busy ? 'opacity-40' : ''
-                  }`}
+                <Button
+                  variant="outline"
+                  label={t('auth.google.cta', locale)}
                   disabled={busy}
+                  loading={oauthBusy === 'google'}
                   onPress={() => handleOAuth('google')}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('auth.google.cta', locale)}
-                >
-                  {oauthBusy === 'google' ? (
-                    <ActivityIndicator color={semantic.foreground} />
-                  ) : (
-                    <Text className="font-semibold text-foreground">
-                      {t('auth.google.cta', locale)}
-                    </Text>
-                  )}
-                </Pressable>
+                />
               ) : null}
             </View>
 
@@ -247,8 +227,7 @@ export default function WelcomeScreen() {
               <Text className="text-xs font-medium text-muted-foreground">
                 {t('auth.name.label', locale)}
               </Text>
-              <TextInput
-                className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+              <Input
                 autoCapitalize="words"
                 autoComplete="name"
                 placeholder={t('auth.name.placeholder', locale)}
@@ -262,8 +241,7 @@ export default function WelcomeScreen() {
             <Text className="text-xs font-medium text-muted-foreground">
               {t('auth.email.label', locale)}
             </Text>
-            <TextInput
-              className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+            <Input
               autoCapitalize="none"
               autoComplete="email"
               inputMode="email"
@@ -277,8 +255,7 @@ export default function WelcomeScreen() {
             <Text className="text-xs font-medium text-muted-foreground">
               {t('auth.password.label', locale)}
             </Text>
-            <TextInput
-              className="rounded-full border border-hair bg-raise px-5 py-4 text-foreground"
+            <Input
               autoCapitalize="none"
               autoComplete={login ? 'current-password' : 'new-password'}
               secureTextEntry
@@ -318,21 +295,17 @@ export default function WelcomeScreen() {
           {notice ? <Text className="text-sm text-aura">{notice}</Text> : null}
         </View>
 
-        <Pressable
-          className={`mt-7 h-[52px] items-center justify-center rounded-full bg-aura ${disabled ? 'opacity-40' : ''}`}
-          disabled={disabled}
-          onPress={submit}
-          accessibilityRole="button"
-          accessibilityLabel={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
-        >
-          {submitting ? (
-            <ActivityIndicator color={semantic.onAura} />
-          ) : (
-            <Text className="text-[13px] font-semibold tracking-[0.14em] text-on-aura">
-              {t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
-            </Text>
-          )}
-        </Pressable>
+        {/* `Button` owns the pill; the screen keeps the gap above it, because a
+          component that carried its own outer margin could not be reused in a row. */}
+        <View className="mt-7">
+          <Button
+            variant="light"
+            label={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
+            disabled={disabled}
+            loading={submitting}
+            onPress={submit}
+          />
+        </View>
 
         <Pressable
           className="mt-6 items-center"

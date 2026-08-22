@@ -3,7 +3,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getProfileIdByHandle } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { handleSchema } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
+import { Screen } from '@/components/Screen';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { Button } from '@/components/Button';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -60,27 +63,20 @@ export default function HandleCatchScreen() {
 
   if (unavailable) {
     return (
-      <View className="flex-1 items-center justify-center gap-6 bg-background px-8">
-        <Text className="text-center text-base text-muted-foreground">
-          {t('profile.unavailable', locale)}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('notFound.home', locale)}
-          onPress={() => router.replace('/(tabs)')}
-          className="min-h-[44px] items-center justify-center rounded-full border border-hair bg-raise px-6"
-        >
-          <Text className="text-sm font-semibold text-foreground">
-            {t('notFound.home', locale)}
+      <Screen>
+        <View className="flex-1 items-center justify-center gap-6 px-8">
+          <Text className="text-center text-base text-muted-foreground">
+            {t('profile.unavailable', locale)}
           </Text>
-        </Pressable>
-      </View>
+          <Button
+            variant="outline"
+            label={t('notFound.home', locale)}
+            onPress={() => router.replace('/(tabs)')}
+          />
+        </View>
+      </Screen>
     );
   }
 
-  return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-2xl text-muted-foreground">✦</Text>
-    </View>
-  );
+  return <LoadingScreen />;
 }

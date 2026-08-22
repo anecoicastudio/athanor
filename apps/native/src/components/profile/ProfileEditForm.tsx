@@ -15,6 +15,7 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { CityPicker } from '@/components/profile/CityPicker';
 import { Section, type Visibility } from '@/components/profile/Section';
 import { useAvatarUpload } from '@/lib/media/use-avatar-upload';
+import { toggleTag } from '@/lib/tags';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -59,9 +60,6 @@ export function ProfileEditForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const toggle = (list: string[], set: (v: string[]) => void, tag: string) =>
-    set(list.includes(tag) ? list.filter((x) => x !== tag) : [...list, tag]);
 
   const setVis = (field: string, value: Visibility) =>
     setVisibility((v) => ({ ...v, [field]: value }));
@@ -245,7 +243,7 @@ export function ProfileEditForm({
               key={tag}
               label={tagLabel('tag.identity', tag)}
               selected={identity.includes(tag)}
-              onPress={() => toggle(identity, setIdentity, tag)}
+              onPress={() => setIdentity(toggleTag(identity, tag))}
             />
           ))}
         </View>
@@ -266,7 +264,7 @@ export function ProfileEditForm({
               key={tag}
               label={tagLabel('tag.seeking', tag)}
               selected={seeking.includes(tag)}
-              onPress={() => toggle(seeking, setSeeking, tag)}
+              onPress={() => setSeeking(toggleTag(seeking, tag))}
             />
           ))}
         </View>

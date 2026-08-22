@@ -4,7 +4,8 @@ import { auraKeys, getAuraScore } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
-import { ScrollView, Text } from '@/tw';
+import { ScrollView } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Screen } from '@/components/Screen';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { DreamHeroCard } from '@/components/home/DreamHeroCard';
@@ -68,17 +69,7 @@ export default function HomeScreen() {
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
   if (!profile) {
-    return (
-      <Screen className="items-center justify-center">
-        <Text
-          className="text-2xl text-muted-foreground"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          ✦
-        </Text>
-      </Screen>
-    );
+    return <LoadingScreen />;
   }
 
   const locale = profile.locale;

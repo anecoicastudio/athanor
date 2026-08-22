@@ -6,13 +6,13 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createEvent, eventKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { parseEuroToCents } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EVENT_HREF } from '@/components/live/EventRow';
+import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useAuth } from '@/lib/auth-context';
@@ -132,10 +132,8 @@ export default function EventCreateScreen() {
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
           <View className="gap-2">
             {label('event.create.name')}
-            <TextInput
-              className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+            <Input
               placeholder={t('event.create.namePlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={title}
               onChangeText={setTitle}
               maxLength={140}
@@ -185,10 +183,8 @@ export default function EventCreateScreen() {
           {isOnline ? (
             <View className="gap-2">
               {label('event.create.streamUrl')}
-              <TextInput
-                className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+              <Input
                 placeholder={t('event.create.streamUrlPlaceholder', locale)}
-                placeholderTextColor={semantic.foregroundMuted}
                 value={streamUrl}
                 onChangeText={setStreamUrl}
                 autoCapitalize="none"
@@ -199,10 +195,8 @@ export default function EventCreateScreen() {
             <>
               <View className="gap-2">
                 {label('event.create.venue')}
-                <TextInput
-                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                <Input
                   placeholder={t('event.create.venuePlaceholder', locale)}
-                  placeholderTextColor={semantic.foregroundMuted}
                   value={venue}
                   onChangeText={setVenue}
                   maxLength={240}
@@ -210,10 +204,8 @@ export default function EventCreateScreen() {
               </View>
               <View className="gap-2">
                 {label('event.create.city')}
-                <TextInput
-                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                <Input
                   placeholder={t('event.create.cityPlaceholder', locale)}
-                  placeholderTextColor={semantic.foregroundMuted}
                   value={city}
                   onChangeText={setCity}
                   maxLength={120}
@@ -257,10 +249,8 @@ export default function EventCreateScreen() {
 
           <View className="gap-2">
             {label('event.create.capacity')}
-            <TextInput
-              className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+            <Input
               placeholder={t('event.create.capacityHint', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={capacity}
               onChangeText={(text) => setCapacity(text.replace(/[^0-9]/g, ''))}
               keyboardType="number-pad"
@@ -287,10 +277,8 @@ export default function EventCreateScreen() {
             </View>
             {paid ? (
               <View className="gap-2">
-                <TextInput
-                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                <Input
                   placeholder={t('event.create.pricePlaceholder', locale)}
-                  placeholderTextColor={semantic.foregroundMuted}
                   value={price}
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"

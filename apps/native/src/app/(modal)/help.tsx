@@ -13,6 +13,7 @@ import {
 import { t } from '@athanor/i18n';
 import type { HelpType, Locale, Milestone } from '@athanor/schemas';
 import { ScrollView, Text, TextInput, View } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
@@ -161,9 +162,7 @@ export default function HelpScreen() {
       <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('help.pick.title', locale)} backLabel={t('common.back', locale)} />
         {pickerLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-2xl text-muted-foreground">✦</Text>
-          </View>
+          <LoadingScreen nested />
         ) : (
           <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
             {pickerState !== 'ready' ? (
