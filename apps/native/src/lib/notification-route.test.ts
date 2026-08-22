@@ -26,10 +26,6 @@ describe('routeForNotification', () => {
     expect(routeForNotification(notif({ type: 'dreamMilestone' }))).toBe('/(tabs)/profile');
   });
 
-  it('fundMilestone → the annual fund modal', () => {
-    expect(routeForNotification(notif({ type: 'fundMilestone' }))).toBe('/(modal)/annual');
-  });
-
   it('projectResponse → the costellazioni tab', () => {
     expect(routeForNotification(notif({ type: 'projectResponse' }))).toBe('/(tabs)/costellazioni');
   });

@@ -83,16 +83,6 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `«${p.title ?? ''}» is coming up. ${p.count ?? 0} attending.`,
     },
   },
-  'notif.tpl.fundMilestone': {
-    it: {
-      title: 'Dai Vita al Tuo Sogno',
-      body: (p) => `Il fondo «Dai Vita al Tuo Sogno» ha superato i ${p.amount ?? ''}.`,
-    },
-    en: {
-      title: 'Bring Your Dream to Life',
-      body: (p) => `The «Bring Your Dream to Life» fund passed ${p.amount ?? ''}.`,
-    },
-  },
   'notif.tpl.projectResponse': {
     it: {
       title: 'Risposta',
@@ -162,7 +152,6 @@ const ROUTE: Record<string, string> = {
   dreamMilestone: 'dream',
   review: 'reviews',
   eventReminder: 'event',
-  fundMilestone: 'fund',
   projectResponse: 'costellazioni',
   connection: 'connections',
   // #313: the warn has no member-facing destination — the row itself is the outcome. The

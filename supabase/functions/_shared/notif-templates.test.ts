@@ -66,13 +66,6 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       enHas: '38',
     },
     {
-      templateKey: 'notif.tpl.fundMilestone',
-      type: 'fundMilestone',
-      params: { amount: '480.000€' },
-      itHas: '480.000€',
-      enHas: '480.000€',
-    },
-    {
       templateKey: 'notif.tpl.projectResponse',
       type: 'projectResponse',
       params: { name: 'Sara', title: 'video' },

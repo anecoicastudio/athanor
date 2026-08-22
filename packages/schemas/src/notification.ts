@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
 // Mirrors supabase/migrations/20260620025158_m9_notifications.sql (06 §2.11, 09 §2.6).
-// The 7 canonical notification types — must match notification_preferences.type + the M9 prefs UI.
+// The 8 canonical notification types — must match notification_preferences.type + the M9 prefs UI.
 // Two of them have no producer yet; that is intentional, not a broken fan-out (see below).
+//
+// When a producerless type is KEPT vs DELETED: it stays when only the producer is missing and
+// the surface that will ship it is named — the two PARKED entries below. 'fundMilestone' was
+// deleted instead (#241): it was not waiting on a producer but on a mechanism that does not
+// exist. It is a fund-wide broadcast ("the fund passed €X") and athanor.enqueue_notification is
+// one-recipient-per-call, which is why 20260701160235 skipped fund_aggregates outright. #127
+// re-adds the type together with the fan-out-to-many it needs.
 export const NOTIFICATION_TYPES = [
   'moment',
   'dreamMilestone',
@@ -13,7 +20,6 @@ export const NOTIFICATION_TYPES = [
   // Ships with the reviews surface (PRODUCTION-READINESS P5).
   'review',
   'eventReminder',
-  'fundMilestone',
   // PARKED(project-response): the consumer side is fully wired — prefs toggle, route to
   // (tabs)/costellazioni, notif template — and only the producer is missing, because the
   // only CTA on a project is currently a toast (#133). Ships with that surface.
@@ -47,7 +53,6 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.dreamMilestone',
   'notif.tpl.review',
   'notif.tpl.eventReminder',
-  'notif.tpl.fundMilestone',
   'notif.tpl.projectResponse',
   'notif.tpl.connection',
   'notif.tpl.connectionAccepted',
