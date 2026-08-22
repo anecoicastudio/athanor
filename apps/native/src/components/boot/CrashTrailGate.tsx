@@ -36,9 +36,15 @@ export function CrashTrailGate() {
     // Not awaited, and cannot be — the listener is synchronous. Unlike the media markers there is
     // no native call here to get in front of; the write only has to beat suspension, and iOS
     // leaves seconds of runway after `didEnterBackground` for a write that takes milliseconds.
+    // These are the only two markers allowed to be fired and forgotten (#488): the
+    // `crash-trail:void-ok` marker is what makes them pass `source-audit.test.ts` §13, and the
+    // reason is registered there by name, so dropping the exemption is as loud as adding one.
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'background') void markStep('app.background');
-      else if (state === 'active') void markStep('app.active');
+      if (state === 'background') {
+        void markStep('app.background'); // crash-trail:void-ok
+      } else if (state === 'active') {
+        void markStep('app.active'); // crash-trail:void-ok
+      }
     });
 
     return () => {
