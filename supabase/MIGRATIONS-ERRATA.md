@@ -978,7 +978,7 @@ unusable as a conflict target; the index is replaced by
 `20260823124203_fund_broadcast_dedupe_index_inferrable.sql` and the header below is what stayed
 wrong.
 
-### L36-40 — "The index is PARTIAL (`where dedupe_key is not null`) because every existing producer writes no dedupe key and must keep being able to write two identical rows"
+### L36-38 — "The index is PARTIAL (`where dedupe_key is not null`) because every existing producer writes no dedupe key and must keep being able to write two identical rows"
 
 The reason is right and the mechanism named for it is wrong. A partial unique index cannot be
 inferred by `ON CONFLICT` unless the statement repeats the index predicate, and PostgREST's
