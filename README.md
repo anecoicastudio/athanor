@@ -91,6 +91,39 @@ runs the whole suite there, so a failure surfaces ~3 minutes later instead of im
 to a `feat/*` branch with no PR open yet. During pre-PR iteration there is no safety net at
 all, which is exactly when RLS gets broken. Open the PR early, or keep a local stack.
 
+### Running the web admin e2e locally
+
+`pnpm --filter web test:e2e` runs the unauthenticated Playwright specs against `pnpm dev` with
+nothing but `apps/web/.env.local`. The authenticated half — the moderation queue, a verdict,
+the fund audit trail, the waitlist and its CSV export — needs a seeded admin session first:
+
+```bash
+cd apps/web
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:seed   # staging's secret key (onboarding)
+pnpm test:e2e                                          # note: NO secret in this command
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:teardown
+```
+
+The seed creates a disposable admin, a reporter, a subject, two reports and a waitlist row on
+**staging** and writes a session to the gitignored `apps/web/e2e/.auth/`. Teardown deletes all
+of it. Run neither against production.
+
+In CI the same three values come from a dedicated **staging** trio of repo secrets —
+`E2E_SUPABASE_URL`, `E2E_SUPABASE_PUBLISHABLE_KEY`, `E2E_SUPABASE_SECRET_KEY` — mapped onto the
+`NEXT_PUBLIC_*` names inside the e2e job only. The `NEXT_PUBLIC_SUPABASE_*` repo secrets are
+**production's** (they build the live site), so nothing in the e2e job may read them. The seed
+refuses outright to run against any project but staging, so a mis-set value fails loudly.
+
+Two rules about that key, and they are the reason the seed is a separate command rather than a
+step inside `playwright test`:
+
+- **Never put it in `.env.local` or any other env file.** Playwright starts the dev server with
+  its own environment, so a secret visible to the test run is a secret visible to Next.
+- **Never `NEXT_PUBLIC_`-prefix it.** That prefix means "inline this into the browser bundle".
+
+Skipping the seed is safe locally — the authenticated specs simply do not run. In CI it is not:
+there the suite fails rather than shrink in silence.
+
 ## Git workflow
 
 ```

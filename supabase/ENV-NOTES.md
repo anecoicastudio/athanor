@@ -90,11 +90,66 @@ or from the https vars above)
 · `EXPO_PUBLIC_MERCHANT_COUNTRY` (Checkout takes it from the Stripe account) ·
 `EXPO_PUBLIC_DEFAULT_CURRENCY` (priced server-side per session; `eur` throughout).
 
-## Future authenticated e2e (web admin)
+## Authenticated e2e (web admin)
 
-When authenticated admin flows land in Playwright, test seeding (admin user, session
-minting) uses the `sb_secret_…` key via CI secrets or a server-side helper **only** —
-never an env file the Next process can read, never anything prefixed `NEXT_PUBLIC_`.
+The authenticated admin suite (`apps/web/e2e/admin-authenticated.spec.ts`, #174) seeds its
+own admin, reporter, subject, reports and waitlist row on **staging**, and mints the admin's
+session, through `apps/web/e2e/seed/seed-admin.mts`. That script is the only thing that reads
+the `sb_secret_…` key — `E2E_SUPABASE_SECRET_KEY`, a CI secret. Never an env file the Next
+process can read, never anything prefixed `NEXT_PUBLIC_`.
+
+**The e2e job has its own staging trio, and this is load-bearing.**
+`E2E_SUPABASE_URL` · `E2E_SUPABASE_PUBLISHABLE_KEY` · `E2E_SUPABASE_SECRET_KEY`, mapped onto
+the `NEXT_PUBLIC_*` names inside the e2e job's own steps. The `NEXT_PUBLIC_SUPABASE_*` **repo
+secrets are production's** — `web build` and `deploy` use them to build the live site — so the
+e2e job must never read them, and no longer does. It did until 2026-08-23, which meant the
+unauthenticated smoke tests had been running against production; nobody noticed because they
+only read. The seed is the first step that writes, and its first CI run got production's URL
+with staging's secret key and died on "Invalid API key".
+
+`seed-admin.mts` therefore refuses any project ref but `eralyiwkfrpqsawivegz`, whatever the
+environment says. A mis-set secret is then a loud refusal naming both refs, not a write to
+production.
+
+A **verify the e2e Supabase target** step runs ahead of the seed and prints the shape of both
+public values — first 15 characters and byte length, never the whole thing — then refuses a URL
+that is not staging's exactly, a key not prefixed `sb_publishable_`, and any key the gateway
+does not answer 200 for. It exists because a wrong value is invisible in an Actions log (every
+secret renders as `***`) and surfaces forty seconds later as `Invalid API key` from inside
+`next dev`, which reads like an application bug and is not one. Staging's gateway distinguishes
+the cases and the step's comment records the mapping: a non-`sb_` apikey gets the legacy
+"`anon` or `service_role`" hint, a truncated `sb_` key gets "Double check your API key.", a key
+from another project says so, and whitespace is trimmed rather than rejected.
+
+The isolation is structural, not a convention: Playwright's `webServer` starts `pnpm dev`
+with the `playwright test` process's environment, so a secret exported around the test run
+would be readable by the Next dev server. The seed therefore runs as its **own** step, with
+its own `env:`, and hands the test run two gitignored files instead —
+`apps/web/e2e/.auth/admin.json` (a Playwright `storageState`) and `.auth/fixtures.json` (ids
+and handles, no tokens). A teardown step with the same `env:` removes the fixtures afterwards.
+
+Fixtures are namespaced on `GITHUB_RUN_ID` (`E2E_RUN_TAG` overrides it; a local run is
+`local`). Several PRs touching `apps/web` run this job at once against the same staging
+project, and shared fixture names would have each run's purge delete the other run's admin
+mid-suite. The seed also sweeps any other run's fixtures older than six hours — a job killed
+before its teardown leaves them behind, and six hours cannot reach a run that is still going.
+
+Session minting takes the magic-link token rather than a password or a browser:
+`auth.admin.generateLink` returns a `hashed_token`, and `verifyOtp` redeems it through a
+`@supabase/ssr` server client whose cookie adapter captures what it writes. Nothing test-only
+was added to the admin panel — `app/admin/auth/callback/route.ts` stays PKCE-`code`-only.
+
+Locally:
+
+```bash
+cd apps/web
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:seed   # staging's secret key, in the shell only
+pnpm test:e2e                                          # WITHOUT the secret in the environment
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:teardown
+```
+
+Without the seed, `pnpm test:e2e` runs the unauthenticated specs alone; under `CI` it fails
+instead, so a run that skipped half the suite can never read as a pass.
 
 ## `app.settings.*` runtime values (Vault, not GUCs)
 
