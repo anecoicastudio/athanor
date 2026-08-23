@@ -13,10 +13,11 @@ import { listState } from '@/lib/list-state';
  * The feed's «Eventi» tab (#153): real `events` rows as feed cards, tap → event detail.
  *
  * Reads the shared calendar query with no filters — the same cache entry Live's Calendario and
- * Mappa hold, so opening the tab warms Live rather than duplicating it. Upcoming-only and
- * `starts_at` ascending, which is `getEventsCalendar`'s ordering: soonest first, deliberately
- * the opposite direction from the posts feed's `created_at desc`, because "what is coming" is
- * the question this tab answers.
+ * Mappa hold, so opening the tab warms Live rather than duplicating it. `starts_at` ascending,
+ * which is `getEventsCalendar`'s ordering: soonest first, deliberately the opposite direction
+ * from the posts feed's `created_at desc`, because "what is happening and what is coming" is
+ * the question this tab answers. Since #530 that includes events already under way, which sort
+ * ahead of the upcoming ones and carry the «In diretta» chip.
  *
  * A separate component and not a branch inside the screen so the hook only runs while the tab
  * is mounted: the posts tabs never fetch the calendar, and the list stays homogeneous —

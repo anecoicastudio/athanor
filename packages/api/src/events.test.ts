@@ -441,10 +441,94 @@ describe('getEventsCalendar', () => {
   it('carries the cursor as a keyset predicate, not an offset', async () => {
     const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
     await getEventsCalendar(asClient(fake), { starts_at: '2026-09-01T18:00:00Z', id: E }, 20);
-    const or = fake.calls[0]!.filters.find((f) => f[0] === 'or');
-    expect(or).toBeDefined();
-    expect(String(or?.[1])).toContain('starts_at.gt.2026-09-01T18:00:00Z');
+    // TWO `or` predicates now: the #530 visibility bound and the keyset. Select the keyset
+    // by content — `find(f => f[0] === 'or')` would return the bound and assert nothing.
+    const ors = fake.calls[0]!.filters.filter((f) => f[0] === 'or').map((f) => String(f[1]));
+    const keyset = ors.find((s) => s.includes('starts_at.gt.'));
+    expect(keyset).toBeDefined();
+    expect(keyset).toContain('starts_at.gt.2026-09-01T18:00:00Z');
+    expect(keyset).toContain(`and(starts_at.eq.2026-09-01T18:00:00Z,id.gt.${E})`);
+    // The keyset stays a SEPARATE top-level predicate: top-level `or`s AND together, so the
+    // bound narrows the page rather than the cursor widening the bound.
+    expect(ors).toHaveLength(2);
+    expect(keyset).not.toContain('live_started_at');
     expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+
+  // ── #530 — a live / in-progress event stays on the calendar ───────────────────
+  /** The visibility bound: the `or` that is not the keyset. */
+  const boundOf = (fake: ReturnType<typeof makeFakeClient>): string => {
+    const ors = fake.calls[0]!.filters.filter((f) => f[0] === 'or').map((f) => String(f[1]));
+    const bound = ors.find((s) => s.includes('live_started_at'));
+    expect(bound).toBeDefined();
+    return bound!;
+  };
+
+  it('replaces the bare starts_at cutoff with a four-arm visibility bound', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20);
+
+    // The old `.gte('starts_at', now)` cutoff is GONE — it is what hid every row the moment
+    // it started. The one remaining bare `gte` is the scan floor, thirty days BACK, which is
+    // a different predicate serving a different purpose.
+    const bareGte = fake.calls[0]!.filters.filter((f) => f[0] === 'gte' && f[1] === 'starts_at');
+    expect(bareGte).toHaveLength(1);
+    expect(new Date(String(bareGte[0]![2])).getTime()).toBeLessThan(Date.now() - 29 * 864e5);
+
+    const bound = boundOf(fake);
+    // arm 1 — not started yet
+    expect(bound).toMatch(/(^|,)starts_at\.gte\.\d{4}-\d{2}-\d{2}T[\d:.]+Z(,|$)/);
+    // arm 2 — explicitly live: marker set and not yet ended
+    expect(bound).toContain('and(live_started_at.not.is.null,live_ended_at.is.null)');
+    // arm 3 — in progress by time: has an end, still to come
+    expect(bound).toMatch(/(^|,)ends_at\.gte\.\d{4}-\d{2}-\d{2}T[\d:.]+Z(,|$)/);
+    // arm 4 — no end declared: the assumed four-hour duration
+    expect(bound).toMatch(/and\(ends_at\.is\.null,starts_at\.gte\.[\d\-T:.]+Z\)/);
+  });
+
+  it('resolves both instants from ONE clock read, four hours apart', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
+      const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+      await getEventsCalendar(asClient(fake), null, 20);
+      const bound = boundOf(fake);
+      // `now` — arms 1 and 3
+      expect(bound).toContain('starts_at.gte.2026-09-01T12:00:00.000Z,');
+      expect(bound).toContain('ends_at.gte.2026-09-01T12:00:00.000Z');
+      // `now - ASSUMED_DURATION_MS` — arm 4. PostgREST cannot add an interval in a filter,
+      // so the grace instant is resolved here, from the SAME Date the cutoff came from.
+      expect(bound).toContain('and(ends_at.is.null,starts_at.gte.2026-09-01T08:00:00.000Z)');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ANDs a thirty-day scan floor so the disjunction stays sargable', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
+      const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+      await getEventsCalendar(asClient(fake), null, 20);
+      // Without a range start the planner walks `events_calendar` from the oldest event
+      // forward, discarding every finished row before it can fill a page. This is a
+      // top-level predicate, so it ANDs with the bound rather than widening it.
+      expect(fake.calls[0]!.filters).toEqual(
+        expect.arrayContaining([['gte', 'starts_at', '2026-08-02T12:00:00.000Z']]),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the (starts_at, id) ascending order — the bound is a filter, not an order', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20);
+    const orders = fake.calls[0]!.modifiers.filter((m) => m[0] === 'order');
+    expect(orders).toEqual([
+      ['order', 'starts_at', { ascending: true }],
+      ['order', 'id', { ascending: true }],
+    ]);
   });
 
   it('throws when the database errors', async () => {
@@ -459,8 +543,10 @@ describe('getEventsCalendar', () => {
     const cols = fake.calls[0]!.filters.map((f) => f[1]);
     expect(cols).not.toContain('category');
     expect(cols).not.toContain('city');
-    // the single `starts_at` predicate is the pre-existing "in arrivo" cutoff
+    // Exactly ONE bare `starts_at` predicate with no filters: the scan floor that keeps the
+    // bound sargable. Any second one would be a #151 date preset leaking in.
     expect(fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at')).toHaveLength(1);
+    expect(fake.calls[0]!.filters.filter((f) => f[0] === 'or')).toHaveLength(1);
   });
 
   it('filters by category as an equality predicate', async () => {
@@ -485,18 +571,26 @@ describe('getEventsCalendar', () => {
     expect(ilike?.[2]).toBe('\\%\\_a');
   });
 
-  it('ANDs the date window with the in-arrivo cutoff rather than replacing it', async () => {
+  it('ANDs the date window with the visibility bound rather than replacing it', async () => {
     const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
     await getEventsCalendar(asClient(fake), null, 20, {
       dateFrom: '2020-01-01T00:00:00.000Z',
       dateTo: '2026-08-30T23:59:59.999Z',
     });
     const startsAt = fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at');
-    // two gte (cutoff + dateFrom) and one lte — a past dateFrom cannot resurrect a started event
+    // Three bare `starts_at` predicates: the scan floor, then the window's own two. The
+    // "in arrivo" cutoff is NOT among them — since #530 it lives in the `or(...)` bound.
+    expect(startsAt).toEqual([
+      ['gte', 'starts_at', expect.any(String)], // the scan floor
+      ['gte', 'starts_at', '2020-01-01T00:00:00.000Z'],
+      ['lte', 'starts_at', '2026-08-30T23:59:59.999Z'],
+    ]);
+    // A past dateFrom is still ANDed, so it cannot widen anything — the later of the two
+    // lower bounds wins in Postgres.
     expect(startsAt.filter((f) => f[0] === 'gte')).toHaveLength(2);
-    expect(startsAt).toEqual(
-      expect.arrayContaining([['lte', 'starts_at', '2026-08-30T23:59:59.999Z']]),
-    );
+    expect(boundOf(fake)).toContain('live_ended_at.is.null');
+    // A past dateFrom still cannot resurrect a FINISHED event: the bound AND-s on top of it.
+    expect(boundOf(fake)).toMatch(/ends_at\.gte\./);
   });
 
   it('composes every filter with the keyset cursor and still issues no offset', async () => {
