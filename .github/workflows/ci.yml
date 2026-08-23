@@ -110,17 +110,17 @@ jobs:
     # skipped `changes` would skip this job on a main push too, which is the one way this
     # filter could strand `deploy`.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.web != 'false') }}
-    # 23 covers setup plus ALL FOUR capped steps below: 9 install + 3 seed + 6 smoke + 2
-    # teardown = 20, and the teardown runs `if: always()` so it is reachable alongside any of
-    # the others. They look mutually exclusive — a failed install exits 1 and the steps after
+    # 25 covers setup plus ALL FIVE capped steps below: 9 install + 2 verify + 3 seed + 6 smoke
+    # + 2 teardown = 22, and the teardown runs `if: always()` so it is reachable alongside any
+    # of the others. They look mutually exclusive — a failed install exits 1 and the steps after
     # it are skipped — but an install that merely runs slow and then succeeds does add to
     # everything that follows, so the sum is reachable. Measured, this job is 116s at p50 and
     # 400s at its worst; the cap is a ceiling that turns a hang into a red, never a target.
     # Was 24 while the install step could spend 16 minutes inside apt; dropping --with-deps
-    # retired that budget, and 17 covered 9 + 6 until the seeding and teardown steps (#174)
-    # joined them. It has to stay above 9 + 3 + 6 + 2, or the job cap fires before the step
-    # cap and the same legibility is lost one level up.
-    timeout-minutes: 23
+    # retired that budget, and 17 covered 9 + 6 until the seeding, teardown and target-verify
+    # steps (#174) joined them. It has to stay above 9 + 2 + 3 + 6 + 2, or the job cap fires
+    # before the step cap and the same legibility is lost one level up.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -233,6 +233,66 @@ jobs:
           done
           echo "::error::playwright install failed twice — most likely Playwright's CDN, not this diff"
           exit 1
+      # Two seconds that turn a mystery into a named cause.
+      #
+      # PR 517 spent a cycle on `⨯ Error: {"message":"Invalid API key","hint":"Double check
+      # your Supabase `anon` or `service_role` API key."}` printed by `next dev` forty seconds
+      # into the suite, with no way to tell from the log whether the app, the workflow or the
+      # secret was at fault — the values are masked, so the shape of what CI actually holds was
+      # unobservable. Probing staging's gateway by hand established what that hint means, and
+      # this step encodes it:
+      #
+      #   apikey not prefixed `sb_`  -> "Invalid API key" + the legacy anon/service_role hint
+      #   well-formed `sb_` truncated -> "Invalid API key" + "Double check your API key."
+      #   an `sb_` key from another project -> "…might also be owned by another Supabase project"
+      #   a good publishable key      -> 200
+      #
+      # Leading/trailing whitespace is NOT among them: the gateway trims, so a stray space
+      # still answers 200. The prefix and length printed below are what make that visible
+      # anyway, and neither is a secret — a publishable key ships in the browser bundle by
+      # design, and only its first 15 characters are printed. The secret key is never touched
+      # by this step.
+      - name: verify the e2e Supabase target
+        if: steps.e2e-secrets.outputs.run != 'false'
+        timeout-minutes: 2
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          shape() {
+            printf '%s = %s… (%s bytes)\n' "$1" "$(printf '%s' "$2" | cut -c1-15)" \
+              "$(printf '%s' "$2" | wc -c | tr -d ' ')"
+          }
+          shape NEXT_PUBLIC_SUPABASE_URL "$NEXT_PUBLIC_SUPABASE_URL"
+          shape NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+
+          # Staging, exactly — the same refusal e2e/seed/seed-admin.mts makes, one step earlier
+          # and against the workflow's own value rather than the seed's process env.
+          if [ "$NEXT_PUBLIC_SUPABASE_URL" != "https://eralyiwkfrpqsawivegz.supabase.co" ]; then
+            echo "::error::E2E_SUPABASE_URL is not staging's URL exactly (expected https://eralyiwkfrpqsawivegz.supabase.co). Production is kwzeiqvrnnaagccyoose — never point this job there."
+            exit 1
+          fi
+          case "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" in
+            sb_publishable_*) ;;
+            *)
+              echo "::error::E2E_SUPABASE_PUBLISHABLE_KEY does not begin with sb_publishable_. The gateway answers every non-sb_ apikey with \"Invalid API key\" and the legacy anon/service_role hint, which is what a wrong value looks like from inside next dev. Re-set the secret from apps/web/.env.local's NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
+              exit 1
+              ;;
+          esac
+
+          # The key CI holds, against the gateway it will be used on. A publishable key reads
+          # `profiles` as anon (profiles_select_anon_public), so 200 is the expected answer and
+          # anything else is the value, not the app.
+          code=$(curl -sS -o /tmp/apikey-probe -w '%{http_code}' \
+            -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+            "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?select=id&limit=1")
+          echo "PostgREST probe: HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::the publishable key CI holds is REJECTED by staging's gateway (HTTP $code) — this is the secret's value, not this repo's code. Re-set E2E_SUPABASE_PUBLISHABLE_KEY."
+            head -c 300 /tmp/apikey-probe; echo
+            exit 1
+          fi
+
       # The ONLY step that sees the secret key, together with its teardown twin. It creates a
       # disposable admin (app_metadata.role='admin'), a reporter, a subject, two reports and a
       # waitlist row on STAGING, then mints the admin's session into
@@ -267,7 +327,15 @@ jobs:
           # Staging, and only the public half — `webServer` passes this straight to `pnpm dev`.
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
-        run: pnpm --filter web test:e2e
+        run: |
+          # Printed HERE, not only in the verify step above, because this is the env `webServer`
+          # hands to `pnpm dev` — the one whose contents the "Invalid API key" render error was
+          # actually about. Prefix and length only; see the verify step for why that is enough.
+          printf 'dev server will use: url=%s… key=%s… (%s bytes)\n' \
+            "$(printf '%s' "$NEXT_PUBLIC_SUPABASE_URL" | cut -c1-15)" \
+            "$(printf '%s' "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" | cut -c1-15)" \
+            "$(printf '%s' "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" | wc -c | tr -d ' ')"
+          pnpm --filter web test:e2e
       # `always()`, so a red suite still takes its fixtures with it — a resolved report and a
       # penalised profile left on staging would otherwise outlive the run that made them. The
       # seed purges leftovers anyway, so a failure HERE is noise, not a broken next run:

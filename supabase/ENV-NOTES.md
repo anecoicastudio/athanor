@@ -111,6 +111,16 @@ with staging's secret key and died on "Invalid API key".
 environment says. A mis-set secret is then a loud refusal naming both refs, not a write to
 production.
 
+A **verify the e2e Supabase target** step runs ahead of the seed and prints the shape of both
+public values — first 15 characters and byte length, never the whole thing — then refuses a URL
+that is not staging's exactly, a key not prefixed `sb_publishable_`, and any key the gateway
+does not answer 200 for. It exists because a wrong value is invisible in an Actions log (every
+secret renders as `***`) and surfaces forty seconds later as `Invalid API key` from inside
+`next dev`, which reads like an application bug and is not one. Staging's gateway distinguishes
+the cases and the step's comment records the mapping: a non-`sb_` apikey gets the legacy
+"`anon` or `service_role`" hint, a truncated `sb_` key gets "Double check your API key.", a key
+from another project says so, and whitespace is trimmed rather than rejected.
+
 The isolation is structural, not a convention: Playwright's `webServer` starts `pnpm dev`
 with the `playwright test` process's environment, so a secret exported around the test run
 would be readable by the Next dev server. The seed therefore runs as its **own** step, with
