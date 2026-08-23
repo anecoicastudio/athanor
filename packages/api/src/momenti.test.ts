@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
-import { getMomentiDeck, getMomentiSuggestion, momentiKeys, rowToDeckCard } from './momenti';
+import { getMomentiDeck, getMomentiSuggestions, momentiKeys, rowToDeckCard } from './momenti';
 
 describe('momentiKeys', () => {
   it('builds stable keys', () => {
@@ -103,7 +103,7 @@ describe('rowToDeckCard', () => {
 });
 
 /**
- * `rpc()` stub — resolves directly to `{ data, error }` (getMomentiSuggestion awaits the rpc
+ * `rpc()` stub — resolves directly to `{ data, error }` (getMomentiSuggestions awaits the rpc
  * call itself, unlike getProfileById which chains `.maybeSingle()`).
  *
  * Deliberately provides no `auth` object: the previous implementation called
@@ -166,18 +166,19 @@ describe('getMomentiDeck (get_momenti_deck RPC)', () => {
   });
 });
 
-describe('getMomentiSuggestion (get_momenti_suggestion RPC)', () => {
+describe('getMomentiSuggestions (get_momenti_suggestion RPC)', () => {
   const row = {
     candidate_id: '44444444-4444-4444-4444-444444444444',
     handle: 'giulia',
     display_name: 'Giulia Sole',
     avatar_path: 'g/g.jpg',
     dream_text: 'Aprire una scuola di liuteria',
+    reasons: ['skills'],
   };
 
   it('passes only the deck ids as p_exclude — never the caller', async () => {
     const { client, calls } = rpcStub([row]);
-    await getMomentiSuggestion(client, ['deck-1', 'deck-2']);
+    await getMomentiSuggestions(client, ['deck-1', 'deck-2']);
     expect(calls).toEqual([
       { fn: 'get_momenti_suggestion', args: { p_exclude: ['deck-1', 'deck-2'] } },
     ]);
@@ -185,23 +186,62 @@ describe('getMomentiSuggestion (get_momenti_suggestion RPC)', () => {
 
   it('maps the snake_case row onto the suggestion shape', async () => {
     const { client } = rpcStub([row]);
-    expect(await getMomentiSuggestion(client, [])).toEqual({
-      candidateId: row.candidate_id,
-      handle: row.handle,
-      displayName: row.display_name,
-      avatarPath: row.avatar_path,
-      dreamText: row.dream_text,
-    });
+    expect(await getMomentiSuggestions(client, [])).toEqual([
+      {
+        candidateId: row.candidate_id,
+        handle: row.handle,
+        displayName: row.display_name,
+        avatarPath: row.avatar_path,
+        dreamText: row.dream_text,
+        reasons: ['skills'],
+      },
+    ]);
   });
 
-  it('returns null when the RPC finds nobody', async () => {
+  it('keeps the server RANK order — the list is curated, not sorted client-side', async () => {
+    const second = { ...row, candidate_id: '55555555-5555-5555-5555-555555555555' };
+    const { client } = rpcStub([row, second]);
+    const list = await getMomentiSuggestions(client, []);
+    expect(list.map((s) => s.candidateId)).toEqual([row.candidate_id, second.candidate_id]);
+  });
+
+  it('ranks the kinds WITHIN a row by REASON_PRIORITY, so reasons[0] is the chip', async () => {
+    // Wire order is momento_terms() column order — `shared` before `mutualActivity`. The
+    // hardest-earned term has to come out first, or the chip shows the commonest one there is.
+    const { client } = rpcStub([{ ...row, reasons: ['shared', 'city', 'mutualActivity'] }]);
+    const [suggestion] = await getMomentiSuggestions(client, []);
+    expect(suggestion?.reasons).toEqual(['mutualActivity', 'shared', 'city']);
+  });
+
+  it('drops nothing while reordering — every kind the server sent survives', async () => {
+    const { client } = rpcStub([{ ...row, reasons: ['shared', 'city', 'mutualActivity'] }]);
+    const [suggestion] = await getMomentiSuggestions(client, []);
+    expect([...(suggestion?.reasons ?? [])].sort()).toEqual(['city', 'mutualActivity', 'shared']);
+  });
+
+  it('returns an empty list rather than null when the RPC finds nobody', async () => {
     const { client } = rpcStub([]);
-    expect(await getMomentiSuggestion(client, [])).toBeNull();
+    expect(await getMomentiSuggestions(client, [])).toEqual([]);
+  });
+
+  it('never exposes affinity, even when the RPC starts sending one', async () => {
+    const { client } = rpcStub([{ ...row, affinity: 9 }]);
+    const list = await getMomentiSuggestions(client, []);
+    expect(list).toHaveLength(1);
+    // The whole key set, not just the absence: `not.toContain` on an empty object would pass.
+    expect(Object.keys(list[0] ?? {}).sort()).toEqual([
+      'avatarPath',
+      'candidateId',
+      'displayName',
+      'dreamText',
+      'handle',
+      'reasons',
+    ]);
   });
 
   it('throws the RPC error rather than swallowing it into an empty section', async () => {
     const { client } = rpcStub(null, { message: 'permission denied' });
-    await expect(getMomentiSuggestion(client, [])).rejects.toEqual({
+    await expect(getMomentiSuggestions(client, [])).rejects.toEqual({
       message: 'permission denied',
     });
   });

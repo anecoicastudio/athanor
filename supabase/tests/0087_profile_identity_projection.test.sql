@@ -24,7 +24,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(22);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
 -- ME is the caller. TARGET carries a name and an avatar and is connected to ME. HIDDEN carries
@@ -36,13 +36,29 @@ values
   ('00000000-0000-0000-0000-000000000000','22220000-0000-4000-8000-000000000087',
    'authenticated','authenticated','target87@test.athanor','{}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000','33330000-0000-4000-8000-000000000087',
-   'authenticated','authenticated','hidden87@test.athanor','{}'::jsonb, now(), now());
+   'authenticated','authenticated','hidden87@test.athanor','{}'::jsonb, now(), now()),
+  -- PEER exists for the RANKED arm alone: TARGET is connected to ME, and since #124 the ranked
+  -- arm re-checks `connections`, so a planted suggestion row pointing at TARGET would correctly
+  -- be filtered out and the projection would go untested.
+  ('00000000-0000-0000-0000-000000000000','44440000-0000-4000-8000-000000000087',
+   'authenticated','authenticated','peer87@test.athanor','{}'::jsonb, now(), now());
 
 set local role service_role;
 
+-- ME carries tags so athanor.momento_terms() has something to score against PEER: the ranked
+-- arm RECOMPUTES the reason kinds per read (#273 D), so a pair with no live overlap renders no
+-- chip and leaves the list.
 update public.profiles
-   set handle = 'me87'
+   set handle = 'me87',
+       identity_tags = array['artista','mentor']
  where id = '11110000-0000-4000-8000-000000000087';
+
+update public.profiles
+   set handle = 'peer87',
+       display_name = 'Pietro Nolo',
+       avatar_path = '44440000-0000-4000-8000-000000000087/44440000-0000-4000-8000-000000000087.jpg',
+       identity_tags = array['artista','mentor']
+ where id = '44440000-0000-4000-8000-000000000087';
 
 -- bio private on purpose: widening the projection must not have loosened the visibility gate
 -- that sits beside the two new columns.
@@ -67,10 +83,13 @@ values ('33330000-0000-4000-8000-000000000087','11110000-0000-4000-8000-00000000
 -- HIDDEN gets a NEWER dream than TARGET on purpose: the suggestion orders by dream recency, so
 -- if the block predicate were lost the blocker would win the race and the exclusion case below
 -- would be answering about an empty pool instead of about the block.
+-- PEER's dream is the OLDEST, so the cold-start arm below still returns Marta and the recency
+-- assertions keep measuring what they were written to measure.
 insert into public.dreams (profile_id, text, created_at)
 values
   ('22220000-0000-4000-8000-000000000087','Sogno di Marta', now() - interval '1 day'),
-  ('33330000-0000-4000-8000-000000000087','Sogno nascosto', now());
+  ('33330000-0000-4000-8000-000000000087','Sogno nascosto', now()),
+  ('44440000-0000-4000-8000-000000000087','Sogno di Pietro', now() - interval '2 days');
 
 insert into public.dream_milestones (dream_id, body)
 select d.id, 'Serve una mano con il laboratorio'
@@ -85,7 +104,8 @@ values ('11110000-0000-4000-8000-000000000087','22220000-0000-4000-8000-00000000
 -- recency race and the RPC returns exactly one row.
 update public.dreams set status = 'archived'
  where profile_id not in ('22220000-0000-4000-8000-000000000087',
-                          '33330000-0000-4000-8000-000000000087')
+                          '33330000-0000-4000-8000-000000000087',
+                          '44440000-0000-4000-8000-000000000087')
    and status = 'active' and deleted_at is null;
 
 reset role;
@@ -125,6 +145,11 @@ select is(
 );
 
 -- ── 2. get_momenti_suggestion ─────────────────────────────────────────────────────────────
+-- Two arms since #124, and BOTH have to carry the projection. The four cases below exercise
+-- the COLD-START arm — no momento_suggestions row exists for ME, so the function falls back to
+-- the dream-recency query it used to be in full; the ranked arm is exercised after them, off a
+-- planted row. A fixed projection can rot on one arm without the other noticing, which is this
+-- whole file's premise.
 select is(
   (select display_name from public.get_momenti_suggestion()),
   'Marta Bianchi',
@@ -143,11 +168,44 @@ select is(
   'the suggestion still carries the dream text it existed to deliver'
 );
 
+-- PEER is excluded alongside TARGET so what is left in the pool is HIDDEN alone — otherwise
+-- this would be answering about PEER rather than about the block.
 select is(
   (select count(*)::int from public.get_momenti_suggestion(
-     array['22220000-0000-4000-8000-000000000087']::uuid[])),
+     array['22220000-0000-4000-8000-000000000087',
+           '44440000-0000-4000-8000-000000000087']::uuid[])),
   0,
   'a member who blocked the caller is still not suggested, newer dream or not'
+);
+
+-- The RANKED arm (#124): a planted momento_suggestions row must project the same five columns
+-- plus the reason kinds. `reasons` is the sixth column and the only one the client renders as
+-- copy, so it is checked by value; `affinity` is deliberately not in the OUT list at all.
+-- The row points at PEER, not TARGET: ME is connected to TARGET and the ranked arm drops
+-- connected peers. Note nothing is stored for `reasons` — the read recomputes them from ME and
+-- PEER's live tags, which is what makes «Condividete» the expected chip here.
+reset role;
+set local role service_role;
+insert into public.momento_suggestions (user_id, candidate_id, affinity, computed_on, rank)
+values ('11110000-0000-4000-8000-000000000087','44440000-0000-4000-8000-000000000087',
+        3, (now() at time zone 'utc')::date, 1);
+reset role;
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"11110000-0000-4000-8000-000000000087","role":"authenticated"}';
+
+select results_eq(
+  $$ select candidate_id, display_name, avatar_path, dream_text
+       from public.get_momenti_suggestion() $$,
+  $$ values ('44440000-0000-4000-8000-000000000087'::uuid, 'Pietro Nolo'::text,
+             '44440000-0000-4000-8000-000000000087/44440000-0000-4000-8000-000000000087.jpg'::text,
+             'Sogno di Pietro'::text) $$,
+  'the ranked arm carries the same name, face and dream the recency arm does'
+);
+
+select is(
+  (select reasons from public.get_momenti_suggestion()),
+  array['shared'],
+  'and the reason kinds recomputed from live tags — the chip stops saying «Sogno nuovo» by default'
 );
 
 -- ── 3. search_connections (SECURITY INVOKER) ──────────────────────────────────────────────

@@ -38,7 +38,8 @@ insert into gdpr_excluded values
   ('conversations',  'pairwise container: the member''s content is the messages (exported); the row itself mostly names the counterpart'),
   ('audit_log',      'moderation internals: actor_id is the acting admin, not the member; verdicts reach the member as notifications (exported)'),
   ('push_receipts',  'transient delivery telemetry, purged by the receipt sweep — no durable member content'),
-  ('event_reminder_sends', 'athanor: dispatch dedupe markers for event reminders (#126); derivable from rsvps + notifications (both exported), reaped after 30 days, dropped with the profile by FK');
+  ('event_reminder_sends', 'athanor: dispatch dedupe markers for event reminders (#126); derivable from rsvps + notifications (both exported), reaped after 30 days, dropped with the profile by FK'),
+  ('momento_suggestions', 'derived nightly ranking (#124): recomputed from scratch every run from profiles/dreams/tags (all exported), pruned after a week, dropped with the profile by FK. Carries no member-authored content and no reason text — get_momenti_suggestion recomputes what a row says per read');
 
 -- (1) the sweep: no FK-to-profiles table is unaccounted
 select is(

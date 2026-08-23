@@ -61,7 +61,7 @@ export function rowToDeckCard(raw: unknown): MomentoDeckCard {
  * so ordering by it alone dealt an arbitrary trio out of every day's rank-1 rows at once).
  *
  * Goes through the get_momenti_deck RPC rather than a client select, for the reason
- * getMomentiSuggestion does: the reasons are computed at read time from the candidate's
+ * getMomentiSuggestions does: the reasons are computed at read time from the candidate's
  * current tags and `profiles.visibility`, none of which authenticated may read since the M10
  * column grant. The RPC also re-establishes the caller (auth.uid(), never an argument), the
  * block filter both ways, and the dream join that used to be a client-side `.filter()`.
@@ -75,32 +75,51 @@ export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeck
 }
 
 /**
- * «Ti potrebbe interessare» — one curated-lite peer: the most recently written visible active
- * dream, not in today's deck. Real affinity-ranked curation is deferred (no suggestions table in
- * M5) — this ranks by dream recency, which is why the UI chip says «Sogno nuovo», not «Alta
- * affinità». It is NOT ordered by member recency: profiles.updated_at is a touch timestamp.
+ * «Ti potrebbe interessare» — up to three affinity-ranked peers (#124), from the member's latest
+ * `momento_suggestions` run, in the server's rank order. It used to be ONE peer ranked by dream
+ * recency, because the suggestions table was deferred at M5; the chip said «Sogno nuovo» for
+ * exactly that reason and now says what the two actually have in common.
  *
- * Goes through the get_momenti_suggestion RPC rather than a client query: the filter has to read
- * `profiles.visibility` to drop members who hid BOTH tag fields, and M10 column-scoped the
- * authenticated SELECT grant so that column never reaches the client. Blocks, dream visibility
- * and the caller's own id are re-established inside the function — see the migration.
+ * A member no nightly run has reached yet — a new account before 03:11 UTC, or one for whom
+ * nothing scored — still gets one peer, the most recently written visible dream, tagged
+ * `newDream`. The section is never empty.
+ *
+ * Goes through the get_momenti_suggestion RPC rather than a client query, and could not be
+ * anything else: `momento_suggestions` carries no client grant at all, and the row needs
+ * `profiles.visibility`, which M10 column-scoped away from the client. Blocks, bans, dream
+ * visibility and the caller's own id are re-established inside the function at READ time, so a
+ * nightly snapshot never outlives a ban — see the migration.
+ *
+ * `affinity` is not in the projection (rule #3, as on the deck): a row carries reason KINDS.
  */
-export async function getMomentiSuggestion(
+export async function getMomentiSuggestions(
   client: AthanorClient,
   excludeIds: string[],
-): Promise<MomentoSuggestion | null> {
+): Promise<MomentoSuggestion[]> {
   // No caller id here: the RPC derives it from auth.uid() (rule #8). p_exclude carries only
   // today's deck.
   const { data, error } = await client.rpc('get_momenti_suggestion', { p_exclude: excludeIds });
   if (error) throw error;
-  const row = data?.[0];
-  if (!row) return null;
-  return momentoSuggestion.parse({
-    candidateId: row.candidate_id,
-    handle: row.handle,
-    displayName: row.display_name,
-    avatarPath: row.avatar_path,
-    dreamText: row.dream_text,
+  return (data ?? []).map((row) => {
+    const parsed = momentoSuggestion.parse({
+      candidateId: row.candidate_id,
+      handle: row.handle,
+      displayName: row.display_name,
+      avatarPath: row.avatar_path,
+      dreamText: row.dream_text,
+      reasons: row.reasons,
+    });
+    // Ranked AFTER the parse, off validated kinds, so nothing here needs a cast (rules/api.md).
+    // Ranked here rather than in SQL because REASON_PRIORITY is one policy in one module and the
+    // deck already reads it through this same helper. The server's ROW order is untouched; only
+    // the kinds within a row are reordered, so `reasons[0]` is the chip.
+    return {
+      ...parsed,
+      reasons: rankReasons(
+        parsed.reasons.map((kind) => ({ kind })),
+        parsed.reasons.length,
+      ).map((r) => r.kind),
+    };
   });
 }
 

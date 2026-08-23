@@ -65,6 +65,7 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   -- ── momenti ─────────────────────────────────────────────────────────────────────────
   ('moments',                     '',       'SELECT,INSERT,UPDATE'),
   ('momento_proposals',           '',       ''),                            -- column-scoped
+  ('momento_suggestions',         '',       ''),                            -- service-role only
   ('conversations',               '',       'SELECT'),                      -- created by get_or_create_conversation
   ('messages',                    '',       'SELECT,INSERT'),
   ('notifications',               '',       'SELECT'),                      -- + column UPDATE(read_at)

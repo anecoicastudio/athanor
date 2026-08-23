@@ -1824,6 +1824,68 @@ export type Database = {
           },
         ]
       }
+      momento_suggestions: {
+        Row: {
+          affinity: number
+          candidate_id: string
+          computed_on: string
+          created_at: string
+          id: string
+          rank: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affinity: number
+          candidate_id: string
+          computed_on: string
+          created_at?: string
+          id?: string
+          rank: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affinity?: number
+          candidate_id?: string
+          computed_on?: string
+          created_at?: string
+          id?: string
+          rank?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "momento_suggestions_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "momento_suggestions_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "momento_suggestions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "momento_suggestions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moments: {
         Row: {
           caption: string | null
@@ -3318,6 +3380,7 @@ export type Database = {
           display_name: string
           dream_text: string
           handle: string
+          reasons: string[]
         }[]
       }
       get_or_create_conversation: { Args: { peer_id: string }; Returns: string }

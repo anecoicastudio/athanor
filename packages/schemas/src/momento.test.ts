@@ -140,13 +140,14 @@ describe('momentoDeckRow (get_momenti_deck wire shape)', () => {
 });
 
 describe('momentoSuggestion', () => {
-  it('is the peer identity plus a nullable dream quote, nothing else', () => {
+  it('is the peer identity, a nullable dream quote and the reason kinds — never a score', () => {
     expect(Object.keys(momentoSuggestion.shape)).toEqual([
       'candidateId',
       'handle',
       'displayName',
       'avatarPath',
       'dreamText',
+      'reasons',
     ]);
     const row = {
       candidateId: '33333333-3333-3333-3333-333333333333',
@@ -154,7 +155,34 @@ describe('momentoSuggestion', () => {
       displayName: null,
       avatarPath: null,
       dreamText: null,
+      reasons: ['skills', 'city'],
     };
     expect(momentoSuggestion.parse(row)).toEqual(row);
+  });
+
+  it('rejects an empty reasons array — every row has a chip to show', () => {
+    expect(
+      momentoSuggestion.safeParse({
+        candidateId: '33333333-3333-3333-3333-333333333333',
+        handle: null,
+        displayName: null,
+        avatarPath: null,
+        dreamText: null,
+        reasons: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a kind outside the momentoReasonKind vocabulary', () => {
+    expect(
+      momentoSuggestion.safeParse({
+        candidateId: '33333333-3333-3333-3333-333333333333',
+        handle: null,
+        displayName: null,
+        avatarPath: null,
+        dreamText: null,
+        reasons: ['altaAffinita'],
+      }).success,
+    ).toBe(false);
   });
 });

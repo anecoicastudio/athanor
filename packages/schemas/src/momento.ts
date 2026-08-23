@@ -76,13 +76,25 @@ export const momentoDeckCard = z.object({
 });
 export type MomentoDeckCard = z.infer<typeof momentoDeckCard>;
 
-// «Ti potrebbe interessare» curated-lite row (one peer).
+/**
+ * One «Ti potrebbe interessare» row — mirrors `get_momenti_suggestion()` (migration
+ * <ts>_momento_suggestions.sql), which serves up to three of these.
+ *
+ * `reasons` carries KINDS and no tags, unlike `momentoReason`: the row has one line of chrome
+ * for a chip, so it names the overlap («Sapete fare») without listing it. They arrive already
+ * ranked by `rankReasons`, so `reasons[0]` is the chip. `newDream` is what the cold-start arm
+ * returns — a member no nightly run has reached yet — and it never travels with another kind.
+ *
+ * `affinity` is absent for the reason it is absent from `momentoDeckRow`: the column carries no
+ * client grant and no surface renders a score (rule 3).
+ */
 export const momentoSuggestion = z.object({
   candidateId: z.string().uuid(),
   handle: z.string().nullable(),
   displayName: displayNameSchema.nullable(),
   avatarPath: avatarPathSchema.nullable(),
   dreamText: z.string().nullable(),
+  reasons: z.array(momentoReasonKind).min(1),
 });
 export type MomentoSuggestion = z.infer<typeof momentoSuggestion>;
 

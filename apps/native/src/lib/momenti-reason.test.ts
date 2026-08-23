@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { momentoReasonText } from './momenti-reason';
+import { momentoReasonText, reasonPrefix } from './momenti-reason';
 
 describe('momentoReasonText', () => {
   it('localizes the prefix AND the tag keys (both locales)', () => {
@@ -61,5 +61,25 @@ describe('momentoReasonText', () => {
     // get_momenti_deck can return an empty term for a candidate who hid the field after
     // the proposal was written; the API drops those, so this is belt and braces.
     expect(momentoReasonText({ kind: 'shared', tags: [] }, 'it')).toBe('Condividete');
+  });
+});
+
+describe('reasonPrefix', () => {
+  it('is the prefix with no tags spliced in — the «Ti potrebbe interessare» chip (#124)', () => {
+    expect(reasonPrefix('skills', 'it')).toBe('Sapete fare');
+    expect(reasonPrefix('skills', 'en')).toBe('You both know');
+  });
+
+  it('reads newDream as «Sogno nuovo» — the cold-start chip, unchanged from before #124', () => {
+    expect(reasonPrefix('newDream', 'it')).toBe('Sogno nuovo');
+    expect(reasonPrefix('newDream', 'en')).toBe('New dream');
+  });
+
+  it('agrees with momentoReasonText whenever the reason carries no tags', () => {
+    // The two must not drift: the chip and the deck line name the same overlap, and
+    // momentoReasonText is built on this function precisely so they cannot.
+    for (const kind of ['mutualActivity', 'profession', 'city', 'shared'] as const) {
+      expect(momentoReasonText({ kind, tags: [] }, 'it')).toBe(reasonPrefix(kind, 'it'));
+    }
   });
 });
