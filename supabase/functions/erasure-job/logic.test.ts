@@ -29,7 +29,7 @@ const ctx = (
         overrides.signOut ??
         ((id, scope) => {
           signedOut.push([id, scope]);
-          return Promise.resolve();
+          return Promise.resolve(null);
         }),
     },
     storage: {

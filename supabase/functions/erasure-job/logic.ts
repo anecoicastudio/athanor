@@ -18,7 +18,7 @@ export type ErasureAuth = {
    * 4xx/5xx from GoTrue — the common failure — therefore never rejects, so a caller that only
    * catches would record a run whose sessions are still live as a clean one.
    */
-  signOut: (profileId: string, scope: 'global') => Promise<{ error?: unknown } | unknown>;
+  signOut: (profileId: string, scope: 'global') => Promise<{ error?: unknown } | null>;
 };
 
 /** The candidacy-videos bucket surface the job needs — index wires db.storage.from(...). */
@@ -62,7 +62,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     const signOutResult = await auth
       .signOut(erasureReq.profile_id, 'global')
       .catch(() => ({ error: new Error('signOut rejected') }));
-    if ((signOutResult as { error?: unknown } | null)?.error) degraded = true;
+    if (signOutResult?.error) degraded = true;
 
     // (3) fund-table reach — LIVE (#240). One atomic DB transaction (gdpr_erase_fund_footprint,
     //     20260815131925): fund_contributions tombstone-reassigned to the pre-seeded no-PII
