@@ -451,6 +451,88 @@ describe('getEventsCalendar', () => {
     const fake = makeFakeClient({ 'events.select': [{ error: { message: 'boom' } }] });
     await expect(getEventsCalendar(asClient(fake))).rejects.toThrow();
   });
+
+  // ── #151 discovery filters ────────────────────────────────────────────────────
+  it('issues no filter predicate at all when filters are absent', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20);
+    const cols = fake.calls[0]!.filters.map((f) => f[1]);
+    expect(cols).not.toContain('category');
+    expect(cols).not.toContain('city');
+    // the single `starts_at` predicate is the pre-existing "in arrivo" cutoff
+    expect(fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at')).toHaveLength(1);
+  });
+
+  it('filters by category as an equality predicate', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, { category: 'musica' });
+    expect(fake.calls[0]!.filters).toEqual(expect.arrayContaining([['eq', 'category', 'musica']]));
+  });
+
+  it('matches city case-insensitively and whole, never as a substring', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, { city: 'Bologna' });
+    const ilike = fake.calls[0]!.filters.find((f) => f[0] === 'ilike');
+    expect(ilike).toEqual(['ilike', 'city', 'Bologna']);
+    expect(String(ilike?.[2])).not.toContain('%');
+  });
+
+  it('neutralises LIKE metacharacters a member types into the city field', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, { city: '%_*a' });
+    const ilike = fake.calls[0]!.filters.find((f) => f[0] === 'ilike');
+    // `*` is PostgREST's own wildcard alias and cannot be backslash-escaped, so it is dropped
+    expect(ilike?.[2]).toBe('\\%\\_a');
+  });
+
+  it('ANDs the date window with the in-arrivo cutoff rather than replacing it', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, {
+      dateFrom: '2020-01-01T00:00:00.000Z',
+      dateTo: '2026-08-30T23:59:59.999Z',
+    });
+    const startsAt = fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at');
+    // two gte (cutoff + dateFrom) and one lte — a past dateFrom cannot resurrect a started event
+    expect(startsAt.filter((f) => f[0] === 'gte')).toHaveLength(2);
+    expect(startsAt).toEqual(
+      expect.arrayContaining([['lte', 'starts_at', '2026-08-30T23:59:59.999Z']]),
+    );
+  });
+
+  it('composes every filter with the keyset cursor and still issues no offset', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), { starts_at: '2026-09-01T18:00:00Z', id: E }, 20, {
+      category: 'arte',
+      city: 'Torino',
+      dateTo: '2026-12-31T23:59:59.999Z',
+    });
+    const call = fake.calls[0]!;
+    expect(call.filters).toEqual(expect.arrayContaining([['eq', 'category', 'arte']]));
+    expect(call.filters.find((f) => f[0] === 'or')).toBeDefined();
+    expect(call.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+});
+
+describe('eventKeys.calendar (#151 — a changed filter set is a fresh cursor)', () => {
+  it('is a distinct cache entry per filter set, so no cursor survives a filter change', () => {
+    const keys = [
+      eventKeys.calendar(),
+      eventKeys.calendar({}),
+      eventKeys.calendar({ category: 'arte' }),
+      eventKeys.calendar({ category: 'musica' }),
+      eventKeys.calendar({ city: 'Torino' }),
+      eventKeys.calendar({ dateFrom: '2026-08-23T00:00:00.000Z' }),
+      eventKeys.calendar({ dateTo: '2026-08-23T00:00:00.000Z' }),
+    ];
+    expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
+    expect(keys.every((k) => k[0] === 'events' && k[1] === 'calendar')).toBe(true);
+  });
+
+  it('is stable for the same filter set, so an unchanged sheet does not refetch', () => {
+    expect(eventKeys.calendar({ category: 'arte', city: 'Torino' })).toEqual(
+      eventKeys.calendar({ category: 'arte', city: 'Torino' }),
+    );
+  });
 });
 
 describe('getEventsNearby', () => {

@@ -182,3 +182,35 @@ export const checkInResultSchema = z.object({
   name: z.string().optional(),
 });
 export type CheckInResult = z.infer<typeof checkInResultSchema>;
+
+/**
+ * Calendar discovery filters (#151, PRD §4.6 «Filter by category/city/date»).
+ *
+ * City is the events table's own `city` column — plain text, max 120, written by
+ * `event-create`'s reverse geocode (`20260615094844_events.sql`). It is NOT #149's
+ * `profiles.city` / `city_geohash` pair, which the CityPicker feeds for the Momenti
+ * matcher; the two representations are unrelated and nothing joins them today.
+ *
+ * The date window is an explicit `[dateFrom, dateTo]` pair of ISO strings rather than a
+ * preset name, so no layer below the sheet has to read the clock: the sheet resolves
+ * «questa settimana» to a concrete range and the query stays a pure function of its
+ * arguments. Both bounds are inclusive and independently optional.
+ */
+export const eventCalendarFiltersSchema = z.object({
+  category: eventCategorySchema.optional(),
+  city: z.string().max(120).optional(),
+  dateFrom: z.string().datetime().optional(),
+  dateTo: z.string().datetime().optional(),
+});
+export type EventCalendarFilters = z.infer<typeof eventCalendarFiltersSchema>;
+
+/** True when no filter is set — what the query key and the «filtri attivi» dot both read as unfiltered. */
+export function isEmptyEventCalendarFilters(filters?: EventCalendarFilters): boolean {
+  if (!filters) return true;
+  return (
+    filters.category === undefined &&
+    filters.city === undefined &&
+    filters.dateFrom === undefined &&
+    filters.dateTo === undefined
+  );
+}

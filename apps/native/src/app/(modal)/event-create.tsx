@@ -78,7 +78,9 @@ export default function EventCreateScreen() {
         category,
         is_online: isOnline,
         venue: isOnline ? null : venue || null,
-        city: isOnline ? null : city || null,
+        // Trimmed: the calendar filter matches `city` whole, so a stored «Milano » would
+        // never match a member filtering for «Milano» (#151).
+        city: isOnline ? null : city.trim() || null,
         lat: isOnline ? null : (coords?.lat ?? null),
         long: isOnline ? null : (coords?.lng ?? null),
         stream_url: isOnline ? streamUrl || null : null,

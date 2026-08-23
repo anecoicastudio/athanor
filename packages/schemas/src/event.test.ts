@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   attendanceSchema,
   checkInResultSchema,
+  eventCalendarFiltersSchema,
   eventCategorySchema,
   eventCreateSchema,
   eventLiveStatsSchema,
   eventNearbySchema,
   eventSchema,
+  isEmptyEventCalendarFilters,
   rsvpSchema,
   rsvpStatusSchema,
   ticketSchema,
@@ -334,5 +336,58 @@ describe('event vocabularies', () => {
     for (const bad of ['cancelled', 'gifted', 'expired', '']) {
       expect(ticketStatusSchema.safeParse(bad).success).toBe(false);
     }
+  });
+});
+
+describe('eventCalendarFiltersSchema (#151)', () => {
+  it('accepts an empty object — no filter is the default, not an error', () => {
+    expect(eventCalendarFiltersSchema.parse({})).toEqual({});
+  });
+
+  it('accepts every field together', () => {
+    const parsed = eventCalendarFiltersSchema.parse({
+      category: 'musica',
+      city: 'Bologna',
+      dateFrom: '2026-08-23T00:00:00.000Z',
+      dateTo: '2026-08-30T23:59:59.999Z',
+    });
+    expect(parsed.category).toBe('musica');
+    expect(parsed.city).toBe('Bologna');
+    expect(parsed.dateFrom).toBe('2026-08-23T00:00:00.000Z');
+    expect(parsed.dateTo).toBe('2026-08-30T23:59:59.999Z');
+  });
+
+  it('rejects a category outside the event enum', () => {
+    expect(eventCalendarFiltersSchema.safeParse({ category: 'sport' }).success).toBe(false);
+  });
+
+  it('caps city at the events.city column width (120), not profiles.city (80)', () => {
+    expect(eventCalendarFiltersSchema.safeParse({ city: 'a'.repeat(120) }).success).toBe(true);
+    expect(eventCalendarFiltersSchema.safeParse({ city: 'a'.repeat(121) }).success).toBe(false);
+  });
+
+  it('rejects a date bound that is not an ISO datetime', () => {
+    expect(eventCalendarFiltersSchema.safeParse({ dateFrom: '2026-08-23' }).success).toBe(false);
+    expect(eventCalendarFiltersSchema.safeParse({ dateTo: 'domani' }).success).toBe(false);
+  });
+
+  it('isEmptyEventCalendarFilters is true for undefined and for an all-undefined object', () => {
+    expect(isEmptyEventCalendarFilters(undefined)).toBe(true);
+    expect(isEmptyEventCalendarFilters({})).toBe(true);
+    expect(
+      isEmptyEventCalendarFilters({
+        category: undefined,
+        city: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+      }),
+    ).toBe(true);
+  });
+
+  it('isEmptyEventCalendarFilters is false when any single field is set', () => {
+    expect(isEmptyEventCalendarFilters({ category: 'arte' })).toBe(false);
+    expect(isEmptyEventCalendarFilters({ city: 'Torino' })).toBe(false);
+    expect(isEmptyEventCalendarFilters({ dateFrom: '2026-08-23T00:00:00.000Z' })).toBe(false);
+    expect(isEmptyEventCalendarFilters({ dateTo: '2026-08-23T00:00:00.000Z' })).toBe(false);
   });
 });
