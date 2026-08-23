@@ -6,6 +6,7 @@ import {
   dateWindow,
   draftFromParams,
   parseCategory,
+  parseCity,
   parseDatePreset,
   parseEventFilters,
   serializeEventFilters,
@@ -142,6 +143,54 @@ describe('parseEventFilters', () => {
     expect(parseEventFilters({ city: 'a'.repeat(121) }, WED)).toBeUndefined();
     expect(parseEventFilters({ city: 'a'.repeat(120) }, WED)!.city).toHaveLength(120);
   });
+
+  it('an unusable city costs only itself — category and date still filter', () => {
+    const f = parseEventFilters({ city: 'a'.repeat(121), category: 'arte', date: 'oggi' }, WED)!;
+    expect(f.category).toBe('arte');
+    expect(f.dateTo).toBeDefined();
+    expect(f.city).toBeUndefined();
+  });
+
+  it('reads the first value when a param repeats, instead of crashing on an array', () => {
+    const f = parseEventFilters({ city: ['Torino', 'Milano'], category: ['arte'] }, WED)!;
+    expect(f.city).toBe('Torino');
+    expect(f.category).toBe('arte');
+  });
+});
+
+describe('activeFilterCount agrees with parseEventFilters', () => {
+  const cases: Array<Record<string, string | string[]>> = [
+    {},
+    { category: 'arte' },
+    { category: 'sport' },
+    { city: 'a'.repeat(121) },
+    { city: 'a'.repeat(121), category: 'arte' },
+    { city: ['Torino', 'Milano'] },
+    { date: 'ieri' },
+    { category: 'arte', city: 'Torino', date: 'mese' },
+  ];
+
+  it('never counts a filter the query did not apply', () => {
+    for (const params of cases) {
+      const count = activeFilterCount(params);
+      const filters = parseEventFilters(params, WED);
+      // the date preset contributes one filter but two query bounds, so compare presence only
+      expect(count === 0).toBe(filters === undefined);
+    }
+  });
+});
+
+describe('parseCity', () => {
+  it('trims, and treats an absent or blank city as none', () => {
+    expect(parseCity(undefined)).toBe('');
+    expect(parseCity('   ')).toBe('');
+    expect(parseCity('  Torino ')).toBe('Torino');
+  });
+
+  it('drops a city the events.city column could not hold', () => {
+    expect(parseCity('a'.repeat(120))).toHaveLength(120);
+    expect(parseCity('a'.repeat(121))).toBe('');
+  });
 });
 
 describe('activeFilterCount', () => {
@@ -154,5 +203,10 @@ describe('activeFilterCount', () => {
     expect(activeFilterCount({ category: 'arte' })).toBe(1);
     expect(activeFilterCount({ category: 'sport' })).toBe(0);
     expect(activeFilterCount({ category: 'arte', city: 'Torino', date: 'mese' })).toBe(3);
+  });
+
+  it('does not count a city the query boundary would reject', () => {
+    expect(activeFilterCount({ city: 'a'.repeat(121) })).toBe(0);
+    expect(activeFilterCount({ city: 'a'.repeat(121), category: 'arte' })).toBe(1);
   });
 });

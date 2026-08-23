@@ -63,12 +63,28 @@ export type EventFilterDraft = {
   date: DatePreset;
 };
 
-/** Route params the two screens exchange — every value is a string, or absent. */
+/** Route params the two screens WRITE — every value is a string, or absent. */
 export type EventFilterParams = {
   category?: string;
   city?: string;
   date?: string;
 };
+
+/**
+ * Route params as they are READ back. `useLocalSearchParams` hands back an array whenever a
+ * key repeats in the URL (`?city=A&city=B`), which a deep link can do, so the read side has to
+ * admit that shape rather than call `.trim()` on an array.
+ */
+export type EventFilterParamsIn = {
+  category?: string | string[];
+  city?: string | string[];
+  date?: string | string[];
+};
+
+/** First value of a possibly-repeated param — later duplicates are ignored, never concatenated. */
+function firstString(raw?: string | string[]): string | undefined {
+  return Array.isArray(raw) ? raw[0] : raw;
+}
 
 /**
  * Every param key with an empty value. `serializeEventFilters` omits defaults — that is what
@@ -96,14 +112,27 @@ export function parseDatePreset(raw?: string): DatePreset {
 }
 
 /**
- * Params → draft, for pre-filling the sheet from the route. Deep links carry whatever the
- * URL says, so every field is narrowed rather than trusted.
+ * Trim a raw city param, and drop it if it cannot survive the query boundary. The bound comes
+ * from `eventCalendarFiltersSchema` — the single validation source — rather than a literal
+ * repeated here, the same way `search-filters.ts` derives `auraMin`'s range.
  */
-export function draftFromParams(params: EventFilterParams): EventFilterDraft {
+export function parseCity(raw?: string): string {
+  const city = (raw ?? '').trim();
+  if (!city) return '';
+  return eventCalendarFiltersSchema.shape.city.safeParse(city).success ? city : '';
+}
+
+/**
+ * Params → draft. This is the ONE place a raw param is narrowed: both `parseEventFilters` and
+ * `activeFilterCount` read the draft, never the params, so the pill's count can never claim a
+ * filter the query did not actually apply. Deep links carry whatever the URL says, so every
+ * field is narrowed rather than trusted.
+ */
+export function draftFromParams(params: EventFilterParamsIn): EventFilterDraft {
   return {
-    category: parseCategory(params.category),
-    city: params.city ?? '',
-    date: parseDatePreset(params.date),
+    category: parseCategory(firstString(params.category)),
+    city: parseCity(firstString(params.city)),
+    date: parseDatePreset(firstString(params.date)),
   };
 }
 
@@ -125,18 +154,20 @@ export function serializeEventFilters(draft: EventFilterDraft): EventFilterParam
  * what `eventKeys.calendar()` reads as unfiltered — so an unfiltered Calendario shares its
  * cache entry with Mappa and with the pre-#151 key exactly as before.
  *
- * The result goes through `eventCalendarFiltersSchema` rather than being cast: a param is
- * attacker-controlled, and rules/api.md forbids a cast at a query boundary. A city longer
- * than the column allows is dropped rather than sent.
+ * Every field is already narrowed by `draftFromParams`, so one unusable value costs only
+ * itself: an over-long city drops the city and leaves the category and the date window
+ * standing. The `safeParse` below is the boundary guard rules/api.md asks for rather than a
+ * cast — with a normalised draft it should always succeed, and a failure means the two halves
+ * drifted, which is worth showing the plain calendar over guessing.
  */
 export function parseEventFilters(
-  params: EventFilterParams,
+  params: EventFilterParamsIn,
   now: Date = new Date(),
 ): EventCalendarFilters | undefined {
   const draft = draftFromParams(params);
   const candidate = {
     category: draft.category,
-    city: draft.city.trim() || undefined,
+    city: draft.city || undefined,
     ...dateWindow(draft.date, now),
   };
   const parsed = eventCalendarFiltersSchema.safeParse(candidate);
@@ -144,12 +175,16 @@ export function parseEventFilters(
   return isEmptyEventCalendarFilters(parsed.data) ? undefined : parsed.data;
 }
 
-/** How many filters the member has set — drives the «filtri attivi» count on the trigger. */
-export function activeFilterCount(params: EventFilterParams): number {
+/**
+ * How many filters the member has set — drives the «filtri attivi» count on the trigger.
+ * Counts the same normalised draft `parseEventFilters` queries with, so the pill cannot read
+ * «3» over a calendar the query left unfiltered.
+ */
+export function activeFilterCount(params: EventFilterParamsIn): number {
   const draft = draftFromParams(params);
   let n = 0;
   if (draft.category) n += 1;
-  if (draft.city.trim()) n += 1;
+  if (draft.city) n += 1;
   if (draft.date !== 'sempre') n += 1;
   return n;
 }

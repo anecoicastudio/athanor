@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
@@ -28,15 +28,12 @@ export default function LiveScreen() {
   // filters from them. Held in the URL rather than in state so a deep link can carry them.
   const params = useLocalSearchParams<EventFilterParams>();
   const filterCount = activeFilterCount(params);
-  // Destructured rather than memoised on `params` itself: `useLocalSearchParams` hands back a
-  // fresh object every render, so the object as a dep would re-resolve the window on each one.
-  const { category, city, date } = params;
-  // Re-resolved whenever the params change rather than stored as instants, so applying
-  // «oggi» a second time always means today.
-  const filters = useMemo(
-    () => parseEventFilters({ category, city, date }),
-    [category, city, date],
-  );
+  // Resolved on every render, deliberately NOT memoised: memoising on the params would freeze
+  // the window at whenever they last changed, so a screen still mounted after midnight would
+  // keep querying yesterday's «oggi» — the exact failure the preset round-trip exists to avoid.
+  // Re-resolving is cheap and stable: within a day it returns the same local-midnight bounds,
+  // and TanStack hashes the query key structurally, so an equal window never refetches.
+  const filters = parseEventFilters(params);
   const [panel, setPanel] = useState<LivePanel>(() =>
     activeFilterCount(params) > 0 ? 'calendario' : 'vicino',
   );
