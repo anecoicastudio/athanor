@@ -143,13 +143,13 @@ const insertedRows = (...ids: string[]) => ({
 
 Deno.test('audience mode writes one row per eligible member and pushes each', async () => {
   const c = ctx({
-    'profiles.select': [profiles('u-1', 'u-2', 'u-3')],
+    'profiles.select': [profiles('u-1', 'u-2', 'u-3'), profiles()],
     'notifications.upsert': [insertedRows('u-1', 'u-2', 'u-3')],
   });
   const { res, body: b } = await run(c, audienceBody());
 
   assertEquals(res.status, 200);
-  assertEquals(b, { ok: true, recipients: 3, inserted: 3 });
+  assertEquals(b, { ok: true, recipients: 3, inserted: 3, pushed: 3, failed: 0 });
 
   const ins = c.db.calls.find((call) => call.table === 'notifications');
   assert(ins, 'the notifications write happened');
@@ -170,31 +170,31 @@ Deno.test('a re-send inserts nothing and pushes nobody (#521 — the retry is sa
   // audience instead of the inserted rows is exactly the bug this asserts against: it would
   // double-push the whole membership on every retry.
   const c = ctx({
-    'profiles.select': [profiles('u-1', 'u-2')],
+    'profiles.select': [profiles('u-1', 'u-2'), profiles()],
     'notifications.upsert': [insertedRows()],
   });
   const { res, body: b } = await run(c, audienceBody());
 
   assertEquals(res.status, 200);
-  assertEquals(b, { ok: true, recipients: 2, inserted: 0 });
+  assertEquals(b, { ok: true, recipients: 2, inserted: 0, pushed: 0, failed: 0 });
   assertEquals(c.pushed.length, 0, 'nobody is pushed twice');
 });
 
 Deno.test('a partially-delivered broadcast pushes only the members it just inserted', async () => {
   const c = ctx({
-    'profiles.select': [profiles('u-1', 'u-2', 'u-3')],
+    'profiles.select': [profiles('u-1', 'u-2', 'u-3'), profiles()],
     'notifications.upsert': [insertedRows('u-2')],
   });
   const { body: b } = await run(c, audienceBody());
 
-  assertEquals(b, { ok: true, recipients: 3, inserted: 1 });
+  assertEquals(b, { ok: true, recipients: 3, inserted: 1, pushed: 1, failed: 0 });
   assertEquals(c.pushed.length, 1);
   assertEquals(c.pushed[0].recipient_id, 'u-2');
 });
 
 Deno.test('the audience excludes banned and currently-suspended members', async () => {
   const c = ctx({
-    'profiles.select': [profiles('u-1')],
+    'profiles.select': [profiles('u-1'), profiles()],
     'notifications.upsert': [insertedRows('u-1')],
   });
   await run(c, audienceBody());
@@ -217,14 +217,22 @@ Deno.test('the audience is paged by keyset, never by offset (rule 9)', async () 
   // offset, because a signup mid-broadcast would shift an offset and skip somebody.
   const first = Array.from({ length: AUDIENCE_PAGE }, (_, i) => `u-${String(i).padStart(5, '0')}`);
   const c = ctx({
-    'profiles.select': [profiles(...first), profiles('u-99999')],
+    // Third page EMPTY: the loop ends on an empty page, never on a short one, so that a lowered
+    // PostgREST max_rows cannot silently truncate the audience.
+    'profiles.select': [profiles(...first), profiles('u-99999'), profiles()],
     'notifications.upsert': [insertedRows(...first), insertedRows('u-99999')],
   });
   const { body: b } = await run(c, audienceBody());
 
-  assertEquals(b, { ok: true, recipients: AUDIENCE_PAGE + 1, inserted: AUDIENCE_PAGE + 1 });
+  assertEquals(b, {
+    ok: true,
+    recipients: AUDIENCE_PAGE + 1,
+    inserted: AUDIENCE_PAGE + 1,
+    pushed: AUDIENCE_PAGE + 1,
+    failed: 0,
+  });
   const reads = c.db.calls.filter((call) => call.table === 'profiles');
-  assertEquals(reads.length, 2, 'a full page is followed by another read');
+  assertEquals(reads.length, 3, 'reads continue until a page comes back empty');
   assertEquals(
     reads[0].filters.some((f) => f[0] === 'gt'),
     false,
@@ -265,12 +273,34 @@ Deno.test(
   },
 );
 
-Deno.test('a failed audience read is a 500, not a silent broadcast to nobody', async () => {
-  const c = ctx({ 'profiles.select': [{ error: { message: 'boom' } }] });
+Deno.test(
+  'a failed audience read is retried once, then 500s rather than broadcasting to nobody',
+  async () => {
+    const c = ctx({
+      'profiles.select': [{ error: { message: 'boom' } }, { error: { message: 'boom' } }],
+    });
+    const { res, body: b } = await run(c, audienceBody());
+    assertEquals(res.status, 500);
+    assertEquals(b, { error: 'audience read failed: boom' });
+    assertEquals(c.pushed.length, 0);
+    assertEquals(
+      c.db.calls.filter((call) => call.table === 'profiles').length,
+      2,
+      'the read was attempted twice before giving up',
+    );
+  },
+);
+
+// The failure class #521 actually observed was TRANSIENT — one enqueue of four 500'd on clock
+// skew. A page that fails once and succeeds on the retry must deliver, not lose the page.
+Deno.test('a transient audience read failure is recovered by the retry', async () => {
+  const c = ctx({
+    'profiles.select': [{ error: { message: 'flake' } }, profiles('u-1', 'u-2'), profiles()],
+    'notifications.upsert': [insertedRows('u-1', 'u-2')],
+  });
   const { res, body: b } = await run(c, audienceBody());
-  assertEquals(res.status, 500);
-  assertEquals(b, { error: 'audience read failed: boom' });
-  assertEquals(c.pushed.length, 0);
+  assertEquals(res.status, 200);
+  assertEquals(b, { ok: true, recipients: 2, inserted: 2, pushed: 2, failed: 0 });
 });
 
 Deno.test(
@@ -278,14 +308,16 @@ Deno.test(
   async () => {
     const c = ctx(
       {
-        'profiles.select': [profiles('u-1', 'u-2')],
+        'profiles.select': [profiles('u-1', 'u-2'), profiles()],
         'notifications.upsert': [insertedRows('u-1', 'u-2')],
       },
       () => Promise.reject(new Error('expo down')),
     );
     const { res, body: b } = await run(c, audienceBody());
     assertEquals(res.status, 200);
-    assertEquals(b, { ok: true, recipients: 2, inserted: 2 });
+    // The broadcast still succeeds — the in-app rows are written — but the failure is COUNTED
+    // and reported rather than swallowed, so a total push outage is visible in the log.
+    assertEquals(b, { ok: true, recipients: 2, inserted: 2, pushed: 0, failed: 2 });
   },
 );
 

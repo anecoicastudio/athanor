@@ -26,7 +26,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(31);
 
 -- ── fixtures: two members (handle_new_user auto-creates profiles) ─────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -88,6 +88,17 @@ select ok(not has_function_privilege('authenticated', 'public.on_fund_aggregate_
 
 select has_trigger('public', 'fund_aggregates', 'fund_aggregates_milestone_broadcast',
   'the milestone trigger is bound to fund_aggregates');
+
+-- Bound to INSERT as well as UPDATE (20260823130236). recompute_fund_aggregate() is an UPSERT
+-- and only a rollover successor gets a zero row pre-created, so cycle one's FIRST contribution
+-- creates the row rather than updating it. UPDATE-only meant any threshold that first
+-- contribution already cleared was announced never — not late, never. Asserted on the catalog
+-- bitmask, because a behavioural test would pass on a database that happens to have the row.
+select ok(
+  (select t.tgtype::int & 4 = 4 from pg_trigger t
+    where t.tgrelid = 'public.fund_aggregates'::regclass
+      and t.tgname = 'fund_aggregates_milestone_broadcast'),
+  'the milestone trigger fires on INSERT too (the money cache is written by an upsert)');
 
 -- The broadcast enqueue is a DB-producer API, never a client one.
 select ok(
@@ -240,6 +251,30 @@ select is_empty(
        from net.http_request_queue q
       where q.id not in (select id from q_seen) $$,
   'an update that leaves raised_cents alone announces nothing');
+
+-- The ballot slots must not fire outside 'voting'. voting_ends_at is DECLARED before the ballot
+-- opens (fund_editions_ballot_open_check), so a cycle in candidacy/screening with a short window
+-- would otherwise broadcast «se non hai ancora votato, è il momento» while cast_vote refuses
+-- everybody — and burn the marker, so the real warning would never go out either.
+update public.fund_editions
+   set phase = 'screening', voting_ends_at = now() + interval '2 days'
+ where id = 'fd310000-0000-0000-0000-000000000001';
+
+select public.fund_countdown_sweep();
+
+select is_empty(
+  $$ select kind || '/' || slot from athanor.fund_broadcast_sends
+      where edition_id = 'fd310000-0000-0000-0000-000000000001' and kind = 'ballot' $$,
+  'a ballot slot does not fire while the ballot is shut (nobody is told to vote in vain)');
+
+-- Back to 'voting' for the rest of the file. The ballot-open trigger fires on UPDATE OF phase
+-- and demands a declared window plus min_candidacies votable candidacies, which this fixture
+-- cannot satisfy — so the phase is restored with the trigger disabled rather than by pretending
+-- the cycle is walkable. The sweep reads phase as data; it does not care how it got there.
+alter table public.fund_editions disable trigger user;
+update public.fund_editions set phase = 'voting'
+ where id = 'fd310000-0000-0000-0000-000000000001';
+alter table public.fund_editions enable trigger user;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (E) the countdown sweep

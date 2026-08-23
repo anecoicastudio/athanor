@@ -970,3 +970,33 @@ against but the same outcome. `20260823110358` runs the delete first and uncondi
 Asserted by: `supabase/tests/0130_event_reminder_sweep.test.sql` — «an online event inside
 the 3h guard band claims neither slot» and «an unconfigured sweep still prunes 30-day-old
 markers (retention runs before the guard)».
+
+## `20260823121933_fund_broadcast_notifications.sql` — the dedupe index is not partial any more
+
+Recorded here because the file reached staging before a live broadcast proved the index
+unusable as a conflict target; the index is replaced by
+`20260823124203_fund_broadcast_dedupe_index_inferrable.sql` and the header below is what stayed
+wrong.
+
+### L36-40 — "The index is PARTIAL (`where dedupe_key is not null`) because every existing producer writes no dedupe key and must keep being able to write two identical rows"
+
+The reason is right and the mechanism named for it is wrong. A partial unique index cannot be
+inferred by `ON CONFLICT` unless the statement repeats the index predicate, and PostgREST's
+`on_conflict=` parameter carries column names only — there is nowhere to put a `WHERE`. So the
+bulk insert the same migration was written to enable failed outright with `42P10: there is no
+unique or exclusion constraint matching the ON CONFLICT specification`, and the broadcast wrote
+zero rows. `20260823124203` drops the predicate.
+
+Nothing about the stated intent changes: two unkeyed rows still both insert, because NULLs are
+DISTINCT in a btree unique index. That was always what protected «Hai un Momento» twice being
+two Momenti — the predicate only kept the index off the unkeyed majority of the table, which is
+a size decision, not a correctness one. The cost of losing it is that the index now covers every
+row; the replacement migration's header explains why that trade was taken and what to do instead
+if the table ever grows enough for it to matter.
+
+The line in the same header that says a keyed row is "Unique per recipient while not null"
+stands — that is still exactly the behaviour.
+
+Asserted by: `supabase/tests/0131_fund_broadcast_notifications.test.sql` — «the dedupe index is
+NOT partial, so ON CONFLICT can infer it through PostgREST» and «the dedupe index treats NULLs
+as DISTINCT (unkeyed rows are never deduped)».

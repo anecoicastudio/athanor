@@ -98,6 +98,22 @@ async function eligibleRecipients(
   ctx: FanOutCtx,
   after: string | null,
 ): Promise<{ ids: string[]; error?: string }> {
+  // One retry on a transient read failure. #521's observed loss was exactly this class — a
+  // transient 500 on one enqueue of four — and here the blast radius is a whole page of the
+  // membership rather than one attendee, because the producer's marker is already committed and
+  // nothing re-sends. This does not make delivery reliable; it removes the cheapest way to lose
+  // it. End-to-end reconciliation is #521's own scope and is deliberately NOT claimed here.
+  for (let attempt = 0; ; attempt++) {
+    const out = await readRecipientPage(ctx, after);
+    if (!out.error || attempt >= 1) return out;
+    console.error(JSON.stringify({ evt: 'fanout_audience_read_retry', err: out.error }));
+  }
+}
+
+async function readRecipientPage(
+  ctx: FanOutCtx,
+  after: string | null,
+): Promise<{ ids: string[]; error?: string }> {
   let q = ctx.admin
     .from('profiles')
     .select('id')
@@ -118,19 +134,32 @@ async function pushMany(
   ctx: FanOutCtx,
   recipients: string[],
   payload: Record<string, unknown>,
-): Promise<void> {
+): Promise<{ pushed: number; failed: number }> {
+  let pushed = 0;
+  let failed = 0;
   for (let i = 0; i < recipients.length; i += PUSH_CONCURRENCY) {
     const slice = recipients.slice(i, i + PUSH_CONCURRENCY);
     await Promise.all(
       slice.map((recipient_id) =>
         // Best-effort per recipient, exactly as the single path is: the in-app row is already
-        // written, and one member's dead token must not cost the rest their push.
-        Promise.resolve(ctx.invokePush({ ...payload, recipient_id })).catch((e) => {
-          console.error('push-dispatch invoke failed', e);
-        }),
+        // written, and one member's dead token must not cost the rest their push. index.ts's
+        // invokePush rejects on a non-2xx (a bare fetch RESOLVES for a 500, which would have
+        // counted a total push-dispatch outage as full delivery), so this catch is reached for
+        // transport and status failures alike.
+        Promise.resolve(ctx.invokePush({ ...payload, recipient_id }))
+          .then(() => {
+            pushed++;
+          })
+          .catch((e) => {
+            failed++;
+            console.error(
+              JSON.stringify({ evt: 'fanout_push_failed', recipient_id, err: String(e) }),
+            );
+          }),
       ),
     );
   }
+  return { pushed, failed };
 }
 
 /**
@@ -150,6 +179,8 @@ async function processAudienceFanOut(ctx: FanOutCtx, body: FanOutAudienceBody): 
   let after: string | null = null;
   let recipients = 0;
   let inserted = 0;
+  let pushed = 0;
+  let pushFailed = 0;
 
   for (;;) {
     const page = await eligibleRecipients(ctx, after);
@@ -178,23 +209,36 @@ async function processAudienceFanOut(ctx: FanOutCtx, body: FanOutAudienceBody): 
 
     const fresh = ((data ?? []) as { recipient_id: string }[]).map((r) => r.recipient_id);
     inserted += fresh.length;
-    await pushMany(ctx, fresh, {
+    const outcome = await pushMany(ctx, fresh, {
       type: body.type,
       template_key: body.template_key,
       params: body.params ?? {},
       entity_ref: JSON.stringify(body.entity_ref ?? {}),
     });
+    pushed += outcome.pushed;
+    pushFailed += outcome.failed;
 
-    if (page.ids.length < AUDIENCE_PAGE) break;
+    // Loop until a page comes back EMPTY. Breaking on a short page would conflate "fewer than
+    // I asked for" with "no more left", and PostgREST caps rows at the project's `max_rows`
+    // setting — which merely happens to equal AUDIENCE_PAGE today. If that setting were ever
+    // lowered, a short first page would end the broadcast after N members while still reporting
+    // {ok: true} with recipients and inserted agreeing, so the truncation would be invisible.
   }
 
   // Structured, because nothing reads this response body: enqueue_audience_notification POSTs
   // through pg_net and drops it. `inserted < recipients` is the visible signal that a re-send
   // deduped rather than delivered, which is the thing an operator would want to see.
-  console.log(
-    JSON.stringify({ evt: 'fanout_audience', audience: body.audience, recipients, inserted }),
-  );
-  return json({ ok: true, recipients, inserted });
+  const line = {
+    evt: 'fanout_audience',
+    audience: body.audience,
+    recipients,
+    inserted,
+    pushed,
+    failed: pushFailed,
+  };
+  if (pushFailed > 0) console.error(JSON.stringify(line));
+  else console.log(JSON.stringify(line));
+  return json({ ok: true, recipients, inserted, pushed, failed: pushFailed });
 }
 
 export async function processFanOut(ctx: FanOutCtx, raw: unknown): Promise<Response> {

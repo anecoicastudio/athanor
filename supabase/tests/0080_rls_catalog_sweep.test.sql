@@ -67,14 +67,17 @@ select is_empty(
 -- 56 -> 57: athanor.event_reminder_sends (issue #126), covered by 0130_event_reminder_sweep.
 --           Second table in `athanor` and second one with no policies: the schema is not
 --           exposed to PostgREST, so RLS-on with zero policies is the deny-all.
+-- 57 -> 58: athanor.fund_broadcast_sends (issue #127), covered by
+--           0131_fund_broadcast_notifications. Same shape as the row above and for the same
+--           reason: one row per fund countdown broadcast, off the client grant surface.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  57,
-  'PRD.md:417 tripwire: 57 tables, each with its own pgTAP file (bump only WITH a new test)'
+  58,
+  'PRD.md:417 tripwire: 58 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────

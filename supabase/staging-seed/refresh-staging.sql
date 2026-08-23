@@ -442,12 +442,20 @@ begin
      and target_at > now() + interval '3 days';
   get diagnostics v_fund_countdown = row_count;
 
-  -- Re-arm: drop the markers for slots that are no longer due, so a window moved back into a
-  -- band fires again instead of staying permanently burned by one earlier tick. Safe to do
-  -- freely — that is the whole point of notifications.dedupe_key (#521): a re-send inserts
-  -- only the rows that are genuinely missing, so re-arming cannot double anybody's centre.
+  -- Re-arm: drop the markers for slots that are NO LONGER DUE, so a window moved back into a
+  -- band fires again instead of staying permanently burned by one earlier tick.
+  --
+  -- Keyed on the window, not on age. An age-based delete looks equivalent and is not: a slot
+  -- that is STILL inside its band would be re-armed every couple of hours and re-broadcast to
+  -- everybody, forever. §13's cap below only prunes the seeded personas, so real tester accounts
+  -- — who are not in v_personas — would silt up with one fund row per re-arm for as long as the
+  -- band stayed open. fundMilestone is the first BROADCAST type in this file, so it is the first
+  -- one for which "re-arm on a timer" has that consequence.
   delete from athanor.fund_broadcast_sends m
-   where m.sent_at < now() - interval '2 hours';
+   using public.fund_editions e
+   where e.id = m.edition_id
+     and case m.kind when 'ballot' then e.voting_ends_at else e.target_at end
+         not between now() and now() + interval '7 days';
 
   -- §12 The Momenti deck: every persona holds 3 pending cards, scored exactly the way
   -- the matcher scores (visibility-masked tag overlap, affinity >= 2, blocks honored),
