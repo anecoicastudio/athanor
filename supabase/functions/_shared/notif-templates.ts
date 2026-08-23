@@ -154,7 +154,7 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.fundMilestone': {
     it: {
       title: 'Il fondo',
-      body: (p) => `Il fondo ha superato il ${p.pct ?? 0} %. Vieni a vedere dove siamo.`,
+      body: (p) => `Il fondo ha superato il ${p.pct ?? 0}%. Vieni a vedere dove siamo.`,
     },
     en: {
       title: 'The fund',

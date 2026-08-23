@@ -124,7 +124,9 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       templateKey: 'notif.tpl.fundMilestone',
       type: 'fundMilestone',
       params: { pct: 50 },
-      itHas: '50 %',
+      // Unspaced in BOTH locales: every other `%` string in either catalog is unspaced
+      // (profile.completeness, media.uploading, fund.vote.consensus, retains.percent).
+      itHas: '50%',
       enHas: '50%',
     },
     {
