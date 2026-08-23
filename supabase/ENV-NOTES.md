@@ -98,6 +98,19 @@ session, through `apps/web/e2e/seed/seed-admin.mts`. That script is the only thi
 the `sb_secret_…` key — `E2E_SUPABASE_SECRET_KEY`, a CI secret. Never an env file the Next
 process can read, never anything prefixed `NEXT_PUBLIC_`.
 
+**The e2e job has its own staging trio, and this is load-bearing.**
+`E2E_SUPABASE_URL` · `E2E_SUPABASE_PUBLISHABLE_KEY` · `E2E_SUPABASE_SECRET_KEY`, mapped onto
+the `NEXT_PUBLIC_*` names inside the e2e job's own steps. The `NEXT_PUBLIC_SUPABASE_*` **repo
+secrets are production's** — `web build` and `deploy` use them to build the live site — so the
+e2e job must never read them, and no longer does. It did until 2026-08-23, which meant the
+unauthenticated smoke tests had been running against production; nobody noticed because they
+only read. The seed is the first step that writes, and its first CI run got production's URL
+with staging's secret key and died on "Invalid API key".
+
+`seed-admin.mts` therefore refuses any project ref but `eralyiwkfrpqsawivegz`, whatever the
+environment says. A mis-set secret is then a loud refusal naming both refs, not a write to
+production.
+
 The isolation is structural, not a convention: Playwright's `webServer` starts `pnpm dev`
 with the `playwright test` process's environment, so a secret exported around the test run
 would be readable by the Next dev server. The seed therefore runs as its **own** step, with

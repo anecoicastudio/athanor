@@ -108,6 +108,12 @@ The seed creates a disposable admin, a reporter, a subject, two reports and a wa
 **staging** and writes a session to the gitignored `apps/web/e2e/.auth/`. Teardown deletes all
 of it. Run neither against production.
 
+In CI the same three values come from a dedicated **staging** trio of repo secrets —
+`E2E_SUPABASE_URL`, `E2E_SUPABASE_PUBLISHABLE_KEY`, `E2E_SUPABASE_SECRET_KEY` — mapped onto the
+`NEXT_PUBLIC_*` names inside the e2e job only. The `NEXT_PUBLIC_SUPABASE_*` repo secrets are
+**production's** (they build the live site), so nothing in the e2e job may read them. The seed
+refuses outright to run against any project but staging, so a mis-set value fails loudly.
+
 Two rules about that key, and they are the reason the seed is a separate command rather than a
 step inside `playwright test`:
 

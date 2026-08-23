@@ -137,13 +137,26 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: playwright-${{ runner.os }}-
-      # The unauthenticated admin smoke tests need only the Next dev server (Playwright
-      # webServer starts `pnpm dev`) + the public Supabase URL and one API key for the SSR
-      # client (publishable preferred, legacy anon accepted while it still exists). The
-      # authenticated half (#174) additionally needs the staging `sb_secret_…` key to seed an
-      # admin and mint its session — and that key must NOT be visible to `playwright test`,
-      # because `webServer` hands the dev server this process's env. It therefore lives on the
-      # seeding and teardown steps alone, which write a storage state to disk and exit.
+      # THIS JOB TARGETS STAGING, AND SAYS SO IN ITS OWN SECRETS.
+      #
+      # It used to read `NEXT_PUBLIC_SUPABASE_URL` / `_PUBLISHABLE_KEY` / `_ANON_KEY` — the same
+      # repo secrets `web build` and `deploy` use to build the LIVE SITE, so they hold
+      # PRODUCTION's values and this job had been running against production since those
+      # secrets were created (2026-08-08). Read-only smoke tests made that invisible. It
+      # stopped being invisible the moment #174 added a step that WRITES: the first CI run
+      # handed the seed production's URL with staging's secret key and died on "Invalid API
+      # key" — luck, not a safeguard.
+      #
+      # So the job now takes a dedicated trio, `E2E_SUPABASE_URL` / `E2E_SUPABASE_PUBLISHABLE_KEY`
+      # / `E2E_SUPABASE_SECRET_KEY`, all staging's, and maps the first two onto the `NEXT_PUBLIC_*`
+      # names INSIDE its own steps so `pnpm dev` and the SSR client resolve staging. The
+      # `NEXT_PUBLIC_*` repo secrets are not read here at all any more; `web build` and `deploy`
+      # keep them untouched. `e2e/seed/seed-admin.mts` independently refuses any project ref but
+      # staging's, so a mis-set secret fails loudly instead of writing to production.
+      #
+      # The secret key must additionally NOT be visible to `playwright test`, because
+      # `webServer` hands the dev server that step's env. It therefore lives on the seeding and
+      # teardown steps alone, which write a storage state to disk and exit.
       # Fail-loud policy (same as the db job's types gate): missing secrets soft-skip
       # on PRs and feature branches (forks have no secrets) but FAIL on a main push —
       # `deploy` has `needs: e2e`, so a quiet skip on main would let deploy read
@@ -159,14 +172,13 @@ jobs:
       - name: check e2e secrets
         id: e2e-secrets
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          # Presence only — the value never leaves the seeding/teardown steps below.
+          # Presence only — the values are consumed by the steps below, not by this one.
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
           E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
         run: |
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$E2E_SUPABASE_SECRET_KEY" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
-            echo "::warning::e2e SKIPPED — set NEXT_PUBLIC_SUPABASE_URL + E2E_SUPABASE_SECRET_KEY (staging's sb_secret_ key, seeding only) + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
+          if [ -z "$E2E_SUPABASE_URL" ] || [ -z "$E2E_SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$E2E_SUPABASE_SECRET_KEY" ]; then
+            echo "::warning::e2e SKIPPED — set all three STAGING secrets to enable: E2E_SUPABASE_URL, E2E_SUPABASE_PUBLISHABLE_KEY, E2E_SUPABASE_SECRET_KEY (the sb_secret_ key, seeding only). The NEXT_PUBLIC_* repo secrets are production's and must not be used here."
             if [ "${{ github.ref }}" = "refs/heads/main" ]; then
               echo "::error::e2e gate cannot run on a main push without the Supabase e2e secrets"
               exit 1
@@ -235,9 +247,9 @@ jobs:
         # No browser and no dev server — a handful of admin-API round-trips and a file write.
         timeout-minutes: 3
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # The staging trio, under the names the app and the seed read.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
           E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
         run: pnpm --filter web e2e:seed
       - name: e2e admin smoke
@@ -252,9 +264,9 @@ jobs:
         # everything this step needs on disk.
         timeout-minutes: 6
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Staging, and only the public half — `webServer` passes this straight to `pnpm dev`.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
         run: pnpm --filter web test:e2e
       # `always()`, so a red suite still takes its fixtures with it — a resolved report and a
       # penalised profile left on staging would otherwise outlive the run that made them. The
@@ -265,9 +277,8 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
           E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
         run: pnpm --filter web e2e:teardown
 

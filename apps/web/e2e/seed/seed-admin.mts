@@ -110,6 +110,35 @@ function required(name: string): string {
   return value;
 }
 
+/** The only project this script may write to. */
+const STAGING_REF = 'eralyiwkfrpqsawivegz';
+/** Named in the refusal so the message says what went wrong, not just that something did. */
+const PRODUCTION_REF = 'kwzeiqvrnnaagccyoose';
+
+/**
+ * The Supabase URL, refused unless it is staging's.
+ *
+ * This is not paranoia, it is the near miss that produced it: CI's `NEXT_PUBLIC_SUPABASE_URL`
+ * secret is PRODUCTION's — the same one `web-build` and `deploy` use to build the live site —
+ * so the first CI run of this script was handed production's URL with staging's secret key.
+ * It failed on "Invalid API key", which is luck, not a safeguard: had the keys matched, this
+ * script would have created an admin and fixtures in production and resolved reports there.
+ * The e2e job now maps a dedicated staging trio onto these names, and this guard is what makes
+ * that mapping's failure loud instead of destructive.
+ */
+function stagingUrl(): string {
+  const raw = required('NEXT_PUBLIC_SUPABASE_URL');
+  const ref = new URL(raw).hostname.split('.')[0];
+  if (ref !== STAGING_REF) {
+    throw new Error(
+      `refusing to run against project "${ref}" — this script only ever writes to staging ` +
+        `(${STAGING_REF}). Production is ${PRODUCTION_REF}. Point NEXT_PUBLIC_SUPABASE_URL at ` +
+        `staging (in CI: the E2E_SUPABASE_URL secret).`,
+    );
+  }
+  return raw;
+}
+
 function publicKey(): string {
   const key =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -122,13 +151,11 @@ function publicKey(): string {
 }
 
 function serviceClient(): Client {
-  return createClient<Database>(
-    required('NEXT_PUBLIC_SUPABASE_URL'),
-    required('E2E_SUPABASE_SECRET_KEY'),
-    {
-      auth: { persistSession: false, autoRefreshToken: false },
-    },
-  );
+  // stagingUrl() before anything else: it is the gate, and both seed() and teardown() open
+  // with this call, so no write can precede it.
+  return createClient<Database>(stagingUrl(), required('E2E_SUPABASE_SECRET_KEY'), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 /** The admin API has no lookup-by-email and no filter, so page the list and match locally. */
@@ -262,7 +289,7 @@ async function mintStorageState(admin: Client, address: string): Promise<void> {
   const { hashed_token: tokenHash, verification_type: verificationType } = data.properties;
 
   const captured: { name: string; value: string; options: CookieOptions }[] = [];
-  const ssr = createServerClient<Database>(required('NEXT_PUBLIC_SUPABASE_URL'), publicKey(), {
+  const ssr = createServerClient<Database>(stagingUrl(), publicKey(), {
     cookies: {
       getAll: () => [],
       setAll: (cookies) => {
