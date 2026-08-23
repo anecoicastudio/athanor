@@ -68,6 +68,7 @@ const subscription = (over: Record<string, unknown> = {}) =>
     items: {
       data: [{ price: { recurring: { interval: 'month' } }, current_period_end: 1760000000 }],
     },
+    cancel_at_period_end: false,
     ...over,
   }) as unknown as Stripe.Subscription;
 
@@ -479,6 +480,7 @@ Deno.test('handleSubscription upserts one membership per profile with derived fi
   assertEquals(values.status, 'active');
   assertEquals(values.stripe_customer_id, 'cus_1');
   assertEquals(values.current_period_end, new Date(1760000000 * 1000).toISOString());
+  assertEquals(values.cancel_at_period_end, false);
 });
 
 // The renewal date is read from the subscription ITEM only. Stripe moved current_period_end
@@ -505,6 +507,28 @@ Deno.test(
     assertEquals(values.current_period_end, null);
   },
 );
+
+// #511 — a member who cancelled stays `active` until the period ends, and Stripe marks that
+// pending end ONLY with this flag. Without it cached, «renews on the 14th» and «ends on the
+// 14th» are the same row and the app promises a charge that will never happen.
+Deno.test(
+  'handleSubscription caches a pending cancellation while the status is still active',
+  async () => {
+    const db = makeFakeDb();
+    await handleSubscription(asDb(db), subscription({ cancel_at_period_end: true }));
+    const values = db.calls[0].values as Record<string, unknown>;
+    assertEquals(values.status, 'active'); // still a member for the period already paid for
+    assertEquals(values.cancel_at_period_end, true);
+  },
+);
+
+// Un-cancelling arrives on the same customer.subscription.updated with the flag back to false.
+// Written through verbatim, so no branch is needed — this asserts the value is not sticky.
+Deno.test('handleSubscription writes an un-cancel back through', async () => {
+  const db = makeFakeDb();
+  await handleSubscription(asDb(db), subscription({ cancel_at_period_end: false }));
+  assertEquals((db.calls[0].values as Record<string, unknown>).cancel_at_period_end, false);
+});
 
 // ── W8 handleInvoiceFailed ───────────────────────────────────────────────────
 

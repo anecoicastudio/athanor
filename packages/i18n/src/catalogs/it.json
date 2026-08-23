@@ -1300,6 +1300,7 @@
   "circle.member.planMonthly": "Piano mensile attivo",
   "circle.member.planAnnual": "Piano annuale attivo",
   "circle.member.renews": "Si rinnova il {date}",
+  "circle.member.endsOn": "Termina il {date}",
   "circle.member.pastDue": "Pagamento in attesa. Aggiorna il metodo di pagamento per continuare.",
   "circle.member.foundingBadge": "Membro fondatore ✦",
   "circle.analytics.title": "Il tuo impatto",

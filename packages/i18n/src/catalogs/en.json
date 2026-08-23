@@ -1300,6 +1300,7 @@
   "circle.member.planMonthly": "Monthly plan active",
   "circle.member.planAnnual": "Annual plan active",
   "circle.member.renews": "Renews on {date}",
+  "circle.member.endsOn": "Ends on {date}",
   "circle.member.pastDue": "Payment pending. Update your payment method to continue.",
   "circle.member.foundingBadge": "Founding member ✦",
   "circle.analytics.title": "Your impact",
