@@ -1106,3 +1106,84 @@ describe('a video-capable picker can always say why it refused (#507)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 18 — the events tab has no posts source (#153)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * The feed's sixth tab renders real `events` rows, and `'eventi'` is deliberately NOT a
+ * `post_category` value (Reading A — widening the enum — was ruled out 2026-08-23, so no
+ * migration is owed). `getFeedPage` builds `.eq('category', …)` against that enum, which means
+ * a tab value reaching it is a PostgREST 400 at runtime on a screen that type-checks fine.
+ *
+ * `packages/api` declares its own `PostCategory | 'all'` on both entry points rather than
+ * importing the app's alias, so merely widening `FeedFilter` would fail typecheck at the call
+ * site — the compiler covers that half. What it does not cover is an `as FeedFilter` on the tab
+ * state, or a screen that stops narrowing at all, which is what these assertions are for.
+ */
+describe('the events tab has no posts source (#153)', () => {
+  /** Every line that reads the posts feed. */
+  const reads = () =>
+    codeLines().filter(([, text]) => /\b(?:postKeys\.feed|getFeedPage)\s*\(/.test(text));
+
+  it('finds the posts-query call sites at all', () => {
+    expect(reads().length, 'no posts read found — has the feed query moved?').toBeGreaterThan(0);
+  });
+
+  /**
+   * An ALLOWLIST: the identifier feeding `postKeys.feed(…)` and `category:` must be the narrowed
+   * one. A denylist on `tab` would go blind the moment that state is renamed, and scanning
+   * line-by-line misses the real shape — the call spans four lines and `category:` sits on its
+   * own.
+   *
+   * Two properties of the allowlist are deliberate. `NARROWED` is load-bearing: renaming the
+   * screen's variable turns this red until the constant follows, which is the cost of not
+   * having a denylist. And a string literal (`category: 'eventi'`) is skipped rather than
+   * flagged — fail-open here, because `packages/api`'s own `PostCategory | 'all'` rejects that
+   * one at compile time and this guard exists for what the compiler cannot see.
+   */
+  it('the posts query is fed only by the narrowed value', () => {
+    const NARROWED = 'postsCategory';
+    const args: [string, string][] = [];
+    for (const [p, ls] of CODE_LINES) {
+      const src = ls.join('\n');
+      if (!/\b(?:postKeys\.feed|getFeedPage)\s*\(/.test(src)) continue;
+      for (const m of src.matchAll(/(?:postKeys\.feed\(|\bcategory:)\s*([A-Za-z_$][\w$]*)/g)) {
+        args.push([`${rel(p)}:${src.slice(0, m.index).split('\n').length}`, m[1] as string]);
+      }
+    }
+    expect(
+      args.length,
+      'no posts-query argument found — has the call shape changed?',
+    ).toBeGreaterThan(0);
+    expect(
+      args.filter(([, name]) => name !== NARROWED),
+      'the posts query is reading something other than the narrowed category — the «Eventi» ' +
+        "tab would send category='eventi' to an enum of four values (PostgREST 400). Feed it " +
+        `${NARROWED} = postsFilter(tab).`,
+    ).toEqual([]);
+  });
+
+  it('every file that reads posts narrows through postsFilter first', () => {
+    const readers = [...new Set(reads().map(([at]) => at.replace(/:\d+$/, '')))].sort();
+    const unnarrowed = readers.filter((r) => {
+      const file = FILES.find((p) => rel(p) === r) as string;
+      return !/\bpostsFilter\s*\(/.test(stripComments(read(file)));
+    });
+    expect(
+      unnarrowed,
+      'a screen reads the posts feed without going through postsFilter — that helper is the ' +
+        'one door between the six-tab row and the five-category posts query (#153).',
+    ).toEqual([]);
+  });
+
+  it('nothing casts a tab into a posts filter', () => {
+    const casts = codeLines().filter(([, text]) => /\bas\s+FeedFilter\b/.test(text));
+    expect(
+      casts.map(([at]) => at),
+      'a cast to FeedFilter defeats the only guard the compiler gives this: FeedTab has one ' +
+        'member FeedFilter does not, and it has no posts source.',
+    ).toEqual([]);
+  });
+});
