@@ -4,7 +4,7 @@
 // All db I/O through injected fakes (DI over mocks).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
-import { type FanOutCtx, processFanOut } from './logic.ts';
+import { AUDIENCE_PAGE, type FanOutCtx, processFanOut } from './logic.ts';
 
 const RECIPIENT = 'user-1';
 
@@ -119,3 +119,185 @@ Deno.test('push-dispatch failure is swallowed — the row is written, still 200 
   assertEquals(b, { ok: true });
   assert(c.db.calls.some((call) => call.table === 'notifications' && call.op === 'insert'));
 });
+
+// ── audience mode (#127) ─────────────────────────────────────────────────────────────────
+// The broadcast shape: one bulk insert per page of eligible members, then a push to the
+// recipients whose row was actually INSERTED. The two properties that matter are (a) the
+// insert is `on conflict do nothing` so a re-send is safe (#521), and (b) the push follows the
+// insert's RETURNING rather than the intended audience, so a re-send pushes nobody.
+
+const audienceBody = (over: Record<string, unknown> = {}) => ({
+  audience: 'all_members',
+  type: 'fundMilestone',
+  template_key: 'notif.tpl.fundMilestone',
+  params: { pct: 50 },
+  entity_ref: { kind: 'fund', id: 'fe-1' },
+  dedupe_key: 'fund:fe-1:milestone:50',
+  ...over,
+});
+
+const profiles = (...ids: string[]) => ({ data: ids.map((id) => ({ id })) });
+const insertedRows = (...ids: string[]) => ({
+  data: ids.map((recipient_id) => ({ recipient_id })),
+});
+
+Deno.test('audience mode writes one row per eligible member and pushes each', async () => {
+  const c = ctx({
+    'profiles.select': [profiles('u-1', 'u-2', 'u-3')],
+    'notifications.upsert': [insertedRows('u-1', 'u-2', 'u-3')],
+  });
+  const { res, body: b } = await run(c, audienceBody());
+
+  assertEquals(res.status, 200);
+  assertEquals(b, { ok: true, recipients: 3, inserted: 3 });
+
+  const ins = c.db.calls.find((call) => call.table === 'notifications');
+  assert(ins, 'the notifications write happened');
+  assertEquals((ins.values as unknown[]).length, 3, 'ONE bulk insert, not three round trips');
+  assertEquals(ins.op, 'upsert');
+  // on conflict do nothing — the property a blind retry depends on (#521).
+  assertEquals(ins.options, { onConflict: 'recipient_id,dedupe_key', ignoreDuplicates: true });
+  assertEquals((ins.values as { dedupe_key: string }[])[0].dedupe_key, 'fund:fe-1:milestone:50');
+
+  assertEquals(c.pushed.length, 3);
+  assertEquals(c.pushed.map((p) => p.recipient_id).sort(), ['u-1', 'u-2', 'u-3']);
+  // push-dispatch takes entity_ref as a STRING, same as the single path.
+  assertEquals(c.pushed[0].entity_ref, JSON.stringify({ kind: 'fund', id: 'fe-1' }));
+});
+
+Deno.test('a re-send inserts nothing and pushes nobody (#521 — the retry is safe)', async () => {
+  // The second run's insert conflicts on every row, so RETURNING is empty. Pushing the intended
+  // audience instead of the inserted rows is exactly the bug this asserts against: it would
+  // double-push the whole membership on every retry.
+  const c = ctx({
+    'profiles.select': [profiles('u-1', 'u-2')],
+    'notifications.upsert': [insertedRows()],
+  });
+  const { res, body: b } = await run(c, audienceBody());
+
+  assertEquals(res.status, 200);
+  assertEquals(b, { ok: true, recipients: 2, inserted: 0 });
+  assertEquals(c.pushed.length, 0, 'nobody is pushed twice');
+});
+
+Deno.test('a partially-delivered broadcast pushes only the members it just inserted', async () => {
+  const c = ctx({
+    'profiles.select': [profiles('u-1', 'u-2', 'u-3')],
+    'notifications.upsert': [insertedRows('u-2')],
+  });
+  const { body: b } = await run(c, audienceBody());
+
+  assertEquals(b, { ok: true, recipients: 3, inserted: 1 });
+  assertEquals(c.pushed.length, 1);
+  assertEquals(c.pushed[0].recipient_id, 'u-2');
+});
+
+Deno.test('the audience excludes banned and currently-suspended members', async () => {
+  const c = ctx({
+    'profiles.select': [profiles('u-1')],
+    'notifications.upsert': [insertedRows('u-1')],
+  });
+  await run(c, audienceBody());
+
+  const read = c.db.calls.find((call) => call.table === 'profiles');
+  assert(read, 'the audience was resolved from profiles');
+  // Mirrors athanor.is_active(): not banned, not currently suspended.
+  assert(
+    read.filters.some((f) => f[0] === 'is' && f[1] === 'banned_at' && f[2] === null),
+    'banned members are excluded',
+  );
+  assert(
+    read.filters.some((f) => f[0] === 'or' && String(f[1]).includes('suspended_until')),
+    'currently-suspended members are excluded',
+  );
+});
+
+Deno.test('the audience is paged by keyset, never by offset (rule 9)', async () => {
+  // A full page means "there may be more": page 2 must resume AFTER the last id, not at an
+  // offset, because a signup mid-broadcast would shift an offset and skip somebody.
+  const first = Array.from({ length: AUDIENCE_PAGE }, (_, i) => `u-${String(i).padStart(5, '0')}`);
+  const c = ctx({
+    'profiles.select': [profiles(...first), profiles('u-99999')],
+    'notifications.upsert': [insertedRows(...first), insertedRows('u-99999')],
+  });
+  const { body: b } = await run(c, audienceBody());
+
+  assertEquals(b, { ok: true, recipients: AUDIENCE_PAGE + 1, inserted: AUDIENCE_PAGE + 1 });
+  const reads = c.db.calls.filter((call) => call.table === 'profiles');
+  assertEquals(reads.length, 2, 'a full page is followed by another read');
+  assertEquals(
+    reads[0].filters.some((f) => f[0] === 'gt'),
+    false,
+    'the first page has no cursor',
+  );
+  assertEquals(reads[1].filters.find((f) => f[0] === 'gt')?.[2], first[first.length - 1]);
+  assertEquals(
+    reads.every((r) => r.modifiers.some((m) => m[0] === 'limit' && m[1] === AUDIENCE_PAGE)),
+    true,
+  );
+});
+
+Deno.test('an unknown audience name is rejected, never guessed at', async () => {
+  const c = ctx();
+  const { res, body: b } = await run(c, audienceBody({ audience: 'everyone_ever' }));
+  assertEquals(res.status, 400);
+  assertEquals(b, { error: 'unknown audience: everyone_ever' });
+  assertEquals(c.db.calls.length, 0, 'nothing was read or written');
+  assertEquals(c.pushed.length, 0);
+});
+
+Deno.test(
+  'audience mode requires a dedupe_key — without it a retry could not be safe',
+  async () => {
+    for (const bad of [
+      audienceBody({ dedupe_key: undefined }),
+      audienceBody({ dedupe_key: '   ' }),
+      audienceBody({ type: '' }),
+      audienceBody({ template_key: null }),
+    ]) {
+      const c = ctx();
+      const { res, body: b } = await run(c, bad);
+      assertEquals(res.status, 400);
+      assertEquals(b, { error: 'missing fields' });
+      assertEquals(c.db.calls.length, 0);
+      assertEquals(c.pushed.length, 0);
+    }
+  },
+);
+
+Deno.test('a failed audience read is a 500, not a silent broadcast to nobody', async () => {
+  const c = ctx({ 'profiles.select': [{ error: { message: 'boom' } }] });
+  const { res, body: b } = await run(c, audienceBody());
+  assertEquals(res.status, 500);
+  assertEquals(b, { error: 'audience read failed: boom' });
+  assertEquals(c.pushed.length, 0);
+});
+
+Deno.test(
+  'a push that throws never fails the broadcast (best-effort, as in the single path)',
+  async () => {
+    const c = ctx(
+      {
+        'profiles.select': [profiles('u-1', 'u-2')],
+        'notifications.upsert': [insertedRows('u-1', 'u-2')],
+      },
+      () => Promise.reject(new Error('expo down')),
+    );
+    const { res, body: b } = await run(c, audienceBody());
+    assertEquals(res.status, 200);
+    assertEquals(b, { ok: true, recipients: 2, inserted: 2 });
+  },
+);
+
+Deno.test(
+  'a body with a recipient_id still takes the single-recipient path untouched',
+  async () => {
+    const c = ctx();
+    const { res, body: b } = await run(c, body());
+    assertEquals(res.status, 200);
+    assertEquals(b, { ok: true });
+    const ins = c.db.calls.find((call) => call.table === 'notifications');
+    assertEquals(ins?.op, 'insert', 'the single path still uses a plain insert, not an upsert');
+    assertEquals((ins?.values as { dedupe_key?: string }).dedupe_key, undefined);
+  },
+);

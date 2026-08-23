@@ -70,6 +70,16 @@ describe('routeForNotification — coverage of the canonical type set', () => {
     expect(routeForNotification(n)).toBeNull();
   });
 
+  it('fundMilestone → the annual fund screen, ref or no ref (#127)', () => {
+    const withRef = notif({ type: 'fundMilestone', entity_ref: { kind: 'fund', id: 'fe-1' } });
+    expect(routeForNotification(withRef)).toBe('/(modal)/annual');
+    // The contrast with eventReminder is the point: one cycle is open globally, so the screen
+    // resolves it itself and a lost ref still lands somewhere useful.
+    expect(routeForNotification(notif({ type: 'fundMilestone', entity_ref: null }))).toBe(
+      '/(modal)/annual',
+    );
+  });
+
   it('gdprExport → the data-export modal, where the download button lives (#129)', () => {
     const n = notif({ type: 'gdprExport', entity_ref: { kind: 'gdprExport', id: 'j-1' } });
     expect(routeForNotification(n)).toBe('/(modal)/data-export');

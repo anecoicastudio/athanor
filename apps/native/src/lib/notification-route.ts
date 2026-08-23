@@ -17,6 +17,12 @@ export function routeForNotification(n: Notification): string | null {
     case 'eventReminder':
       // event/[id]/index is the event detail route
       return ref?.id ? `/(modal)/event/${ref.id}` : null;
+    case 'fundMilestone':
+      // #127: every fund broadcast — milestone or countdown — opens the annual fund screen.
+      // Deliberately NOT ref-dependent like eventReminder: there is one non-closed cycle
+      // globally (fund_editions_one_active), so the screen resolves it itself and a row whose
+      // entity_ref was lost still lands somewhere useful rather than nowhere.
+      return '/(modal)/annual';
     case 'projectResponse':
       return '/(tabs)/costellazioni';
     case 'connection':

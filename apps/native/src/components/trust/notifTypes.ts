@@ -21,6 +21,7 @@ import type { Notification } from '@athanor/schemas';
  *  link     → ◌  (dashed circle — connection)
  *  triangle → △  (outline triangle — moderation warn, #313)
  *  triangle2→ ▽  (down triangle — your data coming to you, #129)
+ *  azoth    → ◐  (half-filled circle — the vessel filling: the fund, #127)
  */
 type Visual = { glyph: string; accentClass: string; celebratory: boolean };
 
@@ -29,6 +30,17 @@ export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
   dreamMilestone: { glyph: '◉', accentClass: 'bg-raise-2', celebratory: false },
   review: { glyph: '◇', accentClass: 'bg-raise-2', celebratory: false },
   eventReminder: { glyph: '◷', accentClass: 'bg-raise-2', celebratory: false },
+  // #127 the fund's broadcasts (a milestone crossing, a countdown slot). NEUTRAL, deliberately,
+  // and this is the interesting call on the row: `moment` is the only celebratory accent, and
+  // DESIGN.md's 2026-08-14 ruling made the fund's own hero card quiet for the same reason —
+  // «rule #4's glow means something happened». A milestone IS something happening, so the
+  // tempting read is to light it. What settles it is the audience: this is the one notification
+  // type that reaches EVERY member at once, so a glowing one would make glow the most common
+  // thing in the notification centre rather than the rarest. Rule 3 points the same way — a
+  // «we hit 50 %» row is the closest this app comes to a vanity metric, and amplifying it is
+  // exactly what the glow discipline exists to prevent. The fund ticker keeps its glow; the
+  // notification about it does not.
+  fundMilestone: { glyph: '◐', accentClass: 'bg-raise-2', celebratory: false },
   projectResponse: { glyph: '◈', accentClass: 'bg-raise-2', celebratory: false },
   connection: { glyph: '◌', accentClass: 'bg-raise-2', celebratory: false },
   // #313 warn verdicts — neutral fill like every non-moment type; a sanction is not a moment.
@@ -44,6 +56,7 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   dreamMilestone: 'notif.type.dreamMilestone',
   review: 'notif.type.review',
   eventReminder: 'notif.type.eventReminder',
+  fundMilestone: 'notif.type.fundMilestone',
   projectResponse: 'notif.type.projectResponse',
   connection: 'notif.type.connection',
   moderation: 'notif.type.moderation',

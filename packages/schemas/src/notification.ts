@@ -1,15 +1,17 @@
 import { z } from 'zod';
 
-// Mirrors supabase/migrations/20260620025158_m9_notifications.sql (06 §2.11, 09 §2.6).
-// The 8 canonical notification types — must match notification_preferences.type + the M9 prefs UI.
+// Mirrors supabase/migrations/20260823121933_fund_broadcast_notifications.sql, the current
+// statement of both CHECKs (06 §2.11, 09 §2.6).
+// The 9 canonical notification types — must match notification_preferences.type + the M9 prefs UI.
 // Two of them have no producer yet; that is intentional, not a broken fan-out (see below).
 //
 // When a producerless type is KEPT vs DELETED: it stays when only the producer is missing and
 // the surface that will ship it is named — the two PARKED entries below. 'fundMilestone' was
-// deleted instead (#241): it was not waiting on a producer but on a mechanism that does not
-// exist. It is a fund-wide broadcast ("the fund passed €X") and athanor.enqueue_notification is
-// one-recipient-per-call, which is why 20260701160235 skipped fund_aggregates outright. #127
-// re-adds the type together with the fan-out-to-many it needs.
+// deleted instead (#241), because it was not waiting on a producer but on a MECHANISM that did
+// not exist: a fund-wide broadcast has no single recipient and athanor.enqueue_notification was
+// one-recipient-per-call, which is why 20260701160235 skipped fund_aggregates outright.
+// #127 built that mechanism (athanor.enqueue_audience_notification + the fan-out's audience
+// mode) and re-added the type with its two producers, so the deletion's own condition is met.
 export const NOTIFICATION_TYPES = [
   'moment',
   'dreamMilestone',
@@ -20,6 +22,12 @@ export const NOTIFICATION_TYPES = [
   // Ships with the reviews surface (PRODUCTION-READINESS P5).
   'review',
   'eventReminder',
+  // #127: the fund's broadcasts — a milestone crossing (fund_aggregates trigger) and the
+  // countdown slots (fund_countdown_sweep). ONE type carrying several template keys rather than
+  // one type each: they share a lead, a glyph, a route and a prefs toggle, and only the sentence
+  // differs. Unlike 'moderation'/'gdprExport' this IS mutable — it is a broadcast about the
+  // community, not a notice about the member — so it has a PREF_ROWS entry (notif.prefs.fund).
+  'fundMilestone',
   // PARKED(project-response): the consumer side is fully wired — prefs toggle, route to
   // (tabs)/costellazioni, notif template — and only the producer is missing, because the
   // only CTA on a project is currently a toast (#133). Ships with that surface.
@@ -63,6 +71,15 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.warn',
   // #129: gdpr_export_jobs status→ready — no params; the row routes to Settings → Data Export.
   'notif.tpl.gdprExport',
+  // #127, all five on type 'fundMilestone'. The split is grammatical, not semantic: `t()` does
+  // plain {name} interpolation with no plural support, so «Mancano {days} giorni» cannot serve
+  // the 1-day slot — «Mancano 1 giorni» is not Italian. Hence a *Countdown key for the plural
+  // slots (7, 3) and a *LastDay key with the number written into the sentence.
+  'notif.tpl.fundMilestone',
+  'notif.tpl.fundAnnounceCountdown',
+  'notif.tpl.fundAnnounceLastDay',
+  'notif.tpl.fundBallotCountdown',
+  'notif.tpl.fundBallotLastDay',
   'notif.tpl.generic',
 ] as const;
 export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);

@@ -1492,5 +1492,12 @@
   "admin.waitlist.export": "Esporta CSV",
   "admin.waitlist.colEmail": "Email",
   "admin.waitlist.colSource": "Origine",
-  "admin.waitlist.colWhen": "Quando"
+  "admin.waitlist.colWhen": "Quando",
+  "notif.type.fundMilestone": "Il fondo",
+  "notif.prefs.fund": "Il fondo e il voto",
+  "notif.tpl.fundMilestone": "Il fondo ha superato il {pct} % dell'obiettivo.",
+  "notif.tpl.fundAnnounceCountdown": "Mancano {days} giorni all'annuncio del sogno scelto.",
+  "notif.tpl.fundAnnounceLastDay": "Domani si annuncia il sogno scelto.",
+  "notif.tpl.fundBallotCountdown": "Mancano {days} giorni alla chiusura del voto.",
+  "notif.tpl.fundBallotLastDay": "Il voto chiude domani. Se non hai ancora votato, è il momento."
 }

@@ -117,6 +117,43 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: 'Il tuo archivio è pronto',
       enHas: 'Your archive is ready',
     },
+    // #127 — the five fund broadcast templates. The *Countdown pair interpolates {days}; the
+    // *LastDay pair writes the number into the sentence, because `t()` has no plural support.
+    {
+      templateKey: 'notif.tpl.fundMilestone',
+      type: 'fundMilestone',
+      params: { pct: 50 },
+      itHas: '50 %',
+      enHas: '50%',
+    },
+    {
+      templateKey: 'notif.tpl.fundAnnounceCountdown',
+      type: 'fundMilestone',
+      params: { days: 7 },
+      itHas: '7 giorni',
+      enHas: '7 days',
+    },
+    {
+      templateKey: 'notif.tpl.fundAnnounceLastDay',
+      type: 'fundMilestone',
+      params: {},
+      itHas: 'Domani',
+      enHas: 'Tomorrow',
+    },
+    {
+      templateKey: 'notif.tpl.fundBallotCountdown',
+      type: 'fundMilestone',
+      params: { days: 3 },
+      itHas: '3 giorni',
+      enHas: '3 days',
+    },
+    {
+      templateKey: 'notif.tpl.fundBallotLastDay',
+      type: 'fundMilestone',
+      params: {},
+      itHas: 'domani',
+      enHas: 'tomorrow',
+    },
   ];
   for (const c of cases) {
     for (const [locale, needle] of [
@@ -171,4 +208,35 @@ Deno.test('falls back to IT for an unknown locale and empty for an unknown templ
     ).length,
     0,
   );
+});
+
+// #127: the fund broadcast reaches every member at once, so a body reading «undefined» would
+// reach every member at once too. The producers always send the param, but a re-send replayed
+// from an older enqueue might not — degrade to a number, never to the string 'undefined'.
+Deno.test('a fund countdown with no days param degrades to a number, not undefined', () => {
+  for (const templateKey of ['notif.tpl.fundAnnounceCountdown', 'notif.tpl.fundBallotCountdown']) {
+    for (const locale of ['it', 'en'] as const) {
+      const msgs = buildPushMessages(
+        ['ExponentPushToken[a]'],
+        { type: 'fundMilestone', templateKey, params: {}, entityRef: 'x', locale },
+        allValid,
+      );
+      assertEquals(msgs[0].body.includes('undefined'), false, `${templateKey} ${locale}`);
+    }
+  }
+});
+
+Deno.test('every fund broadcast routes to the annual screen (#127)', () => {
+  const msgs = buildPushMessages(
+    ['ExponentPushToken[a]'],
+    {
+      type: 'fundMilestone',
+      templateKey: 'notif.tpl.fundMilestone',
+      params: { pct: 25 },
+      entityRef: 'x',
+      locale: 'it',
+    },
+    allValid,
+  );
+  assertEquals(msgs[0].data.route, 'annual');
 });

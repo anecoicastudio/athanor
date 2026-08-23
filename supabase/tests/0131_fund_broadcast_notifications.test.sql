@@ -26,7 +26,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(29);
 
 -- ── fixtures: two members (handle_new_user auto-creates profiles) ─────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -43,12 +43,23 @@ values
 select has_column('public', 'notifications', 'dedupe_key',
   'notifications.dedupe_key exists (#521: idempotency at the row)');
 
--- PARTIAL on purpose: only a keyed row is deduped. Asserted through pg_index.indpred rather than
--- by name alone, because an index created without the predicate would still match the name.
+-- NOT partial, and that is load-bearing rather than incidental (20260823124203). ON CONFLICT
+-- can only infer a partial index when the statement repeats the predicate, and PostgREST's
+-- on_conflict= carries column names only — so a partial index here makes every broadcast fail
+-- 42P10. Re-narrowing it would look like a tidy-up and would silently break the retry path,
+-- which is why the shape is asserted and not just the name.
 select ok(
-  (select i.indpred is not null
+  (select i.indpred is null
      from pg_index i where i.indexrelid = 'public.notifications_recipient_dedupe'::regclass),
-  'the dedupe index is PARTIAL (unkeyed rows are never deduped against each other)');
+  'the dedupe index is NOT partial, so ON CONFLICT can infer it through PostgREST');
+
+-- What the dropped predicate used to express is now expressed by NULL semantics. If anyone ever
+-- adds NULLS NOT DISTINCT to this index, the assertion below is the one that goes red — and the
+-- symptom in production would be «Hai un Momento» silently collapsing two real Momenti into one.
+select ok(
+  (select not i.indnullsnotdistinct
+     from pg_index i where i.indexrelid = 'public.notifications_recipient_dedupe'::regclass),
+  'the dedupe index treats NULLs as DISTINCT (unkeyed rows are never deduped)');
 
 select has_table('athanor', 'fund_broadcast_sends',
   'athanor.fund_broadcast_sends exists (the marker lives off the client grant surface)');
