@@ -691,7 +691,7 @@
   "live.filter.open": "Filters",
   "live.filter.active": "Filters · {n}",
   "live.filter.a11y": "Filter events",
-  "live.filter.a11yActive": "Filter events · {n} active",
+  "live.filter.a11yActive": "Filter events · {n}",
   "live.filterSheet.title": "Filter events",
   "live.filterSheet.sub": "Choose what, where and when.",
   "live.filter.section.category": "Category",
