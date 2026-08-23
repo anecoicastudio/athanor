@@ -72,7 +72,11 @@ export default function CommunityScreen() {
   useEffect(() => {
     const unsubscribe = subscribeNewPosts(supabase, (post) => {
       if (myId && post.author_id === myId) return;
-      const active = postsFilter(tabRef.current);
+      // `?? 'all'`: the events tab does not narrow posts, so it does not filter this either.
+      // The flag keeps recording while the member browses events — the banner is hidden there
+      // (its render is posts-only), and it is waiting for them when they come back. Suppressing
+      // the flag instead would lose every post that arrived while the tab was open.
+      const active = postsFilter(tabRef.current) ?? 'all';
       if (active !== 'all' && post.category !== active) return;
       setHasNew(true);
     });
@@ -138,15 +142,6 @@ export default function CommunityScreen() {
       </Screen>
     );
   }
-
-  const emptyTitle =
-    postsCategory === 'all'
-      ? t('feed.empty.title', locale)
-      : t('feed.empty.cat.title', locale, {
-          cat: t(`feed.filter.${postsCategory}` as MessageKey, locale),
-        });
-  const emptyCta =
-    postsCategory === 'all' ? t('feed.empty.cta', locale) : t('feed.empty.cat.cta', locale);
 
   const header = (
     <View className="gap-4 py-4">
@@ -223,6 +218,17 @@ export default function CommunityScreen() {
       </Screen>
     );
   }
+
+  // Below the guard `postsCategory` is a FeedFilter: computing this above it would look up
+  // `feed.filter.null` on every render of the events tab, for a string that is thrown away.
+  const emptyTitle =
+    postsCategory === 'all'
+      ? t('feed.empty.title', locale)
+      : t('feed.empty.cat.title', locale, {
+          cat: t(`feed.filter.${postsCategory}` as MessageKey, locale),
+        });
+  const emptyCta =
+    postsCategory === 'all' ? t('feed.empty.cta', locale) : t('feed.empty.cat.cta', locale);
 
   return (
     <Screen>
