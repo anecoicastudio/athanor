@@ -10,8 +10,15 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 export const CANDIDACY_VIDEOS_BUCKET = 'candidacy-videos';
 
 export type ErasureAuth = {
-  /** db.auth.admin.signOut — global revoke, MUST run before any delete (see step 1) */
-  signOut: (profileId: string, scope: 'global') => Promise<unknown>;
+  /**
+   * db.auth.admin.signOut — global revoke, MUST run before any delete (see step 1).
+   *
+   * Reports failure BOTH ways, like every other Supabase surface: GoTrueAdminApi.signOut
+   * catches an AuthError and RESOLVES with `{ error }`, rethrowing only non-auth errors. A
+   * 4xx/5xx from GoTrue — the common failure — therefore never rejects, so a caller that only
+   * catches would record a run whose sessions are still live as a clean one.
+   */
+  signOut: (profileId: string, scope: 'global') => Promise<{ error?: unknown } | null>;
 };
 
 /** The candidacy-videos bucket surface the job needs — index wires db.storage.from(...). */
@@ -42,8 +49,20 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   for (const erasureReq of reqs ?? []) {
     await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', erasureReq.id);
 
+    // #515 — every step below is best-effort so one dead dependency cannot stall the batch, but
+    // «swallowed» must not mean «unrecorded»: a step that errored is what separates the terminal
+    // 'failed' from 'partial'. 'partial' claims the run did everything it could and stopped only
+    // at the legal gate; that claim is only true while this stays false.
+    let degraded = false;
+
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
-    await auth.signOut(erasureReq.profile_id, 'global').catch(() => undefined);
+    //     Both failure shapes count: a rejection, and the resolved { error } GoTrue actually
+    //     returns for a 4xx/5xx. Leaving the member's tokens live is the last thing that may
+    //     pass for a clean run.
+    const signOutResult = await auth
+      .signOut(erasureReq.profile_id, 'global')
+      .catch(() => ({ error: new Error('signOut rejected') }));
+    if (signOutResult?.error) degraded = true;
 
     // (3) fund-table reach — LIVE (#240). One atomic DB transaction (gdpr_erase_fund_footprint,
     //     20260815131925): fund_contributions tombstone-reassigned to the pre-seeded no-PII
@@ -56,11 +75,19 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     const { data: manifest, error: fundError } = await db.rpc('gdpr_erase_fund_footprint', {
       p_profile_id: erasureReq.profile_id,
     });
-    if (!fundError) {
+    if (fundError) {
+      degraded = true; // nothing irreversible ran for this request — that is a real failure
+    } else {
       const paths = ((manifest ?? []) as ManifestRow[]).map((row) => row.name);
       // Rejection swallowed like signOut: leftover blobs re-surface in the next manifest,
-      // and one dead Storage call must not stall the rest of the batch.
-      if (paths.length > 0) await storage.remove(paths).catch(() => undefined);
+      // and one dead Storage call must not stall the rest of the batch. Recorded, though —
+      // a video still sitting in the bucket means this run did not finish what it started.
+      if (paths.length > 0) {
+        const { error: removeError } = await storage
+          .remove(paths)
+          .catch(() => ({ error: new Error('storage removal rejected') }));
+        if (removeError) degraded = true;
+      }
     }
 
     // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
@@ -88,11 +115,20 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // Step (4b) — delete auth.users row; cascades → profiles → all FK on-delete-cascade content:
     // await db.auth.admin.deleteUser(erasureReq.profile_id);
 
-    await db.from('gdpr_erasure_requests').update({ status: 'failed' }).eq('id', erasureReq.id);
-    // ^ stays 'failed' (not 'done') intentionally while legal-gated: the fund reach above ran,
-    //   but the account itself is NOT erased — 'done' would report a partial erasure as complete.
-    //   Flip to status='done' only when (3-gated) + (4) go live (#107, gated on #184). Every step
-    //   above is idempotent, so re-running a request after that flip finishes cleanly.
+    await db
+      .from('gdpr_erasure_requests')
+      .update({ status: degraded ? 'failed' : 'partial' })
+      .eq('id', erasureReq.id);
+    // ^ never 'done' while legal-gated: the fund reach above ran, but the account itself is NOT
+    //   erased, and 'done' would report a partial erasure as complete. It is not 'failed'
+    //   either unless something actually failed (#515) — the run below the gate did real,
+    //   irreversible work, and calling that a failure misleads whoever reads the row next.
+    //   Note what neither status buys: the claim query filters status='requested', so a
+    //   terminal row is never picked up again. Every step here is idempotent, but nothing
+    //   re-queues a 'failed' one — re-driving it is a manual act until #107 lands.
+    //   Flip the clean branch to status='done' only when (3-gated) + (4) go live (#107, gated
+    //   on #184). Every step above is idempotent, so re-running a request after that flip
+    //   finishes cleanly.
   }
 
   return new Response(JSON.stringify({ seen: reqs?.length ?? 0 }), {

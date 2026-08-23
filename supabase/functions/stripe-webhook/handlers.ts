@@ -380,6 +380,9 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
       plan,
       status: mapSubStatus(sub.status),
       current_period_end: currentPeriodEnd,
+      // #511 — written through verbatim so the app can tell «renews on» from «ends on».
+      // Stripe flips it back to false on an un-cancel via this same event, so no extra branch.
+      cancel_at_period_end: sub.cancel_at_period_end,
     },
     { onConflict: 'profile_id' },
   );

@@ -1,8 +1,9 @@
 // deno test supabase/functions/erasure-job/ — runs in CI (edge job) and locally.
 // Characterization tests for the legal-gated erasure loop: claim → 'processing' →
 // session revoke → fund reach (#240: gdpr_erase_fund_footprint rpc + blob removal) →
-// 'failed' (intentionally NOT 'done' — the account cascade stays commented until the
-// legal gate clears, and a partial erasure must never report complete). All db I/O
+// 'partial' (intentionally NOT 'done' — the account cascade stays commented until the
+// legal gate clears, and a partial erasure must never report complete; #515 gave that
+// stop-short its own status, so 'failed' now means a step actually failed). All db I/O
 // through injected fakes; auth and storage are recorded capability ports (no .auth /
 // .storage on the fake db — DI over mocks).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
@@ -28,7 +29,7 @@ const ctx = (
         overrides.signOut ??
         ((id, scope) => {
           signedOut.push([id, scope]);
-          return Promise.resolve();
+          return Promise.resolve(null);
         }),
     },
     storage: {
@@ -70,7 +71,7 @@ Deno.test('claim error → 500 with the pg message', async () => {
 });
 
 Deno.test(
-  "per request: 'processing' → global signOut → 'failed' (legal-gated, never 'done')",
+  "per request: 'processing' → global signOut → 'partial' (legal-gated, never 'done')",
   async () => {
     const c = ctx({
       'gdpr_erasure_requests.select': [
@@ -98,9 +99,9 @@ Deno.test(
       updates.map((u) => u.values),
       [
         { status: 'processing' },
-        { status: 'failed' },
+        { status: 'partial' },
         { status: 'processing' },
-        { status: 'failed' },
+        { status: 'partial' },
       ],
     );
     assertEquals(
@@ -147,10 +148,10 @@ Deno.test('fund reach: manifest paths are removed from the candidacy-videos port
 
   // one remove call, both blobs, video + poster together.
   assertEquals(c.removed, [['user-1/cand-1.mp4', 'user-1/cand-1-thumb.jpg']]);
-  // still legal-gated: the request lands on 'failed', never 'done'.
+  // still legal-gated: the request lands on 'partial', never 'done'.
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'failed'],
+    ['processing', 'partial'],
   );
 });
 
@@ -163,7 +164,10 @@ Deno.test('fund reach: empty manifest → no storage call at all', async () => {
   assertEquals(c.removed, []);
 });
 
-Deno.test("fund reach rpc error → no blob removal, request still lands on 'failed'", async () => {
+// #515 — the two outcomes are now distinguishable: req-1's fund reach errored, so nothing
+// irreversible ran for it and 'failed' is the truth; req-2 did everything it could and stopped
+// at the legal gate, which is 'partial'. Before this, both said 'failed'.
+Deno.test("fund reach rpc error → no blob removal, that request lands on 'failed'", async () => {
   const c = ctx({
     'gdpr_erasure_requests.select': [
       {
@@ -185,7 +189,7 @@ Deno.test("fund reach rpc error → no blob removal, request still lands on 'fai
   assertEquals(c.removed, [['user-2/cand-2.mp4']]);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'failed', 'processing', 'failed'],
+    ['processing', 'failed', 'processing', 'partial'],
   );
 });
 
@@ -211,7 +215,9 @@ Deno.test(
     );
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);
-    // both requests still reach their terminal status despite the dead Storage API.
+    // both requests still reach a terminal status despite the dead Storage API — and it is
+    // 'failed', not 'partial': the candidacy video is still in the bucket, so this run did NOT
+    // do everything it set out to do. 'partial' is reserved for a clean stop at the legal gate.
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
       ['processing', 'failed', 'processing', 'failed'],
@@ -219,8 +225,60 @@ Deno.test(
   },
 );
 
+// GoTrue reports a dead auth server BOTH ways too, and the resolved one is the COMMON one:
+// GoTrueAdminApi.signOut catches an AuthError and resolves with { error }. A run that left the
+// member's tokens live must never pass for a clean 'partial'.
+Deno.test("signOut resolving with an error is recorded — 'failed', not 'partial'", async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { signOut: () => Promise.resolve({ error: { message: 'gotrue 503' } }) },
+  );
+  await processErasureRequests(c);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+// The success shape GoTrue returns is { data: null, error: null } — an OBJECT with an error
+// key present and falsy. Guard against a truthiness check on the wrapper instead of on .error.
+Deno.test("signOut resolving { error: null } is a success — 'partial'", async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { signOut: () => Promise.resolve({ data: null, error: null }) },
+  );
+  await processErasureRequests(c);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'partial'],
+  );
+});
+
+// storage.remove reports a dead bucket BOTH ways: a rejected promise and a resolved
+// { error }. The second shape was previously ignored outright, which would have let a run
+// that left the video in place claim 'partial'.
 Deno.test(
-  "signOut rejection is swallowed — request still lands on 'failed', loop continues",
+  "storage.remove returning an error is recorded too — 'failed', not 'partial'",
+  async () => {
+    const c = ctx(
+      {
+        'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.gdpr_erase_fund_footprint': [
+          { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
+        ],
+      },
+      { remove: () => Promise.resolve({ error: { message: 'bucket gone' } }) },
+    );
+    await processErasureRequests(c);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed'],
+    );
+  },
+);
+
+Deno.test(
+  "signOut rejection is swallowed but recorded — 'failed', not 'partial', loop continues",
   async () => {
     const c = ctx(
       {

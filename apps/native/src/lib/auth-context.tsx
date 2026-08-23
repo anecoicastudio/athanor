@@ -7,6 +7,7 @@ import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
 import { asyncStoragePersister, queryClient } from './query-client';
+import { readProfileWithRetry } from './profile-read';
 import { registerForPush, unregisterPush } from './push';
 
 type AuthState = {
@@ -63,7 +64,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const fresh = await getOwnProfile(supabase);
+      // #512 — «Riprova» is the member's one way out of the error screen; leaving IT
+      // single-attempt meant one more dropped request put them straight back on it.
+      const fresh = await readProfileWithRetry(() => getOwnProfile(supabase));
       if (sessionRef.current?.user.id === userId) {
         setProfile(fresh);
         setProfileError(false);
@@ -129,7 +132,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const p = await getOwnProfile(supabase);
+        // #512 — one dropped request on sign-in used to surface as «Il server non risponde»
+        // with no automatic second attempt. Same budget as every TanStack read (retry: 2).
+        const p = await readProfileWithRetry(() => getOwnProfile(supabase));
         if (cancelled) return;
         setProfileError(false);
         if (p && email && !isProfileComplete(p)) {

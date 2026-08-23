@@ -15,6 +15,8 @@ export const circleMembershipSchema = z.object({
   plan: circlePlanSchema,
   status: circleStatusSchema,
   current_period_end: z.string().nullish(),
+  /** true = cancelled, access ends at current_period_end instead of renewing (#511). */
+  cancel_at_period_end: z.boolean(),
   founding_member: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),

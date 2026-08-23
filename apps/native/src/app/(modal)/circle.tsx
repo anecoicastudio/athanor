@@ -198,6 +198,9 @@ export default function CircleScreen() {
             plan={membership?.plan ?? entQuery.data?.plan ?? null}
             status={membership?.status ?? entQuery.data?.status ?? null}
             currentPeriodEnd={membership?.current_period_end ?? null}
+            // #511 — only the membership row carries this; entitlements deliberately does not
+            // (a cancelled member keeps every benefit until the period ends).
+            cancelAtPeriodEnd={membership?.cancel_at_period_end ?? false}
             founding={membership?.founding_member ?? entQuery.data?.founding ?? false}
             locale={locale}
           />

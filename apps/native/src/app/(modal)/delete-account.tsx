@@ -19,6 +19,10 @@ import { Screen } from '@/components/Screen';
  * Type-to-confirm «ELIMINA» → requestErasure (inserts a gdpr_erasure_requests row) → immediate
  * sign-out. The server cascade + legally-retained records are the service-role erasure-job — the app
  * only requests. Destructive `danger` CTA, no glow (rule #4).
+ *
+ * The copy is split in two on purpose (#515): `body` is what the job does at once and cannot
+ * undo, `deferred` is what waits on the legal gate. Keep it that way — collapsing them back
+ * into one paragraph is how the screen came to promise a deletion that does not happen yet.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -56,6 +60,15 @@ export default function DeleteAccountScreen() {
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
         <Text className="text-[15px] leading-relaxed text-muted-foreground">
           {t('account.delete.body', locale)}
+        </Text>
+
+        {/* #515 — what the job does NOT do at the tap. The account cascade is legal-gated
+            (#184/#107), so the previous copy («cancelleremo il tuo profilo… definitivamente»)
+            promised a completion the job cannot deliver. Kept as its own line rather than
+            folded into the body: the two halves say different things — one is irreversible
+            and immediate, the other is neither. */}
+        <Text className="text-[14px] leading-relaxed text-muted-foreground">
+          {t('account.delete.deferred', locale)}
         </Text>
 
         {/* honesty line — export before delete (routes to the export sheet) */}
