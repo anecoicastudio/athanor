@@ -226,9 +226,13 @@ jobs:
       # waitlist row on STAGING, then mints the admin's session into
       # apps/web/e2e/.auth/admin.json. Nothing it writes is a secret: the storage state holds a
       # session for an account that exists for the length of this job.
+      #
+      # Its fixtures are namespaced on GITHUB_RUN_ID, which the runner sets for us: several
+      # PRs touching apps/web run this job at once against the same staging project, and
+      # shared names would have each run's purge delete the other's admin mid-suite.
       - name: seed the authenticated e2e fixtures
         if: steps.e2e-secrets.outputs.run != 'false'
-        # No browser, no dev server — three admin-API round-trips and a file write.
+        # No browser and no dev server — a handful of admin-API round-trips and a file write.
         timeout-minutes: 3
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

@@ -17,23 +17,29 @@
  * the app's rather than a guess. Nothing test-only is added to the admin panel — in
  * particular `app/admin/auth/callback/route.ts` stays PKCE-`code`-only.
  *
- * Fixtures are ours alone: a disposable subject, a disposable reporter, two reports against
- * that subject, one waitlist row. The verdict specs resolve OUR reports, never one of the
- * twelve staging personas' — `resolve_report` writes the audit log and, on an uphold,
- * enqueues a real Aura penalty. Nothing here reads the hourly `staging-refresh-world` rows.
+ * Fixtures are ours alone, and namespaced per run: a disposable subject, a disposable
+ * reporter, two reports against that subject, one waitlist row. The verdict specs resolve OUR
+ * reports, never one of the twelve staging personas' — `resolve_report` writes the audit log
+ * and, on an uphold, enqueues a real Aura penalty. Nothing here reads the hourly
+ * `staging-refresh-world` rows.
  *
  *   node --experimental-strip-types e2e/seed/seed-admin.mts             # seed
  *   node --experimental-strip-types e2e/seed/seed-admin.mts --teardown  # remove it all
  *
- * Seeding is idempotent: it purges any leftover fixture from a crashed run before creating
- * this one, so a failed teardown costs the next run nothing.
+ * Seeding is idempotent: it purges this run's namespace before creating it, and sweeps any
+ * other run's fixtures older than six hours, so a failed teardown costs the next run nothing.
  */
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import type { Database } from '@athanor/api';
 import { config as loadEnv } from 'dotenv';
+
+/** Every client here is schema-typed, so a renamed column fails `pnpm typecheck` rather than
+ *  the e2e run that depends on it. */
+type Client = SupabaseClient<Database>;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(HERE, '../..');
@@ -46,15 +52,44 @@ const FIXTURES_FILE = resolve(AUTH_DIR, 'fixtures.json');
 // this file never writes it anywhere.
 loadEnv({ path: resolve(WEB_ROOT, '.env.local') });
 
+/**
+ * Fixtures are namespaced per run, because two of these run at once.
+ *
+ * The repo lands several PRs in parallel and every one of them touching `apps/web` gets its
+ * own e2e job against the SAME staging project. Shared fixture names would make each run's
+ * purge delete the other run's admin mid-suite, and the victim would fail by redirecting to
+ * the login screen — a flake with no visible cause. `GITHUB_RUN_ID` is unique per run and
+ * stable across a re-run's attempts; a local run gets `local`, so repeated local runs reuse
+ * and purge one namespace rather than piling up.
+ */
+const RUN_TAG =
+  (process.env.E2E_RUN_TAG ?? process.env.GITHUB_RUN_ID ?? 'local')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 16) || 'local';
+
 /** `.test` is reserved by RFC 2606: these addresses cannot resolve, so no mail can escape. */
-const ADMIN_EMAIL = 'e2e-admin@athanor.test';
-const REPORTER_EMAIL = 'e2e-fixture-reporter@athanor.test';
-const SUBJECT_EMAIL = 'e2e-fixture-subject@athanor.test';
-const WAITLIST_EMAIL = 'e2e-fixture-waitlist@athanor.test';
-const REPORTER_HANDLE = 'e2e_fixture_reporter';
-const SUBJECT_HANDLE = 'e2e_fixture_subject';
-/** Every account this script owns. Teardown deletes exactly these and nothing else. */
+const EMAIL_SUFFIX = '@athanor.test';
+const email = (role: string) => `e2e-${RUN_TAG}-${role}${EMAIL_SUFFIX}`;
+/** `profiles.handle` is `^[a-z0-9_]{3,30}$`; a 16-char tag leaves this at 29 at the longest. */
+const handle = (role: string) => `e2e_${RUN_TAG}_${role}`;
+
+const ADMIN_EMAIL = email('admin');
+const REPORTER_EMAIL = email('reporter');
+const SUBJECT_EMAIL = email('subject');
+const WAITLIST_EMAIL = email('waitlist');
+const REPORTER_HANDLE = handle('reporter');
+const SUBJECT_HANDLE = handle('subject');
+/** Every account this run owns. Teardown deletes exactly these. */
 const OWNED_EMAILS = [ADMIN_EMAIL, REPORTER_EMAIL, SUBJECT_EMAIL];
+
+/** Matches any run's accounts, this one's included — the stale sweep's net. */
+const ANY_RUN_EMAIL = /^e2e-[a-z0-9]+-(admin|reporter|subject)@athanor\.test$/;
+/**
+ * How old another run's fixtures must be before this one removes them. The e2e job is capped
+ * at 23 minutes, so six hours cannot reach a live run — anything older lost its teardown.
+ */
+const STALE_MS = 6 * 60 * 60 * 1000;
 
 export type Fixtures = {
   adminEmail: string;
@@ -86,49 +121,91 @@ function publicKey(): string {
   return key;
 }
 
-function serviceClient(): SupabaseClient {
-  return createClient(required('NEXT_PUBLIC_SUPABASE_URL'), required('E2E_SUPABASE_SECRET_KEY'), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+function serviceClient(): Client {
+  return createClient<Database>(
+    required('NEXT_PUBLIC_SUPABASE_URL'),
+    required('E2E_SUPABASE_SECRET_KEY'),
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
 }
 
-/** The admin API has no lookup-by-email, so page the list and match. */
-async function usersByEmail(admin: SupabaseClient, emails: string[]): Promise<Map<string, User>> {
-  const wanted = new Set(emails);
-  const found = new Map<string, User>();
+/** The admin API has no lookup-by-email and no filter, so page the list and match locally. */
+async function eachUser(admin: Client, visit: (user: User) => void): Promise<void> {
   const perPage = 200;
   for (let page = 1; ; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error) throw error;
-    for (const user of data.users) {
-      if (user.email && wanted.has(user.email)) found.set(user.email, user);
-    }
-    if (data.users.length < perPage) return found;
+    data.users.forEach(visit);
+    if (data.users.length < perPage) return;
   }
+}
+
+async function usersByEmail(admin: Client, emails: string[]): Promise<Map<string, User>> {
+  const wanted = new Set(emails);
+  const found = new Map<string, User>();
+  await eachUser(admin, (user) => {
+    if (user.email && wanted.has(user.email)) found.set(user.email, user);
+  });
+  return found;
+}
+
+/** Fixture accounts belonging to ANY run, this one included. */
+async function allFixtureUsers(admin: Client): Promise<User[]> {
+  const found: User[] = [];
+  await eachUser(admin, (user) => {
+    if (user.email && ANY_RUN_EMAIL.test(user.email)) found.push(user);
+  });
+  return found;
 }
 
 /**
- * Delete every account this script owns, and the waitlist row.
+ * Delete this run's accounts and waitlist row, plus anything an older run abandoned.
  *
  * `profiles.id` cascades from `auth.users`, and `reports.reporter_id` cascades from
- * `profiles`, so deleting the two fixture accounts takes their reports and audit rows with
- * them. Deleting the admin too means a torn-down staging carries nothing of ours at all.
+ * `profiles`, so deleting the fixture accounts takes their reports and audit rows with them.
+ * The admin goes too, so a torn-down staging carries nothing of ours at all.
+ *
+ * The stale half exists because a killed job never reaches its teardown step. It is bounded
+ * by age rather than by namespace precisely so it cannot touch a run that is still going.
  */
-async function purge(admin: SupabaseClient): Promise<void> {
-  const existing = await usersByEmail(admin, OWNED_EMAILS);
-  for (const [email, user] of existing) {
-    const { error } = await admin.auth.admin.deleteUser(user.id);
-    if (error) throw new Error(`could not delete ${email}: ${error.message}`);
+async function purge(admin: Client): Promise<void> {
+  const staleBefore = new Date(Date.now() - STALE_MS);
+  const doomed = new Map<string, string>();
+
+  const mine = await usersByEmail(admin, OWNED_EMAILS);
+  for (const [address, user] of mine) doomed.set(address, user.id);
+
+  let stale = 0;
+  for (const user of await allFixtureUsers(admin)) {
+    if (!user.email || doomed.has(user.email)) continue;
+    if (new Date(user.created_at) >= staleBefore) continue;
+    doomed.set(user.email, user.id);
+    stale += 1;
   }
+
+  for (const [address, id] of doomed) {
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) throw new Error(`could not delete ${address}: ${error.message}`);
+  }
+
   const { error } = await admin.from('email_waitlist').delete().eq('email', WAITLIST_EMAIL);
   if (error) throw error;
+  const { error: staleError } = await admin
+    .from('email_waitlist')
+    .delete()
+    .like('email', 'e2e-%@athanor.test')
+    .lt('created_at', staleBefore.toISOString());
+  if (staleError) throw staleError;
+
   rmSync(STATE_FILE, { force: true });
   rmSync(FIXTURES_FILE, { force: true });
-  console.log(`[seed] purged ${existing.size} fixture account(s)`);
+  console.log(`[seed] purged ${doomed.size} fixture account(s) (${stale} from an earlier run)`);
 }
 
 async function createConfirmedUser(
-  admin: SupabaseClient,
+  admin: Client,
   email: string,
   appMetadata: Record<string, unknown> = {},
 ): Promise<User> {
@@ -142,13 +219,13 @@ async function createConfirmedUser(
 }
 
 /** A handle makes the fixture legible in the queue; `handle_new_user` leaves it null. */
-async function setHandle(admin: SupabaseClient, id: string, handle: string): Promise<void> {
-  const { error } = await admin.from('profiles').update({ handle }).eq('id', id);
+async function setHandle(admin: Client, id: string, value: string): Promise<void> {
+  const { error } = await admin.from('profiles').update({ handle: value }).eq('id', id);
   if (error) throw error;
 }
 
 async function insertReport(
-  admin: SupabaseClient,
+  admin: Client,
   row: { reporterId: string; subjectId: string; category: string; note: string },
 ): Promise<string> {
   const { data, error } = await admin
@@ -164,7 +241,7 @@ async function insertReport(
     .select('id')
     .single();
   if (error) throw error;
-  return data.id as string;
+  return data.id;
 }
 
 /**
@@ -176,13 +253,16 @@ async function insertReport(
  * hand is deliberate: the chunk suffixes and the `base64-` value encoding are the library's
  * business, and a hand-rolled copy would drift the first time it changed.
  */
-async function mintStorageState(admin: SupabaseClient, email: string): Promise<void> {
-  const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+async function mintStorageState(admin: Client, address: string): Promise<void> {
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: 'magiclink',
+    email: address,
+  });
   if (error || !data.properties) throw new Error(`generateLink failed: ${error?.message}`);
   const { hashed_token: tokenHash, verification_type: verificationType } = data.properties;
 
   const captured: { name: string; value: string; options: CookieOptions }[] = [];
-  const ssr = createServerClient(required('NEXT_PUBLIC_SUPABASE_URL'), publicKey(), {
+  const ssr = createServerClient<Database>(required('NEXT_PUBLIC_SUPABASE_URL'), publicKey(), {
     cookies: {
       getAll: () => [],
       setAll: (cookies) => {
@@ -206,8 +286,10 @@ async function mintStorageState(admin: SupabaseClient, email: string): Promise<v
       domain: baseURL.hostname,
       path: options.path ?? '/',
       // A session cookie (-1) would survive the run either way; honouring maxAge keeps the
-      // expiry the app would have set.
-      expires: options.maxAge ? nowSeconds + options.maxAge : -1,
+      // expiry the app would have set. `!= null`, not a truthiness test: `@supabase/ssr`
+      // spells a cookie REMOVAL as maxAge 0, and a falsy check would write that back as a
+      // live session cookie with no expiry at all.
+      expires: options.maxAge != null ? nowSeconds + options.maxAge : -1,
       // Not httpOnly by default, and that matters: components/session-keepalive.tsx reads
       // the session from the browser client.
       httpOnly: options.httpOnly ?? false,
@@ -275,12 +357,20 @@ async function teardown(): Promise<void> {
   await purge(serviceClient());
 }
 
-const isTeardown = process.argv.includes('--teardown');
-try {
-  await (isTeardown ? teardown() : seed());
-} catch (e) {
-  // The message, never the error object: a Supabase client error can carry the request it
-  // made, and that request carries the key.
-  console.error(`[seed] ${isTeardown ? 'teardown' : 'seed'} failed: ${(e as Error).message}`);
-  process.exitCode = 1;
+// `admin-authenticated.spec.ts` imports the `Fixtures` type from this file. That import is
+// erased before it runs, but this guard means an accidental VALUE import would not quietly
+// seed staging — or set a failing exit code — from inside the test process.
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  const isTeardown = process.argv.includes('--teardown');
+  try {
+    await (isTeardown ? teardown() : seed());
+  } catch (e) {
+    // The message, never the error object: a Supabase client error can carry the request it
+    // made, and that request carries the key.
+    console.error(`[seed] ${isTeardown ? 'teardown' : 'seed'} failed: ${(e as Error).message}`);
+    process.exitCode = 1;
+  }
 }

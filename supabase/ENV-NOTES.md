@@ -105,6 +105,12 @@ its own `env:`, and hands the test run two gitignored files instead —
 `apps/web/e2e/.auth/admin.json` (a Playwright `storageState`) and `.auth/fixtures.json` (ids
 and handles, no tokens). A teardown step with the same `env:` removes the fixtures afterwards.
 
+Fixtures are namespaced on `GITHUB_RUN_ID` (`E2E_RUN_TAG` overrides it; a local run is
+`local`). Several PRs touching `apps/web` run this job at once against the same staging
+project, and shared fixture names would have each run's purge delete the other run's admin
+mid-suite. The seed also sweeps any other run's fixtures older than six hours — a job killed
+before its teardown leaves them behind, and six hours cannot reach a run that is still going.
+
 Session minting takes the magic-link token rather than a password or a browser:
 `auth.admin.generateLink` returns a `hashed_token`, and `verifyOtp` redeems it through a
 `@supabase/ssr` server client whose cookie adapter captures what it writes. Nothing test-only
