@@ -8,7 +8,8 @@
 //   (4) delete the auth.users row (cascades profiles), and purge any matching email_waitlist row.
 // LEGAL-GATED: deployed but UNSCHEDULED, and the (3-gated)/(4) cascade steps stay commented in
 // ./logic.ts until counsel clears the retention window — a claimed request has its fund footprint
-// erased, and stays status='failed' so a partial erasure is never reported complete.
+// erased and then lands on status='partial' (#515), never 'done', so a partial erasure is never
+// reported complete. 'failed' is reserved for a step that actually failed.
 // Transport shell only — the loop (and the gated cascade steps, still commented) lives in
 // ./logic.ts (unit-tested); this file wires auth, the service-role client, and the two ports.
 import { requireServiceRole } from '../_shared/auth.ts';

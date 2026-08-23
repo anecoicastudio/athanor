@@ -225,6 +225,35 @@ Deno.test(
   },
 );
 
+// GoTrue reports a dead auth server BOTH ways too, and the resolved one is the COMMON one:
+// GoTrueAdminApi.signOut catches an AuthError and resolves with { error }. A run that left the
+// member's tokens live must never pass for a clean 'partial'.
+Deno.test("signOut resolving with an error is recorded — 'failed', not 'partial'", async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { signOut: () => Promise.resolve({ error: { message: 'gotrue 503' } }) },
+  );
+  await processErasureRequests(c);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+// The success shape GoTrue returns is { data: null, error: null } — an OBJECT with an error
+// key present and falsy. Guard against a truthiness check on the wrapper instead of on .error.
+Deno.test("signOut resolving { error: null } is a success — 'partial'", async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { signOut: () => Promise.resolve({ data: null, error: null }) },
+  );
+  await processErasureRequests(c);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'partial'],
+  );
+});
+
 // storage.remove reports a dead bucket BOTH ways: a rejected promise and a resolved
 // { error }. The second shape was previously ignored outright, which would have let a run
 // that left the video in place claim 'partial'.

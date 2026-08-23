@@ -298,7 +298,7 @@ select cron.schedule('gdpr-export-nightly', '25 3 * * *', $$
 
 **If `gdpr-export-nightly` already exists, re-create it.** A cron job stores its command verbatim in `cron.job.command`, so a job scheduled with the old `current_setting('app.settings.…', true)` form keeps reading NULL forever no matter what you put in Vault. The form above stores the _call_ to `athanor.runtime_setting`, which therefore re-resolves on every run — rotating the secret needs no reschedule. `select cron.unschedule('gdpr-export-nightly');` then re-create it with the block above.
 
-**Do NOT schedule `erasure-nightly`** — legal-gated inert; a cron that marks GDPR requests `failed` without deleting is a misleading audit trail. Cover the ≤30-day obligation with a documented manual process until counsel clears.
+**Do NOT schedule `erasure-nightly`** — legal-gated inert. Since #515 the job records a gated stop-short as `partial` rather than `failed`, so the audit trail is no longer actively misleading, but a cron would still be marking requests it does not erase: `partial` is an honest label for an unmet obligation, not a substitute for meeting it. Cover the ≤30-day obligation with a documented manual process until counsel clears.
 
 **6. Seed `remote_config`** (both flags OFF, idempotent):
 
