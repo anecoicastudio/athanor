@@ -80,7 +80,14 @@ export async function getPublicEventById(
  * sitemap lists (#335). Same bound, same reason as `listPublicHandles`: prerendering costs a
  * render and a KV write per route per deploy, and the events people open are the ones about
  * to happen. `now` is injectable so a build and a test agree on the cutoff; the default is
- * the clock, as in `getEventsCalendar`.
+ * the clock.
+ *
+ * The cutoff here is a plain `starts_at >= now` and deliberately did NOT follow
+ * `getEventsCalendar`'s #530 widening. That function answers "what should a member see on
+ * the calendar", where an event vanishing as it begins is the bug; this one answers "which
+ * routes are worth prerendering at build time", and an event already under way will not be
+ * discovered through the sitemap before it ends. Its detail page is not gated by this — it
+ * renders on demand for any id.
  *
  * `deleted_at is null` is repeated even though anon RLS already hides deleted rows, so the
  * query is correct under any client and uses the partial indexes. Rows the schema rejects

@@ -51,6 +51,13 @@ const EVENT_COLS =
 
 const PAGE_SIZE = 20;
 
+/**
+ * How long an event with no declared `ends_at` is assumed to run. `events_ends_after_starts`
+ * makes `ends_at` optional, so without this an event that never declares an end would either
+ * vanish at its start instant or linger on the calendar forever.
+ */
+const ASSUMED_DURATION_MS = 60 * 60 * 1000;
+
 /** Opaque keyset cursor for the calendar (the last (starts_at, id) seen). Never an offset (rule #9). */
 export type CalendarCursor = { starts_at: string; id: string };
 export type CalendarPage = { events: Event[]; nextCursor: CalendarCursor | null };
@@ -66,7 +73,15 @@ function literalIlike(value: string): string {
 }
 
 /**
- * Upcoming events ascending by (starts_at, id) — keyset, never offset.
+ * Events that have not finished — upcoming, live now, or in progress — ascending by
+ * (starts_at, id), keyset, never offset. A row is kept while ANY of: it has not started;
+ * `live_started_at` is set and `live_ended_at` is not; `ends_at` is still to come; or it
+ * declared no `ends_at` and started within the last hour (`ASSUMED_DURATION_MS`).
+ *
+ * Before #530 this was `starts_at >= now`, which hid an event at the instant it began.
+ * Rows that are already under way therefore sort FIRST now — soonest-`starts_at` ascending
+ * puts a started event ahead of an upcoming one, which is the intent: a live event leads
+ * «Oggi» and the calendar. The bound is a filter, so the (starts_at, id) keyset is unchanged.
  *
  * `filters` is appended last and stays optional so the two unfiltered call sites
  * (`TodaySection` under `eventKeys.today()`, and `useCalendarEvents`) keep their
@@ -75,9 +90,12 @@ function literalIlike(value: string): string {
  * rather than widening it.
  *
  * The date window is a pair of absolute ISO instants resolved by the caller, never a
- * preset name: this function reads the clock exactly once, for the "in arrivo" cutoff,
- * and `dateFrom` ANDs with that cutoff (the later bound wins) instead of replacing it.
- * A past `dateFrom` therefore cannot resurrect events that already started.
+ * preset name: this function reads the clock exactly once, for the visibility bound, and
+ * `dateFrom`/`dateTo` AND with that bound instead of replacing it. A past `dateFrom`
+ * therefore cannot resurrect events that already finished. The converse is deliberate too:
+ * `dateFrom` is a plain `starts_at` lower bound, so a preset like «Domani» still excludes
+ * an event that is live right now but started yesterday — a date filter is a question about
+ * when something starts, and answering it with a row outside the window would be wrong.
  *
  * `filters` is trusted on its type: VALIDATING it is the caller's job, and the app does it
  * in `apps/native/src/lib/event-filters.ts` before the value ever reaches here. Nothing is
@@ -89,14 +107,26 @@ export async function getEventsCalendar(
   limit = PAGE_SIZE,
   filters?: EventCalendarFilters,
 ): Promise<CalendarPage> {
-  // Upcoming only: hide events that already started (the calendar/«Oggi»/map previews
-  // are "in arrivo"). Top-level filters AND together, so this composes with the keyset.
-  const cutoff = new Date().toISOString();
+  // The visibility bound (#530). A bare `starts_at >= now` dropped every event at the
+  // instant it began — the one moment it matters most — so a row stays while ANY arm holds:
+  // not started yet, explicitly live, or in progress by time. `coalesce(ends_at, starts_at +
+  // 1h) >= now` is split into the last two arms because PostgREST cannot add an interval in
+  // a filter; both instants come from the ONE clock read this function promises.
+  // Top-level predicates AND together, so this composes with the keyset `or(...)` below and
+  // with the #151 date window rather than widening either.
+  const now = new Date();
+  const cutoff = now.toISOString();
+  const graceCutoff = new Date(now.getTime() - ASSUMED_DURATION_MS).toISOString();
   let query = client
     .from('events')
     .select(EVENT_COLS)
     .is('deleted_at', null)
-    .gte('starts_at', cutoff)
+    .or(
+      `starts_at.gte.${cutoff},` +
+        `and(live_started_at.not.is.null,live_ended_at.is.null),` +
+        `ends_at.gte.${cutoff},` +
+        `and(ends_at.is.null,starts_at.gte.${graceCutoff})`,
+    )
     .order('starts_at', { ascending: true })
     .order('id', { ascending: true })
     .limit(limit);
