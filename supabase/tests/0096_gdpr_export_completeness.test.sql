@@ -1,9 +1,11 @@
 -- GDPR export completeness (#129) — the DB half of the contract pinned in
 -- supabase/functions/gdpr-export-job/logic.ts (EXPORT_SPEC) and its logic.test.ts mirror.
 --
--- Sweep: every public table with a FK into public.profiles or auth.users carries a member's
--- personal data and MUST be either exported by gdpr-export-job or explicitly excluded here
--- with a reason. A new personal-data table fails this test until its export fate is decided.
+-- Sweep: every table in public OR athanor with a FK into public.profiles or auth.users carries
+-- a member's personal data and MUST be either exported by gdpr-export-job or explicitly
+-- excluded here with a reason. A new personal-data table fails this test until its export fate
+-- is decided. `athanor` is in the sweep since #126: a table is moved there to leave the CLIENT
+-- grant surface, and that must not also let it leave the personal-data inventory unnoticed.
 -- Known limit: tables below the first degree (FK into a content table, not into profiles —
 -- dream_milestones, post_media, and the realization_plans → realization_plan_phases chain,
 -- which is three hops out) are not auto-swept; they appear in the exported list by hand and
@@ -35,7 +37,8 @@ create temp table gdpr_excluded (t text primary key, reason text not null);
 insert into gdpr_excluded values
   ('conversations',  'pairwise container: the member''s content is the messages (exported); the row itself mostly names the counterpart'),
   ('audit_log',      'moderation internals: actor_id is the acting admin, not the member; verdicts reach the member as notifications (exported)'),
-  ('push_receipts',  'transient delivery telemetry, purged by the receipt sweep — no durable member content');
+  ('push_receipts',  'transient delivery telemetry, purged by the receipt sweep — no durable member content'),
+  ('event_reminder_sends', 'athanor: dispatch dedupe markers for event reminders (#126); derivable from rsvps + notifications (both exported), reaped after 30 days, dropped with the profile by FK');
 
 -- (1) the sweep: no FK-to-profiles table is unaccounted
 select is(
@@ -49,7 +52,7 @@ select is(
       join pg_class fcl     on fcl.oid = c.confrelid
       join pg_namespace fn  on fn.oid  = fcl.relnamespace
       where c.contype = 'f'
-        and n.nspname = 'public'
+        and n.nspname in ('public', 'athanor')
         and ((fn.nspname = 'public' and fcl.relname = 'profiles')
           or (fn.nspname = 'auth'   and fcl.relname = 'users'))
     ) cl
@@ -65,9 +68,9 @@ select is(
     select string_agg(e.t, ', ' order by e.t) from gdpr_exported e
     where not exists (
       select 1 from pg_class cl join pg_namespace n on n.oid = cl.relnamespace
-      where n.nspname = 'public' and cl.relname = e.t and cl.relkind = 'r')
+      where n.nspname in ('public', 'athanor') and cl.relname = e.t and cl.relkind = 'r')
   ), ''),
-  '', 'every exported table exists in public');
+  '', 'every exported table exists in public or athanor');
 
 -- (3) the excluded list names only real tables
 select is(
@@ -75,9 +78,9 @@ select is(
     select string_agg(e.t, ', ' order by e.t) from gdpr_excluded e
     where not exists (
       select 1 from pg_class cl join pg_namespace n on n.oid = cl.relnamespace
-      where n.nspname = 'public' and cl.relname = e.t and cl.relkind = 'r')
+      where n.nspname in ('public', 'athanor') and cl.relname = e.t and cl.relkind = 'r')
   ), ''),
-  '', 'every excluded table exists in public');
+  '', 'every excluded table exists in public or athanor');
 
 -- (4) a table cannot be on both lists
 select is(

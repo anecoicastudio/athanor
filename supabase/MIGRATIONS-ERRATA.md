@@ -942,3 +942,31 @@ so `20260816110227` replaces it in place rather than leaving two sources of the 
 Asserted by: `supabase/tests/0117_fund_tranche_gate.test.sql` (verification refusals, the
 release gate, per-phase attribution) and
 `supabase/functions/release-fund-payout/logic.test.ts` (sweep-mode enumeration).
+
+## `20260823103624_event_reminder_sweep.sql` — the first floor was one tick wide, and retention was gated
+
+Recorded here because the file had reached staging before review caught both; the SQL is
+replaced by `20260823110358_event_reminder_sweep_guard_band.sql` and the header below is what
+stayed wrong.
+
+### L31-38 — "The slots are made NON-OVERLAPPING rather than independent… Without that floor, someone who RSVPs 30 minutes before an online event satisfies both slots on the same tick and receives two identical notifications one second apart"
+
+Overstated. The floor it describes — t24 for an online event applies only when the event is
+more than 1h out — made the slots disjoint **per tick** and no more. An online event 1h+30s
+out claimed t24 on one tick and t1 on the very next minute, so the attendee received the two
+identical reminders the paragraph says the floor prevents, sixty seconds apart instead of one.
+`20260823110358` raises the online floor to 3h (the t1 lead plus a 2h guard band), so an online
+RSVP between 1h and 3h out gets no t24 and waits for its t1, and anyone further out gets both
+at least 2h apart. The rest of the paragraph — why a late RSVP to a physical event still gets
+t24, and why the copy stays true at any distance inside the window — stands.
+
+### L157-160 — "Retention… Pruned here rather than by a second cron, so this table cannot inherit the 'function exists, schedule does not' gap"
+
+The reaper was placed below the "fan-out unconfigured → return" guard, so on a project
+without the Vault pair (or during a rotation window) it never ran — the table stopped being
+claimed _and_ stopped being pruned, which is a different gap from the one the comment guards
+against but the same outcome. `20260823110358` runs the delete first and unconditionally.
+
+Asserted by: `supabase/tests/0130_event_reminder_sweep.test.sql` — «an online event inside
+the 3h guard band claims neither slot» and «an unconfigured sweep still prunes 30-day-old
+markers (retention runs before the guard)».

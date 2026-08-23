@@ -374,6 +374,31 @@ from (values
 ) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_kairos)
 on conflict do nothing;
 
+-- #126 fixture: two events sitting INSIDE the reminder windows. Every offset above is
+-- measured in days, and both reminder windows are sub-daily — 24h for any event, 1h for an
+-- online one — so without these the every-minute event_reminder_sweep has nothing to find
+-- and the reminder stays invisible on staging no matter how correct the producer is.
+-- 'promemoria-oggi' is physical and 5h out, so it claims t24 and (correctly) never a t1;
+-- 'diretta-tra-poco' is online and 30m out, so it claims t1 ONLY — the t24 floor is what
+-- stops one person getting two identical reminders on the same tick. refresh-staging.sql
+-- §10b re-stamps both hourly and clears their markers, so the reminder fires again.
+insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
+                           starts_at, ends_at, capacity, price_cents, currency, is_kairos_day, is_athanor_day)
+select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
+       e.category::public.event_category, e.is_online, e.venue, e.city,
+       case when e.is_online then null
+            else extensions.st_point(e.lng, e.lat)::extensions.geography end,
+       e.stream_url,
+       now() + e.starts_in, now() + e.starts_in + interval '2 hours',
+       e.capacity, 0, 'eur', false, false
+from (values
+  ('promemoria-oggi',  'ele_yoga',   'Promemoria: il cerchio di stasera', 'benessere', false,
+   'Sala Grande', 'Milano', 9.19, 45.46, null,                                     interval '5 hours',   30),
+  ('diretta-tra-poco', 'gio_musica', 'Diretta: si comincia tra poco',     'musica',    true,
+   null,          null,     null, null,  'https://example.invalid/live/tra-poco',  interval '30 minutes', 60)
+) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in, capacity)
+on conflict do nothing;
+
 insert into public.rsvps (id, user_id, event_id, status)
 select md5('rsvp:' || r.handle || ':' || r.slug)::uuid, md5('user:' || r.handle)::uuid,
        md5('event:' || r.slug)::uuid, r.status
@@ -386,7 +411,15 @@ from (values
   ('luna_dev',       'ascolto-disco',  'going'),
   ('rocco_film',     'ascolto-disco',  'going'),
   ('sara_startup',   'kairos-ottobre', 'going'),
-  ('tino_chef',      'bottega-aperta', 'going')
+  ('tino_chef',      'bottega-aperta', 'going'),
+  -- #126: attendees for the two reminder-window events. The cancelled seat on
+  -- promemoria-oggi is load-bearing — «N partecipano» counts going RSVPs only, so it is
+  -- what proves the count is not just `count(*)` over the table.
+  ('sole_designer',  'promemoria-oggi',  'going'),
+  ('bea_foto',       'promemoria-oggi',  'going'),
+  ('nina_poeta',     'promemoria-oggi',  'cancelled'),
+  ('luna_dev',       'diretta-tra-poco', 'going'),
+  ('rocco_film',     'diretta-tra-poco', 'going')
 ) as r(handle, slug, status)
 on conflict do nothing;
 
