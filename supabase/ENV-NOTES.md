@@ -90,11 +90,37 @@ or from the https vars above)
 · `EXPO_PUBLIC_MERCHANT_COUNTRY` (Checkout takes it from the Stripe account) ·
 `EXPO_PUBLIC_DEFAULT_CURRENCY` (priced server-side per session; `eur` throughout).
 
-## Future authenticated e2e (web admin)
+## Authenticated e2e (web admin)
 
-When authenticated admin flows land in Playwright, test seeding (admin user, session
-minting) uses the `sb_secret_…` key via CI secrets or a server-side helper **only** —
-never an env file the Next process can read, never anything prefixed `NEXT_PUBLIC_`.
+The authenticated admin suite (`apps/web/e2e/admin-authenticated.spec.ts`, #174) seeds its
+own admin, reporter, subject, reports and waitlist row on **staging**, and mints the admin's
+session, through `apps/web/e2e/seed/seed-admin.mts`. That script is the only thing that reads
+the `sb_secret_…` key — `E2E_SUPABASE_SECRET_KEY`, a CI secret. Never an env file the Next
+process can read, never anything prefixed `NEXT_PUBLIC_`.
+
+The isolation is structural, not a convention: Playwright's `webServer` starts `pnpm dev`
+with the `playwright test` process's environment, so a secret exported around the test run
+would be readable by the Next dev server. The seed therefore runs as its **own** step, with
+its own `env:`, and hands the test run two gitignored files instead —
+`apps/web/e2e/.auth/admin.json` (a Playwright `storageState`) and `.auth/fixtures.json` (ids
+and handles, no tokens). A teardown step with the same `env:` removes the fixtures afterwards.
+
+Session minting takes the magic-link token rather than a password or a browser:
+`auth.admin.generateLink` returns a `hashed_token`, and `verifyOtp` redeems it through a
+`@supabase/ssr` server client whose cookie adapter captures what it writes. Nothing test-only
+was added to the admin panel — `app/admin/auth/callback/route.ts` stays PKCE-`code`-only.
+
+Locally:
+
+```bash
+cd apps/web
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:seed   # staging's secret key, in the shell only
+pnpm test:e2e                                          # WITHOUT the secret in the environment
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:teardown
+```
+
+Without the seed, `pnpm test:e2e` runs the unauthenticated specs alone; under `CI` it fails
+instead, so a run that skipped half the suite can never read as a pass.
 
 ## `app.settings.*` runtime values (Vault, not GUCs)
 
