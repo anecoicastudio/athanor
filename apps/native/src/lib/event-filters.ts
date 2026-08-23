@@ -117,7 +117,10 @@ export function parseDatePreset(raw?: string): DatePreset {
  * repeated here, the same way `search-filters.ts` derives `auraMin`'s range.
  */
 export function parseCity(raw?: string): string {
-  const city = (raw ?? '').trim();
+  // `*` is stripped here, not just at the query, because the query strips it too: a city of
+  // «***» would otherwise reach PostgREST as an empty pattern — an empty calendar that the
+  // pill still counted as one active filter. No city name contains one.
+  const city = (raw ?? '').replace(/\*/g, '').trim();
   if (!city) return '';
   return eventCalendarFiltersSchema.shape.city.safeParse(city).success ? city : '';
 }
@@ -151,8 +154,10 @@ export function serializeEventFilters(draft: EventFilterDraft): EventFilterParam
 
 /**
  * Params → the filters the query takes. Returns `undefined` when nothing is set, which is
- * what `eventKeys.calendar()` reads as unfiltered — so an unfiltered Calendario shares its
- * cache entry with Mappa and with the pre-#151 key exactly as before.
+ * what `eventKeys.calendar()` reads as unfiltered — so an unfiltered Calendario shares one
+ * cache entry with Mappa, as the two panels always have. (Not the same entry as before #151,
+ * though: the key grew a third element, so `['events','calendar']` became
+ * `['events','calendar',undefined]`. The old entry is simply stranded and ages out.)
  *
  * Every field is already narrowed by `draftFromParams`, so one unusable value costs only
  * itself: an over-long city drops the city and leaves the category and the date window

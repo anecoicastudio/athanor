@@ -161,7 +161,7 @@ Always-visible countdown widget (days to the announcement event, fund total €,
 
 ### 4.6 Athanor Live (Events)
 
-- Create event: title, category (business, networking, spiritualità, formazione, musica, arte, benessere), online (stream URL) or physical (venue, map pin), capacity, price (free or paid).
+- Create event: title, category (business, networking, spiritualità, formazione, musica, arte, benessere, creativi, evoluzione), online (stream URL) or physical (venue, map pin), capacity, price (free or paid).
 - Views: calendar, list, nearby. Filter by category/city/date on the calendar (#151). The map render is deferred post-launch — v1 ships the nearby list; a native maps dependency stays out of the launch path (#151, which absorbed #150).
 - Paid tickets: Stripe Checkout; platform fee on top or absorbed (config per event; default 10%). Free events: 1-tap RSVP.
 - Check-in: organizer scans attendee QR → attendance recorded → score event for both.

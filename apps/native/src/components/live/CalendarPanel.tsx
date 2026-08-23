@@ -60,7 +60,15 @@ export function CalendarPanel({
             onPress={onOpenFilters}
             hitSlop={HIT_SLOP}
             accessibilityRole="button"
-            accessibilityLabel={t('live.filter.a11y', locale)}
+            // An explicit label REPLACES the label derived from children, so a static one
+            // would hide the very state the pill exists to show: «Filtri · 3» and the cyan
+            // accent are both invisible to a screen reader. Carry the count instead.
+            accessibilityLabel={
+              filtered
+                ? t('live.filter.a11yActive', locale, { n: filterCount })
+                : t('live.filter.a11y', locale)
+            }
+            accessibilityState={{ selected: filtered }}
             className={`min-h-[44px] justify-center rounded-full border px-4 py-2 ${
               filtered ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
             }`}

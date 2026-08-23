@@ -78,6 +78,10 @@ function literalIlike(value: string): string {
  * preset name: this function reads the clock exactly once, for the "in arrivo" cutoff,
  * and `dateFrom` ANDs with that cutoff (the later bound wins) instead of replacing it.
  * A past `dateFrom` therefore cannot resurrect events that already started.
+ *
+ * `filters` is trusted on its type: VALIDATING it is the caller's job, and the app does it
+ * in `apps/native/src/lib/event-filters.ts` before the value ever reaches here. Nothing is
+ * cast off a result, which is what rules/api.md's "Zod at a query boundary" governs.
  */
 export async function getEventsCalendar(
   client: AthanorClient,

@@ -16,7 +16,7 @@ import {
   EMPTY_EVENT_FILTER_PARAMS,
   activeFilterCount,
   parseEventFilters,
-  type EventFilterParams,
+  type EventFilterParamsIn,
 } from '@/lib/event-filters';
 import { Screen } from '@/components/Screen';
 
@@ -26,7 +26,7 @@ export default function LiveScreen() {
   // Discovery filters (#151) round-trip through the route, the way search-filters.tsx does:
   // the sheet dismissTo's back here with them as params and this screen re-derives the query
   // filters from them. Held in the URL rather than in state so a deep link can carry them.
-  const params = useLocalSearchParams<EventFilterParams>();
+  const params = useLocalSearchParams<EventFilterParamsIn>();
   const filterCount = activeFilterCount(params);
   // Resolved on every render, deliberately NOT memoised: memoising on the params would freeze
   // the window at whenever they last changed, so a screen still mounted after midnight would

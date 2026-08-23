@@ -17,7 +17,7 @@ import {
   draftFromParams,
   serializeEventFilters,
   type DatePreset,
-  type EventFilterParams,
+  type EventFilterParamsIn,
 } from '@/lib/event-filters';
 import type { EventCategory } from '@athanor/schemas';
 
@@ -40,7 +40,7 @@ export default function EventFiltersScreen() {
   const router = useRouter();
   const locale = useLocale();
 
-  const params = useLocalSearchParams<EventFilterParams>();
+  const params = useLocalSearchParams<EventFilterParamsIn>();
   const initial = draftFromParams(params);
 
   const [category, setCategory] = useState<EventCategory | undefined>(initial.category);

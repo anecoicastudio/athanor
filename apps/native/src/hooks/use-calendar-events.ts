@@ -20,5 +20,11 @@ export function useCalendarEvents(filters?: EventCalendarFilters) {
       getEventsCalendar(supabase, pageParam as CalendarCursor | null, undefined, filters),
     initialPageParam: null as CalendarCursor | null,
     getNextPageParam: (last) => last.nextCursor,
+    // A FILTERED entry is deliberately kept out of the persisted cache (the opt-out
+    // `query-client.ts` documents). Every filter combination is its own entry, and the date
+    // presets roll at local midnight, so persisting them would multiply pages of full event
+    // rows into one AsyncStorage blob for no gain — a filter is a momentary question, not
+    // state worth surviving an app kill. The unfiltered entry persists exactly as before.
+    meta: filters ? { persist: false } : undefined,
   });
 }

@@ -191,6 +191,18 @@ describe('parseCity', () => {
     expect(parseCity('a'.repeat(120))).toHaveLength(120);
     expect(parseCity('a'.repeat(121))).toBe('');
   });
+
+  it('strips the wildcard the query would strip anyway, so a «***» city is no filter', () => {
+    expect(parseCity('***')).toBe('');
+    expect(parseCity('Mil*ano')).toBe('Milano');
+  });
+});
+
+describe('a wildcard-only city is not counted as a filter', () => {
+  it('keeps the pill and the query in agreement', () => {
+    expect(activeFilterCount({ city: '***' })).toBe(0);
+    expect(parseEventFilters({ city: '***' }, WED)).toBeUndefined();
+  });
 });
 
 describe('activeFilterCount', () => {
