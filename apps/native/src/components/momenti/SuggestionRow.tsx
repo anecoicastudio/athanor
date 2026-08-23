@@ -57,11 +57,11 @@ export function SuggestionRow({
         avatarPath={suggestion.avatarPath}
         size={48}
       />
-      {/* min-w-[55%]: `flex-1` alone is basis-0, so ALL of a shrink deficit lands on this column
-          and none on the pill beside it. The reason label is no longer the 11-char «Sogno nuovo»
-          — «Potrebbe cercare ciò che offri» is 30 — so the payload needs a floor and the pill
-          needs to be the thing that gives way. Keep the payload above the label. */}
-      <View className="min-w-[55%] flex-1">
+      {/* Plain `flex-1`: no floor. This column is basis-0 with grow 1, so it already takes every
+          pixel the pill does not need — a `min-w` on top of that pushes it past its flex result
+          and the deficit comes out of the pill instead, which then ellipsizes even a short
+          «Cerchi». The bound that matters is the pill's `max-w`, set by `Tag shrink`. */}
+      <View className="flex-1">
         {/* numberOfLines: Tag is wider than the pill it replaced, and handles run to 30 chars
             (handleSchema) — without this a long one wraps and breaks the min-h-[56px] rhythm. */}
         <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">
