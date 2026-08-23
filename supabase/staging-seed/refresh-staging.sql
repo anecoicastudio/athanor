@@ -542,25 +542,16 @@ begin
   -- matcher, exactly as their deck is.
   --
   -- Scored through athanor.momento_terms() rather than the deck fixture's hand-rolled
-  -- three-term approximation above. Here the score is not the point — the REASONS are, since
-  -- they are the chip — and an approximation would show the fake world a vocabulary the real
-  -- engine never produces.
+  -- three-term approximation above: the fake world's ranking should be the one the real engine
+  -- produces. The reason CHIPS come from the same function at read time (get_momenti_suggestion
+  -- recomputes them, #273 D), so nothing is stored here that could disagree with them.
   delete from public.momento_suggestions where user_id = any(v_personas);
 
   insert into public.momento_suggestions
-        (user_id, candidate_id, affinity, reasons, computed_on, rank)
-  select t.user_id, t.candidate_id, t.affinity, t.reasons, v_today, t.rnk::smallint
+        (user_id, candidate_id, affinity, computed_on, rank)
+  select t.user_id, t.candidate_id, t.affinity, v_today, t.rnk::smallint
     from (
       select p.user_id, p.candidate_id, s.affinity,
-             array_remove(array[
-               case when cardinality(s.shared)          > 0 then 'shared'         end,
-               case when cardinality(s.seek_hit)        > 0 then 'seeking'        end,
-               case when cardinality(s.offer_hit)       > 0 then 'offering'       end,
-               case when cardinality(s.skills_shared)   > 0 then 'skills'         end,
-               case when cardinality(s.city_near)       > 0 then 'city'           end,
-               case when cardinality(s.mutual_activity) > 0 then 'mutualActivity' end,
-               case when cardinality(s.profession_pair) > 0 then 'profession'     end
-             ]::text[], null) as reasons,
              row_number() over (partition by p.user_id
                                 order by s.affinity desc, p.candidate_id) as rnk
         from (

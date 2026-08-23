@@ -172,9 +172,9 @@ select is(
 -- which is below the threshold, so it is not a card to answer — and it IS a suggestion.
 -- That is the whole shape of the feature in one assertion.
 select results_eq(
-  $$ select candidate_id, rank, reasons from public.momento_suggestions
+  $$ select candidate_id, rank, affinity from public.momento_suggestions
       where user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' order by rank $$,
-  $$ values ('cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 1::smallint, array['seeking']) $$,
+  $$ values ('cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 1::smallint, 1::numeric) $$,
   'a single-term overlap is below the Momento threshold and becomes a SUGGESTION instead');
 
 select is(

@@ -12,9 +12,10 @@
 --      excluded candidate below SCORES; the pair is dropped by its gate, not by having
 --      nothing in common, so an assertion going green because the fixture was inert is not
 --      available.
---   3. the READ — get_momenti_suggestion() serves the latest run in rank order, re-checks
---      what can change under a snapshot, and falls back to dream recency for a member no run
---      has reached yet.
+--   3. the READ — get_momenti_suggestion() serves the latest run in rank order, RECOMPUTES the
+--      reason kinds against live masked fields (#273 D: the table stores the ranking, never what
+--      a row says), re-checks everything else that can change under a snapshot, and falls back
+--      to dream recency for a member no run has reached yet.
 --
 -- FIXTURE SHAPE. M's deck is pre-filled to three PENDING proposals, which takes M out of the
 -- matcher's recipient set for both proposal passes (pending_count < 3 fails). Without that,
@@ -41,7 +42,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(40);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -180,41 +181,25 @@ select is(
 set local role service_role;
 
 select throws_ok(
-  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
+  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, computed_on, rank)
      values ('11110000-0000-4000-8000-000000000132','11110000-0000-4000-8000-000000000132',
-             1, array['shared'], current_date, 1) $$,
+             1, current_date, 1) $$,
   '23514',
   null,
   'a member is never suggested to themselves');
 
 select throws_ok(
-  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
+  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, computed_on, rank)
      values ('11110000-0000-4000-8000-000000000132','22220000-0000-4000-8000-000000000132',
-             1, array['shared'], current_date, 4) $$,
+             1, current_date, 4) $$,
   '23514',
   null,
   'rank is bounded to the three rows PRD §4.7 asks for');
 
 select throws_ok(
-  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
+  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, computed_on, rank)
      values ('11110000-0000-4000-8000-000000000132','22220000-0000-4000-8000-000000000132',
-             1, '{}'::text[], current_date, 1) $$,
-  '23514',
-  null,
-  'a stored suggestion always carries a reason — a chip with nothing to say is the bug this replaces');
-
-select throws_ok(
-  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
-     values ('11110000-0000-4000-8000-000000000132','22220000-0000-4000-8000-000000000132',
-             1, array['altaAffinita'], current_date, 1) $$,
-  '23514',
-  null,
-  'reasons are pinned to the momentoReasonKind vocabulary — an i18n key that does not exist cannot be stored');
-
-select throws_ok(
-  $$ insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
-     values ('11110000-0000-4000-8000-000000000132','22220000-0000-4000-8000-000000000132',
-             0, array['shared'], current_date, 1) $$,
+             0, current_date, 1) $$,
   '23514',
   null,
   'affinity 0 is not a suggestion — that member falls through to the cold-start arm');
@@ -232,12 +217,11 @@ select results_eq(
             ('44440000-0000-4000-8000-000000000132'::uuid, 3::smallint) $$,
   'the list is ranked by AFFINITY (3, 2, 1 shared tags), not by dream recency');
 
-select is(
-  (select reasons from public.momento_suggestions
-    where user_id = '11110000-0000-4000-8000-000000000132'
-      and candidate_id = '22220000-0000-4000-8000-000000000132'),
-  array['shared'],
-  'the row carries the reason KINDS the terms produced, in momento_terms() column order');
+select is_empty(
+  $$ select a.attname::text from pg_attribute a
+      where a.attrelid = 'public.momento_suggestions'::regclass
+        and a.attname = 'reasons' and a.attnum > 0 and not a.attisdropped $$,
+  'the table stores no reason kinds — a frozen reason outlives the field it came from (#273 D)');
 
 -- The premise every exclusion below rests on. Without it each `count = 0` would also pass on a
 -- fixture that simply had nothing in common with M, and the gate it names would go untested.
@@ -317,9 +301,8 @@ select is_empty(
   'no member gets more than three suggestions in one run');
 
 select is_empty(
-  $$ select id::text from public.momento_suggestions
-      where affinity <= 0 or cardinality(reasons) = 0 $$,
-  'every stored suggestion scored something and can say what');
+  $$ select id::text from public.momento_suggestions where affinity <= 0 $$,
+  'every stored suggestion scored something');
 
 -- Idempotence: a second run the same day replaces the day's rows rather than duplicating or
 -- colliding on either unique constraint.
@@ -336,9 +319,9 @@ select results_eq(
   'and it leaves the same three rows, not six');
 
 -- Retention: a run older than a week is pruned by the pass that writes the new one.
-insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
+insert into public.momento_suggestions (user_id, candidate_id, affinity, computed_on, rank)
 values ('11110000-0000-4000-8000-000000000132','22220000-0000-4000-8000-000000000132',
-        9, array['shared'], (now() at time zone 'utc')::date - 8, 1);
+        9, (now() at time zone 'utc')::date - 8, 1);
 select public.run_momenti_matcher();
 select is(
   (select count(*)::int from public.momento_suggestions
@@ -390,10 +373,76 @@ select is(
   2,
   'and the rest of the list still renders — one ban is not an empty section');
 
--- ── the latest run, not today's run ──
+-- ── read-time re-checks: a connection made during the day ──
+-- The likeliest of all of them to change between the run and the read, because connecting is
+-- what a member DOES with a suggestion. Without the read-side gate, tapping a suggestion through
+-- to a connection leaves that person in the list until the next night.
 reset role;
 set local role service_role;
 update public.profiles set banned_at = null where id = '22220000-0000-4000-8000-000000000132';
+insert into public.connections (profile_a, profile_b)
+values (least('11110000-0000-4000-8000-000000000132'::uuid, '33330000-0000-4000-8000-000000000132'::uuid),
+        greatest('11110000-0000-4000-8000-000000000132'::uuid, '33330000-0000-4000-8000-000000000132'::uuid));
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11110000-0000-4000-8000-000000000132","role":"authenticated"}';
+
+select results_eq(
+  $$ select candidate_id from public.get_momenti_suggestion() $$,
+  $$ values ('22220000-0000-4000-8000-000000000132'::uuid),
+            ('44440000-0000-4000-8000-000000000132'::uuid) $$,
+  'connecting with a suggested peer drops them from the list at once, not at the next run');
+
+reset role;
+set local role service_role;
+delete from public.connections
+ where profile_a = least('11110000-0000-4000-8000-000000000132'::uuid, '33330000-0000-4000-8000-000000000132'::uuid)
+   and profile_b = greatest('11110000-0000-4000-8000-000000000132'::uuid, '33330000-0000-4000-8000-000000000132'::uuid);
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11110000-0000-4000-8000-000000000132","role":"authenticated"}';
+
+select is(
+  (select count(*)::int from public.get_momenti_suggestion()),
+  3,
+  'and comes back when the connection goes — the read is a gate, not a deletion');
+
+-- ── read-time re-checks: the REASONS are recomputed, not served from the snapshot ──
+-- S2's only term is the shared `artista` tag. Hiding identity_tags alone leaves `seeking`
+-- visible, so the both-tags-private gate above does NOT fire — the row can only be dropped by
+-- recomputing what it would say. A stored `reasons` array would have kept rendering
+-- «Condividete», telling the reader that S2's now-hidden tags overlap theirs (#273 D).
+reset role;
+set local role service_role;
+update public.profiles
+   set visibility = coalesce(visibility, '{}'::jsonb) || '{"identity_tags":"private"}'::jsonb
+ where id = '44440000-0000-4000-8000-000000000132';
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11110000-0000-4000-8000-000000000132","role":"authenticated"}';
+
+select results_eq(
+  $$ select candidate_id from public.get_momenti_suggestion() $$,
+  $$ values ('22220000-0000-4000-8000-000000000132'::uuid),
+            ('33330000-0000-4000-8000-000000000132'::uuid) $$,
+  'a peer who hides the field their only reason came from leaves the list, chip and all');
+
+reset role;
+set local role service_role;
+update public.profiles set visibility = '{}'::jsonb
+ where id = '44440000-0000-4000-8000-000000000132';
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11110000-0000-4000-8000-000000000132","role":"authenticated"}';
+
+select is(
+  (select count(*)::int from public.get_momenti_suggestion()),
+  3,
+  'and returns when the field is visible again — recomputed every read, never cached');
+
+-- ── the latest run, not today's run ──
+reset role;
+set local role service_role;
 update public.momento_suggestions set computed_on = (now() at time zone 'utc')::date - 1
   where user_id = '11110000-0000-4000-8000-000000000132';
 reset role;

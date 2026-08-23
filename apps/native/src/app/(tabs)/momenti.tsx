@@ -148,8 +148,10 @@ export default function MomentiScreen() {
             server's rank order kept as it arrived. No glow: a suggestion is not a moment (#4). */}
         {suggestions.data && suggestions.data.length > 0 ? (
           <View className="mt-8">
-            <SectionLabel className="mb-2">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
-            <View className="gap-2">
+            {/* mb-3 + gap-3, matching DreamSection's IncomingOfferRow list — the app's only
+                other stack of Avatar + flex-1 + Tag rows, where label and rows share one rhythm. */}
+            <SectionLabel className="mb-3">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
+            <View className="gap-3">
               {suggestions.data.map((suggestion) => (
                 <SuggestionRow
                   key={suggestion.candidateId}

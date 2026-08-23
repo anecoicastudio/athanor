@@ -57,7 +57,11 @@ export function SuggestionRow({
         avatarPath={suggestion.avatarPath}
         size={48}
       />
-      <View className="flex-1">
+      {/* min-w-[55%]: `flex-1` alone is basis-0, so ALL of a shrink deficit lands on this column
+          and none on the pill beside it. The reason label is no longer the 11-char «Sogno nuovo»
+          — «Potrebbe cercare ciò che offri» is 30 — so the payload needs a floor and the pill
+          needs to be the thing that gives way. Keep the payload above the label. */}
+      <View className="min-w-[55%] flex-1">
         {/* numberOfLines: Tag is wider than the pill it replaced, and handles run to 30 chars
             (handleSchema) — without this a long one wraps and breaks the min-h-[56px] rhythm. */}
         <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">
@@ -70,7 +74,7 @@ export function SuggestionRow({
       {/* `?? 'newDream'`: the schema requires a non-empty array, so this only ever fires if the
           server contract breaks — and «Sogno nuovo» is the right thing to say when we cannot say
           why. It is never a silent blank chip. */}
-      <Tag quiet label={reasonPrefix(suggestion.reasons[0] ?? 'newDream', locale)} />
+      <Tag shrink quiet label={reasonPrefix(suggestion.reasons[0] ?? 'newDream', locale)} />
     </Pressable>
   );
 }
