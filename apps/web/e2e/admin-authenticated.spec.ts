@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { reportPenaltyPoints } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Fixtures } from './seed/seed-admin.mts';
 
@@ -102,9 +103,11 @@ test('an upheld report records its penalty in the audit trail', async ({ page })
 
   await page.goto(`/admin/reports/${fixtures.upholdReportId}`);
   await expect(banner(page, 'upheld')).toContainText(resolution);
-  // The points are the record of the deduction the score-engine makes; -50 is `low`.
+  // The points are the record of the deduction the score-engine makes. Read from the weights
+  // module rather than written out: rule 10 gives a weight one home, and a spec that spells
+  // it a second time is the copy that gets missed when the band moves.
   await expect(page.getByRole('listitem').first()).toContainText(
-    `${t('admin.action.penalty', IT)} (-50)`,
+    `${t('admin.action.penalty', IT)} (${reportPenaltyPoints('low')})`,
   );
 });
 
