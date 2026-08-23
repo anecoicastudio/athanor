@@ -3231,6 +3231,7 @@ export type Database = {
           voters: number
         }[]
       }
+      event_reminder_sweep: { Args: never; Returns: undefined }
       event_seats_taken: { Args: { p_event_id: string }; Returns: number }
       events_nearby: {
         Args: {

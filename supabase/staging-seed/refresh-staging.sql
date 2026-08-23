@@ -111,6 +111,7 @@ declare
   v_deck_deleted  int  := 0;
   v_deck_inserted int  := 0;
   v_notifs        int  := 0;
+  v_reminders     int  := 0;
   r               int;
 begin
   -- §0 Self-gate. First statement: inert anywhere the staging marker is absent.
@@ -342,6 +343,30 @@ begin
      and (e.starts_at < now() - interval '14 days' or e.deleted_at is not null);
   get diagnostics r = row_count; v_events := v_events + r;
 
+  -- §10b #126 reminder fixtures. Both offsets are sub-daily, so unlike §10's day-scale
+  -- events these decay out of their windows within one refresh interval. Re-stamped
+  -- whenever they have drifted below their seeded offset at all (time only moves one way,
+  -- so in practice every run after the first), and never pushed further out than seeded.
+  update public.events e
+     set starts_at = now() + x.offset_in,
+         ends_at   = now() + x.offset_in + interval '2 hours',
+         live_started_at = null, live_ended_at = null, deleted_at = null
+    from (values
+      ('promemoria-oggi',  interval '5 hours'),
+      ('diretta-tra-poco', interval '30 minutes')
+    ) as x(slug, offset_in)
+   where e.id = md5('event:' || x.slug)::uuid
+     and (e.starts_at < now() + x.offset_in or e.deleted_at is not null);
+  get diagnostics r = row_count; v_events := v_events + r;
+
+  -- …and drop their send markers, so the next minute's sweep enqueues the reminder again.
+  -- Scoped to these two ids: a marker on any other event is a real send and stays, which is
+  -- also what keeps this from masking a producer that fires more than once.
+  delete from athanor.event_reminder_sends
+   where event_id in (md5('event:promemoria-oggi')::uuid,
+                      md5('event:diretta-tra-poco')::uuid);
+  get diagnostics v_reminders = row_count;
+
   -- §11 Fund ballot window: the same re-stamp, for the one time-relative column a
   -- gate actually reads. cast_vote refuses outside [voting_starts_at, voting_ends_at]
   -- (20260815090015, #217) and NULL null-propagates to a refusal, so a closed or
@@ -453,9 +478,12 @@ begin
   -- transaction commits (trigger → pg_net → edge fn), so the just-created rows can
   -- only be pruned on the NEXT run: persona 'moment' notifications older than 2 hours
   -- go. Tester notifications and the action-gated types are never touched.
+  -- 'eventReminder' joins 'moment' here for the same reason and one of its own: §10b
+  -- re-arms the reminder every hour on purpose, so without this cap a persona's centre
+  -- would accumulate one identical reminder per hour forever.
   delete from public.notifications n
    where n.recipient_id = any(v_personas)
-     and n.type = 'moment'
+     and n.type in ('moment', 'eventReminder')
      and n.created_at < now() - interval '2 hours';
   get diagnostics v_notifs = row_count;
 
@@ -472,6 +500,7 @@ begin
     'ballot_restamped',       v_ballot,
     'deck_rows_deleted',      v_deck_deleted,
     'deck_rows_inserted',     v_deck_inserted,
+    'reminder_marks_cleared', v_reminders,
     'moment_notifs_pruned',   v_notifs
   );
 end;

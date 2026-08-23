@@ -1,7 +1,7 @@
 -- #180 — the updated_at / touch-trigger convention, asserted rather than audited.
 --
 -- rules/supabase-db.md wants created_at + updated_at + a touch trigger on every new table.
--- Fourteen tables are deliberate exceptions; each states why in its own comment, tagged
+-- Fifteen tables are deliberate exceptions; each states why in its own comment, tagged
 -- `CONVENTION EXEMPTION (#180)` by 20260821164731. This file makes that the rule: a new table
 -- with no updated_at fails here until it either grows the column or says why not, and the
 -- exempt set is pinned by name so widening it is a decision someone had to type.
@@ -45,7 +45,8 @@ select is_empty(
 --    which is exactly what #180 found missing fourteen times.
 select bag_eq(
   $$ select sch || '.' || tbl from convention_tables where not has_updated_at $$,
-  $$ values ('athanor.waitlist_throttle'::text),
+  $$ values ('athanor.event_reminder_sends'::text),
+            ('athanor.waitlist_throttle'),
             ('public.athanor_days_interest'),
             ('public.audit_log'),
             ('public.aura_events'),
@@ -59,7 +60,7 @@ select bag_eq(
             ('public.post_reactions'),
             ('public.story_reactions'),
             ('public.stripe_webhook_events') $$,
-  'the exempt set is exactly these fourteen tables');
+  'the exempt set is exactly these fifteen tables');
 
 select * from finish();
 rollback;
