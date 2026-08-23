@@ -1117,9 +1117,10 @@ describe('a video-capable picker can always say why it refused (#507)', () => {
  * migration is owed). `getFeedPage` builds `.eq('category', …)` against that enum, which means
  * a tab value reaching it is a PostgREST 400 at runtime on a screen that type-checks fine.
  *
- * The compiler holds that line only while `FeedFilter` stays narrower than `FeedTab` and the
- * screen narrows through `postsFilter`. Both are one edit from being undone — a widened
- * `FeedFilter`, or an `as FeedFilter` on the tab state — and neither edit fails anything else.
+ * `packages/api` declares its own `PostCategory | 'all'` on both entry points rather than
+ * importing the app's alias, so merely widening `FeedFilter` would fail typecheck at the call
+ * site — the compiler covers that half. What it does not cover is an `as FeedFilter` on the tab
+ * state, or a screen that stops narrowing at all, which is what these assertions are for.
  */
 describe('the events tab has no posts source (#153)', () => {
   /** Every line that reads the posts feed. */
@@ -1131,10 +1132,16 @@ describe('the events tab has no posts source (#153)', () => {
   });
 
   /**
-   * An ALLOWLIST, not a hunt for the current variable name: the identifier feeding
-   * `postKeys.feed(…)` and `category:` must be the narrowed one. A denylist on `tab` goes blind
-   * the moment the state is renamed, and scanning line-by-line misses the real shape — the call
-   * spans four lines and `category:` sits on its own.
+   * An ALLOWLIST: the identifier feeding `postKeys.feed(…)` and `category:` must be the narrowed
+   * one. A denylist on `tab` would go blind the moment that state is renamed, and scanning
+   * line-by-line misses the real shape — the call spans four lines and `category:` sits on its
+   * own.
+   *
+   * Two properties of the allowlist are deliberate. `NARROWED` is load-bearing: renaming the
+   * screen's variable turns this red until the constant follows, which is the cost of not
+   * having a denylist. And a string literal (`category: 'eventi'`) is skipped rather than
+   * flagged — fail-open here, because `packages/api`'s own `PostCategory | 'all'` rejects that
+   * one at compile time and this guard exists for what the compiler cannot see.
    */
   it('the posts query is fed only by the narrowed value', () => {
     const NARROWED = 'postsCategory';

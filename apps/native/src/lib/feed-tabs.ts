@@ -8,10 +8,13 @@ import type { PostCategory } from '@athanor/schemas';
  * Live — real `events` rows rendered as feed cards — so `'eventi'` is deliberately NOT a
  * `post_category` value, no migration is owed, and the composer gains nothing.
  *
- * The two unions are kept apart for a reason the compiler then enforces: `postKeys.feed` and
- * `getFeedPage` are typed `FeedFilter`, so a tab value can only reach them through
- * `postsFilter`, and `getFeedPage` does `.eq('category', …)` against the enum — handing it
- * `'eventi'` would be a PostgREST 400, not a type error, if the two unions were one.
+ * The two unions are kept apart, and the compiler then enforces it from the other side:
+ * `postKeys.feed` and `getFeedPage` declare their own `PostCategory | 'all'` parameter in
+ * `packages/api/src/posts.ts` rather than importing this alias, so widening `FeedFilter` here
+ * does not widen them — a tab value reaches them only through `postsFilter`.
+ *
+ * What no type covers is the request itself: `getFeedPage` builds `.eq('category', …)` against
+ * the enum, so `'eventi'` arriving there is a PostgREST 400 at runtime, not a compile error.
  */
 
 /** The five tabs whose source is the posts feed. Never widened — see `FeedTab`. */

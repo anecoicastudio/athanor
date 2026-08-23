@@ -44,8 +44,8 @@ export default function CommunityScreen() {
   const locale = useLocale();
 
   // `null` on the «Eventi» tab: it has no posts source (#153), so the posts query stands down
-  // and `EventsFeedList` draws instead. The key keeps its last legal value rather than
-  // inventing one — the query is disabled, so nothing is read under it.
+  // and `EventsFeedList` draws instead. The key falls back to `'all'` — a constant, not the tab
+  // the member came from — and is never read under it, because the query is disabled.
   const postsCategory = postsFilter(tab);
   const showsPosts = postsCategory !== null;
 
@@ -121,28 +121,6 @@ export default function CommunityScreen() {
     void query.refetch();
   };
 
-  if (showsPosts && query.isLoading) {
-    return (
-      <Screen className="pt-4">
-        <FeedSkeleton />
-      </Screen>
-    );
-  }
-
-  if (showsPosts && query.isError) {
-    return (
-      <Screen>
-        <ListState
-          state="error"
-          locale={locale}
-          errorLabel={t('feed.error', locale)}
-          onRetry={onRefresh}
-          className="flex-1 justify-center px-5"
-        />
-      </Screen>
-    );
-  }
-
   const header = (
     <View className="gap-4 py-4">
       {/* h1 + compose, per DESIGN §8.3 — the in-content header (§6 → Screen headers). */}
@@ -214,6 +192,32 @@ export default function CommunityScreen() {
           header={header}
           onOpen={(id) => router.push(EVENT_HREF(id))}
           onCreate={() => router.push(EVENT_CREATE_HREF)}
+        />
+      </Screen>
+    );
+  }
+
+  // Both arms keep the header, so a cold switch back from «Eventi» does not take the tab row
+  // away with it and strand the member mid-switch.
+  if (query.isLoading) {
+    return (
+      <Screen>
+        {header}
+        <FeedSkeleton />
+      </Screen>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <Screen>
+        {header}
+        <ListState
+          state="error"
+          locale={locale}
+          errorLabel={t('feed.error', locale)}
+          onRetry={onRefresh}
+          className="flex-1 justify-center px-5"
         />
       </Screen>
     );
