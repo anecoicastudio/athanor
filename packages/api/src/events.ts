@@ -2,6 +2,7 @@ import {
   type Attendance,
   type CheckInResult,
   type Event,
+  type EventCalendarFilters,
   type EventCategory,
   type EventCreate,
   type EventLiveStats,
@@ -26,7 +27,12 @@ export const eventKeys = {
   all: ['events'] as const,
   nearby: (lat: number, lng: number, radiusKm: number) =>
     [...eventKeys.all, 'nearby', lat, lng, radiusKm] as const,
-  calendar: () => [...eventKeys.all, 'calendar'] as const,
+  /**
+   * Filters belong IN the key (rules/api.md): a changed filter set is a different cache
+   * entry, so TanStack starts it at `initialPageParam: null` and the keyset cursor from
+   * the previous filter set can never be carried into it (rule #9).
+   */
+  calendar: (filters?: EventCalendarFilters) => [...eventKeys.all, 'calendar', filters] as const,
   online: () => [...eventKeys.all, 'online'] as const,
   today: () => [...eventKeys.all, 'today'] as const,
   detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
@@ -49,11 +55,35 @@ const PAGE_SIZE = 20;
 export type CalendarCursor = { starts_at: string; id: string };
 export type CalendarPage = { events: Event[]; nextCursor: CalendarCursor | null };
 
-/** Upcoming events ascending by (starts_at, id) — keyset, never offset. */
+/**
+ * Escape the LIKE metacharacters PostgREST forwards, so a city typed into the filter
+ * sheet is matched literally. `*` is PostgREST's own alias for `%` in `like`/`ilike`
+ * and is substituted before Postgres sees the pattern, so a backslash cannot escape it —
+ * it is dropped instead (no city name contains one).
+ */
+function literalIlike(value: string): string {
+  return value.replace(/\*/g, '').replace(/([\\%_])/g, '\\$1');
+}
+
+/**
+ * Upcoming events ascending by (starts_at, id) — keyset, never offset.
+ *
+ * `filters` is appended last and stays optional so the two unfiltered call sites
+ * (`TodaySection` under `eventKeys.today()`, and `useCalendarEvents`) keep their
+ * behaviour byte-for-byte. Every filter is a top-level PostgREST predicate, and
+ * top-level predicates AND together — so they compose with the keyset `or(...)`
+ * rather than widening it.
+ *
+ * The date window is a pair of absolute ISO instants resolved by the caller, never a
+ * preset name: this function reads the clock exactly once, for the "in arrivo" cutoff,
+ * and `dateFrom` ANDs with that cutoff (the later bound wins) instead of replacing it.
+ * A past `dateFrom` therefore cannot resurrect events that already started.
+ */
 export async function getEventsCalendar(
   client: AthanorClient,
   cursor?: CalendarCursor | null,
   limit = PAGE_SIZE,
+  filters?: EventCalendarFilters,
 ): Promise<CalendarPage> {
   // Upcoming only: hide events that already started (the calendar/«Oggi»/map previews
   // are "in arrivo"). Top-level filters AND together, so this composes with the keyset.
@@ -66,6 +96,14 @@ export async function getEventsCalendar(
     .order('starts_at', { ascending: true })
     .order('id', { ascending: true })
     .limit(limit);
+
+  if (filters?.category) query = query.eq('category', filters.category);
+  // `events.city` is free text written by event-create's reverse geocode, so match it
+  // case-insensitively but WHOLE — no implicit wildcards, or «Roma» would also pull in
+  // every «Roma, RM» variant the geocoder happens to emit.
+  if (filters?.city) query = query.ilike('city', literalIlike(filters.city));
+  if (filters?.dateFrom) query = query.gte('starts_at', filters.dateFrom);
+  if (filters?.dateTo) query = query.lte('starts_at', filters.dateTo);
 
   if (cursor) {
     const { starts_at, id } = cursor;
