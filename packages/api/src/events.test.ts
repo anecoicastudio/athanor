@@ -468,9 +468,12 @@ describe('getEventsCalendar', () => {
     const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
     await getEventsCalendar(asClient(fake), null, 20);
 
-    // The old `.gte('starts_at', cutoff)` top-level predicate is GONE — it is what hid
-    // every row the moment it started.
-    expect(fake.calls[0]!.filters.some((f) => f[0] === 'gte' && f[1] === 'starts_at')).toBe(false);
+    // The old `.gte('starts_at', now)` cutoff is GONE — it is what hid every row the moment
+    // it started. The one remaining bare `gte` is the scan floor, thirty days BACK, which is
+    // a different predicate serving a different purpose.
+    const bareGte = fake.calls[0]!.filters.filter((f) => f[0] === 'gte' && f[1] === 'starts_at');
+    expect(bareGte).toHaveLength(1);
+    expect(new Date(String(bareGte[0]![2])).getTime()).toBeLessThan(Date.now() - 29 * 864e5);
 
     const bound = boundOf(fake);
     // arm 1 — not started yet
@@ -501,6 +504,23 @@ describe('getEventsCalendar', () => {
     }
   });
 
+  it('ANDs a thirty-day scan floor so the disjunction stays sargable', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
+      const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+      await getEventsCalendar(asClient(fake), null, 20);
+      // Without a range start the planner walks `events_calendar` from the oldest event
+      // forward, discarding every finished row before it can fill a page. This is a
+      // top-level predicate, so it ANDs with the bound rather than widening it.
+      expect(fake.calls[0]!.filters).toEqual(
+        expect.arrayContaining([['gte', 'starts_at', '2026-08-02T12:00:00.000Z']]),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps the (starts_at, id) ascending order — the bound is a filter, not an order', async () => {
     const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
     await getEventsCalendar(asClient(fake), null, 20);
@@ -523,10 +543,9 @@ describe('getEventsCalendar', () => {
     const cols = fake.calls[0]!.filters.map((f) => f[1]);
     expect(cols).not.toContain('category');
     expect(cols).not.toContain('city');
-    // No `starts_at` COLUMN predicate at all now: since #530 the visibility bound is a
-    // single `or(...)` string, so a bare `starts_at` filter here could only be a #151 date
-    // preset leaking in.
-    expect(fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at')).toHaveLength(0);
+    // Exactly ONE bare `starts_at` predicate with no filters: the scan floor that keeps the
+    // bound sargable. Any second one would be a #151 date preset leaking in.
+    expect(fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at')).toHaveLength(1);
     expect(fake.calls[0]!.filters.filter((f) => f[0] === 'or')).toHaveLength(1);
   });
 
@@ -559,12 +578,16 @@ describe('getEventsCalendar', () => {
       dateTo: '2026-08-30T23:59:59.999Z',
     });
     const startsAt = fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at');
-    // Since #530 the window's own two predicates are the ONLY bare `starts_at` filters —
-    // the cutoff moved into the `or(...)` bound, which is a separate AND-ed predicate.
+    // Three bare `starts_at` predicates: the scan floor, then the window's own two. The
+    // "in arrivo" cutoff is NOT among them — since #530 it lives in the `or(...)` bound.
     expect(startsAt).toEqual([
+      ['gte', 'starts_at', expect.any(String)], // the scan floor
       ['gte', 'starts_at', '2020-01-01T00:00:00.000Z'],
       ['lte', 'starts_at', '2026-08-30T23:59:59.999Z'],
     ]);
+    // A past dateFrom is still ANDed, so it cannot widen anything — the later of the two
+    // lower bounds wins in Postgres.
+    expect(startsAt.filter((f) => f[0] === 'gte')).toHaveLength(2);
     expect(boundOf(fake)).toContain('live_ended_at.is.null');
     // A past dateFrom still cannot resurrect a FINISHED event: the bound AND-s on top of it.
     expect(boundOf(fake)).toMatch(/ends_at\.gte\./);

@@ -4,7 +4,8 @@ import { eventKeys, getEventsCalendar } from '@athanor/api';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
-import { EventRow } from '@/components/live/EventRow';
+import { EventRow, toRowData } from '@/components/live/EventRow';
+import { useEntitlement } from '@/hooks/use-entitlement';
 import { SectionLabel } from '@/components/SectionLabel';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
@@ -12,7 +13,17 @@ import { supabase } from '@/lib/supabase';
 const LIVE_HREF = '/(modal)/live' as const;
 
 /**
- * Home «Oggi» — the next upcoming events + an entry into Athanor Live (M4 fill of the M1 stub).
+ * Home «Oggi» — the next events + an entry into Athanor Live (M4 fill of the M1 stub).
+ *
+ * Rows go through `toRowData` like every other `getEventsCalendar` consumer. This block used
+ * to hand-build the row shape and omit `live`, which was harmless only because #530's old
+ * `starts_at >= now` bound meant no started event could reach it. Now one can — and it sorts
+ * FIRST — so a hand-built row would show an event that is live right now as an ordinary
+ * future row with a start time already in the past. `toRowData` also derives `premiumLocked`,
+ * which the hand-built shape was likewise missing.
+ *
+ * `limit 3` is unchanged, so a live event now takes a slot an upcoming one used to hold. That
+ * is the intent: what is happening now outranks what is happening later.
  *
  * The block had ONE non-data branch and three situations fell into it: still loading, the read
  * threw, and there genuinely are no events (#111). All three rendered «Nessun evento in
@@ -40,6 +51,8 @@ export function TodaySection({ locale }: { locale: Locale }) {
     queryFn: () => getEventsCalendar(supabase, null, 3),
   });
   const events = query.data?.events ?? [];
+  const { data: entitlement } = useEntitlement();
+  const premiumEnabled = entitlement?.features.premiumEvents ?? false;
 
   // `staleWins`: three event rows an hour old are still three real events, and the member is
   // one tap from the surface that re-reads them. Nothing here is a claim about a person.
@@ -68,16 +81,7 @@ export function TodaySection({ locale }: { locale: Locale }) {
         {events.map((e) => (
           <EventRow
             key={e.id}
-            data={{
-              id: e.id,
-              title: e.title,
-              category: e.category,
-              starts_at: e.starts_at,
-              venue: e.venue,
-              city: e.city,
-              is_online: e.is_online,
-              is_athanor_day: e.is_athanor_day,
-            }}
+            data={toRowData(e, premiumEnabled)}
             locale={locale}
             onPress={() => router.push(`/(modal)/event/${e.id}`)}
           />

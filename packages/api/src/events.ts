@@ -55,8 +55,30 @@ const PAGE_SIZE = 20;
  * How long an event with no declared `ends_at` is assumed to run. `events_ends_after_starts`
  * makes `ends_at` optional, so without this an event that never declares an end would either
  * vanish at its start instant or linger on the calendar forever.
+ *
+ * NOTE this is deliberately the one hour the #530 ruling names, while
+ * `20260813054817_live_window_sweep.sql` closes an unclosed LIVE window after four. The two
+ * answer different questions — the sweep decides when a stream is over, this decides how long
+ * an open-ended event stays listed — and for an online event the sweep's window keeps the row
+ * visible through arm 2 regardless. An in-person open-ended event, which nothing marks live,
+ * does drop off after an hour.
  */
 const ASSUMED_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * How far back the scan may reach. Without a lower bound the disjunction below is not sargable
+ * against `events_calendar (starts_at, id) where deleted_at is null`: the planner would walk
+ * the index from the oldest event forward, discarding every finished row before it could fill
+ * a page — cost growing with the table's whole history, on the hot path of Home «Oggi», Live
+ * Calendario/Mappa and the feed's «Eventi» tab.
+ *
+ * As a top-level predicate it ANDs with the bound and restores the range start. The trade is
+ * explicit: an event still under way that began more than this long ago is not listed. It also
+ * caps arm 2, which is otherwise unbounded in time — a live window that is never closed
+ * (`live_window_sweep` never overwrites a manually set one) would otherwise sit on every
+ * calendar surface forever.
+ */
+const MAX_EVENT_SPAN_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Opaque keyset cursor for the calendar (the last (starts_at, id) seen). Never an offset (rule #9). */
 export type CalendarCursor = { starts_at: string; id: string };
@@ -117,10 +139,12 @@ export async function getEventsCalendar(
   const now = new Date();
   const cutoff = now.toISOString();
   const graceCutoff = new Date(now.getTime() - ASSUMED_DURATION_MS).toISOString();
+  const scanFloor = new Date(now.getTime() - MAX_EVENT_SPAN_MS).toISOString();
   let query = client
     .from('events')
     .select(EVENT_COLS)
     .is('deleted_at', null)
+    .gte('starts_at', scanFloor)
     .or(
       `starts_at.gte.${cutoff},` +
         `and(live_started_at.not.is.null,live_ended_at.is.null),` +
