@@ -144,6 +144,63 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: () => 'Your archive is ready. Download it from Settings → Your data.',
     },
   },
+  // #127 — the fund's broadcasts. Titles mirror notif.type.fundMilestone; bodies mirror the
+  // five notif.tpl.fund* keys. The *LastDay pair exists because `t()` has no plural support and
+  // «Mancano 1 giorni» is not Italian, so the 1-day slot writes the number into the sentence.
+  //
+  // Every body is fact-then-invitation, and the invitation is what carries the SECOND PERSON
+  // (rule 5). The fact stays impersonal on purpose: this reaches every member, and a «we raised
+  // it together» framing would claim a contribution most recipients never made — rule 3.
+  'notif.tpl.fundMilestone': {
+    it: {
+      title: 'Il fondo',
+      body: (p) => `Il fondo ha superato il ${p.pct ?? 0}%. Vieni a vedere dove siamo.`,
+    },
+    en: {
+      title: 'The fund',
+      body: (p) => `The fund passed ${p.pct ?? 0}%. Come see where we stand.`,
+    },
+  },
+  'notif.tpl.fundAnnounceCountdown': {
+    it: {
+      title: 'Il fondo',
+      body: (p) =>
+        `Mancano ${p.days ?? 0} giorni all'annuncio. Tieni d'occhio il conto alla rovescia.`,
+    },
+    en: {
+      title: 'The fund',
+      body: (p) => `${p.days ?? 0} days to the announcement. Keep an eye on the countdown.`,
+    },
+  },
+  'notif.tpl.fundAnnounceLastDay': {
+    it: { title: 'Il fondo', body: () => 'Domani si annuncia il sogno scelto. Ci sei?' },
+    en: {
+      title: 'The fund',
+      body: () => 'Tomorrow the chosen dream is announced. Will you be there?',
+    },
+  },
+  'notif.tpl.fundBallotCountdown': {
+    it: {
+      title: 'Il fondo',
+      body: (p) =>
+        `Mancano ${p.days ?? 0} giorni alla chiusura del voto. Se vuoi votare, sei ancora in tempo.`,
+    },
+    en: {
+      title: 'The fund',
+      body: (p) =>
+        `${p.days ?? 0} days until voting closes. If you want to vote, there is still time.`,
+    },
+  },
+  'notif.tpl.fundBallotLastDay': {
+    it: {
+      title: 'Il fondo',
+      body: () => 'Il voto chiude domani. Se non hai ancora votato, è il momento.',
+    },
+    en: {
+      title: 'The fund',
+      body: () => "Voting closes tomorrow. If you haven't voted yet, now is the time.",
+    },
+  },
 };
 
 const ROUTE: Record<string, string> = {
@@ -160,6 +217,8 @@ const ROUTE: Record<string, string> = {
   moderation: 'trust',
   // #129: the in-app router opens the Data Export modal (Settings → I tuoi dati).
   gdprExport: 'data-export',
+  // #127: matches notification-route.ts's arm — every fund broadcast opens the annual screen.
+  fundMilestone: 'annual',
 };
 
 export type DispatchInput = {

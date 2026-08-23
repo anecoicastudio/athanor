@@ -33,6 +33,11 @@ const PREF_ROWS: { key: string; type: NotifPrefInput['type'] }[] = [
   { key: 'notif.prefs.review', type: 'review' },
   { key: 'notif.prefs.events', type: 'eventReminder' },
   { key: 'notif.prefs.projects', type: 'projectResponse' },
+  // #127: mutable, unlike 'moderation' and 'gdprExport'. Those two carry no toggle because a
+  // member must not be able to silence their own warnings or the delivery of their own data;
+  // the fund's broadcasts are news about the community, so muting them costs the member nothing
+  // they are owed. One row covers milestones and countdown alike — they share the type.
+  { key: 'notif.prefs.fund', type: 'fundMilestone' },
 ];
 
 export default function NotifPrefsScreen() {

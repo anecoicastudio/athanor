@@ -1932,6 +1932,7 @@ export type Database = {
       notifications: {
         Row: {
           created_at: string
+          dedupe_key: string | null
           entity_ref: Json | null
           id: string
           params: Json
@@ -1943,6 +1944,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dedupe_key?: string | null
           entity_ref?: Json | null
           id?: string
           params?: Json
@@ -1954,6 +1956,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dedupe_key?: string | null
           entity_ref?: Json | null
           id?: string
           params?: Json
@@ -3263,6 +3266,7 @@ export type Database = {
         Returns: string
       }
       f_unaccent: { Args: { "": string }; Returns: string }
+      fund_countdown_sweep: { Args: never; Returns: undefined }
       fund_edition_open: { Args: never; Returns: boolean }
       fund_rollover_successor: {
         Args: {

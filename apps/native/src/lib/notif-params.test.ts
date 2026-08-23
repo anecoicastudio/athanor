@@ -32,3 +32,36 @@ describe('displayParams', () => {
     expect(displayParams({ template_key: 'notif.tpl.moment', params }, 'it')).toBe(params);
   });
 });
+
+// #127 — the fund broadcasts are the only templates that reach every member at once, so an
+// unrendered placeholder here is a defect the whole community sees. t() leaves '{pct}' in place
+// when the param is absent (#113: degrade, never throw), which is right for the generic case and
+// wrong for this one.
+describe('displayParams — fund broadcasts always interpolate a number (#127)', () => {
+  it('defaults a missing pct/days to 0 rather than leaving the placeholder', () => {
+    for (const [template_key, name] of [
+      ['notif.tpl.fundMilestone', 'pct'],
+      ['notif.tpl.fundAnnounceCountdown', 'days'],
+      ['notif.tpl.fundBallotCountdown', 'days'],
+    ] as const) {
+      expect(displayParams({ template_key, params: {} } as never, 'it')[name]).toBe(0);
+      // A non-numeric value is as unusable as an absent one.
+      expect(displayParams({ template_key, params: { [name]: 'x' } } as never, 'it')[name]).toBe(0);
+    }
+  });
+
+  it('passes a real number through untouched', () => {
+    expect(
+      displayParams({ template_key: 'notif.tpl.fundMilestone', params: { pct: 75 } } as never, 'it')
+        .pct,
+    ).toBe(75);
+  });
+
+  it('leaves the no-param fund templates alone', () => {
+    // fundAnnounceLastDay / fundBallotLastDay write the number into the sentence, so they have
+    // nothing to interpolate and must not gain a stray key.
+    expect(
+      displayParams({ template_key: 'notif.tpl.fundBallotLastDay', params: {} } as never, 'it'),
+    ).toEqual({});
+  });
+});

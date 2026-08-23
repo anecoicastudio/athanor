@@ -40,10 +40,14 @@
 --   GoTrue-side ban state              — profiles.banned_at is cleared, but a ban
 --     applied through the admin panel also lives in the auth server and must be
 --     lifted from the Dashboard (or Admin API). SQL cannot reach it.
---   fund_editions.target_at            — cosmetic countdown, and nothing gates on it:
---     annual.tsx's CountdownGrid and DreamHeroCard are its only readers. The ballot
---     window beside it is NOT in this list any more — §11 restores it, because
---     cast_vote does gate on that one (#414).
+--   fund_editions.target_at            — NO LONGER in this list, and neither half of the
+--     old reason survives (#127). It was «cosmetic, and nothing gates on it: annual.tsx's
+--     CountdownGrid and DreamHeroCard are its only readers». public.fund_countdown_sweep()
+--     now reads target_at to decide the announcement slots, so it gates a broadcast to the
+--     whole membership. §10c arms it — but only in the 'announcement' phase, so walking the
+--     cycle forward is still real testing and is still never undone here. The ballot window
+--     beside it left this list earlier — §11 restores it, because cast_vote gates on that
+--     one (#414).
 --   fund_editions.phase / candidacy_window_open — walking the cycle forward is real
 --     testing, not decay. Re-entering 'voting' also fires the ballot-open trigger,
 --     which demands a declared window AND min_candidacies votable candidacies; the
@@ -108,6 +112,7 @@ declare
   v_stories       int  := 0;
   v_events        int  := 0;
   v_ballot        int  := 0;
+  v_fund_countdown int := 0;
   v_deck_deleted  int  := 0;
   v_deck_inserted int  := 0;
   v_notifs        int  := 0;
@@ -413,6 +418,45 @@ begin
           or voting_ends_at < now() + interval '7 days');
   get diagnostics v_ballot = row_count;
 
+  -- §10c #127 fund countdown fixture. The countdown bands are days wide (announcement
+  -- 7/3/1 before target_at, ballot close 3/1 before voting_ends_at) and the seeded world
+  -- sits outside every one of them: §11 above pins voting_ends_at 23 days out on purpose,
+  -- and the seed's target_at is 2027-06-01. So without a fixture no fund countdown is ever
+  -- observable on staging.
+  --
+  -- Armed ONLY while the cycle is in 'announcement', and that predicate is what keeps this
+  -- from fighting §11: §11 acts only on phase = 'voting', so the two blocks are disjoint by
+  -- construction and neither can undo the other. It is also the coherent case — target_at is
+  -- when the chosen dream is announced, and counting down to it during the announcement phase
+  -- is the state the copy was written for. Moving the window while the ballot is open would
+  -- instead put the announcement BEFORE voting closes, which is a world that cannot happen.
+  --
+  -- ONLY target_at: fund_editions_freeze_announcement guards confirmed_pool_cents and
+  -- winner_confirmed_at, fund_editions_ballot_open guards phase, and D16's
+  -- fund_editions_freeze_declarations guards the three declaration columns. Widening this SET
+  -- to any of them fires a guard and aborts the whole refresh transaction (same rule as §11).
+  update public.fund_editions
+     set target_at = now() + interval '2 days'
+   where id = md5('fundedition:2027')::uuid
+     and phase = 'announcement'
+     and target_at > now() + interval '3 days';
+  get diagnostics v_fund_countdown = row_count;
+
+  -- Re-arm: drop the markers for slots that are NO LONGER DUE, so a window moved back into a
+  -- band fires again instead of staying permanently burned by one earlier tick.
+  --
+  -- Keyed on the window, not on age. An age-based delete looks equivalent and is not: a slot
+  -- that is STILL inside its band would be re-armed every couple of hours and re-broadcast to
+  -- everybody, forever. §13's cap below only prunes the seeded personas, so real tester accounts
+  -- — who are not in v_personas — would silt up with one fund row per re-arm for as long as the
+  -- band stayed open. fundMilestone is the first BROADCAST type in this file, so it is the first
+  -- one for which "re-arm on a timer" has that consequence.
+  delete from athanor.fund_broadcast_sends m
+   using public.fund_editions e
+   where e.id = m.edition_id
+     and case m.kind when 'ballot' then e.voting_ends_at else e.target_at end
+         not between now() and now() + interval '7 days';
+
   -- §12 The Momenti deck: every persona holds 3 pending cards, scored exactly the way
   -- the matcher scores (visibility-masked tag overlap, affinity >= 2, blocks honored),
   -- so the card's read-time affinity terms render real chips. DELETE+INSERT because
@@ -494,9 +538,13 @@ begin
   -- 'eventReminder' joins 'moment' here for the same reason and one of its own: §10b
   -- re-arms the reminder every hour on purpose, so without this cap a persona's centre
   -- would accumulate one identical reminder per hour forever.
+  -- 'fundMilestone' (#127) joins them for the §10c reason: it is a BROADCAST, so one slot
+  -- writes a row into every persona's centre at once, and §10c's re-arm lets a slot fire
+  -- again after its marker ages out. Uncapped, the fake world's centres would silt up with
+  -- fund rows faster than with anything else here.
   delete from public.notifications n
    where n.recipient_id = any(v_personas)
-     and n.type in ('moment', 'eventReminder')
+     and n.type in ('moment', 'eventReminder', 'fundMilestone')
      and n.created_at < now() - interval '2 hours';
   get diagnostics v_notifs = row_count;
 
@@ -511,6 +559,7 @@ begin
     'stories_revived',        v_stories,
     'events_restamped',       v_events,
     'ballot_restamped',       v_ballot,
+    'fund_countdown_armed',   v_fund_countdown,
     'deck_rows_deleted',      v_deck_deleted,
     'deck_rows_inserted',     v_deck_inserted,
     'reminder_marks_cleared', v_reminders,

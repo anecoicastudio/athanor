@@ -1492,5 +1492,12 @@
   "admin.waitlist.export": "Export CSV",
   "admin.waitlist.colEmail": "Email",
   "admin.waitlist.colSource": "Source",
-  "admin.waitlist.colWhen": "When"
+  "admin.waitlist.colWhen": "When",
+  "notif.type.fundMilestone": "The fund",
+  "notif.prefs.fund": "The fund and the vote",
+  "notif.tpl.fundMilestone": "The fund passed {pct}%. Come see where we stand.",
+  "notif.tpl.fundAnnounceCountdown": "{days} days to the announcement. Keep an eye on the countdown.",
+  "notif.tpl.fundAnnounceLastDay": "Tomorrow the chosen dream is announced. Will you be there?",
+  "notif.tpl.fundBallotCountdown": "{days} days until voting closes. If you want to vote, there is still time.",
+  "notif.tpl.fundBallotLastDay": "Voting closes tomorrow. If you haven't voted yet, now is the time."
 }
