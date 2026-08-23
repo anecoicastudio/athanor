@@ -482,11 +482,11 @@ describe('getEventsCalendar', () => {
     expect(bound).toContain('and(live_started_at.not.is.null,live_ended_at.is.null)');
     // arm 3 — in progress by time: has an end, still to come
     expect(bound).toMatch(/(^|,)ends_at\.gte\.\d{4}-\d{2}-\d{2}T[\d:.]+Z(,|$)/);
-    // arm 4 — no end declared: the assumed one-hour duration
+    // arm 4 — no end declared: the assumed four-hour duration
     expect(bound).toMatch(/and\(ends_at\.is\.null,starts_at\.gte\.[\d\-T:.]+Z\)/);
   });
 
-  it('resolves both instants from ONE clock read, one hour apart', async () => {
+  it('resolves both instants from ONE clock read, four hours apart', async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
@@ -496,9 +496,9 @@ describe('getEventsCalendar', () => {
       // `now` — arms 1 and 3
       expect(bound).toContain('starts_at.gte.2026-09-01T12:00:00.000Z,');
       expect(bound).toContain('ends_at.gte.2026-09-01T12:00:00.000Z');
-      // `now - 1h` — arm 4. PostgREST cannot add an interval in a filter, so the grace
-      // instant is resolved here, from the SAME Date the cutoff came from.
-      expect(bound).toContain('and(ends_at.is.null,starts_at.gte.2026-09-01T11:00:00.000Z)');
+      // `now - ASSUMED_DURATION_MS` — arm 4. PostgREST cannot add an interval in a filter,
+      // so the grace instant is resolved here, from the SAME Date the cutoff came from.
+      expect(bound).toContain('and(ends_at.is.null,starts_at.gte.2026-09-01T08:00:00.000Z)');
     } finally {
       vi.useRealTimers();
     }

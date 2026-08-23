@@ -56,14 +56,15 @@ const PAGE_SIZE = 20;
  * makes `ends_at` optional, so without this an event that never declares an end would either
  * vanish at its start instant or linger on the calendar forever.
  *
- * NOTE this is deliberately the one hour the #530 ruling names, while
- * `20260813054817_live_window_sweep.sql` closes an unclosed LIVE window after four. The two
- * answer different questions — the sweep decides when a stream is over, this decides how long
- * an open-ended event stays listed — and for an online event the sweep's window keeps the row
- * visible through arm 2 regardless. An in-person open-ended event, which nothing marks live,
- * does drop off after an hour.
+ * Four hours, matching `20260813054817_live_window_sweep.sql`, which closes an unclosed LIVE
+ * window after the same span (#530's ruling was amended to align the two). Keep them equal:
+ * they are the same product question asked from two sides — the sweep decides when a stream
+ * is over, this decides how long an open-ended event stays listed — and an ONLINE event is
+ * held visible by arm 2 for exactly as long as the sweep leaves its window open. Were this
+ * shorter, an in-person open-ended event (nothing marks it live, so arm 4 alone governs)
+ * would vanish mid-session while the database still considered it running.
  */
-const ASSUMED_DURATION_MS = 60 * 60 * 1000;
+const ASSUMED_DURATION_MS = 4 * 60 * 60 * 1000;
 
 /**
  * How far back the scan may reach. Without a lower bound the disjunction below is not sargable
@@ -98,7 +99,7 @@ function literalIlike(value: string): string {
  * Events that have not finished — upcoming, live now, or in progress — ascending by
  * (starts_at, id), keyset, never offset. A row is kept while ANY of: it has not started;
  * `live_started_at` is set and `live_ended_at` is not; `ends_at` is still to come; or it
- * declared no `ends_at` and started within the last hour (`ASSUMED_DURATION_MS`).
+ * declared no `ends_at` and started within the last four hours (`ASSUMED_DURATION_MS`).
  *
  * Before #530 this was `starts_at >= now`, which hid an event at the instant it began.
  * Rows that are already under way therefore sort FIRST now — soonest-`starts_at` ascending
@@ -132,8 +133,8 @@ export async function getEventsCalendar(
   // The visibility bound (#530). A bare `starts_at >= now` dropped every event at the
   // instant it began — the one moment it matters most — so a row stays while ANY arm holds:
   // not started yet, explicitly live, or in progress by time. `coalesce(ends_at, starts_at +
-  // 1h) >= now` is split into the last two arms because PostgREST cannot add an interval in
-  // a filter; both instants come from the ONE clock read this function promises.
+  // ASSUMED_DURATION_MS) >= now` is split into the last two arms because PostgREST cannot add
+  // an interval in a filter; both instants come from the ONE clock read this function promises.
   // Top-level predicates AND together, so this composes with the keyset `or(...)` below and
   // with the #151 date window rather than widening either.
   const now = new Date();
