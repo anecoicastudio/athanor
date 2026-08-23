@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
-import { acceptMoment, getMomentiSuggestion, momentiKeys, passMoment } from '@athanor/api';
+import { acceptMoment, getMomentiSuggestions, momentiKeys, passMoment } from '@athanor/api';
 import type { MomentoDeckCard } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { Screen } from '@/components/Screen';
@@ -42,10 +42,10 @@ export default function MomentiScreen() {
     if (cards.length > 0) setDone(false);
   }, [cards.length]);
 
-  const suggestion = useQuery({
+  const suggestions = useQuery({
     queryKey: momentiKeys.suggestions(),
     queryFn: () =>
-      getMomentiSuggestion(
+      getMomentiSuggestions(
         supabase,
         cards.map((c) => c.candidateId),
       ),
@@ -144,10 +144,20 @@ export default function MomentiScreen() {
           </View>
         ) : null}
 
-        {suggestion.data ? (
+        {/* «una piccola lista curata, aggiornata ogni giorno» (PRD §4.7) — at most three, the
+            server's rank order kept as it arrived. No glow: a suggestion is not a moment (#4). */}
+        {suggestions.data && suggestions.data.length > 0 ? (
           <View className="mt-8">
             <SectionLabel className="mb-2">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
-            <SuggestionRow suggestion={suggestion.data} locale={locale} />
+            <View className="gap-2">
+              {suggestions.data.map((suggestion) => (
+                <SuggestionRow
+                  key={suggestion.candidateId}
+                  suggestion={suggestion}
+                  locale={locale}
+                />
+              ))}
+            </View>
           </View>
         ) : null}
 

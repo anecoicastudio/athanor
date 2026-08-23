@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
-import { t } from '@athanor/i18n';
 import type { Locale, MomentoSuggestion } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { DreamQuote } from '@/components/DreamQuote';
 import { Tag } from '@/components/Tag';
+import { reasonPrefix } from '@/lib/momenti-reason';
 
 /**
  * «Ti potrebbe interessare» curated-lite row (frontend §2) → read-only Person Detail.
@@ -26,9 +26,16 @@ import { Tag } from '@/components/Tag';
  * row. A default-tone Tag would put `foreground` on the metadata and leave the payload below it
  * — the same inversion the cyan pill had. Keep the payload above the label.
  *
- * It says «Sogno nuovo», not «Alta affinità», because get_momenti_suggestion ranks by the
- * newest active dream and computes no affinity at all — a suggestions table is deferred since
- * M5. Don't restore the affinity wording without a query that earns it.
+ * The Tag names the REASON — «Sapete fare», «Vicino a te» — from the same `momenti.reason.*`
+ * vocabulary the deck's AffinityRow uses, through the same `REASON_KEY` map. Until #124 it was
+ * the fixed «Sogno nuovo», because get_momenti_suggestion ranked by newest dream and computed no
+ * affinity at all; the row now shows what the two actually have in common, and «Sogno nuovo»
+ * survives as `momenti.reason.newDream` — the honest chip for the cold-start arm, where there
+ * still is no ranking.
+ *
+ * `reasons[0]` and nothing else: the kinds arrive already ranked by REASON_PRIORITY, and the row
+ * has one line of chrome. It never shows a score — a suggestion carries kinds, never a number
+ * (rule #3), and `affinity` is not in the RPC's projection to begin with.
  */
 export function SuggestionRow({
   suggestion,
@@ -60,7 +67,10 @@ export function SuggestionRow({
           <DreamQuote compact numberOfLines={1} text={suggestion.dreamText} />
         ) : null}
       </View>
-      <Tag quiet label={t('momenti.suggestion.chip', locale)} />
+      {/* `?? 'newDream'`: the schema requires a non-empty array, so this only ever fires if the
+          server contract breaks — and «Sogno nuovo» is the right thing to say when we cannot say
+          why. It is never a silent blank chip. */}
+      <Tag quiet label={reasonPrefix(suggestion.reasons[0] ?? 'newDream', locale)} />
     </Pressable>
   );
 }

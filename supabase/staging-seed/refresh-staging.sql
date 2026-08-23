@@ -115,6 +115,7 @@ declare
   v_fund_countdown int := 0;
   v_deck_deleted  int  := 0;
   v_deck_inserted int  := 0;
+  v_suggestions   int  := 0;
   v_notifs        int  := 0;
   v_reminders     int  := 0;
   r               int;
@@ -531,6 +532,64 @@ begin
     get diagnostics v_deck_inserted = row_count;
   end if;
 
+  -- §12b «Ti potrebbe interessare» (#124). The same rows run_momenti_matcher()'s third pass
+  -- writes, so the section renders three ranked peers with real reason chips instead of the
+  -- single «Sogno nuovo» stand-in the fake world showed while the table did not exist.
+  --
+  -- No diff-awareness, unlike the deck above: nothing watches momento_suggestions, so a
+  -- rewrite fires no «Hai un Momento» and DELETE+INSERT every run is both simpler and always
+  -- correct. Only the personas' own lists are touched; a tester's list is left to the nightly
+  -- matcher, exactly as their deck is.
+  --
+  -- Scored through athanor.momento_terms() rather than the deck fixture's hand-rolled
+  -- three-term approximation above. Here the score is not the point — the REASONS are, since
+  -- they are the chip — and an approximation would show the fake world a vocabulary the real
+  -- engine never produces.
+  delete from public.momento_suggestions where user_id = any(v_personas);
+
+  insert into public.momento_suggestions
+        (user_id, candidate_id, affinity, reasons, computed_on, rank)
+  select t.user_id, t.candidate_id, t.affinity, t.reasons, v_today, t.rnk::smallint
+    from (
+      select p.user_id, p.candidate_id, s.affinity,
+             array_remove(array[
+               case when cardinality(s.shared)          > 0 then 'shared'         end,
+               case when cardinality(s.seek_hit)        > 0 then 'seeking'        end,
+               case when cardinality(s.offer_hit)       > 0 then 'offering'       end,
+               case when cardinality(s.skills_shared)   > 0 then 'skills'         end,
+               case when cardinality(s.city_near)       > 0 then 'city'           end,
+               case when cardinality(s.mutual_activity) > 0 then 'mutualActivity' end,
+               case when cardinality(s.profession_pair) > 0 then 'profession'     end
+             ]::text[], null) as reasons,
+             row_number() over (partition by p.user_id
+                                order by s.affinity desc, p.candidate_id) as rnk
+        from (
+          select r.id as user_id, c.id as candidate_id
+            from unnest(v_personas) as r(id)
+            join public.profiles c on c.id <> r.id
+           where exists (select 1 from public.dreams d
+                          where d.profile_id = r.id and d.status = 'active' and d.deleted_at is null)
+             and c.banned_at is null
+             and exists (select 1 from public.dreams d
+                          where d.profile_id = c.id and d.status = 'active' and d.deleted_at is null)
+             and coalesce(c.visibility ->> 'dream', 'members') <> 'private'
+             and not (coalesce(c.visibility ->> 'identity_tags', 'members') = 'private'
+                  and coalesce(c.visibility ->> 'seeking', 'members') = 'private')
+             and athanor.pair_not_blocked(r.id, c.id)
+             -- not in today's deck (written just above), and not passed inside the 90-day window
+             and not exists (select 1 from public.momento_proposals mp
+                              where mp.user_id = r.id and mp.candidate_id = c.id
+                                and (mp.passed_until is null or mp.passed_until > v_today))
+             and not exists (select 1 from public.connections cn
+                              where cn.profile_a = least(r.id, c.id)
+                                and cn.profile_b = greatest(r.id, c.id))
+        ) p
+        cross join lateral athanor.momento_terms(p.user_id, p.candidate_id) s
+       where s.affinity > 0
+    ) t
+   where t.rnk <= 3;
+  get diagnostics v_suggestions = row_count;
+
   -- §13 Notification-noise cap. The «Hai un Momento» fan-out writes AFTER this
   -- transaction commits (trigger → pg_net → edge fn), so the just-created rows can
   -- only be pruned on the NEXT run: persona 'moment' notifications older than 2 hours
@@ -562,6 +621,7 @@ begin
     'fund_countdown_armed',   v_fund_countdown,
     'deck_rows_deleted',      v_deck_deleted,
     'deck_rows_inserted',     v_deck_inserted,
+    'suggestion_rows',        v_suggestions,
     'reminder_marks_cleared', v_reminders,
     'moment_notifs_pruned',   v_notifs
   );

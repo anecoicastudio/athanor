@@ -39,8 +39,19 @@ function termLabel(kind: MomentoReasonKind, tag: string, locale: Locale): string
   return tagLabel(kind === 'skills' ? 'skill' : 'identity', tag, locale);
 }
 
+/**
+ * The reason's prefix alone — «Sapete fare», not «Sapete fare: branding».
+ *
+ * «Ti potrebbe interessare» has one line of chrome for a chip and get_momenti_suggestion sends
+ * KINDS without tags (#124), so there is nothing to splice; `momentoReasonText` builds its
+ * sentence on top of this rather than the two spelling `REASON_KEY[kind]` separately.
+ */
+export function reasonPrefix(kind: MomentoReasonKind, locale: Locale): string {
+  return t(REASON_KEY[kind], locale);
+}
+
 export function momentoReasonText(reason: MomentoReason, locale: Locale): string {
-  const prefix = t(REASON_KEY[reason.kind], locale);
+  const prefix = reasonPrefix(reason.kind, locale);
   const tags = reason.tags.map((tag) => termLabel(reason.kind, tag, locale));
   return tags.length > 0 ? `${prefix}: ${tags.join(', ')}` : prefix;
 }

@@ -1,11 +1,17 @@
 -- public.get_momenti_suggestion (migration 20260808035852): the «Ti potrebbe
 -- interessare» row moved behind a DEFINER RPC so it can filter on
 -- profiles.visibility, which authenticated cannot read since the M10 column grant.
--- The RPC returns at most one row, so each case is isolated by excluding every
--- other fixture through p_exclude — what's left is the candidate under test.
+--
+-- Since #124 this file covers the RPC's COLD-START arm: no fixture here writes a
+-- momento_suggestions row, so every call falls through to the dream-recency query,
+-- which returns at most one row — which is why each case can be isolated by
+-- excluding every other fixture through p_exclude, leaving the candidate under
+-- test. The ranked arm is 0132_momento_suggestions; 0087 pins that both arms carry
+-- the same projection. The gates asserted below are shared by both arms, so this
+-- file is still where a lost block or visibility predicate surfaces first.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -16,12 +22,15 @@ values
   ('00000000-0000-0000-0000-000000000000','dddddddd-0000-4000-8000-000000000075','authenticated','authenticated','d75@test.athanor','{}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000','eeeeeeee-0000-4000-8000-000000000075','authenticated','authenticated','e75@test.athanor','{}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000','ffffffff-0000-4000-8000-000000000075','authenticated','authenticated','f75@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','abababab-0000-4000-8000-000000000075','authenticated','authenticated','g75@test.athanor','{}'::jsonb, now(), now());
+  ('00000000-0000-0000-0000-000000000000','abababab-0000-4000-8000-000000000075','authenticated','authenticated','g75@test.athanor','{}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000','baba0000-0000-4000-8000-000000000075','authenticated','authenticated','h75@test.athanor','{}'::jsonb, now(), now());
 
 set local role service_role;
 -- ME is the caller. A: plain, suggestable. B: BOTH tag fields private. C: only
 -- identity_tags private (the boundary — still suggestable). D: dream private.
 -- E: no active dream. F: blocked BY me. G: blocks me (the other direction).
+-- H: banned. #314 removed banned members from the matcher and the deck and never
+-- reached this function, so until #124 a banned member was still suggestable here.
 update public.profiles set handle = 'me75' where id = '11111111-0000-4000-8000-000000000075';
 update public.profiles set handle = 'a75'  where id = 'aaaaaaaa-0000-4000-8000-000000000075';
 update public.profiles set handle = 'b75', visibility = '{"identity_tags":"private","seeking":"private"}'::jsonb
@@ -33,6 +42,8 @@ update public.profiles set handle = 'd75', visibility = '{"dream":"private"}'::j
 update public.profiles set handle = 'e75' where id = 'eeeeeeee-0000-4000-8000-000000000075';
 update public.profiles set handle = 'f75' where id = 'ffffffff-0000-4000-8000-000000000075';
 update public.profiles set handle = 'g75' where id = 'abababab-0000-4000-8000-000000000075';
+update public.profiles set handle = 'h75', banned_at = now()
+  where id = 'baba0000-0000-4000-8000-000000000075';
 
 -- Explicit created_at so ordering is deterministic AND adversarial: every
 -- candidate that must be filtered out (B both-private, D private dream, F/G
@@ -45,7 +56,8 @@ insert into public.dreams (profile_id, text, created_at) values
   ('cccccccc-0000-4000-8000-000000000075','Sogno C',      now() - interval '5 days'),
   ('dddddddd-0000-4000-8000-000000000075','Sogno D',      now()),
   ('ffffffff-0000-4000-8000-000000000075','Sogno F',      now()),
-  ('abababab-0000-4000-8000-000000000075','Sogno G',      now());
+  ('abababab-0000-4000-8000-000000000075','Sogno G',      now()),
+  ('baba0000-0000-4000-8000-000000000075','Sogno H',      now());
 -- E gets one and loses it: an archived dream must not qualify.
 insert into public.dreams (profile_id, text, status)
   values ('eeeeeeee-0000-4000-8000-000000000075','Sogno E archiviato','archived');
@@ -62,7 +74,7 @@ update public.dreams set status = 'archived'
     '11111111-0000-4000-8000-000000000075','aaaaaaaa-0000-4000-8000-000000000075',
     'bbbbbbbb-0000-4000-8000-000000000075','cccccccc-0000-4000-8000-000000000075',
     'dddddddd-0000-4000-8000-000000000075','ffffffff-0000-4000-8000-000000000075',
-    'abababab-0000-4000-8000-000000000075')
+    'abababab-0000-4000-8000-000000000075','baba0000-0000-4000-8000-000000000075')
     and status = 'active' and deleted_at is null;
 reset role;
 
@@ -145,6 +157,20 @@ select is(
     'abababab-0000-4000-8000-000000000075']::uuid[])),
   0::bigint,
   'the caller is never suggested to themselves'
+);
+
+-- H is banned and holds a dream written NOW — the newest in the pool. Isolated, they must
+-- return nothing; left in the pool, they must not win the unexcluded call below. #124's fix:
+-- #314 took banned members out of run_momenti_matcher() and get_momenti_deck() and never
+-- reached this function.
+select is(
+  (select count(*) from public.get_momenti_suggestion(array[
+    'aaaaaaaa-0000-4000-8000-000000000075','bbbbbbbb-0000-4000-8000-000000000075',
+    'cccccccc-0000-4000-8000-000000000075','dddddddd-0000-4000-8000-000000000075',
+    'eeeeeeee-0000-4000-8000-000000000075','ffffffff-0000-4000-8000-000000000075',
+    'abababab-0000-4000-8000-000000000075']::uuid[])),
+  0::bigint,
+  'a banned member is not suggested, newest dream in the pool or not'
 );
 
 -- ── ordering, with nothing excluded ─────────────────────────────────────────

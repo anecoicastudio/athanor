@@ -70,14 +70,19 @@ select is_empty(
 -- 57 -> 58: athanor.fund_broadcast_sends (issue #127), covered by
 --           0131_fund_broadcast_notifications. Same shape as the row above and for the same
 --           reason: one row per fund countdown broadcast, off the client grant surface.
+-- 58 -> 59: public.momento_suggestions (issue #124), covered by 0132_momento_suggestions.
+--           In `public` rather than `athanor` because 0121 declares the client grant surface of
+--           `public` only, and a table this file counts should also be a row someone had to
+--           type there. It holds no client privilege at all: the read goes through the DEFINER
+--           get_momenti_suggestion(), so RLS-on with zero policies is the deny-all.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  58,
-  'PRD.md:417 tripwire: 58 tables, each with its own pgTAP file (bump only WITH a new test)'
+  59,
+  'PRD.md:417 tripwire: 59 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────

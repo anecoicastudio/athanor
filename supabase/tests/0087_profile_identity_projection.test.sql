@@ -24,7 +24,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(22);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
 -- ME is the caller. TARGET carries a name and an avatar and is connected to ME. HIDDEN carries
@@ -125,6 +125,11 @@ select is(
 );
 
 -- ── 2. get_momenti_suggestion ─────────────────────────────────────────────────────────────
+-- Two arms since #124, and BOTH have to carry the projection. The four cases below exercise
+-- the COLD-START arm — no momento_suggestions row exists for ME, so the function falls back to
+-- the dream-recency query it used to be in full; the ranked arm is exercised after them, off a
+-- planted row. A fixed projection can rot on one arm without the other noticing, which is this
+-- whole file's premise.
 select is(
   (select display_name from public.get_momenti_suggestion()),
   'Marta Bianchi',
@@ -148,6 +153,33 @@ select is(
      array['22220000-0000-4000-8000-000000000087']::uuid[])),
   0,
   'a member who blocked the caller is still not suggested, newer dream or not'
+);
+
+-- The RANKED arm (#124): a planted momento_suggestions row must project the same five columns
+-- plus the reason kinds. `reasons` is the sixth column and the only one the client renders as
+-- copy, so it is checked by value; `affinity` is deliberately not in the OUT list at all.
+reset role;
+set local role service_role;
+insert into public.momento_suggestions (user_id, candidate_id, affinity, reasons, computed_on, rank)
+values ('11110000-0000-4000-8000-000000000087','22220000-0000-4000-8000-000000000087',
+        3, array['skills','city'], (now() at time zone 'utc')::date, 1);
+reset role;
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"11110000-0000-4000-8000-000000000087","role":"authenticated"}';
+
+select results_eq(
+  $$ select candidate_id, display_name, avatar_path, dream_text
+       from public.get_momenti_suggestion() $$,
+  $$ values ('22220000-0000-4000-8000-000000000087'::uuid, 'Marta Bianchi'::text,
+             '22220000-0000-4000-8000-000000000087/22220000-0000-4000-8000-000000000087.jpg'::text,
+             'Sogno di Marta'::text) $$,
+  'the ranked arm carries the same name, face and dream the recency arm does'
+);
+
+select is(
+  (select reasons from public.get_momenti_suggestion()),
+  array['skills','city'],
+  'and the reason kinds the row was written with — the chip stops saying «Sogno nuovo» by default'
 );
 
 -- ── 3. search_connections (SECURITY INVOKER) ──────────────────────────────────────────────

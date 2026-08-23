@@ -1,5 +1,7 @@
 -- public.run_momenti_matcher — the nightly Momenti matcher, as replaced by
--- <ts>_momenti_affinity_and_deck.sql (#273 A/B/C/E).
+-- <ts>_momenti_affinity_and_deck.sql (#273 A/B/C/E) and grown a third pass by
+-- <ts>_momento_suggestions.sql (#124). The suggestion cases at the end assert the pass and
+-- its cross-pass invariant only; the excluded sets and the read RPC are 0132.
 --
 -- The fixtures use the REAL onboarding vocabulary (packages/core/src/onboarding/tags.ts),
 -- unlike the 'design'/'music' placeholders this file used to carry: the two vocabularies are
@@ -7,7 +9,7 @@
 -- an invented tag cannot exercise.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(21);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -163,6 +165,39 @@ select is(
      where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and status='pending'),
   3,
   'a member already holding three waiting Momenti gets none added');
+
+-- ── the third pass: momento_suggestions (#124) ──────────────────────────────
+-- The single-term overlap #273 C rejected as a Momento is exactly what «Ti potrebbe
+-- interessare» is for: B and C share one term (C's artista answers B's «collaborazioni»),
+-- which is below the threshold, so it is not a card to answer — and it IS a suggestion.
+-- That is the whole shape of the feature in one assertion.
+select results_eq(
+  $$ select candidate_id, rank, reasons from public.momento_suggestions
+      where user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' order by rank $$,
+  $$ values ('cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 1::smallint, array['seeking']) $$,
+  'a single-term overlap is below the Momento threshold and becomes a SUGGESTION instead');
+
+select is(
+  (select count(*)::int from public.momento_suggestions where user_id = candidate_id),
+  0,
+  'no self-suggestions');
+
+select is_empty(
+  $$ select user_id::text from public.momento_suggestions
+      group by user_id, computed_on having count(*) > 3 $$,
+  'no member gets more than three suggestions in a run');
+
+-- The cross-pass invariant: the suggestions pass runs after both proposal passes and reads
+-- their writes, so a candidate can be in the deck or in the list, never in both.
+select is_empty(
+  $$ select s.user_id::text || ' -> ' || s.candidate_id::text
+       from public.momento_suggestions s
+       join public.momento_proposals p
+         on p.user_id = s.user_id and p.candidate_id = s.candidate_id
+      where p.passed_until is null
+         or p.passed_until > (now() at time zone 'utc')::date $$,
+  'nobody is both a live Momento and a suggestion for the same member');
+
 reset role;
 -- The matcher's own block predicate is deliberately INVOKER: unlike athanor.not_blocked it has
 -- no blocked-member oracle to protect (execute is revoked from authenticated), and its only
