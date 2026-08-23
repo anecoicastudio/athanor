@@ -347,17 +347,30 @@ begin
   -- events these decay out of their windows within one refresh interval. Re-stamped
   -- whenever they have drifted below their seeded offset at all (time only moves one way,
   -- so in practice every run after the first), and never pushed further out than seeded.
-  update public.events e
-     set starts_at = now() + x.offset_in,
-         ends_at   = now() + x.offset_in + interval '2 hours',
-         live_started_at = null, live_ended_at = null, deleted_at = null
-    from (values
-      ('promemoria-oggi',  interval '5 hours'),
-      ('diretta-tra-poco', interval '30 minutes')
-    ) as x(slug, offset_in)
-   where e.id = md5('event:' || x.slug)::uuid
-     and (e.starts_at < now() + x.offset_in or e.deleted_at is not null);
-  get diagnostics r = row_count; v_events := v_events + r;
+  -- Same CTE shape as §10, for the same reason: diretta-tra-poco is online and goes live
+  -- 30 minutes after every re-stamp, so by the next refresh it carries live_started_at and
+  -- an event_live_stats.is_live = true row. Nulling the window columns alone would strand
+  -- that row at true forever — live_window_sweep's close branch keys on live_started_at,
+  -- which would be null — and the Live panel would show an event 30 minutes in the future
+  -- as live. The stats row has to go with the window.
+  with restamped_reminders as (
+    update public.events e
+       set starts_at = now() + x.offset_in,
+           ends_at   = now() + x.offset_in + interval '2 hours',
+           live_started_at = null, live_ended_at = null, deleted_at = null
+      from (values
+        ('promemoria-oggi',  interval '5 hours'),
+        ('diretta-tra-poco', interval '30 minutes')
+      ) as x(slug, offset_in)
+     where e.id = md5('event:' || x.slug)::uuid
+       and (e.starts_at < now() + x.offset_in or e.deleted_at is not null)
+    returning e.id
+  ),
+  wiped_reminders as (
+    delete from public.event_live_stats s using restamped_reminders r where s.event_id = r.id
+  )
+  select count(*) into r from restamped_reminders;
+  v_events := v_events + r;
 
   -- …and drop their send markers, so the next minute's sweep enqueues the reminder again.
   -- Scoped to these two ids: a marker on any other event is a real send and stays, which is
