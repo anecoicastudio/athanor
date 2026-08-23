@@ -466,3 +466,42 @@ describe('translation completeness', () => {
     expect(stale).toEqual([]);
   });
 });
+
+describe('delete-account copy says what the job defers (#515)', () => {
+  /**
+   * The erasure job is legal-gated (#184/#107): at the tap it revokes sessions and erases the
+   * fund footprint, and it does NOT delete the account. The old copy said «cancelleremo il tuo
+   * profilo» and «Elimina definitivamente», and the toast said the account *will be* deleted —
+   * three promises of a completion nothing delivers. Pinned by name, like the settlement block
+   * above: a count cannot say which promise came back.
+   */
+  const DELETE_KEYS: readonly MessageKey[] = [
+    'account.delete.body',
+    'account.delete.deferred',
+    'account.delete.cta',
+    'account.delete.toast',
+  ];
+
+  test.each(DELETE_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the deferred line names the wait, in both locales', () => {
+    // The one thing this line exists to say: the profile does not go at the tap. If a rewrite
+    // drops that, the screen is back to promising a completion the job cannot deliver.
+    expect(it['account.delete.deferred']).toMatch(/non è immediato|dopo una verifica/i);
+    expect(en['account.delete.deferred']).toMatch(/not straight away|after a review/i);
+  });
+
+  test('neither the CTA nor the toast claims the account is already gone', () => {
+    // «definitivamente» / «permanently» and «verrà eliminato» / «will be deleted» are the exact
+    // words that made the promise. The deletion is requested here, not completed.
+    expect(it['account.delete.cta']).not.toMatch(/definitivamente/i);
+    expect(en['account.delete.cta']).not.toMatch(/permanently|forever/i);
+    expect(it['account.delete.toast']).not.toMatch(/verrà eliminat|è stato eliminat/i);
+    expect(en['account.delete.toast']).not.toMatch(/will be deleted|has been deleted/i);
+  });
+});
