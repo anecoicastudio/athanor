@@ -119,6 +119,7 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
     },
     // #127 — the five fund broadcast templates. The *Countdown pair interpolates {days}; the
     // *LastDay pair writes the number into the sentence, because `t()` has no plural support.
+    // The second-person half of each body is asserted separately below.
     {
       templateKey: 'notif.tpl.fundMilestone',
       type: 'fundMilestone',
@@ -239,4 +240,40 @@ Deno.test('every fund broadcast routes to the annual screen (#127)', () => {
     allValid,
   );
   assertEquals(msgs[0].data.route, 'annual');
+});
+
+// #127 — rule 5: the Athanor voice is second person. These five are the only notif.tpl.* bodies
+// whose FACT half is impersonal (the fund's state is not a statement about the member, and a
+// «we raised it» framing would claim a contribution most recipients never made — rule 3), so the
+// invitation half is what has to carry the address. Asserted, because a later copy edit that
+// trimmed these to the bare fact would silently drop the voice from the one type that reaches
+// everybody.
+Deno.test('every fund broadcast body addresses the member in the second person', () => {
+  const secondPerson: Record<string, { it: string; en: string }> = {
+    'notif.tpl.fundMilestone': { it: 'Vieni a vedere', en: 'Come see' },
+    'notif.tpl.fundAnnounceCountdown': { it: "Tieni d'occhio", en: 'Keep an eye' },
+    'notif.tpl.fundAnnounceLastDay': { it: 'Ci sei?', en: 'Will you be there?' },
+    'notif.tpl.fundBallotCountdown': { it: 'Se vuoi votare', en: 'If you want to vote' },
+    'notif.tpl.fundBallotLastDay': { it: 'Se non hai ancora votato', en: "If you haven't voted" },
+  };
+  for (const [templateKey, needles] of Object.entries(secondPerson)) {
+    for (const locale of ['it', 'en'] as const) {
+      const msgs = buildPushMessages(
+        ['ExponentPushToken[a]'],
+        {
+          type: 'fundMilestone',
+          templateKey,
+          params: { pct: 50, days: 3 },
+          entityRef: 'x',
+          locale,
+        },
+        allValid,
+      );
+      assertEquals(
+        msgs[0].body.includes(needles[locale]),
+        true,
+        `${templateKey} ${locale} addresses the member: expected «${needles[locale]}» in «${msgs[0].body}»`,
+      );
+    }
+  }
 });
