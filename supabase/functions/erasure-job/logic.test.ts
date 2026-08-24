@@ -8,20 +8,33 @@
 // .storage on the fake db — DI over mocks).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
+import type { KvPurgeResult } from './kv.ts';
 import { type ErasureCtx, processErasureRequests } from './logic.ts';
 
-type Ctx = ErasureCtx & { db: FakeDb; signedOut: [string, string][]; removed: string[][] };
+type Ctx = ErasureCtx & {
+  db: FakeDb;
+  signedOut: [string, string][];
+  removed: string[][];
+  /** paths handed to the KV purge port, one entry per request that reached it */
+  purged: string[][];
+};
+
+/** No CF_KV_* trio configured — the case #515 forbids treating as a silent skip. */
+const NO_KV = Symbol('unconfigured');
 
 const ctx = (
   script: Record<string, FakeResult[]> = {},
   overrides: {
     signOut?: ErasureCtx['auth']['signOut'];
     remove?: ErasureCtx['storage']['remove'];
+    /** a purge result to return, or NO_KV to inject `kv: null` */
+    purge?: KvPurgeResult | Promise<KvPurgeResult> | typeof NO_KV;
   } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
   const signedOut: [string, string][] = [];
   const removed: string[][] = [];
+  const purged: string[][] = [];
   return {
     db,
     auth: {
@@ -40,10 +53,25 @@ const ctx = (
           return Promise.resolve({ error: null });
         }),
     },
+    kv:
+      overrides.purge === NO_KV
+        ? null
+        : {
+            purgePaths: (paths: string[]) => {
+              purged.push(paths);
+              return Promise.resolve(
+                (overrides.purge as KvPurgeResult | undefined) ?? { deleted: 2, scanned: 9 },
+              );
+            },
+          },
     signedOut,
     removed,
+    purged,
   } as unknown as Ctx;
 };
+
+/** The kvPurge block every response carries — configured, nothing purged, nothing failed. */
+const NO_PURGE = { configured: true, deleted: 0, failed: 0 };
 
 const statusUpdates = (db: FakeDb) =>
   db.calls
@@ -53,7 +81,7 @@ const statusUpdates = (db: FakeDb) =>
 Deno.test("claim query batches status='requested' limit 20", async () => {
   const c = ctx({ 'gdpr_erasure_requests.select': [{ data: [] }] });
   const res = await processErasureRequests(c);
-  assertEquals(await res.json(), { seen: 0 });
+  assertEquals(await res.json(), { seen: 0, kvPurge: NO_PURGE });
 
   const claim = c.db.calls.find((k) => k.table === 'gdpr_erasure_requests' && k.op === 'select');
   assert(claim);
@@ -85,7 +113,7 @@ Deno.test(
     });
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);
-    assertEquals(await res.json(), { seen: 2 });
+    assertEquals(await res.json(), { seen: 2, kvPurge: NO_PURGE });
 
     // (1) sessions revoked for EACH request, global scope, before the terminal status.
     assertEquals(c.signedOut, [
@@ -295,10 +323,149 @@ Deno.test(
     );
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);
-    assertEquals(await res.json(), { seen: 2 });
+    assertEquals(await res.json(), { seen: 2, kvPurge: NO_PURGE });
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
       ['processing', 'failed', 'processing', 'failed'],
     );
   },
 );
+
+// ── #515 item 3: the Cloudflare KV purge of the subject's cached public pages ────────────
+// apps/web caches the profile page and its OG card in KV, and a deploy strands rather than
+// replaces those entries, so they outlive every row erased above (RELEASE-RUNBOOK §7.4).
+// What is pinned here is the loop's contract with ./kv.ts — which paths it asks for, when a
+// purge outcome may flip 'partial' to 'failed', and that a KV outage never masks the DB work.
+
+Deno.test('purges BOTH public paths for the erased handle, and stays on partial', async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: 'luna_dev' } }],
+  });
+  const res = await processErasureRequests(c);
+
+  // The page HTML too, not only the card: both carry the photo and the dream quote.
+  assertEquals(c.purged, [['/@luna_dev', '/@luna_dev/opengraph-image']]);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 0 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'partial'],
+  );
+
+  // the handle is read from profiles, keyed to the erased id, BEFORE (4b) would cascade it away.
+  const read = c.db.calls.find((k) => k.table === 'profiles' && k.op === 'select');
+  assert(read);
+  assertEquals(read.columns, 'handle');
+  assertEquals(read.filters, [['eq', 'id', 'user-1']]);
+  assertEquals(read.terminal, 'maybeSingle');
+});
+
+Deno.test("unconfigured KV is REPORTED, not skipped — 'failed', not 'partial'", async () => {
+  // #468/#492: a missing CF_KV_* trio must never look like a clean run. The member's card is
+  // still servable from KV, so 'partial' — "did everything it could" — would be a lie.
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    },
+    { purge: NO_KV },
+  );
+  const res = await processErasureRequests(c);
+
+  assertEquals(await res.json(), {
+    seen: 1,
+    kvPurge: { configured: false, deleted: 0, failed: 1 },
+  });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('unconfigured KV shows in the response even on a run that saw nothing', async () => {
+  // A smoke invocation is then enough to catch a deployment that cannot purge.
+  const c = ctx({ 'gdpr_erasure_requests.select': [{ data: [] }] }, { purge: NO_KV });
+  const res = await processErasureRequests(c);
+  assertEquals(await res.json(), {
+    seen: 0,
+    kvPurge: { configured: false, deleted: 0, failed: 0 },
+  });
+});
+
+Deno.test('a KV API failure is recorded but never rolls back or masks the DB erasure', async () => {
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+      'rpc.gdpr_erase_fund_footprint': [
+        { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
+      ],
+    },
+    { purge: { deleted: 0, scanned: 4, error: new Error('KV list failed: 500') } },
+  );
+  const res = await processErasureRequests(c);
+
+  // The irreversible DB work still happened and is still reported as having happened —
+  // a Cloudflare outage must not turn a completed cascade into a 500 or a rollback.
+  assertEquals(res.status, 200);
+  assertEquals(c.db.calls.filter((k) => k.op === 'rpc').length, 1);
+  assertEquals(c.removed, [['user-1/cand-1.mp4']]);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 0, failed: 1 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('a purge that finds nothing is clean — most members were never prerendered', async () => {
+  // #335 caps generateStaticParams to PRERENDER_HANDLE_LIMIT handles, so deleted: 0 is the
+  // ordinary outcome and must not read as a failed erasure.
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    },
+    { purge: { deleted: 0, scanned: 132 } },
+  );
+  const res = await processErasureRequests(c);
+  assertEquals(await res.json(), { seen: 1, kvPurge: NO_PURGE });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'partial'],
+  );
+});
+
+Deno.test(
+  'a member with no handle had no public URL — nothing to purge, still partial',
+  async () => {
+    const c = ctx({
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'profiles.select': [{ data: { handle: null } }],
+    });
+    const res = await processErasureRequests(c);
+    assertEquals(c.purged, []);
+    assertEquals(await res.json(), { seen: 1, kvPurge: NO_PURGE });
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'partial'],
+    );
+  },
+);
+
+Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", async () => {
+  // Without the handle there is no key to derive, so the cached page survives the erasure.
+  // A read that FAILED and a member who never had a handle reach the same code with the same
+  // `handle === null`, and they must not report the same way: this one is a real gap.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ error: { message: 'db down' } }],
+  });
+  const res = await processErasureRequests(c);
+  assertEquals(c.purged, []);
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 0, failed: 1 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});

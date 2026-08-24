@@ -187,7 +187,8 @@ Deno.test('no internal function performs I/O before its gate', () => {
   const IO_CALL = [/\bDeno\.env\.get\s*\(/, /\bfetch\s*\(/, /\bsupabaseAdmin\s*\(/];
   for (const [name, posture] of Object.entries(POSTURE)) {
     if (posture !== 'internal') continue;
-    const src = Deno.readTextFileSync(new URL(`../${name}/index.ts`, import.meta.url));
+    const dir = new URL(`../${name}/`, import.meta.url);
+    const src = Deno.readTextFileSync(new URL('index.ts', dir));
     const gate = src.indexOf('requireServiceRole(req)');
     assert(gate > -1, `${name} is internal but never calls requireServiceRole`);
     for (const re of IO_CALL) {
@@ -196,6 +197,38 @@ Deno.test('no internal function performs I/O before its gate', () => {
         io === -1 || gate < io,
         `${name} performs I/O (${re.source}) before its service-role gate`,
       );
+    }
+
+    // The check above reads index.ts, because that is where the gate is. But "module scope
+    // counts" reaches further than index.ts: index.ts imports its siblings, so a sibling's
+    // module-scope env read or fetch runs at import time — before the gate, on every
+    // unauthenticated probe — and the ordering check above would stay green (erasure-job/kv.ts
+    // was the first sibling to hold a Deno.env.get, #515). Inside a function body those calls
+    // are fine: they only run once the handler has already passed the gate. Column 0 is the
+    // proxy for module scope — prettier indents every statement inside a function, and it
+    // gates CI, so an unindented I/O call is a top-level one.
+    //
+    // SCOPE: the function's OWN directory only. _shared/ is a sibling by import too and is
+    // deliberately NOT scanned, so do not read this guard as wider than it is. It already has
+    // one standing violation: _shared/stripe.ts constructs its client at module scope from
+    // Deno.env.get('STRIPE_SECRET_KEY'), and release-fund-payout (internal) imports it, so that
+    // read does run ahead of its gate. That predates this check and the exposure is a key in
+    // module memory rather than anything an unauthenticated caller can observe — widening the
+    // scan here would just fail CI on it. Fix that first if _shared is ever brought in.
+    const siblings = [...Deno.readDirSync(dir)]
+      .filter((e) => e.isFile && e.name.endsWith('.ts') && !e.name.endsWith('.test.ts'))
+      .filter((e) => e.name !== 'index.ts');
+    for (const e of siblings) {
+      const lines = Deno.readTextFileSync(new URL(e.name, dir)).split('\n');
+      for (const [i, line] of lines.entries()) {
+        if (/^\s/.test(line) || line.trimStart().startsWith('//')) continue;
+        for (const re of IO_CALL) {
+          assert(
+            !re.test(line),
+            `${name}/${e.name}:${i + 1} performs I/O (${re.source}) at module scope — it would run at import time, before ${name}'s service-role gate`,
+          );
+        }
+      }
     }
   }
 });
