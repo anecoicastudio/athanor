@@ -7,6 +7,7 @@ export * from './invite';
 export * from './onboarding';
 export * from './aura';
 export * from './public-profile';
+export * from './public-dream';
 export * from './post';
 export * from './post-reaction';
 export * from './post-comment';

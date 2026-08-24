@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { type ErasureKv, ogCardPaths } from './kv.ts';
+import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
@@ -104,27 +104,41 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
-    // (3b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3).
-    //     apps/web caches the prerendered profile page AND its OG card in KV, and a deploy
-    //     strands rather than replaces them, so those bytes outlive every row erased above
+    // (3b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3, widened
+    //     to dreams by #159). apps/web caches the prerendered profile page, its OG card and —
+    //     since #159 — every `/dream/{id}` page it has served, and a deploy strands rather than
+    //     replaces them, so those bytes outlive every row erased above
     //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). ./kv.ts
     //     does the sweep; this decides what its outcome means for the record.
     //
-    //     Ordering: the handle is read HERE, before (4b) below. The KV key is a hash of
-    //     /@handle, and (4b) cascades the profiles row away — once the legal gate opens, a
-    //     purge attempted after it has no key input left.
-    const { data: profile, error: profileError } = await db
-      .from('profiles')
-      .select('handle')
-      .eq('id', erasureReq.profile_id)
-      .maybeSingle();
+    //     Ordering: BOTH key inputs are read HERE, before (4b) below. The keys are hashes of
+    //     /@handle and /dream/<id>, and (4b) cascades the profiles row away — which takes the
+    //     dreams rows with it — so once the legal gate opens, a purge attempted after it has
+    //     no key input left at all.
+    //
+    //     One sweep, not two: purgePaths lists the whole namespace per call, so handing it the
+    //     handle paths and the dream paths together costs one listing instead of two.
+    const [{ data: profile, error: profileError }, { data: dreamRows, error: dreamsError }] =
+      await Promise.all([
+        db.from('profiles').select('handle').eq('id', erasureReq.profile_id).maybeSingle(),
+        // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
+        // filters describe what the page serves TODAY, and this is about what KV cached
+        // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
+        // facet flip still has a stranded entry under a dead build prefix, holding the text
+        // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
+        db.from('dreams').select('id').eq('profile_id', erasureReq.profile_id),
+      ]);
     const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
+    const dreamIds = ((dreamRows ?? []) as { id?: string | null }[])
+      .map((row) => row.id)
+      .filter((id): id is string => !!id);
 
+    const paths: string[] = [];
+    // A key input we could not READ is not one that never existed: the subject's pages may well
+    // be sitting in KV, and without the handle or the ids there is no key to derive. Same gap as
+    // a failed purge, so each is counted and named as one rather than falling into the
+    // nothing-to-purge branch below and reporting a clean sweep.
     if (profileError) {
-      // A handle we could not READ is not a handle that never existed: the subject's page and
-      // card may well be sitting in KV, and without the handle there is no key to derive. Same
-      // gap as a failed purge, so it is counted and named as one rather than falling into the
-      // no-handle branch below and reporting a clean sweep.
       degraded = true;
       kvFailed++;
       console.error(
@@ -133,6 +147,21 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         profileError,
       );
     } else if (handle) {
+      paths.push(...ogCardPaths(handle));
+    }
+    if (dreamsError) {
+      degraded = true;
+      kvFailed++;
+      console.error(
+        'erasure-job: dreams unreadable, KV purge of dream pages skipped',
+        erasureReq.id,
+        dreamsError,
+      );
+    } else {
+      paths.push(...dreamPagePaths(dreamIds));
+    }
+
+    if (paths.length > 0) {
       if (!kv) {
         // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
         // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
@@ -146,11 +175,12 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         );
       } else {
         const purge = await kv
-          .purgePaths(ogCardPaths(handle))
+          .purgePaths(paths)
           .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
         kvDeleted += purge.deleted;
         // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
-        // handles, so most members never had a cached entry. Only a broken sweep counts.
+        // handles and dream pages prerender not at all, so most members never had a cached
+        // entry under any of these paths. Only a broken sweep counts.
         if (purge.error) {
           degraded = true;
           kvFailed++;
@@ -160,8 +190,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         }
       }
     }
-    // The remaining case — read succeeded, handle is null — is genuinely clean: the member
-    // never had a public URL, so nothing was ever cached under one.
+    // The remaining case — both reads succeeded, no handle and no dreams — is genuinely clean:
+    // the member never had a public URL, so nothing was ever cached under one.
 
     // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
     //     retention window with counsel (#184; 10 §5 line 383, same gate as the fund PRD §13 Q1).

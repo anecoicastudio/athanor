@@ -48,6 +48,11 @@
             {
               "scheme": "https",
               "host": "www.athanor.workers.dev",
+              "pathPrefix": "/dream"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.workers.dev",
               "pathPrefix": "/invite"
             },
             {
