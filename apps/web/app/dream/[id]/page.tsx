@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { t } from '@athanor/i18n';
@@ -45,13 +46,20 @@ export function generateStaticParams(): { id: string }[] {
   return [];
 }
 
-async function load(id: string) {
+/*
+ * `cache()` because this route is the one that never prerenders. generateMetadata and the page
+ * body both need the dream, and the reader makes three round-trips (dream, byline, tappe); on
+ * /@handle and /event that doubling is paid once at build time for most rows, but here it
+ * would be paid on every on-demand render — six queries where three will do. React dedupes
+ * within one request pass, which is exactly the scope of the two calls.
+ */
+const load = cache(async (id: string) => {
   // createAnonClient, not createClient: this page is public and RLS-gated, so it has no
   // session to read — and awaiting cookies() would opt the route back into dynamic rendering
   // for every request, which is the regression build-checks/prerender-manifest.test.ts exists
   // to catch.
   return getPublicDreamById(createAnonClient(), id);
-}
+});
 
 export async function generateMetadata({
   params,

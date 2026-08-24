@@ -133,7 +133,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       .map((row) => row.id)
       .filter((id): id is string => !!id);
 
-    const paths: string[] = [];
+    // `kvPaths`, not `paths`: the fund branch above binds its own `paths` (the blob manifest),
+    // and two different lists of strings under one name in one loop body is how the wrong one
+    // gets handed to the wrong call.
+    const kvPaths: string[] = [];
     // A key input we could not READ is not one that never existed: the subject's pages may well
     // be sitting in KV, and without the handle or the ids there is no key to derive. Same gap as
     // a failed purge, so each is counted and named as one rather than falling into the
@@ -147,7 +150,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         profileError,
       );
     } else if (handle) {
-      paths.push(...ogCardPaths(handle));
+      kvPaths.push(...ogCardPaths(handle));
     }
     if (dreamsError) {
       degraded = true;
@@ -158,10 +161,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         dreamsError,
       );
     } else {
-      paths.push(...dreamPagePaths(dreamIds));
+      kvPaths.push(...dreamPagePaths(dreamIds));
     }
 
-    if (paths.length > 0) {
+    if (kvPaths.length > 0) {
       if (!kv) {
         // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
         // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
@@ -175,7 +178,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         );
       } else {
         const purge = await kv
-          .purgePaths(paths)
+          .purgePaths(kvPaths)
           .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
         kvDeleted += purge.deleted;
         // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
