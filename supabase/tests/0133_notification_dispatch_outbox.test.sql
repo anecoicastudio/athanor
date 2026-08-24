@@ -12,8 +12,9 @@
 -- re-POSTed with the IDENTICAL payload (same dedupe_key — that is what makes the retry
 -- exactly-once) · a response that has vanished is treated as a failure · a request still inside
 -- the grace window is left alone · the retry budget ends in abandoned_at rather than in silence ·
--- a 4xx is abandoned on sight, because the same body would be rejected the same way · abandoned
--- rows are reaped after 30 days.
+-- a 400 is abandoned on sight, because the same body would be rejected the same way, while
+-- every other 4xx is the platform (a key mid-rotation, a function not yet deployed) and takes
+-- the full retry budget · abandoned rows are reaped after 30 days.
 --
 -- net._http_response is an ordinary unlogged table owned by supabase_admin that `postgres` can
 -- read and write, so a response can be planted in-txn. Its ids here are deliberately far above
@@ -36,7 +37,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(30);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (A) catalog shape — the outbox is unreachable from any client, the sweep is cron-only
@@ -156,7 +157,7 @@ values
    jsonb_build_object('recipient_id','91330000-0000-0000-0000-000000000013',
      'type','moment','template_key','notif.tpl.pgtap0133c','dedupe_key','k-3'),
    3, null, now() - interval '10 minutes', now() - interval '10 minutes'),
-  -- D4: 400 on the first attempt → deterministic, abandon on sight
+  -- D4: 400 on the first attempt → the one deterministic rejection, abandon on sight
   ('d1330000-0000-0000-0000-000000000004', 913300000004,
    jsonb_build_object('recipient_id','91330000-0000-0000-0000-000000000014',
      'type','moment','template_key','notif.tpl.pgtap0133c','dedupe_key','k-4'),
@@ -171,6 +172,13 @@ values
    jsonb_build_object('recipient_id','91330000-0000-0000-0000-000000000016',
      'type','moment','template_key','notif.tpl.pgtap0133c','dedupe_key','k-6'),
    1, null, now(), now()),
+  -- D9: 401 on the first attempt → the PLATFORM rejecting a key mid-rotation, not the body.
+  --     Abandoning this class would drop every pending notification during the one outage the
+  --     retry budget exists for.
+  ('d1330000-0000-0000-0000-000000000009', 913300000009,
+   jsonb_build_object('recipient_id','91330000-0000-0000-0000-000000000019',
+     'type','moment','template_key','notif.tpl.pgtap0133c','dedupe_key','k-9'),
+   1, null, now() - interval '10 minutes', now() - interval '10 minutes'),
   -- D7: abandoned 31 days ago → reaped
   ('d1330000-0000-0000-0000-000000000007', 913300000007,
    jsonb_build_object('recipient_id','91330000-0000-0000-0000-000000000017',
@@ -189,7 +197,8 @@ values
    '{"error":"notification insert failed: JWT issued at future"}', false, null, now()),
   (913300000003, 500, 'application/json', '{}'::jsonb,
    '{"error":"notification insert failed: boom"}', false, null, now()),
-  (913300000004, 400, 'application/json', '{}'::jsonb, '{"error":"missing fields"}', false, null, now());
+  (913300000004, 400, 'application/json', '{}'::jsonb, '{"error":"missing fields"}', false, null, now()),
+  (913300000009, 401, 'application/json', '{}'::jsonb, '{"message":"Invalid API key"}', false, null, now());
 
 select athanor.notification_dispatch_reconcile();
 
@@ -253,7 +262,21 @@ select is(
 select is(
   (select count(*)::int from net.http_request_queue q
     where convert_from(q.body, 'utf8')::jsonb ->> 'dedupe_key' = 'k-4'),
-  0, 'a 4xx is not retried');
+  0, 'a 400 is not retried');
+
+-- The distinction the first cut of this migration got wrong. 401 is the fan-out key mid-rotation
+-- and 404 is the function not deployed yet — recoverable config failures, and precisely the
+-- class the outbox exists to survive. Treating them as deterministic would abandon every pending
+-- notification on the first sweep of the outage, which is worse than the bug #521 reported.
+select is(
+  (select count(*)::int from net.http_request_queue q
+    where convert_from(q.body, 'utf8')::jsonb ->> 'dedupe_key' = 'k-9'),
+  1, 'a 401 IS retried — the platform rejected the key, not the body');
+
+select is(
+  (select abandoned_at is null and attempts = 2 from athanor.notification_dispatches
+    where id = 'd1330000-0000-0000-0000-000000000009'),
+  true, 'and it keeps its retry budget rather than being abandoned on sight');
 
 -- pg_net prunes net._http_response on its own TTL, so "no row" is indistinguishable from a
 -- failure once the grace window has passed. The dedupe_key is what makes guessing wrong cheap.
