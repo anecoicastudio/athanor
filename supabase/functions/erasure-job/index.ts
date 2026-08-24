@@ -5,9 +5,10 @@
 //   (3) PSEUDONYMIZE (never delete) legally-retained money rows — fund_contributions is LIVE
 //       (#240: tombstone reassignment + candidacy/vote deletion + blob removal); event_tickets /
 //       circle_memberships stay TODO(legal-gate): retention window needs counsel (#184),
-//   (2b) purge the subject's cached public web pages from Cloudflare KV — apps/web's OpenNext
+//   (3b) purge the subject's cached public web pages from Cloudflare KV — apps/web's OpenNext
 //       incremental cache outlives the rows it renders and a deploy strands rather than
-//       replaces its entries, so erasure sweeps every build prefix (#515, ./kv.ts),
+//       replaces its entries, so erasure sweeps every build prefix (#515, ./kv.ts). Runs after
+//       (3) and before (4) because it needs the handle, which (4) cascades away,
 //   (4) delete the auth.users row (cascades profiles), and purge any matching email_waitlist row.
 // LEGAL-GATED: deployed but UNSCHEDULED, and the (3-gated)/(4) cascade steps stay commented in
 // ./logic.ts until counsel clears the retention window — a claimed request has its fund footprint

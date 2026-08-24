@@ -104,7 +104,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
-    // (2b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3).
+    // (3b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3).
     //     apps/web caches the prerendered profile page AND its OG card in KV, and a deploy
     //     strands rather than replaces them, so those bytes outlive every row erased above
     //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). ./kv.ts
