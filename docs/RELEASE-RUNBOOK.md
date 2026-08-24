@@ -232,8 +232,9 @@ on staging.
 | anything live-mode                | at cutover, one per live project | none — no live-mode account or endpoint exists yet                                                                                                                                                                                 |
 
 Recorded `we_…` ids live in `supabase/ENV-NOTES.md`, under **Stripe reference**. That table predates
-#473, lists two destinations and mentions no Vercel endpoint, so reconcile it against the Dashboard
-whenever this inventory is re-taken. Read its "live config" label as _current configuration_, not
+#473, lists two destinations, mentions no Vercel endpoint and records an event count of 10 that the
+handler has since outgrown, so reconcile all three against the Dashboard whenever this inventory is
+re-taken. Read its "live config" label as _current configuration_, not
 live **mode**: everything in that table is the test-mode sandbox.
 
 **Re-taking it.** `stripe webhook_endpoints list --limit 100`, or Dashboard → Developers → Webhooks.
@@ -279,7 +280,9 @@ signing secret above.
    events. Both already have a home in §5 and are not restated here: the **Webhook endpoint API
    version** rider for the version, the **Payout transfer deploy config** rider (#247) for
    `transfer.created` / `transfer.reversed`, and the **Payout onboarding deploy config** rider
-   (#246) for `account.updated`.
+   (#246) for `account.updated`. Read the last one whole, and the **Stripe https return pages**
+   rider (#418) with it: live mode is where Stripe starts rejecting the non-HTTPS return URLs those
+   two riders configure, so a cutover that only swaps keys can still land a broken Connect flow.
 3. **Set all four variables together** on production, with
    `supabase secrets set --project-ref kwzeiqvrnnaagccyoose`. The signing secret exists only once
    step 2 has run, which is why it comes last and why unset is the right interim state rather than a
