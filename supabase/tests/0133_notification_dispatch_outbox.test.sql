@@ -37,7 +37,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(31);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (A) catalog shape — the outbox is unreachable from any client, the sweep is cron-only
@@ -200,6 +200,18 @@ values
   (913300000004, 400, 'application/json', '{}'::jsonb, '{"error":"missing fields"}', false, null, now()),
   (913300000009, 401, 'application/json', '{}'::jsonb, '{"message":"Invalid API key"}', false, null, now());
 
+-- D10: a dispatch that already recorded a 500, whose NEXT response then vanished. The retry
+-- must not blank last_status — the abandoned row a human eventually reads is the only account
+-- of why the notification was lost, and it would otherwise erase itself on the second tick.
+insert into athanor.notification_dispatches
+  (id, request_id, payload, attempts, abandoned_at, last_status, last_error, created_at, updated_at)
+values
+  ('d1330000-0000-0000-0000-000000000010', 913300000010,
+   jsonb_build_object('recipient_id','91330000-0000-0000-0000-000000000020',
+     'type','moment','template_key','notif.tpl.pgtap0133c','dedupe_key','k-10'),
+   1, null, 500, 'notification insert failed: JWT issued at future',
+   now() - interval '10 minutes', now() - interval '10 minutes');
+
 select athanor.notification_dispatch_reconcile();
 
 select is(
@@ -257,7 +269,7 @@ select is(
   (select abandoned_at is not null and last_status = 400
      from athanor.notification_dispatches
     where id = 'd1330000-0000-0000-0000-000000000004'),
-  true, 'a 4xx is abandoned on the first attempt — the same body would be rejected identically');
+  true, 'a 400 is abandoned on the first attempt — the same body would be rejected identically');
 
 select is(
   (select count(*)::int from net.http_request_queue q
@@ -309,6 +321,11 @@ select is(
   (select count(*)::int from net.http_request_queue q
     where convert_from(q.body, 'utf8')::jsonb ->> 'dedupe_key' in ('k-7', 'k-8')),
   0, 'an already-abandoned dispatch is never re-POSTed');
+
+select is(
+  (select last_status from athanor.notification_dispatches
+    where id = 'd1330000-0000-0000-0000-000000000010'),
+  500, 'a vanished response does not erase the status that caused the retry');
 
 select * from finish();
 rollback;
