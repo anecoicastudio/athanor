@@ -8,9 +8,16 @@ import { error, json } from '../_shared/respond.ts';
 //
 // TWO shapes, distinguished by the presence of `audience` (#127):
 //
-//   single    { recipient_id, type, template_key, … }  → one row, one push. Unchanged.
+//   single    { recipient_id, type, template_key, dedupe_key?, … }  → one row, one push.
 //   audience  { audience, type, template_key, dedupe_key, … } → one row per eligible member,
 //             written in bulk, then a bounded push loop.
+//
+// Both write through the SAME (recipient_id, dedupe_key) conflict target (#521): the producers
+// record every POST in athanor.notification_dispatches and a cron reconciler re-POSTs whatever
+// net._http_response says failed, so every insert here has to be safe to repeat. The key is
+// mandatory on the audience shape (the caller owns it) and optional on the single one, where
+// enqueue_notification mints a fresh uuid per call — a NULL key never conflicts, so a body from
+// before that migration still inserts exactly as it used to.
 //
 // The audience shape exists because a fund milestone or a countdown has no single recipient,
 // which is why 20260701160235 skipped fund_aggregates and why #241 removed the type outright.
@@ -34,6 +41,14 @@ export type FanOutBody = {
   template_key: string;
   params?: Record<string, unknown>;
   entity_ref?: Record<string, unknown>;
+  /**
+   * Minted per dispatch by athanor.enqueue_notification (#521) — a fresh uuid per CALL, not a
+   * key derived from the content, because two identical notifications are two real events. It
+   * exists so the reconciler's re-POST of the SAME stored body inserts nothing the first
+   * attempt already wrote. Optional: a body from before that migration carries none, and a NULL
+   * key never conflicts (NULLs are distinct in the unique index), so it inserts as it always did.
+   */
+  dedupe_key?: string;
 };
 
 export type FanOutAudienceBody = {
@@ -62,13 +77,19 @@ export const AUDIENCE_PAGE = 1000;
  */
 export const PUSH_CONCURRENCY = 8;
 
-/** Pure field validation — the three required fields must be non-empty strings. */
+/**
+ * Pure field validation — the three required fields must be non-empty strings, and dedupe_key,
+ * when present at all, must be one too. Rejecting a malformed key rather than dropping it is
+ * deliberate: silently continuing would write an unkeyed row, and the retry that follows would
+ * then deliver the notification twice.
+ */
 export function validateFanOutBody(raw: unknown): FanOutBody | null {
   const body = raw as Partial<FanOutBody> | null | undefined;
   const missing = (v: unknown) => typeof v !== 'string' || v.trim() === '';
   if (missing(body?.recipient_id) || missing(body?.type) || missing(body?.template_key)) {
     return null;
   }
+  if (body?.dedupe_key !== undefined && missing(body.dedupe_key)) return null;
   return body as FanOutBody;
 }
 
@@ -256,17 +277,44 @@ export async function processFanOut(ctx: FanOutCtx, raw: unknown): Promise<Respo
   if (!body) return error('missing fields', 400);
 
   // The ONLY legitimate writer of notifications rows (service role bypasses RLS; clients = 42501).
-  const { error: insErr } = await ctx.admin.from('notifications').insert({
-    recipient_id: body.recipient_id,
-    type: body.type,
-    template_key: body.template_key,
-    params: body.params ?? {},
-    entity_ref: body.entity_ref ?? null,
-  });
+  //
+  // Upsert rather than insert, on the same (recipient_id, dedupe_key) target the audience path
+  // uses, so the reconciler's re-POST is exactly-once (#521). One path covers both shapes: an
+  // unkeyed body carries dedupe_key null, NULLs are distinct in a btree unique index, so it
+  // never conflicts and inserts exactly as a plain insert did. `select('id')` returns only the
+  // row actually written — which is what tells a first delivery from a retry of one already made.
+  const { data, error: insErr } = await ctx.admin
+    .from('notifications')
+    .upsert(
+      {
+        recipient_id: body.recipient_id,
+        type: body.type,
+        template_key: body.template_key,
+        params: body.params ?? {},
+        entity_ref: body.entity_ref ?? null,
+        dedupe_key: body.dedupe_key ?? null,
+      },
+      { onConflict: 'recipient_id,dedupe_key', ignoreDuplicates: true },
+    )
+    .select('id');
   if (insErr) return error(`notification insert failed: ${insErr.message}`, 500);
+
+  // Nothing written → an earlier attempt of this same dispatch already delivered it. Return 2xx
+  // (the reconciler must retire the outbox row, not retry it) and push NOBODY: the push went out
+  // with the first attempt, and re-pushing is the double «Hai un Momento» the key exists to stop.
+  if ((data ?? []).length === 0) {
+    console.log(JSON.stringify({ evt: 'fanout_deduped', recipient_id: body.recipient_id }));
+    return json({ ok: true, deduped: true });
+  }
 
   // Then dispatch push (best-effort — the in-app row is already written; preference gate lives
   // there). push-dispatch takes entity_ref as a STRING, so the object crosses JSON-stringified.
+  //
+  // A push failure stays 200 ON PURPOSE and says so in the body instead (#521 asks fan-out to
+  // surface the failure class): the row exists, so re-POSTing would chase a lost push by
+  // re-running an insert that already succeeded. An insert failure is the 500 above and IS
+  // retried; a lost push belongs to push-dispatch's receipt sweep.
+  let pushed = true;
   try {
     await ctx.invokePush({
       recipient_id: body.recipient_id,
@@ -276,7 +324,14 @@ export async function processFanOut(ctx: FanOutCtx, raw: unknown): Promise<Respo
       entity_ref: JSON.stringify(body.entity_ref ?? {}),
     });
   } catch (e) {
-    console.error('push-dispatch invoke failed', e);
+    pushed = false;
+    console.error(
+      JSON.stringify({
+        evt: 'fanout_push_failed',
+        recipient_id: body.recipient_id,
+        err: String(e),
+      }),
+    );
   }
-  return json({ ok: true });
+  return json({ ok: true, pushed });
 }

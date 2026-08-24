@@ -48,7 +48,7 @@ select is_empty(
   'rule 2: every table in public/athanor has row level security enabled'
 );
 
--- PRD.md:417 tripwire. 56 tables are created across supabase/migrations/ and each one has a
+-- PRD.md:417 tripwire. Tables are created across supabase/migrations/ and each one has a
 -- dedicated file in supabase/tests/. When this count changes, the new table needs its own
 -- pgTAP file before this number is bumped -- that is the whole point of the assertion.
 -- 47 -> 48: athanor.waitlist_throttle (issue #23), covered by 0083_waitlist_rate_limit.
@@ -75,14 +75,20 @@ select is_empty(
 --           `public` only, and a table this file counts should also be a row someone had to
 --           type there. It holds no client privilege at all: the read goes through the DEFINER
 --           get_momenti_suggestion(), so RLS-on with zero policies is the deny-all.
+-- 59 -> 60: athanor.notification_dispatches (issue #521), covered by
+--           0133_notification_dispatch_outbox. The outbox for every notification-fan-out POST,
+--           read back against net._http_response by a cron reconciler. In `athanor` and not
+--           `public` for the same reason as the two send markers above: no client role has any
+--           business seeing another member's pending notification body, and the schema is not
+--           exposed to PostgREST at all.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  59,
-  'PRD.md:417 tripwire: 59 tables, each with its own pgTAP file (bump only WITH a new test)'
+  60,
+  'PRD.md:417 tripwire: 60 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
