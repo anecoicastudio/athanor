@@ -207,6 +207,14 @@ Deno.test('no internal function performs I/O before its gate', () => {
     // are fine: they only run once the handler has already passed the gate. Column 0 is the
     // proxy for module scope — prettier indents every statement inside a function, and it
     // gates CI, so an unindented I/O call is a top-level one.
+    //
+    // SCOPE: the function's OWN directory only. _shared/ is a sibling by import too and is
+    // deliberately NOT scanned, so do not read this guard as wider than it is. It already has
+    // one standing violation: _shared/stripe.ts constructs its client at module scope from
+    // Deno.env.get('STRIPE_SECRET_KEY'), and release-fund-payout (internal) imports it, so that
+    // read does run ahead of its gate. That predates this check and the exposure is a key in
+    // module memory rather than anything an unauthenticated caller can observe — widening the
+    // scan here would just fail CI on it. Fix that first if _shared is ever brought in.
     const siblings = [...Deno.readDirSync(dir)]
       .filter((e) => e.isFile && e.name.endsWith('.ts') && !e.name.endsWith('.test.ts'))
       .filter((e) => e.name !== 'index.ts');
