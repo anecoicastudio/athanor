@@ -85,17 +85,19 @@ describe('public-dream api', () => {
   });
 
   /*
-   * dream:public + identity:members. Two independent anon policies, so this is a state a
-   * member can actually choose — the quote publishes, the byline does not.
+   * Defensive, not a member-chosen state: an identity-private or banned owner hides the DREAM
+   * row too (20260814151601's «CONSEQUENCE, DELIBERATE» — the anon dream policy reaches
+   * profiles through an exists, under profiles' own RLS), so this fixture cannot arise from
+   * the anon client. Pinned anyway: the byline must never be what fails the page.
    */
-  it('leaves the author null when the owner kept the identity facet private', async () => {
+  it('leaves the author null when no profile row comes back at all', async () => {
     const fake = wholePage({ 'profiles.select': [{ data: null }] });
     const res = await getPublicDreamById(asClient(fake), DREAM_ID);
     expect(res?.author).toBeNull();
     expect(res?.text).toBe('Aprire uno studio');
   });
 
-  it('leaves the author null when the profile row carries no handle', async () => {
+  it('leaves the author null when the profile row carries no handle — the reachable case', async () => {
     const fake = wholePage({
       'profiles.select': [{ data: { handle: null, display_name: 'Sole', avatar_path: null } }],
     });
@@ -128,7 +130,7 @@ describe('public-dream api', () => {
 
   /*
    * A failed byline lookup must not degrade to an unattributed page: that reads as «this
-   * member chose to stay private», which is a different and false statement.
+   * member has no handle», which is a different and false statement.
    */
   it('rethrows when the byline lookup fails, rather than publishing an unattributed dream', async () => {
     const fake = wholePage({ 'profiles.select': [{ error: DB_DOWN }] });

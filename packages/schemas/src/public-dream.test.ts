@@ -18,10 +18,10 @@ describe('publicDreamSchema', () => {
     expect(parsed.milestones).toHaveLength(2);
   });
 
-  it('parses a dream whose author kept the identity facet private', () => {
-    // Not a defensive branch: dreams_select_anon_public and profiles_select_anon_public gate
-    // on different facets, so dream:public + identity:members is a reachable state and the
-    // page renders the quote with no byline.
+  it('parses a dream whose owner carries no handle', () => {
+    // The reachable no-byline case, and the only one: an identity-private or banned owner
+    // hides the DREAM row from anon too, through the exists in dreams_select_anon_public
+    // (20260814151601, «CONSEQUENCE, DELIBERATE»), so it never reaches this model at all.
     const parsed = publicDreamSchema.parse({ ...row, author: null });
     expect(parsed.author).toBeNull();
   });

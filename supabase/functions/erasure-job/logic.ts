@@ -42,6 +42,18 @@ export type ErasureCtx = {
   kv: ErasureKv | null;
 };
 
+/**
+ * How many of the subject's dream ids one run derives KV keys for.
+ *
+ * Bounded because PostgREST caps a response at `max_rows` (supabase/config.toml) and returns
+ * the truncated page with NO error — an unbounded read would drop the tail silently and this
+ * block would report a clean sweep over a partial key set, which is the one thing it exists to
+ * prevent. Far above any real member (PRD §4.3 allows one active dream, and editing updates in
+ * place rather than archiving), so hitting it means something is wrong; a full page is
+ * therefore treated as a purge gap rather than as a complete read.
+ */
+const DREAM_ID_READ_LIMIT = 500;
+
 /** Row shape of the blob-removal manifest gdpr_erase_fund_footprint returns. */
 type ManifestRow = { bucket_id: string; name: string };
 
@@ -126,7 +138,13 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
         // facet flip still has a stranded entry under a dead build prefix, holding the text
         // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
-        db.from('dreams').select('id').eq('profile_id', erasureReq.profile_id),
+        db
+          .from('dreams')
+          .select('id')
+          .eq('profile_id', erasureReq.profile_id)
+          // Ordered so the page is deterministic, bounded so a truncated one is detectable.
+          .order('id', { ascending: true })
+          .limit(DREAM_ID_READ_LIMIT),
       ]);
     const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
     const dreamIds = ((dreamRows ?? []) as { id?: string | null }[])
@@ -162,6 +180,17 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       );
     } else {
       kvPaths.push(...dreamPagePaths(dreamIds));
+      if (dreamIds.length >= DREAM_ID_READ_LIMIT) {
+        // A full page may be a truncated one, and PostgREST does not say which. The keys we
+        // did derive are still purged below — this records that the READ may have missed some,
+        // exactly as an unreadable handle does, so the run cannot report a clean sweep.
+        degraded = true;
+        kvFailed++;
+        console.error(
+          'erasure-job: dream id read hit its limit, some dream pages may be unpurged',
+          erasureReq.id,
+        );
+      }
     }
 
     if (kvPaths.length > 0) {

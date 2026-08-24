@@ -19,8 +19,10 @@ const STATE_KEY = {
  * and the member is a byline. So the quote leads, at display scale, and the byline sits under
  * it as a link back to `/@handle` — the page a visitor wants next.
  *
- * Dream register = Hanken italic (DESIGN.md §typography, `font-dream`), never a second font
- * family. No glow: DESIGN.md reserves the cyan glow for moment-grade events, and a dream
+ * Dream register = `font-dream` italic, which on THIS surface is EB Garamond, not Hanken:
+ * DESIGN.md §11 (2026-06-13) moved the web display face and made its italic the dream voice,
+ * overriding §4 for apps/web. Same class, same face as `landing-view.tsx` — never a third
+ * font family. No glow: DESIGN.md reserves the cyan glow for moment-grade events, and a dream
  * sitting on a public page is a statement, not something that just happened — cyan appears
  * flat, on the label, the handle and the CTA border.
  *

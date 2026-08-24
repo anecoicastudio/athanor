@@ -33,11 +33,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * it, flipping the facet back to 'members' or being banned all un-publish the page through
  * one code path, with no branch here to keep in step.
  *
- * The byline is a second, independent read: `profiles_select_anon_public` gates on the
- * *identity* facet, so dream:public + identity:members is a reachable state that yields a
- * dream with no author. Null is that member's answer, not a fault — but a failed lookup
- * still rethrows, because an unattributed page would state «this member chose to stay
- * private» when the truth is «the database was down».
+ * The byline is a second read, but NOT an independent gate: `dreams_select_anon_public`
+ * reaches the owner's profiles row through an `exists` that anon evaluates under profiles'
+ * own RLS, so identity:'members' and a ban already hid the dream row above (20260814151601,
+ * «CONSEQUENCE, DELIBERATE»). A dream that reaches this line has an anon-readable owner, and
+ * the null byline is for a profile carrying no handle — nothing to link to. A failed lookup
+ * still rethrows, because an unattributed page would state «this member has no handle» when
+ * the truth is «the database was down».
  *
  * `profile_id` is read only to resolve the byline and never returned; `publicDreamSchema` is
  * `.strict()`, so a widened select here fails loudly instead of leaking. The avatar is a
@@ -93,7 +95,9 @@ export async function getPublicDreamById(
     text: dream.text,
     milestones: (tappe ?? []).map((m) => ({ id: m.id, body: m.body, status: m.status })),
     // A profile row with a null handle cannot be linked to, so it is no byline at all —
-    // handleSchema would reject it anyway, and rejecting it here says why.
+    // handleSchema would reject it anyway, and rejecting it here says why. `profile` itself
+    // being null is defensive: the dream's own policy already required that row to be
+    // readable.
     author: profile?.handle
       ? {
           handle: profile.handle,

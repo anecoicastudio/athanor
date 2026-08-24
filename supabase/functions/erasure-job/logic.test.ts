@@ -492,13 +492,40 @@ Deno.test(
     assertEquals(read.columns, 'id');
     // Keyed to the erased profile and to NOTHING else — before (4b) would cascade the rows away.
     assertEquals(read.filters, [['eq', 'profile_id', 'user-1']]);
-    assertEquals(read.modifiers, []);
+    // Ordered and bounded: PostgREST truncates at max_rows with no error, so an unbounded read
+    // would drop the tail silently. See the full-page test below.
+    assertEquals(read.modifiers, [
+      ['order', 'id', { ascending: true }],
+      ['limit', 500],
+    ]);
   },
 );
 
+Deno.test('a FULL page of dream ids is a purge gap — a truncated read raises nothing', async () => {
+  // PostgREST caps at max_rows and returns the short page with error: null, so «exactly the
+  // limit» and «the limit, plus more we never saw» are indistinguishable. The keys we did
+  // derive are still purged; what must not happen is reporting the sweep as complete.
+  const ids = Array.from({ length: 500 }, (_, i) => ({ id: `dream-${i}` }));
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: null } }],
+    'dreams.select': [{ data: ids }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged.length, 1);
+  assertEquals(c.purged[0].length, 500);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 1 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
 Deno.test('a member with dreams but no handle still gets the dream pages purged', async () => {
-  // The two key inputs are independent: an identity-private member can still have published
-  // a dream, so «no handle» must not skip the dream half.
+  // The two key inputs are independent. This job reads with the service role, where no
+  // visibility gates anything, so «no handle» here means the column is null — and it must not
+  // skip the dream half, whose keys have nothing to do with the handle.
   const c = ctx({
     'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
     'profiles.select': [{ data: { handle: null } }],

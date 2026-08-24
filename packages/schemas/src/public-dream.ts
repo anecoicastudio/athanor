@@ -5,12 +5,16 @@ import { displayNameSchema, handleSchema } from './profile';
 /**
  * The author byline on a public dream page (issue #159).
  *
- * Nullable as a whole, and that is a real state rather than a defensive one: the two anon
- * policies are independent. `dreams_select_anon_public` needs `visibility.dream = 'public'`;
- * `profiles_select_anon_public` needs `visibility.identity = 'public'` **and** `not_banned`
- * (20260614144747, 20260818114947). A member who publishes the dream but keeps the identity
- * facet at 'members' therefore yields a readable dream row and no profile row — the page
- * renders the quote with no byline, which is exactly what that member asked for.
+ * Nullable, and NOT because a member can publish a dream while hiding their identity — they
+ * cannot. `dreams_select_anon_public` (20260614144747) reaches the owner's profiles row
+ * through a plain `exists`, which anon evaluates under profiles' own RLS, so an
+ * identity:'members' or banned member hides the dream row itself; 20260814151601's header
+ * calls that out as «CONSEQUENCE, DELIBERATE». By the time a dream reaches this model its
+ * owner's shell is anon-readable.
+ *
+ * What is left is a profile with no handle: nothing to link to and nothing `handleSchema`
+ * would accept, so the page renders the quote unattributed. Defensive beyond that — a byline
+ * is not worth a 500.
  *
  * Same fields as the #251 default shell on `publicProfileSchema`, and for the same reason:
  * `avatarUrl` is a short-lived SIGNED url against the private avatars bucket, never a

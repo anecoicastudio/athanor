@@ -69,7 +69,7 @@ describe('/dream/[id] generateMetadata', () => {
     expect(meta.robots).toEqual({ index: true, follow: true });
   });
 
-  it('falls back to the unattributed title when the owner kept identity private', async () => {
+  it('falls back to the unattributed title when the owner carries no handle', async () => {
     getPublicDreamById.mockResolvedValue(dream({ author: null }));
     expect((await generateMetadata({ params })).title).toBe('Un sogno — Athanor');
   });
