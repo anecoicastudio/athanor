@@ -21,11 +21,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // is; the code path is provider-agnostic and needs no other change.
 const APPLE_ENABLED = false;
 
-// Google is configured on the staging project: provider on, client ID + secret set, and every
-// redirect form this app emits present in its allow-list (the AUTH_REDIRECT_URL note in
-// lib/oauth.ts says why there is more than one form). Production's provider is still off, and
-// this flag is environment-blind — a production build renders the button and can only reach
-// «L'accesso con Google non è ancora attivo» until that half lands too.
+// Google is configured on the staging project: provider on, client ID + secret set. Its
+// allow-list carries the standalone `athanor://` forms and the exp.direct ones, so the device
+// walk has to run `pnpm exec expo start --tunnel`. It is NOT every form this app can emit: a
+// LAN start can never complete the round trip, because GoTrue substitutes Site URL for any
+// private-LAN target whether or not it is listed (#73), and the web build emits
+// `http://localhost:8081/auth-callback`, which is not on the list either. Both fail silently.
+// Production's provider is still off, and this flag is environment-blind — a production build
+// renders the button and can only reach «L'accesso con Google non è ancora attivo».
 const GOOGLE_ENABLED = true;
 
 const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
