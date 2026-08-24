@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { type ErasureKv, ogCardPaths } from './kv.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
@@ -31,13 +32,26 @@ export type ErasureCtx = {
   db: SupabaseClient;
   auth: ErasureAuth;
   storage: ErasureStorage;
+  /**
+   * Cloudflare KV purge of the subject's cached public pages (#515 item 3), or **null when
+   * the CF_KV_* trio is absent from edge-function env**. Null is carried this far rather than
+   * resolved inside the loop so the unconfigured state is a value the loop can record: an
+   * unconfigured deployment leaves the erased member's card and page readable by key, which
+   * is the one thing #468/#492 say must never be a silent skip.
+   */
+  kv: ErasureKv | null;
 };
 
 /** Row shape of the blob-removal manifest gdpr_erase_fund_footprint returns. */
 type ManifestRow = { bucket_id: string; name: string };
 
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
-  const { db, auth, storage } = ctx;
+  const { db, auth, storage, kv } = ctx;
+
+  // Reported whatever happens below, including on a zero-request run: a smoke invocation of
+  // this function is then enough to see that the deployment cannot purge (#515).
+  let kvDeleted = 0;
+  let kvFailed = 0;
 
   const { data: reqs, error } = await db
     .from('gdpr_erasure_requests')
@@ -90,6 +104,54 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
+    // (2b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3).
+    //     apps/web caches the prerendered profile page AND its OG card in KV, and a deploy
+    //     strands rather than replaces them, so those bytes outlive every row erased above
+    //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). ./kv.ts
+    //     does the sweep; this decides what its outcome means for the record.
+    //
+    //     Ordering: the handle is read HERE, before (4b) below. The KV key is a hash of
+    //     /@handle, and (4b) cascades the profiles row away — once the legal gate opens, a
+    //     purge attempted after it has no key input left.
+    const { data: profile, error: profileError } = await db
+      .from('profiles')
+      .select('handle')
+      .eq('id', erasureReq.profile_id)
+      .maybeSingle();
+    if (profileError) degraded = true;
+    const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
+
+    // No handle → the member never had a public URL, so nothing was ever cached under one.
+    // That is a clean outcome, not a skipped step.
+    if (handle) {
+      if (!kv) {
+        // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
+        // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
+        // 'partial' claims the run did everything it could; with the member's card still
+        // servable from KV that claim is false, so this is a real 'failed'.
+        degraded = true;
+        kvFailed++;
+        console.error(
+          'erasure-job: KV purge unconfigured, cached pages left in place',
+          erasureReq.id,
+        );
+      } else {
+        const purge = await kv
+          .purgePaths(ogCardPaths(handle))
+          .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
+        kvDeleted += purge.deleted;
+        // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
+        // handles, so most members never had a cached entry. Only a broken sweep counts.
+        if (purge.error) {
+          degraded = true;
+          kvFailed++;
+          // Recorded, not rethrown: the DB erasure above already ran and is irreversible, so
+          // failing the whole batch here would mask a completed cascade behind a KV outage.
+          console.error('erasure-job: KV purge failed', erasureReq.id, purge.error);
+        }
+      }
+    }
+
     // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
     //     retention window with counsel (#184; 10 §5 line 383, same gate as the fund PRD §13 Q1).
     //     Do NOT proceed to (4) while any of these still points at the profile:
@@ -131,7 +193,13 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //   finishes cleanly.
   }
 
-  return new Response(JSON.stringify({ seen: reqs?.length ?? 0 }), {
-    headers: { 'content-type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify({
+      seen: reqs?.length ?? 0,
+      // `configured: false` is the whole point of reporting this: it is true of the
+      // deployment, not of a request, so it shows up even on a run that saw nothing (#515).
+      kvPurge: { configured: kv !== null, deleted: kvDeleted, failed: kvFailed },
+    }),
+    { headers: { 'content-type': 'application/json' } },
+  );
 }

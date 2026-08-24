@@ -552,8 +552,14 @@ returned the full prerendered profile page for a handle that no longer exists in
 database at all. Two consequences:
 
 - **Erasure (#107, R-8) is not satisfied by a redeploy.** A GDPR erasure that clears the database
-  leaves this residue behind. Whatever implements the erasure cascade has to sweep the namespace
-  by prefix, or the bytes outlive the request.
+  leaves this residue behind, so the erasure cascade sweeps the namespace by prefix rather than
+  deleting one live key — `supabase/functions/erasure-job/kv.ts` (#515). It lists
+  `incremental-cache/` once and deletes every key whose hash matches `/@handle` or
+  `/@handle/opengraph-image`, under **every** build prefix, live and dead. It needs
+  `CF_KV_PURGE_TOKEN` / `CF_KV_ACCOUNT_ID` / `CF_KV_NAMESPACE_ID` in the function's env; without
+  them the job records the request `failed` and its response reports
+  `kvPurge.configured: false`, so an unconfigured deploy is visible from one smoke invocation
+  rather than silently leaving the bytes in place.
 - **Orphans accumulate per deploy** and count against the free plan's 1 GB. It is small today —
   the four observed prefixes run 17 to 46 keys — because production carries few public profiles,
   but each per-handle card is ~78 KB and every deploy writes a fresh copy of every one of them, so
