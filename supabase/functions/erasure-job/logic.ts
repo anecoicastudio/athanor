@@ -147,6 +147,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
           .limit(DREAM_ID_READ_LIMIT),
       ]);
     const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
+    const dreamRowCount = ((dreamRows ?? []) as unknown[]).length;
     const dreamIds = ((dreamRows ?? []) as { id?: string | null }[])
       .map((row) => row.id)
       .filter((id): id is string => !!id);
@@ -180,7 +181,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       );
     } else {
       kvPaths.push(...dreamPagePaths(dreamIds));
-      if (dreamIds.length >= DREAM_ID_READ_LIMIT) {
+      // The RAW row count, not `dreamIds`: the filter above drops a row with no id, and a full
+      // page holding one would otherwise leave 499 and slip past this guard — a truncated read
+      // reading as a complete one, which is the shape this guard exists to close.
+      if (dreamRowCount >= DREAM_ID_READ_LIMIT) {
         // A full page may be a truncated one, and PostgREST does not say which. The keys we
         // did derive are still purged below — this records that the READ may have missed some,
         // exactly as an unreadable handle does, so the run cannot report a clean sweep.

@@ -505,7 +505,11 @@ Deno.test('a FULL page of dream ids is a purge gap — a truncated read raises n
   // PostgREST caps at max_rows and returns the short page with error: null, so «exactly the
   // limit» and «the limit, plus more we never saw» are indistinguishable. The keys we did
   // derive are still purged; what must not happen is reporting the sweep as complete.
-  const ids = Array.from({ length: 500 }, (_, i) => ({ id: `dream-${i}` }));
+  // One row with no id, so the guard is exercised on the RAW page size: filtering first would
+  // leave 499 and let a possibly-truncated read report as a complete one.
+  const ids = Array.from({ length: 500 }, (_, i) =>
+    i === 7 ? { id: null } : { id: `dream-${i}` },
+  );
   const c = ctx({
     'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
     'profiles.select': [{ data: { handle: null } }],
@@ -514,7 +518,7 @@ Deno.test('a FULL page of dream ids is a purge gap — a truncated read raises n
   const res = await processErasureRequests(c);
 
   assertEquals(c.purged.length, 1);
-  assertEquals(c.purged[0].length, 500);
+  assertEquals(c.purged[0].length, 499);
   assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 1 } });
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
