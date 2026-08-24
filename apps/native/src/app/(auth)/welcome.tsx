@@ -21,11 +21,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // is; the code path is provider-agnostic and needs no other change.
 const APPLE_ENABLED = false;
 
-// Google is configured on the staging project — provider on, client id + secret set, and all
-// four redirect forms in the allow-list (see the AUTH_REDIRECT_URL note in lib/oauth.ts for
-// why there are four). Production's provider is still off, and this flag is environment-blind:
-// a production build renders the button and can only reach «L'accesso con Google non è ancora
-// attivo» until that half lands too.
+// Google is configured on the staging project: provider on, client ID + secret set, and every
+// redirect form this app emits present in its allow-list (the AUTH_REDIRECT_URL note in
+// lib/oauth.ts says why there is more than one form). Production's provider is still off, and
+// this flag is environment-blind — a production build renders the button and can only reach
+// «L'accesso con Google non è ancora attivo» until that half lands too.
 const GOOGLE_ENABLED = true;
 
 const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
