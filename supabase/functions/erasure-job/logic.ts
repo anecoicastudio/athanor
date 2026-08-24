@@ -118,12 +118,21 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       .select('handle')
       .eq('id', erasureReq.profile_id)
       .maybeSingle();
-    if (profileError) degraded = true;
     const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
 
-    // No handle → the member never had a public URL, so nothing was ever cached under one.
-    // That is a clean outcome, not a skipped step.
-    if (handle) {
+    if (profileError) {
+      // A handle we could not READ is not a handle that never existed: the subject's page and
+      // card may well be sitting in KV, and without the handle there is no key to derive. Same
+      // gap as a failed purge, so it is counted and named as one rather than falling into the
+      // no-handle branch below and reporting a clean sweep.
+      degraded = true;
+      kvFailed++;
+      console.error(
+        'erasure-job: handle unreadable, KV purge skipped',
+        erasureReq.id,
+        profileError,
+      );
+    } else if (handle) {
       if (!kv) {
         // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
         // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
@@ -151,6 +160,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         }
       }
     }
+    // The remaining case — read succeeded, handle is null — is genuinely clean: the member
+    // never had a public URL, so nothing was ever cached under one.
 
     // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
     //     retention window with counsel (#184; 10 §5 line 383, same gate as the fund PRD §13 Q1).

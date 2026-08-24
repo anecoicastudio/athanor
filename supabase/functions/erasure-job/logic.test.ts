@@ -452,8 +452,10 @@ Deno.test(
   },
 );
 
-Deno.test("a failed handle read is recorded — 'failed', not a silent no-purge", async () => {
+Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", async () => {
   // Without the handle there is no key to derive, so the cached page survives the erasure.
+  // A read that FAILED and a member who never had a handle reach the same code with the same
+  // `handle === null`, and they must not report the same way: this one is a real gap.
   const c = ctx({
     'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
     'profiles.select': [{ error: { message: 'db down' } }],
@@ -461,6 +463,7 @@ Deno.test("a failed handle read is recorded — 'failed', not a silent no-purge"
   const res = await processErasureRequests(c);
   assertEquals(c.purged, []);
   assertEquals(res.status, 200);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 0, failed: 1 } });
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
