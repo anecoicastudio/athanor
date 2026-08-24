@@ -26,8 +26,16 @@ const ALWAYS_STATIC = [
   '/robots.txt',
   '/opengraph-image',
 ];
-/** Dynamic families that must stay prerenderable — present in `dynamicRoutes`. */
-const DYNAMIC_FAMILIES = ['/[handle]', '/[handle]/opengraph-image', '/event/[id]'];
+/**
+ * Dynamic families that must stay prerenderable — present in `dynamicRoutes`.
+ *
+ * `/dream/[id]` earns its place here for a second reason on top of the cookie regression
+ * below: it prerenders no params at all (#159), and the difference between an EMPTY
+ * `generateStaticParams` and an absent one is invisible in review — both look like "nothing
+ * is prerendered". Only the absent one drops the route out of this manifest, and with it the
+ * incremental cache and `revalidate`, turning every crawler hit into a fresh render.
+ */
+const DYNAMIC_FAMILIES = ['/[handle]', '/[handle]/opengraph-image', '/event/[id]', '/dream/[id]'];
 /**
  * Database-independent routes measured on 2026-08-21: 19. A floor below that, so a build
  * against an empty or unreachable database still passes; zero is the regression. Ratchet
@@ -41,6 +49,7 @@ const readManifest = (): Manifest => JSON.parse(readFileSync(MANIFEST, 'utf8'));
 const isHandlePage = (route: string) => /^\/@[^/]+$/.test(route);
 const isHandleCard = (route: string) => /^\/@[^/]+\/opengraph-image$/.test(route);
 const isEventPage = (route: string) => /^\/event\/[0-9a-f-]{36}$/.test(route);
+const isDreamPage = (route: string) => /^\/dream\//.test(route);
 
 describe('prerender manifest', () => {
   it('exists — run this after `next build`, never instead of it', () => {
@@ -56,7 +65,7 @@ describe('prerender manifest', () => {
     expect(Object.keys(readManifest().routes).length).toBeGreaterThanOrEqual(STATIC_FLOOR);
   });
 
-  it('keeps the three dynamic families prerenderable', () => {
+  it('keeps the four dynamic families prerenderable', () => {
     expect(Object.keys(readManifest().dynamicRoutes)).toEqual(
       expect.arrayContaining(DYNAMIC_FAMILIES),
     );
@@ -70,5 +79,13 @@ describe('prerender manifest', () => {
     // One card per prerendered page and no card without its page: the two routes share one
     // generateStaticParams body (lib/handle-static-params.ts) precisely so they cannot drift.
     expect(routes.filter(isHandleCard).length).toBe(pages.length);
+  });
+
+  it('prerenders NO dream at all — the #159 decision, not an empty database (#335)', () => {
+    // There is no PRERENDER_DREAM_LIMIT to compare against, because the cap is zero: a
+    // prerendered dream would cost a KV write per deploy to publish text already prerendered
+    // inside the owner's /@handle page (lib/prerender-limits.ts). A build that started
+    // emitting them would be spending the free-plan write budget for nothing, quietly.
+    expect(Object.keys(readManifest().routes).filter(isDreamPage)).toEqual([]);
   });
 });

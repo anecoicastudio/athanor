@@ -8,6 +8,7 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import {
   cloudflareKvFromEnv,
+  dreamPagePaths,
   KV_CACHE_PREFIX,
   makeCloudflareKv,
   ogCardPaths,
@@ -60,6 +61,34 @@ const deletedKeys = (seen: Req[]) =>
 Deno.test('ogCardPaths covers the page AND the card, with the @ in the path', () => {
   // Not just the OG card: the profile HTML carries the same photo and dream quote (§7.4).
   assertEquals(ogCardPaths('luna_dev'), ['/@luna_dev', '/@luna_dev/opengraph-image']);
+});
+
+Deno.test('dreamPagePaths derives one path per dream — the page, and no card', () => {
+  // apps/web/app/dream/[id]/ has NO opengraph-image sibling (#159: the route never
+  // prerenders, so a per-dream Satori card would render in the Worker on every request).
+  // Deriving one anyway would sweep for a key that cannot exist, and the site-wide
+  // /opengraph-image belongs to no member and must never be purged.
+  assertEquals(dreamPagePaths(['d1', 'd2']), ['/dream/d1', '/dream/d2']);
+});
+
+Deno.test('dreamPagePaths on a member with no dreams asks for nothing', () => {
+  assertEquals(dreamPagePaths([]), []);
+});
+
+Deno.test('a dream page key is swept under every build prefix, like the profile ones', async () => {
+  // The property that makes this an erasure step rather than a cache invalidation: BUILD_ID
+  // sits between the prefix and the hash, so one listing reaches the live build and every
+  // dead one (RELEASE-RUNBOOK §7.4).
+  const hash = await sha256Hex('/dream/d1');
+  const live = `${KV_CACHE_PREFIX}/build-new/${hash}.cache`;
+  const dead = `${KV_CACHE_PREFIX}/build-old/${hash}.cache`;
+  const other = `${KV_CACHE_PREFIX}/build-old/${await sha256Hex('/dream/d2')}.cache`;
+  const { fetchImpl, seen } = fakeCf([{ names: [live, dead, other] }]);
+
+  const result = await makeCloudflareKv(CFG, fetchImpl).purgePaths(dreamPagePaths(['d1']));
+
+  assertEquals(result, { deleted: 2, scanned: 3 });
+  assertEquals(deletedKeys(seen).sort(), [dead, live].sort());
 });
 
 Deno.test('sha256Hex matches the digest OpenNext puts in the key', async () => {

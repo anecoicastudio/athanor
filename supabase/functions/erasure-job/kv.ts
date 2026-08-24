@@ -58,6 +58,23 @@ export function ogCardPaths(handle: string): string[] {
   return [`/@${handle}`, `/@${handle}/opengraph-image`];
 }
 
+/**
+ * The public web paths that render one of the subject's dreams (#159).
+ *
+ * ONE path per dream, not the page-and-card pair above: `apps/web/app/dream/[id]/` has no
+ * `opengraph-image` sibling. That route never prerenders (see apps/web/lib/prerender-limits.ts),
+ * so a per-dream Satori card would have to render in the Worker on every request against a
+ * 10 ms CPU budget; the page names the site-wide `/opengraph-image` instead, which belongs to
+ * no member and must never be purged. Deriving a `/dream/<id>/opengraph-image` key here would
+ * sweep for something that cannot exist — the paths are derived from what the app caches, not
+ * guessed from the handle pattern.
+ *
+ * Ids are hashed into the key verbatim, exactly as the route segment appears in the URL.
+ */
+export function dreamPagePaths(dreamIds: readonly string[]): string[] {
+  return dreamIds.map((id) => `/dream/${id}`);
+}
+
 /** Lowercase hex SHA-256 — the digest `computeCacheKey` puts in the key. */
 export async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));

@@ -6,6 +6,7 @@ export * from './helps';
 export * from './invites';
 export * from './aura';
 export * from './public-profile';
+export * from './public-dream';
 export * from './posts';
 export * from './post-reactions';
 export * from './post-comments';

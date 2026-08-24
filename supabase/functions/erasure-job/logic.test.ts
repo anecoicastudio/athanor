@@ -452,6 +452,167 @@ Deno.test(
   },
 );
 
+Deno.test("purges the subject's dream pages alongside the profile pair, in ONE sweep", async () => {
+  // #159 widened the purge: apps/web serves /dream/{id} and caches it, and un-publishing a
+  // dream has never deleted its cached copy. One purgePaths call, because the sweep lists the
+  // whole namespace per call — two calls would list it twice for one member.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    'dreams.select': [{ data: [{ id: 'dream-1' }, { id: 'dream-2' }] }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, [
+    ['/@luna_dev', '/@luna_dev/opengraph-image', '/dream/dream-1', '/dream/dream-2'],
+  ]);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 0 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'partial'],
+  );
+});
+
+Deno.test(
+  'the dream read is UNFILTERED — an archived or deleted dream still has a cached page',
+  async () => {
+    // The deliberate asymmetry with the reader in packages/api: `status = 'active'` and
+    // `deleted_at is null` describe what the page serves today, and this is about what KV
+    // cached yesterday. Filtering here would leave the text of an archived dream readable by
+    // key, forever, under a dead build prefix.
+    const c = ctx({
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+      'dreams.select': [{ data: [{ id: 'dream-1' }] }],
+    });
+    await processErasureRequests(c);
+
+    const read = c.db.calls.find((k) => k.table === 'dreams' && k.op === 'select');
+    assert(read);
+    assertEquals(read.columns, 'id');
+    // Keyed to the erased profile and to NOTHING else — before (4b) would cascade the rows away.
+    assertEquals(read.filters, [['eq', 'profile_id', 'user-1']]);
+    // Ordered and bounded: PostgREST truncates at max_rows with no error, so an unbounded read
+    // would drop the tail silently. See the full-page test below.
+    assertEquals(read.modifiers, [
+      ['order', 'id', { ascending: true }],
+      ['limit', 500],
+    ]);
+  },
+);
+
+Deno.test('a FULL page of dream ids is a purge gap — a truncated read raises nothing', async () => {
+  // PostgREST caps at max_rows and returns the short page with error: null, so «exactly the
+  // limit» and «the limit, plus more we never saw» are indistinguishable. The keys we did
+  // derive are still purged; what must not happen is reporting the sweep as complete.
+  // One row with no id, so the guard is exercised on the RAW page size: filtering first would
+  // leave 499 and let a possibly-truncated read report as a complete one.
+  const ids = Array.from({ length: 500 }, (_, i) =>
+    i === 7 ? { id: null } : { id: `dream-${i}` },
+  );
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: null } }],
+    'dreams.select': [{ data: ids }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged.length, 1);
+  assertEquals(c.purged[0].length, 499);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 1 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('a member with dreams but no handle still gets the dream pages purged', async () => {
+  // The two key inputs are independent. This job reads with the service role, where no
+  // visibility gates anything, so «no handle» here means the column is null — and it must not
+  // skip the dream half, whose keys have nothing to do with the handle.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: null } }],
+    'dreams.select': [{ data: [{ id: 'dream-1' }] }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, [['/dream/dream-1']]);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 0 } });
+});
+
+Deno.test("a failed dreams read is counted as a purge gap, not as 'no dreams'", async () => {
+  // Same rule as the handle read: a read that FAILED and a member who never had a dream reach
+  // the same code with the same empty list, and only one of them is a clean sweep. The handle
+  // half still runs — a gap in one input must not abandon the other.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    'dreams.select': [{ error: { message: 'db down' } }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, [['/@luna_dev', '/@luna_dev/opengraph-image']]);
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 2, failed: 1 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('both key reads failing counts TWO gaps and purges nothing', async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ error: { message: 'db down' } }],
+    'dreams.select': [{ error: { message: 'db down' } }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, []);
+  assertEquals(await res.json(), { seen: 1, kvPurge: { configured: true, deleted: 0, failed: 2 } });
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test(
+  'unconfigured KV is reported for a member whose only cached page is a dream',
+  async () => {
+    // The unconfigured report must not be keyed to the handle half: this member has bytes in KV
+    // and no way to purge them, which is exactly the state #468/#492 forbid skipping silently.
+    const c = ctx(
+      {
+        'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'profiles.select': [{ data: { handle: null } }],
+        'dreams.select': [{ data: [{ id: 'dream-1' }] }],
+      },
+      { purge: NO_KV },
+    );
+    const res = await processErasureRequests(c);
+
+    assertEquals(await res.json(), {
+      seen: 1,
+      kvPurge: { configured: false, deleted: 0, failed: 1 },
+    });
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed'],
+    );
+  },
+);
+
+Deno.test('a row with no id is dropped rather than hashed into /dream/undefined', async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'profiles.select': [{ data: { handle: null } }],
+    'dreams.select': [{ data: [{ id: null }, { id: 'dream-1' }] }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.purged, [['/dream/dream-1']]);
+});
+
 Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", async () => {
   // Without the handle there is no key to derive, so the cached page survives the erasure.
   // A read that FAILED and a member who never had a handle reach the same code with the same
