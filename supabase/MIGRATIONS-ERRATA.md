@@ -1000,3 +1000,37 @@ stands — that is still exactly the behaviour.
 Asserted by: `supabase/tests/0131_fund_broadcast_notifications.test.sql` — «the dedupe index is
 NOT partial, so ON CONFLICT can infer it through PostgREST» and «the dedupe index treats NULLs
 as DISTINCT (unkeyed rows are never deduped)».
+
+## `20260824070529_notification_dispatch_outbox.sql` — only a 400 is deterministic, and the retention delete does not filter `created_at`
+
+Recorded here because the file reached staging before review caught the abandon predicate; the
+reconciler is replaced by `20260824071839_notification_dispatch_retry_platform_4xx.sql` and the
+header and comments below are what stayed wrong.
+
+### L263-267 — "A 4xx is deterministic: the same body will be rejected the same way every time … so it is abandoned on sight", over `if v_d.status_code between 400 and 499`
+
+True of the only 4xx `notification-fan-out` itself emits — `400 {"error":"missing fields"}` and
+`400 {"error":"unknown audience: …"}` — and false of everything the PLATFORM answers in front of
+it. A `401` while the fan-out key is mid-rotation, a `404` before the function is deployed or on
+a cold-start miss, a `403`, a `429` under a burst: all recoverable, and all the exact class the
+outbox was written to survive. As written the sweep abandoned every pending dispatch on the
+first tick of that outage — a worse failure than the one #521 reported, which lost one
+notification per transient 5xx rather than all of them at once. `20260824071839` narrows the
+predicate to `v_d.status_code = 400`.
+
+### L297 — the function comment's "marks abandoned_at after 3 attempts, or on sight for a deterministic 4xx"
+
+Same correction: on sight for a **400**. `20260824071839` replaces the comment along with the
+body.
+
+### L104 — "Abandoned rows are reached by the retention delete on created_at"
+
+Wrong column, and the index it justifies is the right one anyway. The retention delete (L227)
+filters `abandoned_at < now() - interval '30 days'`, not `created_at`, and
+`notification_dispatches_open` is partial on `abandoned_at is null` so it excludes abandoned rows
+by construction. The sentence's point — that the partial index does not have to cover abandoned
+rows because something else reaches them — holds; the column named is not the one that does it.
+
+Asserted by: `supabase/tests/0133_notification_dispatch_outbox.test.sql` — «a 401 IS retried —
+the platform rejected the key, not the body», «a 400 is abandoned on the first attempt — the same
+body would be rejected identically» and «an abandoned dispatch is reaped after 30 days».

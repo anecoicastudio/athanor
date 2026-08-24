@@ -43,6 +43,11 @@ const run = async (c: Ctx, raw: unknown = body()) => {
   return { res, body: await res.json() };
 };
 
+// The single path upserts and reads back what it actually wrote (#521), so its tests have to say
+// whether the row was new. `wrote` = a fresh insert; `conflicted` = a retry that hit the key.
+const wrote = { data: [{ id: 'n-1' }] };
+const conflicted = { data: [] };
+
 Deno.test('missing/blank required field → 400, nothing written or pushed', async () => {
   for (const bad of [
     null,
@@ -50,6 +55,10 @@ Deno.test('missing/blank required field → 400, nothing written or pushed', asy
     body({ recipient_id: '' }),
     body({ type: '  ' }),
     body({ template_key: 7 }),
+    // present but malformed: dropping it and writing an unkeyed row would make the reconciler's
+    // retry deliver the notification twice (#521), so it fails closed instead.
+    body({ dedupe_key: '   ' }),
+    body({ dedupe_key: 42 }),
   ]) {
     const c = ctx();
     const { res, body: b } = await run(c, bad);
@@ -61,7 +70,9 @@ Deno.test('missing/blank required field → 400, nothing written or pushed', asy
 });
 
 Deno.test('insert error → 500 with the pg message; push never invoked', async () => {
-  const c = ctx({ 'notifications.insert': [{ error: { message: 'boom' } }] });
+  // 500 and not 200: an insert failure is the one class the reconciler MUST retry, because the
+  // in-app row does not exist. A push failure is the 200 below, for the opposite reason.
+  const c = ctx({ 'notifications.upsert': [{ error: { message: 'boom' } }] });
   const { res, body: b } = await run(c);
   assertEquals(res.status, 500);
   assertEquals(b, { error: 'notification insert failed: boom' });
@@ -71,21 +82,25 @@ Deno.test('insert error → 500 with the pg message; push never invoked', async 
 Deno.test(
   'happy path → notification row + push payload; entity_ref crosses JSON-stringified',
   async () => {
-    const c = ctx();
+    const c = ctx({ 'notifications.upsert': [wrote] });
     const { res, body: b } = await run(c);
     assertEquals(res.status, 200);
-    assertEquals(b, { ok: true });
+    assertEquals(b, { ok: true, pushed: true });
 
     // the in-app row keeps entity_ref as an OBJECT…
     const ins = c.db.calls.find((call) => call.table === 'notifications');
     assert(ins);
-    assertEquals(ins.op, 'insert');
+    assertEquals(ins.op, 'upsert');
+    // …on the same conflict target the broadcast path uses, so the reconciler's re-POST of the
+    // stored body cannot write the row twice (#521).
+    assertEquals(ins.options, { onConflict: 'recipient_id,dedupe_key', ignoreDuplicates: true });
     assertEquals(ins.values, {
       recipient_id: RECIPIENT,
       type: 'moment',
       template_key: 'notif.tpl.moment',
       params: { name: 'aurora' },
       entity_ref: { kind: 'moment', id: 'm-1' },
+      dedupe_key: null,
     });
 
     // …while the push-dispatch payload carries it as a STRING (its body contract).
@@ -102,7 +117,7 @@ Deno.test(
 );
 
 Deno.test('absent params/entity_ref default to {} / null (row) and "{}" (push)', async () => {
-  const c = ctx();
+  const c = ctx({ 'notifications.upsert': [wrote] });
   await run(c, body({ params: undefined, entity_ref: undefined }));
   const ins = c.db.calls.find((call) => call.table === 'notifications');
   assert(ins);
@@ -113,11 +128,40 @@ Deno.test('absent params/entity_ref default to {} / null (row) and "{}" (push)',
 });
 
 Deno.test('push-dispatch failure is swallowed — the row is written, still 200 ok', async () => {
-  const c = ctx({}, () => Promise.reject(new Error('push down')));
+  // Still 200, and now SAYING so: #521 asks fan-out to surface the failure class, and the
+  // distinction is load-bearing for the reconciler. A lost push must not re-run an insert that
+  // already succeeded — that is push-dispatch's receipt sweep, not this one's business.
+  const c = ctx({ 'notifications.upsert': [wrote] }, () => Promise.reject(new Error('push down')));
   const { res, body: b } = await run(c);
   assertEquals(res.status, 200);
-  assertEquals(b, { ok: true });
-  assert(c.db.calls.some((call) => call.table === 'notifications' && call.op === 'insert'));
+  assertEquals(b, { ok: true, pushed: false });
+  assert(c.db.calls.some((call) => call.table === 'notifications' && call.op === 'upsert'));
+});
+
+// ── single-path idempotency (#521) ───────────────────────────────────────────────────────────
+// athanor.enqueue_notification mints a dedupe_key per dispatch and stores the body it POSTed, so
+// athanor.notification_dispatch_reconcile() can re-POST that exact body after a 5xx. These two
+// tests are the reason that is safe.
+
+Deno.test('a dedupe_key crosses into the row so the reconciler can re-POST it', async () => {
+  const c = ctx({ 'notifications.upsert': [wrote] });
+  const { res, body: b } = await run(c, body({ dedupe_key: 'd-1' }));
+  assertEquals(res.status, 200);
+  assertEquals(b, { ok: true, pushed: true });
+  const ins = c.db.calls.find((call) => call.table === 'notifications');
+  assertEquals((ins?.values as { dedupe_key?: string }).dedupe_key, 'd-1');
+  assertEquals(c.pushed.length, 1, 'a first delivery still pushes');
+});
+
+Deno.test('a retry of the same dispatch writes nothing and pushes nobody', async () => {
+  // RETURNING comes back empty because the key conflicted: the first attempt already delivered
+  // it. Pushing here would be the double «Hai un Momento» the key exists to prevent, and a
+  // non-2xx here would make the reconciler retry forever.
+  const c = ctx({ 'notifications.upsert': [conflicted] });
+  const { res, body: b } = await run(c, body({ dedupe_key: 'd-1' }));
+  assertEquals(res.status, 200);
+  assertEquals(b, { ok: true, deduped: true });
+  assertEquals(c.pushed.length, 0);
 });
 
 // ── audience mode (#127) ─────────────────────────────────────────────────────────────────
@@ -324,12 +368,20 @@ Deno.test(
 Deno.test(
   'a body with a recipient_id still takes the single-recipient path untouched',
   async () => {
-    const c = ctx();
+    const c = ctx({ 'notifications.upsert': [wrote] });
     const { res, body: b } = await run(c, body());
     assertEquals(res.status, 200);
-    assertEquals(b, { ok: true });
+    assertEquals(b, { ok: true, pushed: true });
     const ins = c.db.calls.find((call) => call.table === 'notifications');
-    assertEquals(ins?.op, 'insert', 'the single path still uses a plain insert, not an upsert');
-    assertEquals((ins?.values as { dedupe_key?: string }).dedupe_key, undefined);
+    // One row, not a bulk array, and no audience read at all — the shape is chosen by the body.
+    assert(!Array.isArray(ins?.values));
+    assertEquals(
+      c.db.calls.some((call) => call.table === 'profiles'),
+      false,
+    );
+    // An unkeyed body still writes: NULLs are distinct in the unique index, so it never
+    // conflicts and a producer from before 20260824070529 behaves exactly as it did.
+    assertEquals((ins?.values as { dedupe_key?: string | null }).dedupe_key, null);
+    assertEquals(c.pushed.length, 1);
   },
 );

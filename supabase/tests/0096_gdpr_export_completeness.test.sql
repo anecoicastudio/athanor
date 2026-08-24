@@ -39,6 +39,7 @@ insert into gdpr_excluded values
   ('audit_log',      'moderation internals: actor_id is the acting admin, not the member; verdicts reach the member as notifications (exported)'),
   ('push_receipts',  'transient delivery telemetry, purged by the receipt sweep — no durable member content'),
   ('event_reminder_sends', 'athanor: dispatch dedupe markers for event reminders (#126); derivable from rsvps + notifications (both exported), reaped after 30 days, dropped with the profile by FK'),
+  ('notification_dispatches', 'athanor: transient delivery outbox for notification-fan-out (#521). Holds the POSTed body — the same content the exported notifications row carries — for minutes, then is deleted on delivery or reaped 30 days after being abandoned. No FK to profiles, so this row is documentation rather than a tripwire; it is here because the payload is member-adjacent and the next audit should find the reason written down'),
   ('momento_suggestions', 'derived nightly ranking (#124): recomputed from scratch every run from profiles/dreams/tags (all exported), pruned after a week, dropped with the profile by FK. Carries no member-authored content and no reason text — get_momenti_suggestion recomputes what a row says per read');
 
 -- (1) the sweep: no FK-to-profiles table is unaccounted
