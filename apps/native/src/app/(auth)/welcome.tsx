@@ -21,15 +21,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // is; the code path is provider-agnostic and needs no other change.
 const APPLE_ENABLED = false;
 
-// Same story for Google: the hosted project has only the Email provider enabled, so this
-// button could only ever reach «Quel modo di entrare non è ancora attivo». To flip it on,
-// configure the Google provider in Supabase → Auth → Providers AND add the redirect that
-// lib/oauth.ts builds — `athanor:///auth-callback`, THREE slashes (see the note on
-// AUTH_REDIRECT_URL in lib/oauth.ts for why), plus the two-slash `athanor://auth-callback`
-// and the exp://…/--/auth-callback form for Expo Go — to Auth → URL Configuration →
-// Redirect URLs. Missing that second step is the classic "works in the browser, hangs on
-// device".
-const GOOGLE_ENABLED = false;
+// Google is configured on the staging project — provider on, client id + secret set, and all
+// four redirect forms in the allow-list (see the AUTH_REDIRECT_URL note in lib/oauth.ts for
+// why there are four). Production's provider is still off, and this flag is environment-blind:
+// a production build renders the button and can only reach «L'accesso con Google non è ancora
+// attivo» until that half lands too.
+const GOOGLE_ENABLED = true;
 
 const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
 

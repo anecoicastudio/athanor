@@ -39,7 +39,7 @@ export type OAuthOutcome =
 // and exchanges the code here — whereas the email link always does, arriving as a
 // real OS deep link. "Normally": if the OS ever hands an OAuth redirect to the app as
 // a deep link instead, both call sites would exchange the same code and the loser
-// would surface a spurious error. Dormant while both providers are disabled.
+// would surface a spurious error. Dormant for Apple, live for Google.
 export const AUTH_REDIRECT_URL = createURL('/auth-callback');
 
 export async function signInWithProvider(provider: 'apple' | 'google'): Promise<OAuthOutcome> {
