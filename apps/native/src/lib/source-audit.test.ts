@@ -1235,6 +1235,23 @@ describe('the events tab has no posts source (#153)', () => {
 const NESTED_PRESSABLE_OK: Record<string, string> = {};
 
 /**
+ * An ancestor only swallows what is under it while it is an accessibility ELEMENT. `Pressable`
+ * makes one by default, and `accessible={false}` unmakes it — so a frame carrying that attribute
+ * is not an atomic ancestor and must not produce a hit. Matched on the RAW attribute slice, not
+ * on the blanked accumulator `jsxOpeningTags` builds: that one replaces brace contents with
+ * spaces, which turns `accessible={false}` into `accessible=` and would never match here.
+ *
+ * The hatch cuts both ways, and the second edge is asserted below: `accessible={false}` on an
+ * element that ALSO claims a role or a label is a control nobody can reach — silenced from the
+ * tree while still announcing itself in source as interactive. That would trade the nesting
+ * defect for a quieter one, so the walk collects those too ({@link nestedTags}' `muted`) and
+ * the fourth assertion keeps the set empty.
+ */
+const NOT_ACCESSIBLE = /\baccessible=\{\s*false\s*\}/;
+/** The other half of the contradiction: a role or label on the same element. */
+const CLAIMS_CONTROL = /\baccessibility(Role|Label)=/;
+
+/**
  * Component tags with an ancestor stack. A tag-depth walk rather than a regex: nesting is the
  * whole question here, and a regex cannot see an ancestor. Self-closing tags never push.
  * Attribute text is skipped quote- and brace-aware, so a render prop's nested JSX does not
@@ -1244,10 +1261,12 @@ const NESTED_PRESSABLE_OK: Record<string, string> = {};
  *
  * The walk is per-file and syntactic, so nesting through a COMPONENT is invisible to it: a
  * `<Row/>` that is itself a Pressable reads as a self-closing non-Pressable and never pushes a
- * frame, even though at runtime it is a descendant of whatever wraps it. `MediaSheet.tsx` is
- * exactly that case and its register entry says so. Following it would mean resolving local
- * components to their roots, which is a type-aware job this harness cannot do —
- * `environment: 'node'` cannot even render a `.tsx`.
+ * frame, even though at runtime it is a descendant of whatever wraps it. `MediaSheet.tsx` WAS
+ * exactly that case — its three `<Row/>` actions were invisible to the walk even while its
+ * scrim/sheet pair was a hit. Both are fixed now (`accessible={false}` plus the «Annulla»
+ * row), but the blindness itself remains. Following it would mean resolving local components
+ * to their roots, which is a type-aware job this harness cannot do — `environment: 'node'`
+ * cannot even render a `.tsx`.
  *
  * A SPREAD is opaque for the same reason. `{...MODAL_A11Y}` could in principle carry
  * `accessible`, and a syntactic scan cannot resolve the constant to find out. Harmless today —
@@ -1256,22 +1275,17 @@ const NESTED_PRESSABLE_OK: Record<string, string> = {};
  * failure direction is at least the safe one: a false positive argues for itself in review,
  * where a false negative would sit silent.
  *
- * So a clean run means "no nested Pressable is spelled out in one file WITHOUT an inline
- * `accessible={false}` on the outer one", not "no Pressable is nested at runtime". That still
- * catches #518, which was spelled out, and it is why the register carries prose rather than a
- * bare list.
+ * So a clean run means two things and no more: no nested Pressable is spelled out in one file
+ * without an inline `accessible={false}` on the outer one, and no silenced Pressable claims a
+ * role or label. Not "no Pressable is nested at runtime" — but it still catches #518, which
+ * was spelled out.
  */
-/**
- * An ancestor only swallows what is under it while it is an accessibility ELEMENT. `Pressable`
- * makes one by default, and `accessible={false}` unmakes it — so a frame carrying that attribute
- * is not an atomic ancestor and must not produce a hit. Matched on the RAW attribute slice, not
- * on the blanked accumulator `jsxOpeningTags` builds: that one replaces brace contents with
- * spaces, which turns `accessible={false}` into `accessible=` and would never match here.
- */
-const NOT_ACCESSIBLE = /\baccessible=\{\s*false\s*\}/;
-
-function nestedTags(src: string, tag: string): { line: number; outerLine: number }[] {
+function nestedTags(
+  src: string,
+  tag: string,
+): { hits: { line: number; outerLine: number }[]; muted: { line: number }[] } {
   const hits: { line: number; outerLine: number }[] = [];
+  const muted: { line: number }[] = [];
   const stack: { name: string; line: number; attrs: string }[] = [];
   const lineAt = (i: number) => src.slice(0, i).split('\n').length;
   let i = 0;
@@ -1320,6 +1334,9 @@ function nestedTags(src: string, tag: string): { line: number; outerLine: number
     }
     const attrs = src.slice(i + open[0].length, j);
     if (name === tag) {
+      // The contradiction case: silenced AND claiming to be a control. A per-tag property,
+      // not a nesting one — the element is unreachable wherever it sits.
+      if (NOT_ACCESSIBLE.test(attrs) && CLAIMS_CONTROL.test(attrs)) muted.push({ line: openLine });
       // The nearest ancestor of the same tag that is STILL an accessibility element. One that
       // declares `accessible={false}` is transparent to VoiceOver, so it is skipped rather than
       // reported — that is the whole mechanism by which the media modals stopped being hits.
@@ -1331,19 +1348,21 @@ function nestedTags(src: string, tag: string): { line: number; outerLine: number
     if (!selfClosing) stack.push({ name, line: openLine, attrs });
     i = j + 1;
   }
-  return hits;
+  return { hits, muted };
 }
 
 describe('no Pressable is mounted inside another Pressable (#518)', () => {
   const offenders = new Map<string, string[]>();
+  const silencedControls: string[] = [];
   for (const p of FILES.filter((f) => !isTest(f) && f.endsWith('.tsx'))) {
-    const hits = nestedTags(stripComments(read(p)), 'Pressable');
+    const { hits, muted } = nestedTags(stripComments(read(p)), 'Pressable');
     if (hits.length > 0) {
       offenders.set(
         rel(p),
         hits.map((h) => `:${h.line} inside the Pressable at :${h.outerLine}`),
       );
     }
+    for (const m of muted) silencedControls.push(`${rel(p)}:${m.line}`);
   }
 
   it('the scanner finds the Pressables it is walking', () => {
@@ -1368,6 +1387,18 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
         `(the components/feed/FeedPost.tsx shape), or register the file in ` +
         `NESTED_PRESSABLE_OK with the argument for why the inner control is not the only way ` +
         `to do something.`,
+    ).toEqual([]);
+  });
+
+  it('a silenced Pressable carries no role or label', () => {
+    expect(
+      silencedControls,
+      `accessible={false} together with accessibilityRole/accessibilityLabel at:\n  ` +
+        `${silencedControls.join('\n  ')}\n` +
+        `The flag removes the element from the accessibility tree, so a role or label on the ` +
+        `same element is a control nobody can reach. Either it is decoration — drop the role ` +
+        `and label — or it is a control: do not silence it, restructure the nesting as ` +
+        `siblings instead (the components/feed/FeedPost.tsx shape).`,
     ).toEqual([]);
   });
 
