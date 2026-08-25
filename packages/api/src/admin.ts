@@ -2,18 +2,21 @@
 // from Server Components and Server Actions (no TanStack Query on that surface).
 // Three surfaces live here: moderation (reports + their verdicts), the fund audit trail
 // (#432) — those two share `audit_log` and its parse-at-the-boundary shape — and the
-// pre-launch waitlist (#335), read through its admin RPCs.
+// pre-launch waitlist (#335), read through its admin RPCs. A fourth is the abandoned
+// notification dispatches (#534), read the same RPC way and for the same reason.
 import { reportPenaltyPoints } from '@athanor/core';
 import {
   auditLogRow,
   adminFundEditionRow,
   waitlistAdminRowSchema,
+  abandonedDispatchRowSchema,
   type ResolveReportInput,
   type AuditLogRow,
   type AdminReportRow,
   type AdminReportDetail,
   type AdminFundEditionRow,
   type WaitlistAdminRow,
+  type AbandonedDispatchRow,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { decodeCursor, keysetFilter, probePage, tailCursor } from './pagination';
@@ -24,6 +27,7 @@ export type {
   AdminReportDetail,
   AdminFundEditionRow,
   WaitlistAdminRow,
+  AbandonedDispatchRow,
 } from '@athanor/schemas';
 
 /** The columns every `audit_log` reader here selects — one list, so two readers cannot drift. */
@@ -388,5 +392,60 @@ export async function getWaitlistPage(
   // Raw tail, not parsed tail (tailCursor) — and no cursor at all when the tail row carries
   // no `id`, which is what the OLD RPC answers while production still lags this migration:
   // every row withheld, and no "load more" into a page that cannot exist.
+  return { rows: parsed, excluded, nextCursor: tailCursor(page, hasMore) };
+}
+
+// ── Abandoned notification dispatches (#534) ───────────────────────────────────────────────
+// The read side of #521's outbox. Same RPC shape as the waitlist above and for the same
+// reason: `athanor.notification_dispatches` lives in a schema PostgREST is not configured to
+// see, so a DEFINER function is the only read path and the keyset predicate has to run inside
+// it (migration 20260825090516).
+
+/**
+ * The RPC clamps `p_limit` to 1000 and this reader asks for `limit + 1` to learn whether a next
+ * page exists, so a page of 1000 could never see its probe row and a cursor walk would end a
+ * page early with no error. Refused up front, exactly as {@link WAITLIST_PAGE_CEILING} is.
+ */
+export const ABANDONED_DISPATCH_PAGE_CEILING = 999;
+
+/**
+ * One page of abandoned dispatches, newest first. Cursor = `${created_at}|${id}`, the same
+ * opaque shape as every reader here, with the `(created_at, id) <` comparison inside the RPC.
+ *
+ * A row here means a notification was lost after its whole retry budget was spent, so this is
+ * an alerting surface rather than a dashboard: one row is already the signal. That is also why
+ * the withheld count is returned rather than swallowed — on an audit surface, dropping evidence
+ * quietly is the worse failure (#421), and a page that silently shows four of five abandonments
+ * is worse than one that says so.
+ */
+export async function getAbandonedDispatchPage(
+  client: AthanorClient,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<{ rows: AbandonedDispatchRow[]; excluded: number; nextCursor: string | null }> {
+  const limit = opts.limit ?? PAGE;
+  if (limit < 1 || limit > ABANDONED_DISPATCH_PAGE_CEILING) {
+    throw new Error(
+      `abandoned dispatch page size out of range (1..${ABANDONED_DISPATCH_PAGE_CEILING}): ${limit}`,
+    );
+  }
+  const args: { p_limit: number; p_before_created_at?: string; p_before_id?: string } = {
+    p_limit: limit + 1,
+  };
+  if (opts.cursor) {
+    const { ts, id } = decodeCursor(opts.cursor, 'abandoned dispatch');
+    args.p_before_created_at = ts;
+    args.p_before_id = id;
+  }
+  const { data, error } = await client.rpc('admin_list_abandoned_dispatches', args);
+  if (error) throw error;
+  const { page, hasMore } = probePage(data ?? [], limit);
+  const { parsed, excluded } = parseOrWithhold(
+    page,
+    abandonedDispatchRowSchema,
+    'notification_dispatches',
+    'the abandoned dispatch page',
+  );
+  // Raw tail, not parsed tail: the cursor has to walk past a row that was withheld, or the
+  // next page starts at the malformed row again and the walk never advances.
   return { rows: parsed, excluded, nextCursor: tailCursor(page, hasMore) };
 }

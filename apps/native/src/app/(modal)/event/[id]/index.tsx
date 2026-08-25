@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Linking } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   eventKeys,
@@ -42,6 +42,20 @@ export default function EventDetailScreen() {
   const locale = useLocale();
   const uid = profile?.id ?? null;
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  /**
+   * Why «Calendario» did nothing (#531). Separate state from `confirmation`, and deliberately
+   * NOT on its 2.5s timer: a line that offers the only route back to a working button must not
+   * vanish while it is being read. Cleared when the member acts — a new RSVP toggle or another
+   * calendar tap.
+   *
+   * The OUTCOME is stored, not the sentence. Because this notice has no timer, it can still be
+   * on screen when the member changes language in Settings — a sibling in the same stack, so
+   * this screen stays mounted and `useLocale()` flips under it. A stored string would keep
+   * rendering the previous language while everything around it changed; deriving it here keeps
+   * it in step. Both keys stay spelled literally at the call site, which is the property the
+   * i18n checker and an orphan grep depend on.
+   */
+  const [calendarNotice, setCalendarNotice] = useState<'denied' | 'blocked' | null>(null);
   // Auto-dismiss the inline confirmation so it never lingers under an idle bar (no toast host yet).
   useEffect(() => {
     if (!confirmation) return;
@@ -90,6 +104,7 @@ export default function EventDetailScreen() {
     mutationFn: (next: boolean) => upsertRsvp(supabase, id, uid as string, next),
     onMutate: async (next) => {
       setConfirmation(null); // clear any stale confirmation as a new action begins
+      setCalendarNotice(null); // …and the calendar refusal, which has no timer of its own
       await qc.cancelQueries({ queryKey: eventKeys.rsvp(id) });
       const prev = qc.getQueryData(eventKeys.rsvp(id));
       const optimistic: Rsvp = {
@@ -122,6 +137,7 @@ export default function EventDetailScreen() {
   const onAddToCalendar = useCallback(async () => {
     if (!event) return;
     setConfirmation(null);
+    setCalendarNotice(null);
     const res = await addEventToCalendar({
       title: event.title,
       startISO: event.starts_at,
@@ -132,7 +148,13 @@ export default function EventDetailScreen() {
     });
     if (res === 'added') setConfirmation(t('event.rsvp.calendarToast', locale));
     else if (res === 'error') setConfirmation(t('event.rsvp.error', locale));
-    // 'denied' → silent: the OS permission prompt already informed the user.
+    // A refusal is SAID now (#531). It used to be silent, on the premise that the OS prompt had
+    // already informed the member — true of the first tap only. iOS prompts once per app, so
+    // every later request resolves denied with no dialog at all; and «Add Events Only» and an
+    // Expo Go grant owned by another project both land here having shown nothing. The button
+    // was a permanent no-op. `blocked` additionally means the OS will not ask again, so
+    // Settings is the only route left and the bar offers it.
+    else setCalendarNotice(res);
   }, [event, locale]);
 
   const now = Date.now();
@@ -161,8 +183,18 @@ export default function EventDetailScreen() {
       soldOut={soldOut}
       pending={toggle.isPending || myRsvp.isLoading}
       confirmation={confirmation}
+      permissionNotice={
+        // Literal keys on both arms, never an interpolated one: a key spelled by a template
+        // literal is invisible to the i18n checker and to a grep for orphans.
+        calendarNotice === 'blocked'
+          ? t('event.rsvp.calendarBlocked', locale)
+          : calendarNotice === 'denied'
+            ? t('event.rsvp.calendarDenied', locale)
+            : null
+      }
       onToggle={() => toggle.mutate(!going)}
       onAddToCalendar={() => void onAddToCalendar()}
+      onOpenSettings={calendarNotice === 'blocked' ? () => void Linking.openSettings() : null}
       locale={locale}
     />
   );

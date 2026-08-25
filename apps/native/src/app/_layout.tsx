@@ -29,6 +29,7 @@ import { CrashTrailGate } from '@/components/boot/CrashTrailGate';
 import { ProfileErrorScreen } from '@/components/boot/ProfileErrorScreen';
 import { SentryConsentGate } from '@/components/boot/SentryConsentGate';
 import { markStep } from '@/lib/crash-trail';
+import { devWarn } from '@/lib/log';
 import { asyncStoragePersister, queryClient, shouldDehydrateQuery } from '@/lib/query-client';
 SplashScreen.preventAutoHideAsync();
 // Settles a dangling OAuth browser session on resume (required for the web target;
@@ -91,7 +92,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function RootLayout() {
   // One face per weight — RN selects fonts by exact family name, so each
   // font-{light..extrabold} utility maps to its own family (global.css).
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     HankenGrotesk_300Light,
     HankenGrotesk_400Regular,
     HankenGrotesk_500Medium,
@@ -103,19 +104,61 @@ function RootLayout() {
   });
   const [splashDone, setSplashDone] = useState(false);
 
+  /**
+   * Boot proceeds when the fonts have SETTLED, loaded or failed (#519).
+   *
+   * The error half used to be discarded, and in `expo-font@14.0.12` `useRuntimeFonts` sets
+   * `loaded` only inside `.then()` — the `.catch()` sets `error` and nothing else: no retry, no
+   * timer, no `finally`. So on a rejection `fontsLoaded` stayed false for the lifetime of the
+   * component, the effect below never ran, `hideAsync` never fired, and the app sat on the
+   * NATIVE SPLASH forever with no telemetry and no way out. `BrandSplash` and `BootGate` are
+   * both mounted inside the tree that the `return null` guard returned before, so neither was
+   * reachable, and `Sentry.ErrorBoundary` could not see it either: nothing throws during
+   * render, the rejection is swallowed into unused state.
+   *
+   * ## Why the app proceeds instead of showing AppErrorScreen
+   *
+   * That screen draws exactly one affordance, a `crash.retry` button wired to `resetError`,
+   * and `useFonts` has no reload — expo-font's own docblock says the fonts are not reloaded
+   * when the map changes. So an error screen here would ship a dead «Riprova» on the one
+   * screen a member reaches at their worst moment, which is the thing that component's
+   * docblock argues against.
+   *
+   * What actually failed is a set of TTFs. RN falls back to the platform face per missing
+   * family, so the app is fully usable, only off-brand — a bounded, cosmetic loss that clears
+   * on the next launch, against a total one. Rule 4's dream register survives as a register:
+   * `font-dream italic` still renders italic, in the system's italic rather than Hanken's.
+   * Trading the whole app for the typeface is the worse deal.
+   */
+  const fontsSettled = fontsLoaded || !!fontError;
+
   useEffect(() => {
-    if (!fontsLoaded) return;
+    if (!fontError) return;
+    // Dev visibility only, and that is the whole of it: `devWarn`'s own contract is that there
+    // is no capture helper here because Sentry's init is consent-gated (B-5) and would be a
+    // no-op at this point in the boot anyway. A member sees the consequence rather than a
+    // report — the app renders in the platform's faces.
+    devWarn('[boot] fonts failed to load — continuing with system faces', fontError);
+  }, [fontError]);
+
+  useEffect(() => {
+    if (!fontsSettled) return;
     // Awaited, per `markStep`'s contract: the marker has to be ON DISK before the native call it
     // marks, and `hideAsync` is that call. Fire-and-forget here would make `boot.fonts` a no-op in
     // exactly the case it exists for — a process that dies at the splash-hide boundary. The cost
     // is one bridge round-trip before the splash lifts, on a path that already awaited the fonts.
+    //
+    // Gated on SETTLED, not loaded: the splash has to lift on the error path too, or the
+    // fallback render happens behind a splash that never rises — the same frozen screen, just
+    // with a live tree underneath it. One call site either way, so `boot.fonts` keeps its
+    // meaning ("the app got past the fonts") and #488's ordering contract holds on both exits.
     void (async () => {
       await markStep('boot.fonts');
       await SplashScreen.hideAsync();
     })();
-  }, [fontsLoaded]);
+  }, [fontsSettled]);
 
-  if (!fontsLoaded) {
+  if (!fontsSettled) {
     return null;
   }
 

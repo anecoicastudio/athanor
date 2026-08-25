@@ -2,7 +2,7 @@
 -- Issue #126 — event reminders had every consumer and no producer. 20260823103624 adds
 -- public.event_reminder_sweep() (pg_cron, every minute) plus athanor.event_reminder_sends,
 -- the idempotency marker; 20260823110358 adds the online guard band and unconditional
--- retention.
+-- retention; 20260825085916 gives the t1 slot its own copy (#523).
 --
 -- Asserts: catalog shape (cron-only function, marker table off the client grant surface,
 -- schedule) · fan-out unconfigured → NOTHING is claimed, so no reminder is burned undelivered,
@@ -210,12 +210,22 @@ select is(
   '{"kind": "event", "id": "e1300000-0000-0000-0000-000000000002"}'::jsonb,
   'entity_ref carries the event id the route arm reads (lib/notification-route.ts)');
 
-select is(
-  (select convert_from(q.body, 'utf8')::jsonb ->> 'template_key'
-     from net.http_request_queue q
-    where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'eventReminder' limit 1),
-  'notif.tpl.eventReminder',
-  'the enqueued template_key is the one _shared/notif-templates.ts already renders');
+-- Per SLOT, not `limit 1` (#523): the two reminders carry different copy now, and a single
+-- unfiltered row would have gone on passing whichever key it happened to draw. t24 keeps
+-- «è tra poco»; t1 says the hour. Both keys are rendered by _shared/notif-templates.ts and
+-- both are in packages/schemas' closed NOTIFICATION_TEMPLATE_KEYS — a key missing from that
+-- list degrades to notif.tpl.generic in the in-app list (#113).
+select bag_eq(
+  $$ select (convert_from(q.body, 'utf8')::jsonb #>> '{entity_ref,id}') || ' → ' ||
+            (convert_from(q.body, 'utf8')::jsonb ->> 'template_key')
+       from net.http_request_queue q
+      where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'eventReminder'
+        and convert_from(q.body, 'utf8')::jsonb #>> '{entity_ref,id}' like 'e1300000-%' $$,
+  $$ values ('e1300000-0000-0000-0000-000000000001 → notif.tpl.eventReminder'::text),
+            ('e1300000-0000-0000-0000-000000000001 → notif.tpl.eventReminder'),
+            ('e1300000-0000-0000-0000-000000000002 → notif.tpl.eventReminderSoon'),
+            ('e1300000-0000-0000-0000-000000000006 → notif.tpl.eventReminder') $$,
+  'each slot enqueues its own template_key: t24 the neutral copy, t1 the one that says the hour');
 
 -- «N partecipano» counts going RSVPs only — the cancelled third seat must not inflate it.
 select is(

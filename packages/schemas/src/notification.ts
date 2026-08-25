@@ -60,7 +60,11 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.message',
   'notif.tpl.dreamMilestone',
   'notif.tpl.review',
+  // #126 sends two reminder slots and #523 gave them separate copy: t24 keeps the neutral
+  // «è tra poco», t1 says the hour. Both ride type 'eventReminder' — the split is copy, not
+  // routing, so the push route map and the in-app router are untouched.
   'notif.tpl.eventReminder',
+  'notif.tpl.eventReminderSoon',
   'notif.tpl.projectResponse',
   'notif.tpl.connection',
   'notif.tpl.connectionAccepted',
@@ -104,3 +108,29 @@ export const notificationSchema = z.object({
   updated_at: z.string(),
 });
 export type Notification = z.infer<typeof notificationSchema>;
+
+/**
+ * One abandoned notification dispatch, as `admin_list_abandoned_dispatches` returns it (#534).
+ *
+ * The read side of #521's outbox: a row lands here only after a dispatch has spent its whole
+ * retry budget (three attempts a minute apart) or returned the one deterministic 400, so the
+ * population is small by construction — a single row is already a signal rather than a
+ * dashboard number.
+ *
+ * `payload` is deliberately absent: it is the exact notification body that was POSTed, and the
+ * question this surface answers is whether delivery was lost, not what the message said.
+ * `last_status` and `last_error` are both nullable — a dispatch abandoned on a transport error
+ * never got a status, and one abandoned on a status never got an error string. Parsed at the
+ * boundary rather than cast (rules/api.md), so a malformed row is withheld and counted instead
+ * of faking a clean audit page.
+ */
+export const abandonedDispatchRowSchema = z.object({
+  id: z.string().uuid(),
+  request_id: z.number(),
+  attempts: z.number().int(),
+  last_status: z.number().int().nullable(),
+  last_error: z.string().nullable(),
+  abandoned_at: z.string(),
+  created_at: z.string(),
+});
+export type AbandonedDispatchRow = z.infer<typeof abandonedDispatchRowSchema>;

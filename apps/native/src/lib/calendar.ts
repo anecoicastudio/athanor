@@ -1,7 +1,20 @@
 import { Platform } from 'react-native';
 import * as Calendar from 'expo-calendar';
+import { toStatus } from '@/lib/media/permission-status';
 
-export type CalendarResult = 'added' | 'denied' | 'error';
+/**
+ * `blocked` is separate from `denied` because only one of them has a way out (#531).
+ *
+ * The screen used to stay silent on anything but `granted`, on the premise that «the OS
+ * permission prompt already informed the user». That holds for the FIRST tap and no other:
+ * iOS shows the calendar prompt once per app, and every later request resolves denied
+ * immediately with no dialog. Two further ways to land here having seen no prompt at all —
+ * iOS 17's «Add Events Only», which `expo-calendar@15.0.8` maps to denied
+ * (`CalendarPermissionsRequester.swift:35`, `.writeOnly` → `EXPermissionStatusDenied`), and
+ * Expo Go, where the grant belongs to Expo Go and is shared by every project ever run on the
+ * phone. In all three the button was a permanent no-op with no feedback.
+ */
+export type CalendarResult = 'added' | 'denied' | 'blocked' | 'error';
 
 /** Resolve a writable calendar id (iOS default; first modifiable on Android). */
 async function writableCalendarId(): Promise<string | null> {
@@ -15,9 +28,24 @@ async function writableCalendarId(): Promise<string | null> {
 }
 
 /**
- * Add an event to the device calendar (permission-gated). Returns 'denied' when the
- * user declines, 'error' on any failure, 'added' on success. Pure device I/O — no DB,
+ * Add an event to the device calendar (permission-gated). Returns 'added' on success,
+ * 'denied' when the member declined and the OS will ask again, 'blocked' when it will not
+ * (so the only route left is Settings), 'error' on any failure. Pure device I/O — no DB,
  * no Aura (frontend §6 B12).
+ *
+ * The denied/blocked split is `toStatus`, the same mapper the media primer uses: `canAskAgain`
+ * is the whole difference, and reading it is what the old code skipped. Write-only access
+ * arrives here as blocked, which is the honest answer — the grant cannot be widened from
+ * inside the app.
+ *
+ * The PERMISSION REQUEST is inside the try as well, which it was not before. It sat above it,
+ * so a throw from `requestCalendarPermissionsAsync` escaped this function entirely: the caller
+ * discards the promise (`void onAddToCalendar()`), the root error boundary is a RENDER boundary
+ * and never sees a rejected promise, and the member gets no toast, no notice and no Settings
+ * route. That is the silent no-op #531 exists to remove, surviving on a narrower path — and it
+ * made "'error' on any failure" above a false claim. expo-calendar ships no web implementation,
+ * so the expo-web QA harness reaches it on every tap; on device an in-flight permission
+ * conflict rejects the same way.
  */
 export async function addEventToCalendar(opts: {
   title: string;
@@ -26,9 +54,10 @@ export async function addEventToCalendar(opts: {
   location?: string | null;
   notes?: string | null;
 }): Promise<CalendarResult> {
-  const { status } = await Calendar.requestCalendarPermissionsAsync();
-  if (status !== 'granted') return 'denied';
   try {
+    const res = await Calendar.requestCalendarPermissionsAsync();
+    const status = toStatus({ granted: res.status === 'granted', canAskAgain: res.canAskAgain });
+    if (status !== 'granted') return status === 'blocked' ? 'blocked' : 'denied';
     const calendarId = await writableCalendarId();
     if (!calendarId) return 'error';
     const start = new Date(opts.startISO);

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { REPORT_PENALTY } from '@athanor/core';
 import {
+  ABANDONED_DISPATCH_PAGE_CEILING,
+  getAbandonedDispatchPage,
   getEditionAuditTrail,
   getFundEdition,
   getFundEditionIndex,
@@ -981,5 +983,107 @@ describe('getWaitlistPage', () => {
     const fake = makeFakeClient({ 'rpc.admin_list_waitlist': [{ data: [waitlistRow()] }] });
     await getWaitlistPage(asClient(fake));
     expect(fake.calls.every((c) => c.op === 'rpc')).toBe(true);
+  });
+});
+
+const D1 = '20000000-0000-4000-8000-000000000001';
+const D2 = '20000000-0000-4000-8000-000000000002';
+const dispatchRow = (over: Record<string, unknown> = {}) => ({
+  id: D1,
+  request_id: 4711,
+  attempts: 3,
+  last_status: 500,
+  last_error: 'upstream 500',
+  abandoned_at: '2026-08-24T09:00:00Z',
+  created_at: '2026-08-24T08:00:00Z',
+  ...over,
+});
+
+describe('getAbandonedDispatchPage (#534)', () => {
+  it('asks the RPC for one row beyond the page, and never an offset (rule #9)', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_abandoned_dispatches': [{ data: [dispatchRow()] }],
+    });
+    const page = await getAbandonedDispatchPage(asClient(fake));
+
+    expect(fake.calls[0]).toMatchObject({ op: 'rpc', columns: 'admin_list_abandoned_dispatches' });
+    expect(fake.calls[0]!.values).toEqual({ p_limit: 26 });
+    expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+    expect(page.rows.map((r) => r.id)).toEqual([D1]);
+    expect(page.excluded).toBe(0);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('keeps a row abandoned on a transport error, where neither status nor message is set', async () => {
+    // Both columns are nullable and they fail independently: a dispatch that never got a
+    // response has no status, one that failed on a status may carry no message. Withholding
+    // either would hide exactly the abandonment this surface exists to show.
+    const fake = makeFakeClient({
+      'rpc.admin_list_abandoned_dispatches': [
+        { data: [dispatchRow({ last_status: null }), dispatchRow({ id: D2, last_error: null })] },
+      ],
+    });
+    const page = await getAbandonedDispatchPage(asClient(fake));
+    expect(page.rows.map((r) => r.last_status)).toEqual([null, 500]);
+    expect(page.rows.map((r) => r.last_error)).toEqual(['upstream 500', null]);
+    expect(page.excluded).toBe(0);
+  });
+
+  it('withholds a malformed row and COUNTS it rather than dropping it silently', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_abandoned_dispatches': [
+        { data: [dispatchRow(), { ...dispatchRow({ id: D2 }), abandoned_at: null }] },
+      ],
+    });
+    const page = await getAbandonedDispatchPage(asClient(fake));
+    expect(page.rows.map((r) => r.id)).toEqual([D1]);
+    expect(page.excluded, 'an audit page that quietly shows fewer rows is the worse failure').toBe(
+      1,
+    );
+  });
+
+  it('reads one row beyond the page to decide hasMore, and does not return it', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_abandoned_dispatches': [
+        { data: [dispatchRow(), dispatchRow({ id: D2, created_at: '2026-08-23T08:00:00Z' })] },
+      ],
+    });
+    const page = await getAbandonedDispatchPage(asClient(fake), { limit: 1 });
+    expect(fake.calls[0]!.values).toEqual({ p_limit: 2 });
+    expect(page.rows.map((r) => r.id)).toEqual([D1]);
+    expect(page.nextCursor).toBe(`2026-08-24T08:00:00Z|${D1}`);
+  });
+
+  it('sends the cursor as the two RPC halves the keyset runs on', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_abandoned_dispatches': [{ data: [] }] });
+    await getAbandonedDispatchPage(asClient(fake), { cursor: `2026-08-24T08:00:00Z|${D1}` });
+    expect(fake.calls[0]!.values).toEqual({
+      p_limit: 26,
+      p_before_created_at: '2026-08-24T08:00:00Z',
+      p_before_id: D1,
+    });
+  });
+
+  it('refuses a half cursor rather than silently restarting at page one', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_abandoned_dispatches': [{ data: [] }] });
+    await expect(getAbandonedDispatchPage(asClient(fake), { cursor: 'garbage' })).rejects.toThrow(
+      /malformed abandoned dispatch cursor/,
+    );
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('refuses a page the RPC clamp would silently cut short', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_list_abandoned_dispatches': [{ data: [] }] });
+    await expect(
+      getAbandonedDispatchPage(asClient(fake), { limit: ABANDONED_DISPATCH_PAGE_CEILING + 1 }),
+    ).rejects.toThrow(/page size out of range/);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('surfaces a 42501 from the admin gate rather than returning an empty page', async () => {
+    const fake = makeFakeClient({
+      'rpc.admin_list_abandoned_dispatches': [{ error: { message: 'not authorized' } }],
+    });
+    await expect(getAbandonedDispatchPage(asClient(fake))).rejects.toThrow('not authorized');
   });
 });

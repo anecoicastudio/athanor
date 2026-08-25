@@ -38,11 +38,29 @@ export function PermissionPrimer({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-      {/* scrim — tap outside to dismiss (surface-muted is the token's documented scrim) */}
-      <Pressable className="flex-1 justify-end bg-surface-muted" onPress={onDismiss}>
+      {/*
+       * scrim — tap outside to dismiss (surface-muted is the token's documented scrim).
+       *
+       * `accessible={false}` on both this and the sheet below (#518 follow-up). `Pressable`
+       * defaults `accessible={true}`, and on iOS an accessible view is ATOMIC: VoiceOver
+       * focuses it as one unit and never descends. Two accessible ancestors therefore made
+       * every control in this primer unreachable — «Consenti», «Apri Impostazioni» and «Non
+       * ora» alike, not just one of them. The flag only stops a view being an accessibility
+       * ELEMENT; it does not touch touch handling, so tap-outside-to-dismiss below and the
+       * stop-propagation no-op still work exactly as before.
+       *
+       * The scrim is decoration carrying a gesture and the sheet is a container. Neither is a
+       * control, so neither should be focusable — and while either was, nothing under it was.
+       */}
+      <Pressable
+        accessible={false}
+        className="flex-1 justify-end bg-surface-muted"
+        onPress={onDismiss}
+      >
         {/* sheet — stop propagation so taps inside don't dismiss */}
         <Pressable
           {...MODAL_A11Y}
+          accessible={false}
           className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-8"
           onPress={() => {}}
         >

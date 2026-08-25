@@ -65,6 +65,14 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: '38',
       enHas: '38',
     },
+    // The t1 slot (#523). Same type, so the route is the same; the sentence is not.
+    {
+      templateKey: 'notif.tpl.eventReminderSoon',
+      type: 'eventReminder',
+      params: { title: 'Notte', count: 38 },
+      itHas: "un'ora",
+      enHas: 'an hour',
+    },
     {
       templateKey: 'notif.tpl.projectResponse',
       type: 'projectResponse',

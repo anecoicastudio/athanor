@@ -40,22 +40,25 @@ const ROLE_MAP: Partial<Record<keyof typeof semantic, string>> = {
   auraSoft: '--color-aura-soft',
   auraLine: '--color-aura-line',
   onAura: '--color-on-aura',
+  // Moved out of NOT_ON_WEB by #545: `border-hair` had shipped on the /@handle and
+  // /dream/[id] avatar rings while the token was undeclared, so the utility emitted nothing
+  // and the rings fell through to the `border-border` base rule. Web draws the hairline now.
+  hair: '--color-hair',
 };
 
 /**
- * Tokens web deliberately does not declare. `ink2`/`faint` are the mobile body-copy ramp, the
- * three translucent surfaces are the native card/chip recipe, and `onError` has no destructive
- * fill on this site yet. Listing them is what makes the exhaustiveness check below meaningful:
- * a new token cannot be added to `tokens.ts` without a decision recorded here.
+ * Tokens web deliberately does not declare. `ink2`/`faint` are the mobile body-copy ramp,
+ * `raise`/`raise2` are the native card/chip lift, and `onError` has no destructive fill on this
+ * site yet. Listing them is what makes the exhaustiveness check below meaningful: a new token
+ * cannot be added to `tokens.ts` without a decision recorded here.
+ *
+ * `hair` sat here until #545, on the same "native recipe" reasoning — and that is exactly the
+ * failure mode this list has: the entry kept asserting a decision that two shipped pages had
+ * already contradicted, and nothing went red, because the exhaustiveness check below only
+ * requires the union to cover the TS keys. A token in this list means "web draws nothing with
+ * it"; grep the utility (`border-<token>`, `bg-<token>`, `text-<token>`) before adding one.
  */
-const NOT_ON_WEB: (keyof typeof semantic)[] = [
-  'ink2',
-  'faint',
-  'raise',
-  'raise2',
-  'hair',
-  'onError',
-];
+const NOT_ON_WEB: (keyof typeof semantic)[] = ['ink2', 'faint', 'raise', 'raise2', 'onError'];
 
 /** First declaration of exactly `name` — the lookbehind keeps `--background` off `--color-background`. */
 function cssVar(name: string): string | undefined {
@@ -102,8 +105,15 @@ describe('globals.css mirrors the config tokens', () => {
   it('declares no colour that is not a token', () => {
     // The CSS-side half of "no literal hex in app code" (rule 4): every literal colour in the
     // stylesheet must be a value tokens.ts defines, whatever role var it is spelled into.
+    //
+    // Comments are stripped first (#545). The scan is a regex over the file, so it could not
+    // tell a painted colour from one being TALKED about, and an issue number (`#545`) or a
+    // quoted old value in a docblock read as undeclared literals — which pushed prose away
+    // from naming the very values these comments exist to explain. A colour inside a comment
+    // paints nothing. The cost is that a commented-OUT declaration no longer trips this.
     const known = new Set([...Object.values(semantic), ...Object.values(gradient)].map(norm));
-    const literals = CSS.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g) ?? [];
+    const literals =
+      CSS.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g) ?? [];
     expect([...new Set(literals.map(norm))].filter((c) => !known.has(c))).toEqual([]);
   });
 

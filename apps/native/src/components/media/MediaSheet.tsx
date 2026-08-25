@@ -165,9 +165,21 @@ export function MediaSheet({
         }
       }}
     >
-      <Pressable className="flex-1 justify-end bg-surface-muted" onPress={onClose}>
+      {/*
+       * `accessible={false}` on the scrim and the sheet (#518 follow-up). `Pressable` defaults
+       * `accessible={true}`, and on iOS an accessible view is ATOMIC — VoiceOver focuses it as
+       * one unit and never descends — so these two ancestors made every row below unreachable.
+       * The flag stops a view being an accessibility ELEMENT and leaves touch handling alone,
+       * so tap-outside-to-close and the stop-propagation no-op are unchanged.
+       */}
+      <Pressable
+        accessible={false}
+        className="flex-1 justify-end bg-surface-muted"
+        onPress={onClose}
+      >
         <Pressable
           {...MODAL_A11Y}
+          accessible={false}
           className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-7"
           onPress={() => {}}
         >
@@ -199,6 +211,21 @@ export function MediaSheet({
               disabled={busy}
               onPress={() => void openPrimer('library')}
             />
+            {/*
+             * The exit (#518 follow-up). Once the scrim above stops being an accessibility
+             * element, tapping outside is no longer reachable by a screen reader — and this
+             * sheet had no other close control, so without this row a VoiceOver user could
+             * reach the three options and nothing that leaves. `onAccessibilityEscape` cannot
+             * stand in for it: RN fires the escape gesture only "when accessible is true"
+             * (ViewAccessibility.d.ts:300-303), which is precisely what is turned off above.
+             *
+             * NOT `disabled={busy}`, unlike the three options: cancelling has to stay reachable
+             * *especially* while something is in flight, or the dead end returns for exactly as
+             * long as the sheet is busy.
+             */}
+            <View className="mt-1 border-t border-hair pt-1">
+              <Row label={t('common.cancel', locale)} disabled={false} onPress={onClose} />
+            </View>
           </View>
         </Pressable>
       </Pressable>
