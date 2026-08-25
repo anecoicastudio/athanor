@@ -37,7 +37,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(31);
+select plan(37);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (A) catalog shape — the outbox is unreachable from any client, the sweep is cron-only
@@ -326,6 +326,67 @@ select is(
   (select last_status from athanor.notification_dispatches
     where id = 'd1330000-0000-0000-0000-000000000010'),
   500, 'a vanished response does not erase the status that caused the retry');
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────
+-- (F) the READ side: admin_list_abandoned_dispatches (#534)
+-- ─────────────────────────────────────────────────────────────────────────────────────────
+-- Until #534 every column above was written and read by nobody. The table lives in `athanor`,
+-- which is not in config.toml's exposed schemas, so PostgREST cannot see it and the DEFINER
+-- RPC is the only read path — which is also why its gate has to be asserted here rather than
+-- inferred from a grant.
+
+select is(
+  has_function_privilege('anon',
+    'public.admin_list_abandoned_dispatches(integer, timestamptz, uuid)', 'EXECUTE'),
+  false, 'anon cannot execute the abandoned-dispatch reader (#409: the f default would have granted it)');
+
+select is(
+  has_function_privilege('authenticated',
+    'public.admin_list_abandoned_dispatches(integer, timestamptz, uuid)', 'EXECUTE'),
+  true, 'authenticated may execute it — the panel calls it as the signed-in admin');
+
+-- Stashed before the role switch, because the table is unreachable AS authenticated — which is
+-- the whole reason this reader exists. A GUC crosses the role boundary where a select cannot.
+select set_config('test.abandoned_count',
+  (select count(*)::text from athanor.notification_dispatches where abandoned_at is not null),
+  true);
+
+-- The grant is NOT the authorization: every authenticated member holds EXECUTE, and
+-- athanor.is_admin() inside is what separates them.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"91330000-0000-0000-0000-000000000020","role":"authenticated"}';
+
+select throws_ok(
+  $$ select * from public.admin_list_abandoned_dispatches() $$,
+  '42501',
+  'not authorized',
+  'a non-admin member holding EXECUTE is still refused inside the function');
+
+set local request.jwt.claims = '{"sub":"91330000-0000-0000-0000-000000000020","role":"authenticated","app_metadata":{"role":"admin"}}';
+
+-- Only abandoned rows, and every one of them: this surface exists because an abandonment that
+-- nobody sees expires in 30 days as though it never happened.
+select is(
+  (select count(*)::int from public.admin_list_abandoned_dispatches(1000)),
+  current_setting('test.abandoned_count')::int,
+  'the reader returns exactly the abandoned rows — no open dispatch, and none of them missing');
+
+select is(
+  (select bool_and(ordered) from (
+     select created_at <= lag(created_at) over () as ordered
+       from public.admin_list_abandoned_dispatches(1000)) o
+    where ordered is not null),
+  true, 'newest first — the keyset order the cursor walks (created_at desc, id desc)');
+
+-- Both halves or neither. A half cursor that silently restarted at page one would make an
+-- audit walk repeat its first page forever and look complete while doing it.
+select throws_ok(
+  $$ select * from public.admin_list_abandoned_dispatches(25, now(), null) $$,
+  '22023',
+  'abandoned dispatch cursor needs both created_at and id',
+  'a half cursor is refused rather than silently restarting the walk');
+
+reset role;
 
 select * from finish();
 rollback;

@@ -3181,6 +3181,22 @@ export type Database = {
     }
     Functions: {
       accept_momento: { Args: { p_proposal_id: string }; Returns: Json }
+      admin_list_abandoned_dispatches: {
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          abandoned_at: string
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string
+          last_status: number
+          request_id: number
+        }[]
+      }
       admin_list_waitlist: {
         Args: {
           p_before_created_at?: string
