@@ -777,6 +777,8 @@
   "event.rsvp.cancelled": "You're no longer going",
   "event.rsvp.calendarToast": "Added to your calendar",
   "event.rsvp.error": "We couldn't save that. Try again.",
+  "event.rsvp.calendarDenied": "Without calendar access we can't add the event.",
+  "event.rsvp.calendarBlocked": "Calendar access is off in settings. Turn it back on and try again.",
   "home.today.title": "Today",
   "home.today.seeLive": "Athanor Live ›",
   "common.retry": "Try again",

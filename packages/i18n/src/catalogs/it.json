@@ -777,6 +777,8 @@
   "event.rsvp.cancelled": "Non parteciperai più",
   "event.rsvp.calendarToast": "Aggiunto al calendario",
   "event.rsvp.error": "Non siamo riusciti a salvare. Riprova.",
+  "event.rsvp.calendarDenied": "Senza accesso al calendario non possiamo aggiungere l'evento.",
+  "event.rsvp.calendarBlocked": "Il calendario è disattivato nelle impostazioni. Riattivalo e riprova.",
   "home.today.title": "Oggi",
   "home.today.seeLive": "Athanor Live ›",
   "common.retry": "Riprova",
