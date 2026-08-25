@@ -23,6 +23,15 @@ export const REVOKE_SESSIONS_RPC = 'gdpr_revoke_sessions';
  * Revoke by profile id. Reports failure the way the whole PostgREST surface does — a resolved
  * `{ error }` — so the loop's existing `if (result?.error)` reads it unchanged. A rejection is
  * the caller's to catch (./logic.ts does).
+ *
+ * The RPC's return value — how many sessions were revoked — is deliberately dropped HERE rather
+ * than threaded onward. The loop's decision at step (1) is binary (degraded or not), and the
+ * job's response body is #515's report on what the DEPLOYMENT can do, not per-request
+ * accounting; a count in it would be a per-subject number in a payload that is otherwise true of
+ * a zero-request run. The count still has its consumers — an operator calling the RPC directly,
+ * and 0134, which asserts it — so nothing is lost by not carrying it through a caller that
+ * cannot act on it. Zero is a success either way, and that is the only thing the loop must not
+ * get wrong (#515/#516: `failed` means a step actually failed).
  */
 export const sessionRevoker =
   (db: SupabaseClient) =>
