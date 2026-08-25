@@ -3352,6 +3352,7 @@ export type Database = {
           name: string
         }[]
       }
+      gdpr_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
       gdpr_tombstone_profile_id: { Args: never; Returns: string }
       get_momenti_deck: {
         Args: never

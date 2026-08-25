@@ -5,21 +5,26 @@ import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
 // + storage port wiring) and injects everything here (repo convention: DI over mocks).
 // Auth and storage arrive as capability ports because the fake db has no .auth or
-// .storage namespace. The auth port exposes ONLY signOut — getUserById/deleteUser
+// .storage namespace. The auth port exposes ONLY revokeSessions — getUserById/deleteUser
 // join it when the legal-gated cascade below goes live.
 
 export const CANDIDACY_VIDEOS_BUCKET = 'candidacy-videos';
 
 export type ErasureAuth = {
   /**
-   * db.auth.admin.signOut — global revoke, MUST run before any delete (see step 1).
+   * Revoke every live session of the subject, BY PROFILE ID — MUST run before any delete (step 1).
    *
-   * Reports failure BOTH ways, like every other Supabase surface: GoTrueAdminApi.signOut
-   * catches an AuthError and RESOLVES with `{ error }`, rethrowing only non-auth errors. A
-   * 4xx/5xx from GoTrue — the common failure — therefore never rejects, so a caller that only
-   * catches would record a run whose sessions are still live as a clean one.
+   * By id, and no scope argument, because both are the shape of #542: the port used to be
+   * `signOut(profileId, 'global')` over `db.auth.admin.signOut`, which takes «A valid, logged-in
+   * JWT» and 401'd on every UUID it was handed. Its replacement (./revoke.ts) revokes all of the
+   * user's sessions and nothing else, so a scope parameter would be one the implementation
+   * cannot honour — the same class of lie the port already told once.
+   *
+   * Reports failure BOTH ways, like every other Supabase surface: a rejection, and a RESOLVED
+   * `{ error }` — the shape PostgREST returns for a failed RPC, and the common one. A caller
+   * that only catches would record a run whose sessions are still live as a clean one.
    */
-  signOut: (profileId: string, scope: 'global') => Promise<{ error?: unknown } | null>;
+  revokeSessions: (profileId: string) => Promise<{ error?: unknown } | null>;
 };
 
 /** The candidacy-videos bucket surface the job needs — index wires db.storage.from(...). */
@@ -82,13 +87,15 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     let degraded = false;
 
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
-    //     Both failure shapes count: a rejection, and the resolved { error } GoTrue actually
-    //     returns for a 4xx/5xx. Leaving the member's tokens live is the last thing that may
-    //     pass for a clean run.
-    const signOutResult = await auth
-      .signOut(erasureReq.profile_id, 'global')
-      .catch(() => ({ error: new Error('signOut rejected') }));
-    if (signOutResult?.error) degraded = true;
+    //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
+    //     a failed statement. Leaving the member's tokens live is the last thing that may pass
+    //     for a clean run — and until #542 it did, on every single request.
+    //     Revoking nothing is NOT a failure: a member who was never signed in on any device has
+    //     no session to revoke, and ./revoke.ts reports that as success (a count, not an error).
+    const revokeResult = await auth
+      .revokeSessions(erasureReq.profile_id)
+      .catch(() => ({ error: new Error('session revoke rejected') }));
+    if (revokeResult?.error) degraded = true;
 
     // (3) fund-table reach — LIVE (#240). One atomic DB transaction (gdpr_erase_fund_footprint,
     //     20260815131925): fund_contributions tombstone-reassigned to the pre-seeded no-PII

@@ -13,7 +13,7 @@ import { type ErasureCtx, processErasureRequests } from './logic.ts';
 
 type Ctx = ErasureCtx & {
   db: FakeDb;
-  signedOut: [string, string][];
+  revoked: string[];
   removed: string[][];
   /** paths handed to the KV purge port, one entry per request that reached it */
   purged: string[][];
@@ -25,23 +25,23 @@ const NO_KV = Symbol('unconfigured');
 const ctx = (
   script: Record<string, FakeResult[]> = {},
   overrides: {
-    signOut?: ErasureCtx['auth']['signOut'];
+    revokeSessions?: ErasureCtx['auth']['revokeSessions'];
     remove?: ErasureCtx['storage']['remove'];
     /** a purge result to return, or NO_KV to inject `kv: null` */
     purge?: KvPurgeResult | Promise<KvPurgeResult> | typeof NO_KV;
   } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
-  const signedOut: [string, string][] = [];
+  const revoked: string[] = [];
   const removed: string[][] = [];
   const purged: string[][] = [];
   return {
     db,
     auth: {
-      signOut:
-        overrides.signOut ??
-        ((id, scope) => {
-          signedOut.push([id, scope]);
+      revokeSessions:
+        overrides.revokeSessions ??
+        ((id) => {
+          revoked.push(id);
           return Promise.resolve(null);
         }),
     },
@@ -64,7 +64,7 @@ const ctx = (
               );
             },
           },
-    signedOut,
+    revoked,
     removed,
     purged,
   } as unknown as Ctx;
@@ -95,11 +95,11 @@ Deno.test('claim error → 500 with the pg message', async () => {
   const res = await processErasureRequests(c);
   assertEquals(res.status, 500);
   assertEquals(await res.text(), 'boom');
-  assertEquals(c.signedOut.length, 0);
+  assertEquals(c.revoked.length, 0);
 });
 
 Deno.test(
-  "per request: 'processing' → global signOut → 'partial' (legal-gated, never 'done')",
+  "per request: 'processing' → session revoke → 'partial' (legal-gated, never 'done')",
   async () => {
     const c = ctx({
       'gdpr_erasure_requests.select': [
@@ -115,11 +115,8 @@ Deno.test(
     assertEquals(res.status, 200);
     assertEquals(await res.json(), { seen: 2, kvPurge: NO_PURGE });
 
-    // (1) sessions revoked for EACH request, global scope, before the terminal status.
-    assertEquals(c.signedOut, [
-      ['user-1', 'global'],
-      ['user-2', 'global'],
-    ]);
+    // (1) sessions revoked for EACH request, by profile id, before the terminal status.
+    assertEquals(c.revoked, ['user-1', 'user-2']);
 
     // requested→processing→failed per request, each update keyed to its own id.
     const updates = statusUpdates(c.db);
@@ -253,13 +250,13 @@ Deno.test(
   },
 );
 
-// GoTrue reports a dead auth server BOTH ways too, and the resolved one is the COMMON one:
-// GoTrueAdminApi.signOut catches an AuthError and resolves with { error }. A run that left the
-// member's tokens live must never pass for a clean 'partial'.
-Deno.test("signOut resolving with an error is recorded — 'failed', not 'partial'", async () => {
+// The revoke reports a dead dependency BOTH ways too, and the resolved one is the COMMON one:
+// a failed RPC resolves with { error } rather than throwing. A run that left the member's
+// tokens live must never pass for a clean 'partial'.
+Deno.test("a revoke resolving with an error is recorded — 'failed', not 'partial'", async () => {
   const c = ctx(
     { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
-    { signOut: () => Promise.resolve({ error: { message: 'gotrue 503' } }) },
+    { revokeSessions: () => Promise.resolve({ error: { message: 'permission denied' } }) },
   );
   await processErasureRequests(c);
   assertEquals(
@@ -268,12 +265,13 @@ Deno.test("signOut resolving with an error is recorded — 'failed', not 'partia
   );
 });
 
-// The success shape GoTrue returns is { data: null, error: null } — an OBJECT with an error
-// key present and falsy. Guard against a truthiness check on the wrapper instead of on .error.
-Deno.test("signOut resolving { error: null } is a success — 'partial'", async () => {
+// The success shape is { data: <count>, error: null } — an OBJECT with an error key present
+// and falsy. Guard against a truthiness check on the wrapper instead of on .error. `data: 0`
+// is the session-less member, and that is a clean run, not a step that failed.
+Deno.test("a revoke resolving { error: null } is a success — 'partial'", async () => {
   const c = ctx(
     { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
-    { signOut: () => Promise.resolve({ data: null, error: null }) },
+    { revokeSessions: () => Promise.resolve({ data: 0, error: null }) },
   );
   await processErasureRequests(c);
   assertEquals(
@@ -306,7 +304,7 @@ Deno.test(
 );
 
 Deno.test(
-  "signOut rejection is swallowed but recorded — 'failed', not 'partial', loop continues",
+  "a revoke rejection is swallowed but recorded — 'failed', not 'partial', loop continues",
   async () => {
     const c = ctx(
       {
@@ -319,7 +317,7 @@ Deno.test(
           },
         ],
       },
-      { signOut: () => Promise.reject(new Error('gotrue down')) },
+      { revokeSessions: () => Promise.reject(new Error('rpc transport down')) },
     );
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);
