@@ -4,9 +4,9 @@
 -- sends its first argument as the Authorization bearer; GoTrue 401s on a profile id every time,
 -- so the loop recorded a failed step and the erasure landed `failed` with the member's sessions
 -- still open — on every request that took this path (how many did is unknown: the job is
--- deployed but unscheduled behind the legal gate). No admin surface revokes by id — auth-js has getUserById / updateUserById /
--- deleteUser (plus factor and passkey deletes) and GoTrue's /admin router registers no session
--- route — so 20260825074614 puts the revoke where the sessions live:
+-- deployed but unscheduled behind the legal gate). No admin surface revokes by id — auth-js has
+-- getUserById / updateUserById / deleteUser (plus factor and passkey deletes) and GoTrue's
+-- /admin router registers no session route — so 20260825074614 puts the revoke where they live:
 -- public.gdpr_revoke_sessions(uuid), running GoTrue's own global-logout statement.
 --
 -- Asserts: catalog shape (SECURITY DEFINER, search_path locked) · the ACL, which on THIS

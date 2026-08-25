@@ -42,7 +42,7 @@ Nothing is enforced less than the comment claims: it errs wide, and deleting a s
 tokens is exactly what erasure step (1) is for. 0134 asserts both halves — the orphan goes
 (`pgtap0134-orphan`) and another member's token does not (`pgtap0134-o1`).
 
-### The header's account of #542, `:5-8`
+### The header's account of #542, `:5-9`
 
 The header says «every call 401'd» and «every live erasure landed `failed` with the member's
 sessions still open». The _mechanism_ is deterministic and verified: a UUID in the `Authorization`

@@ -89,7 +89,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
     //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
     //     a failed statement. Leaving the member's tokens live is the last thing that may pass
-    //     for a clean run — and until #542 it did, on every single request.
+    //     for a clean run — and until #542 it did, on every request that took this path.
     //     Revoking nothing is NOT a failure: a member who was never signed in on any device has
     //     no session to revoke, and ./revoke.ts reports that as success (a count, not an error).
     const revokeResult = await auth
