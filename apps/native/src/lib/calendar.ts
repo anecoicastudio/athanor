@@ -37,6 +37,15 @@ async function writableCalendarId(): Promise<string | null> {
  * is the whole difference, and reading it is what the old code skipped. Write-only access
  * arrives here as blocked, which is the honest answer — the grant cannot be widened from
  * inside the app.
+ *
+ * The PERMISSION REQUEST is inside the try as well, which it was not before. It sat above it,
+ * so a throw from `requestCalendarPermissionsAsync` escaped this function entirely: the caller
+ * discards the promise (`void onAddToCalendar()`), the root error boundary is a RENDER boundary
+ * and never sees a rejected promise, and the member gets no toast, no notice and no Settings
+ * route. That is the silent no-op #531 exists to remove, surviving on a narrower path — and it
+ * made "'error' on any failure" above a false claim. expo-calendar ships no web implementation,
+ * so the expo-web QA harness reaches it on every tap; on device an in-flight permission
+ * conflict rejects the same way.
  */
 export async function addEventToCalendar(opts: {
   title: string;
@@ -45,10 +54,10 @@ export async function addEventToCalendar(opts: {
   location?: string | null;
   notes?: string | null;
 }): Promise<CalendarResult> {
-  const res = await Calendar.requestCalendarPermissionsAsync();
-  const status = toStatus({ granted: res.status === 'granted', canAskAgain: res.canAskAgain });
-  if (status !== 'granted') return status === 'blocked' ? 'blocked' : 'denied';
   try {
+    const res = await Calendar.requestCalendarPermissionsAsync();
+    const status = toStatus({ granted: res.status === 'granted', canAskAgain: res.canAskAgain });
+    if (status !== 'granted') return status === 'blocked' ? 'blocked' : 'denied';
     const calendarId = await writableCalendarId();
     if (!calendarId) return 'error';
     const start = new Date(opts.startISO);

@@ -1309,7 +1309,13 @@ function nestedTags(
       continue;
     }
     const open = /^<([A-Za-z_$][\w$.]*)(?=[\s/>])/.exec(src.slice(i));
-    if (!open) {
+    // A `<` preceded by an identifier character is a GENERIC ARGUMENT, not a tag:
+    // `useRef<View>(null)` matches the pattern above exactly, because `>` is in the lookahead
+    // class. Left in, it pushes an ancestor frame that never balances, and the next real
+    // `</View>` pops back to that phantom and takes the live frames above it with it — so the
+    // walk loses hits rather than inventing them, which is the failure mode a guard cannot
+    // afford. Inert for `Pressable` today only because nothing re-exports it as a type.
+    if (!open || (i > 0 && /[A-Za-z0-9_$]/.test(src[i - 1] as string))) {
       i += 1;
       continue;
     }

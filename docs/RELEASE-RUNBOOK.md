@@ -336,6 +336,41 @@ production. `packages/api/src/deploy-check.test.ts` pins that behaviour.
 
 ---
 
+### 4.4 Deploy ORDER when a migration emits a new push template key (#523)
+
+`deploy:check` answers "is it deployed"; this answers "in which order", and they are different
+questions. A migration that starts emitting a `notif.tpl.*` key the **deployed** `push-dispatch`
+does not know fails **silently and unrecoverably**:
+
+- `buildPushMessages` returns `[]` for an unknown key (`_shared/notif-templates.ts:259-260`);
+- `push-dispatch` returns `200 {sent:0,failed:0,pruned:0}` on the zero-message path **before**
+  it reaches its `report()` log (`push-dispatch/logic.ts:152`), so there is no console line;
+- a 200 is a delivered dispatch, so the #521 outbox marks it done — **no retry, no
+  `abandoned_at` row, nothing for `admin_list_abandoned_dispatches` (§#534) to ever show.**
+
+The in-app notification degrades gracefully in this window — an unknown key falls back to
+`notif.tpl.generic` (`packages/schemas/src/notification.ts`) — so the member still sees
+_something_ in the centre. Push degrades to nothing at all, and leaves no trace that it did.
+
+**Rule: deploy the function first, apply the migration second.**
+
+```bash
+supabase functions deploy push-dispatch    # the mirror learns the key …
+supabase db push                           # … before anything can emit it
+```
+
+That order is always safe: a deployed template nobody emits yet is inert, while an emitted
+template nobody can render is a lost notification. The same reasoning covers any function whose
+behaviour a migration starts depending on — `notification-fan-out` is **not** one of them, since
+it treats `template_key` as an opaque string and passes it through.
+
+The window is small on a release where both steps run back to back, and it is not small if the
+migration ships in one release and the function deploy is forgotten until the next. `deploy:check`
+will not catch it: the function is present, just stale, and staleness is reported rather than
+gated (§4.3).
+
+---
+
 ## 5. Apple IAP / Stripe Compliance Posture (S-IAP-1 … S-IAP-4)
 
 Spec ref: `10-m10-launch.md` §7.

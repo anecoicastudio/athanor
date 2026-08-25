@@ -47,10 +47,15 @@ export default function EventDetailScreen() {
    * NOT on its 2.5s timer: a line that offers the only route back to a working button must not
    * vanish while it is being read. Cleared when the member acts — a new RSVP toggle or another
    * calendar tap.
+   *
+   * The OUTCOME is stored, not the sentence. Because this notice has no timer, it can still be
+   * on screen when the member changes language in Settings — a sibling in the same stack, so
+   * this screen stays mounted and `useLocale()` flips under it. A stored string would keep
+   * rendering the previous language while everything around it changed; deriving it here keeps
+   * it in step. Both keys stay spelled literally at the call site, which is the property the
+   * i18n checker and an orphan grep depend on.
    */
-  const [calendarNotice, setCalendarNotice] = useState<{ blocked: boolean; body: string } | null>(
-    null,
-  );
+  const [calendarNotice, setCalendarNotice] = useState<'denied' | 'blocked' | null>(null);
   // Auto-dismiss the inline confirmation so it never lingers under an idle bar (no toast host yet).
   useEffect(() => {
     if (!confirmation) return;
@@ -149,11 +154,7 @@ export default function EventDetailScreen() {
     // Expo Go grant owned by another project both land here having shown nothing. The button
     // was a permanent no-op. `blocked` additionally means the OS will not ask again, so
     // Settings is the only route left and the bar offers it.
-    // Literal keys on both arms, never an interpolated one: a key spelled by a template
-    // literal is invisible to the i18n checker and to a grep for orphans.
-    else if (res === 'blocked')
-      setCalendarNotice({ blocked: true, body: t('event.rsvp.calendarBlocked', locale) });
-    else setCalendarNotice({ blocked: false, body: t('event.rsvp.calendarDenied', locale) });
+    else setCalendarNotice(res);
   }, [event, locale]);
 
   const now = Date.now();
@@ -182,10 +183,18 @@ export default function EventDetailScreen() {
       soldOut={soldOut}
       pending={toggle.isPending || myRsvp.isLoading}
       confirmation={confirmation}
-      permissionNotice={calendarNotice?.body ?? null}
+      permissionNotice={
+        // Literal keys on both arms, never an interpolated one: a key spelled by a template
+        // literal is invisible to the i18n checker and to a grep for orphans.
+        calendarNotice === 'blocked'
+          ? t('event.rsvp.calendarBlocked', locale)
+          : calendarNotice === 'denied'
+            ? t('event.rsvp.calendarDenied', locale)
+            : null
+      }
       onToggle={() => toggle.mutate(!going)}
       onAddToCalendar={() => void onAddToCalendar()}
-      onOpenSettings={calendarNotice?.blocked ? () => void Linking.openSettings() : null}
+      onOpenSettings={calendarNotice === 'blocked' ? () => void Linking.openSettings() : null}
       locale={locale}
     />
   );

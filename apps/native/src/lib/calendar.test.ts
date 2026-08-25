@@ -14,13 +14,17 @@ const cal = vi.hoisted(() => ({
   defaultCalendar: { id: 'cal-1' } as { id: string } | null,
   created: [] as unknown[],
   throwOnCreate: false,
+  throwOnPermission: false,
 }));
 
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
 vi.mock('expo-calendar', () => ({
   EntityTypes: { EVENT: 'event' },
-  requestCalendarPermissionsAsync: async () => cal.perm,
+  requestCalendarPermissionsAsync: async () => {
+    if (cal.throwOnPermission) throw new Error('UnavailabilityError: expo-calendar on web');
+    return cal.perm;
+  },
   getDefaultCalendarAsync: async () => cal.defaultCalendar,
   getCalendarsAsync: async () => [{ id: 'cal-android', allowsModifications: true }],
   createEventAsync: async (id: string, details: unknown) => {
@@ -39,6 +43,7 @@ beforeEach(() => {
   cal.defaultCalendar = { id: 'cal-1' };
   cal.created = [];
   cal.throwOnCreate = false;
+  cal.throwOnPermission = false;
 });
 
 describe('addEventToCalendar maps every permission outcome', () => {
@@ -62,6 +67,17 @@ describe('addEventToCalendar maps every permission outcome', () => {
     cal.perm = { status: 'denied', canAskAgain: false };
     await expect(addEventToCalendar(EVENT)).resolves.toBe('blocked');
     expect(cal.created, 'nothing is written without a grant').toHaveLength(0);
+  });
+
+  it('a THROWING permission request resolves to error, never a rejected promise', async () => {
+    // The request used to sit above the try, so a throw escaped the function entirely: the
+    // screen does `void onAddToCalendar()`, the root boundary is a RENDER boundary and never
+    // sees a rejected promise, and the member got no toast, no notice, no Settings route —
+    // #531's silent no-op on a narrower path. expo-calendar has no web implementation, so the
+    // expo-web harness hits this on every tap.
+    cal.throwOnPermission = true;
+    await expect(addEventToCalendar(EVENT)).resolves.toBe('error');
+    expect(cal.created).toHaveLength(0);
   });
 
   it('granted but no writable calendar → error', async () => {

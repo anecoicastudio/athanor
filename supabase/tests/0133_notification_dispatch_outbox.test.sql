@@ -37,7 +37,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(39);
+select plan(40);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (A) catalog shape — the outbox is unreachable from any client, the sweep is cron-only
@@ -344,6 +344,18 @@ select is(
   has_function_privilege('authenticated',
     'public.admin_list_abandoned_dispatches(integer, timestamptz, uuid)', 'EXECUTE'),
   true, 'authenticated may execute it — the panel calls it as the signed-in admin');
+
+-- The clamp, pinned by name. packages/api's ABANDONED_DISPATCH_PAGE_CEILING is 999 BECAUSE
+-- this is 1000: the reader asks for limit + 1 as a probe row, so a page at the clamp could
+-- never see its probe and every cursor walk would end a page early with no error — on a
+-- surface whose whole point is that a missed abandonment is the signal. Asserted against the
+-- function's own text rather than by inserting 1001 fixture rows, which is what 0127 does for
+-- the waitlist twin and is far heavier than the property is worth here.
+select matches(
+  pg_get_functiondef(
+    'public.admin_list_abandoned_dispatches(integer, timestamptz, uuid)'::regprocedure),
+  'least\(greatest\(coalesce\(p_limit, 25\), 1\), 1000\)',
+  'the page limit is clamped to 1..1000 (ABANDONED_DISPATCH_PAGE_CEILING = 999 depends on it)');
 
 -- Two abandoned rows sharing a created_at to the microsecond, so the cursor walk below is
 -- exercised on the case the composite predicate exists for. These are written by a
