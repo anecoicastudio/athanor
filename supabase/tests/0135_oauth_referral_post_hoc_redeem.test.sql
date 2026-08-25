@@ -15,7 +15,11 @@
 -- asserted as a privilege, not as a denied write, because RLS would swallow the write and
 -- make the assertion pass for the wrong reason.
 --
--- CI-only (hosted lacks pgtap + tests.* helpers), like every file here.
+-- Run by CI's `db` job (pull_request-only, from a zero database). Unlike most files here it
+-- also runs as-is against a hosted project — `create extension if not exists pgtap` succeeds
+-- there and nothing below touches a `tests.*` helper — inside its own begin/rollback. That
+-- is how this file was taken red and green before the PR existed, which matters because CI
+-- would not have run it until then.
 
 begin;
 create extension if not exists pgtap with schema extensions;

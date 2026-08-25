@@ -133,13 +133,15 @@ export default function WelcomeScreen() {
   const handleOAuth = async (provider: 'apple' | 'google') => {
     setError(null);
     setNotice(null);
+    // Busy first: everything below this line awaits, and `disabled` is what stops a second tap
+    // opening a second round trip.
+    setOauthBusy(provider);
     // Same rule as the email sign-in branch above: a code stashed on this device must never
     // attach to an existing, unrelated account. OAuth itself cannot tell a signup from a
     // sign-in — this screen's mode can, and it is the only place that can. Cleared BEFORE the
-    // round trip, not after it: exchangeCodeForSession fires onAuthStateChange while this call
+    // round trip, not after it: exchangeCodeForSession fires onAuthStateChange while that call
     // is still awaiting, so auth-context has already read the stash by the time it returns.
     if (login) await clearPendingReferral();
-    setOauthBusy(provider);
     const outcome = await signInWithProvider(provider);
     setOauthBusy(null);
     if (outcome.status === 'error') {

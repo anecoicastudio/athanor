@@ -25,6 +25,13 @@ export async function getMyReferralCode(client: AthanorClient): Promise<string> 
  *
  * Resolving means the server ruled, not that an invite was created: every refusal is a silent
  * no-op. Callers treat a rejection as "no verdict yet" and nothing else.
+ *
+ * One cost of the confirmation gate, named rather than missed: a provider that hands back an
+ * unverified address leaves the member unconfirmed, so this refuses and the caller drops the
+ * stash — attribution is lost rather than deferred. Google and Apple both verify, so the case
+ * is theoretical; signalling it back would mean giving this RPC a return value, and a refusal
+ * the client can distinguish is a stash the client keeps, which is the mis-attribution the
+ * single consumer exists to prevent.
  */
 export async function redeemPendingReferral(client: AthanorClient, code: string): Promise<void> {
   const { error } = await client.rpc('redeem_pending_referral', { p_code: code });
