@@ -257,6 +257,10 @@ function bodyEnd(s: string, from: number): number {
  * return type like `Promise<{ ok: true } | { ok: false }>` makes genuinely ambiguous for a
  * non-parser.
  *
+ * An immediately-invoked body is NOT lazy — `const db = (() => supabaseAdmin())();` runs at
+ * import like any other statement — so the wrapper's `)` followed by `(` stops the stripping
+ * and the whole statement is judged eager.
+ *
  * LIMIT: it does not parse. A `=>` inside a TYPE annotation on the same statement as an eager
  * call would blank the wrong span, so `const h: (r: Request) => R = make(Deno.env.get('K'))`
  * would slip through. Nothing in the tree has that shape; widen this rather than trust it if
@@ -273,6 +277,8 @@ function stripLazyBodies(text: string): string {
     const from = m[0] === 'function' ? out.indexOf('{', m.index) : m.index + m[0].length;
     // Always blank at least the token itself, so a body we cannot find still makes progress.
     const stop = Math.max(from === -1 ? -1 : bodyEnd(out, from), m.index + m[0].length);
+    // `(() => …)()` — the body is called right here, so nothing about it is deferred.
+    if (/^\)\s*\(/.test(out.slice(stop))) return out;
     out = out.slice(0, m.index) + ' '.repeat(stop - m.index) + out.slice(stop);
   }
   return out;
@@ -306,6 +312,7 @@ Deno.test('the module-scope scanner tells an eager read from a lazy one', () => 
     ['a service-role client', 'const db = supabaseAdmin();'],
     ['a Stripe client', 'const s = stripeClient();'],
     ['an import-time fetch', "await fetch('https://example.test');"],
+    ['an immediately-invoked body', 'const db = (() => supabaseAdmin())();'],
   ];
   const LAZY: [string, string][] = [
     ['the keys.ts env adapter', 'const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };'],

@@ -1,7 +1,7 @@
 // Major pinned to match the type-level import in stripe-webhook/handlers.ts —
 // deno.lock is gitignored, so unpinned specifiers would float on every deploy.
 import Stripe from 'npm:stripe@22';
-import type { EnvPort } from './keys.ts';
+import { denoEnv, type EnvPort } from './keys.ts';
 
 /**
  * Pinned API version — must match the Dashboard webhook endpoint (08 §4.1). Never float it.
@@ -22,12 +22,12 @@ export const STRIPE_API_VERSION = '2026-05-27.dahlia';
  * back behind the gate, because every consumer dereferences the client inside a capability
  * closure that only runs once its own gate has passed.
  *
- * Env is injectable, like _shared/keys.ts, so tests say nothing about which secrets this
- * machine happens to hold. The client is memoized per env port, so the production path still
- * builds exactly one client per isolate — same client, same config, one construction.
+ * Env is injectable through _shared/keys.ts's port, so tests say nothing about which secrets
+ * this machine happens to hold. The client is memoized per env port, so the production path
+ * still builds exactly one client per isolate — same client, same config, one construction.
+ *
+ * stripe-webhook is the one consumer that still resolves at import; its index.ts says why.
  */
-const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };
-
 const clients = new WeakMap<EnvPort, Stripe>();
 
 /** The Stripe client, built on first use and memoized. Throws if the secret is absent. */
@@ -41,8 +41,9 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
     // stripe-webhook it would surface through handleWebhook's signature catch as a plain
     // «bad signature» 400, sending the operator after the wrong secret entirely.
     throw new Error(
-      'STRIPE_SECRET_KEY is not set in this edge function environment. It is read on first ' +
-        'use, not at import, so this surfaces at the first Stripe call rather than at boot.',
+      'STRIPE_SECRET_KEY is not set in this edge function environment. Every consumer but ' +
+        'stripe-webhook resolves the client on first use, so this normally surfaces at the ' +
+        'first Stripe call rather than at boot.',
     );
   }
   const built = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
