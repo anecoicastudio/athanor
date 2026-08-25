@@ -6,6 +6,7 @@ import type { Profile } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
+import { consumePendingReferral } from './referral';
 import { asyncStoragePersister, queryClient } from './query-client';
 import { readProfileWithRetry } from './profile-read';
 import { registerForPush, unregisterPush } from './push';
@@ -168,6 +169,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFlushing(false);
     };
   }, [userId, email, refreshProfile]);
+
+  // Referral (#78): the stash is spent here, not on the auth screens. An OAuth signup carries
+  // no user_metadata, so athanor.redeem_referral — which reads the code out of exactly that —
+  // never sees one from a trigger, and every Google or Apple member arrived attributed to
+  // nobody. Deliberately provider-blind: by the time an email signup reaches this point its
+  // trigger has already redeemed and the RPC no-ops, so nothing here needs to know who signed
+  // in. Fire-and-forget, and uncancelled, because it touches no state of ours — it reads the
+  // stash, asks the server, and drops the stash. It never rejects (lib/referral.ts).
+  useEffect(() => {
+    if (!userId) return;
+    void consumePendingReferral(supabase);
+  }, [userId]);
 
   return (
     <AuthContext.Provider

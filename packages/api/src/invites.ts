@@ -12,3 +12,21 @@ export async function getMyReferralCode(client: AthanorClient): Promise<string> 
   if (error) throw error;
   return data;
 }
+
+/**
+ * Redeem a stashed invite code for the caller (#78). The only redemption path an OAuth signup
+ * has: Google and Apple carry no `referral_code` in user_metadata, and the two auth.users
+ * triggers can only redeem what that metadata carries.
+ *
+ * Server-side and confirmation-gated, like the trigger path it backs up: the RPC derives the
+ * invitee from `auth.uid()` rather than from an argument, refuses an unconfirmed caller, one
+ * already attributed, or an account past the age window, and writes `invites` through the
+ * same SECURITY DEFINER body the triggers use — clients hold no INSERT on that table.
+ *
+ * Resolving means the server ruled, not that an invite was created: every refusal is a silent
+ * no-op. Callers treat a rejection as "no verdict yet" and nothing else.
+ */
+export async function redeemPendingReferral(client: AthanorClient, code: string): Promise<void> {
+  const { error } = await client.rpc('redeem_pending_referral', { p_code: code });
+  if (error) throw error;
+}

@@ -21,14 +21,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // is; the code path is provider-agnostic and needs no other change.
 const APPLE_ENABLED = false;
 
-// Google is configured on the staging project: provider on, client ID + secret set. Its
+// Google is configured on the staging project: provider on, client ID + secret set. Staging's
 // allow-list carries the standalone `athanor://` forms and the exp.direct ones, so the device
 // walk has to run `pnpm exec expo start --tunnel`. It is NOT every form this app can emit: a
 // LAN start can never complete the round trip, because GoTrue substitutes Site URL for any
 // private-LAN target whether or not it is listed (#73), and the web build emits
 // `http://localhost:8081/auth-callback`, which is not on the list either. Both fail silently.
-// Production's provider is still off, and this flag is environment-blind — a production build
-// renders the button and can only reach «L'accesso con Google non è ancora attivo».
+// Google is enabled on BOTH hosted projects since #77 — production included, so this button is
+// live for real members today. The flag stays environment-blind: pointed at a project whose
+// provider is off, it still renders and the round trip can only come back an error.
 const GOOGLE_ENABLED = true;
 
 const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
@@ -78,8 +79,10 @@ export default function WelcomeScreen() {
     // onto profiles.display_name from there (20260811072211) — normalised, so a long or
     // blank value can never raise inside that trigger and abort the signup. Editing the
     // name after signup needs the client surface in #76; this is the write path only.
-    // Referral attribution is email-signup-only for now: OAuth signups don't carry
-    // this metadata, so a code stashed ahead of a Google/Apple signup is silently lost.
+    // Referral attribution rides on this metadata for the email paths only: handle_new_user
+    // (born confirmed) and handle_user_confirmed both read `referral_code` out of
+    // raw_user_meta_data. An OAuth signup carries none, so it is redeemed post-hoc instead —
+    // auth-context spends the stash on the first authenticated boot (#78).
     // The disabled button is a hint, not a guarantee: a password manager can fill
     // the field and fire submit in the same frame. Parse at the boundary too.
     if (!passwordSchema.safeParse(password).success) {
@@ -130,6 +133,12 @@ export default function WelcomeScreen() {
   const handleOAuth = async (provider: 'apple' | 'google') => {
     setError(null);
     setNotice(null);
+    // Same rule as the email sign-in branch above: a code stashed on this device must never
+    // attach to an existing, unrelated account. OAuth itself cannot tell a signup from a
+    // sign-in — this screen's mode can, and it is the only place that can. Cleared BEFORE the
+    // round trip, not after it: exchangeCodeForSession fires onAuthStateChange while this call
+    // is still awaiting, so auth-context has already read the stash by the time it returns.
+    if (login) await clearPendingReferral();
     setOauthBusy(provider);
     const outcome = await signInWithProvider(provider);
     setOauthBusy(null);
