@@ -1215,17 +1215,18 @@ describe('the events tab has no posts source (#153)', () => {
  * Nothing else catches this: `eslint-config-expo@10.0.0` ships no accessibility rules, no a11y
  * plugin is declared anywhere, and gate G2 (`docs/RELEASE-RUNBOOK.md`) is a manual smoke that
  * missed #518 outright.
- */
-/**
- * Registered, NOT excused. Both entries are real instances of the same defect by the same
- * mechanism the docblock states — a scrim Pressable wrapping a sheet Pressable is two
- * `accessible` ancestors, and iOS swallows what is under them whether or not they claim a
- * role. Declaring them harmless would make this guard agree with the bug a second time.
+ *
+ * ## The register below is REGISTERED, not excused
+ *
+ * Both entries are real instances of the same defect, by the mechanism stated above: a scrim
+ * Pressable wrapping a sheet Pressable is two `accessible` ancestors, and iOS swallows what is
+ * under them whether or not they claim a role. Declaring them harmless would make this guard
+ * agree with the bug a second time.
  *
  * They are registered because the fix is not #518's to make: `accessible={false}` on the two
  * scrim/sheet Pressables would un-swallow the descendants while keeping the press handlers,
  * but it changes the a11y shape of every modal in the media flow, which wants its own change
- * and its own device pass. This entry is the debt, written down.
+ * and its own device pass. The entries are that debt, written down.
  */
 const NESTED_PRESSABLE_OK: Record<string, string> = {
   'apps/native/src/components/media/PermissionPrimer.tsx':
@@ -1236,7 +1237,7 @@ const NESTED_PRESSABLE_OK: Record<string, string> = {
     'a11y shape of every media modal, so it needs a device pass this batch cannot give it.',
   'apps/native/src/components/media/MediaSheet.tsx':
     "the same scrim/sheet pair (:168, :169), and worse than the walk can see: the sheet's " +
-    'three real actions are `<Row/>` (:186, :192, :198), whose own Pressable lives at :231. ' +
+    'three real actions are `<Row/>` (:185, :191, :197), whose own Pressable lives at :231. ' +
     'The walk is per-file and syntactic, so it counts the one nested tag it can see and not ' +
     'those three — see the limitation on `nestedTags` below.',
 };
