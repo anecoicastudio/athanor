@@ -37,7 +37,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(37);
+select plan(39);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (A) catalog shape — the outbox is unreachable from any client, the sweep is cron-only
@@ -345,6 +345,20 @@ select is(
     'public.admin_list_abandoned_dispatches(integer, timestamptz, uuid)', 'EXECUTE'),
   true, 'authenticated may execute it — the panel calls it as the signed-in admin');
 
+-- Two abandoned rows sharing a created_at to the microsecond, so the cursor walk below is
+-- exercised on the case the composite predicate exists for. These are written by a
+-- once-a-minute reconciler in bursts, so a tie is the normal case, not the exotic one; a keyset
+-- that compared created_at alone would skip one of these or return it twice.
+insert into athanor.notification_dispatches
+  (id, request_id, payload, attempts, abandoned_at, last_status, last_error, created_at, updated_at)
+values
+  ('d1330000-0000-0000-0000-0000000000f1', 913300000241,
+   jsonb_build_object('template_key','notif.tpl.pgtap0133tie'), 3, now(), 500, 'tie a',
+   now() + interval '1 hour', now()),
+  ('d1330000-0000-0000-0000-0000000000f2', 913300000242,
+   jsonb_build_object('template_key','notif.tpl.pgtap0133tie'), 3, now(), 500, 'tie b',
+   now() + interval '1 hour', now());
+
 -- Stashed before the role switch, because the table is unreachable AS authenticated — which is
 -- the whole reason this reader exists. A GUC crosses the role boundary where a select cannot.
 select set_config('test.abandoned_count',
@@ -385,6 +399,23 @@ select throws_ok(
   '22023',
   'abandoned dispatch cursor needs both created_at and id',
   'a half cursor is refused rather than silently restarting the walk');
+
+-- The walk itself. Page one is a single row; feeding its (created_at, id) back in must return
+-- the OTHER tied row, not the same one and not the row after it. This is the assertion the
+-- fake-client tests in packages/api cannot make: they prove the two arguments are passed, not
+-- that the predicate steps.
+select is(
+  (select id from public.admin_list_abandoned_dispatches(1)),
+  'd1330000-0000-0000-0000-0000000000f2'::uuid,
+  'page one is the newest row, ties broken by id desc');
+
+select is(
+  (select id from public.admin_list_abandoned_dispatches(
+     1,
+     (select created_at from public.admin_list_abandoned_dispatches(1)),
+     (select id from public.admin_list_abandoned_dispatches(1)))),
+  'd1330000-0000-0000-0000-0000000000f1'::uuid,
+  'the cursor steps to the tied row rather than repeating it — (created_at, id), not created_at');
 
 reset role;
 

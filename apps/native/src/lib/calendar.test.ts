@@ -53,18 +53,15 @@ describe('addEventToCalendar maps every permission outcome', () => {
     expect(cal.created, 'nothing is written without a grant').toHaveLength(0);
   });
 
+  // One case, not two. iOS write-only is not a distinct INPUT here: expo-calendar@15.0.8 maps
+  // `.writeOnly` to EXPermissionStatusDenied (CalendarPermissionsRequester.swift:35) and the OS
+  // will not prompt again, so it arrives as exactly this pair. That is the reproduction in
+  // #531 — a grant that exists, cannot be widened from inside the app, and was
+  // indistinguishable from a fresh refusal.
   it('declined and not re-promptable → blocked, the state that needs Settings', async () => {
     cal.perm = { status: 'denied', canAskAgain: false };
     await expect(addEventToCalendar(EVENT)).resolves.toBe('blocked');
-  });
-
-  it('iOS write-only reaches us as blocked, not as a silent denial', async () => {
-    // expo-calendar@15.0.8 maps `.writeOnly` to EXPermissionStatusDenied
-    // (CalendarPermissionsRequester.swift:35), and the OS will not prompt again — which is
-    // precisely the reproduction in #531: a grant that exists, cannot be widened from inside
-    // the app, and looked identical to a fresh refusal.
-    cal.perm = { status: 'denied', canAskAgain: false };
-    await expect(addEventToCalendar(EVENT)).resolves.toBe('blocked');
+    expect(cal.created, 'nothing is written without a grant').toHaveLength(0);
   });
 
   it('granted but no writable calendar → error', async () => {

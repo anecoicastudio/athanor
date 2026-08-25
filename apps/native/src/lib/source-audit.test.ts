@@ -1216,13 +1216,29 @@ describe('the events tab has no posts source (#153)', () => {
  * plugin is declared anywhere, and gate G2 (`docs/RELEASE-RUNBOOK.md`) is a manual smoke that
  * missed #518 outright.
  */
+/**
+ * Registered, NOT excused. Both entries are real instances of the same defect by the same
+ * mechanism the docblock states — a scrim Pressable wrapping a sheet Pressable is two
+ * `accessible` ancestors, and iOS swallows what is under them whether or not they claim a
+ * role. Declaring them harmless would make this guard agree with the bug a second time.
+ *
+ * They are registered because the fix is not #518's to make: `accessible={false}` on the two
+ * scrim/sheet Pressables would un-swallow the descendants while keeping the press handlers,
+ * but it changes the a11y shape of every modal in the media flow, which wants its own change
+ * and its own device pass. This entry is the debt, written down.
+ */
 const NESTED_PRESSABLE_OK: Record<string, string> = {
   'apps/native/src/components/media/PermissionPrimer.tsx':
-    'the modal idiom: an outer dismiss scrim wrapping a sheet whose own press handler only ' +
-    'stops propagation. The scrim is decoration, not a control — it declares no role and no ' +
-    'label, and every real action inside the sheet is reachable because iOS does not swallow ' +
-    'what it never focused. Flattening it would mean re-implementing dismiss-on-backdrop.',
-  'apps/native/src/components/media/MediaSheet.tsx': 'the same scrim/sheet pair.',
+    'REAL, not benign: the labelled «Non ora» at :80 is two Pressables deep inside the scrim ' +
+    '(:42) and the sheet (:44). Neither claims a role, but Pressable makes both `accessible`, ' +
+    "so on iOS the button under them is swallowed exactly as StoryRing's badge was. Left for " +
+    'its own change — `accessible={false}` on the scrim and sheet is the fix, and it moves the ' +
+    'a11y shape of every media modal, so it needs a device pass this batch cannot give it.',
+  'apps/native/src/components/media/MediaSheet.tsx':
+    "the same scrim/sheet pair (:168, :169), and worse than the walk can see: the sheet's " +
+    'three real actions are `<Row/>` (:186, :192, :198), whose own Pressable lives at :231. ' +
+    'The walk is per-file and syntactic, so it counts the one nested tag it can see and not ' +
+    'those three — see the limitation on `nestedTags` below.',
 };
 
 /**
@@ -1230,6 +1246,19 @@ const NESTED_PRESSABLE_OK: Record<string, string> = {
  * whole question here, and a regex cannot see an ancestor. Self-closing tags never push.
  * Attribute text is skipped quote- and brace-aware, so a render prop's nested JSX does not
  * close the tag that carries it.
+ *
+ * ## What it cannot see, stated rather than implied
+ *
+ * The walk is per-file and syntactic, so nesting through a COMPONENT is invisible to it: a
+ * `<Row/>` that is itself a Pressable reads as a self-closing non-Pressable and never pushes a
+ * frame, even though at runtime it is a descendant of whatever wraps it. `MediaSheet.tsx` is
+ * exactly that case and its register entry says so. Following it would mean resolving local
+ * components to their roots, which is a type-aware job this harness cannot do —
+ * `environment: 'node'` cannot even render a `.tsx`.
+ *
+ * So a clean run means "no nested Pressable is spelled out in one file", not "no Pressable is
+ * nested at runtime". That still catches #518, which was spelled out, and it is why the
+ * register carries prose rather than a bare list.
  */
 function nestedTags(src: string, tag: string): { line: number; outerLine: number }[] {
   const hits: { line: number; outerLine: number }[] = [];
