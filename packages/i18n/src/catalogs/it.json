@@ -964,6 +964,7 @@
   "notif.tpl.dreamMilestone": "{name} si è offerto come mentor per il tuo sogno.",
   "notif.tpl.review": "{name} ti ha lasciato una recensione.",
   "notif.tpl.eventReminder": "«{title}» è tra poco. {count} partecipano.",
+  "notif.tpl.eventReminderSoon": "«{title}» comincia tra un'ora. {count} partecipano.",
   "notif.tpl.projectResponse": "{name} ha risposto alla tua ricerca «{title}».",
   "notif.tpl.connection": "{name} vuole connettersi con te.",
   "notif.tpl.connectionAccepted": "{name} ha accettato la tua richiesta ✦",

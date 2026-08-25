@@ -83,6 +83,18 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `«${p.title ?? ''}» is coming up. ${p.count ?? 0} attending.`,
     },
   },
+  // The t1 slot (#523). Same type, same route, different sentence: «è tra poco» is true an
+  // hour out and false a day out, and the sweep sends both slots from one template before this.
+  'notif.tpl.eventReminderSoon': {
+    it: {
+      title: 'Promemoria evento',
+      body: (p) => `«${p.title ?? ''}» comincia tra un'ora. ${p.count ?? 0} partecipano.`,
+    },
+    en: {
+      title: 'Event reminder',
+      body: (p) => `«${p.title ?? ''}» starts in an hour. ${p.count ?? 0} attending.`,
+    },
+  },
   'notif.tpl.projectResponse': {
     it: {
       title: 'Risposta',
