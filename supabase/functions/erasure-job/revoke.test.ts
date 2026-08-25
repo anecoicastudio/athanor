@@ -5,7 +5,8 @@
 // outcome and can say nothing about which SDK call produces one; index.ts is a `Deno.serve`
 // shell no test executes. Between the two sat the actual bug: a profile id handed to
 // `db.auth.admin.signOut`, which takes «A valid, logged-in JWT» and sends its first argument
-// as the `Authorization` bearer. Every call 401'd for two months under a green suite.
+// as the `Authorization` bearer — a 401 every time, from the function's creation (2026-06-20)
+// until #542 caught it two months later, under a green suite throughout.
 //
 // So the oracle here is a fake SDK that behaves like the real one on that exact point: its
 // `auth.admin.signOut` REJECTS anything that is not JWT-shaped. The differential test below
@@ -56,11 +57,12 @@ Deno.test('revokes by profile id through the by-id RPC, never through admin.sign
   assertEquals(result, { error: null });
 });
 
-// The other half of the differential: the same fake SDK, the wiring #542 shipped. This is what
-// a test at this boundary would have said on 2026-06-20, and it is why the case above is not a
-// tautology — the oracle demonstrably fails the wrong implementation.
+// The other half of the differential, and it checks the ORACLE rather than shipped source: it
+// builds the #542 wiring inline, so nothing in ./revoke.ts can turn it red. That is the point —
+// it is what proves the case above is not a tautology, by showing the fake demonstrably fails
+// the wrong implementation. The guard on the real CALLER is the source assertion below.
 Deno.test(
-  '#542 regression: the old port handed admin.signOut a profile id and got a 401',
+  'oracle check: the fake SDK rejects a profile id, exactly as GoTrue did (#542)',
   async () => {
     const db = fakeDb();
     const oldPort = (profileId: string) => db.auth.admin.signOut(profileId);
@@ -93,3 +95,38 @@ Deno.test('revoking zero sessions is a success, not a degrade', async () => {
 
   assertEquals(result?.error, null);
 });
+
+// ── the guard on the CALLER ──────────────────────────────────────────────────────────────────
+// Everything above tests ./revoke.ts. #542 was never in ./revoke.ts — it was in the WIRING, one
+// line of index.ts, a file no test executes (it calls Deno.serve at module scope, so importing
+// it starts a server). A future edit could re-point the port at db.auth.admin.signOut, or add a
+// second JWT-taking port beside it, and every test above would still pass. So the wiring is
+// asserted the way _shared/config-invariants.test.ts asserts a posture: over the source text.
+// Cheap, and it fails on exactly the edit that would bring #542 back.
+Deno.test(
+  'index.ts wires the port to sessionRevoker, and reaches no JWT-taking auth call',
+  async () => {
+    const source = await Deno.readTextFile(new URL('./index.ts', import.meta.url));
+    // Line comments stripped first, because index.ts names the banned call in prose — it says
+    // NOT to use it, right above the wiring. A guard that cannot tell code from the comment
+    // explaining the guard is a guard nobody can write documentation around. index.ts has no
+    // string literal containing `//`, so dropping from the first one per line is sound here.
+    const code = source
+      .split('\n')
+      .map((line) => line.replace(/\/\/.*$/, ''))
+      .join('\n');
+
+    assertStringIncludes(
+      code,
+      'revokeSessions: sessionRevoker(db)',
+      'the erasure auth port must be wired to ./revoke.ts',
+    );
+
+    // admin.signOut authenticates with its FIRST argument and step (1) only ever has a profile id
+    // to give it. There is no correct way to call it from this file.
+    assert(
+      !code.includes('admin.signOut'),
+      'index.ts must not reach admin.signOut — it takes a JWT, and step (1) has only a profile id (#542)',
+    );
+  },
+);

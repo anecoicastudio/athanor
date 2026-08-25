@@ -1,9 +1,10 @@
 -- 0134_gdpr_revoke_sessions.test.sql
 -- Issue #542 — erasure cascade step (1) never revoked anything. The auth port was wired to
 -- auth-js `admin.signOut(profileId, 'global')`, a call that takes «A valid, logged-in JWT» and
--- sends its first argument as the Authorization bearer; GoTrue 401'd on every profile id, the
--- loop recorded a failed step, and every live erasure landed `failed` with the member's sessions
--- still open. No admin surface revokes by id — auth-js has getUserById / updateUserById /
+-- sends its first argument as the Authorization bearer; GoTrue 401s on a profile id every time,
+-- so the loop recorded a failed step and the erasure landed `failed` with the member's sessions
+-- still open — on every request that took this path (how many did is unknown: the job is
+-- deployed but unscheduled behind the legal gate). No admin surface revokes by id — auth-js has getUserById / updateUserById /
 -- deleteUser (plus factor and passkey deletes) and GoTrue's /admin router registers no session
 -- route — so 20260825074614 puts the revoke where the sessions live:
 -- public.gdpr_revoke_sessions(uuid), running GoTrue's own global-logout statement.
@@ -28,7 +29,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(15);
 
 -- ── fixtures ────────────────────────────────────────────────────────────────────────────────
 -- S is the erasure subject; O is an unrelated member who must still be signed in afterwards.
@@ -78,6 +79,17 @@ select is(
   (select proconfig from pg_proc where oid = 'public.gdpr_revoke_sessions(uuid)'::regprocedure),
   array['search_path=""'],
   'search_path is locked to the empty string'
+);
+
+-- For a SECURITY DEFINER function the OWNER is the borrowed right, so it is the one attribute
+-- that must not drift: `postgres` is the role that holds DELETE on auth.sessions and carries
+-- BYPASSRLS past its zero-policy RLS. Owned by anyone else, this function is a 42501 or a
+-- silent zero-row delete, and the migration's whole rationale (20260825074614:32) evaporates.
+select is(
+  (select proowner::regrole::text
+     from pg_proc where oid = 'public.gdpr_revoke_sessions(uuid)'::regprocedure),
+  'postgres',
+  'owned by postgres — the role whose DELETE and BYPASSRLS the DEFINER borrows'
 );
 
 -- ── 2. the ACL — the security property ──────────────────────────────────────────────────────

@@ -16,6 +16,47 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260825074614_gdpr_revoke_sessions.sql` — one comment narrower than its statement, one header wider than the evidence
+
+Neither changes what the SQL does. Both were caught in review after the migration had reached
+staging, and rule #7 does not let a comment be edited in place. The verified behaviour lives in
+`supabase/tests/0134_gdpr_revoke_sessions.test.sql`.
+
+### The refresh-token sweep's `:50-52`
+
+The comment reads "Orphans only (session_id is NULL); the cascade above has already taken the
+rest". The statement below it carries no such predicate:
+
+```sql
+delete from auth.refresh_tokens where user_id = p_user_id::text;
+```
+
+It deletes **every** refresh token of the subject. Orphans are only what is _left_ for it by the
+time it runs, and that is a fact about the preceding cascade
+(`refresh_tokens_session_id_fkey`), not about this statement's reach. The distinction matters to
+anyone reading the function during an incident, and more to anyone who concludes a
+`session_id is null` predicate was dropped by accident and "restores" it — that would narrow the
+sweep to less than the erasure needs.
+
+Nothing is enforced less than the comment claims: it errs wide, and deleting a subject's refresh
+tokens is exactly what erasure step (1) is for. 0134 asserts both halves — the orphan goes
+(`pgtap0134-orphan`) and another member's token does not (`pgtap0134-o1`).
+
+### The header's account of #542, `:5-8`
+
+The header says «every call 401'd» and «every live erasure landed `failed` with the member's
+sessions still open». The _mechanism_ is deterministic and verified: a UUID in the `Authorization`
+bearer is a 401, every time, and #542's staged proof recorded a request landing `failed` for
+exactly that reason.
+
+What is not verified is the scale. `erasure-job` is deployed but **unscheduled** and behind the
+legal gate, staging's `gdpr_erasure_requests` is empty, and production was not queried — so how
+many live erasures actually ran, if any, is unknown. Read «every live erasure» as the
+counterfactual it is: every erasure that ran, or would have run, took this path. The header
+should not be read as a record of an observed production incident.
+
+---
+
 ## `20260822103819_paid_event_insert_gate.sql` — two comments, both about how the file points at other things
 
 Neither changes what the SQL does. Both are recorded rather than fixed because the migration had

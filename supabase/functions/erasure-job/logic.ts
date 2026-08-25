@@ -112,7 +112,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       degraded = true; // nothing irreversible ran for this request — that is a real failure
     } else {
       const paths = ((manifest ?? []) as ManifestRow[]).map((row) => row.name);
-      // Rejection swallowed like signOut: leftover blobs re-surface in the next manifest,
+      // Rejection swallowed like the session revoke: leftover blobs re-surface in the next manifest,
       // and one dead Storage call must not stall the rest of the batch. Recorded, though —
       // a video still sitting in the bucket means this run did not finish what it started.
       if (paths.length > 0) {

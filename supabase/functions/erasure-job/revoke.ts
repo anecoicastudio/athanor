@@ -5,9 +5,11 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 // Split out of index.ts so it can be tested. index.ts is a `Deno.serve` shell and nothing in the
 // suite ever executed it — which is exactly how #542 survived: the port was wired to
 // `db.auth.admin.signOut(profileId, 'global')`, a call that takes «A valid, logged-in JWT» and
-// sends its first argument as the `Authorization` bearer. GoTrue 401'd on every run, the loop
-// recorded a failed step, and every live erasure landed `failed` with the sessions still open.
-// The unit suite stayed green because the port was mocked at precisely that boundary.
+// sends its first argument as the `Authorization` bearer. GoTrue 401s on that, deterministically,
+// so the loop recorded a failed step and the erasure landed `failed` with the sessions still
+// open — on every request that took this path, however many actually did (the job is deployed
+// but unscheduled behind the legal gate). The unit suite stayed green throughout, because the
+// port was mocked at precisely that boundary.
 //
 // There is no by-id admin call to move to: auth-js exposes getUserById / updateUserById /
 // deleteUser (plus MFA-factor and passkey deletes) and GoTrue's `/admin` router registers no
