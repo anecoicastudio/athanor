@@ -3,8 +3,10 @@
 // collapsed into one 500 with one string, and the Stripe error reached no log at all. That
 // silence is what made #416 cost a device session to notice. This module is the un-swallow.
 //
-// Deliberately imports NOTHING from ./stripe.ts — that module constructs the client at import
-// time and would demand STRIPE_SECRET_KEY in the env of every test that imports a logic module.
+// Deliberately imports NOTHING from ./stripe.ts. Until #541 that module constructed the client
+// at import time and would have demanded STRIPE_SECRET_KEY in the env of every test that
+// imports a logic module; it is lazy now, so what keeps the boundary is direction — an error
+// reader must not depend on the client whose failures it reports.
 // Stripe errors are read structurally instead, which also means a thrown non-Stripe error
 // (a TypeError in our own code) still produces a usable line rather than `{}`.
 

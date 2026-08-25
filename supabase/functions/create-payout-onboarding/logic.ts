@@ -6,8 +6,9 @@ import { logStripeFailure } from '../_shared/stripe-error.ts';
 // Onboarding construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
 // env + singleton wiring) and injects everything here (repo convention: DI over mocks).
-// Deliberately does NOT import ../_shared/stripe.ts — only type-level `npm:stripe` —
-// so tests typecheck without STRIPE_SECRET_KEY in the env.
+// Deliberately does NOT import ../_shared/stripe.ts — only type-level `npm:stripe`: the
+// Stripe capabilities arrive injected. #541 made that module lazy, so the import would no
+// longer demand STRIPE_SECRET_KEY in a test env; the boundary stays because DI is the point.
 
 export type PayoutOnboardingCtx = {
   /** the caller's own client — payout_accounts is RLS select-own; is_identity_verified is invoker-callable */

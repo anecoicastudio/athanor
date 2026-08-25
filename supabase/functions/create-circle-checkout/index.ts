@@ -1,6 +1,6 @@
 import { requireUser } from '../_shared/auth.ts';
 import { requireSupportedVersion } from '../_shared/version-gate.ts';
-import { stripe } from '../_shared/stripe.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
 import { createCircleCheckout } from './logic.ts';
@@ -34,8 +34,8 @@ Deno.serve(async (req) => {
   return createCircleCheckout(
     {
       userClient: auth.userClient,
-      createCustomer: (params) => stripe.customers.create(params),
-      createCheckoutSession: (params) => stripe.checkout.sessions.create(params),
+      createCustomer: (params) => stripeClient().customers.create(params),
+      createCheckoutSession: (params) => stripeClient().checkout.sessions.create(params),
       priceIds: {
         monthly: Deno.env.get('STRIPE_PRICE_CIRCLE_MONTHLY'),
         annual: Deno.env.get('STRIPE_PRICE_CIRCLE_ANNUAL'),

@@ -8,7 +8,7 @@
 // (unit-tested, DI'd).
 import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
-import { stripe } from '../_shared/stripe.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { releaseFundPayout } from './logic.ts';
 
 Deno.serve((req) => {
@@ -19,11 +19,11 @@ Deno.serve((req) => {
   return releaseFundPayout(
     {
       admin: supabaseAdmin(),
-      createTransfer: (params, opts) => stripe.transfers.create(params, opts),
+      createTransfer: (params, opts) => stripeClient().transfers.create(params, opts),
       listTransfers: async (transferGroup) => {
         // Auto-paginate: the cap must see EVERY transfer in the group, not the first page.
         const out = [];
-        for await (const t of stripe.transfers.list({
+        for await (const t of stripeClient().transfers.list({
           transfer_group: transferGroup,
           limit: 100,
         })) {
@@ -31,7 +31,7 @@ Deno.serve((req) => {
         }
         return out;
       },
-      retrieveBalance: () => stripe.balance.retrieve(),
+      retrieveBalance: () => stripeClient().balance.retrieve(),
     },
     req,
   );

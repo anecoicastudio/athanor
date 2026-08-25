@@ -174,6 +174,33 @@ Deno.test('webhook posture means a signature gate and a dedupe, not a config val
   }
 });
 
+const IO_CALL = [/\bDeno\.env\.get\s*\(/, /\bfetch\s*\(/, /\bsupabaseAdmin\s*\(/];
+
+/**
+ * Module-scope I/O calls in a source file, as `<line>: performs I/O (<pattern>)` strings.
+ *
+ * Column 0 is the proxy for module scope — prettier indents every statement inside a function,
+ * and it gates CI, so an unindented I/O call is a top-level one. The one shape that proxy gets
+ * wrong is a top-level statement whose call sits inside a callback body, the way _shared/keys.ts
+ * holds `const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };`: that read runs when
+ * the callback is invoked, not at import. An arrow or `function` keyword AHEAD of the call on
+ * the same line is what separates the two.
+ */
+function moduleScopeIo(src: string): string[] {
+  const hits: string[] = [];
+  for (const [i, line] of src.split('\n').entries()) {
+    if (/^\s/.test(line) || line.trimStart().startsWith('//')) continue;
+    const lazy = line.search(/=>|\bfunction\b/);
+    for (const re of IO_CALL) {
+      const io = line.search(re);
+      if (io === -1) continue;
+      if (lazy > -1 && lazy < io) continue;
+      hits.push(`${i + 1}: performs I/O (${re.source})`);
+    }
+  }
+  return hits;
+}
+
 Deno.test('no internal function performs I/O before its gate', () => {
   // The other half of rule 8's gate-first requirement (issue #271, was #140): body parse is
   // covered above; this covers env reads, outbound fetches and the service-role client. The
@@ -184,7 +211,6 @@ Deno.test('no internal function performs I/O before its gate', () => {
   // preamble at all). What must NOT be reachable unauthenticated is anything observable:
   // an env read, a network call, or a client construction. Module scope counts — an
   // import-time supabaseAdmin() would run before the gate on every unauthenticated probe.
-  const IO_CALL = [/\bDeno\.env\.get\s*\(/, /\bfetch\s*\(/, /\bsupabaseAdmin\s*\(/];
   for (const [name, posture] of Object.entries(POSTURE)) {
     if (posture !== 'internal') continue;
     const dir = new URL(`../${name}/`, import.meta.url);
@@ -204,32 +230,51 @@ Deno.test('no internal function performs I/O before its gate', () => {
     // module-scope env read or fetch runs at import time — before the gate, on every
     // unauthenticated probe — and the ordering check above would stay green (erasure-job/kv.ts
     // was the first sibling to hold a Deno.env.get, #515). Inside a function body those calls
-    // are fine: they only run once the handler has already passed the gate. Column 0 is the
-    // proxy for module scope — prettier indents every statement inside a function, and it
-    // gates CI, so an unindented I/O call is a top-level one.
+    // are fine: they only run once the handler has already passed the gate.
     //
-    // SCOPE: the function's OWN directory only. _shared/ is a sibling by import too and is
-    // deliberately NOT scanned, so do not read this guard as wider than it is. It already has
-    // one standing violation: _shared/stripe.ts constructs its client at module scope from
-    // Deno.env.get('STRIPE_SECRET_KEY'), and release-fund-payout (internal) imports it, so that
-    // read does run ahead of its gate. That predates this check and the exposure is a key in
-    // module memory rather than anything an unauthenticated caller can observe — widening the
-    // scan here would just fail CI on it. Fix that first if _shared is ever brought in.
+    // SCOPE: the function's OWN directory. _shared/ is a sibling by import too, and is covered
+    // by the test below — which could not be written until #541 lifted the one violation that
+    // would have failed it.
     const siblings = [...Deno.readDirSync(dir)]
       .filter((e) => e.isFile && e.name.endsWith('.ts') && !e.name.endsWith('.test.ts'))
       .filter((e) => e.name !== 'index.ts');
     for (const e of siblings) {
-      const lines = Deno.readTextFileSync(new URL(e.name, dir)).split('\n');
-      for (const [i, line] of lines.entries()) {
-        if (/^\s/.test(line) || line.trimStart().startsWith('//')) continue;
-        for (const re of IO_CALL) {
-          assert(
-            !re.test(line),
-            `${name}/${e.name}:${i + 1} performs I/O (${re.source}) at module scope — it would run at import time, before ${name}'s service-role gate`,
-          );
-        }
-      }
+      const hits = moduleScopeIo(Deno.readTextFileSync(new URL(e.name, dir)));
+      assert(
+        hits.length === 0,
+        `${name}/${e.name}:${hits.join('; ')} at module scope — it would run at import time, before ${name}'s service-role gate`,
+      );
     }
+  }
+});
+
+Deno.test('no _shared module performs I/O at module scope', () => {
+  // _shared/ is a sibling by import to EVERY function, the internal ones included, so a
+  // module-scope env read, fetch or service-role client there runs at import time — ahead of
+  // requireServiceRole, on the isolate's cold start. The per-function scan above stops at the
+  // function's own directory; this is its other half.
+  //
+  // It could not be written before #541: _shared/stripe.ts built its Stripe client from
+  // Deno.env.get('STRIPE_SECRET_KEY') at module scope and release-fund-payout imports it, so
+  // this test would have failed on the tree that would have introduced it, and the guard
+  // carried a written exemption instead. The exemption is gone — do not add another. Lazy
+  // accessors are what this module family uses instead (keys.ts, stripe.ts).
+  // stripe-webhook/index.ts does resolve its Stripe client eagerly, on purpose and with its
+  // reason in a comment, but that is a webhook-posture index.ts and not a _shared module.
+  const dir = new URL('./', import.meta.url);
+  const files = [...Deno.readDirSync(dir)]
+    .filter((e) => e.isFile && e.name.endsWith('.ts') && !e.name.endsWith('.test.ts'))
+    .map((e) => e.name)
+    .sort();
+  // A scanner that finds nothing must first prove it looked at something (secret-exposure.test.ts
+  // learned this the expensive way, #271).
+  assert(files.length >= 8, `_shared scan found only ${files.length} non-test modules`);
+  for (const name of files) {
+    const hits = moduleScopeIo(Deno.readTextFileSync(new URL(name, dir)));
+    assert(
+      hits.length === 0,
+      `_shared/${name}:${hits.join('; ')} at module scope — it runs at import time, ahead of every function's gate`,
+    );
   }
 });
 

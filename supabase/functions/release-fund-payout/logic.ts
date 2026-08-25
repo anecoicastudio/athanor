@@ -10,8 +10,10 @@ import { error, json } from '../_shared/respond.ts';
 // this function REQUESTS the transfer from Stripe and writes no database row; the
 // stripe-webhook transfer.created arm RECORDS it in fund_payout_ledger. Everything is
 // injected (repo convention: DI over mocks); deliberately does NOT import
-// ../_shared/stripe.ts — only type-level `npm:stripe` — so tests typecheck without
-// STRIPE_SECRET_KEY in the env. Transport shell in index.ts (requireServiceRole first).
+// ../_shared/stripe.ts — only type-level `npm:stripe`. #541 made that module lazy, so the
+// import would no longer demand STRIPE_SECRET_KEY in a test env — and, the reason that
+// mattered, so that reading the secret can no longer happen ahead of this function's gate.
+// Transport shell in index.ts (requireServiceRole first).
 //
 // #231's «no verification, no money» gate now occupies the slot this file reserved for it.
 // Every release is phase-targeted: a tranche names the plan phase it funds, and a phase

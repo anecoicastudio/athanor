@@ -9,9 +9,11 @@ import {
 // Session construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
 // env + singleton wiring) and injects everything here (repo convention: DI over mocks).
-// Deliberately does NOT import ../_shared/stripe.ts — only type-level `npm:stripe` —
-// so tests typecheck without STRIPE_SECRET_KEY in the env. ../_shared/stripe-error.ts is
-// safe to import for real: it reads no env and constructs no client.
+// Deliberately does NOT import ../_shared/stripe.ts — only type-level `npm:stripe`: the
+// Stripe capabilities arrive injected. #541 made that module lazy, so the import would no
+// longer demand STRIPE_SECRET_KEY in a test env; the boundary stays because DI is the point.
+// ../_shared/stripe-error.ts is safe to import for real: it reads no env and constructs no
+// client — and since #541 neither does ../_shared/stripe.ts until something calls it.
 
 /** The Stripe call this function makes — the string that names the failure in the logs. */
 const OPERATION = 'identity.verificationSessions.create';

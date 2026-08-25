@@ -256,14 +256,14 @@ therefore all four together, or none.
 
 | Variable                      | Read at                                                 | Live value                                    |
 | ----------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:12`               | the live-mode secret key, or a restricted key |
+| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:37`               | the live-mode secret key, or a restricted key |
 | `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`          | the new live endpoint's signing secret        |
 | `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/create-circle-checkout/index.ts:40` | the live-mode price id                        |
 | `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/create-circle-checkout/index.ts:41` | the live-mode price id                        |
 
 Those four are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
-constant (`supabase/functions/_shared/stripe.ts:10`), deliberately, so that the pinned SDK and the
+constant (`supabase/functions/_shared/stripe.ts:11`), deliberately, so that the pinned SDK and the
 endpoint's API version cannot drift apart — `supabase/ENV-NOTES.md` records why. `STRIPE_FEE_BPS`
 and `STRIPE_FEE_FIXED_CENTS` are named constants in `packages/core` (`src/fund/fees.ts`), which is
 where rule 10 requires them; they describe Stripe's pricing, not Athanor's configuration, and
