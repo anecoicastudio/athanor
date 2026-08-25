@@ -146,7 +146,12 @@ Deno.test('edge functions resolve Supabase keys only through _shared/keys.ts', (
   // direct Deno.env.get on any of them does not throw — it hands JSON (or undefined) to
   // code expecting a key string and surfaces as a confusing 401 at runtime. keys.ts is the
   // one sanctioned reader. SUPABASE_URL is not key material and stays readable anywhere.
-  const DIRECT_KEY_READ = /Deno\.env\.get\(\s*['"`]SUPABASE_(?!URL['"`])[A-Z0-9_]+['"`]/;
+  //
+  // `denoEnv` is keys.ts's own port object, exported since #541 so that _shared/stripe.ts has
+  // one env adapter rather than a second copy. It reads through Deno.env just the same, so a
+  // SUPABASE_* read routed through it is the same bypass by a different name and is matched
+  // here too. keys.ts itself stays exempt below, as it always was.
+  const DIRECT_KEY_READ = /(Deno\.env|denoEnv)\.get\(\s*['"`]SUPABASE_(?!URL['"`])[A-Z0-9_]+['"`]/;
   const hits = walk(new URL('supabase/functions/', REPO))
     .filter((p) => !p.endsWith('_shared/keys.ts') && !p.endsWith('secret-exposure.test.ts'))
     .filter((p) => DIRECT_KEY_READ.test(read(p)))

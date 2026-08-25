@@ -312,8 +312,11 @@ async function releaseOne(
     // Stripe's own settled-funds gate — same refusal as our pre-check (belt and braces).
     if (code === 'balance_insufficient') return refuse('unsettled funds', 409);
     // Everything past the two expected refusals is a genuine failure, and this was the last
-    // Stripe caller in the repo that discarded it (#416's rule, missed here). It matters more
-    // since #541: an unset STRIPE_SECRET_KEY now arrives HERE rather than at boot.
+    // Stripe caller in the repo that discarded one (#416's rule, missed here). Two bare catches
+    // around Stripe calls remain on purpose and are not the same thing — stripe-webhook's
+    // signature gate and create-payout-onboarding's best-effort account cleanup each discard a
+    // designed outcome rather than a failure. It matters more since #541: an unset
+    // STRIPE_SECRET_KEY now arrives HERE rather than at boot.
     logStripeFailure('release-fund-payout: transfers.create', e);
     return refuse('transfer failed', 502);
   }
