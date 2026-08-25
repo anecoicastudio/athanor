@@ -72,8 +72,8 @@ describe('referral', () => {
   });
 });
 
-// #179: welcome.tsx fires `void clearPendingReferral()` on every path that ends in an
-// existing account and awaits `getPendingReferral()` inside `submit`, invite/[code].tsx awaits
+// #179: welcome.tsx clears the stash up front on the two paths that announce an existing
+// account and awaits `getPendingReferral()` inside `submit`, invite/[code].tsx awaits
 // `setPendingReferral` before `router.replace`, and auth-context consumes the stash on the
 // first authenticated boot (#78). A rejection from any of them either went unhandled or
 // stranded the screen (`submitting` stuck true, the deep-link catcher never handing off). The

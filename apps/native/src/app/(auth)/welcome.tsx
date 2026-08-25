@@ -60,6 +60,14 @@ export default function WelcomeScreen() {
     setError(null);
     setNotice(null);
     if (login) {
+      // A code stashed on this device (e.g. from a link opened before the user chose to
+      // sign into an existing, unrelated account) must never attach to that account.
+      // Before the call, not after it: signInWithPassword sets the session, and the
+      // boot-time consumer (auth-context) spends the stash off exactly that. Clearing
+      // afterwards races it. The cost is that a mistyped password spends the stash too —
+      // the same trade the OAuth branch makes, and the screen is the reason it is the right
+      // one: the member has said they already have an account.
+      await clearPendingReferral();
       const { error: err } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -70,9 +78,6 @@ export default function WelcomeScreen() {
         setError(t(authErrorKey(err), locale));
         return;
       }
-      // A code stashed on this device (e.g. from a link opened before the user chose to
-      // sign into an existing, unrelated account) must never attach to that account.
-      void clearPendingReferral();
       return;
     }
     // `display_name` goes into auth.users.user_metadata, and handle_new_user copies it
@@ -136,11 +141,13 @@ export default function WelcomeScreen() {
     // Busy first: everything below this line awaits, and `disabled` is what stops a second tap
     // opening a second round trip.
     setOauthBusy(provider);
-    // Same rule as the email sign-in branch above: a code stashed on this device must never
-    // attach to an existing, unrelated account. OAuth itself cannot tell a signup from a
-    // sign-in — this screen's mode can, and it is the only place that can. Cleared BEFORE the
-    // round trip, not after it: exchangeCodeForSession fires onAuthStateChange while that call
-    // is still awaiting, so auth-context has already read the stash by the time it returns.
+    // Same move as the email sign-in branch above: on the sign-in screen the member has said
+    // they already have an account, so a stashed code must not follow them into it. That is
+    // intent, not proof — OAuth cannot tell a signup from a sign-in at all, and an existing
+    // member who arrives on the DEFAULT screen from an invite link is in signup mode and keeps
+    // the stash. What bounds that one is the RPC's account-age gate, not this line.
+    // Cleared BEFORE the round trip: exchangeCodeForSession fires onAuthStateChange while that
+    // call is still awaiting, so auth-context has already read the stash by the time it returns.
     if (login) await clearPendingReferral();
     const outcome = await signInWithProvider(provider);
     setOauthBusy(null);
