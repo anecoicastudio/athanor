@@ -174,32 +174,161 @@ Deno.test('webhook posture means a signature gate and a dedupe, not a config val
   }
 });
 
-const IO_CALL = [/\bDeno\.env\.get\s*\(/, /\bfetch\s*\(/, /\bsupabaseAdmin\s*\(/];
+// The calls that make a module-scope statement observable to an unauthenticated caller.
+// `supabaseAdmin` and `stripeClient` are here for the same reason as the two platform calls:
+// each reads a secret out of the environment and hands back a privileged client, so calling
+// one at module scope is an env read wearing a different name (#541).
+const IO_CALL = [
+  /\bDeno\.env\.get\s*\(/,
+  /\bfetch\s*\(/,
+  /\bsupabaseAdmin\s*\(/,
+  /\bstripeClient\s*\(/,
+];
 
 /**
- * Module-scope I/O calls in a source file, as `<line>: performs I/O (<pattern>)` strings.
+ * The top-level statements of a source file, each as one line of text.
  *
  * Column 0 is the proxy for module scope — prettier indents every statement inside a function,
- * and it gates CI, so an unindented I/O call is a top-level one. The one shape that proxy gets
- * wrong is a top-level statement whose call sits inside a callback body, the way _shared/keys.ts
- * holds `const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };`: that read runs when
- * the callback is invoked, not at import. An arrow or `function` keyword AHEAD of the call on
- * the same line is what separates the two.
+ * and it gates CI, so an unindented statement is a top-level one. Its continuation lines are
+ * indented (or, for a block's closer or a wrapped return type, start with a closing bracket
+ * — `): Promise<`…`> {` puts a bare `>` in column 0), so they are folded back into the
+ * statement they belong to rather than skipped: `export const k =\n  Deno.env.get('K');` is one
+ * module-scope read, and reading it line by line saw only the half without the call in it.
+ * Comment lines are dropped so that prose inside a wrapped statement cannot trip the scan.
  */
+function topLevelStatements(src: string): { line: number; text: string }[] {
+  const out: { line: number; text: string }[] = [];
+  for (const [i, raw] of src.split('\n').entries()) {
+    const text = raw.trim();
+    if (text === '' || text.startsWith('//') || text.startsWith('*') || text.startsWith('/*')) {
+      continue;
+    }
+    if (/^\s/.test(raw) || /^[)\]}>`]/.test(text)) {
+      if (out.length > 0) out[out.length - 1].text += ' ' + text;
+      continue;
+    }
+    out.push({ line: i + 1, text });
+  }
+  return out;
+}
+
+/** Index just past the balanced `{…}` opening at `open`, or -1 if it never closes. */
+function matchBrace(s: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < s.length; i++) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}' && --depth === 0) return i + 1;
+  }
+  return -1;
+}
+
+/** Index just past a callback body starting at `from` — a `{…}` block, or an expression. */
+function bodyEnd(s: string, from: number): number {
+  let i = from;
+  while (i < s.length && s[i] === ' ') i++;
+  if (s[i] === '{') {
+    const end = matchBrace(s, i);
+    return end === -1 ? s.length : end;
+  }
+  // An expression body runs to the first separator at its own depth: `(n) => n, url: …`
+  // ends at the comma, which is exactly the case a "is there an arrow earlier on the line"
+  // rule got wrong — it treated the rest of the object literal as part of the callback.
+  let depth = 0;
+  for (; i < s.length; i++) {
+    const c = s[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') {
+      if (depth === 0) return i;
+      depth--;
+    } else if ((c === ',' || c === ';') && depth === 0) return i;
+  }
+  return s.length;
+}
+
+/**
+ * A statement with every function and arrow body blanked out, so what is left is only what
+ * runs when the statement itself is evaluated. `{ get: (name) => Deno.env.get(name) }` keeps
+ * its read; `{ get: (n) => n, url: Deno.env.get('K') }` loses only the callback and keeps the
+ * eager read that follows it.
+ *
+ * A statement that DECLARES something — `function`, `class`, `type`, `interface` — is dropped
+ * whole: a declaration is hoisted, never evaluated at import, so nothing in its body can run
+ * however it is written. That also sidesteps having to find where a signature ends, which a
+ * return type like `Promise<{ ok: true } | { ok: false }>` makes genuinely ambiguous for a
+ * non-parser.
+ *
+ * LIMIT: it does not parse. A `=>` inside a TYPE annotation on the same statement as an eager
+ * call would blank the wrong span, so `const h: (r: Request) => R = make(Deno.env.get('K'))`
+ * would slip through. Nothing in the tree has that shape; widen this rather than trust it if
+ * one appears.
+ */
+function stripLazyBodies(text: string): string {
+  if (/^(export\s+)?(default\s+)?(async\s+)?function\b/.test(text)) return '';
+  if (/^(export\s+)?(default\s+)?(abstract\s+)?class\b/.test(text)) return '';
+  if (/^(export\s+)?(type|interface)\b/.test(text)) return '';
+  let out = text;
+  for (let pass = 0; pass < 64; pass++) {
+    const m = /=>|\bfunction\b/.exec(out);
+    if (m === null) return out;
+    const from = m[0] === 'function' ? out.indexOf('{', m.index) : m.index + m[0].length;
+    // Always blank at least the token itself, so a body we cannot find still makes progress.
+    const stop = Math.max(from === -1 ? -1 : bodyEnd(out, from), m.index + m[0].length);
+    out = out.slice(0, m.index) + ' '.repeat(stop - m.index) + out.slice(stop);
+  }
+  return out;
+}
+
+/** Module-scope I/O in a source file, as `<line>: performs I/O (<pattern>)` strings. */
 function moduleScopeIo(src: string): string[] {
   const hits: string[] = [];
-  for (const [i, line] of src.split('\n').entries()) {
-    if (/^\s/.test(line) || line.trimStart().startsWith('//')) continue;
-    const lazy = line.search(/=>|\bfunction\b/);
+  for (const stmt of topLevelStatements(src)) {
+    const eager = stripLazyBodies(stmt.text);
     for (const re of IO_CALL) {
-      const io = line.search(re);
-      if (io === -1) continue;
-      if (lazy > -1 && lazy < io) continue;
-      hits.push(`${i + 1}: performs I/O (${re.source})`);
+      if (re.test(eager)) hits.push(`${stmt.line}: performs I/O (${re.source})`);
     }
   }
   return hits;
 }
+
+Deno.test('the module-scope scanner tells an eager read from a lazy one', () => {
+  // The scanner is the only thing standing between rule 8 and a silent regression, and it is a
+  // text heuristic — so its contract is pinned here rather than inferred from whether the tree
+  // happens to be clean today. Every EAGER fixture is a shape that has occurred or nearly
+  // occurred in this repo; every LAZY one is a shape the tree relies on.
+  const EAGER: [string, string][] = [
+    [
+      'the #541 shape',
+      "export const stripe = new Stripe(Deno.env.get('K')!, {\n  apiVersion: V,\n});",
+    ],
+    ['a prettier-wrapped statement', "export const k =\n  Deno.env.get('K');"],
+    ['an eager read after a callback', "const c = { get: (n) => n, url: Deno.env.get('K') };"],
+    ['a callback declared after the read', "const a = Deno.env.get('K');\nconst b = () => a;"],
+    ['a service-role client', 'const db = supabaseAdmin();'],
+    ['a Stripe client', 'const s = stripeClient();'],
+    ['an import-time fetch', "await fetch('https://example.test');"],
+  ];
+  const LAZY: [string, string][] = [
+    ['the keys.ts env adapter', 'const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };'],
+    ['a function declaration', "export function read() {\n  return Deno.env.get('K');\n}"],
+    ['an arrow accessor', "export const read = () => Deno.env.get('K');"],
+    ['a commented-out read', "// const x = Deno.env.get('K');"],
+    ['a type alias', 'export type Reader = (n: string) => string | undefined;'],
+    [
+      'a handler body',
+      "Deno.serve((req) => {\n  const k = Deno.env.get('K');\n  return new Response(k);\n});",
+    ],
+    [
+      'a declaration whose return type wraps to a bare > in column 0',
+      "export async function requireUser(\n  req: Request,\n): Promise<\n  { ok: true } | { ok: false }\n> {\n  return { ok: true, k: Deno.env.get('K') };\n}",
+    ],
+  ];
+  for (const [what, src] of EAGER) {
+    assert(moduleScopeIo(src).length > 0, `expected a hit for ${what}: ${JSON.stringify(src)}`);
+  }
+  for (const [what, src] of LAZY) {
+    assertEquals(moduleScopeIo(src), [], `expected no hit for ${what}: ${JSON.stringify(src)}`);
+  }
+});
 
 Deno.test('no internal function performs I/O before its gate', () => {
   // The other half of rule 8's gate-first requirement (issue #271, was #140): body parse is

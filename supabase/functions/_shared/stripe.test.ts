@@ -70,9 +70,11 @@ Deno.test('stripeClient does not cache a failure', () => {
   assert(client === stripeClient(port), 'expected the recovered client to memoize');
 });
 
-Deno.test('stripeClient reads the env on call, never before', () => {
-  // The rule-8 property, as behaviour: the port is untouched until stripeClient() is called.
-  // Importing this module has already happened by now and must not have consulted anything.
+Deno.test('stripeClient reads STRIPE_SECRET_KEY once per port, and nothing else', () => {
+  // What a test inside this module can actually hold it to: exactly one variable is read, and
+  // the memo means the second call reads nothing at all. That the IMPORT reads nothing is the
+  // property #541 is really about, and this file cannot observe it — by the time a case runs,
+  // the import has already happened. config-invariants.test.ts asserts that half on the source.
   const seen: string[] = [];
   const port: EnvPort = {
     get: (n) => {
@@ -80,9 +82,10 @@ Deno.test('stripeClient reads the env on call, never before', () => {
       return n === 'STRIPE_SECRET_KEY' ? SECRET : undefined;
     },
   };
-  assertEquals(seen, []);
   stripeClient(port);
   assertEquals(seen, ['STRIPE_SECRET_KEY']);
+  stripeClient(port);
+  assertEquals(seen, ['STRIPE_SECRET_KEY'], 'the memo must not re-read the env');
 });
 
 Deno.test('cryptoProvider is built once', () => {
