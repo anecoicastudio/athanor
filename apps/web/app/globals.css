@@ -24,6 +24,17 @@
    */
   --color-aura-soft: rgba(43, 208, 210, 0.1);
   --color-aura-line: rgba(43, 208, 210, 0.4);
+  /*
+   * The translucent violet hairline (#545). Web went without it deliberately — the note in
+   * lib/tokens-mirror.test.ts called the three translucent surfaces "the native card/chip
+   * recipe" — but `border-hair` had meanwhile shipped on the avatar rings of /@handle and
+   * /dream/[id], where an undeclared utility emits no colour and the ring silently fell
+   * through to the `border-border` base rule (:120-122) and painted the OPAQUE #241B3A.
+   * Declaring it is the reversal of that decision, not an omission being closed: a ring is
+   * a frame around someone's face, and the translucent hairline is what apps/native draws
+   * there. `raise`/`raise2` stay off web — no surface here uses them yet.
+   */
+  --color-hair: rgba(176, 158, 222, 0.1);
   --color-gradient-1: #7d236e;
   --color-gradient-2: #672088;
   --color-gradient-3: #223d86;
