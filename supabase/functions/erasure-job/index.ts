@@ -16,10 +16,13 @@
 // reported complete. 'failed' is reserved for a step that actually failed.
 // Transport shell only — the loop (and the gated cascade steps, still commented) lives in
 // ./logic.ts (unit-tested); this file wires auth, the service-role client, and the two ports.
+// The step-(1) wiring itself lives in ./revoke.ts, not inline here: nothing in the suite ever
+// executes this file, so an inline port is a contract no test can reach (#542).
 import { requireServiceRole } from '../_shared/auth.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { cloudflareKvFromEnv } from './kv.ts';
 import { CANDIDACY_VIDEOS_BUCKET, processErasureRequests } from './logic.ts';
+import { sessionRevoker } from './revoke.ts';
 
 Deno.serve((req) => {
   // Caller gate: service-role only (see _shared/auth.ts).
@@ -30,7 +33,9 @@ Deno.serve((req) => {
 
   return processErasureRequests({
     db,
-    auth: { signOut: (profileId, scope) => db.auth.admin.signOut(profileId, scope) },
+    // By id, through ./revoke.ts — NOT db.auth.admin.signOut, which takes a JWT and 401'd on
+    // every profile id it was handed until #542 (./revoke.ts has the whole account).
+    auth: { revokeSessions: sessionRevoker(db) },
     storage: { remove: (paths) => db.storage.from(CANDIDACY_VIDEOS_BUCKET).remove(paths) },
     // Reads CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID — behind the gate, like
     // every other env read here, and null when the trio is absent. The loop records that null
