@@ -1187,3 +1187,153 @@ describe('the events tab has no posts source (#153)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 21 — no Pressable is mounted inside another Pressable (#518, #292)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `Pressable` defaults `accessible={true}` (`react-native@0.81.5`, `Pressable.js:245`), and on
+ * iOS an accessible view is ATOMIC: VoiceOver focuses it as one unit and never descends into
+ * it. So a Pressable inside a Pressable is a control a screen-reader user cannot reach.
+ *
+ * #518 was exactly that, and it was total rather than cosmetic: `StoryRing`'s + badge sat
+ * inside the ring's own Pressable, and for a member with a live story the ring tap opens the
+ * viewer, so the badge was the ONLY way into the composer. A VoiceOver user could not add a
+ * step at all.
+ *
+ * ## Why this keys on `Pressable` and not on `accessibilityRole`
+ *
+ * The obvious guard — "no `accessibilityRole="button"` inside another" — under-detects, and
+ * would have passed over a real instance. `PermissionPrimer.tsx` nests a LABELLED «Non ora»
+ * button two Pressables deep inside a scrim and a sheet that declare no role; both are still
+ * `accessible`, so iOS still swallows the descendant. The mechanism is `accessible`, which
+ * `Pressable` sets for you, and #292's note (`components/media/MomentTile.tsx:58`) says so in
+ * as many words: "anything `accessible` nested inside it". Keying on the role would have made
+ * this guard agree with the bug.
+ *
+ * Nothing else catches this: `eslint-config-expo@10.0.0` ships no accessibility rules, no a11y
+ * plugin is declared anywhere, and gate G2 (`docs/RELEASE-RUNBOOK.md`) is a manual smoke that
+ * missed #518 outright.
+ */
+const NESTED_PRESSABLE_OK: Record<string, string> = {
+  'apps/native/src/components/media/PermissionPrimer.tsx':
+    'the modal idiom: an outer dismiss scrim wrapping a sheet whose own press handler only ' +
+    'stops propagation. The scrim is decoration, not a control — it declares no role and no ' +
+    'label, and every real action inside the sheet is reachable because iOS does not swallow ' +
+    'what it never focused. Flattening it would mean re-implementing dismiss-on-backdrop.',
+  'apps/native/src/components/media/MediaSheet.tsx': 'the same scrim/sheet pair.',
+};
+
+/**
+ * Component tags with an ancestor stack. A tag-depth walk rather than a regex: nesting is the
+ * whole question here, and a regex cannot see an ancestor. Self-closing tags never push.
+ * Attribute text is skipped quote- and brace-aware, so a render prop's nested JSX does not
+ * close the tag that carries it.
+ */
+function nestedTags(src: string, tag: string): { line: number; outerLine: number }[] {
+  const hits: { line: number; outerLine: number }[] = [];
+  const stack: { name: string; line: number }[] = [];
+  const lineAt = (i: number) => src.slice(0, i).split('\n').length;
+  let i = 0;
+  while (i < src.length) {
+    if (src[i] !== '<') {
+      i += 1;
+      continue;
+    }
+    const close = /^<\/([A-Za-z_$][\w$.]*)\s*>/.exec(src.slice(i));
+    if (close) {
+      const name = (close[1] as string).split('.')[0] as string;
+      // Pop to the nearest matching open. A mismatch means the walk lost sync on something
+      // exotic; dropping the frame is the conservative move — it can only lose a hit.
+      for (let k = stack.length - 1; k >= 0; k -= 1) {
+        if (stack[k]?.name === name) {
+          stack.length = k;
+          break;
+        }
+      }
+      i += close[0].length;
+      continue;
+    }
+    const open = /^<([A-Za-z_$][\w$.]*)(?=[\s/>])/.exec(src.slice(i));
+    if (!open) {
+      i += 1;
+      continue;
+    }
+    const name = (open[1] as string).split('.')[0] as string;
+    const openLine = lineAt(i);
+    let j = i + open[0].length;
+    let depth = 0;
+    let quote = '';
+    let selfClosing = false;
+    while (j < src.length) {
+      const c = src[j] as string;
+      if (quote) {
+        if (c === quote) quote = '';
+      } else if (c === '"' || c === "'" || c === '`') quote = c;
+      else if (c === '{') depth += 1;
+      else if (c === '}') depth -= 1;
+      else if (c === '>' && depth === 0) {
+        selfClosing = src[j - 1] === '/';
+        break;
+      }
+      j += 1;
+    }
+    if (name === tag) {
+      const outer = [...stack].reverse().find((f) => f.name === tag);
+      if (outer) hits.push({ line: openLine, outerLine: outer.line });
+    }
+    if (!selfClosing) stack.push({ name, line: openLine });
+    i = j + 1;
+  }
+  return hits;
+}
+
+describe('no Pressable is mounted inside another Pressable (#518)', () => {
+  const offenders = new Map<string, string[]>();
+  for (const p of FILES.filter((f) => !isTest(f) && f.endsWith('.tsx'))) {
+    const hits = nestedTags(stripComments(read(p)), 'Pressable');
+    if (hits.length > 0) {
+      offenders.set(
+        rel(p),
+        hits.map((h) => `:${h.line} inside the Pressable at :${h.outerLine}`),
+      );
+    }
+  }
+
+  it('the scanner finds the Pressables it is walking', () => {
+    const seen = FILES.filter((f) => !isTest(f) && f.endsWith('.tsx')).filter((f) =>
+      /<Pressable[\s/>]/.test(stripComments(read(f))),
+    );
+    expect(
+      seen.length,
+      'no <Pressable> found at all — has the tw wrapper been renamed?',
+    ).toBeGreaterThan(10);
+  });
+
+  it('no unregistered nesting', () => {
+    const loose = [...offenders]
+      .filter(([file]) => !(file in NESTED_PRESSABLE_OK))
+      .flatMap(([file, where]) => where.map((w) => `${file}${w}`));
+    expect(
+      loose,
+      `a Pressable is nested inside another:\n  ${loose.join('\n  ')}\n` +
+        `On iOS the inner one is unreachable to VoiceOver — Pressable is accessible by ` +
+        `default, and an accessible view is atomic. Make the two SIBLINGS under a plain View ` +
+        `(the components/feed/FeedPost.tsx shape), or register the file in ` +
+        `NESTED_PRESSABLE_OK with the argument for why the inner control is not the only way ` +
+        `to do something.`,
+    ).toEqual([]);
+  });
+
+  it('the registered exemptions are exactly the ones that still nest', () => {
+    const register = Object.entries(NESTED_PRESSABLE_OK)
+      .map(([file, why]) => `  ${file} — ${why}`)
+      .join('\n');
+    expect(
+      [...offenders.keys()].filter((f) => f in NESTED_PRESSABLE_OK).sort(),
+      `NESTED_PRESSABLE_OK does not match the tree. A file that stopped nesting has to be ` +
+        `taken out, or the exemption outlives the thing it excused.\nRegistered:\n${register}`,
+    ).toEqual(Object.keys(NESTED_PRESSABLE_OK).sort());
+  });
+});

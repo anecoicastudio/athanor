@@ -5,6 +5,9 @@ import { Avatar } from '@/components/Avatar';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 
+/** Avatar diameter. The ring box around it is this plus `border-2` and `p-0.5` — 68. */
+const AVATAR = 60;
+
 /**
  * One story-rail entry (frontend §3.1/§4): a ringed Avatar + a name label. An unseen ring is
  * moment-grade (rule #4) → cyan; a seen ring dims. `isYou` shows the «Il tuo passo» label.
@@ -13,6 +16,21 @@ import { HIT_SLOP } from '@/lib/a11y';
  * add-story pattern) — the only way into the composer while a live story makes the ring tap
  * open the viewer. Flat `bg-raise`/`text-faint` like `MomentAddTile`, NOT cyan: the cyan ring
  * already means «has a live story», and composing isn't itself a moment (rule #4).
+ *
+ * ## The badge is a SIBLING of the ring, never a descendant (#518)
+ *
+ * It used to be mounted inside the ring's own Pressable. `Pressable` defaults
+ * `accessible={true}`, and on iOS an accessible view is ATOMIC — VoiceOver focuses it as one
+ * unit and does not descend — so the badge was unreachable. For a member who already has a
+ * live story that is total: the ring tap opens the viewer, the badge is the only way into the
+ * composer, and a VoiceOver user could not add a step at all.
+ *
+ * So the two press targets are siblings under a plain `View`, the `FeedPost.tsx` shape. The
+ * badge is positioned against that wrapper instead of against the ring, which is why the
+ * insets are spelled out rather than `bottom-0 right-0`: the ring is centred in a wider entry
+ * (76 vs 68), and Yoga insets an absolute child by its parent's border and padding, which the
+ * wrapper does not have and the ring did. Both numbers below reproduce where the badge painted
+ * before — measured against the previous build, not assumed.
  */
 export function StoryRing({
   handle,
@@ -43,30 +61,42 @@ export function StoryRing({
     ? t('story.rail.you', locale)
     : (label ?? memberLabel(displayName, handle) ?? '—');
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={name}
-      onPress={onPress}
-      hitSlop={HIT_SLOP}
-      className="w-[76px] items-center gap-1.5"
-    >
-      <View className={`rounded-full border-2 p-0.5 ${ring}`}>
-        <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={60} />
-        {onAddPress ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('story.add.title', locale)}
-            hitSlop={HIT_SLOP}
-            onPress={onAddPress}
-            className="absolute bottom-0 right-0 h-5 w-5 items-center justify-center rounded-full border border-hair bg-raise"
-          >
-            <Text className="text-[13px] leading-[15px] text-faint">+</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      <Text numberOfLines={1} className={`text-[11px] ${seen ? 'text-faint' : 'text-foreground'}`}>
-        {name}
-      </Text>
-    </Pressable>
+    <View className="w-[76px] items-center gap-1.5">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={name}
+        onPress={onPress}
+        hitSlop={HIT_SLOP}
+        className="items-center gap-1.5"
+      >
+        <View className={`rounded-full border-2 p-0.5 ${ring}`}>
+          <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={AVATAR} />
+        </View>
+        <Text
+          numberOfLines={1}
+          className={`text-[11px] ${seen ? 'text-faint' : 'text-foreground'}`}
+        >
+          {name}
+        </Text>
+      </Pressable>
+      {onAddPress ? (
+        // MEASURED, not derived. `bottom-0 right-0` against the ring put the badge 2px inside
+        // the ring box, not 4: Yoga insets an absolute child by the parent's BORDER but not by
+        // its padding, so `border-2` counted and `p-0.5` did not. Against this wrapper that is
+        // 4 (the ring centred in the wider entry) + 2 = 6 from the right, and
+        // 68 - 2 - 20 = 46 from the top. Nothing pins these: the vitest harness is
+        // `environment: 'node'` and cannot render a .tsx, so the check is a re-measure in the
+        // web build (x=70, y=298 at a 390pt viewport) rather than an assertion.
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('story.add.title', locale)}
+          hitSlop={HIT_SLOP}
+          onPress={onAddPress}
+          className="absolute right-[6px] top-[46px] h-5 w-5 items-center justify-center rounded-full border border-hair bg-raise"
+        >
+          <Text className="text-[13px] leading-[15px] text-faint">+</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
