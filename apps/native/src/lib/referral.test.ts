@@ -5,6 +5,17 @@ const mem = vi.hoisted(() => new Map<string, string>());
 // that never came up. The failing-mode tests below are what pin the never-reject contract.
 const storage = vi.hoisted(() => ({ failing: false }));
 
+// The RPC behind consumePendingReferral. `failing` is the transport failure — the one case
+// that must NOT drop the stash, because the server never ruled.
+const rpc = vi.hoisted(() => ({ codes: [] as string[], failing: false }));
+
+vi.mock('@athanor/api', () => ({
+  redeemPendingReferral: async (_client: unknown, code: string) => {
+    rpc.codes.push(code);
+    if (rpc.failing) throw Object.assign(new Error('network down'), { code: '57P01' });
+  },
+}));
+
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
     getItem: async (k: string) => {
@@ -22,12 +33,19 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import { clearPendingReferral, getPendingReferral, setPendingReferral } from './referral';
+import {
+  clearPendingReferral,
+  consumePendingReferral,
+  getPendingReferral,
+  setPendingReferral,
+} from './referral';
 
 const KEY = 'athanor.pendingReferral';
 
 beforeEach(() => {
   mem.clear();
+  rpc.codes.length = 0;
+  rpc.failing = false;
 });
 
 describe('referral', () => {
@@ -54,11 +72,13 @@ describe('referral', () => {
   });
 });
 
-// #179: welcome.tsx fires `void clearPendingReferral()` on both auth paths and awaits
-// `getPendingReferral()` inside `submit`, and invite/[code].tsx awaits `setPendingReferral`
-// before `router.replace`. A rejection from any of them either went unhandled or stranded the
-// screen (`submitting` stuck true, the deep-link catcher never handing off). The stash is a
-// nicety; storage failing must degrade to "no referral", dev-visible, never to a broken flow.
+// #179: welcome.tsx clears the stash up front on the two paths that announce an existing
+// account and awaits `getPendingReferral()` inside `submit`, invite/[code].tsx awaits
+// `setPendingReferral` before `router.replace`, and auth-context consumes the stash on the
+// first authenticated boot (#78). A rejection from any of them either went unhandled or
+// stranded the screen (`submitting` stuck true, the deep-link catcher never handing off). The
+// stash is a nicety; storage failing must degrade to "no referral", dev-visible, never to a
+// broken flow.
 describe('referral storage failure never rejects', () => {
   let warn: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
@@ -88,5 +108,64 @@ describe('referral storage failure never rejects', () => {
   it('junk still short-circuits before touching storage', async () => {
     await expect(setPendingReferral('ab1')).resolves.toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+// #78 — the OAuth signup's only redemption path. An OAuth user carries no user_metadata, so
+// the auth.users triggers redeem nothing for them; the stash is spent here instead, once the
+// session exists. Consuming it here is also what keeps a stale code from mis-attributing a
+// later signup on the same device.
+describe('consumePendingReferral', () => {
+  const client = {} as never;
+
+  it('with no stash it never reaches the network', async () => {
+    await consumePendingReferral(client);
+    expect(rpc.codes).toEqual([]);
+  });
+
+  it('redeems the stashed code and then drops it', async () => {
+    await setPendingReferral('FRIEND22');
+    await consumePendingReferral(client);
+    expect(rpc.codes).toEqual(['FRIEND22']);
+    expect(await getPendingReferral()).toBeNull();
+  });
+
+  it('drops the stash even when the server redeemed nothing — a refusal is still a verdict', async () => {
+    // The RPC no-ops on every refusal (unconfirmed, already attributed, account too old) and
+    // resolves all the same. Keeping the code after that is what mis-attributes the next
+    // signup on this device, so "resolved" is the clear signal, not "redeemed".
+    await setPendingReferral('FRIEND22');
+    await consumePendingReferral(client);
+    await setPendingReferral('OTHER22');
+    await consumePendingReferral(client);
+    expect(rpc.codes).toEqual(['FRIEND22', 'OTHER22']);
+    expect(await getPendingReferral()).toBeNull();
+  });
+
+  it('a rejected call keeps the stash, so the next boot can try again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    rpc.failing = true;
+    await setPendingReferral('FRIEND22');
+    await expect(consumePendingReferral(client)).resolves.toBeUndefined();
+    expect(await getPendingReferral()).toBe('FRIEND22');
+    warn.mockRestore();
+  });
+
+  it('never rejects when the RPC does — a boot must not fail over a referral', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    rpc.failing = true;
+    await setPendingReferral('FRIEND22');
+    await expect(consumePendingReferral(client)).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith('[referral] redeem', expect.any(Error));
+    warn.mockRestore();
+  });
+
+  it('storage failing reads as no referral, never as a redemption', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    storage.failing = true;
+    await expect(consumePendingReferral(client)).resolves.toBeUndefined();
+    expect(rpc.codes).toEqual([]);
+    storage.failing = false;
+    warn.mockRestore();
   });
 });

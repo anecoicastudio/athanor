@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import { getMyReferralCode, inviteKeys } from './invites';
+import { getMyReferralCode, inviteKeys, redeemPendingReferral } from './invites';
 
 describe('inviteKeys', () => {
   it('namespaces under invites', () => {
@@ -24,5 +24,27 @@ describe('getMyReferralCode', () => {
   it('rethrows rather than handing back an empty invite link', async () => {
     const fake = makeFakeClient({ 'rpc.ensure_referral_code': [{ error: DB_DOWN }] });
     await expect(getMyReferralCode(asClient(fake))).rejects.toMatchObject({ code: '57P01' });
+  });
+});
+
+describe('redeemPendingReferral', () => {
+  it('passes the code to the RPC under the parameter the function declares', async () => {
+    const fake = makeFakeClient();
+    await redeemPendingReferral(asClient(fake), 'FRIEND22');
+    expect(fake.calls).toEqual([
+      expect.objectContaining({
+        table: 'rpc',
+        op: 'rpc',
+        columns: 'redeem_pending_referral',
+        values: { p_code: 'FRIEND22' },
+      }),
+    ]);
+  });
+
+  it('rethrows, so the caller keeps the stash for the next boot instead of dropping it', async () => {
+    const fake = makeFakeClient({ 'rpc.redeem_pending_referral': [{ error: DB_DOWN }] });
+    await expect(redeemPendingReferral(asClient(fake), 'FRIEND22')).rejects.toMatchObject({
+      code: '57P01',
+    });
   });
 });
