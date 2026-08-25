@@ -458,11 +458,11 @@ begin
      and case m.kind when 'ballot' then e.voting_ends_at else e.target_at end
          not between now() and now() + interval '7 days';
 
-  -- §12 The Momenti deck: every persona holds 3 pending cards, scored exactly the way
-  -- the matcher scores (visibility-masked tag overlap, affinity >= 2, blocks honored),
-  -- so the card's read-time affinity terms render real chips. DELETE+INSERT because
-  -- the status guard forbids leaving 'passed'/'accepted', and the pair-unique makes
-  -- upsert a no-op. Diff-aware per persona: a persona whose deck already matches gets
+  -- §12 The Momenti deck: every persona holds 3 pending cards, scored by
+  -- athanor.momento_terms() at the engine's own threshold, so the fake world proposes the
+  -- pairs production would propose and the card's read-time chips agree with the ranking.
+  -- DELETE+INSERT because the status guard forbids leaving 'passed'/'accepted', and the
+  -- pair-unique makes upsert a no-op. Diff-aware per persona: a persona whose deck matches gets
   -- ZERO writes, so an untouched world fires no «Hai un Momento» at all — the worst
   -- case is one batch per persona actually being swiped. Deterministic ids keep
   -- notification deep-links valid across re-inserts.
@@ -473,10 +473,30 @@ begin
   drop table if exists pg_temp._staging_deck;
   -- The persona set is re-derived inline rather than read from v_personas: CREATE
   -- TABLE AS is a utility statement, and plpgsql does not substitute variables there.
+  -- Scored through athanor.momento_terms(), the one engine (#384, #527). This fixture used
+  -- to hand-roll a three-term approximation - tag overlap, seeking-to-tags both ways - which
+  -- was what the matcher did when it was written. The engine has since become five weighted
+  -- families plus mutual activity and profession complementarity, so the fixture selected a
+  -- DIFFERENT set of pairs from production's and ranked them differently: staging could pass
+  -- a deck walk production would fail, and vice versa. §12b below already scored this way,
+  -- so the two fixtures in this one function disagreed with each other as well.
+  --
+  -- The threshold comes from athanor.momento_affinity_constants() rather than the literal 2
+  -- the fixture pinned. The two numbers happen to coincide today, but they were never the
+  -- same quantity: the old 2 counted terms in three families, the constant is a weighted sum
+  -- over five, and a retune moves one and not the other. Reachable here because this function
+  -- is SECURITY DEFINER - both helpers are revoked from public, anon, authenticated AND
+  -- service_role, which is exactly why §12b's call works and a client's would not.
+  --
+  -- Ordering mirrors the matcher's `affinity desc, candidate_id`, not the old
+  -- `candidate_handle`: rank is what becomes daily_rank, and a tie broken differently from
+  -- production is the same divergence in miniature. The stored affinity stays > 0 by
+  -- construction (the threshold is), which the card function relies on - it reads 0 as
+  -- reason_kind 'new_dream'.
   create temp table _staging_deck on commit drop as
   select * from (
     with personas as (
-      select pr.id, pr.handle, pr.identity_tags, pr.seeking, pr.visibility
+      select pr.id, pr.handle, pr.visibility
         from public.profiles pr
         join auth.users u on u.id = pr.id
        where u.email like '%@staging.athanor.local'
@@ -484,24 +504,19 @@ begin
     pairs as (
       select r.id as user_id, r.handle as user_handle,
              c.id as candidate_id, c.handle as candidate_handle,
-             (coalesce(array_length(athanor.tag_intersect(r.identity_tags, c_tags.v), 1), 0)
-              + coalesce(array_length(athanor.tag_intersect(athanor.seeking_to_identity(r.seeking), c_tags.v), 1), 0)
-              + coalesce(array_length(athanor.tag_intersect(r.identity_tags, athanor.seeking_to_identity(c_seek.v)), 1), 0))::numeric as affinity
+             s.affinity
         from personas r
         join personas c on c.id <> r.id
-        cross join lateral (select case when coalesce(c.visibility ->> 'identity_tags', 'members') <> 'private'
-                                        then c.identity_tags else '{}'::text[] end as v) c_tags
-        cross join lateral (select case when coalesce(c.visibility ->> 'seeking', 'members') <> 'private'
-                                        then c.seeking else '{}'::text[] end as v) c_seek
+        cross join lateral athanor.momento_terms(r.id, c.id) s
        where exists (select 1 from public.dreams d
                       where d.profile_id = c.id and d.status = 'active' and d.deleted_at is null)
          and coalesce(c.visibility ->> 'dream', 'members') <> 'private'
          and athanor.pair_not_blocked(r.id, c.id)
     )
     select user_id, user_handle, candidate_id, candidate_handle, affinity,
-           row_number() over (partition by user_id order by affinity desc, candidate_handle)::smallint as rnk
+           row_number() over (partition by user_id order by affinity desc, candidate_id)::smallint as rnk
       from pairs
-     where affinity >= 2
+     where affinity >= (athanor.momento_affinity_constants() ->> 'threshold')::numeric
   ) t
   where t.rnk <= 3;
 
