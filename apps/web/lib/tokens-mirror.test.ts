@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gradient, semantic } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
@@ -127,5 +127,179 @@ describe('globals.css mirrors the config tokens', () => {
         norm(root[name] as string),
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// A token in NOT_ON_WEB must not be spelled as a utility anywhere in apps/web (#550)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * The list above is a claim about the SOURCE, and until now nothing read the source.
+ *
+ * #545 is the whole argument: `hair` sat in `NOT_ON_WEB` while `border-hair` had already
+ * shipped on the /@handle and /dream/[id] avatar rings. Tailwind emits nothing for an
+ * undeclared utility, so the rings fell through to the `border-border` base rule and painted
+ * an opaque fill where a translucent hairline belonged — and every test stayed green, because
+ * the exhaustiveness check two blocks up only requires `ROLE_MAP ∪ NOT_ON_WEB` to cover the TS
+ * keys. It never asked whether the "web draws nothing with it" half was true. A human noticed.
+ *
+ * This is that half, made mechanical: for each token web declines to declare, no `-<token>`
+ * utility may appear in the tree. It would have caught #545 the day the ring shipped.
+ *
+ * ## Two spellings per token, because the mapping is not mechanical
+ *
+ * `apps/native/src/lib/tokens-mirror.test.ts`'s own `NAME_MAP` docblock says the token→CSS
+ * name mapping is "NOT mechanical camelCase→kebab" and names two tokens that diverge outright
+ * (`foregroundMuted` → `muted-foreground`, `border` → `line`). Neither divergence is in
+ * `NOT_ON_WEB`, and for the five that are, kebab-casing reproduces native's map exactly
+ * (`ink2`→`ink-2`, `raise2`→`raise-2`, `onError`→`on-error`). But web has never mapped any of
+ * them, so there is no fixed answer for what one WOULD be called here if it shipped — so both
+ * the key as written and its kebab form are hunted, and a hit under either is a hit.
+ *
+ * That table cannot simply be imported: it lives in `apps/native`, and the dependency rule is
+ * `apps → packages` only. The kebab function below is the honest substitute — narrower than
+ * the real mapping, and stated as such rather than assumed away.
+ *
+ * ## Why the scan reads string literals and not the file
+ *
+ * A utility only ever reaches the DOM through a string — `className="bg-faint"`, a template
+ * literal, a `cn()`/`cva()` argument. Scanning literals rather than raw text therefore drops
+ * the two false positives a raw grep has for free: prose in a comment TALKING about a utility
+ * (the failure #545's own fix hit in this file's sibling assertion, which had to start
+ * stripping comments for exactly this reason), and a hyphenated identifier that merely ends in
+ * a token's name. The residue is a class name quoted inside a comment, which still reads as a
+ * hit — loud, and it argues for itself in review, which is the safe direction for a guard.
+ *
+ * `globals.css` is scanned too, comments stripped: in Tailwind 4 a `--color-*` declaration in
+ * `@theme` is what MAKES the utility, so `--color-faint: …` and `@apply bg-faint` are the same
+ * event as far as this list is concerned.
+ */
+const WEB = fileURLToPath(new URL('..', import.meta.url).href);
+
+/** Build outputs only — everything else under apps/web is source and gets scanned. A new
+ *  build directory therefore reads as source and can only over-report, never hide a hit. */
+const NOT_SOURCE = new Set([
+  'node_modules',
+  '.next',
+  '.open-next',
+  '.turbo',
+  '.wrangler',
+  '.vercel',
+  'coverage',
+  'test-results',
+]);
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (NOT_SOURCE.has(name)) continue;
+    const p = `${dir}${name}`;
+    if (statSync(p).isDirectory()) walk(`${p}/`, out);
+    else out.push(p);
+  }
+  return out;
+}
+
+/**
+ * This file names every token it forbids, so scanning itself would make the assertion
+ * self-fulfilling the moment a docblock here quotes one of the utilities — the same trap
+ * `apps/native/src/lib/source-audit.test.ts` excludes itself by path to avoid.
+ */
+const SELF = fileURLToPath(new URL(import.meta.url).href);
+const EVERY_FILE = walk(WEB);
+const SOURCES = EVERY_FILE.filter((p) => /\.tsx?$/.test(p) && p !== SELF);
+/** Every stylesheet, `globals.css` and the CSS modules alike — `@apply` works in all of them. */
+const STYLESHEETS = EVERY_FILE.filter((p) => p.endsWith('.css'));
+
+/** Repo-relative path, for a failure message someone can act on. */
+const webRel = (p: string) => `apps/web/${p.slice(WEB.length)}`;
+
+/** Every `'…'`, `"…"` and `` `…` `` body in a TS/TSX source, with its 1-based line. */
+function stringLiterals(src: string): { text: string; line: number }[] {
+  const re = /'[^'\\\n]*(?:\\.[^'\\\n]*)*'|"[^"\\\n]*(?:\\.[^"\\\n]*)*"|`[^`\\]*(?:\\.[^`\\]*)*`/g;
+  return [...src.matchAll(re)].map((m) => ({
+    text: m[0] as string,
+    line: src.slice(0, m.index).split('\n').length,
+  }));
+}
+
+/**
+ * Every string literal in every apps/web source, with where it came from. Built ONCE at module
+ * load: the scan runs per spelling, and re-reading the tree inside each case walked it ten times
+ * over to answer ten questions about the same bytes.
+ */
+const LITERALS = SOURCES.flatMap((p) =>
+  stringLiterals(readFileSync(p, 'utf8')).map((s) => ({
+    at: `${webRel(p)}:${s.line}`,
+    text: s.text,
+  })),
+);
+
+/**
+ * Escape a token name for embedding in a RegExp source. One helper, used by BOTH patterns
+ * below: it was spelled twice, and the second copy was subtly wrong in a way nothing could
+ * catch — no `keyof typeof semantic` contains a regex metacharacter, so the broken class
+ * silently escaped nothing and would only have mattered the day a token name did.
+ */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** `ink2` → `ink-2`, `onError` → `on-error`. See the docblock: narrower than native's map. */
+const kebab = (k: string) => k.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase();
+
+/**
+ * A Tailwind utility ending in `-<name>`: some prefix (`bg`, `text`, `border-t`, and whatever
+ * else Tailwind grows), a hyphen, then the token. Deliberately NOT an allow-list of prefixes —
+ * an allow-list that misses one is a silent hole, which is the defect this whole section
+ * exists to close. A trailing `/20` opacity modifier or a `hover:` variant still matches,
+ * because neither `/` nor `:` is a word character.
+ */
+const utility = (name: string) =>
+  new RegExp(`(?<![\\w-])[A-Za-z][\\w-]*-${escapeRe(name)}(?![\\w-])`);
+
+describe('a token web declines to declare is never spelled as a utility (#550)', () => {
+  const spellings = NOT_ON_WEB.flatMap((k) => [...new Set([k as string, kebab(k as string)])]);
+
+  it('scans the tree it claims to scan', () => {
+    // Without this, a walker that silently returned [] would make every assertion below pass.
+    expect(SOURCES.length, 'no apps/web sources found — has the layout moved?').toBeGreaterThan(50);
+    expect(spellings.length, 'NOT_ON_WEB is empty — nothing is being hunted').toBeGreaterThan(0);
+  });
+
+  it.each(spellings)('no `-%s` utility in apps/web source', (name) => {
+    const re = utility(name);
+    const hits = LITERALS.filter((l) => re.test(l.text)).map((l) => `${l.at}  ${l.text.trim()}`);
+    expect(
+      hits,
+      `\`${name}\` is in NOT_ON_WEB — globals.css declares no such token, so this utility ` +
+        `emits nothing and the element falls through to whatever base rule covers it (#545 ` +
+        `was exactly that, silently, for months):\n  ${hits.join('\n  ')}\n` +
+        `Either drop the utility, or declare the token in globals.css, add it to ROLE_MAP and ` +
+        `take it out of NOT_ON_WEB — the decision, either way, gets written down.`,
+    ).toEqual([]);
+  });
+
+  it.each(spellings)('no `-%s` utility or @theme declaration in any stylesheet', (name) => {
+    // `@apply bg-faint` and `--color-faint: …` are the same event: in Tailwind 4 the `@theme`
+    // declaration is what CREATES the utility. Comments stripped, same idiom as the
+    // "declares no colour that is not a token" assertion above and for the same reason.
+    //
+    // EVERY stylesheet, not just globals.css: `@apply` works in a CSS module too, and scoping
+    // this to the one file left `components/*.module.css` as a hole the section did not admit to.
+    //
+    // Two patterns, not one. `utility()` cannot see a declaration: its `(?<![\\w-])` guard is
+    // what keeps `border-` off `--color-border`, and that same guard makes every `--color-*`
+    // name unmatchable. Asserting only the utility form here would have left the half this
+    // section's docblock claims to cover — the declaration — silently unguarded.
+    const declared = new RegExp(`--color-${escapeRe(name)}\\s*:`);
+    const hits = STYLESHEETS.filter((p) => {
+      const css = readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      return utility(name).test(css) || declared.test(css);
+    }).map(webRel);
+    expect(
+      hits,
+      `\`${name}\` is listed in NOT_ON_WEB but a stylesheet spells it — the list says web ` +
+        `draws nothing with this token, and the stylesheet disagrees:\n  ${hits.join('\n  ')}\n` +
+        `Declaring the token is a decision: make it, and move the key into ROLE_MAP.`,
+    ).toEqual([]);
   });
 });

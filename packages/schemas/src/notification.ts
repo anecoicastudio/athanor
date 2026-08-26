@@ -51,10 +51,13 @@ export const entityRefSchema = z.object({ kind: z.string(), id: z.string() }).nu
 export type EntityRef = z.infer<typeof entityRefSchema>;
 
 // The notif.tpl.* keys the fan-out writes. Mirrored in @athanor/i18n catalogs (that half
-// is asserted by an i18n test) and in supabase/functions/_shared/notif-templates.ts (manual
-// sync — Deno, not importable from Vitest; its own notif-templates.test.ts exercises the
-// mirror's content, so a template added here must also join that Deno case list).
-// `notif.tpl.generic` is client-only: the degrade target, never written server-side.
+// is asserted by an i18n test) and in supabase/functions/_shared/notif-templates.ts — Deno,
+// not importable from Vitest, so `notification-templates.mirror.test.ts` asserts the coverage
+// half by reading that file as text (#553). Its own notif-templates.test.ts still exercises
+// each template's CONTENT, but from a hand-written case list that cannot see this array — so
+// a template added here must join the Deno TEMPLATES literal and that case list both.
+// `notif.tpl.generic` is client-only: the degrade target, never written server-side, and the
+// one key the mirror is allowed to omit.
 export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.moment',
   'notif.tpl.message',
