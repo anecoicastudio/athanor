@@ -100,8 +100,32 @@ export function AudioRecorderSheet({
     }
   }, [state.isRecording, state.durationMillis]);
 
+  /**
+   * Whether the recorder has actually been observed running.
+   *
+   * `recorder.record()` returns synchronously but the POLLED status lags it by up to
+   * `POLL_MS`, so for a beat after `start()` the state still reads `isRecording: false` while
+   * `recording` is already true. The completion effect below treats «was recording, now is
+   * not» as the take ending — without this ref that condition is true immediately on start and
+   * would end every recording before it began.
+   */
+  const sawRecording = useRef(false);
+  useEffect(() => {
+    if (state.isRecording) sawRecording.current = true;
+  }, [state.isRecording]);
+
   /** Re-entrancy lock: `busy` is async state and a double-tap races two `stop()` calls. */
   const lock = useRef(false);
+
+  /**
+   * The member left while a stop was already in flight.
+   *
+   * `cancel()` cannot wait for `finish()` and cannot be disabled while busy — source-audit §22
+   * requires the exit to stay live exactly when the sheet is working. So the two can genuinely
+   * overlap, and without this flag `finish()` would resume after the sheet had closed and hand
+   * the composer a recording the member just cancelled.
+   */
+  const abandoned = useRef(false);
 
   const finish = useCallback(async () => {
     if (lock.current) return;
@@ -118,6 +142,9 @@ export function AudioRecorderSheet({
       // recording mode re-routes ordinary playback for the rest of the app.
       await leaveRecordingMode().catch(() => undefined);
       setRecording(false);
+      // Cancelled while `stop()` was awaiting. The bytes are discarded and NOTHING is said:
+      // the member already knows they left, and `onCancel` has run once already.
+      if (abandoned.current) return;
       if (outcome.outcome === 'picked') {
         onRecorded(outcome.media);
         return;
@@ -132,6 +159,7 @@ export function AudioRecorderSheet({
       devWarn('audio.stop', err);
       await leaveRecordingMode().catch(() => undefined);
       setRecording(false);
+      if (abandoned.current) return;
       onError?.('media.failed');
       onCancel();
     } finally {
@@ -141,17 +169,29 @@ export function AudioRecorderSheet({
   }, [recorder, onRecorded, onError, onCancel]);
 
   /**
-   * The stop web needs.
+   * A take can end without the member pressing Stop, and the two platforms end it differently.
    *
-   * `record({ forDuration })` is documented iOS/Android only, so on web nothing would ever end
-   * the take. On device this is a backstop that normally never fires — the native stop has
-   * already landed by the time the next poll reports the cap — and calling `stop()` on an
-   * already-stopped recorder is harmless, which is what lets both platforms share one path.
+   * **The recorder ended it itself.** `record({ forDuration })` is a NATIVE stop on iOS and
+   * Android: it fires at the cap and flips `isRecording` false on its own. Nothing in JS is
+   * called, so this is the only signal that a full-length recording finished — and it must be
+   * watched rather than inferred from the clock, because once the recorder stops, the polled
+   * `durationMillis` stops climbing and what it reports afterwards is native-defined. A
+   * watchdog keyed only on the elapsed time would therefore miss the ordinary case of a member
+   * letting a recording run to 60 seconds: the sheet would sit on a Stop button over an
+   * already-stopped recorder, and the take would survive only if they tapped it again.
+   *
+   * **Nothing ended it.** `forDuration` has no web implementation (`RecordingStartOptions`
+   * documents it iOS/Android only), so in a browser the clock is all there is.
+   *
+   * Both arms land on the same `finish()`, which is idempotent through `lock`, so a platform
+   * that satisfies both conditions at once still finishes exactly once.
    */
   useEffect(() => {
-    if (!recording || !reachedClipCap(state.durationMillis)) return;
+    if (!recording) return;
+    const endedItself = sawRecording.current && !state.isRecording;
+    if (!endedItself && !reachedClipCap(state.durationMillis)) return;
     void finish();
-  }, [recording, state.durationMillis, finish]);
+  }, [recording, state.isRecording, state.durationMillis, finish]);
 
   /**
    * Never leave the microphone held.
@@ -173,6 +213,8 @@ export function AudioRecorderSheet({
     setBusy(true);
     try {
       lastMs.current = 0;
+      sawRecording.current = false;
+      abandoned.current = false;
       await enterRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record(AUDIO_RECORDING_START);
@@ -193,9 +235,22 @@ export function AudioRecorderSheet({
    * Stops the recorder first: closing on a running take would strand the mic exactly as the
    * unmount effect describes. Best-effort — a recorder that never prepared throws here, and a
    * member who asked to leave must leave regardless.
+   *
+   * **Never gated on `busy` or on `lock`,** per source-audit §22 and `MediaSheet`'s «Annulla»
+   * row: an exit that goes dead while the sheet is working restores the dead end for exactly
+   * as long as someone is most likely to want out. Which means this really can run while
+   * `finish()` is awaiting `recorder.stop()` — so it marks the take abandoned rather than
+   * trying to win the race, and `finish()` drops what it was holding when it resumes. Without
+   * that flag, cancelling during a stop closed the sheet and then handed the composer the
+   * recording anyway.
+   *
+   * The second `stop()` is skipped while one is already in flight: it would be a redundant
+   * native call on a recorder that is already stopping, and `abandoned` has made the outcome
+   * moot. Skipping it does not gate the exit — everything below still runs.
    */
   function cancel() {
-    if (recording) void recorder.stop().catch(() => undefined);
+    abandoned.current = true;
+    if (recording && !lock.current) void recorder.stop().catch(() => undefined);
     void leaveRecordingMode().catch(() => undefined);
     setRecording(false);
     onCancel();
