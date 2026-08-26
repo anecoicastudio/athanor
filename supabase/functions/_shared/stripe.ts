@@ -28,6 +28,9 @@ export const STRIPE_API_VERSION = '2026-05-27.dahlia';
  *
  * stripe-webhook is the one consumer that still resolves at import; its index.ts says why.
  */
+/** The SDK's own config type, derived from the constructor so a rename cannot strand it. */
+type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
+
 const clients = new WeakMap<EnvPort, Stripe>();
 
 /** The Stripe client, built on first use and memoized. Throws if the secret is absent. */
@@ -46,7 +49,18 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
         'first Stripe call rather than at boot.',
     );
   }
-  const built = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
+  const built = new Stripe(key, {
+    // The pin is DELIBERATELY older than the SDK's default, and stripe-node types `apiVersion`
+    // as the single literal that its own release defaults to — so under any newer stripe@22
+    // this assignment is a type error by construction. CI is where that bites: `deno.lock` is
+    // gitignored (.gitignore:55), so a local run pins stripe@22.2.2 while CI resolves the
+    // newest 22.x and types the field as a later version. It stayed invisible until #541,
+    // because no test imported this module and the constructor was never type-checked.
+    // Casting is the right answer, not floating the pin: the version must match the Dashboard
+    // webhook endpoint (08 §4.1) or event payload shapes change under the signature check, and
+    // stripe.test.ts asserts the exact string this passes.
+    apiVersion: STRIPE_API_VERSION as unknown as StripeConfig['apiVersion'],
+  });
   clients.set(env, built);
   return built;
 }

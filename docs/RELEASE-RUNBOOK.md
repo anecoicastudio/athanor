@@ -256,7 +256,7 @@ therefore all four together, or none.
 
 | Variable                      | Read at                                                 | Live value                                    |
 | ----------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:37`               | the live-mode secret key, or a restricted key |
+| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:40`               | the live-mode secret key, or a restricted key |
 | `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`          | the new live endpoint's signing secret        |
 | `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/create-circle-checkout/index.ts:40` | the live-mode price id                        |
 | `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/create-circle-checkout/index.ts:41` | the live-mode price id                        |
