@@ -230,7 +230,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │  Qual è                    ◌ ◌ ◌ ◌ ◌            Ogni profilo porta   │
 │  il tuo                   ◌ ◌ ◌ ◌ ◌ ◌           il sogno del suo     │
 │  sogno?                    ◌ ◌ ◌ ◌ ◌            proprietario. E un   │
-│                          (ripples)       bottone: «Fai        │
+│                          (ripples)              bottone: «Fai        │
 │  display, ink             concentric ○s         accadere questo      │
 │                                                 sogno».              │
 ├──────────────────────────────────────────────────────────────────────┤
