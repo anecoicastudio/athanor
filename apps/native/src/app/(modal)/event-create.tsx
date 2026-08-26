@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
@@ -15,8 +15,10 @@ import { EVENT_HREF } from '@/components/live/EventRow';
 import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
 import { devWarn } from '@/lib/log';
+import { toStatus } from '@/lib/media/permission-status';
 import { supabase } from '@/lib/supabase';
 import { dateTimeWithYear } from '@/lib/time';
 import { Screen } from '@/components/Screen';
@@ -56,11 +58,36 @@ export default function EventCreateScreen() {
   // the 14-day promise attaches to an event rather than to the organiser.
   const [settlementAck, setSettlementAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Why «Usa la mia posizione» did nothing (#549). Outcome stored, sentence derived at render
+   * (the [id] screen's #531 reasoning: no timer, must survive a locale flip). `denied` keeps
+   * the pill as the retry — the OS will ask again; `blocked` never re-prompts, so the notice
+   * grows the Settings route instead.
+   */
+  const [locationRefusal, setLocationRefusal] = useState<'denied' | 'blocked' | null>(null);
+  const { showToast } = useToast();
 
   const requestMyLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+    setLocationRefusal(null);
+    let pos: Location.LocationObject;
+    try {
+      const res = await Location.requestForegroundPermissionsAsync();
+      if (!res.granted) {
+        // Was `if (status !== 'granted') return;` — silent, and iOS prompts once per app, so
+        // every tap after the first resolved denied with no dialog: a pill that did nothing,
+        // forever, while onSubmit kept demanding the position it could never get (#549).
+        setLocationRefusal(toStatus(res) === 'blocked' ? 'blocked' : 'denied');
+        return;
+      }
+      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+    } catch (e) {
+      // Services off / a fix that timed out: this rejection escaped `void requestMyLocation()`
+      // unhandled — the second silent path. Same recovery as VicinoPanel's #179: say so with a
+      // toast; the pill itself is the retry.
+      devWarn('[event-create] requestMyLocation', e);
+      showToast(t('live.map.locationError', locale));
+      return;
+    }
     setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     try {
       const [place] = await Location.reverseGeocodeAsync(pos.coords);
@@ -223,6 +250,26 @@ export default function EventCreateScreen() {
                     : t('event.create.useLocation', locale)}
                 </Text>
               </Pressable>
+              {locationRefusal ? (
+                <View className="gap-2">
+                  {/* Literal keys on both arms (i18n checker + orphan-grep property). Blocked
+                      takes the shared body per the candidacy precedent — the calendar's bespoke
+                      key is the recorded exception (#552), and this surface has none of its
+                      no-agency routes. */}
+                  <Text className="text-[13px] text-faint">
+                    {locationRefusal === 'blocked'
+                      ? t('permission.blocked.body', locale)
+                      : t('event.create.locationDenied', locale)}
+                  </Text>
+                  {locationRefusal === 'blocked' ? (
+                    <Button
+                      label={t('permission.openSettings', locale)}
+                      variant="ghost"
+                      onPress={() => void Linking.openSettings()}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
             </>
           )}
 
