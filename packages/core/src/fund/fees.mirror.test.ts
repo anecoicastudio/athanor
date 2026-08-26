@@ -44,8 +44,13 @@ import { STRIPE_FEE_BPS, STRIPE_FEE_FIXED_CENTS, feeCoverage } from './fees';
 /**
  * Found by walking UP, not by counting `../`: Stryker runs this package's suite from a sandbox
  * copy two levels deeper than the package sits in the repo, where a fixed relative path
- * resolves to `packages/core/supabase/...` and kills the dry run. (`affinity.mirror.test.ts`
- * and `version.mirror.test.ts` carry the same note.)
+ * resolves to `packages/core/supabase/...` and kills the dry run.
+ * (`affinity.mirror.test.ts` and `version.mirror.test.ts` carry the same note.)
+ *
+ * The segment list for the LOCAL file carries its `packages/core/` prefix on purpose. Stryker
+ * mutates `version.ts` and `fees.ts`, so these are the first mirror tests that read a file inside
+ * their own mutate glob: the prefix is what makes the climb pass the sandbox and land on the
+ * pristine repo copy instead of the instrumented one.
  */
 function above(...segments: string[]): string {
   let dir = fileURLToPath(new URL('.', import.meta.url).href);
@@ -85,16 +90,29 @@ function constant(source: string, name: string, where: string): number {
  * the constants through the end of the function. Deliberately NOT the whole body — see the
  * divergence note above.
  */
-function grossUp(source: string, where: string): string {
+function feeCoverageBody(source: string, where: string): string {
   const start = source.search(/^(export )?function feeCoverage\(/m);
   if (start < 0) throw new Error(`${where} declares no function feeCoverage`);
   const rest = source.slice(start);
   const end = rest.indexOf('\n}');
   if (end < 0) throw new Error(`${where}'s feeCoverage has no column-0 closing brace`);
-  const body = code(rest.slice(0, end + 2));
+  return code(rest.slice(0, end + 2));
+}
+
+function grossUp(source: string, where: string): string {
+  const body = feeCoverageBody(source, where);
   const arithmetic = body.indexOf('const numerator');
-  if (arithmetic < 0) throw new Error(`${where}'s feeCoverage no longer opens with a numerator`);
+  if (arithmetic < 0) throw new Error(`${where} no longer reaches the numerator in feeCoverage`);
   return body.slice(arithmetic);
+}
+
+/** Whatever a copy does BEFORE the arithmetic — the region the comparison deliberately skips. */
+function prologue(source: string, where: string): string {
+  const body = feeCoverageBody(source, where);
+  const signature = body.indexOf('{');
+  const arithmetic = body.indexOf('const numerator');
+  if (signature < 0 || arithmetic < 0) throw new Error(`${where}: unparseable feeCoverage`);
+  return body.slice(signature + 1, arithmetic).trim();
 }
 
 describe('the Stripe fee pair mirrors create-contribution-session/logic.ts', () => {
@@ -134,6 +152,17 @@ describe('the Stripe fee pair mirrors create-contribution-session/logic.ts', () 
 
   it('the gross-up arithmetic is the same code on both sides', () => {
     expect(grossUp(MIRROR_SOURCE, 'the Deno mirror')).toBe(grossUp(SELF_SOURCE, 'packages/core'));
+  });
+
+  it('the ONLY thing either copy does before the arithmetic is the documented divergence', () => {
+    // Without this the comparison above is blind to anything inserted ahead of `const numerator`
+    // — a `giftCents = Math.round(giftCents)` on one side would change what the card is charged
+    // and leave the guard green. The divergence is a closed set of exactly one item.
+    expect(prologue(MIRROR_SOURCE, 'the Deno mirror')).toBe('');
+    expect(prologue(SELF_SOURCE, 'packages/core')).toBe(
+      'if (!Number.isInteger(giftCents) || giftCents < MIN_CONTRIBUTION_CENTS) { ' +
+        'throw new RangeError(`gift must be an integer of at least ${MIN_CONTRIBUTION_CENTS} cents`); }',
+    );
   });
 
   it('the mirror validates the gift BEFORE grossing it up', () => {

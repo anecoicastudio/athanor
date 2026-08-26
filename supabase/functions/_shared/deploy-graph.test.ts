@@ -19,6 +19,12 @@
 // property the pins only approximate — every specifier reachable from a deployed entrypoint
 // carries an extension, however many hops from the entrypoint it sits.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
+// POSTURE is the hand-maintained table of every function and its auth posture. Importing it
+// rather than re-reading the directory is what makes the entrypoint assertion an independent
+// pin; `auth-posture.test.ts` imports it for the same reason. Cost: Deno re-registers an
+// imported file's tests under each root that pulls it in, so config-invariants' nine tests
+// now run three times rather than twice. Milliseconds, and the alternative is a weaker guard.
+import { POSTURE } from './config-invariants.test.ts';
 
 const FUNCTIONS = new URL('../', import.meta.url); // _shared/ → supabase/functions/
 const REPO = new URL('../../', FUNCTIONS); // → repo root
@@ -59,12 +65,20 @@ function importMap(dir: URL): { imports: Record<string, string>; base: URL } {
  * its module edge because it has a value binding, and an all-inline-`type` binding list still
  * emits the import under isolated-modules transpiling — so treating it as a runtime edge is both
  * correct and the conservative direction to be wrong in.
+ *
+ * The erasure is bounded to ONE statement (`[^;]*?`, not `[\s\S]*?`) because `export type ` also
+ * begins a plain type ALIAS. An unbounded span would let an alias swallow every runtime import
+ * between it and the next `from '…'` clause, and the failure direction is silent under-reporting
+ * — dropped edges are never walked, which is precisely the vacuous pass this file exists to
+ * prevent. Four functions already have the alias-then-`from` shape (`announce-cycle/logic.ts`,
+ * `close-cycle/logic.ts`, `screen-candidacy/logic.ts`, `erasure-job/logic.ts`) and today survive
+ * only because their later `from '…'` occurrences sit inside comments this strips first.
  */
 function specifiers(source: string): string[] {
   const code = source
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
-    .replace(/\b(?:import|export)\s+type\s[\s\S]*?\bfrom\s*['"][^'"]+['"]/g, ' ');
+    .replace(/\b(?:import|export)\s+type\s[^;]*?\bfrom\s*['"][^'"]+['"]/g, ' ');
   const found: string[] = [];
   const pattern = /\bfrom\s*['"]([^'"]+)['"]|\bimport\s*\(?\s*['"]([^'"]+)['"]/g;
   for (const m of code.matchAll(pattern)) found.push(m[1] ?? m[2]);
@@ -139,17 +153,16 @@ const GRAPHS = ENTRYPOINTS.map((f) => ({
 }));
 
 // A walker that silently returned nothing would make every assertion below pass vacuously, which
-// is the one way a guard like this rots without anyone noticing. So the walk is pinned to
-// content first: entrypoint count against config-invariants' own discovery, and the one graph
-// that is known to cross the workspace boundary against the modules it must contain.
-Deno.test('the walk reaches every deployed entrypoint', () => {
-  const declared = [...Deno.readDirSync(FUNCTIONS)].filter(
-    (e) => e.isDirectory && !e.name.startsWith('_') && !e.name.startsWith('.'),
-  ).length;
+// is the one way a guard like this rots without anyone noticing. So the walk is pinned to content
+// first: the entrypoint set against `config-invariants.test.ts`'s POSTURE table — a hand-maintained
+// list of every function, which is an INDEPENDENT source rather than a second reading of the same
+// directory — and the one graph known to cross the workspace boundary against the modules it must
+// contain.
+Deno.test('the walk reaches every function POSTURE declares', () => {
   assertEquals(
-    ENTRYPOINTS.length,
-    declared,
-    `every function directory must have an index.ts: walked ${ENTRYPOINTS.length} of ${declared}`,
+    ENTRYPOINTS.map((f) => f.slug),
+    Object.keys(POSTURE).sort((a, b) => a.localeCompare(b)),
+    'every function in the auth-posture table must have a walked index.ts, and vice versa',
   );
   assert(ENTRYPOINTS.length > 15, `implausibly few entrypoints: ${ENTRYPOINTS.length}`);
 });

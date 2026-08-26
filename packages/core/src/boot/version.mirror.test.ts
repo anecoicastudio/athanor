@@ -37,29 +37,25 @@ import { isVersionBelow } from './version';
  * copy two levels deeper than the package sits in the repo, where a fixed relative path
  * resolves to `packages/core/supabase/...` and kills the dry run before it scores anything.
  * (`affinity.mirror.test.ts` and `notification-templates.mirror.test.ts` carry the same note.)
+ *
+ * The segment list for the LOCAL file carries its `packages/core/` prefix on purpose. Stryker
+ * mutates `version.ts` and `fees.ts`, so these are the first mirror tests that read a file inside
+ * their own mutate glob: the prefix is what makes the climb pass the sandbox and land on the
+ * pristine repo copy instead of the instrumented one.
  */
-const MIRROR = (() => {
+function above(...segments: string[]): string {
   let dir = fileURLToPath(new URL('.', import.meta.url).href);
   for (;;) {
-    const candidate = join(dir, 'supabase', 'functions', '_shared', 'version-gate.ts');
+    const candidate = join(dir, ...segments);
     if (existsSync(candidate)) return candidate;
     const parent = dirname(dir);
-    if (parent === dir)
-      throw new Error('no supabase/functions/_shared/version-gate.ts above this test');
+    if (parent === dir) throw new Error(`no ${segments.join('/')} above this test`);
     dir = parent;
   }
-})();
+}
 
-const SELF = (() => {
-  let dir = fileURLToPath(new URL('.', import.meta.url).href);
-  for (;;) {
-    const candidate = join(dir, 'packages', 'core', 'src', 'boot', 'version.ts');
-    if (existsSync(candidate)) return candidate;
-    const parent = dirname(dir);
-    if (parent === dir) throw new Error('no packages/core/src/boot/version.ts above this test');
-    dir = parent;
-  }
-})();
+const MIRROR = above('supabase', 'functions', '_shared', 'version-gate.ts');
+const SELF = above('packages', 'core', 'src', 'boot', 'version.ts');
 
 const MIRROR_SOURCE = readFileSync(MIRROR, 'utf8');
 const SELF_SOURCE = readFileSync(SELF, 'utf8');
