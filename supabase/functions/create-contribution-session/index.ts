@@ -1,6 +1,6 @@
 import { requireUser } from '../_shared/auth.ts';
 import { requireSupportedVersion } from '../_shared/version-gate.ts';
-import { stripe } from '../_shared/stripe.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
 import { createContributionSession } from './logic.ts';
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   return createContributionSession(
     {
       userClient: auth.userClient,
-      createCheckoutSession: (params) => stripe.checkout.sessions.create(params),
+      createCheckoutSession: (params) => stripeClient().checkout.sessions.create(params),
       appBase: Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://',
     },
     {

@@ -7,7 +7,9 @@ import { logStripeFailure } from '../_shared/stripe-error.ts';
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
 // body parse, env + singleton wiring) and injects everything here (repo convention:
 // DI over mocks). Deliberately does NOT import ../_shared/stripe.ts — only type-level
-// `npm:stripe` — so tests typecheck without STRIPE_SECRET_KEY in the env.
+// `npm:stripe`: the Stripe capabilities arrive injected. #541 made that module lazy, so the
+// import would no longer demand STRIPE_SECRET_KEY in a test env; the boundary stays because
+// DI is the point.
 
 export type CirclePlan = 'monthly' | 'annual';
 

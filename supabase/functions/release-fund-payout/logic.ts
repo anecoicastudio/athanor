@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
+import { logStripeFailure } from '../_shared/stripe-error.ts';
 
 // The transfer-executing path (#247, ruling #244): #248's pg_cron sweep and the operator
 // call this to move a tranche of a cycle's payable to the winner's connected account.
@@ -10,8 +11,11 @@ import { error, json } from '../_shared/respond.ts';
 // this function REQUESTS the transfer from Stripe and writes no database row; the
 // stripe-webhook transfer.created arm RECORDS it in fund_payout_ledger. Everything is
 // injected (repo convention: DI over mocks); deliberately does NOT import
-// ../_shared/stripe.ts — only type-level `npm:stripe` — so tests typecheck without
-// STRIPE_SECRET_KEY in the env. Transport shell in index.ts (requireServiceRole first).
+// ../_shared/stripe.ts — only type-level `npm:stripe`; ../_shared/stripe-error.ts is safe to
+// import for real, since it reads no env and builds no client. #541 made that module lazy, so the
+// import would no longer demand STRIPE_SECRET_KEY in a test env — and, the reason that
+// mattered, so that reading the secret can no longer happen ahead of this function's gate.
+// Transport shell in index.ts (requireServiceRole first).
 //
 // #231's «no verification, no money» gate now occupies the slot this file reserved for it.
 // Every release is phase-targeted: a tranche names the plan phase it funds, and a phase
@@ -245,7 +249,8 @@ async function releaseOne(
   let transfers: Stripe.Transfer[];
   try {
     transfers = await ctx.listTransfers(group);
-  } catch {
+  } catch (e) {
+    logStripeFailure('release-fund-payout: transfers.list', e);
     return refuse('transfer listing failed', 502);
   }
   const releasedNet = releasedNetCents(transfers);
@@ -266,7 +271,8 @@ async function releaseOne(
   try {
     const balance = await ctx.retrieveBalance();
     availableCents = balance.available.find((b) => b.currency === FUND_CURRENCY)?.amount ?? 0;
-  } catch {
+  } catch (e) {
+    logStripeFailure('release-fund-payout: balance.retrieve', e);
     return refuse('balance lookup failed', 502);
   }
   if (amountCents > availableCents) return refuse('unsettled funds', 409);
@@ -305,6 +311,13 @@ async function releaseOne(
     }
     // Stripe's own settled-funds gate — same refusal as our pre-check (belt and braces).
     if (code === 'balance_insufficient') return refuse('unsettled funds', 409);
+    // Everything past the two expected refusals is a genuine failure, and this was the last
+    // Stripe caller in the repo that discarded one (#416's rule, missed here). Two bare catches
+    // around Stripe calls remain on purpose and are not the same thing — stripe-webhook's
+    // signature gate and create-payout-onboarding's best-effort account cleanup each discard a
+    // designed outcome rather than a failure. It matters more since #541: an unset
+    // STRIPE_SECRET_KEY now arrives HERE rather than at boot.
+    logStripeFailure('release-fund-payout: transfers.create', e);
     return refuse('transfer failed', 502);
   }
 

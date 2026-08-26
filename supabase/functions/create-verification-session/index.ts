@@ -1,6 +1,6 @@
 import { requireUser } from '../_shared/auth.ts';
 import { requireSupportedVersion } from '../_shared/version-gate.ts';
-import { stripe } from '../_shared/stripe.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
 import { createVerificationSession } from './logic.ts';
@@ -25,7 +25,8 @@ Deno.serve(async (req) => {
 
   return createVerificationSession(
     {
-      createVerificationSession: (params) => stripe.identity.verificationSessions.create(params),
+      createVerificationSession: (params) =>
+        stripeClient().identity.verificationSessions.create(params),
       // IDENTITY_RETURN_BASE, not APP_DEEPLINK_BASE, and its own var rather than a repoint of
       // the shared one: Identity needs an https base (logic.ts), while create-circle-checkout,
       // create-circle-portal, create-contribution-session and create-ticket-checkout all read

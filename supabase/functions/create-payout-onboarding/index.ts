@@ -1,6 +1,6 @@
 import { requireUser } from '../_shared/auth.ts';
 import { requireSupportedVersion } from '../_shared/version-gate.ts';
-import { stripe } from '../_shared/stripe.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
@@ -33,9 +33,9 @@ Deno.serve(async (req) => {
     {
       userClient: auth.userClient,
       admin: supabaseAdmin(),
-      createAccount: (params) => stripe.accounts.create(params),
-      createAccountLink: (params) => stripe.accountLinks.create(params),
-      deleteAccount: (id) => stripe.accounts.del(id),
+      createAccount: (params) => stripeClient().accounts.create(params),
+      createAccountLink: (params) => stripeClient().accountLinks.create(params),
+      deleteAccount: (id) => stripeClient().accounts.del(id),
       urls: {
         returnUrl: Deno.env.get('PAYOUT_ONBOARDING_RETURN_URL'),
         refreshUrl: Deno.env.get('PAYOUT_ONBOARDING_REFRESH_URL'),

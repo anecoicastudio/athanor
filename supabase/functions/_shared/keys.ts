@@ -20,7 +20,12 @@
 /** Minimal env surface, injectable so tests never mutate the process environment. */
 export type EnvPort = { get(name: string): string | undefined };
 
-const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };
+/**
+ * The real process environment, and the default port every accessor here reads through.
+ * Exported because _shared/stripe.ts needs the same adapter (#541) and two copies of it is
+ * two places for the lazy-read property to be got wrong.
+ */
+export const denoEnv: EnvPort = { get: (name) => Deno.env.get(name) };
 
 const present = (v: string | undefined | null): v is string =>
   typeof v === 'string' && v.trim() !== '';
