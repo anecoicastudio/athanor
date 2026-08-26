@@ -7,8 +7,8 @@ import { denoEnv, type EnvPort } from './keys.ts';
  * Pinned API version — must match the Dashboard webhook endpoint (08 §4.1). Never float it.
  *
  * It EQUALLED the SDK's own latest when it was set (stripe@22.2.2, 2026-08-07); the SDK has
- * since moved on — 22.4+ default to `2026-07-29.dahlia` — so this constant now sits behind
- * the library, and `stripeClient` casts to say that is on purpose.
+ * since moved past it — 22.4.0 and 22.5.0 both top out at `2026-07-29.dahlia` — so this
+ * constant now sits behind the library, and `stripeClient` casts to say that is on purpose.
  *
  * Advancing it is NOT the fix for that type error. The endpoint carries a version too, so
  * moving this without re-creating the Dashboard webhook endpoint at the same version changes

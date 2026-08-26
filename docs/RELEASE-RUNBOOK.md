@@ -266,7 +266,8 @@ repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is
 constant (`supabase/functions/_shared/stripe.ts:19`), deliberately, so that it cannot be set
 per-environment and must move in lockstep with the Dashboard webhook endpoint —
 `supabase/ENV-NOTES.md` records why. It does **not** track the SDK: `npm:stripe@22` floats
-(`supabase/functions/deno.lock` is gitignored) and has already moved to `2026-07-29.dahlia`,
+(`supabase/functions/deno.lock` is gitignored) and has already moved past it (`2026-07-29.dahlia`
+as of 2026-08-26; re-read the SDK rather than trusting this literal),
 so the constructor casts to keep the older pin. Advancing the constant to match the SDK
 without re-creating the endpoint at the same version is the payload-shape incident this pin
 exists to prevent. `STRIPE_FEE_BPS`
