@@ -195,7 +195,7 @@ function walk(dir: string, out: string[] = []): string[] {
     if (NOT_SOURCE.has(name)) continue;
     const p = `${dir}${name}`;
     if (statSync(p).isDirectory()) walk(`${p}/`, out);
-    else if (p.endsWith('.ts') || p.endsWith('.tsx')) out.push(p);
+    else out.push(p);
   }
   return out;
 }
@@ -206,7 +206,10 @@ function walk(dir: string, out: string[] = []): string[] {
  * `apps/native/src/lib/source-audit.test.ts` excludes itself by path to avoid.
  */
 const SELF = fileURLToPath(new URL(import.meta.url).href);
-const SOURCES = walk(WEB).filter((p) => p !== SELF);
+const EVERY_FILE = walk(WEB);
+const SOURCES = EVERY_FILE.filter((p) => /\.tsx?$/.test(p) && p !== SELF);
+/** Every stylesheet, `globals.css` and the CSS modules alike — `@apply` works in all of them. */
+const STYLESHEETS = EVERY_FILE.filter((p) => p.endsWith('.css'));
 
 /** Repo-relative path, for a failure message someone can act on. */
 const webRel = (p: string) => `apps/web/${p.slice(WEB.length)}`;
@@ -232,6 +235,14 @@ const LITERALS = SOURCES.flatMap((p) =>
   })),
 );
 
+/**
+ * Escape a token name for embedding in a RegExp source. One helper, used by BOTH patterns
+ * below: it was spelled twice, and the second copy was subtly wrong in a way nothing could
+ * catch — no `keyof typeof semantic` contains a regex metacharacter, so the broken class
+ * silently escaped nothing and would only have mattered the day a token name did.
+ */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** `ink2` → `ink-2`, `onError` → `on-error`. See the docblock: narrower than native's map. */
 const kebab = (k: string) => k.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase();
 
@@ -243,7 +254,7 @@ const kebab = (k: string) => k.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCas
  * because neither `/` nor `:` is a word character.
  */
 const utility = (name: string) =>
-  new RegExp(`(?<![\\w-])[A-Za-z][\\w-]*-${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`);
+  new RegExp(`(?<![\\w-])[A-Za-z][\\w-]*-${escapeRe(name)}(?![\\w-])`);
 
 describe('a token web declines to declare is never spelled as a utility (#550)', () => {
   const spellings = NOT_ON_WEB.flatMap((k) => [...new Set([k as string, kebab(k as string)])]);
@@ -267,24 +278,28 @@ describe('a token web declines to declare is never spelled as a utility (#550)',
     ).toEqual([]);
   });
 
-  it.each(spellings)('no `-%s` utility or @theme declaration in globals.css', (name) => {
+  it.each(spellings)('no `-%s` utility or @theme declaration in any stylesheet', (name) => {
     // `@apply bg-faint` and `--color-faint: …` are the same event: in Tailwind 4 the `@theme`
     // declaration is what CREATES the utility. Comments stripped, same idiom as the
     // "declares no colour that is not a token" assertion above and for the same reason.
+    //
+    // EVERY stylesheet, not just globals.css: `@apply` works in a CSS module too, and scoping
+    // this to the one file left `components/*.module.css` as a hole the section did not admit to.
     //
     // Two patterns, not one. `utility()` cannot see a declaration: its `(?<![\\w-])` guard is
     // what keeps `border-` off `--color-border`, and that same guard makes every `--color-*`
     // name unmatchable. Asserting only the utility form here would have left the half this
     // section's docblock claims to cover — the declaration — silently unguarded.
-    const css = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-    const declared = new RegExp(
-      `--color-${name.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&')}\\s*:`,
-    );
+    const declared = new RegExp(`--color-${escapeRe(name)}\\s*:`);
+    const hits = STYLESHEETS.filter((p) => {
+      const css = readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      return utility(name).test(css) || declared.test(css);
+    }).map(webRel);
     expect(
-      utility(name).test(css) || declared.test(css),
-      `\`${name}\` is listed in NOT_ON_WEB but globals.css spells it — the list says web ` +
-        `draws nothing with this token, and the stylesheet disagrees. Declaring the token is ` +
-        `a decision: make it, and move the key into ROLE_MAP.`,
-    ).toBe(false);
+      hits,
+      `\`${name}\` is listed in NOT_ON_WEB but a stylesheet spells it — the list says web ` +
+        `draws nothing with this token, and the stylesheet disagrees:\n  ${hits.join('\n  ')}\n` +
+        `Declaring the token is a decision: make it, and move the key into ROLE_MAP.`,
+    ).toEqual([]);
   });
 });

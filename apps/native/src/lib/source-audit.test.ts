@@ -1462,7 +1462,7 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  *
  * ## Why the exit may not be gated on a busy flag
  *
- * `MediaSheet.tsx:218-224` argues this in place, and nothing enforced it: the cancel row is
+ * `MediaSheet.tsx:222-227` argues this in place, and nothing enforced it: the cancel row is
  * deliberately `disabled={false}` while the three source rows are `disabled={busy}`, because
  * an exit that goes dead during an in-flight pick restores the dead end for exactly as long
  * as the sheet is working — which is when a user is most likely to want out. A guard that
@@ -1472,10 +1472,18 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  *
  * A close handler written inline (`onPress={() => setPending(null)}`) names no identifier, so
  * this walk reads no callback from it and the file drops out of the scan entirely rather than
- * failing. That is the vacuity risk, and the first assertion is the answer to it: the pair
- * count is asserted, so a scrim rewritten to an inline arrow makes the SCAN go red instead of
- * quietly going empty. It cannot be fixed by demanding named handlers — that would be this
- * guard legislating an unrelated style rule — but it can be made loud, and it is.
+ * failing. That is the vacuity risk, and the first assertion is a partial answer: the pair
+ * count has a FLOOR, so a scrim on one of today's two sheets rewritten to an inline arrow makes
+ * the scan go red instead of quietly going empty. Partial, and worth being exact about — a
+ * THIRD sheet that arrives already spelled with an inline arrow never enters the scan and
+ * leaves the floor green. The floor catches a regression from where the tree is now, not every
+ * future one. It cannot be fixed by demanding named handlers — that would be this guard
+ * legislating an unrelated style rule — but it can be made loud, and it is.
+ *
+ * The exit is recognised through `onPress` and no other prop. A close control wired as
+ * `<SheetHeader onClose={onClose} />` or a `Button` taking `onDismiss` reads as no exit at all
+ * and fails the second assertion on correct code. Widen `ON_PRESS_IDENT` when that shape
+ * arrives — the call site is not the thing to change.
  *
  * Per-callback rather than per-file, deliberately. If a file names two close callbacks and
  * only one has an exit, the file fails. That over-reports on a shape nobody writes today (two
@@ -1551,7 +1559,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
         (s) => `${s.at} → every exit for ${s.callback}() is disabled: ${s.exits.join(', ')}`,
       ),
       `the only way out of this sheet goes dead while it is busy, which is when someone is ` +
-        `most likely to want it. components/media/MediaSheet.tsx:218-224 makes the argument ` +
+        `most likely to want it. components/media/MediaSheet.tsx:222-227 makes the argument ` +
         `and spells the cancel row disabled={false} on purpose, next to three source rows ` +
         `that are disabled={busy}.`,
     ).toEqual([]);
