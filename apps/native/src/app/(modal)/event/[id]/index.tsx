@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Linking } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -56,6 +56,14 @@ export default function EventDetailScreen() {
    * i18n checker and an orphan grep depend on.
    */
   const [calendarNotice, setCalendarNotice] = useState<'denied' | 'blocked' | null>(null);
+  /**
+   * «Calendario» in-flight gate (#548). The ref is the gate — synchronous, so two taps in the
+   * same JS tick cannot both pass it (state alone lags a render; MediaSheet's `launchLock` is
+   * the precedent). The state drives the Button's `loading`, which implies disabled. Without
+   * this, `Calendar.createEventAsync` has no dedupe and a double-tap stores two iOS events.
+   */
+  const calendarInFlight = useRef(false);
+  const [calendarPending, setCalendarPending] = useState(false);
   // Auto-dismiss the inline confirmation so it never lingers under an idle bar (no toast host yet).
   useEffect(() => {
     if (!confirmation) return;
@@ -135,26 +143,33 @@ export default function EventDetailScreen() {
   });
 
   const onAddToCalendar = useCallback(async () => {
-    if (!event) return;
+    if (!event || calendarInFlight.current) return;
+    calendarInFlight.current = true;
+    setCalendarPending(true);
     setConfirmation(null);
     setCalendarNotice(null);
-    const res = await addEventToCalendar({
-      title: event.title,
-      startISO: event.starts_at,
-      endISO: event.ends_at,
-      location: event.is_online
-        ? null
-        : [event.venue, event.city].filter(Boolean).join(' · ') || null,
-    });
-    if (res === 'added') setConfirmation(t('event.rsvp.calendarToast', locale));
-    else if (res === 'error') setConfirmation(t('event.rsvp.error', locale));
-    // A refusal is SAID now (#531). It used to be silent, on the premise that the OS prompt had
-    // already informed the member — true of the first tap only. iOS prompts once per app, so
-    // every later request resolves denied with no dialog at all; and «Add Events Only» and an
-    // Expo Go grant owned by another project both land here having shown nothing. The button
-    // was a permanent no-op. `blocked` additionally means the OS will not ask again, so
-    // Settings is the only route left and the bar offers it.
-    else setCalendarNotice(res);
+    try {
+      const res = await addEventToCalendar({
+        title: event.title,
+        startISO: event.starts_at,
+        endISO: event.ends_at,
+        location: event.is_online
+          ? null
+          : [event.venue, event.city].filter(Boolean).join(' · ') || null,
+      });
+      if (res === 'added') setConfirmation(t('event.rsvp.calendarToast', locale));
+      else if (res === 'error') setConfirmation(t('event.rsvp.error', locale));
+      // A refusal is SAID now (#531). It used to be silent, on the premise that the OS prompt had
+      // already informed the member — true of the first tap only. iOS prompts once per app, so
+      // every later request resolves denied with no dialog at all; and «Add Events Only» and an
+      // Expo Go grant owned by another project both land here having shown nothing. The button
+      // was a permanent no-op. `blocked` additionally means the OS will not ask again, so
+      // Settings is the only route left and the bar offers it.
+      else setCalendarNotice(res);
+    } finally {
+      calendarInFlight.current = false;
+      setCalendarPending(false);
+    }
   }, [event, locale]);
 
   const now = Date.now();
@@ -182,10 +197,15 @@ export default function EventDetailScreen() {
       going={going}
       soldOut={soldOut}
       pending={toggle.isPending || myRsvp.isLoading}
+      calendarPending={calendarPending}
       confirmation={confirmation}
       permissionNotice={
         // Literal keys on both arms, never an interpolated one: a key spelled by a template
         // literal is invisible to the i18n checker and to a grep for orphans.
+        // `calendarBlocked` deliberately does NOT consolidate into the shared
+        // `permission.blocked.body` (#552): blocked is reachable here with no member action
+        // (calendar.ts:5-16), and this bar needs the «riprova» instruction. Pinned in
+        // packages/i18n/src/i18n.test.ts.
         calendarNotice === 'blocked'
           ? t('event.rsvp.calendarBlocked', locale)
           : calendarNotice === 'denied'

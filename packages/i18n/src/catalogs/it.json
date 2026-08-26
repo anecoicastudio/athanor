@@ -747,6 +747,7 @@
   "event.create.useLocation": "Usa la mia posizione",
   "event.create.locationSet": "Posizione impostata ✦",
   "event.create.locationNeeded": "Imposta la posizione dell'evento",
+  "event.create.locationDenied": "Senza accesso alla posizione non possiamo impostarla per te.",
   "event.create.streamUrl": "Link allo streaming",
   "event.create.streamUrlPlaceholder": "https://…",
   "event.create.datetime": "Data e ora",

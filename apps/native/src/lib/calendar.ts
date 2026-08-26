@@ -43,9 +43,10 @@ async function writableCalendarId(): Promise<string | null> {
  * discards the promise (`void onAddToCalendar()`), the root error boundary is a RENDER boundary
  * and never sees a rejected promise, and the member gets no toast, no notice and no Settings
  * route. That is the silent no-op #531 exists to remove, surviving on a narrower path — and it
- * made "'error' on any failure" above a false claim. expo-calendar ships no web implementation,
- * so the expo-web QA harness reaches it on every tap; on device an in-flight permission
- * conflict rejects the same way.
+ * made "'error' on any failure" above a false claim. The rejection is device-only (e.g. an
+ * in-flight permission conflict): expo-calendar DOES ship a web stub (`ExpoCalendar.web.ts`),
+ * whose request resolves UNDETERMINED with canAskAgain:true and never throws — so the expo-web
+ * QA harness lands in the `denied` notice on every tap and cannot reach this catch.
  */
 export async function addEventToCalendar(opts: {
   title: string;

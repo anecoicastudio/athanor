@@ -73,8 +73,9 @@ describe('addEventToCalendar maps every permission outcome', () => {
     // The request used to sit above the try, so a throw escaped the function entirely: the
     // screen does `void onAddToCalendar()`, the root boundary is a RENDER boundary and never
     // sees a rejected promise, and the member got no toast, no notice, no Settings route —
-    // #531's silent no-op on a narrower path. expo-calendar has no web implementation, so the
-    // expo-web harness hits this on every tap.
+    // #531's silent no-op on a narrower path. The throw is device-only: expo-calendar's web
+    // stub resolves UNDETERMINED without throwing, so the expo-web harness lands in `denied`
+    // and never reaches this catch — this test is the only harness that does.
     cal.throwOnPermission = true;
     await expect(addEventToCalendar(EVENT)).resolves.toBe('error');
     expect(cal.created).toHaveLength(0);

@@ -747,6 +747,7 @@
   "event.create.useLocation": "Use my location",
   "event.create.locationSet": "Location set ✦",
   "event.create.locationNeeded": "Set the event location",
+  "event.create.locationDenied": "Without location access we can't set it for you.",
   "event.create.streamUrl": "Streaming link",
   "event.create.streamUrlPlaceholder": "https://…",
   "event.create.datetime": "Date and time",

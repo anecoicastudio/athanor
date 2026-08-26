@@ -21,6 +21,7 @@ export function RsvpBar({
   going,
   soldOut,
   pending,
+  calendarPending,
   confirmation,
   permissionNotice = null,
   onToggle,
@@ -31,6 +32,8 @@ export function RsvpBar({
   going: boolean;
   soldOut: boolean;
   pending: boolean;
+  /** «Calendario» in flight (#548) — Button `loading` implies disabled, so a double-tap cannot queue a second write. */
+  calendarPending: boolean;
   confirmation: string | null;
   /** Why «Calendario» did nothing. Stays until the member acts. */
   permissionNotice?: string | null;
@@ -57,6 +60,7 @@ export function RsvpBar({
           <Button
             label={t('event.rsvp.calendar', locale)}
             variant="ghost"
+            loading={calendarPending}
             onPress={onAddToCalendar}
           />
         </View>
