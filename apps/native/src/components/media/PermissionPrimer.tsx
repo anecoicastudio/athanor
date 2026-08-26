@@ -25,7 +25,7 @@ export function PermissionPrimer({
   onAllow,
   onDismiss,
 }: {
-  kind: 'camera' | 'photos';
+  kind: 'camera' | 'photos' | 'push';
   status: PermStatus;
   visible: boolean;
   locale: Locale;
@@ -33,8 +33,23 @@ export function PermissionPrimer({
   onDismiss: () => void;
 }) {
   const blocked = status === 'blocked';
-  const titleKey = kind === 'camera' ? 'permission.camera.title' : 'permission.photos.title';
-  const bodyKey = kind === 'camera' ? 'permission.camera.body' : 'permission.photos.body';
+  const titleKey =
+    kind === 'camera'
+      ? 'permission.camera.title'
+      : kind === 'photos'
+        ? 'permission.photos.title'
+        : 'permission.push.title';
+  const bodyKey =
+    kind === 'camera'
+      ? 'permission.camera.body'
+      : kind === 'photos'
+        ? 'permission.photos.body'
+        : 'permission.push.body';
+  // Push ships its own CTA pair (#561): «Attiva»/«Più tardi» name the action, where the media
+  // kinds share the generic allow/notNow pair. Literal keys on every arm — a key spelled by a
+  // template literal is invisible to the i18n checker and to a grep for orphans.
+  const allowKey = kind === 'push' ? 'permission.push.cta' : 'permission.allow';
+  const dismissKey = kind === 'push' ? 'permission.push.skip' : 'permission.notNow';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -93,14 +108,14 @@ export function PermissionPrimer({
                 }}
               />
             ) : (
-              <Button label={t('permission.allow', locale)} variant="light" onPress={onAllow} />
+              <Button label={t(allowKey, locale)} variant="light" onPress={onAllow} />
             )}
             <Pressable
               className="h-[52px] items-center justify-center"
               accessibilityRole="button"
               onPress={onDismiss}
             >
-              <Text className="tracking-widest text-faint">{t('permission.notNow', locale)}</Text>
+              <Text className="tracking-widest text-faint">{t(dismissKey, locale)}</Text>
             </Pressable>
           </View>
         </Pressable>
