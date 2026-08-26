@@ -13,8 +13,10 @@ const cal = vi.hoisted(() => ({
   perm: { status: 'granted', canAskAgain: true } as { status: string; canAskAgain: boolean },
   defaultCalendar: { id: 'cal-1' } as { id: string } | null,
   created: [] as unknown[],
+  existing: [] as { title: string; startDate: string }[],
   throwOnCreate: false,
   throwOnPermission: false,
+  throwOnRead: false,
 }));
 
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
@@ -27,6 +29,10 @@ vi.mock('expo-calendar', () => ({
   },
   getDefaultCalendarAsync: async () => cal.defaultCalendar,
   getCalendarsAsync: async () => [{ id: 'cal-android', allowsModifications: true }],
+  getEventsAsync: async () => {
+    if (cal.throwOnRead) throw new Error('calendar read failed');
+    return cal.existing;
+  },
   createEventAsync: async (id: string, details: unknown) => {
     if (cal.throwOnCreate) throw new Error('calendar write failed');
     cal.created.push({ id, details });
@@ -42,8 +48,10 @@ beforeEach(() => {
   cal.perm = { status: 'granted', canAskAgain: true };
   cal.defaultCalendar = { id: 'cal-1' };
   cal.created = [];
+  cal.existing = [];
   cal.throwOnCreate = false;
   cal.throwOnPermission = false;
+  cal.throwOnRead = false;
 });
 
 describe('addEventToCalendar maps every permission outcome', () => {
@@ -95,5 +103,39 @@ describe('addEventToCalendar maps every permission outcome', () => {
     await addEventToCalendar(EVENT);
     const { details } = cal.created[0] as { details: { startDate: Date; endDate: Date } };
     expect(details.endDate.getTime() - details.startDate.getTime()).toBe(60 * 60 * 1000);
+  });
+});
+
+/**
+ * The re-tap residual (#560). The screen's in-flight ref stops only a double-tap — it clears
+ * as soon as the previous call settles — so a deliberate second tap used to store the same
+ * event twice. The dedupe key is same-title-at-same-instant: our own earlier write for this
+ * event, and nothing else.
+ */
+describe('addEventToCalendar is idempotent across re-taps', () => {
+  it('an entry with the same title at the same instant → added, without a second write', async () => {
+    cal.existing = [{ title: 'Cerchio', startDate: '2026-09-01T18:00:00.000Z' }];
+    await expect(addEventToCalendar(EVENT)).resolves.toBe('added');
+    expect(cal.created, 'the second write IS the bug').toHaveLength(0);
+  });
+
+  it('same instant, different title → not ours, written', async () => {
+    cal.existing = [{ title: 'Altro cerchio', startDate: '2026-09-01T18:00:00.000Z' }];
+    await expect(addEventToCalendar(EVENT)).resolves.toBe('added');
+    expect(cal.created).toHaveLength(1);
+  });
+
+  it('same title at a different instant → a different occurrence, written', async () => {
+    cal.existing = [{ title: 'Cerchio', startDate: '2026-09-01T19:30:00.000Z' }];
+    await expect(addEventToCalendar(EVENT)).resolves.toBe('added');
+    expect(cal.created).toHaveLength(1);
+  });
+
+  it('a throwing window read → error, and nothing is written', async () => {
+    // Conservative on purpose: with the dedupe read unavailable, writing anyway could be the
+    // duplicate this exists to prevent. The member sees the error line and can re-tap.
+    cal.throwOnRead = true;
+    await expect(addEventToCalendar(EVENT)).resolves.toBe('error');
+    expect(cal.created).toHaveLength(0);
   });
 });
