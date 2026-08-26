@@ -353,7 +353,7 @@ jobs:
   edge:
     name: edge functions (deno test)
     runs-on: ubuntu-latest
-    # Ceiling, not a target (p50 15s, max 17s). No job in this file had one until
+    # Ceiling, not a target. No job in this file had one until
     # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
     timeout-minutes: 5
     steps:
@@ -367,6 +367,29 @@ jobs:
       # --allow-read: _shared/config-invariants.test.ts parses config.toml and the function
       # sources to assert every function's verify_jwt posture matches its in-handler gate.
       - run: deno test --allow-env --allow-read .
+        working-directory: supabase/functions
+      # Typecheck every entrypoint (#557): `deno test` typechecks only what a test
+      # imports, and no test imports an index.ts, so an entrypoint-only type error
+      # used to pass CI and first fail at deploy. Per-directory `cd` is mandatory —
+      # each function dir owns its deno.json import map, and Deno resolves the config
+      # nearest the CWD, so a batched `deno check */index.ts` from here reads only the
+      # root config and cannot resolve per-function deps (`stripe`, `expo-server-sdk`).
+      # Plain `deno check`, never `--all`: --all also checks remote deps' own .d.ts
+      # (red today inside @supabase/auth-js) — not ours to gate on. A new function
+      # without its own deno.json gets checked under the root config, whose import
+      # map is deliberately thin — give it one.
+      - name: typecheck every function entrypoint
+        run: |
+          rc=0
+          n=0
+          for d in */; do
+            [ -f "${d}index.ts" ] || continue
+            n=$((n + 1))
+            (cd "$d" && deno check index.ts) || rc=1
+          done
+          echo "checked $n entrypoints"
+          [ "$n" -gt 0 ] || { echo "no entrypoints found — glob broken?"; exit 1; }
+          exit $rc
         working-directory: supabase/functions
 
   bundle-leak:
