@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExpoConfig } from 'expo/config';
@@ -155,5 +155,36 @@ describe('external destinations', () => {
   it('support email has a mailbox and a domain', async () => {
     const { links } = await resolve(undefined);
     expect(links.SUPPORT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
+  });
+});
+
+describe('every claimed universal-link prefix has a native screen (#544)', () => {
+  /*
+   * The intent filters (and the AASA route keyed to the same prefixes) promise the OS that
+   * these paths open IN THE APP, so a prefix claimed with no route file sends an installed
+   * app to +not-found where the browser would at least have rendered something. The map is
+   * exhaustive on purpose, config-invariants style: adding a prefix to app.json means naming
+   * its screen here in the same change, and both drifts fail — a prefix missing from the
+   * map, and a mapped file that no longer exists. Route groups are URL-invisible to
+   * expo-router, which is why `(modal)/…` files serve group-less paths.
+   */
+  const PREFIX_ROUTE: Record<string, string> = {
+    '/momento': 'momento/[id].tsx',
+    '/event': '(modal)/event/[id]/index.tsx',
+    '/post': '(modal)/post/[id].tsx',
+    '/dream': '(modal)/dream/[id].tsx',
+    '/invite': 'invite/[code].tsx',
+    '/@': '[handle].tsx',
+  };
+
+  it('the intent-filter prefix list and the map agree', () => {
+    expect([...androidPathPrefixes(STATIC)].sort()).toEqual(Object.keys(PREFIX_ROUTE).sort());
+  });
+
+  it('each mapped route file exists', () => {
+    const appDir = join(dirname(fileURLToPath(import.meta.url)), '../app');
+    for (const [prefix, route] of Object.entries(PREFIX_ROUTE)) {
+      expect(existsSync(join(appDir, route)), `${prefix} → src/app/${route}`).toBe(true);
+    }
   });
 });

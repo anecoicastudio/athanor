@@ -397,7 +397,6 @@ describe('translation completeness', () => {
     'live.online',
     'live.tab.online',
     'live.title',
-    'milestone.sectionLabel',
     'momenti.aura.chip',
     'momenti.title',
     'notif.prefs.moment',
