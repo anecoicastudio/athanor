@@ -22,13 +22,14 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 
 Dependency rule: `apps → packages` only; `core` imports only `schemas`.
 
-### The four documents in `docs/`
+### The five documents in `docs/`
 
-Source comments across this repo cite these by section number (`PRD §4.11`, `RELEASE-RUNBOOK §6`,
-`PRODUCTION-READINESS P5`), so they are tracked and you can open them:
+Source comments across this repo cite four of these by section number (`PRD §4.11`,
+`RELEASE-RUNBOOK §6`, `PRODUCTION-READINESS P5`), so they are tracked and you can open them:
 
 | File                           | Read it when                                                                                                               |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `docs/ARCHITECTURE.md`         | You are new, or you need the shape of the system — how data moves, the privileged surface, the traps                       |
 | `docs/PRD.md`                  | You need the product requirement behind a feature — scope, data model, key flows, milestone order                          |
 | `docs/DESIGN.md`               | **Before any visual or UI decision.** Layout, type scale, components, colour and logo usage. Do not deviate without asking |
 | `docs/RELEASE-RUNBOOK.md`      | You are touching release, deploy, feature flags or store submission                                                        |
