@@ -524,3 +524,41 @@ describe('delete-account copy says what the job defers (#515)', () => {
     expect(en['account.delete.body']).not.toMatch(/we erase|we delete/i);
   });
 });
+
+describe('calendar blocked copy diverges from the shared permission body (#552)', () => {
+  /**
+   * `event.rsvp.calendarBlocked` reads like a duplicate of `permission.blocked.body` and is
+   * not one — #552 weighed consolidating (the candidacy-video-status precedent: both blocked
+   * states share the one key) and chose divergence, on two load-bearing axes:
+   *
+   * 1. AGENCY. The shared body opens «L'hai disattivato» — the member turned it off. Calendar
+   *    `blocked` is reachable with nobody having turned anything off (calendar.ts:5-16): iOS
+   *    17's «Add Events Only» maps to denied + canAskAgain:false, and an Expo Go grant belongs
+   *    to Expo Go, shared by every project ever run on the phone. On those, the shared body
+   *    would be false — and this product's copy does not say false things to be tidy.
+   * 2. RECOVERY. The RSVP bar does not re-launch the add after the Settings round trip, so the
+   *    copy must instruct the retry («riprova»); the shared body's «quando vuoi» is written
+   *    for primers whose surface re-runs on its own.
+   *
+   * The shared key stays the default for blocked states without such routes (candidacy, and
+   * the #549 location surfaces). This block pins the one deliberate exception so a dedupe
+   * sweep does not "fix" it back into a falsehood.
+   */
+  test('the calendar blocked key exists and is not the shared body, in both locales', () => {
+    expect(it['event.rsvp.calendarBlocked']).toBeTypeOf('string');
+    expect(en['event.rsvp.calendarBlocked']).toBeTypeOf('string');
+    expect(it['event.rsvp.calendarBlocked']).not.toBe(it['permission.blocked.body']);
+    expect(en['event.rsvp.calendarBlocked']).not.toBe(en['permission.blocked.body']);
+  });
+
+  test('it never claims the member turned the permission off', () => {
+    // The agency axis: three routes to blocked involve no member action at all.
+    expect(it['event.rsvp.calendarBlocked']).not.toMatch(/l'hai disattivat/i);
+    expect(en['event.rsvp.calendarBlocked']).not.toMatch(/you turned/i);
+  });
+
+  test('it instructs the retry, which the bar cannot run for you', () => {
+    expect(it['event.rsvp.calendarBlocked']).toMatch(/riprova/i);
+    expect(en['event.rsvp.calendarBlocked']).toMatch(/try again/i);
+  });
+});

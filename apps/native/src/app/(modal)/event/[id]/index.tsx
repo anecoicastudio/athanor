@@ -202,6 +202,10 @@ export default function EventDetailScreen() {
       permissionNotice={
         // Literal keys on both arms, never an interpolated one: a key spelled by a template
         // literal is invisible to the i18n checker and to a grep for orphans.
+        // `calendarBlocked` deliberately does NOT consolidate into the shared
+        // `permission.blocked.body` (#552): blocked is reachable here with no member action
+        // (calendar.ts:5-16), and this bar needs the «riprova» instruction. Pinned in
+        // packages/i18n/src/i18n.test.ts.
         calendarNotice === 'blocked'
           ? t('event.rsvp.calendarBlocked', locale)
           : calendarNotice === 'denied'
