@@ -449,6 +449,7 @@
   "publicDream.titleWithAuthor": "@{handle}'s dream",
   "publicDream.unavailable": "This dream isn't available.",
   "publicDream.authorLink": "Go to the profile",
+  "publicDream.error": "We couldn’t load the dream.",
   "publicEvent.free": "Free entry",
   "publicEvent.ctaTitle": "Athanor opens soon",
   "publicEvent.ctaBody": "Leave your email: we'll let you know as soon as you can join.",
