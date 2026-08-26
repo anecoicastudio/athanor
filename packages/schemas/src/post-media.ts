@@ -8,7 +8,8 @@ export const mediaKindSchema = z.enum(['image', 'video', 'audio']);
  * in `@athanor/core` and the `post_media_duration_s_check` CHECK (#56). This package cannot
  * import core (core imports schemas, not the reverse), so the copies are held together by
  * `post-media-duration.mirror.test.ts` rather than by a module boundary — which since #154
- * also pins the two catalog sentences that spell the number in prose to a member.
+ * also pins the three catalog sentences that spell the number in prose to a member
+ * (`media.tooLong`, `media.sheet.video`, `media.sheet.audio`), in both catalogs.
  *
  * Named here rather than spelled twice below because the insert schema RE-DECLARES the field
  * instead of picking it: two literals are two things to forget, and only one of them is the

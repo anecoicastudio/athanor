@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Modal, Platform } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
@@ -103,6 +103,41 @@ export function MediaSheet({
   // Synchronous re-entry lock: `busy` state is async and lets a double-tap
   // race two picker launches (the second rejects → spurious onError).
   const launchLock = useRef(false);
+
+  /**
+   * The recorder's three endings, as STABLE references.
+   *
+   * Inline arrows would be re-created on every render of this sheet, and `AudioRecorderSheet`
+   * holds them in the dependency array of the `useCallback` its completion effect watches — so
+   * each render would rebuild that effect while a recording is in flight. Harmless today (the
+   * effect is guarded by its end condition and the work behind it is idempotent), and cheap
+   * enough to make correct that it is not worth relying on either property.
+   */
+  const closeRecorder = useCallback(() => setRecording(false), []);
+
+  const onRecorded = useCallback(
+    (m: PickedMedia) => {
+      setRecording(false);
+      onClose();
+      onPick(m);
+    },
+    [onClose, onPick],
+  );
+
+  /**
+   * A refusal has to take down BOTH sheets, not just the recorder: the composer renders the
+   * sentence, and this sheet would otherwise still be covering it. The video path gets that for
+   * free — `closeThenLaunch` has already called `onClose()` before a picker can refuse anything
+   * — and the recorder, which opens on top instead of launching, has to do it here.
+   */
+  const onRecorderFailed = useCallback(
+    (key: MessageKey) => {
+      setRecording(false);
+      onClose();
+      onError?.(key);
+    },
+    [onClose, onError],
+  );
 
   const primerKind =
     pending?.source === 'library'
@@ -275,22 +310,9 @@ export function MediaSheet({
         <AudioRecorderSheet
           visible
           locale={locale}
-          onRecorded={(m) => {
-            setRecording(false);
-            onClose();
-            onPick(m);
-          }}
-          onCancel={() => setRecording(false)}
-          onFailed={(key) => {
-            // A refusal has to take down BOTH sheets, not just the recorder: the composer
-            // renders the sentence, and this sheet would otherwise still be covering it. The
-            // video path gets that for free — `closeThenLaunch` has already called `onClose()`
-            // before a picker can refuse anything — and the recorder, which opens on top
-            // instead of launching, has to do it here.
-            setRecording(false);
-            onClose();
-            onError?.(key);
-          }}
+          onRecorded={onRecorded}
+          onCancel={closeRecorder}
+          onFailed={onRecorderFailed}
         />
       ) : null}
 
