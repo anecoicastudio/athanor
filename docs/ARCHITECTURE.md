@@ -8,7 +8,7 @@
 
 ## 1. The system in one picture
 
-Two apps sit on five shared packages. Everything talks to one hosted Supabase project (Postgres with row-level security, Auth, Realtime, Storage) plus a set of Deno edge functions — and the edge functions are the **only** privileged surface in the system. There is deliberately no middle API tier.
+Two apps sit on a set of shared packages. Everything talks to one hosted Supabase project (Postgres with row-level security, Auth, Realtime, Storage) plus a set of Deno edge functions — and the edge functions are the **only** privileged surface in the system. There is deliberately no middle API tier.
 
 ```mermaid
 flowchart TB
@@ -55,14 +55,14 @@ The dependency rule is strict and one-way: **apps → packages**, and inside pac
 
 **Privileged writes.** A client can never perform these; each has exactly one writer:
 
-| Domain          | Sole writer                                                                                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Aura (score)    | `score-engine` — RLS denies all client writes; pgTAP asserts it                                                        |
-| Money tables    | `stripe-webhook` — signature-verified, deduped                                                                         |
-| Notifications   | `notification-fan-out` → rows → `push-dispatch` → Expo push                                                            |
-| Fund lifecycle  | `screen-candidacy` · `declare-winner` · `announce-cycle` · `close-cycle` · `verify-plan-phase` · `release-fund-payout` |
-| Moderation bans | `moderation-enforce` (applies the auth-level ban)                                                                      |
-| Media hygiene   | `media-process` (strips EXIF/metadata on upload)                                                                       |
+| Domain          | Sole writer                                                                                                                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Aura (score)    | `score-engine` — RLS denies all client writes; pgTAP asserts it                                                                                                                  |
+| Money tables    | `stripe-webhook` — signature-verified, deduped (one carve-out: `create-payout-onboarding` inserts the initial `payout_accounts` pointer row; the webhook owns the state columns) |
+| Notifications   | `notification-fan-out` → rows → `push-dispatch` → Expo push                                                                                                                      |
+| Fund lifecycle  | `screen-candidacy` · `declare-winner` · `announce-cycle` · `close-cycle` · `verify-plan-phase` · `release-fund-payout`                                                           |
+| Moderation bans | `moderation-enforce` (applies the auth-level ban)                                                                                                                                |
+| Media hygiene   | `media-process` (strips EXIF/metadata on upload)                                                                                                                                 |
 
 ## 3. The edge-function contract
 
@@ -111,7 +111,7 @@ The `/admin` moderation panel lives here too; its headless API is `packages/api/
 
 ## 7. The mobile app
 
-Five icon-only tabs — Home, Community, Momenti, Costellazioni, Profilo — and **everything else is a modal route**. There is no global sheet or toast host; an overlay is a screen.
+Icon-only tabs — Home, Community, Momenti, Costellazioni, Profilo — and **everything else is a modal route**. There is no global sheet or toast host; an overlay is a screen.
 
 - **Boot gate.** The app reads `remote_config` at startup and can render blocking Force-Update or Maintenance screens without a store release. The decision is a pure function in `packages/core/src/boot/`; the server backstop returns HTTP 426 from every user-callable function to a client below the minimum version.
 - **`EXPO_PUBLIC_*` is inlined by Metro at bundle time.** Every read must be a literal member expression — `process.env[name]` compiles, ships, and yields `undefined` at runtime with no error pointing at the cause. EAS cloud builds never read `.env`; a new public var must land in `.env.example` **and** as an EAS environment variable.
@@ -125,7 +125,7 @@ No I/O, no `@supabase/*`, no `fetch` — and no inline `Date.now()` or `Math.ran
 
 ## 9. Money
 
-Stripe is the source of truth; our money tables are a **cache of its webhooks**, written only by `stripe-webhook` under the service role. Verify the signature, then dedupe, then work. And never fulfil on `checkout.session.completed` without checking `session.payment_status` — delayed methods (SEPA) settle days later, and a naive handler ships the goods before the money exists. Stripe keys are server-side only; the app never sees one.
+Stripe is the source of truth; our money tables are a **cache of its webhooks**, written by `stripe-webhook` under the service role (state columns; see the carve-out in §2). Verify the signature, then dedupe, then work. And never fulfil on `checkout.session.completed` without checking `session.payment_status` — delayed methods (SEPA) settle days later, and a naive handler ships the goods before the money exists. Stripe keys are server-side only; the app never sees one.
 
 ## 10. Which document answers what
 

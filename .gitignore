@@ -41,7 +41,7 @@ coverage/
 # /docs/ is not.
 #
 # `/docs/*`, not `/docs/` — git never descends into an ignored *directory*, so a
-# negation inside one is never evaluated. Matching the contents keeps the four
+# negation inside one is never evaluated. Matching the contents keeps the five
 # re-includes live while still ignoring every subdirectory.
 /docs/*
 !/docs/RELEASE-RUNBOOK.md
