@@ -317,8 +317,8 @@ function rnValueImports(src: string): Set<string> {
  * `>` while tracking quotes and brace depth. Naive about nested template-literal edge cases,
  * which at worst widens an attribute window — that can only over-report, never hide a hit.
  */
-function jsxOpeningTags(src: string): { base: string; attrs: string; line: number }[] {
-  const tags: { base: string; attrs: string; line: number }[] = [];
+function jsxOpeningTags(src: string): { base: string; attrs: string; raw: string; line: number }[] {
+  const tags: { base: string; attrs: string; raw: string; line: number }[] = [];
   const re = /<([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)(?=[\s/>])/g;
   for (const m of src.matchAll(re)) {
     // matchAll iterates on a CLONE, so `re.lastIndex` never advances — walk from the
@@ -326,6 +326,7 @@ function jsxOpeningTags(src: string): { base: string; attrs: string; line: numbe
     // (`renderItem={() => <View className=…>}`) lives inside braces and belongs to the
     // nested tag's own scan, not to this one.
     let i = (m.index as number) + m[0].length;
+    const start = i;
     let depth = 0;
     let quote = '';
     let attrs = '';
@@ -343,6 +344,11 @@ function jsxOpeningTags(src: string): { base: string; attrs: string; line: numbe
     tags.push({
       base: (m[1] as string).split('.')[0] as string,
       attrs,
+      // The same window UNBLANKED. `attrs` masks brace contents, which is what §6 wants and
+      // what §22 cannot use: `accessible={false}` blanks to `accessible=` and `onPress={onClose}`
+      // to `onPress=`, so both of the attributes §22 reads survive only here. §21's `nestedTags`
+      // makes the same distinction in its own walk and says so in as many words.
+      raw: src.slice(start, i),
       line: src.slice(0, m.index).split('\n').length,
     });
   }
@@ -1417,5 +1423,129 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
       `NESTED_PRESSABLE_OK does not match the tree. A file that stopped nesting has to be ` +
         `taken out, or the exemption outlives the thing it excused.\nRegistered:\n${register}`,
     ).toEqual(Object.keys(NESTED_PRESSABLE_OK).sort());
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 22 — a VoiceOver-silenced sheet still exposes a way out (#551, #518)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * §21 guards one half of the modal recipe and the recipe has two.
+ *
+ * Silencing a scrim with `accessible={false}` is what lets VoiceOver descend into the sheet,
+ * and it is also what REMOVES tap-outside-to-close from the accessibility tree: the scrim was
+ * the exit, and the fix that reaches the rows is the same edit that deletes the way out.
+ * `MediaSheet.tsx` was exactly that — it had no close control of its own, so the #518 fix had
+ * to add an «Annulla» row in the same commit or it would have traded an unreachable sheet for
+ * an inescapable one (PR #547, commits 10–11).
+ *
+ * `onAccessibilityEscape` cannot stand in for the control, and the reason is not stylistic:
+ * React Native fires the escape gesture only "when accessible is true"
+ * (`ViewAccessibility.d.ts:300-303`), which is precisely the flag being turned off. So the exit
+ * has to be a real element, and nothing checked that one existed.
+ *
+ * ## What counts as an exit
+ *
+ * The close callback is whatever a silenced `Pressable` passes as `onPress` — `onClose` in
+ * `MediaSheet`, `onDismiss` in `PermissionPrimer`. An exit is any element that is NOT itself
+ * silenced and fires that same callback. Keyed on the callback rather than on
+ * `accessibilityRole="button"` because the two live sheets spell their exit differently and
+ * both are correct: `PermissionPrimer` uses a bare `Pressable` with the role on it, while
+ * `MediaSheet` passes `<Row onPress={onClose} />` and the role lives inside `Row`. A guard
+ * keyed on the role would demand the call site carry an attribute one of them legitimately
+ * does not — and §21's fourth assertion already owns the role-on-a-silenced-element question.
+ *
+ * Being INSIDE a silenced ancestor is not disqualifying, and that is the point of the whole
+ * recipe: silencing the ancestor is what makes the descendant reachable. Only the element
+ * itself must not carry the flag.
+ *
+ * ## Why the exit may not be gated on a busy flag
+ *
+ * `MediaSheet.tsx:218-224` argues this in place, and nothing enforced it: the cancel row is
+ * deliberately `disabled={false}` while the three source rows are `disabled={busy}`, because
+ * an exit that goes dead during an in-flight pick restores the dead end for exactly as long
+ * as the sheet is working — which is when a user is most likely to want out. A guard that
+ * only asked "does an exit exist" would pass `disabled={busy}` on the cancel row.
+ *
+ * ## What this cannot see, stated rather than implied
+ *
+ * A close handler written inline (`onPress={() => setPending(null)}`) names no identifier, so
+ * this walk reads no callback from it and the file drops out of the scan entirely rather than
+ * failing. That is the vacuity risk, and the first assertion is the answer to it: the pair
+ * count is asserted, so a scrim rewritten to an inline arrow makes the SCAN go red instead of
+ * quietly going empty. It cannot be fixed by demanding named handlers — that would be this
+ * guard legislating an unrelated style rule — but it can be made loud, and it is.
+ *
+ * Per-callback rather than per-file, deliberately. If a file names two close callbacks and
+ * only one has an exit, the file fails. That over-reports on a shape nobody writes today (two
+ * independent sheets in one file), and §21's own note says which direction a guard must err
+ * in: a false positive argues for itself in review, a false negative sits silent.
+ */
+/** `onPress={handler}` — a bare identifier only; an inline arrow deliberately yields nothing. */
+const ON_PRESS_IDENT = /\bonPress=\{\s*([A-Za-z_$][\w$]*)\s*\}/;
+
+/** `disabled={busy}` gates the exit; `disabled={false}` does not, and neither does no prop. */
+function gatedOnAFlag(raw: string): boolean {
+  return /\bdisabled\b/.test(raw) && !/\bdisabled=\{\s*false\s*\}/.test(raw);
+}
+
+describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
+  /** One row per (file, close callback) the scan resolved, with the exits it found for it. */
+  const sheets: { at: string; callback: string; exits: string[]; live: string[] }[] = [];
+
+  for (const p of FILES.filter((f) => !isTest(f) && f.endsWith('.tsx'))) {
+    const tags = jsxOpeningTags(stripComments(read(p)));
+    const silenced = tags.filter((t) => t.base === 'Pressable' && NOT_ACCESSIBLE.test(t.raw));
+    for (const frame of silenced) {
+      const callback = ON_PRESS_IDENT.exec(frame.raw)?.[1];
+      if (!callback) continue; // a no-op stop-propagation sheet, or an inline handler
+      const exits = tags.filter(
+        (t) => !NOT_ACCESSIBLE.test(t.raw) && ON_PRESS_IDENT.exec(t.raw)?.[1] === callback,
+      );
+      sheets.push({
+        at: `${rel(p)}:${frame.line}`,
+        callback,
+        exits: exits.map((t) => `${rel(p)}:${t.line} <${t.base}>`),
+        live: exits.filter((t) => !gatedOnAFlag(t.raw)).map((t) => `${rel(p)}:${t.line}`),
+      });
+    }
+  }
+
+  it('finds the silenced sheets it is walking', () => {
+    // Without this the section is vacuous by default: a walk that resolved no callback at all
+    // would report no offenders and read exactly like a clean tree. Two today —
+    // components/media/MediaSheet.tsx and components/media/PermissionPrimer.tsx.
+    expect(
+      sheets.map((s) => `${s.at} → ${s.callback}`),
+      'no silenced sheet resolved a close callback. Either accessible={false} has left the ' +
+        'tree, or a scrim now passes an inline arrow this walk cannot read — in which case ' +
+        'give the handler a name, so the exit below stays checkable.',
+    ).toHaveLength(2);
+  });
+
+  it('every silenced sheet has something that fires its close callback', () => {
+    const trapped = sheets.filter((s) => s.exits.length === 0);
+    expect(
+      trapped.map((s) => `${s.at} silences the scrim and nothing else calls ${s.callback}()`),
+      `a sheet a screen-reader user cannot leave. accessible={false} takes the scrim out of ` +
+        `the accessibility tree, so tap-outside-to-close stops existing for VoiceOver and the ` +
+        `sheet needs a real control — an «Annulla» row (the components/media/MediaSheet.tsx ` +
+        `shape) or an accessible dismiss (components/media/PermissionPrimer.tsx). ` +
+        `onAccessibilityEscape does not count: RN fires it only while accessible is true.`,
+    ).toEqual([]);
+  });
+
+  it('the way out is never gated on a busy flag', () => {
+    const gated = sheets.filter((s) => s.exits.length > 0 && s.live.length === 0);
+    expect(
+      gated.map(
+        (s) => `${s.at} → every exit for ${s.callback}() is disabled: ${s.exits.join(', ')}`,
+      ),
+      `the only way out of this sheet goes dead while it is busy, which is when someone is ` +
+        `most likely to want it. components/media/MediaSheet.tsx:218-224 makes the argument ` +
+        `and spells the cancel row disabled={false} on purpose, next to three source rows ` +
+        `that are disabled={busy}.`,
+    ).toEqual([]);
   });
 });
