@@ -4,23 +4,20 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicDreamById, publicDreamKeys } from '@athanor/api';
+import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { PublicDreamAuthor } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { DreamQuote } from '@/components/DreamQuote';
 import { ListState } from '@/components/ListState';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
+import { MilestoneRow } from '@/components/profile/MilestoneRow';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
-
-const STATE_KEY = {
-  open: 'milestone.state.open',
-  in_progress: 'milestone.state.inProgress',
-  done: 'milestone.state.done',
-} as const;
 
 /**
  * `/dream/{id}` deep-link viewer (#544) — the native side of the public dream contract
@@ -52,11 +49,7 @@ export default function DreamDeepLinkScreen() {
   const dream = dreamQuery.data;
 
   if (dreamQuery.isLoading) {
-    return (
-      <Screen className="items-center justify-center">
-        <Text className="text-2xl text-faint">✦</Text>
-      </Screen>
-    );
+    return <LoadingScreen />;
   }
   if (dreamQuery.isError) {
     return (
@@ -118,19 +111,9 @@ export default function DreamDeepLinkScreen() {
           <View className="gap-3">
             <SectionLabel>{t('publicProfile.milestonesLabel', locale)}</SectionLabel>
             <View className="gap-2">
+              {/* Read mode — no handlers, so the row renders glyph + name + state only. */}
               {dream.milestones.map((m) => (
-                <View key={m.id} className="flex-row items-center justify-between gap-4">
-                  <Text className="flex-1 text-[15px] text-muted-foreground">{m.body}</Text>
-                  <Text
-                    className={
-                      m.status === 'done'
-                        ? 'text-[13px] text-aura'
-                        : 'text-[13px] text-muted-foreground'
-                    }
-                  >
-                    {t(STATE_KEY[m.status], locale)}
-                  </Text>
-                </View>
+                <MilestoneRow key={m.id} name={m.body} status={m.status} locale={locale} />
               ))}
             </View>
           </View>
@@ -157,13 +140,18 @@ function AuthorByline({
   const [failed, setFailed] = useState(false);
   // A refetch can re-sign the url; give the photo a fresh attempt (same recovery as Avatar).
   useEffect(() => setFailed(false), [author.avatarUrl]);
-  const initial = (author.displayName ?? author.handle).trim().charAt(0).toUpperCase();
+  // `||`, not `??`: an empty-string display name must fall through to the handle (Avatar.tsx
+  // makes the same call), or the disc renders blank.
+  const initial = (author.displayName || author.handle).trim().charAt(0).toUpperCase();
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      // #356: the pressable masks its children for screen readers, so the label carries the
+      // identity and the action goes in the hint — never «Vai al profilo» with no name.
+      accessibilityLabel={memberLabel(author.displayName, author.handle) ?? undefined}
+      accessibilityHint={label}
       hitSlop={8}
       className="flex-row items-center gap-3"
     >
