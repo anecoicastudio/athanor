@@ -256,15 +256,20 @@ therefore all four together, or none.
 
 | Variable                      | Read at                                                 | Live value                                    |
 | ----------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:40`               | the live-mode secret key, or a restricted key |
+| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`               | the live-mode secret key, or a restricted key |
 | `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`          | the new live endpoint's signing secret        |
 | `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/create-circle-checkout/index.ts:40` | the live-mode price id                        |
 | `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/create-circle-checkout/index.ts:41` | the live-mode price id                        |
 
 Those four are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
-constant (`supabase/functions/_shared/stripe.ts:11`), deliberately, so that the pinned SDK and the
-endpoint's API version cannot drift apart — `supabase/ENV-NOTES.md` records why. `STRIPE_FEE_BPS`
+constant (`supabase/functions/_shared/stripe.ts:19`), deliberately, so that it cannot be set
+per-environment and must move in lockstep with the Dashboard webhook endpoint —
+`supabase/ENV-NOTES.md` records why. It does **not** track the SDK: `npm:stripe@22` floats
+(`supabase/functions/deno.lock` is gitignored) and has already moved to `2026-07-29.dahlia`,
+so the constructor casts to keep the older pin. Advancing the constant to match the SDK
+without re-creating the endpoint at the same version is the payload-shape incident this pin
+exists to prevent. `STRIPE_FEE_BPS`
 and `STRIPE_FEE_FIXED_CENTS` are named constants in `packages/core` (`src/fund/fees.ts`), which is
 where rule 10 requires them; they describe Stripe's pricing, not Athanor's configuration, and
 nothing about the cutover moves them. `STRIPE_IDENTITY_WEBHOOK_SECRET` appears in the backend spec

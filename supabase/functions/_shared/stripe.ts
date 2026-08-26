@@ -5,8 +5,16 @@ import { denoEnv, type EnvPort } from './keys.ts';
 
 /**
  * Pinned API version — must match the Dashboard webhook endpoint (08 §4.1). Never float it.
- * Aligned with the stripe@22 SDK's pinned version (2026-08-07); the Dashboard webhook
- * endpoint is deploy-deferred (RELEASE-RUNBOOK §4.2) and must be created at this version.
+ *
+ * It EQUALLED the SDK's own latest when it was set (stripe@22.2.2, 2026-08-07); the SDK has
+ * since moved on — 22.4+ default to `2026-07-29.dahlia` — so this constant now sits behind
+ * the library, and `stripeClient` casts to say that is on purpose.
+ *
+ * Advancing it is NOT the fix for that type error. The endpoint carries a version too, so
+ * moving this without re-creating the Dashboard webhook endpoint at the same version changes
+ * event payload shapes underneath the signature check — the incident this constant exists to
+ * prevent. The endpoint is deploy-deferred (RELEASE-RUNBOOK §4.2) and must be created at
+ * exactly this version.
  */
 export const STRIPE_API_VERSION = '2026-05-27.dahlia';
 
@@ -28,10 +36,10 @@ export const STRIPE_API_VERSION = '2026-05-27.dahlia';
  *
  * stripe-webhook is the one consumer that still resolves at import; its index.ts says why.
  */
+const clients = new WeakMap<EnvPort, Stripe>();
+
 /** The SDK's own config type, derived from the constructor so a rename cannot strand it. */
 type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
-
-const clients = new WeakMap<EnvPort, Stripe>();
 
 /** The Stripe client, built on first use and memoized. Throws if the secret is absent. */
 export function stripeClient(env: EnvPort = denoEnv): Stripe {
