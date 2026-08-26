@@ -164,6 +164,7 @@ function AuthorByline({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
+      hitSlop={8}
       className="flex-row items-center gap-3"
     >
       <View
