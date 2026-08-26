@@ -253,9 +253,10 @@ export default function EventCreateScreen() {
               {locationRefusal ? (
                 <View className="gap-2">
                   {/* Literal keys on both arms (i18n checker + orphan-grep property). Blocked
-                      takes the shared body per the candidacy precedent — the calendar's bespoke
-                      key is the recorded exception (#552), and this surface has none of its
-                      no-agency routes. */}
+                      takes the shared body per the candidacy precedent, which already tolerates
+                      the Expo Go shared-grant route; the calendar's bespoke key is the recorded
+                      exception (#552) — its «Add Events Only» axis has no location analog, and
+                      the retry trigger (this pill) stays visible beside the notice. */}
                   <Text className="text-[13px] text-faint">
                     {locationRefusal === 'blocked'
                       ? t('permission.blocked.body', locale)

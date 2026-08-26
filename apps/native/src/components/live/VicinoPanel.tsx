@@ -12,6 +12,7 @@ import { metersToKm } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { EventNearby } from '@athanor/schemas';
 import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
@@ -148,7 +149,11 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
                 Blocked keeps the subject line (it names the permission, which the shared body
                 does not) and adds `permission.blocked.body` + the Settings route — the shared
                 blocked copy per the candidacy precedent; the calendar's bespoke key is the
-                recorded exception (#552), not this. Literal keys on every arm. */}
+                recorded exception (#552), not this. The retry stays VISIBLE below Settings:
+                this panel only requests on mount, so without it a member who granted in
+                Settings and came back (Android does not relaunch) would face a dead screen —
+                the shared body's «quando vuoi» is honest only while a trigger exists.
+                Literal keys on every arm. */}
             <EmptyState
               body={blocked ? t('permission.blocked.body', locale) : undefined}
               action={
@@ -165,6 +170,13 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
             >
               {t('live.map.locationDenied', locale)}
             </EmptyState>
+            {blocked ? (
+              <Button
+                label={t('live.map.allowLocation', locale)}
+                variant="ghost"
+                onPress={() => void requestLocation()}
+              />
+            ) : null}
           </View>
         </ScrollView>
       </View>
