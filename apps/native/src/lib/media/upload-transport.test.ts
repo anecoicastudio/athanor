@@ -222,6 +222,30 @@ describe('uploadErrorKey', () => {
     expect(uploadErrorKey(new UnsupportedMediaTypeError(undefined))).toBe('media.unsupportedType');
   });
 
+  it('names a refused AUDIO container in its own words, not the video sentence (#154)', () => {
+    // `media.unsupportedType` reads «Questo formato video non lo sappiamo leggere. Prova con
+    // un altro video.» Told to a member who just recorded a voice note, every noun in it is
+    // wrong — and «prova con un altro video» is advice they cannot act on.
+    //
+    // Unreachable in practice today, because `recordedAudio` refuses an unacceptable container
+    // at the recorder door before an upload starts. It is here because `processAndUpload`
+    // resolves the type again on its own account (the #461 rule: the bucket believes the
+    // header, so the header is checked where it is set), and a second door that can refuse is
+    // a second door that can lie.
+    expect(uploadErrorKey(new UnsupportedMediaTypeError('audio/webm'))).toBe(
+      'media.unsupportedAudio',
+    );
+    expect(uploadErrorKey(new UnsupportedMediaTypeError('audio/ogg'))).toBe(
+      'media.unsupportedAudio',
+    );
+  });
+
+  it('keeps a video container on the video sentence — the branch reads the family, not a flag', () => {
+    expect(uploadErrorKey(new UnsupportedMediaTypeError('video/3gpp'))).toBe(
+      'media.unsupportedType',
+    );
+  });
+
   it('carries the reported type for the dev log, without putting it on screen', () => {
     expect(new UnsupportedMediaTypeError('video/x-matroska').mimeType).toBe('video/x-matroska');
     expect(new UnsupportedMediaTypeError(undefined).mimeType).toBeUndefined();

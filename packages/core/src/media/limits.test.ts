@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { MEDIA_LIMITS } from './limits';
 
 describe('MEDIA_LIMITS', () => {
-  it('caps video at 60s and post media count', () => {
-    expect(MEDIA_LIMITS.MAX_VIDEO_SECONDS).toBe(60);
+  it('caps a clip at 60s and post media count', () => {
+    expect(MEDIA_LIMITS.MAX_CLIP_SECONDS).toBe(60);
     expect(MEDIA_LIMITS.MAX_POST_MEDIA).toBeGreaterThan(0);
     expect(MEDIA_LIMITS.IMAGE_MAX_LONG_EDGE).toBe(2048);
   });
@@ -24,7 +24,7 @@ describe('MEDIA_LIMITS', () => {
 
   it('takes the poster frame inside every clip the app accepts', () => {
     expect(MEDIA_LIMITS.VIDEO_POSTER_SECONDS).toBeGreaterThan(0);
-    expect(MEDIA_LIMITS.VIDEO_POSTER_SECONDS).toBeLessThan(MEDIA_LIMITS.MAX_VIDEO_SECONDS);
+    expect(MEDIA_LIMITS.VIDEO_POSTER_SECONDS).toBeLessThan(MEDIA_LIMITS.MAX_CLIP_SECONDS);
   });
 
   it('caps a video at the size the server-side strip can still process (#412)', () => {
@@ -80,5 +80,57 @@ describe('MEDIA_LIMITS', () => {
     expect(MEDIA_LIMITS.VIDEO_MIME_TYPES).toEqual(['video/mp4', 'video/quicktime']);
     expect(MEDIA_LIMITS.VIDEO_MIME_TYPES).toContain('video/mp4');
     expect(MEDIA_LIMITS.VIDEO_MIME_TYPES).toContain('video/quicktime');
+  });
+
+  it('binds audio with the same 60 as video — one clip cap per post (#154)', () => {
+    // The cap is per CLIP, not per codec: `post_media.duration_s` is one column under one
+    // CHECK with no `kind` predicate, and a post may carry both kinds at once while
+    // `derivePostType` collapses it to a single type. A voice note that could run five times
+    // longer than the video beside it would make the cap mean two different things in one
+    // card. The name says `CLIP` for exactly that reason — it read `MAX_VIDEO_SECONDS` while
+    // audio had no capture surface, and #154 gave it one.
+    expect(MEDIA_LIMITS.MAX_CLIP_SECONDS).toBe(60);
+  });
+
+  it('accepts the two audio containers post-media takes, and no others (#154)', () => {
+    // Mirrors the `post-media` bucket's allowed_mime_types (20260614204500, carried forward
+    // verbatim by 20260819163146) and NOTHING wider. `moments` and `story-segments` accept no
+    // audio at all, which is why audio is offered in the post composer alone.
+    expect(MEDIA_LIMITS.AUDIO_MIME_TYPES).toEqual(['audio/mp4', 'audio/mpeg']);
+  });
+
+  it('records into a container the bucket already accepts (#154)', () => {
+    // The recorder is the only audio source there is, so the container it produces is the only
+    // one that ever reaches the bucket. `expo-audio`'s own presets do NOT satisfy this:
+    // HIGH_QUALITY is `.m4a` on iOS/Android but `audio/webm` on web, and LOW_QUALITY is `.3gp`
+    // (`audio/3gpp`) on Android — both outside the list above, both a 415 at upload. That is
+    // why the options are spelled out here rather than taken from `RecordingPresets`.
+    const allowed: readonly string[] = MEDIA_LIMITS.AUDIO_MIME_TYPES;
+    expect(allowed).toContain(MEDIA_LIMITS.AUDIO_CONTENT_TYPE);
+    expect(MEDIA_LIMITS.AUDIO_CONTENT_TYPE).toBe('audio/mp4');
+    expect(MEDIA_LIMITS.AUDIO_EXTENSION).toBe('.m4a');
+  });
+
+  it('records voice, not music — mono at a bitrate that keeps a minute small (#154)', () => {
+    // A 60s clip at these settings is ~0.5 MB, two orders of magnitude under the post-media
+    // bucket's 50 MiB object limit, so audio needs no byte cap of its own the way video does:
+    // there is no picker door, and the duration cap bounds the bytes because the bitrate is
+    // fixed here rather than chosen by a camera.
+    expect(MEDIA_LIMITS.AUDIO_CHANNELS).toBe(1);
+    expect(MEDIA_LIMITS.AUDIO_BIT_RATE).toBe(64_000);
+    expect(MEDIA_LIMITS.AUDIO_SAMPLE_RATE).toBe(44_100);
+    const bytesAtCap = (MEDIA_LIMITS.AUDIO_BIT_RATE / 8) * MEDIA_LIMITS.MAX_CLIP_SECONDS;
+    expect(bytesAtCap).toBeLessThan(52_428_800);
+  });
+
+  it('names the AAC encoder members rather than their ordinals (#154)', () => {
+    // Same discipline as VIDEO_CAPTURE_QUALITY_IOS: these are the NAMES of `expo-audio`
+    // members, indexed at the call site, so a renamed member is a type error here instead of
+    // a value that silently means something else on one platform. AAC in an MPEG-4 container
+    // is what makes the file `audio/mp4` on both platforms.
+    expect(MEDIA_LIMITS.AUDIO_OUTPUT_FORMAT_IOS).toBe('MPEG4AAC');
+    expect(MEDIA_LIMITS.AUDIO_QUALITY_IOS).toBe('MEDIUM');
+    expect(MEDIA_LIMITS.AUDIO_OUTPUT_FORMAT_ANDROID).toBe('mpeg4');
+    expect(MEDIA_LIMITS.AUDIO_ENCODER_ANDROID).toBe('aac');
   });
 });

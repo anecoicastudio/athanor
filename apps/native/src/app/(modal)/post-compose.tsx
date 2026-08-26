@@ -17,6 +17,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
+import { formatDuration } from '@/lib/media/format';
 import { type PickedMedia } from '@/lib/media/pick';
 import { extractVideoPoster } from '@/lib/media/poster';
 import { withTimeout } from '@/lib/media/with-timeout';
@@ -146,7 +147,34 @@ export default function PostComposeScreen() {
             <View className="flex-row flex-wrap gap-2">
               {items.map((item, index) => (
                 <View key={index} className="relative h-20 w-20">
-                  {item.kind === 'video' ? (
+                  {item.kind === 'audio' ? (
+                    // Same defect class as the video tile below (#318): an <Image> handed a
+                    // media URI with no frame to draw renders NOTHING — no error, no
+                    // placeholder, a blank box. Audio has no frame by definition, so it never
+                    // gets one and needs its own surface. The duration is the only thing there
+                    // is to show, so it is what the tile shows.
+                    <View
+                      className="h-20 w-20 items-center justify-center rounded-[8px] bg-raise-2"
+                      accessible
+                      accessibilityLabel={t('media.noPoster.audio', locale)}
+                    >
+                      <Text
+                        className="text-2xl text-faint"
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      >
+                        ♪
+                      </Text>
+                      <Text
+                        className="mt-0.5 text-[11px] text-faint"
+                        style={{ fontVariant: ['tabular-nums'] }}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      >
+                        {formatDuration(item.duration_s ?? null)}
+                      </Text>
+                    </View>
+                  ) : item.kind === 'video' ? (
                     // An <Image> handed a video file URI draws nothing (#318) — this tile was a
                     // blank box with a ▶ badge. Same no-poster state the feed card falls back to:
                     // dark fill, centred faint ▶ (MomentTile pairing — wrapper announces, glyph
@@ -204,6 +232,7 @@ export default function PostComposeScreen() {
           <MediaSheet
             visible={sheetOpen}
             allowVideo
+            allowAudio
             locale={locale}
             onPick={onPickMedia}
             onClose={() => setSheetOpen(false)}

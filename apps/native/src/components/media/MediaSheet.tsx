@@ -3,12 +3,15 @@ import { Modal, Platform } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { AudioRecorderSheet } from '@/components/media/AudioRecorderSheet';
 import { PermissionPrimer } from '@/components/media/PermissionPrimer';
 import {
   ensureCameraPermission,
   ensureLibraryPermission,
+  ensureMicrophonePermission,
   peekCameraPermission,
   peekLibraryPermission,
+  peekMicrophonePermission,
   type PermStatus,
 } from '@/lib/media/permissions';
 import {
@@ -22,14 +25,20 @@ import { REJECTION_MESSAGE } from '@/lib/media/asset';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Which source a row launches once its permission is granted. */
-type Source = 'photo' | 'video' | 'library';
+type Source = 'photo' | 'video' | 'library' | 'audio';
 
 /**
  * The `sheet-media` picker (frontend `01` §3.6 / backend 10). A bottom Modal with
- * three sources: take a photo, record a video (when `allowVideo`), or pick from
- * the library. Each source primes the relevant permission via {@link
- * PermissionPrimer} BEFORE the OS prompt (skipped when already granted), then
- * runs the matching `pick.ts` function and hands the descriptor up to `onPick`.
+ * up to four sources: take a photo, record a video (when `allowVideo`), record audio (when
+ * `allowAudio`), or pick from the library. Each source primes the relevant permission via
+ * {@link PermissionPrimer} BEFORE the OS prompt (skipped when already granted), then runs the
+ * matching `pick.ts` function and hands the descriptor up to `onPick`.
+ *
+ * **`audio` is the one source that is not a picker** (#154). `expo-image-picker` has no audio
+ * media type, so there is nothing to launch: the row opens {@link AudioRecorderSheet} as a
+ * nested Modal instead, and that component calls `onPick` itself. Which is also why it skips
+ * the iOS close-then-launch dance below — that exists for native view controllers, and the
+ * recorder is our own React tree.
  *
  * State machine:
  *   idle → (tap row) → peek granted? → close sheet → launch picker → onPick
@@ -54,6 +63,7 @@ export function MediaSheet({
   onClose,
   onError,
   allowVideo = false,
+  allowAudio = false,
 }: {
   visible: boolean;
   locale: Locale;
@@ -70,18 +80,36 @@ export function MediaSheet({
    */
   onError?: (key: MessageKey) => void;
   allowVideo?: boolean;
+  /**
+   * Offer the voice recorder (#154).
+   *
+   * Gated, and never defaulted on, because `post-media` is the ONLY bucket whose
+   * `allowed_mime_types` lists an audio type: `moments` and `story-segments` accept images and
+   * video and nothing else (20260819163146), and `moment_kind` / `story_kind` are both
+   * `('photo','video')` enums. An unconditional row would offer a recording to the avatar,
+   * moments and story composers, where it would be refused by the bucket after uploading —
+   * or, worse, written to a table whose enum has no value for it.
+   */
+  allowAudio?: boolean;
 }) {
   // The source the user tapped + the primer's permission status. `null` source
   // means the primer is closed and the sheet rows are interactive.
   const [pending, setPending] = useState<{ source: Source; status: PermStatus } | null>(null);
   const [busy, setBusy] = useState(false);
+  // The recorder is a nested sheet rather than a launch, so it needs its own visibility.
+  const [recording, setRecording] = useState(false);
   // Source queued to launch after the Modal finishes dismissing (iOS path).
   const queuedLaunch = useRef<Source | null>(null);
   // Synchronous re-entry lock: `busy` state is async and lets a double-tap
   // race two picker launches (the second rejects → spurious onError).
   const launchLock = useRef(false);
 
-  const primerKind = pending?.source === 'library' ? 'photos' : 'camera';
+  const primerKind =
+    pending?.source === 'library'
+      ? 'photos'
+      : pending?.source === 'audio'
+        ? 'microphone'
+        : 'camera';
 
   async function doLaunch(source: Source) {
     setBusy(true);
@@ -103,6 +131,14 @@ export function MediaSheet({
   // Close the sheet, then launch: iOS defers to Modal onDismiss; elsewhere the
   // picker presents fine immediately after requesting the close.
   function closeThenLaunch(source: Source) {
+    // The recorder is not a picker (#154): there is no view controller to present, so none of
+    // the iOS deferral below applies. It opens as a nested Modal over this one, exactly as
+    // `PermissionPrimer` does, and this sheet stays mounted underneath it.
+    if (source === 'audio') {
+      setPending(null);
+      setRecording(true);
+      return;
+    }
     launchLock.current = true;
     setPending(null);
     if (Platform.OS === 'ios') {
@@ -118,8 +154,7 @@ export function MediaSheet({
   // otherwise open the primer («Consenti» fires the real request via run()).
   async function openPrimer(source: Source) {
     if (busy || launchLock.current) return;
-    const status =
-      source === 'library' ? await peekLibraryPermission() : await peekCameraPermission();
+    const status = await peekPermission(source);
     if (status === 'granted') {
       closeThenLaunch(source);
       return;
@@ -133,8 +168,7 @@ export function MediaSheet({
   async function run() {
     if (!pending) return;
     const { source } = pending;
-    const status =
-      source === 'library' ? await ensureLibraryPermission() : await ensureCameraPermission();
+    const status = await ensurePermission(source);
 
     if (status !== 'granted') {
       setPending({ source, status }); // 'denied' closes via dismiss; 'blocked' shows Settings
@@ -187,7 +221,7 @@ export function MediaSheet({
             accessibilityRole="header"
             className="text-center text-lg font-semibold text-foreground"
           >
-            {t('media.sheet.title', locale)}
+            {t(allowAudio ? 'media.sheet.titleAudio' : 'media.sheet.title', locale)}
           </Text>
           <Text className="mt-1 text-center text-[14px] leading-5 text-faint">
             {t('media.sheet.sub', locale)}
@@ -204,6 +238,13 @@ export function MediaSheet({
                 label={t('media.sheet.video', locale)}
                 disabled={busy}
                 onPress={() => void openPrimer('video')}
+              />
+            ) : null}
+            {allowAudio ? (
+              <Row
+                label={t('media.sheet.audio', locale)}
+                disabled={busy}
+                onPress={() => void openPrimer('audio')}
               />
             ) : null}
             <Row
@@ -229,6 +270,20 @@ export function MediaSheet({
           </View>
         </Pressable>
       </Pressable>
+
+      {recording ? (
+        <AudioRecorderSheet
+          visible
+          locale={locale}
+          onRecorded={(m) => {
+            setRecording(false);
+            onClose();
+            onPick(m);
+          }}
+          onCancel={() => setRecording(false)}
+          onError={onError}
+        />
+      ) : null}
 
       {pending ? (
         <PermissionPrimer
@@ -268,6 +323,34 @@ function Row({
 
 // --- helpers ---------------------------------------------------------------
 
+/**
+ * Which permission a row needs, read WITHOUT prompting.
+ *
+ * A function rather than the two-arm ternary this replaces: with a fourth source the ternary
+ * would have had to nest, and the failure mode of getting it wrong is silent — a row that
+ * peeks the camera before opening the recorder reports «granted» from the wrong permission and
+ * skips the primer for one the member has never been asked about.
+ *
+ * `audio` is never reached from a sheet without `allowAudio`, because no row renders.
+ */
+function peekPermission(source: Source): Promise<PermStatus> {
+  if (source === 'library') return peekLibraryPermission();
+  if (source === 'audio') return peekMicrophonePermission();
+  return peekCameraPermission();
+}
+
+/** The same mapping for the request that may actually show the OS dialog. */
+function ensurePermission(source: Source): Promise<PermStatus> {
+  if (source === 'library') return ensureLibraryPermission();
+  if (source === 'audio') return ensureMicrophonePermission();
+  return ensureCameraPermission();
+}
+
+/**
+ * `audio` never reaches here: {@link closeThenLaunch} returns before `doLaunch` for it, because
+ * a recorder is a nested sheet and not a picker to launch. It is in the {@link Source} union
+ * all the same, so the exhaustive read below would be a lie without saying so.
+ */
 function pickForSource(source: Source, allowVideo: boolean): Promise<MediaPickResult> {
   if (source === 'photo') return capturePhoto();
   if (source === 'video') return recordVideo();

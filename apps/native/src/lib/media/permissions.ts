@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import { type PermStatus, toPeekStatus, toStatus } from './permission-status';
 
 // `PermStatus` + the two granted/canAskAgain → status mappings live in
@@ -47,5 +48,28 @@ export async function ensureLibraryPermission(): Promise<PermStatus> {
     const next = await ImagePicker.requestMediaLibraryPermissionsAsync();
     return toStatus(next);
   }
+  return 'blocked';
+}
+
+/** Current microphone status WITHOUT prompting — seeds the primer (#154). */
+export async function peekMicrophonePermission(): Promise<PermStatus> {
+  return toPeekStatus(await getRecordingPermissionsAsync());
+}
+
+/**
+ * Resolve the microphone permission. Same read-then-request-once flow as the camera, so an
+ * already-decided permission never re-prompts and a `blocked` one deep-links to Settings
+ * instead of firing a dialog iOS will not show.
+ *
+ * The permission comes from `expo-audio`, not from `expo-image-picker`, even though both can
+ * ask for a microphone: image-picker's request is attached to recording a VIDEO, and asking
+ * through it for a voice note would work while making the iOS prompt arrive from the wrong
+ * feature. `AudioModule` is the module that will actually hold the mic.
+ */
+export async function ensureMicrophonePermission(): Promise<PermStatus> {
+  const current = await getRecordingPermissionsAsync();
+  if (current.granted) return 'granted';
+  // Only the very first ask is `undetermined` + `canAskAgain` → request once.
+  if (current.canAskAgain) return toStatus(await requestRecordingPermissionsAsync());
   return 'blocked';
 }

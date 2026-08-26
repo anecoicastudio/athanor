@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { storageUploadAuth } from '@/lib/supabase';
 import type { PickedMedia } from './pick';
-import { resolveVideoContentType } from './asset';
+import { resolveAudioContentType, resolveVideoContentType } from './asset';
 import type { UploadTarget } from './paths';
 import { processImage, processVideo } from './process';
 import { buildStorageUploadRequest } from './storage-request';
@@ -74,7 +74,8 @@ export async function uploadLocalFile(
 
 /**
  * Process one picked item and upload it to its target. Images are EXIF-stripped
- * + resized first; videos pass through (see process.ts for the honest video gap).
+ * + resized first; videos and recordings pass through (see process.ts for the honest video
+ * gap, and the audio arm below for why there is nothing to process there).
  *
  * Returns the processed `localUri` alongside the storage path: for a video that is the file a
  * poster frame must be extracted from, and it is not always `item.uri` — `processVideo` is a
@@ -118,6 +119,24 @@ export async function processAndUpload(
     width = processed.width;
     height = processed.height;
     contentType = 'image/jpeg';
+  } else if (item.kind === 'audio') {
+    // A recording is uploaded exactly as the recorder wrote it: there is no `processAudio`,
+    // because the two things processing does elsewhere have no audio counterpart here. The
+    // EXIF strip is an image concern, and the metadata an `.m4a` can carry is stripped
+    // server-side by `media-process` (`stripMp4`) the same way it is for a video.
+    //
+    // The container is resolved, not asserted, for the #461 reason — the bucket believes the
+    // declared header, so the header is checked where it is set. `recordedAudio` already
+    // refused anything outside the allowlist at the recorder door, which makes this the second
+    // gate rather than the first; it stays because `processAndUpload` is reachable from any
+    // caller holding a `PickedMedia`, and a bucket contract enforced only at one call site is
+    // enforced by convention.
+    const resolved = resolveAudioContentType(item.mimeType);
+    if (resolved === null) throw new UnsupportedMediaTypeError(item.mimeType);
+    localUri = item.uri;
+    // Deliberately left undefined rather than read off `item`: audio has no dimensions, and a
+    // 0 written into `width`/`height` would make `aspectRatio()` divide by zero in the feed.
+    contentType = resolved;
   } else {
     // Before the processing pass, not after: `processVideo` is a passthrough today, so a
     // container the bucket refuses would otherwise be discovered only once the bytes are

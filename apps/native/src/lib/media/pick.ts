@@ -4,6 +4,7 @@ import {
   type MediaPickOutcome,
   type PickedMedia,
   type VideoPickOutcome,
+  type VisualMediaKind,
   classifyVideoAsset,
   toPickedMedia,
 } from './asset';
@@ -30,7 +31,7 @@ import {
 // `PickedMedia` + the asset→PickedMedia mapping live in ./asset, which imports
 // expo-image-picker for types only and so stays reachable from the node test
 // runner. Re-exported so existing `from './pick'` imports keep resolving.
-export type { MediaPickOutcome, PickedMedia, VideoPickOutcome };
+export type { MediaPickOutcome, PickedMedia, VideoPickOutcome, VisualMediaKind };
 
 /** A candidacy video pick: an accepted asset, a named rejection, or the member backing out. */
 export type VideoPickResult = VideoPickOutcome | { outcome: 'canceled' };
@@ -62,11 +63,11 @@ export async function capturePhoto(): Promise<MediaPickResult> {
   return toPickedMedia(asset);
 }
 
-/** Open the camera to record a video, capped at MAX_VIDEO_SECONDS. */
+/** Open the camera to record a video, capped at MAX_CLIP_SECONDS. */
 export async function recordVideo(): Promise<MediaPickResult> {
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: ['videos'],
-    videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
+    videoMaxDuration: MEDIA_LIMITS.MAX_CLIP_SECONDS,
     videoQuality:
       ImagePicker.UIImagePickerControllerQualityType[MEDIA_LIMITS.VIDEO_CAPTURE_QUALITY_IOS],
   });
@@ -98,13 +99,13 @@ export async function pickVideo(source: 'record' | 'library'): Promise<VideoPick
     source === 'record'
       ? await ImagePicker.launchCameraAsync({
           mediaTypes: ['videos'],
-          videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
+          videoMaxDuration: MEDIA_LIMITS.MAX_CLIP_SECONDS,
           videoQuality:
             ImagePicker.UIImagePickerControllerQualityType[MEDIA_LIMITS.VIDEO_CAPTURE_QUALITY_IOS],
         })
       : await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['videos'],
-          videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
+          videoMaxDuration: MEDIA_LIMITS.MAX_CLIP_SECONDS,
           exif: false,
           allowsMultipleSelection: false,
           videoExportPreset:
@@ -124,7 +125,7 @@ export async function pickFromLibrary(opts?: { allowVideo?: boolean }): Promise<
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes,
     quality: MEDIA_LIMITS.IMAGE_QUALITY,
-    videoMaxDuration: MEDIA_LIMITS.MAX_VIDEO_SECONDS,
+    videoMaxDuration: MEDIA_LIMITS.MAX_CLIP_SECONDS,
     exif: false,
     allowsMultipleSelection: false,
     // Ignored for a still; the option is set unconditionally because `allowVideo` is the

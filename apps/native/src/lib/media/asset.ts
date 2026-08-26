@@ -5,9 +5,16 @@ import type { MessageKey } from '@athanor/i18n';
 /**
  * A single picked asset, normalized into the shape the rest of the media
  * pipeline consumes. `duration_s` is seconds (the picker returns ms).
+ *
+ * `audio` joined the union in #154 and is the one member `expo-image-picker` never produces:
+ * there is no audio door in the library or the camera, so every audio item comes from the
+ * in-app recorder (`record-audio.ts`). It is also the one member only ONE bucket accepts —
+ * `post-media` lists `audio/mp4` and `audio/mpeg`, `moments` and `story-segments` list no
+ * audio type at all — which is why `momentPath`/`storyPath` exclude it at the type level
+ * rather than trusting a call site not to pass it.
  */
 export type PickedMedia = {
-  kind: 'image' | 'video';
+  kind: 'image' | 'video' | 'audio';
   uri: string;
   width?: number;
   height?: number;
@@ -16,6 +23,18 @@ export type PickedMedia = {
   /** File size in bytes, when the picker reported one. Undefined is «unknown», never zero. */
   bytes?: number;
 };
+
+/**
+ * The kinds a bucket other than `post-media` can store (#154).
+ *
+ * `moments` and `story-segments` declare no audio type in `allowed_mime_types`
+ * (20260819163146), and `moment_kind` / `story_kind` are both `('photo','video')` enums — so an
+ * audio item has neither an object those buckets accept nor a column value those tables can
+ * hold. Naming the narrower union lets `momentPath` / `storyPath` and the two upload hooks say
+ * so in their signatures, which turns "the composer never offers audio there" from a fact about
+ * today's UI into something the compiler keeps true.
+ */
+export type VisualMediaKind = Exclude<PickedMedia['kind'], 'audio'>;
 
 /** Why a picked video cannot be uploaded. Mirrors the same members of `VideoFailure` (#412). */
 export type VideoRejection = 'too-long' | 'too-large' | 'unsupported-type';
@@ -55,6 +74,33 @@ export const REJECTION_MESSAGE: Record<VideoRejection, MessageKey> = {
   'too-large': 'media.tooLarge',
   'unsupported-type': 'media.unsupportedType',
 };
+
+/**
+ * The Content-Type a recording should declare, or `null` when the container is one the
+ * `post-media` bucket will refuse (#154).
+ *
+ * The `resolveVideoContentType` shape deliberately, and for the reason #461 gives: the bucket
+ * filters on the declared header rather than on the bytes, so a container outside the allowlist
+ * has to be refused BY NAME before a byte moves, never relabelled into acceptance.
+ *
+ * Unlike the video resolver, a missing type resolves to `null` rather than to a default. The
+ * asymmetry is not an oversight: a picker declining to name a type is silence about a file
+ * somebody else produced, whereas the recorder configures its own container on every platform
+ * — so here an unnamed type means the recorder could not say what it wrote, which is not a
+ * thing to guess about.
+ *
+ * The case this exists for is **web**. `expo-audio` records `audio/webm` in a browser
+ * (`RecordingPresets` declares it, and MediaRecorder has no mp4 path in most engines), and
+ * `audio/webm` is in no bucket's allowed_mime_types. Expo web is this repo's QA harness, so
+ * without this the walk would end in an opaque 415 at publish instead of a sentence.
+ */
+export function resolveAudioContentType(mimeType: string | undefined): string | null {
+  if (!mimeType) return null;
+  // A `type/subtype; codecs=…` parameter is legal and is not part of the allowlist comparison.
+  const normalized = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
+  const allowed: readonly string[] = MEDIA_LIMITS.AUDIO_MIME_TYPES;
+  return allowed.includes(normalized) ? normalized : null;
+}
 
 /** The picker asset → PickedMedia, with no acceptance rules applied. */
 function normalize(asset: ImagePickerAsset): PickedMedia {
@@ -96,7 +142,7 @@ export function toPickedMedia(asset: ImagePickerAsset): MediaPickOutcome {
   if (
     media.kind === 'video' &&
     media.duration_s != null &&
-    media.duration_s > MEDIA_LIMITS.MAX_VIDEO_SECONDS
+    media.duration_s > MEDIA_LIMITS.MAX_CLIP_SECONDS
   ) {
     return { outcome: 'rejected', reason: 'too-long' };
   }
@@ -135,7 +181,7 @@ export function resolveVideoContentType(mimeType: string | undefined): string | 
 export function classifyVideoAsset(asset: ImagePickerAsset): VideoPickOutcome {
   const media = normalize(asset);
   if (media.kind !== 'video') return { outcome: 'rejected', reason: 'unsupported-type' };
-  if (media.duration_s != null && media.duration_s > MEDIA_LIMITS.MAX_VIDEO_SECONDS) {
+  if (media.duration_s != null && media.duration_s > MEDIA_LIMITS.MAX_CLIP_SECONDS) {
     return { outcome: 'rejected', reason: 'too-long' };
   }
   if (media.bytes != null && media.bytes > MEDIA_LIMITS.MAX_VIDEO_BYTES) {

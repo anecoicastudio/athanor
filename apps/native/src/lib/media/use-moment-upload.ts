@@ -10,6 +10,7 @@ import {
   newMediaId,
   processAndUpload,
   uploadLocalFile,
+  UnsupportedMediaTypeError,
 } from '@/lib/media/upload';
 import { extractVideoPoster } from '@/lib/media/poster';
 import type { PickedMedia } from '@/lib/media/pick';
@@ -20,8 +21,9 @@ import type { PickedMedia } from '@/lib/media/pick';
  * `moments` bucket, then inserts the row (owner-only via RLS). Writes ONLY the
  * `moments` table — never any Aura/score event (rule #1).
  *
- * Kind mapping: PickedMedia is `'image'|'video'`; a moment's kind is
- * `'photo'|'video'`. `momentPath` takes the PickedMedia kind for the extension.
+ * Kind mapping: PickedMedia is `'image'|'video'|'audio'`; a moment's kind is `'photo'|'video'`.
+ * `momentPath` takes the narrower `VisualMediaKind` for the extension, and the audio arm is
+ * refused up front (#154) — see the guard in `mutationFn`.
  *
  * A video also gets a poster frame extracted and uploaded, so its gallery tile has an image to
  * draw (#131) — see `uploadPoster` below for why that step can never fail the Momento.
@@ -38,6 +40,14 @@ export function useMomentUpload(uid: string | undefined): {
   const mutation = useMutation({
     mutationFn: async (m: PickedMedia) => {
       if (!uid) throw new Error('no-uid');
+      // A recording cannot become a Momento (#154). `moments` and `story-segments` list no audio
+      // type in allowed_mime_types, and `moment_kind` is a ('photo','video') enum — so an audio item
+      // has neither an object these buckets accept nor a column value this table can hold.
+      // The Profilo grid's MediaSheet never passes `allowAudio`, so this is unreachable by
+      // construction; it is spelled out because the mapping below reads `kind === 'video' ?
+      // 'video' : 'photo'`, and under a widened union that ternary would file a voice note as a
+      // PHOTO — silently, with a real row and an unplayable object behind it.
+      if (m.kind === 'audio') throw new UnsupportedMediaTypeError(m.mimeType);
       const momentId = newMediaId();
       const path = momentPath(uid, momentId, m.kind);
       const up = await processAndUpload(m, { bucket: 'moments', path });
