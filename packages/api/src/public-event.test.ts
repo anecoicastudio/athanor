@@ -16,7 +16,6 @@ const eventRow = {
   ends_at: '2026-09-01T21:00:00.000Z',
   price_cents: 1500,
   currency: 'eur',
-  is_kairos_day: false,
   is_athanor_day: false,
   organizer_id: ORGANIZER_ID,
 };

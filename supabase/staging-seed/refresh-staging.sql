@@ -290,7 +290,7 @@ begin
       ('vera_erbe',      'yoga-alba',      'going'),
       ('luna_dev',       'ascolto-disco',  'going'),
       ('rocco_film',     'ascolto-disco',  'going'),
-      ('sara_startup',   'kairos-ottobre', 'going'),
+      ('sara_startup',   'athanor-ottobre', 'going'),
       ('tino_chef',      'bottega-aperta', 'going')
     ) as s(handle, slug, status)
    where rv.id = md5('rsvp:' || s.handle || ':' || s.slug)::uuid
@@ -329,7 +329,7 @@ begin
            ends_at   = now() + (x.offset_days || ' days')::interval + interval '2 hours',
            live_started_at = null, live_ended_at = null, deleted_at = null
       from (values
-        ('cena-condivisa', 4), ('yoga-alba', 9), ('ascolto-disco', 16), ('kairos-ottobre', 25)
+        ('cena-condivisa', 4), ('yoga-alba', 9), ('ascolto-disco', 16), ('athanor-ottobre', 25)
       ) as x(slug, offset_days)
      where e.id = md5('event:' || x.slug)::uuid
        and (e.starts_at < now() + interval '3 days' or e.deleted_at is not null)

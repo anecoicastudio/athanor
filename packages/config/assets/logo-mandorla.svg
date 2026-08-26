@@ -8,7 +8,7 @@
       <stop offset="100%" stop-color="#223D86"/>
     </linearGradient>
   </defs>
-  <!-- Four-point Kairos spark at the apex — aura cyan -->
+  <!-- Four-point ✦ spark at the apex — aura cyan -->
   <path d="M80 4 L82.6 14.4 L92 17 L82.6 19.6 L80 30 L77.4 19.6 L68 17 L77.4 14.4 Z" fill="#2BD0D2"/>
   <!-- Mandorla outline — mandala gradient -->
   <path d="M80 28 A60 60 0 0 1 80 132 A60 60 0 0 1 80 28 Z" stroke="url(#mandala)" stroke-width="2" stroke-linejoin="round"/>

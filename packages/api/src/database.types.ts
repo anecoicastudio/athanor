@@ -1019,7 +1019,6 @@ export type Database = {
           geo: unknown
           id: string
           is_athanor_day: boolean
-          is_kairos_day: boolean
           is_online: boolean
           live_ended_at: string | null
           live_started_at: string | null
@@ -1045,7 +1044,6 @@ export type Database = {
           geo?: unknown
           id?: string
           is_athanor_day?: boolean
-          is_kairos_day?: boolean
           is_online?: boolean
           live_ended_at?: string | null
           live_started_at?: string | null
@@ -1071,7 +1069,6 @@ export type Database = {
           geo?: unknown
           id?: string
           is_athanor_day?: boolean
-          is_kairos_day?: boolean
           is_online?: boolean
           live_ended_at?: string | null
           live_started_at?: string | null

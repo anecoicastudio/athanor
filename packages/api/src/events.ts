@@ -47,7 +47,7 @@ export const eventKeys = {
 
 /** Columns the client reads (everything except the geography `geo` column). */
 const EVENT_COLS =
-  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_kairos_day,is_athanor_day,cover_url,live_started_at,live_ended_at,settlement_ack_at,created_at,updated_at,deleted_at';
+  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_athanor_day,cover_url,live_started_at,live_ended_at,settlement_ack_at,created_at,updated_at,deleted_at';
 
 const PAGE_SIZE = 20;
 

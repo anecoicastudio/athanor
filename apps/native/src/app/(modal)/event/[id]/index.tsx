@@ -175,7 +175,7 @@ export default function EventDetailScreen() {
   const now = Date.now();
   const isPast = event ? new Date(event.ends_at ?? event.starts_at).getTime() < now : false;
   const isPaid = (event?.price_cents ?? 0) > 0;
-  const isPremium = event ? event.is_kairos_day || event.is_athanor_day : false;
+  const isPremium = event ? event.is_athanor_day : false;
   const isOrganizer = !!uid && event?.organizer_id === uid;
   const count = attendees.data?.count ?? 0;
 
@@ -285,9 +285,11 @@ export default function EventDetailScreen() {
               {t('event.descFallback', locale)}
             </Text>
 
-            {event.is_kairos_day || event.is_athanor_day ? (
+            {event.is_athanor_day ? (
               <View className="rounded-card border border-aura-line bg-aura-soft p-4">
-                <Text className="text-[13px] text-aura">{t('event.kairos.banner', locale)}</Text>
+                <Text className="text-[13px] text-aura">
+                  {t('event.athanorDay.banner', locale)}
+                </Text>
               </View>
             ) : null}
 
@@ -312,7 +314,7 @@ export default function EventDetailScreen() {
               </Pressable>
             ) : null}
 
-            {/* Type-aware action bar. Premium (Kairos/Athanor-Day) events gate the
+            {/* Type-aware action bar. Premium (Athanor-Day) events gate the
               action behind Circle membership for non-members (M8 §3.4). The gate
               renders the real action bar for members, the upsell banner otherwise.
               Past events are over → no gate, just the past stub. */}

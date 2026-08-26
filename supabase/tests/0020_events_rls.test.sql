@@ -75,7 +75,7 @@ select throws_ok($$ select capacity from public.events $$, '42501', null,
   'anon cannot read capacity');
 select lives_ok($$
   select id, title, category, is_online, venue, city, starts_at, ends_at,
-         price_cents, currency, is_kairos_day, is_athanor_day, organizer_id
+         price_cents, currency, is_athanor_day, organizer_id
   from public.events where deleted_at is null
 $$, 'anon still reads every column the public read-model selects');
 -- geo stays granted on purpose: events_nearby is SECURITY INVOKER, so an anonymous

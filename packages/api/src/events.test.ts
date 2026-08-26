@@ -119,7 +119,6 @@ function evt(over: Record<string, unknown> = {}) {
     price_cents: 0,
     currency: 'eur',
     fee_pct: 10,
-    is_kairos_day: false,
     is_athanor_day: false,
     cover_url: null,
     live_started_at: null,

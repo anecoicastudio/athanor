@@ -18,9 +18,9 @@
 
 1. **Calma ma potente.** Minimal, elegant, premium-but-human. No cheap effects. Spirituality is perceived through the esoteric glyph vocabulary and the mandorla, never shouted. The mandala gradient stays the brand mark (logo / animated hero); the cyan _glow_ is reserved for moment-grade events — the rest of the UI stays calm and flat.
 2. **Air is the luxury.** Generous whitespace, few elements per screen, editorial pacing. The reference layouts win through restraint, not decoration.
-3. **Cyan is action + meaning (M0.5).** The `aura` cyan (`#2BD0D2`) is the primary action + meaning color: CTAs, send, compose hints, the kairos ✦, "me" chat bubbles, active chips, live indicators, countdown, lit stars. The discipline moved from a _color_ prohibition to a _glow_ one — reserve the cyan glow (`auraSoft`/`auraLine` + shadow) for moment-grade events (a waiting Momento, a lit star, dream helped, a match). A flat cyan CTA is fine; a glowing cyan surface means something happened. (CLAUDE.md non-negotiable rule 4.)
+3. **Cyan is action + meaning (M0.5).** The `aura` cyan (`#2BD0D2`) is the primary action + meaning color: CTAs, send, compose hints, the ✦ mark, "me" chat bubbles, active chips, live indicators, countdown, lit stars. The discipline moved from a _color_ prohibition to a _glow_ one — reserve the cyan glow (`auraSoft`/`auraLine` + shadow) for moment-grade events (a waiting Momento, a lit star, dream helped, a match). A flat cyan CTA is fine; a glowing cyan surface means something happened. (CLAUDE.md non-negotiable rule 4.)
 4. **One dark world.** Near-black background canvas everywhere — public reading surfaces and the lived-in app alike: the night sky where stars light up. Moments, chat, profile. The transition in (login, app download, «Hai un Momento» push) is the _varco_ — the gate into a moment.
-5. **Thin lines only.** All illustration is 1px-stroke geometry: concentric circles (Kairos ripples), vesica shapes, dotted spines, single small stars. Never filled illustrations, never stock photos, never icons-in-colored-circles.
+5. **Thin lines only.** All illustration is 1px-stroke geometry: concentric circles (the ripples of the moment), vesica shapes, dotted spines, single small stars. Never filled illustrations, never stock photos, never icons-in-colored-circles.
 6. **No vanity metrics rendered.** No follower counts, no public reaction counts (author only). Mockups below comply.
 
 ### What we took from the reference screenshots (and what we changed)
@@ -112,10 +112,10 @@ Rules:
 
 ## 5. The logo — la Mandorla
 
-From the brand doc: the mark is born from the **vesica piscis** — two perfect circles, two people, each passing through the other's center. The almond between them is the gate every encounter opens. The four-point spark at the apex is **Kairos**, the instant of passage. The three ascending dots inside tell the member's journey: who you are when you arrive, the dream at the center (ringed), the moment you pass through.
+From the brand doc: the mark is born from the **vesica piscis** — two perfect circles, two people, each passing through the other's center. The almond between them is the gate every encounter opens. The four-point spark at the apex is **l'istante** — the instant of passage. The three ascending dots inside tell the member's journey: who you are when you arrive, the dream at the center (ringed), the moment you pass through.
 
 ```
-                  ✦            ← Kairos spark (4-point)
+                  ✦            ← the ✦ spark (4-point)
                  ╱ ╲
                 │   │
                ╱     ╲
@@ -175,14 +175,14 @@ From the brand doc: the mark is born from the **vesica piscis** — two perfect 
 
 ### Thin-line illustration vocabulary
 
-| Motif                                                                                           | Meaning                      | Where                                                                                   |
-| ----------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
-| Concentric circles (ripples)                                                                    | Kairos, the moment expanding | Hero, empty states, splash                                                              |
-| Mandorla / vesica                                                                               | Encounter, the gate          | Logo, Momenti match screen                                                              |
-| Vertical spine: open circles ○, active = `aura` dot inside + bold label, labels alternating L/R | Progress, breakdown          | Aura breakdown, Six Stars, milestones                                                   |
-| Single 4-point ✦                                                                                | A star lit / reaction        | Feed reaction, badges, moments                                                          |
-| Sphere of meridians                                                                             | The self, the profile        | Profilo empty state, onboarding                                                         |
-| Particle field (tiny ▲ triangles + rare ✦, scattered)                                           | The community, night sky     | Dark heroes, countdown band (reference pattern: triangles; ✦ stays rare = `aura` logic) |
+| Motif                                                                                           | Meaning                  | Where                                                                                   |
+| ----------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------- |
+| Concentric circles (ripples)                                                                    | the moment expanding     | Hero, empty states, splash                                                              |
+| Mandorla / vesica                                                                               | Encounter, the gate      | Logo, Momenti match screen                                                              |
+| Vertical spine: open circles ○, active = `aura` dot inside + bold label, labels alternating L/R | Progress, breakdown      | Aura breakdown, Six Stars, milestones                                                   |
+| Single 4-point ✦                                                                                | A star lit / reaction    | Feed reaction, badges, moments                                                          |
+| Sphere of meridians                                                                             | The self, the profile    | Profilo empty state, onboarding                                                         |
+| Particle field (tiny ▲ triangles + rare ✦, scattered)                                           | The community, night sky | Dark heroes, countdown band (reference pattern: triangles; ✦ stays rare = `aura` logic) |
 
 ### Esoteric glyph icon set (v1.1)
 
@@ -193,7 +193,7 @@ No icon pack. The official icon vocabulary is the **20-glyph esoteric set** tran
 | Circumpunct ◉ (circle + center point) | r16 circle, r2.5 filled center         | Tab: Home — il centro, the self in the circle                      |
 | Triad (three circles)                 | Three r6 circles in triangle formation | Tab: Community — le persone                                        |
 | Ripples (three concentric circles)    | r6 / r12 / r18                         | Tab: Live — the moment expanding                                   |
-| Kairos star (4-point)                 | Concave diamond star                   | Tab: Momenti — l'istante. Single `aura` ✦ dot when a Momento waits |
+| ✦ spark (4-point)                     | Concave diamond star                   | Tab: Momenti — l'istante. Single `aura` ✦ dot when a Momento waits |
 | Meridian sphere                       | r16 circle + inner ellipses            | Tab: Profilo — the self that evolves                               |
 | Vesica/varco (almond + point)         | Mandorla outline + center point        | Invitations, match, onboarding                                     |
 
@@ -222,7 +222,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │ ░                                         incontri reali,          ░ │
 │ ░                          la Mandorla    progetti reali.          ░ │
 │ ░                                                                  ░ │
-│ ░              ( Inizia il tuo Kairos )   maybe later              ░ │  pill foreground on indigo
+│ ░              ( Accendi la tua Aura )   maybe later              ░ │  pill foreground on indigo
 │ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │
 ├──────────────────────────────────────────────────────────────────────┤
 │  FOREGROUND BAND                                                   │
@@ -230,7 +230,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │  Qual è                    ◌ ◌ ◌ ◌ ◌            Ogni profilo porta   │
 │  il tuo                   ◌ ◌ ◌ ◌ ◌ ◌           il sogno del suo     │
 │  sogno?                    ◌ ◌ ◌ ◌ ◌            proprietario. E un   │
-│                          (Kairos ripples)       bottone: «Fai        │
+│                          (ripples)       bottone: «Fai        │
 │  display, ink             concentric ○s         accadere questo      │
 │                                                 sogno».              │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -315,7 +315,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │                                               │   ◉ Andrea · coach   │
 │   EVENTI VICINI                      (micro)  │   ◉ Elena · artista  │
 │   ┌─────────┐ ┌─────────┐ ┌─────────┐         │                      │
-│   │Kairos   │ │Networking│ │Benessere│        │  LE TUE STELLE       │
+│   │Athanor D│ │Networking│ │Benessere│        │  LE TUE STELLE       │
 │   │Day MI   │ │Brera 18/6│ │ 21/6    │        │   ★★☆☆☆☆ 2/6        │
 │   └─────────┘ └─────────┘ └─────────┘         │   ★ Mentor: 1/3 aiuti│
 └───────────────────────────────────────────────┴──────────────────────┘
@@ -367,7 +367,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │                        │
 │  EVENTI VICINI         │ micro
 │  ┌───────┐ ┌───────┐   │
-│  │Kairos │ │Brera  │→ │ horizontal scroll
+│  │Ath.Day│ │Brera  │→ │ horizontal scroll
 │  │Day MI │ │18/6   │   │
 │  └───────┘ └───────┘   │
 │                        │
@@ -500,9 +500,9 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 
 ```
 ┌────────────────────────┐
-│ ←  Kairos Day Milano   │
+│ ←  Athanor Day Milano  │
 │                        │
-│  KAIROS DAY     (micro,│
+│  ATHANOR DAY    (micro,│
 │                   aura)   │ platform-official flag
 │  Il primo incontro     │
 │  della costellazione   │

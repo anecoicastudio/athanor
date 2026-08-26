@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 /**
  * Mandorla — the single Athanor mark (DESIGN.md §5), shared by the splash intro
  * and the hero so the two are visually identical. Vesica piscis: two circles
- * whose overlap forms the vertical lens almond (two people meeting); the Kairos
+ * whose overlap forms the vertical lens almond (two people meeting); the ✦
  * star (✦) sits at the apex on top.
  *
  * Entrance (pure CSS, declarative — no JS timers, no hydration cost): the
@@ -129,7 +129,7 @@ export function Mandorla({
         />
       </g>
 
-      {/* Kairos star at the lens apex (LAST child → on top): the elongated cyan
+      {/* The ✦ spark at the lens apex (LAST child → on top): the elongated cyan
           sparkle. Pops in, then pulses when looping. Outer <g> positions
           (translate); inner <g> carries the animated transform (scale) — kept
           separate so the pop/pulse scale doesn't override the translate. */}

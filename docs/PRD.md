@@ -13,8 +13,8 @@
 
 Athanor is a digital ecosystem where people, professionals, companies and creatives connect to evolve together and generate real projects. Not a social network: an evolution of digital communities uniting personal growth, professional networking, business, events, marketplace, collaborations and authentic relationships in a single space.
 
-> Traditional social networks are Chronos: time consumed.
-> Athanor is Kairos: time invested.
+> Traditional social networks are time consumed.
+> Athanor is time invested.
 
 ### 1.2 Problem
 
@@ -165,7 +165,7 @@ Always-visible countdown widget (days to the announcement event, fund total €,
 - Views: calendar, list, nearby. Filter by category/city/date on the calendar (#151). The map render is deferred post-launch — v1 ships the nearby list; a native maps dependency stays out of the launch path (#151, which absorbed #150).
 - Paid tickets: Stripe Checkout; platform fee on top or absorbed (config per event; default 10%). Free events: 1-tap RSVP.
 - Check-in: organizer scans attendee QR → attendance recorded → score event for both.
-- Athanor Days: flagged platform-official gatherings (`events.is_athanor_day` + interest list), premium/Athanor Circle early access. Renamed from this doc's earlier «Kairos Days» — the concept doc names the physical gatherings Athanor Days (ch. on events, ch. 21 Local Circles); «Kairos» remains the moment register (the ✦ mark, Momenti).
+- Athanor Days: flagged platform-official gatherings (`events.is_athanor_day` + interest list), premium/Athanor Circle early access. The concept doc names the physical gatherings Athanor Days (ch. on events, ch. 21 Local Circles). This surface carried an older name before Athanor was the product's name; that word was retired from the whole tree on 2026-08-26 — the ✦ mark and the Momenti register describe the moment without it.
 - Acceptance: ticket purchase → QR in app ≤ 30s; webhook-confirmed, idempotent.
 
 ### 4.7 Momenti (Intelligent Networking)

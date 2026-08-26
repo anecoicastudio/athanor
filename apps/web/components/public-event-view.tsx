@@ -7,7 +7,7 @@ import { eventDateTime, eventPrice } from '@/lib/event-format';
 
 /**
  * Public event page body. Dark world, tokens only, no glow — a listing is not a moment
- * (rule 4). The Kairos / Athanor-Day frame is the one aura-tinted surface here, because
+ * (rule 4). The Athanor-Day frame is the one aura-tinted surface here, because
  * that flag is exactly the "something happened" case the glow is reserved for.
  *
  * Rendered from public-event-client.tsx, so this and its t() calls ship to the browser —
@@ -87,9 +87,9 @@ export function PublicEventView({
         ) : null}
       </dl>
 
-      {event.is_kairos_day || event.is_athanor_day ? (
+      {event.is_athanor_day ? (
         <p className="rounded-2xl border border-aura-line bg-aura-soft p-4 text-sm text-aura">
-          {t('event.kairos.banner', locale)}
+          {t('event.athanorDay.banner', locale)}
         </p>
       ) : null}
 

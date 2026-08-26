@@ -36,7 +36,6 @@ export const eventSchema = z.object({
   price_cents: z.number().int().min(0),
   currency: z.string().regex(/^[a-z]{3}$/),
   fee_pct: z.number().min(0).max(100),
-  is_kairos_day: z.boolean(),
   is_athanor_day: z.boolean(),
   cover_url: z.string().nullable(),
   live_started_at: z.string().nullable(),
