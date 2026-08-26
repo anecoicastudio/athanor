@@ -368,6 +368,24 @@ jobs:
       # sources to assert every function's verify_jwt posture matches its in-handler gate.
       - run: deno test --allow-env --allow-read .
         working-directory: supabase/functions
+      # Typecheck every entrypoint (#557): `deno test` typechecks only what a test
+      # imports, and no test imports an index.ts, so an entrypoint-only type error
+      # used to pass CI and first fail at deploy. Per-directory `cd` is mandatory —
+      # each function dir owns its deno.json import map, and Deno resolves the config
+      # nearest the CWD, so a batched `deno check */index.ts` from here reads only the
+      # root config and cannot resolve per-function deps (`stripe`, `expo-server-sdk`).
+      # Plain `deno check`, never `--all`: --all also checks remote deps' own .d.ts
+      # (red today inside @supabase/auth-js) — not ours to gate on. Corollary of the
+      # nearest-config rule: a new function without its own deno.json gets checked
+      # under the root config here, unlike `deno test` above — give it one.
+      - run: |
+          rc=0
+          for d in */; do
+            [ -f "${d}index.ts" ] || continue
+            (cd "$d" && deno check index.ts) || rc=1
+          done
+          exit $rc
+        working-directory: supabase/functions
 
   bundle-leak:
     name: native bundle (expo export) · leak scan
