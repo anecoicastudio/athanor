@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(15);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -116,7 +116,32 @@ select lives_ok(
   'a clip of exactly 60s is accepted — the cap is inclusive, as the schema and picker are'
 );
 
--- 12. exactly ONE duration CHECK on the column. The narrowing migration (#56) drops the
+-- 12/13. The same cap binds an AUDIO row (#154). `post_media_duration_s_check` carries no
+-- `kind` predicate — `duration_s` is one column — so it has always applied to every kind; but
+-- until the in-app recorder landed there was no surface that could write an audio row at all,
+-- and both arms above name 'video'. A bound asserted for one kind and inherited by another is
+-- exactly the shape #56 was: true right up until somebody changes it for the kind that IS
+-- named. The recorder makes audio reachable, so audio gets asserted.
+--
+-- This is also what a kind-conditional CHECK would have had to replace. #154 chose to keep one
+-- bound for both (the cap is a property of a post, not of a codec — a post may carry both kinds
+-- and derivePostType collapses it to one type), and these two arms are what would go red if a
+-- later migration gave audio its own.
+select throws_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position, duration_s)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', 'audio',
+             'post-media/11111111/aud61.m4a', 3, 61) $$,
+  '23514', null, 'an audio clip longer than 60s is rejected too — the CHECK has no kind predicate'
+);
+
+select lives_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position, duration_s)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', 'audio',
+             'post-media/11111111/aud60.m4a', 4, 60) $$,
+  'an audio clip of exactly 60s is accepted — one clip cap, both kinds'
+);
+
+-- 14. exactly ONE duration CHECK on the column. The narrowing migration (#56) drops the
 -- constraint and re-adds it under the same auto-generated name; `drop constraint if exists`
 -- means a name that did not match would make the drop a no-op and leave BOTH the old bound
 -- and the new one in the catalog. The effective bound would still be 60, so nothing visible

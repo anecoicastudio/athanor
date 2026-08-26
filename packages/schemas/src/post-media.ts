@@ -4,23 +4,36 @@ import { z } from 'zod';
 export const mediaKindSchema = z.enum(['image', 'video', 'audio']);
 
 /**
- * Longest clip a post may carry, in seconds — the same 60 as `MEDIA_LIMITS.MAX_VIDEO_SECONDS`
+ * Longest clip a post may carry, in seconds — the same 60 as `MEDIA_LIMITS.MAX_CLIP_SECONDS`
  * in `@athanor/core` and the `post_media_duration_s_check` CHECK (#56). This package cannot
- * import core (core imports schemas, not the reverse), so the three copies are held together
- * by `post-media-duration.mirror.test.ts` rather than by a module boundary.
+ * import core (core imports schemas, not the reverse), so the copies are held together by
+ * `post-media-duration.mirror.test.ts` rather than by a module boundary — which since #154
+ * also pins the three catalog sentences that spell the number in prose to a member
+ * (`media.tooLong`, `media.sheet.video`, `media.sheet.audio`), in both catalogs.
  *
  * Named here rather than spelled twice below because the insert schema RE-DECLARES the field
  * instead of picking it: two literals are two things to forget, and only one of them is the
  * one an upload actually goes through.
  *
  * It binds EVERY kind, audio included, because `duration_s` is one column and the CHECK has no
- * `kind` predicate — the same shape `moments` and `story_segments` carry. Nothing writes an
- * audio row today (`PickedMedia.kind` is `'image' | 'video'`, so no compose path produces one)
- * and the 1200 it replaces was never a considered bound for audio either. But a voice note is
- * the obvious thing to want past a minute, so whoever builds that surface decides then whether
- * audio gets its own bound — and does it as a product call with its own migration, not by
- * discovering a 23514 at runtime. Raising it here alone would only move the failure to the
- * database.
+ * `kind` predicate — the same shape `moments` and `story_segments` carry.
+ *
+ * **That was inherited rather than chosen until #154, which chose it.** Until the in-app voice
+ * recorder landed, nothing could write an audio row at all — `expo-image-picker` has no audio
+ * media type — so the bound applied to a kind no surface produced, and the 1200 it replaces
+ * was never a considered bound for audio either. Building the recorder forced the question,
+ * and the answer is one bound for both kinds: the cap is a property of a POST, not of a codec.
+ * A post may carry both kinds at once while `derivePostType` collapses it to a single type, so
+ * a voice note running five times longer than the video beside it would make one number mean
+ * two things in one card — and `MEDIA_LIMITS.MAX_POST_MEDIA` is 10, so 60s already buys ten
+ * minutes per post. `supabase/tests/0012_post_media_rls.test.sql` now asserts the boundary for
+ * an audio row as well as a video one, so the shared bound is a tested property rather than an
+ * accident of the CHECK's shape.
+ *
+ * Should audio ever want its own bound, it takes a kind-conditional CHECK in a new migration —
+ * and `declaredBound()` in the mirror test parses only the flat form, so that migration must
+ * teach it the new shape or the mirror silently falls back to the previous bound. Raising the
+ * number here alone would only move the failure to the database.
  */
 export const POST_MEDIA_MAX_DURATION_SECONDS = 60;
 

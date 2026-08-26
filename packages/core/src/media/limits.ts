@@ -59,18 +59,31 @@ export const MEDIA_LIMITS = {
   /** JPEG quality for the avatar encode (0–1). A face at 512px, not a photograph to zoom into. */
   AVATAR_QUALITY: 0.8,
   /**
-   * Hard cap on a personal/post video length.
+   * Hard cap on a personal/post CLIP — video and audio alike.
    *
    * Enforced in three places, and the header's "single source" claim is only as true as they
-   * agree: the picker refuses a longer asset on every path (`toPickedMedia` /
-   * `classifyVideoAsset`), `packages/schemas` refuses to parse one, and `moments`,
-   * `story_segments` and `post_media` each carry a `between 0 and 60` CHECK so a client that
-   * is not our app cannot write one either. `post_media` was the exception until #56 — its
-   * CHECK said 1200 for two months while this line said 60, which is the shape of drift a
-   * constant cannot detect on its own. `packages/schemas/src/post-media-duration.mirror.test.ts`
-   * now pins this number to the schema and to the SQL.
+   * agree: the capture doors refuse a longer clip on every path (`toPickedMedia` /
+   * `classifyVideoAsset` for video, the recorder's own `forDuration` stop for audio),
+   * `packages/schemas` refuses to parse one, and `moments`, `story_segments` and `post_media`
+   * each carry a `between 0 and 60` CHECK so a client that is not our app cannot write one
+   * either. `post_media` was the exception until #56 — its CHECK said 1200 for two months
+   * while this line said 60, which is the shape of drift a constant cannot detect on its own.
+   * `packages/schemas/src/post-media-duration.mirror.test.ts` now pins this number to the
+   * schema, to the SQL, and to the two catalog sentences that spell it in prose.
+   *
+   * **It said `MAX_VIDEO_SECONDS` until #154, and the name was the last thing about it that
+   * was video-only.** The `post_media_duration_s_check` has never carried a `kind` predicate
+   * — `duration_s` is one column — so this bound has always applied to an audio row too;
+   * there was simply no surface that could produce one. #154 built the recorder, and the
+   * choice then was a kind-conditional CHECK giving audio its own bound, or this one. This
+   * one, because the cap is a property of a POST rather than of a codec: a post may carry
+   * both kinds at once and `derivePostType` collapses it to a single type, so a voice note
+   * running five times longer than the video beside it would make one number mean two things
+   * in one card. `MAX_POST_MEDIA` is 10, so 60s already buys ten minutes per post — and
+   * giving audio a longer bound than video would hand the lighter medium the larger claim on
+   * a reader's time.
    */
-  MAX_VIDEO_SECONDS: 60,
+  MAX_CLIP_SECONDS: 60,
   /**
    * Hard cap on the bytes of a picked video, checked BEFORE the upload starts (#412).
    *
@@ -82,7 +95,7 @@ export const MEDIA_LIMITS = {
    * instead of finding out never.
    *
    * **Raising this re-arms #450.** It is now the only bound left on the contiguous iOS
-   * allocation: `MAX_VIDEO_SECONDS` stopped being one when #56 settled at 60s, because seconds
+   * allocation: `MAX_CLIP_SECONDS` stopped being one when #56 settled at 60s, because seconds
    * do not bound bytes — a 60s 4K clip and a 60s 720p clip differ by an order of magnitude.
    * On iOS `xhr.send({ uri })` materialises the whole file in one native buffer before the
    * request leaves (`RCTNetworkTask.mm` → `NSMutableData` → `HTTPBody`), so the largest number
@@ -134,6 +147,68 @@ export const MEDIA_LIMITS = {
    * QuickTime bytes landed under an mp4 label in `storage.objects.metadata`.
    */
   VIDEO_MIME_TYPES: ['video/mp4', 'video/quicktime'],
+  /**
+   * The audio container types an upload may declare (#154). Mirrors the `post-media` bucket's
+   * `allowed_mime_types` — and ONLY that bucket's: `moments` and `story-segments` accept no
+   * audio at all, which is why the recorder is offered in the post composer and nowhere else.
+   *
+   * `audio/mpeg` is in the list because the bucket has accepted it since 20260614204500 and
+   * `media-process` strips ID3v2/ID3v1 for it, not because anything here produces one — the
+   * recorder always writes MPEG-4/AAC. It is the container an import path would bring, kept
+   * so the client list and the bucket list stay the same list.
+   */
+  AUDIO_MIME_TYPES: ['audio/mp4', 'audio/mpeg'],
+  /**
+   * What the recorder declares for the file it produced (#154).
+   *
+   * Resolved against {@link MEDIA_LIMITS.AUDIO_MIME_TYPES} rather than asserted, on the #461
+   * precedent: the bucket filters on the declared header, not on the bytes, so a container
+   * outside the list has to be refused by name instead of relabelled into acceptance. That
+   * matters here more than it looks — see `AUDIO_EXTENSION` for the platform that gets this
+   * wrong.
+   */
+  AUDIO_CONTENT_TYPE: 'audio/mp4',
+  /**
+   * The file extension the recorder writes, and the reason none of `expo-audio`'s presets can
+   * be used as-is.
+   *
+   * `RecordingPresets.HIGH_QUALITY` is `.m4a` on iOS and Android but declares `audio/webm` on
+   * **web**, and `RecordingPresets.LOW_QUALITY` is `.3gp` (`audio/3gpp`) on Android. Neither
+   * is in `AUDIO_MIME_TYPES`, so either would upload and then 415 at the bucket. Spelling the
+   * options out is what keeps the recorder's output and the bucket's allowlist the same set
+   * on the two platforms that matter, and what makes the web case a NAMED refusal rather than
+   * a failed upload.
+   */
+  AUDIO_EXTENSION: '.m4a',
+  /** Mono. A voice note has one speaker; stereo doubles the bytes to encode the same thing. */
+  AUDIO_CHANNELS: 1,
+  /**
+   * Voice-grade AAC. A 60s clip lands around half a megabyte — three orders of magnitude under
+   * the post-media bucket's 50 MiB object cap, which is why audio needs no byte limit of its
+   * own the way video does. `MAX_VIDEO_BYTES` exists because a camera picks its own bitrate
+   * and seconds therefore do not bound bytes; here the bitrate is fixed on this line, so
+   * `MAX_CLIP_SECONDS` bounds both.
+   */
+  AUDIO_BIT_RATE: 64_000,
+  /** Matches the presets. Below this, AAC starts costing intelligibility on consonants. */
+  AUDIO_SAMPLE_RATE: 44_100,
+  /**
+   * iOS output format + quality for a recording (#154). The **names** of `expo-audio`'s
+   * `IOSOutputFormat` and `AudioQuality` members, indexed into those enums at the call site
+   * for the same reason as `VIDEO_CAPTURE_QUALITY_IOS`: this package imports no expo, and a
+   * name makes a renamed member a type error rather than an ordinal that quietly changes
+   * meaning. MPEG4AAC is what puts the recording in the `.m4a` container the bucket accepts.
+   */
+  AUDIO_OUTPUT_FORMAT_IOS: 'MPEG4AAC',
+  AUDIO_QUALITY_IOS: 'MEDIUM',
+  /**
+   * Android output format + encoder (#154). Plain string unions in `expo-audio` rather than
+   * enums, so these are the values themselves. `mpeg4` + `aac` is the pair that yields the
+   * same `.m4a`/`audio/mp4` file iOS produces — `3gp` + `amr_nb` (what LOW_QUALITY selects)
+   * would not.
+   */
+  AUDIO_OUTPUT_FORMAT_ANDROID: 'mpeg4',
+  AUDIO_ENCODER_ANDROID: 'aac',
   /** Max media items attached to one post (multi-image). */
   MAX_POST_MEDIA: 10,
   /** Caption character cap (matches moments.caption CHECK). */

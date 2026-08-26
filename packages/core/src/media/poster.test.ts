@@ -6,7 +6,7 @@ describe('videoPosterTime', () => {
   it('offsets into a normal-length clip rather than taking frame zero', () => {
     // Frame zero is where a fade-in lives, so a poster taken there is often black.
     expect(videoPosterTime(30)).toBe(MEDIA_LIMITS.VIDEO_POSTER_SECONDS);
-    expect(videoPosterTime(MEDIA_LIMITS.MAX_VIDEO_SECONDS)).toBe(MEDIA_LIMITS.VIDEO_POSTER_SECONDS);
+    expect(videoPosterTime(MEDIA_LIMITS.MAX_CLIP_SECONDS)).toBe(MEDIA_LIMITS.VIDEO_POSTER_SECONDS);
   });
 
   it('never asks past the midpoint of a clip shorter than twice the offset', () => {

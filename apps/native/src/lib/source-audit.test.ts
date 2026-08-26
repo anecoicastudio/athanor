@@ -481,7 +481,7 @@ describe('keyboard avoidance goes through the one wrapper (#163)', () => {
 });
 
 // ---------------------------------------------------------------------------------------
-// 9 — a screen that HOLDS a picked video must be able to draw it (#318, #460)
+// 9 — a screen that HOLDS a pick with no frame must be able to draw it (#318, #460, #154)
 // ---------------------------------------------------------------------------------------
 
 /**
@@ -495,11 +495,20 @@ describe('keyboard avoidance goes through the one wrapper (#163)', () => {
  * so they have nothing to branch on and no `<Image>` at all. A screen that KEEPS a
  * `PickedMedia` draws it — and a video has no frame to draw, so it owes the no-poster surface
  * that `media.noPoster.video` announces.
+ *
+ * **Audio joined the union in #154 and is the same defect with a worse hit rate.** A video at
+ * least *has* frames somewhere; a recording can never have one, so `<Image source={{uri}}/>`
+ * over an `.m4a` is a blank box on every single item rather than on the ones without a poster.
+ * The kind is only offered where a bucket can store it — `post-compose` alone — so the audio
+ * assertions are scoped to the holders that can actually receive one, which keeps
+ * `story-compose` from being asked for copy about a kind its sheet never offers.
  */
-describe('a held picked video never draws through <Image> (#318, #460)', () => {
+describe('a held pick with no frame never draws through <Image> (#318, #460, #154)', () => {
   const HOLDERS = FILES.filter((p) => !isTest(p)).filter((p) =>
     /useState<[^>]*PickedMedia/.test(stripComments(read(p))),
   );
+  /** The holders whose MediaSheet actually offers the recorder — audio can only land here. */
+  const AUDIO_HOLDERS = HOLDERS.filter((p) => /\ballowAudio\b/.test(stripComments(read(p))));
 
   it('every composer that holds a pick names the no-poster surface', () => {
     expect(HOLDERS.length, 'no composer holds PickedMedia — has the state moved?').toBeGreaterThan(
@@ -507,6 +516,24 @@ describe('a held picked video never draws through <Image> (#318, #460)', () => {
     );
     const missing = HOLDERS.filter((p) => !read(p).includes("'media.noPoster.video'")).map(rel);
     expect(missing, 'a held video draws nothing — give it the no-poster fill + label').toEqual([]);
+  });
+
+  it('every composer that can hold a RECORDING names its surface too (#154)', () => {
+    // Scoped to allowAudio holders rather than all of them: a composer whose sheet never
+    // offers the recorder cannot receive an audio pick, and demanding copy for a kind it
+    // cannot hold would be the guard inventing a requirement.
+    expect(
+      AUDIO_HOLDERS.length,
+      'no composer offers the recorder — has allowAudio moved, or been dropped?',
+    ).toBeGreaterThan(0);
+    const missing = AUDIO_HOLDERS.filter((p) => !read(p).includes("'media.noPoster.audio'")).map(
+      rel,
+    );
+    expect(
+      missing,
+      'a held recording draws nothing at all — an <Image> over an .m4a has no frame to find, ' +
+        'on every item rather than only the ones without a poster. Give it its own tile.',
+    ).toEqual([]);
   });
 
   it('the kind branch comes BEFORE the drawing surface, not after it', () => {
@@ -518,6 +545,19 @@ describe('a held picked video never draws through <Image> (#318, #460)', () => {
       return image === -1 || branch === -1 || branch > image;
     }).map(rel);
     expect(late, 'decide on media.kind first — a ▶ badge over a blank box is the bug').toEqual([]);
+  });
+
+  it('the audio branch comes BEFORE the drawing surface too (#154)', () => {
+    const late = AUDIO_HOLDERS.filter((p) => {
+      const src = stripComments(read(p));
+      const image = src.indexOf('<Image');
+      const branch = src.indexOf("kind === 'audio'");
+      return image === -1 || branch === -1 || branch > image;
+    }).map(rel);
+    expect(
+      late,
+      'a recording that reaches <Image> renders nothing — branch on the kind first',
+    ).toEqual([]);
   });
 });
 
@@ -1066,7 +1106,7 @@ describe('the upload transport is a single seam (#450)', () => {
 });
 
 // ---------------------------------------------------------------------------------------
-// 17 — a video-capable picker can always say why it refused (#507)
+// 17 — a picker that can refuse can always say why (#507, widened by #154)
 // ---------------------------------------------------------------------------------------
 
 /**
@@ -1074,11 +1114,16 @@ describe('the upload transport is a single seam (#450)', () => {
  * that accepts video and an over-cap pick closes the sheet in silence — which is exactly the
  * bug #507 closed, in all four compose surfaces at once, for two months.
  *
- * Scoped to `allowVideo` because it is the only rule the compose door enforces: an avatar sheet
+ * Scoped to the sheets that can actually refuse something. An avatar sheet
  * (`(onboarding)/index.tsx`, `ProfileEditForm.tsx`) takes stills only, and `toPickedMedia` never
  * refuses a still. Those two may keep omitting `onError` — a picker that THREW is still worth
  * saying, but that is a separate, weaker claim than this one, and widening the guard to cover it
  * would be inventing a requirement no issue has asked for.
+ *
+ * `allowAudio` joins `allowVideo` as a trigger (#154) because the recorder refuses too, and on
+ * one platform it refuses ALWAYS: a browser records a container no bucket accepts, so an
+ * audio-capable sheet without `onError` is silent on every take taken in Expo web — which is
+ * this repo's QA harness, and therefore the surface where that silence gets walked most.
  *
  * Cutting each element at its first `/>` is the same naive slice section 15 makes, for the same
  * reason: no `<MediaSheet>` in this tree takes children, and if one ever does the cut lands
@@ -1100,16 +1145,26 @@ describe('a video-capable picker can always say why it refused (#507)', () => {
       return out;
     });
 
-  it('every MediaSheet that accepts video wires onError', () => {
+  it('every MediaSheet that accepts video or audio wires onError', () => {
     expect(sheets().length, 'no MediaSheet found — has the component moved?').toBeGreaterThan(0);
     const mute = sheets()
-      .filter(([, attrs]) => /\ballowVideo\b/.test(attrs))
+      .filter(([, attrs]) => /\ballowVideo\b/.test(attrs) || /\ballowAudio\b/.test(attrs))
       .filter(([, attrs]) => !/\bonError\b/.test(attrs));
     expect(
       mute.map(([at]) => at),
-      'a video-capable MediaSheet has no onError — an over-cap video would close the sheet ' +
-        'without a word (#507). Pass onError={(key) => setError(t(key, locale))}.',
+      'a MediaSheet that can refuse has no onError — an over-cap video, or a recording in a ' +
+        'container no bucket accepts, would close the sheet without a word (#507, #154). ' +
+        'Pass onError={(key) => setError(t(key, locale))}.',
     ).toEqual([]);
+  });
+
+  it('finds at least one audio-capable sheet to be walking (#154)', () => {
+    // Without this the widened filter is vacuous the day allowAudio is renamed: every sheet
+    // would simply stop matching and the section would report a clean tree.
+    expect(
+      sheets().filter(([, attrs]) => /\ballowAudio\b/.test(attrs)).length,
+      'no MediaSheet offers the recorder — has allowAudio been renamed or dropped?',
+    ).toBeGreaterThan(0);
   });
 });
 

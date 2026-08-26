@@ -4,6 +4,7 @@ import { MEDIA_LIMITS } from '@athanor/core';
 import {
   REJECTION_MESSAGE,
   classifyVideoAsset,
+  resolveAudioContentType,
   resolveVideoContentType,
   toPickedMedia,
 } from './asset';
@@ -61,11 +62,9 @@ describe('toPickedMedia — the 60s video cap', () => {
   const ms = (s: number) => s * 1000;
 
   it('a video exactly at the cap is accepted', () => {
-    const at = toPickedMedia(
-      asset({ type: 'video', duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS) }),
-    );
+    const at = toPickedMedia(asset({ type: 'video', duration: ms(MEDIA_LIMITS.MAX_CLIP_SECONDS) }));
     expect(at.outcome).toBe('picked');
-    expect(at.outcome === 'picked' && at.media.duration_s).toBe(MEDIA_LIMITS.MAX_VIDEO_SECONDS);
+    expect(at.outcome === 'picked' && at.media.duration_s).toBe(MEDIA_LIMITS.MAX_CLIP_SECONDS);
   });
 
   /**
@@ -74,14 +73,14 @@ describe('toPickedMedia — the 60s video cap', () => {
    * assertion below is the one that makes the sentence above it a fact.
    */
   it('a video one second past the cap is rejected — the caller shows media.tooLong', () => {
-    const over = asset({ type: 'video', duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 1) });
+    const over = asset({ type: 'video', duration: ms(MEDIA_LIMITS.MAX_CLIP_SECONDS + 1) });
     const result = toPickedMedia(over);
     expect(result).toEqual({ outcome: 'rejected', reason: 'too-long' });
     expect(result.outcome === 'rejected' && REJECTION_MESSAGE[result.reason]).toBe('media.tooLong');
   });
 
   it('the cap applies to videos only — a long-"duration" image still maps', () => {
-    const image = asset({ type: 'image', duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 120) });
+    const image = asset({ type: 'image', duration: ms(MEDIA_LIMITS.MAX_CLIP_SECONDS + 120) });
     expect(toPickedMedia(image).outcome).toBe('picked');
   });
 
@@ -191,12 +190,12 @@ describe('classifyVideoAsset — a rejection says which (#412)', () => {
     // The reported defect: `toPickedMedia` answered a bare null here (it names the reason
     // since #507) and the hook early-returned without touching status, so the tile never
     // left `idle`.
-    const out = classifyVideoAsset(video({ duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 1) }));
+    const out = classifyVideoAsset(video({ duration: ms(MEDIA_LIMITS.MAX_CLIP_SECONDS + 1) }));
     expect(out).toEqual({ outcome: 'rejected', reason: 'too-long' });
   });
 
   it('a video exactly at the second cap is accepted', () => {
-    const out = classifyVideoAsset(video({ duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS) }));
+    const out = classifyVideoAsset(video({ duration: ms(MEDIA_LIMITS.MAX_CLIP_SECONDS) }));
     expect(out.outcome).toBe('picked');
   });
 
@@ -233,9 +232,54 @@ describe('classifyVideoAsset — a rejection says which (#412)', () => {
 
   it('duration is judged before size — the cap the screen advertises wins the message', () => {
     const both = video({
-      duration: ms(MEDIA_LIMITS.MAX_VIDEO_SECONDS + 30),
+      duration: ms(MEDIA_LIMITS.MAX_CLIP_SECONDS + 30),
       fileSize: MEDIA_LIMITS.MAX_VIDEO_BYTES * 2,
     });
     expect(classifyVideoAsset(both)).toEqual({ outcome: 'rejected', reason: 'too-long' });
+  });
+});
+
+describe('resolveAudioContentType (#154)', () => {
+  it('believes the container the recorder actually writes', () => {
+    expect(resolveAudioContentType('audio/mp4')).toBe('audio/mp4');
+    // Nothing produces this today — the recorder is MPEG-4/AAC on both platforms — but the
+    // bucket has accepted it since 20260614204500 and media-process strips ID3 for it, so the
+    // client list and the bucket list stay the same list.
+    expect(resolveAudioContentType('audio/mpeg')).toBe('audio/mpeg');
+  });
+
+  it('refuses the container a browser records, by name and before any bytes move', () => {
+    // THE case this function exists for. `expo-audio` records `audio/webm` on web and
+    // `audio/3gpp` under RecordingPresets.LOW_QUALITY on Android; neither is in any bucket's
+    // allowed_mime_types, so both are a 415 at the end of an upload. Named here instead.
+    expect(resolveAudioContentType('audio/webm')).toBeNull();
+    expect(resolveAudioContentType('audio/webm; codecs=opus')).toBeNull();
+    expect(resolveAudioContentType('audio/3gpp')).toBeNull();
+    expect(resolveAudioContentType('audio/ogg')).toBeNull();
+  });
+
+  it('refuses a type from another family, however well-formed', () => {
+    expect(resolveAudioContentType('video/mp4')).toBeNull();
+    expect(resolveAudioContentType('image/jpeg')).toBeNull();
+  });
+
+  it('refuses an unnamed type rather than guessing one', () => {
+    // Deliberately NOT the video resolver's behaviour, which defaults to mp4. A picker
+    // declining to name a type is silence about a file someone else produced; the recorder
+    // configures its own container on every platform, so silence here means it could not say
+    // what it wrote — and a Content-Type is the one thing the bucket believes without checking.
+    expect(resolveAudioContentType(undefined)).toBeNull();
+    expect(resolveAudioContentType('')).toBeNull();
+  });
+
+  it('normalizes case and drops a codecs parameter before comparing', () => {
+    expect(resolveAudioContentType('AUDIO/MP4')).toBe('audio/mp4');
+    expect(resolveAudioContentType('audio/mp4; codecs="mp4a.40.2"')).toBe('audio/mp4');
+  });
+
+  it('accepts exactly what MEDIA_LIMITS declares — the bucket allowlist, one source', () => {
+    for (const mime of MEDIA_LIMITS.AUDIO_MIME_TYPES) {
+      expect(resolveAudioContentType(mime), mime).toBe(mime);
+    }
   });
 });

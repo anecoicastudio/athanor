@@ -1,11 +1,30 @@
 import type { MediaBucketName } from '@athanor/api';
-import type { PickedMedia } from './pick';
+import type { PickedMedia, VisualMediaKind } from './pick';
 
 // Alias, not a second list: `@athanor/api` owns the bucket union, so a bucket added there
 // reaches every native call site without a hand-edit here staying in step.
 export type MediaBucket = MediaBucketName;
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
+
+/**
+ * The file extension each picked kind is written under.
+ *
+ * A total map rather than the `kind === 'video' ? 'mp4' : 'jpg'` ternary this replaced (#154).
+ * That ternary was correct for exactly as long as the union had two members: widening it to
+ * include audio made `'jpg'` the silent default for a recording, so every voice note would
+ * have landed at `${index}.jpg` while declaring `audio/mp4` on the wire. A `Record` over the
+ * union cannot acquire a member without acquiring an extension for it — the next kind will
+ * not compile until somebody chooses.
+ *
+ * `.m4a` and not `.mp4`: the recording is MPEG-4/AAC with no video track, and `.m4a` is the
+ * extension that says so. Both map to `audio/mp4` on the wire, which is what the bucket lists.
+ */
+const EXTENSION: Record<PickedMedia['kind'], string> = {
+  image: 'jpg',
+  video: 'mp4',
+  audio: 'm4a',
+};
 
 /** Storage key for a post-media item: `${uid}/${postId}/${index}.{ext}`. */
 export function postMediaPath(
@@ -14,7 +33,7 @@ export function postMediaPath(
   index: number,
   kind: PickedMedia['kind'],
 ): string {
-  return `${uid}/${postId}/${index}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+  return `${uid}/${postId}/${index}.${EXTENSION[kind]}`;
 }
 
 /**
@@ -30,9 +49,9 @@ export function postMediaThumbPath(uid: string, postId: string, index: number): 
   return `${uid}/${postId}/${index}-thumb.jpg`;
 }
 
-/** Storage key for a moment: `${uid}/${momentId}.{ext}`. */
-export function momentPath(uid: string, momentId: string, kind: PickedMedia['kind']): string {
-  return `${uid}/${momentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+/** Storage key for a moment: `${uid}/${momentId}.{ext}`. The `moments` bucket takes no audio. */
+export function momentPath(uid: string, momentId: string, kind: VisualMediaKind): string {
+  return `${uid}/${momentId}.${EXTENSION[kind]}`;
 }
 
 /**
@@ -66,7 +85,7 @@ export function avatarPath(uid: string): string {
   return `${uid}/${uid}.jpg`;
 }
 
-/** Storage key for a story segment: `${uid}/${segmentId}.{ext}`. */
-export function storyPath(uid: string, segmentId: string, kind: PickedMedia['kind']): string {
-  return `${uid}/${segmentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+/** Storage key for a story segment. `story-segments` takes no audio either. */
+export function storyPath(uid: string, segmentId: string, kind: VisualMediaKind): string {
+  return `${uid}/${segmentId}.${EXTENSION[kind]}`;
 }

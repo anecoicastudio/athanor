@@ -286,10 +286,24 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
  */
 export function uploadErrorKey(
   err: unknown,
-): 'media.canceled' | 'media.stalled' | 'media.unsupportedType' | 'media.failed' {
+):
+  | 'media.canceled'
+  | 'media.stalled'
+  | 'media.unsupportedType'
+  | 'media.unsupportedAudio'
+  | 'media.failed' {
   if (err instanceof UploadCanceledError) return 'media.canceled';
   if (err instanceof UploadStalledError) return 'media.stalled';
-  if (err instanceof UnsupportedMediaTypeError) return 'media.unsupportedType';
+  // The refused container names its own family (#154). `media.unsupportedType` says «Questo
+  // formato video… Prova con un altro video», which is the right sentence for a picked file
+  // and the wrong one for a voice note the member just recorded — every noun in it is wrong,
+  // and its advice is something they cannot act on. Read off the type the error already
+  // carries rather than threading a kind down here: the mime IS the family.
+  if (err instanceof UnsupportedMediaTypeError) {
+    return err.mimeType?.toLowerCase().startsWith('audio/')
+      ? 'media.unsupportedAudio'
+      : 'media.unsupportedType';
+  }
   return 'media.failed';
 }
 

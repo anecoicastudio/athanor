@@ -77,7 +77,7 @@ describe('videoStatusMessage — every failure names itself (#412)', () => {
   });
 
   it('the over-cap video — the case that rendered nothing at all — says tooLong', () => {
-    // `toPickedMedia` answered a bare null past MAX_VIDEO_SECONDS — it names the reason since
+    // `toPickedMedia` answered a bare null past MAX_CLIP_SECONDS — it names the reason since
     // #507 — and the hook early-returned without touching status, so the tile never even left
     // `idle`.
     expect(videoStatusMessage('error', 'too-long')).toBe('media.tooLong');

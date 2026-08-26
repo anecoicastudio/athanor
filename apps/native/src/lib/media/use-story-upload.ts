@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createStorySegment, softDeleteStorySegment, storyKeys } from '@athanor/api';
 import { supabase } from '@/lib/supabase';
-import { newMediaId, processAndUpload, storyPath } from '@/lib/media/upload';
+import {
+  newMediaId,
+  processAndUpload,
+  storyPath,
+  UnsupportedMediaTypeError,
+} from '@/lib/media/upload';
 import type { PickedMedia } from '@/lib/media/pick';
 
 /**
@@ -45,6 +50,14 @@ export function useStoryUpload(uid: string | undefined): {
       isStep: boolean;
     }) => {
       if (!uid) throw new Error('no-uid');
+      // A recording cannot become a story segment (#154). `moments` and `story-segments` list no audio
+      // type in allowed_mime_types, and `story_kind` is a ('photo','video') enum — so an audio item
+      // has neither an object these buckets accept nor a column value this table can hold.
+      // story-compose's MediaSheet never passes `allowAudio`, so this is unreachable by
+      // construction; it is spelled out because the mapping below reads `kind === 'video' ?
+      // 'video' : 'photo'`, and under a widened union that ternary would file a voice note as a
+      // PHOTO — silently, with a real row and an unplayable object behind it.
+      if (media.kind === 'audio') throw new UnsupportedMediaTypeError(media.mimeType);
       const mediaId = newMediaId();
       const path = storyPath(uid, mediaId, media.kind);
       const segment = await createStorySegment(supabase, {

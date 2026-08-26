@@ -25,7 +25,7 @@ export function PermissionPrimer({
   onAllow,
   onDismiss,
 }: {
-  kind: 'camera' | 'photos' | 'push';
+  kind: 'camera' | 'photos' | 'microphone' | 'push';
   status: PermStatus;
   visible: boolean;
   locale: Locale;
@@ -38,13 +38,17 @@ export function PermissionPrimer({
       ? 'permission.camera.title'
       : kind === 'photos'
         ? 'permission.photos.title'
-        : 'permission.push.title';
+        : kind === 'microphone'
+          ? 'permission.microphone.title'
+          : 'permission.push.title';
   const bodyKey =
     kind === 'camera'
       ? 'permission.camera.body'
       : kind === 'photos'
         ? 'permission.photos.body'
-        : 'permission.push.body';
+        : kind === 'microphone'
+          ? 'permission.microphone.body'
+          : 'permission.push.body';
   // Push ships its own CTA pair (#561): «Attiva»/«Più tardi» name the action, where the media
   // kinds share the generic allow/notNow pair. Literal keys on every arm — a key spelled by a
   // template literal is invisible to the i18n checker and to a grep for orphans.
