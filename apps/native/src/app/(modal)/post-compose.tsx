@@ -163,7 +163,7 @@ export default function PostComposeScreen() {
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        ♪
+                        🎧
                       </Text>
                       <Text
                         className="mt-0.5 text-[11px] text-faint"

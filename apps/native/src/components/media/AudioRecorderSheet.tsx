@@ -69,16 +69,26 @@ export function AudioRecorderSheet({
   locale,
   onRecorded,
   onCancel,
-  onError,
+  onFailed,
 }: {
   visible: boolean;
   locale: Locale;
   /** A finished, accepted recording. The sheet closes itself before this runs. */
   onRecorded: (media: PickedMedia) => void;
-  /** The way out. Fired by the scrim and by «Annulla», per source-audit §22. */
+  /**
+   * The member left of their own accord, and nothing is to be said — they know they left.
+   * Fired by the scrim and by «Annulla», per source-audit §22.
+   */
   onCancel: () => void;
-  /** A refusal or a failure worth a sentence — the same contract `MediaSheet.onError` has. */
-  onError?: (key: MessageKey) => void;
+  /**
+   * The take ENDED with something to say: a container no bucket accepts, or a recorder that
+   * threw. A distinct callback from {@link onCancel} rather than a message alongside it,
+   * because the two endings need different things from the caller — a cancel returns the
+   * member to the source list, while a refusal has a sentence to deliver and therefore has to
+   * take down every sheet standing between them and it. Collapsing them is what left the
+   * message rendered underneath a still-visible `MediaSheet`.
+   */
+  onFailed: (key: MessageKey) => void;
 }) {
   const recorder = useAudioRecorder(AUDIO_RECORDING_OPTIONS);
   const state = useAudioRecorderState(recorder, POLL_MS);
@@ -151,22 +161,22 @@ export function AudioRecorderSheet({
       }
       // A refusal is an ending, not a state to sit in. On web this is EVERY take — the browser
       // records a container no bucket accepts — so the sheet has to close saying why rather
-      // than leave a member tapping a stop button that can never produce anything.
-      onError?.(AUDIO_REJECTION_MESSAGE[outcome.reason]);
-      onCancel();
+      // than leave a member tapping a stop button that can never produce anything. `onFailed`
+      // and not `onCancel`: the caller has to close the sheet ABOVE this one as well, or the
+      // sentence is written to a screen the source list is still covering.
+      onFailed(AUDIO_REJECTION_MESSAGE[outcome.reason]);
     } catch (err) {
       // Expo Go has no Sentry (#452), so in dev the console is the only telemetry there is.
       devWarn('audio.stop', err);
       await leaveRecordingMode().catch(() => undefined);
       setRecording(false);
       if (abandoned.current) return;
-      onError?.('media.failed');
-      onCancel();
+      onFailed('media.failed');
     } finally {
       setBusy(false);
       lock.current = false;
     }
-  }, [recorder, onRecorded, onError, onCancel]);
+  }, [recorder, onRecorded, onFailed]);
 
   /**
    * A take can end without the member pressing Stop, and the two platforms end it differently.
@@ -222,8 +232,7 @@ export function AudioRecorderSheet({
     } catch (err) {
       devWarn('audio.record', err);
       await leaveRecordingMode().catch(() => undefined);
-      onError?.('media.failed');
-      onCancel();
+      onFailed('media.failed');
     } finally {
       setBusy(false);
     }

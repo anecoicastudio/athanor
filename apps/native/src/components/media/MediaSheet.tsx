@@ -281,7 +281,16 @@ export function MediaSheet({
             onPick(m);
           }}
           onCancel={() => setRecording(false)}
-          onError={onError}
+          onFailed={(key) => {
+            // A refusal has to take down BOTH sheets, not just the recorder: the composer
+            // renders the sentence, and this sheet would otherwise still be covering it. The
+            // video path gets that for free — `closeThenLaunch` has already called `onClose()`
+            // before a picker can refuse anything — and the recorder, which opens on top
+            // instead of launching, has to do it here.
+            setRecording(false);
+            onClose();
+            onError?.(key);
+          }}
         />
       ) : null}
 
