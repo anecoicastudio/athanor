@@ -29,6 +29,10 @@ type AuthState = {
    *  (42501). Every sign-out initiator goes through here, never straight to
    *  supabase.auth.signOut(). */
   signOut: () => Promise<void>;
+  /** Fetch + register the push token when the OS grant already exists (never prompts —
+   *  #561) and remember it so signOut can unregister it. PushPrimer calls this right
+   *  after its grant; the auth-event branch reuses it on boot/refresh. */
+  registerPush: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState>({
@@ -39,6 +43,7 @@ const AuthContext = createContext<AuthState>({
   profileError: false,
   refreshProfile: async () => {},
   signOut: async () => {},
+  registerPush: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -56,6 +61,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await unregisterPush(pushTokenRef.current);
     pushTokenRef.current = null;
     await supabase.auth.signOut();
+  }, []);
+
+  // Registration is read-only on the permission (#561): registerForPush no-ops until the
+  // grant exists, so this is safe to fire on every boot and again from PushPrimer the
+  // moment its ask lands. The token has to land in pushTokenRef — signOut unregisters
+  // whatever is here, and a token registered outside this ref would outlive the session.
+  const registerPush = useCallback(async () => {
+    const token = await registerForPush();
+    if (token) pushTokenRef.current = token;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -110,9 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         event === 'TOKEN_REFRESHED'
       ) {
         if (!pushTokenRef.current) {
-          void registerForPush().then((t) => {
-            pushTokenRef.current = t;
-          });
+          void registerPush();
         }
       }
     });
@@ -184,7 +196,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, loading, flushing, profileError, refreshProfile, signOut }}
+      value={{
+        session,
+        profile,
+        loading,
+        flushing,
+        profileError,
+        refreshProfile,
+        signOut,
+        registerPush,
+      }}
     >
       {children}
     </AuthContext.Provider>

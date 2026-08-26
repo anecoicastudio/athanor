@@ -30,8 +30,9 @@ async function writableCalendarId(): Promise<string | null> {
 /**
  * Add an event to the device calendar (permission-gated). Returns 'added' on success,
  * 'denied' when the member declined and the OS will ask again, 'blocked' when it will not
- * (so the only route left is Settings), 'error' on any failure. Pure device I/O — no DB,
- * no Aura (frontend §6 B12).
+ * (so the only route left is Settings), 'error' on any failure. Idempotent: when an entry
+ * with the same title at the same instant already exists, it returns 'added' without a
+ * second write (#560). Pure device I/O — no DB, no Aura (frontend §6 B12).
  *
  * The denied/blocked split is `toStatus`, the same mapper the media primer uses: `canAskAgain`
  * is the whole difference, and reading it is what the old code skipped. Write-only access
@@ -63,6 +64,19 @@ export async function addEventToCalendar(opts: {
     if (!calendarId) return 'error';
     const start = new Date(opts.startISO);
     const end = opts.endISO ? new Date(opts.endISO) : new Date(start.getTime() + 60 * 60 * 1000); // default 1h
+    // Idempotency read (#560). The screen's in-flight ref stops a double-tap, not a deliberate
+    // re-tap: it clears as soon as this promise settles — sooner than the 2.5s confirmation
+    // toast — and `createEventAsync` happily stores the same event twice. The calendar itself
+    // is queried rather than persisting the created id, because the calendar is the source of
+    // truth: a stored id goes stale the moment the member deletes the entry in the Calendar
+    // app (refusing the re-add they then want) and dies with a reinstall, while a read re-adds
+    // correctly in exactly those cases. Same title at the same instant is our own earlier
+    // write for this purpose; the read costs one native call on a user-tap path.
+    const existing = await Calendar.getEventsAsync([calendarId], start, end);
+    const alreadyThere = existing.some(
+      (e) => e.title === opts.title && new Date(e.startDate).getTime() === start.getTime(),
+    );
+    if (alreadyThere) return 'added';
     await Calendar.createEventAsync(calendarId, {
       title: opts.title,
       startDate: start,
