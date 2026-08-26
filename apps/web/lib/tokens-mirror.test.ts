@@ -220,6 +220,18 @@ function stringLiterals(src: string): { text: string; line: number }[] {
   }));
 }
 
+/**
+ * Every string literal in every apps/web source, with where it came from. Built ONCE at module
+ * load: the scan runs per spelling, and re-reading the tree inside each case walked it ten times
+ * over to answer ten questions about the same bytes.
+ */
+const LITERALS = SOURCES.flatMap((p) =>
+  stringLiterals(readFileSync(p, 'utf8')).map((s) => ({
+    at: `${webRel(p)}:${s.line}`,
+    text: s.text,
+  })),
+);
+
 /** `ink2` → `ink-2`, `onError` → `on-error`. See the docblock: narrower than native's map. */
 const kebab = (k: string) => k.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase();
 
@@ -244,11 +256,7 @@ describe('a token web declines to declare is never spelled as a utility (#550)',
 
   it.each(spellings)('no `-%s` utility in apps/web source', (name) => {
     const re = utility(name);
-    const hits = SOURCES.flatMap((p) =>
-      stringLiterals(readFileSync(p, 'utf8'))
-        .filter((s) => re.test(s.text))
-        .map((s) => `${webRel(p)}:${s.line}  ${s.text.trim()}`),
-    );
+    const hits = LITERALS.filter((l) => re.test(l.text)).map((l) => `${l.at}  ${l.text.trim()}`);
     expect(
       hits,
       `\`${name}\` is in NOT_ON_WEB — globals.css declares no such token, so this utility ` +

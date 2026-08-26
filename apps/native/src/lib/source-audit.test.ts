@@ -1485,9 +1485,15 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
 /** `onPress={handler}` — a bare identifier only; an inline arrow deliberately yields nothing. */
 const ON_PRESS_IDENT = /\bonPress=\{\s*([A-Za-z_$][\w$]*)\s*\}/;
 
-/** `disabled={busy}` gates the exit; `disabled={false}` does not, and neither does no prop. */
+/**
+ * `disabled={busy}` gates the exit; `disabled={false}` does not, and neither does no prop.
+ *
+ * Matched as a PROP, not as a word: `\bdisabled\b` also fires on `className="disabled:opacity-50"`
+ * and on a `${disabled ? … }` interpolation inside one, neither of which gates anything. The
+ * lookahead requires the next character to be one a JSX attribute can be followed by.
+ */
 function gatedOnAFlag(raw: string): boolean {
-  return /\bdisabled\b/.test(raw) && !/\bdisabled=\{\s*false\s*\}/.test(raw);
+  return /(?:^|\s)disabled(?=[=\s/>])/.test(raw) && !/\bdisabled=\{\s*false\s*\}/.test(raw);
 }
 
 describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
@@ -1516,12 +1522,14 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
     // Without this the section is vacuous by default: a walk that resolved no callback at all
     // would report no offenders and read exactly like a clean tree. Two today —
     // components/media/MediaSheet.tsx and components/media/PermissionPrimer.tsx.
+    // A FLOOR, not the count. An exact 2 would go red the day a third silenced sheet lands —
+    // correct work tripping the guard, which is how a guard gets weakened instead of obeyed.
     expect(
-      sheets.map((s) => `${s.at} → ${s.callback}`),
-      'no silenced sheet resolved a close callback. Either accessible={false} has left the ' +
-        'tree, or a scrim now passes an inline arrow this walk cannot read — in which case ' +
-        'give the handler a name, so the exit below stays checkable.',
-    ).toHaveLength(2);
+      sheets.map((s) => `${s.at} → ${s.callback}`).length,
+      'fewer silenced sheets resolve a close callback than the two this tree has. Either ' +
+        'accessible={false} has left one of them, or a scrim now passes an inline arrow this ' +
+        'walk cannot read — in which case give the handler a name, so the exit stays checkable.',
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it('every silenced sheet has something that fires its close callback', () => {
