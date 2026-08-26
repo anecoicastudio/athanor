@@ -1,9 +1,9 @@
 /**
- * Kairos spark — the 4-point star (DESIGN.md §6). l'istante, a star lit.
+ * The ✦ spark — the 4-point star (DESIGN.md §6). l'istante, a star lit.
  * `filled` = earned/lit (use sparingly — oro is a moment); outline = unearned/default.
  * Built from the Mandorla vocabulary: stroke 1.2, currentColor, never an icon pack.
  */
-export function KairosStar({
+export function SparkStar({
   filled = false,
   size = 20,
   className,

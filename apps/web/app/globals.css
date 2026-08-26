@@ -19,7 +19,7 @@
    * The two framed-surface tokens of the glow recipe (rule 4), mirroring
    * packages/config/src/tokens.ts auraSoft/auraLine exactly — apps/native has had them
    * as bg-aura-soft / border-aura-line all along. Web went without until the first
-   * moment-grade surface here (the Kairos / Athanor-Day frame on /event/{id}), which
+   * moment-grade surface here (the Athanor-Day frame on /event/{id}), which
    * would otherwise have had to invent an opacity and drift from the real value.
    */
   --color-aura-soft: rgba(43, 208, 210, 0.1);

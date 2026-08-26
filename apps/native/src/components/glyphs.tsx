@@ -15,7 +15,7 @@ import { semantic } from '@athanor/config';
  * Shape vocabulary:
  *   Home          → circumpunct        (the centre, the self)
  *   Community     → triad              (three, the people)
- *   Momenti       → kairos spark       (the instant — ✦)
+ *   Momenti       → the ✦ spark        (the instant)
  *   Costellazioni → constellation      (joined stars, the projects)
  *   Profilo       → sphere of meridians (the self that evolves)
  */
@@ -52,7 +52,7 @@ export function CommunityGlyph({ size = 24, color }: GlyphProps) {
 }
 
 export function MomentiGlyph({ size = 24, color }: GlyphProps) {
-  // Four-point concave star (Kairos ✦) — curves drawn toward the centre.
+  // Four-point concave star (the ✦ spark) — curves drawn toward the centre.
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Path d="M12 3 Q13 11 21 12 Q13 13 12 21 Q11 13 3 12 Q11 11 12 3 Z" {...line(color)} />

@@ -78,7 +78,6 @@ export default function MyEventsScreen() {
                   venue: e.venue,
                   city: e.city,
                   is_online: e.is_online,
-                  is_kairos_day: e.is_kairos_day,
                   is_athanor_day: e.is_athanor_day,
                   premiumLocked: false,
                   live: !!e.live_started_at && !e.live_ended_at,

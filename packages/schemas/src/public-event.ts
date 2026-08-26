@@ -31,7 +31,6 @@ export const publicEventSchema = z
     ends_at: z.string().nullable(),
     price_cents: z.number().int().min(0),
     currency: z.string().regex(/^[a-z]{3}$/),
-    is_kairos_day: z.boolean(),
     is_athanor_day: z.boolean(),
     organizer_handle: handleSchema.nullable(),
   })

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { t } from '@athanor/i18n';
 import { MandorlaMark } from '@/components/mandorla-mark';
-import { KairosStar } from '@/components/icons';
+import { SparkStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
 import { WaitlistForm } from '@/components/waitlist-form';
 import { LaunchCountdown } from '@/components/launch-countdown';
@@ -259,7 +259,7 @@ export function LandingView({ locale: L }: { locale: Locale }) {
               {STARS.map((s) => (
                 <li key={s.name} className="flex items-center gap-4 border-t border-border py-5">
                   <span className="shrink-0 text-foreground/70">
-                    <KairosStar size={22} />
+                    <SparkStar size={22} />
                   </span>
                   <div>
                     <h3 className="font-display text-xl font-medium">{t(s.name, L)}</h3>
@@ -275,7 +275,7 @@ export function LandingView({ locale: L }: { locale: Locale }) {
         <Section id="sogno" label={t('landing.sogno.eyebrow', L)} center>
           <Reveal className="mx-auto max-w-3xl text-center">
             <div className="flex justify-center text-foreground/70">
-              <KairosStar size={24} />
+              <SparkStar size={24} />
             </div>
             <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
               «{t('landing.sogno.quote', L)}»
@@ -290,7 +290,7 @@ export function LandingView({ locale: L }: { locale: Locale }) {
         <Section id="daivita" label={t('landing.daivita.eyebrow', L)} center accent>
           <Reveal className="mx-auto max-w-3xl text-center">
             <div className="flex justify-center text-aura">
-              <KairosStar filled size={24} />
+              <SparkStar filled size={24} />
             </div>
             <p className="mt-6 font-dream text-4xl italic leading-snug md:text-5xl">
               «{t('landing.daivita.quote', L)}»

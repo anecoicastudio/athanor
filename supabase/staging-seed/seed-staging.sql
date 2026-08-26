@@ -352,7 +352,7 @@ on conflict do nothing;
 --    §1, that is what keeps the three paid events insertable at all.
 -- ---------------------------------------------------------------------------------
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
-                           starts_at, ends_at, capacity, price_cents, currency, is_kairos_day, is_athanor_day,
+                           starts_at, ends_at, capacity, price_cents, currency, is_athanor_day,
                            settlement_ack_at)
 select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.category::public.event_category, e.is_online, e.venue, e.city,
@@ -361,17 +361,17 @@ select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.stream_url,
        now() + (e.starts_in_days || ' days')::interval,
        now() + (e.starts_in_days || ' days')::interval + interval '2 hours',
-       e.capacity, e.price_cents, 'eur', e.is_kairos, false,
+       e.capacity, e.price_cents, 'eur', e.is_athanor,
        case when e.price_cents > 0 then now() else null end
 from (values
   ('cena-condivisa', 'tino_chef',     'Cena condivisa: si cucina insieme', 'creativi',   false, 'Cascina Bianca',       'Milano',  9.19, 45.46, null,                                    4, 12, 1500, false),
   ('yoga-alba',      'ele_yoga',      'Pratica all''alba, sul tetto',      'benessere',  false, 'Tetto di via Volta',   'Milano',  9.18, 45.48, null,                                    9, 20,    0, false),
   ('ascolto-disco',  'gio_musica',    'Ascolto guidato: il disco intero',  'musica',     true,  null,                   null,      null, null, 'https://example.invalid/live/ascolto',  16, 40,  800, false),
-  ('kairos-ottobre', 'sole_designer', 'Kairos: il giorno che conta',       'evoluzione', false, 'Spazio Ostro',         'Milano',  9.20, 45.45, null,                                   25, 100,   0, true),
+  ('athanor-ottobre', 'sole_designer', 'Athanor Day: il giorno che conta',  'evoluzione', false, 'Spazio Ostro',         'Milano',  9.20, 45.45, null,                                   25, 100,   0, true),
   -- negative offset = already over, so the "passati" state and the post-event review
   -- prompt both have something to act on.
   ('bottega-aperta', 'dario_legno',   'Bottega aperta: giunti a vista',    'formazione', false, 'Falegnameria Fontana', 'Bergamo', 9.67, 45.70, null,                                   -6, 10, 2000, false)
-) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_kairos)
+) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_athanor)
 on conflict do nothing;
 
 -- #126 fixture: two events sitting INSIDE the reminder windows. Every offset above is
@@ -383,14 +383,14 @@ on conflict do nothing;
 -- stops one person getting two identical reminders on the same tick. refresh-staging.sql
 -- §10b re-stamps both hourly and clears their markers, so the reminder fires again.
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
-                           starts_at, ends_at, capacity, price_cents, currency, is_kairos_day, is_athanor_day)
+                           starts_at, ends_at, capacity, price_cents, currency, is_athanor_day)
 select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.category::public.event_category, e.is_online, e.venue, e.city,
        case when e.is_online then null
             else extensions.st_point(e.lng, e.lat)::extensions.geography end,
        e.stream_url,
        now() + e.starts_in, now() + e.starts_in + interval '2 hours',
-       e.capacity, 0, 'eur', false, false
+       e.capacity, 0, 'eur', false
 from (values
   ('promemoria-oggi',  'ele_yoga',   'Promemoria: il cerchio di stasera', 'benessere', false,
    'Sala Grande', 'Milano', 9.19, 45.46, null,                                     interval '5 hours',   30),
@@ -410,7 +410,7 @@ from (values
   ('vera_erbe',      'yoga-alba',      'going'),
   ('luna_dev',       'ascolto-disco',  'going'),
   ('rocco_film',     'ascolto-disco',  'going'),
-  ('sara_startup',   'kairos-ottobre', 'going'),
+  ('sara_startup',   'athanor-ottobre', 'going'),
   ('tino_chef',      'bottega-aperta', 'going'),
   -- #126: attendees for the two reminder-window events. The cancelled seat on
   -- promemoria-oggi is load-bearing — «N partecipano» counts going RSVPs only, so it is

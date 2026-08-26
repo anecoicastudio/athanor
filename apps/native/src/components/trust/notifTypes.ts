@@ -13,7 +13,7 @@ import type { Notification } from '@athanor/schemas';
  * All other types use the neutral `raise-2` fill.
  *
  * Glyph substitutions (plan used non-existent named glyphs; Unicode equivalents used):
- *  sun      → ✦  (kairos spark — the project's signature mark)
+ *  sun      → ✦  (the spark — the project's signature mark)
  *  sprout   → ◉  (filled circle — growth)
  *  feather  → ◇  (diamond — review/quality)
  *  sundot   → ◷  (clock face — reminder)

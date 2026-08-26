@@ -1075,3 +1075,16 @@ rows because something else reaches them — holds; the column named is not the 
 Asserted by: `supabase/tests/0133_notification_dispatch_outbox.test.sql` — «a 401 IS retried —
 the platform rejected the key, not the body», «a 400 is abandoned on the first attempt — the same
 body would be rejected identically» and «an abandoned dispatch is reaped after 30 days».
+
+## `20260615094844_events.sql`, `20260812054134_restrict_anon_event_columns.sql`, `20260819041755_events_column_scoped_client_grants.sql` — `is_kairos_day` no longer exists
+
+All three predate `20260826080246_retire_is_kairos_day.sql`, which folded the legacy premium flag
+into `is_athanor_day` (`set is_athanor_day = true where is_kairos_day`) and dropped the column.
+«Kairos» is a pre-Athanor name and was retired from the whole tree on 2026-08-26; these appearances
+survive only because applied migrations are append-only. Read every `is_kairos_day` reference in
+them — the column definition, the anon column-scoped grant list, and the two comment mentions in
+`20260819041755` — as describing `is_athanor_day` alone today. The premium chip logic
+(`event-row.ts` and the public event page) now keys on the single remaining flag.
+
+Asserted by: `supabase/tests/0020_events_rls.test.sql` — the anon column-read assertion no longer
+selects the dropped column, and the from-zero CI replay applies the fold before anything reads it.

@@ -5,7 +5,7 @@
  * (ATHANOR Concept Document §18) is expressed through roles, not color names.
  *
  * Brand rule (M0.5): `aura` (the cyan light, #2BD0D2) is the action + meaning
- * color — CTAs, send, the kairos ✦, live, countdown, lit stars. Reserve the
+ * color — CTAs, send, the ✦ mark, live, countdown, lit stars. Reserve the
  * GLOW for moment-grade events (waiting Momento, lit star, dream helped, match).
  * The mandala gradient (magenta → violet → indigo) is the logo/hero ring only.
  */
