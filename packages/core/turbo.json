@@ -3,7 +3,12 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/supabase/migrations/*.sql"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/migrations/*.sql",
+        "$TURBO_ROOT$/supabase/functions/_shared/version-gate.ts",
+        "$TURBO_ROOT$/supabase/functions/create-contribution-session/logic.ts"
+      ]
     }
   }
 }
