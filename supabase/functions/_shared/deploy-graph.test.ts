@@ -223,6 +223,35 @@ Deno.test('every specifier in a deployed graph resolves to a file that exists', 
 });
 
 /**
+ * Every directory under `supabase/functions` holding a deno.json, the root included.
+ *
+ * Sorted before returning. `Deno.readDirSync` yields filesystem order, and `ALIAS_ROOTS` below
+ * keeps the FIRST specifier seen for a given target — so two configs aliasing one in-repo path
+ * under different names would otherwise pin a label that varies by machine. Not reachable today
+ * (the root is visited first and wins the only in-repo target), which is exactly why it is worth
+ * removing now rather than after it becomes a flake somebody has to reproduce.
+ */
+function configDirs(root: URL): URL[] {
+  const found: URL[] = [];
+  const walk = (dir: URL) => {
+    try {
+      Deno.statSync(new URL('deno.json', dir));
+      found.push(dir);
+    } catch {
+      // no config here; keep descending
+    }
+    // A symlink to a directory reports isDirectory:false, so this cannot cycle.
+    for (const e of Deno.readDirSync(dir)) {
+      if (e.isDirectory && e.name !== 'node_modules' && !e.name.startsWith('.')) {
+        walk(new URL(`${e.name}/`, dir));
+      }
+    }
+  };
+  walk(root);
+  return found.sort((a, b) => a.href.localeCompare(b.href));
+}
+
+/**
  * Every in-repo path an import map ALIASES, from EVERY deno.json under `supabase/functions`.
  *
  * Sourced by scanning for the config files themselves rather than from `ENTRYPOINTS`, which filters
@@ -242,26 +271,6 @@ Deno.test('every specifier in a deployed graph resolves to a file that exists', 
  * and merely being UNIMPORTED — the first is a guarantee, the second is a coincidence that the next
  * person to write the import silently spends.
  */
-/** Every directory under `supabase/functions` holding a deno.json, the root included. */
-function configDirs(root: URL): URL[] {
-  const found: URL[] = [];
-  const walk = (dir: URL) => {
-    try {
-      Deno.statSync(new URL('deno.json', dir));
-      found.push(dir);
-    } catch {
-      // no config here; keep descending
-    }
-    for (const e of Deno.readDirSync(dir)) {
-      if (e.isDirectory && e.name !== 'node_modules' && !e.name.startsWith('.')) {
-        walk(new URL(`${e.name}/`, dir));
-      }
-    }
-  };
-  walk(root);
-  return found;
-}
-
 const ALIAS_ROOTS = (() => {
   const out = new Map<string, { specifier: string; entry: URL; dir: URL }>();
   for (const dir of configDirs(FUNCTIONS)) {
