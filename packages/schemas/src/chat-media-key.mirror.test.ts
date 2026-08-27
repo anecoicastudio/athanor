@@ -129,8 +129,9 @@ interface Statement {
  * name, in application order.
  *
  * `alter policy` is here because leaving it out is a silent hole rather than a smaller net: this
- * repo already changes predicates that way (`20260818114947_banned_read_side_hiding.sql` does it
- * four times, and it is not alone). A later `alter policy "chat-media_insert_own" … with check
+ * repo already changes predicates that way in eight migrations
+ * (`20260818114947_banned_read_side_hiding.sql` alone does it seven times). A later
+ * `alter policy "chat-media_insert_own" … with check
  * (… name ~ '^[0-9a-fA-F]{8}…' …)` would widen the database to accept the uppercase-hex key this
  * package refuses, while a create-only reader went on quoting the stale text from
  * 20260827092629 and passing — the exact drift this file exists to make impossible. Sweeping
@@ -151,11 +152,17 @@ const statementsByPolicy: () => Map<string, Statement[]> = (() => {
       .filter((f) => f.endsWith('.sql'))
       .sort()) {
       const sql = readFileSync(join(dir, file), 'utf8');
-      const heads = [...sql.matchAll(/\b(create|alter)\s+policy\s+"([^"]+)"/gi)];
+      const heads = [
+        ...sql.matchAll(/\b(create|alter)\s+policy\s+(?:"([^"]+)"|([a-zA-Z_][a-zA-Z0-9_$]*))/gi),
+      ];
       heads.forEach((head, i) => {
         const start = head.index;
         const end = i + 1 < heads.length ? heads[i + 1]!.index : sql.length;
-        const name = head[2]!;
+        // Quoted OR bare. `chat-media_*` must be quoted (the hyphen forces it), but
+        // `messages_insert_own_user` needs no quotes and every `alter policy` in this repo so far
+        // is written bare — a quoted-only reader would have watched two of the three names and
+        // silently ignored the third.
+        const name = head[2] ?? head[3]!;
         const list = byName.get(name) ?? [];
         list.push({ file, kind: head[1]!.toLowerCase(), text: sql.slice(start, end) });
         byName.set(name, list);
@@ -186,20 +193,34 @@ function allPinsFor(name: string): { statement: Statement; pin: Pin }[] {
 }
 
 /**
- * The pins in the LAST statement that declares any — the shape actually in force.
+ * The LAST statement that declares any pin — the one whose halves are actually in force.
  *
  * Deliberately "last statement carrying a pin" rather than "last statement": an `alter policy`
  * that only changes roles carries no predicate and must not read as "the pin was dropped". An
- * alter that restates ONE half of an UPDATE policy will make the both-halves count below go red;
- * that is intended, because a half-restated predicate is a shape worth re-deriving this
+ * alter that restates ONE half of an UPDATE policy will make the both-halves assertion below go
+ * red; that is intended, because a half-restated predicate is a shape worth re-deriving that
  * assertion for by hand rather than inferring.
  */
-function pinsInForce(name: string): Pin[] {
+function lastPinningStatement(name: string): Statement {
   const withPins = statementsFor(name).filter((s) => pinsIn(s.text).length > 0);
   const last = withPins.at(-1);
-  if (last === undefined)
+  if (last === undefined) {
     throw new Error(`${name} declares no whole-key shape pin in any migration`);
-  return pinsIn(last.text);
+  }
+  return last;
+}
+
+/**
+ * A policy statement's two predicate halves, split on the `with check` keyword.
+ *
+ * Crude on purpose — a real parser is not owed here, and `with check` cannot appear inside a
+ * predicate as anything but the clause keyword (`check` is not a function and the halves are
+ * parenthesised). `withCheck` is undefined for a statement that declares no such clause, which is
+ * the INSERT-policy shape and, for an UPDATE policy, a rule-2 violation the caller reports.
+ */
+function halvesOf(statement: Statement): { using: string; withCheck: string | undefined } {
+  const [using, ...rest] = statement.text.split(/\bwith\s+check\b/i);
+  return { using: using ?? '', withCheck: rest.length > 0 ? rest.join(' ') : undefined };
 }
 
 describe('the chat-media key shape is one pattern in two languages', () => {
@@ -246,7 +267,16 @@ describe('the chat-media key shape is one pattern in two languages', () => {
   it('pins the shape in BOTH halves of the UPDATE policy', () => {
     // A USING-only pin would let an existing object be renamed INTO a shape the insert path
     // refuses — the upsert-retry path is the one place a chat-media key can move at all.
-    expect(pinsInForce('chat-media_update_own')).toHaveLength(2);
+    //
+    // Split into halves rather than counted: "two pins in the statement" is satisfied by two pins
+    // both sitting in `using (…)`, which is precisely the arrangement the sentence above says is
+    // unsafe. A count would have made this assertion weaker than its own name.
+    const { using, withCheck } = halvesOf(lastPinningStatement('chat-media_update_own'));
+    expect(pinsIn(using), 'the UPDATE policy USING half carries no shape pin').toHaveLength(1);
+    expect(withCheck, 'the UPDATE policy declares no WITH CHECK half').not.toBeUndefined();
+    expect(pinsIn(withCheck ?? ''), 'the UPDATE WITH CHECK half carries no shape pin').toHaveLength(
+      1,
+    );
   });
 
   it('is the three-segment lowercase-uuid .jpg key, and not merely two copies of whatever it became', () => {

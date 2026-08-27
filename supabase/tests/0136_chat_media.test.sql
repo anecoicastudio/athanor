@@ -23,7 +23,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(44);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'chatmedia_a@test.dev'),
@@ -81,8 +81,9 @@ select is(
 -- This list is deliberately WIDER than the key pin, which admits `.jpg` alone (#575). The two
 -- are not the same claim: `allowed_mime_types` gates the declared Content-Type of the bytes, the
 -- key pin gates the object's name, and an extension is not a mime. So PNG bytes can legally be
--- stored under a `.jpg` key — nothing renders wrong, because a signed URL serves the stored
--- content-type rather than guessing from the name. Narrowing this array to `image/jpeg` would
+-- stored under a `.jpg` key. Whether anything renders wrong depends on whether Storage serves the
+-- stored content-type or infers one from the name — NOT verified here, and worth checking before
+-- anyone relies on the mismatch being harmless. Narrowing this array to `image/jpeg` would
 -- make the layers agree and is the obvious follow-up, but it reverses a product decision (which
 -- is exactly what #461 taught this assertion to catch), so #575 left it alone rather than
 -- shrinking a shipped bucket's contract as a side effect of a key-shape fix.
@@ -205,6 +206,17 @@ select is_empty(
         and policyname in ('chat-media_insert_own', 'chat-media_update_own')
         and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '\.jpg$') = 0 $$,
   'both chat-media owner-write policies pin the WHOLE key, extension included (#575)'
+);
+-- Halves, separately. The assertion above concatenates qual and with_check, so it is satisfied by
+-- an UPDATE policy that pins only its USING half — and that is the one arrangement that matters
+-- here: the upsert-retry path is the only way a chat-media key can move, so a WITH CHECK without
+-- the pin would let an existing object be renamed INTO a shape the insert path refuses.
+select ok(
+  (select strpos(qual, '\.jpg$') > 0 and strpos(with_check, '\.jpg$') > 0
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'chat-media_update_own'),
+  'the chat-media UPDATE policy pins the whole key in BOTH halves, not just USING'
 );
 -- Case matters as much as shape. `packages/schemas` spells `[0-9a-f]` with no `i` flag, so a
 -- `~*` here would accept an uppercase-hex key the client refuses — the same asymmetry #575 came
