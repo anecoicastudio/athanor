@@ -1144,9 +1144,12 @@ member's chat-image bytes therefore persisted, unreadable by any client policy b
 Read the sentence as it was written: the privileged delete needs no policy — not that erasure
 performed one.
 
-**Closed by #573** (`20260827110034_gdpr_storage_footprint_sweep.sql`). `gdpr_storage_footprint`
-lists every object under the member's `{uid}/` prefix across all seven declared buckets, and
-`erasure-job` removes it in re-listing rounds. The comment now describes existing code.
+**The erasure half is closed by #573** (`20260827110034_gdpr_storage_footprint_sweep.sql`).
+`gdpr_storage_footprint` lists every object under the member's `{uid}/` prefix across all seven
+declared buckets, and `erasure-job` removes it in re-listing rounds. The **moderation** half of
+that same sentence still describes a capability rather than existing code: `moderation-enforce`
+names no bucket and calls no `remove()`, so a suspension or ban hides a chat image behind the
+policies and leaves its bytes in place. Read the sentence as closed for erasure only.
 
 Two things this entry is often misread as also claiming, and does not: the **export** side was
 never narrow — `gdpr-export-job` selects `messages.*`, so `media_url` (the chat-media key) has
@@ -1160,3 +1163,25 @@ object per declared bucket, the prefix is anchored, a bucket outside the list is
 quietly do nothing) and `supabase/functions/erasure-job/sweep-buckets.test.ts`, which mirrors the
 bucket list against every `insert into storage.buckets` in the migrations and against
 `packages/api`'s `MediaBucketName` — so the next bucket cannot repeat this.
+
+## `20260827110034_gdpr_storage_footprint_sweep.sql`
+
+### "the owner-write storage policies enforce exactly that shape" is true of six buckets, not seven
+
+The comment above the prefix predicate explains why one `{uid}/` filter covers every bucket, and
+attributes the guarantee to the buckets' own write policies. That holds for the six user-upload
+buckets. It does **not** hold for `exports`: `20260620140149_m9_gdpr_export_erasure.sql` creates
+that bucket with **no `create policy` at all** — nothing writes to it but the service role, and
+nothing reads from it but a signed URL — so no policy constrains its keys.
+
+The shape is real all the same; its source is code, not SQL. `gdpr-export-job` writes each archive
+at `${job.profile_id}/${job.id}.json` (`supabase/functions/gdpr-export-job/logic.ts`), which the
+same migration comment notes a dozen lines earlier when it explains why `exports` is in scope.
+Read the parenthetical as covering the six, with `exports` held to the shape by its only writer.
+
+The consequence to watch: a future writer to `exports` that chose a different key layout would
+silently fall out of the sweep, and no policy would stop it. There is only one writer today.
+
+Asserted by: `supabase/tests/0137_gdpr_storage_footprint.test.sql` seeds an `exports` object at
+the `{uid}/` shape and asserts the manifest lists it, so the sweep's coverage of that bucket is
+pinned regardless of where the shape comes from.

@@ -32,10 +32,19 @@ export const REMOVE_BATCH = 1000;
  * member whose bytes were in fact all deleted on the terminal `'failed'` status, which nothing
  * re-queues.
  *
- * 5000 because a member with more does not exist (PRD §4.3 allows one active dream; posts,
- * moments and stories are all bounded per day), so exhausting the budget means the sweep is not
- * converging — exactly the case that must not report clean. Sized like the reaper's, for the same
- * 30 s pg_net answer window.
+ * 5000 is a runaway guard, NOT a proven ceiling. Most of what a member stores is bounded — one
+ * active dream (PRD §4.3), posts and moments and stories per day — but `chat-media` and `exports`
+ * carry no per-day cap in this tree, so a long-lived heavy chat user could in principle exceed it.
+ * That direction of failure is the safe one and is why the budget exists at all: the sweep reports
+ * `exhausted: false`, the request lands on `'failed'`, and an operator sees an erasure that did
+ * not finish. Nothing re-queues a terminal request until #107 lands (logic.ts says so at the
+ * status write), so the alternative — a silent clean report over bytes still in the bucket — is
+ * the one outcome this must never produce.
+ *
+ * Deliberately NOT sized against a pg_net window, unlike story-segment-reaper's: nothing schedules
+ * this function (no migration names it in a `cron.schedule`; index.ts and
+ * docs/RELEASE-RUNBOOK.md §7 both say so), so it is invoked by hand and answers to no timeout but
+ * the platform's.
  */
 export const MAX_ROUNDS = 6;
 

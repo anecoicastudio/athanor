@@ -102,11 +102,11 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     sentinel (D50: money rows are pseudonymized, never deleted — and #378's ON DELETE
     //     RESTRICT makes the reassignment mandatory before (4b) can ever run), candidacy_votes
     //     + dream_candidacies deleted, touched fund_aggregates recomputed. The function returns
-    //     the candidacy-videos blob manifest — which this loop no longer removes from, see (3c).
+    //     the candidacy-videos blob manifest — which this loop no longer removes from, see (3a).
     //
     //     Its `data` is deliberately not read. Since #573 the sweep below derives the same rows
     //     from the same table for EVERY declared bucket, so the fund manifest is a strict subset
-    //     of what (3c) already removes and consuming it here would be one dead Storage round trip
+    //     of what (3a) already removes and consuming it here would be one dead Storage round trip
     //     per request. The RPC's return shape stays as it is: 20260815131925 is applied,
     //     migrations are append-only, and 0104 pins that manifest as the fund reach's own
     //     contract.
@@ -116,7 +116,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     if (fundError) {
       degraded = true; // nothing irreversible ran for this request — that is a real failure
     } else {
-      // (3c) BYTES — every bucket, not just candidacy-videos (#573). gdpr_storage_footprint
+      // (3a) BYTES — every bucket, not just candidacy-videos (#573). gdpr_storage_footprint
       //     (20260827110034) lists the member's `{uid}/` folder across all seven declared
       //     buckets; ./sweep.ts removes it in re-listing rounds. Rejection and resolved
       //     `{ error }` are both swallowed and both recorded, like the session revoke: one dead

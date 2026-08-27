@@ -1,11 +1,13 @@
-// erasure-job (11 §3.9 8b) — service-role, nightly pg_cron over gdpr_erasure_requests status='requested'.
+// erasure-job (11 §3.9 8b) — service-role, over gdpr_erasure_requests status='requested'.
+// Intended to run nightly under pg_cron; no migration schedules it yet, so today it is invoked by
+// hand (see LEGAL-GATED below and docs/RELEASE-RUNBOOK.md §7).
 // Cascade order is SECURITY-CRITICAL (10 §5.4):
 //   (1) revoke all sessions for the user (deleting the user does NOT invalidate live tokens),
 //   (2) soft/hard-delete user content honoring FK on delete cascade,
 //   (3) PSEUDONYMIZE (never delete) legally-retained money rows — fund_contributions is LIVE
 //       (#240: tombstone reassignment + candidacy/vote deletion); event_tickets /
 //       circle_memberships stay TODO(legal-gate): retention window needs counsel (#184),
-//   (3c) delete the subject's BYTES from every declared storage bucket (#573, ./sweep.ts over
+//   (3a) delete the subject's BYTES from every declared storage bucket (#573, ./sweep.ts over
 //       gdpr_storage_footprint). Until #573 this reached candidacy-videos alone, so an erased
 //       member's photos, chat images, avatar and their own exported archives all survived,
 //   (3b) purge the subject's cached public web pages from Cloudflare KV — apps/web's OpenNext

@@ -365,10 +365,24 @@ supabase functions deploy push-dispatch    # the mirror learns the key …
 supabase db push                           # … before anything can emit it
 ```
 
-That order is always safe: a deployed template nobody emits yet is inert, while an emitted
-template nobody can render is a lost notification. The same reasoning covers any function whose
-behaviour a migration starts depending on — `notification-fan-out` is **not** one of them, since
-it treats `template_key` as an opaque string and passes it through.
+That order is safe **when the migration is what starts depending on the function**: a deployed
+template nobody emits yet is inert, while an emitted template nobody can render is a lost
+notification. The same reasoning covers any function a migration starts depending on —
+`notification-fan-out` is **not** one of them, since it treats `template_key` as an opaque string
+and passes it through.
+
+**The reverse dependency inverts the rule, so read which way it points before deploying.** When a
+function starts depending on a _migration_ — calling an RPC that migration creates — the migration
+must land first, and a deploy in the documented order breaks it. `erasure-job` is the live case
+(#573): since `20260827110034` it calls `gdpr_storage_footprint`, and against a project missing
+that function every request answers `PGRST202` **after** the fund transaction has already run, so
+the request lands on the terminal `failed` that nothing re-queues. R-8 (§3) carries the same note
+as a checklist line.
+
+```bash
+supabase db push                           # the RPC exists …
+supabase functions deploy erasure-job      # … before anything calls it
+```
 
 The window is small on a release where both steps run back to back, and it is not small if the
 migration ships in one release and the function deploy is forgotten until the next. `deploy:check`
