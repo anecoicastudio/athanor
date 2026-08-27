@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useToast } from '@/components/ToastHost';
 
 const CATEGORIES: ProjectCategory[] = [
   'startup',
@@ -36,6 +37,21 @@ export default function ProjectComposeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const authorId = session?.user.id;
+  const { showToast } = useToast();
+
+  /**
+   * TanStack v5 awaits the hook-level `onSuccess` after this component unmounts, and the exit
+   * stays live while the write is in flight — so without this ref a publish that lands late
+   * navigates the member off whatever screen they reached, and a late failure `setError`s into
+   * a component nobody is looking at (#579). Same ref, same reasons, as `post-compose`.
+   */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -51,9 +67,26 @@ export default function ProjectComposeScreen() {
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: projectKeys.all });
-      leave();
+      // A haptic says nothing on web and little on a device (#579). Outside the guard: the
+      // toast host is global, so it reaches the member even if they already left. `'success'`,
+      // not `'moment'` — rule 4 keeps the ✦ for what happens TO them, and a ricerca that finds
+      // someone is the moment, not the posting of it.
+      showToast(t('project.toast.published', locale), 'success');
+      if (mounted.current) leave();
     },
-    onError: () => setError(t('project.compose.error', locale)),
+    onError: () => {
+      /*
+        `project.compose.error` — «Dai un titolo alla ricerca» — is the CLIENT-side validation
+        miss, and it was answering server refusals too: a network drop or an RLS denial told
+        the member to title a ricerca they had already titled, which is advice they cannot act
+        on. Same slip post-compose carried, fixed the same way (#579).
+
+        Inline while they are here; the toast is the only surface left once they are not.
+      */
+      const message = t('project.compose.publishError', locale);
+      if (mounted.current) setError(message);
+      else showToast(message);
+    },
   });
 
   const onPublish = () => {

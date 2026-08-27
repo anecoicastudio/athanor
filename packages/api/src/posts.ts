@@ -132,10 +132,32 @@ export async function getPostById(client: AthanorClient, id: string): Promise<Po
  * author = (select auth.uid()). Creating a post is the +6 domain event the M6
  * engine reads — this writes only `posts`, never Aura (rule #1).
  * TODO(M6): the score-engine (backend `07`) consumes this insert for the +6 award.
+ *
+ * Idempotent on an `id` the caller mints (#579). `upsert`, not `insert`, and the difference
+ * only shows on a retry: the composer sends its own uuid as the PK, so a re-tap after a
+ * response was lost converges the row that already exists on what the member has on screen.
+ * A plain insert answers that with a 23505, and a caller that swallows one to avoid minting a
+ * duplicate post silently discards whatever they edited between the two taps.
+ *
+ * It cannot overwrite a post that is not the caller's: `posts_update_own` carries
+ * `(select auth.uid()) = author_id` in USING as well as WITH CHECK, so a colliding id
+ * belonging to someone else is refused rather than merged, and nothing of theirs is returned
+ * either way. #106's restrictive `active_write_update` sits on the same path, so a suspended
+ * author's converge is gated exactly like any other update.
+ *
+ * Note what that costs even when no `id` is sent: supabase-js always sends
+ * `Prefer: resolution=merge-duplicates`, so every call goes out as
+ * `INSERT … ON CONFLICT (id) DO UPDATE` and traverses the UPDATE grant and policies as well
+ * as the INSERT ones. With no `id` there is nothing that can conflict, so the OUTCOME is the
+ * insert every caller had before #579 — but it is not the statement that used to be sent, and
+ * a future policy change on the update side would be felt here.
+ *
+ * `subscribeNewPosts` filters `event: 'INSERT'`, so a converge emits UPDATE and does not
+ * re-fire the "Nuovi passi ›" banner for a post the feed already showed.
  */
 export async function createPost(client: AthanorClient, insert: PostInsert): Promise<Post> {
   const payload = postInsertSchema.parse(insert);
-  const { data, error } = await client.from('posts').insert(payload).select('*').single();
+  const { data, error } = await client.from('posts').upsert(payload).select('*').single();
   if (error) throw error;
   return postSchema.parse(data);
 }
