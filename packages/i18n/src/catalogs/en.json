@@ -587,7 +587,7 @@
   "comment.delete": "Delete",
   "comment.delete.confirm": "Delete this comment?",
   "common.publish": "Publish",
-  "post.compose.attach": "Add photo or video",
+  "post.compose.attach": "Add photo, video or audio",
   "feed.audio": "Audio · {dur}",
   "feed.video.playLabel": "Play the video",
   "media.processing": "Preparing…",
