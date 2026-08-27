@@ -256,7 +256,16 @@ export function MediaSheet({
             accessibilityRole="header"
             className="text-center text-lg font-semibold text-foreground"
           >
-            {t(allowAudio ? 'media.sheet.titleAudio' : 'media.sheet.title', locale)}
+            {/* The title names what the rows below actually offer: a stills-only sheet
+              (avatars, chat) promised «foto o video» while rendering no video row (#155). */}
+            {t(
+              allowAudio
+                ? 'media.sheet.titleAudio'
+                : allowVideo
+                  ? 'media.sheet.title'
+                  : 'media.sheet.titlePhoto',
+              locale,
+            )}
           </Text>
           <Text className="mt-1 text-center text-[14px] leading-5 text-faint">
             {t('media.sheet.sub', locale)}
