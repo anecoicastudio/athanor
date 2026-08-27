@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
+import { sweepMemberStorage, type SweepStorage } from './sweep.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
@@ -7,8 +8,6 @@ import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
 // Auth and storage arrive as capability ports because the fake db has no .auth or
 // .storage namespace. The auth port exposes ONLY revokeSessions — getUserById/deleteUser
 // join it when the legal-gated cascade below goes live.
-
-export const CANDIDACY_VIDEOS_BUCKET = 'candidacy-videos';
 
 export type ErasureAuth = {
   /**
@@ -27,10 +26,12 @@ export type ErasureAuth = {
   revokeSessions: (profileId: string) => Promise<{ error?: unknown } | null>;
 };
 
-/** The candidacy-videos bucket surface the job needs — index wires db.storage.from(...). */
-export type ErasureStorage = {
-  remove: (paths: string[]) => Promise<{ error: unknown }>;
-};
+/**
+ * The Storage surface the job needs. BUCKET-AWARE since #573: `remove()` is bucket-scoped, and
+ * the sweep below reaches every declared bucket, so index.ts can no longer pre-bind one
+ * (`db.storage.from('candidacy-videos')` was the whole erasure's storage reach).
+ */
+export type ErasureStorage = SweepStorage;
 
 export type ErasureCtx = {
   /** service role — owns the request status column (+ the gated cascade, when live) */
@@ -59,9 +60,6 @@ export type ErasureCtx = {
  */
 const DREAM_ID_READ_LIMIT = 500;
 
-/** Row shape of the blob-removal manifest gdpr_erase_fund_footprint returns. */
-type ManifestRow = { bucket_id: string; name: string };
-
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
   const { db, auth, storage, kv } = ctx;
 
@@ -69,6 +67,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   // this function is then enough to see that the deployment cannot purge (#515).
   let kvDeleted = 0;
   let kvFailed = 0;
+  /** Keys the Storage API accepted across every bucket and every request in this run (#573). */
+  let storageRemoved = 0;
 
   const { data: reqs, error } = await db
     .from('gdpr_erasure_requests')
@@ -102,25 +102,42 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     sentinel (D50: money rows are pseudonymized, never deleted — and #378's ON DELETE
     //     RESTRICT makes the reassignment mandatory before (4b) can ever run), candidacy_votes
     //     + dream_candidacies deleted, touched fund_aggregates recomputed. The function returns
-    //     the candidacy-videos blob manifest, derived from storage.objects rather than the path
-    //     convention, so a failed removal here is retried from what actually remains in the
-    //     bucket — no orphaned video object survives a crash between the two halves.
-    const { data: manifest, error: fundError } = await db.rpc('gdpr_erase_fund_footprint', {
+    //     the candidacy-videos blob manifest — which this loop no longer removes from, see (3c).
+    //
+    //     Its `data` is deliberately not read. Since #573 the sweep below derives the same rows
+    //     from the same table for EVERY declared bucket, so the fund manifest is a strict subset
+    //     of what (3c) already removes and consuming it here would be one dead Storage round trip
+    //     per request. The RPC's return shape stays as it is: 20260815131925 is applied,
+    //     migrations are append-only, and 0104 pins that manifest as the fund reach's own
+    //     contract.
+    const { error: fundError } = await db.rpc('gdpr_erase_fund_footprint', {
       p_profile_id: erasureReq.profile_id,
     });
     if (fundError) {
       degraded = true; // nothing irreversible ran for this request — that is a real failure
     } else {
-      const paths = ((manifest ?? []) as ManifestRow[]).map((row) => row.name);
-      // Rejection swallowed like the session revoke: leftover blobs re-surface in the next manifest,
-      // and one dead Storage call must not stall the rest of the batch. Recorded, though —
-      // a video still sitting in the bucket means this run did not finish what it started.
-      if (paths.length > 0) {
-        const { error: removeError } = await storage
-          .remove(paths)
-          .catch(() => ({ error: new Error('storage removal rejected') }));
-        if (removeError) degraded = true;
-      }
+      // (3c) BYTES — every bucket, not just candidacy-videos (#573). gdpr_storage_footprint
+      //     (20260827110034) lists the member's `{uid}/` folder across all seven declared
+      //     buckets; ./sweep.ts removes it in re-listing rounds. Rejection and resolved
+      //     `{ error }` are both swallowed and both recorded, like the session revoke: one dead
+      //     Storage call must not stall the batch, but a member's photo still sitting in a
+      //     bucket means this run did not finish what it started, so it is 'failed', never
+      //     'partial'. Rounds running out without the folder draining counts the same way.
+      //
+      //     Gated on the fund reach succeeding, as the candidacy removal was: that transaction
+      //     deletes the dream_candidacies rows whose video_url points at these keys, and
+      //     removing the bytes while the rows survive would leave live candidacies rendering a
+      //     broken video for everyone else until the request is re-driven by hand.
+      const sweep = await sweepMemberStorage(
+        {
+          list: (profileId, limit) =>
+            db.rpc('gdpr_storage_footprint', { p_profile_id: profileId, p_limit: limit }),
+          remove: storage.remove,
+        },
+        erasureReq.profile_id,
+      );
+      if (sweep.failed || !sweep.exhausted) degraded = true;
+      storageRemoved += sweep.removed;
     }
 
     // (3b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3, widened
@@ -283,6 +300,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       // `configured: false` is the whole point of reporting this: it is true of the
       // deployment, not of a request, so it shows up even on a run that saw nothing (#515).
       kvPurge: { configured: kv !== null, deleted: kvDeleted, failed: kvFailed },
+      // #573 — bytes, across every declared bucket. A run that erased members and reports
+      // `removed: 0` is the shape of the bug this replaced: the sweep found nothing where the
+      // member's photos should have been.
+      storageRemoved,
     }),
     { headers: { 'content-type': 'application/json' } },
   );

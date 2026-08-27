@@ -1136,12 +1136,27 @@ that names them.
 The §2 comment explaining the missing delete policy ends "Erasure/moderation delete via service
 role, which needs no policy." The mechanism claim is true — the service role bypasses storage RLS,
 so no policy is needed for a privileged delete — but at the time the migration was applied **no
-erasure code touches `chat-media`**: `erasure-job` sweeps only the candidacy-videos manifest, and
-no reaper covers this bucket (the same gap holds for `post-media`, `moments` and `avatars`).
-An erased member's chat-image bytes therefore persist, unreadable by any client policy but never
-deleted, until a bucket-wide erasure sweep exists. Read the sentence as "the future privileged
-delete needs no policy", not "erasure handles this today". The follow-up filed off PR #155's lane
-covers the sweep for every user-media bucket.
+erasure code touched `chat-media`**: `erasure-job` swept only the candidacy-videos manifest, and no
+reaper covers this bucket. The same gap held for `post-media`, `moments`, `story-segments` (whose
+nightly reaper frees only ORPHANED objects, so a live segment's bytes survived too) and `avatars`,
+and for the member's own `exports` archives, which no code path had ever deleted from. An erased
+member's chat-image bytes therefore persisted, unreadable by any client policy but never deleted.
+Read the sentence as it was written: the privileged delete needs no policy — not that erasure
+performed one.
 
-Asserted by: nothing yet — the missing sweep is the finding; the erasure-job test suite gains the
-assertion when the sweep lands.
+**Closed by #573** (`20260827110034_gdpr_storage_footprint_sweep.sql`). `gdpr_storage_footprint`
+lists every object under the member's `{uid}/` prefix across all seven declared buckets, and
+`erasure-job` removes it in re-listing rounds. The comment now describes existing code.
+
+Two things this entry is often misread as also claiming, and does not: the **export** side was
+never narrow — `gdpr-export-job` selects `messages.*`, so `media_url` (the chat-media key) has
+always been in the archive, as have the key columns of every other bucket. And the export carries
+**keys, not bytes**, for every bucket including candidacy-videos; whether Art. 20 wants the bytes
+themselves is an open product decision, not a defect of this migration.
+
+Asserted by: `supabase/tests/0137_gdpr_storage_footprint.test.sql` (the manifest is exactly one
+object per declared bucket, the prefix is anchored, a bucket outside the list is not swept),
+`supabase/functions/erasure-job/sweep.test.ts` (the removal rounds, and every way the sweep can
+quietly do nothing) and `supabase/functions/erasure-job/sweep-buckets.test.ts`, which mirrors the
+bucket list against every `insert into storage.buckets` in the migrations and against
+`packages/api`'s `MediaBucketName` — so the next bucket cannot repeat this.
