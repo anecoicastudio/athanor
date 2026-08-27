@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { semantic } from '@athanor/config';
@@ -15,6 +15,7 @@ import { type PickedMedia } from '@/lib/media/pick';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useStoryUpload } from '@/lib/media/use-story-upload';
 import { Screen } from '@/components/Screen';
+import { useToast } from '@/components/ToastHost';
 
 /**
  * The story composer (#317) — the way INTO the evolutionary story (PRD §4.5), which shipped
@@ -39,6 +40,22 @@ export default function StoryComposeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const { addSegment, isUploading } = useStoryUpload(uid);
+  const { showToast } = useToast();
+
+  /**
+   * The publish runs in a floating async IIFE, so it settles whether or not this screen is
+   * still mounted — and the exit stays live while it works. Without this ref a segment that
+   * lands late would navigate the member off whatever screen they reached, and a late failure
+   * would `setError` into a component nobody is looking at (#579). Same ref, same reasons, as
+   * `post-compose`.
+   */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const onPublish = () => {
     if (!media) {
@@ -54,9 +71,17 @@ export default function StoryComposeScreen() {
           isStep,
         });
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        leave();
+        // Outside the guard on purpose — the toast host is global, so it reaches the member
+        // even when the publish settled after they left. `'success'`, not `'moment'`: the ✦
+        // belongs to the ring this segment lights, not to the act of posting it (rule 4).
+        showToast(t('story.toast.published', locale), 'success');
+        if (mounted.current) leave();
       } catch (err) {
-        setError(t(uploadErrorKey(err), locale));
+        const key = uploadErrorKey(err);
+        // Inline while they are here (it sits under the pick they would change); the toast is
+        // the only surface left once they are not.
+        if (mounted.current) setError(t(key, locale));
+        else showToast(t(key, locale));
       }
     })();
   };

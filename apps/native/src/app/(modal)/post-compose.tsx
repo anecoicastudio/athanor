@@ -21,6 +21,7 @@ import { type PickedMedia } from '@/lib/media/pick';
 import { extractVideoPoster } from '@/lib/media/poster';
 import { withTimeout } from '@/lib/media/with-timeout';
 import {
+  newMediaId,
   postMediaPath,
   postMediaThumbPath,
   processAndUpload,
@@ -28,8 +29,10 @@ import {
   uploadLocalFile,
 } from '@/lib/media/upload';
 import { useGuardedBack } from '@/lib/modal-exit';
+import { isUniqueViolation } from '@/lib/pg-error';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { useToast } from '@/components/ToastHost';
 
 const CATEGORIES: PostCategory[] = ['business', 'human', 'creative', 'evolution'];
 
@@ -45,6 +48,32 @@ export default function PostComposeScreen() {
   const authorId = session?.user.id;
   const [items, setItems] = useState<PickedMedia[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { showToast } = useToast();
+
+  /**
+   * One post id per composed draft, minted before anything is written and reused by every
+   * retry (#579). It is what makes a re-tap safe: the row carries it as its PK, so a second
+   * attempt after a lost response lands on the row the first one wrote — where an id left to
+   * `gen_random_uuid()` mints a second post the member never asked for. It is also what lets
+   * the upload run first (below), since the media keys derive from the post id and no longer
+   * have to wait for the row to exist.
+   *
+   * The idiom is `postCommentInsertSchema`'s, from #101 — same problem one table over, though
+   * not the same answer: a repeated comment conflicts and is dropped, where a repeated publish
+   * converges on the draft as it now stands (see `createPost`). A ref rather than state —
+   * nothing renders from it, and a re-render between the tap and the response must not mint a
+   * new one.
+   */
+  const draftPostId = useRef<string | null>(null);
+
+  /**
+   * Which half of the publish was in flight when it threw. `uploadErrorKey` classifies the
+   * three typed transport errors and falls back to `media.failed` — «Caricamento non
+   * riuscito» — for everything else, which is the wrong sentence for a TEXT-ONLY post whose
+   * insert was refused: there was no upload to have failed. The order below makes the phase
+   * unambiguous, so record it rather than infer it from an error that cannot say.
+   */
+  const phase = useRef<'upload' | 'write'>('upload');
 
   /**
    * The exit. Hand-rolled as an unconditional `dismissTo('/(tabs)')` when #577 fixed this one
@@ -55,9 +84,13 @@ export default function PostComposeScreen() {
   const leave = useGuardedBack();
 
   /**
-   * TanStack v5 awaits the hook-level `onSuccess` even after this component unmounts, so
-   * without this ref a publish finishing late would navigate the member off whatever
-   * screen they reached in the meantime.
+   * TanStack v5 awaits the hook-level `onSuccess` and `onError` even after this component
+   * unmounts, so without this ref a publish finishing late would navigate the member off
+   * whatever screen they reached in the meantime.
+   *
+   * It gates the two things that are meaningless off-screen — the navigation and the inline
+   * `setError` — and NOT the toast, which is the point: the host is global, so an outcome that
+   * arrives after an early exit still reaches the member instead of being swallowed (#579).
    */
   const mounted = useRef(true);
   useEffect(() => {
@@ -70,8 +103,81 @@ export default function PostComposeScreen() {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!authorId) throw new Error('no session');
+      phase.current = 'upload';
+      const postId = (draftPostId.current ??= newMediaId());
       const type = derivePostType(items.map((i) => i.kind));
-      const post = await createPost(supabase, {
+
+      /*
+        Upload FIRST, insert LAST — `use-moment-upload`'s order (#579).
+
+        This used to write the post row before the bytes, so an upload that failed left a row
+        claiming media with no `post_media` behind it. Nothing reaps those, and the member is
+        never told: `PostMedia` returns null on zero rows, so the post publishes as a silently
+        text-only card with the photos simply absent.
+
+        In this order a failure before the insert leaves no row at all. It does not leave
+        NOTHING: the bytes already uploaded stay in the bucket, and a member who abandons the
+        draft rather than retrying leaves them with no row pointing at them and no reaper —
+        the same trade `use-moment-upload` already makes, and a storage cost rather than a
+        visible defect. Erasure still reaches them, because `gdpr_storage_footprint` sweeps
+        `post-media` by `{uid}/` prefix and these keys start with the uid.
+      */
+      const rows: PostMediaInsert[] =
+        items.length > 0
+          ? await Promise.all(
+              items.map(async (item, index) => {
+                const path = postMediaPath(authorId, postId, index, item.kind);
+                const up = await processAndUpload(item, { bucket: 'post-media', path });
+                return {
+                  post_id: postId,
+                  kind: item.kind,
+                  storage_path: up.storage_path,
+                  thumb_path:
+                    item.kind === 'video'
+                      ? await uploadPoster(authorId, postId, index, up.localUri, up.duration_s)
+                      : null,
+                  position: index,
+                  width: up.width ?? null,
+                  height: up.height ?? null,
+                  duration_s: up.duration_s ?? null,
+                } satisfies PostMediaInsert;
+              }),
+            )
+          : [];
+
+      phase.current = 'write';
+      /*
+        Both writes are idempotent under retry BECAUSE the id is ours, but they earn it
+        differently, and the difference is what the member sees after a retry.
+
+        `createPost` upserts on the PK, so a second attempt CONVERGES the row on the draft as
+        it stands — including any edit made after the failure. Swallowing a 23505 here instead
+        would publish the first attempt's text and toast success over the member's changes.
+
+        `addPostMedia` has no such converge: `post_media_post_position` answers a repeat with a
+        23505, which is the database confirming the first attempt landed rather than refusing
+        this one — the reading `isUniqueViolation` already carries for the two help sheets.
+        Swallowing it is what lets a publish that died BETWEEN the two writes be finished by
+        the same tap that failed, instead of dead-ending on a conflict the member cannot act
+        on.
+
+        One case it gets wrong, and it is worth stating exactly because the mild version of it
+        is not true: if `addPostMedia` committed and only its response was lost, and the member
+        then edits the ATTACHMENTS and re-taps, the post does not simply keep the first
+        attempt's media. `postMediaPath` keys by POSITION and by the kind's extension, so the
+        second attempt overwrites the bytes at every shared position holding the SAME kind —
+        `0.jpg` over `0.jpg` — while the first attempt's rows survive the swallowed conflict,
+        leaving rows whose dimensions describe one file and whose storage key now holds
+        another. A position whose kind changed writes a different key (`0.mp4` beside `0.jpg`)
+        and leaves the surviving row pointing at its own intact byte, so what renders is a mix,
+        plus a tail of rows for positions the new set no longer fills. Repairing it needs a
+        write that can replace a media SET — rows to delete as well
+        as rows to upsert — which is a larger change than the orphan this closes and is
+        unreachable without a lost response on the very last await, so it is named here and
+        carried rather than fixed in this pass.
+      */
+      await createPost(supabase, {
+        id: postId,
         author_id: authorId,
         category,
         type,
@@ -79,37 +185,39 @@ export default function PostComposeScreen() {
         is_step: isStep,
         tags: [],
       });
-      if (items.length > 0) {
-        const rows: PostMediaInsert[] = await Promise.all(
-          items.map(async (item, index) => {
-            const path = postMediaPath(authorId, post.id, index, item.kind);
-            const up = await processAndUpload(item, { bucket: 'post-media', path });
-            return {
-              post_id: post.id,
-              kind: item.kind,
-              storage_path: up.storage_path,
-              thumb_path:
-                item.kind === 'video'
-                  ? await uploadPoster(authorId, post.id, index, up.localUri, up.duration_s)
-                  : null,
-              position: index,
-              width: up.width ?? null,
-              height: up.height ?? null,
-              duration_s: up.duration_s ?? null,
-            } satisfies PostMediaInsert;
-          }),
-        );
-        await addPostMedia(supabase, rows);
+      if (rows.length > 0) {
+        await addPostMedia(supabase, rows).catch((err: unknown) => {
+          if (!isUniqueViolation(err)) throw err;
+        });
       }
-      return post;
     },
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
+      /*
+        A haptic is not feedback (#579): it is silent on web, and on a device it is one buzz
+        among the several a publish already makes. The toast is what says the post exists.
+
+        Deliberately NOT behind the `mounted` guard below. The host is global and a toast fired
+        just before an exit survives onto the screen underneath (ToastHost's own recipe), so
+        this is also the only surface a publish that settles AFTER an early exit has — the
+        member is told on whatever screen they reached. `'success'` and not `'moment'`: rule 4
+        reserves the ✦ and the glow for something that happened TO the member, and publishing
+        your own step is not that.
+      */
+      showToast(t('post.toast.published', locale), 'success');
       if (mounted.current) leave();
     },
     onError: (err) => {
-      setError(t(uploadErrorKey(err), locale));
+      const key = phase.current === 'write' ? 'post.compose.publishError' : uploadErrorKey(err);
+      /*
+        The inline sentence is the better surface while the member is here — it sits under the
+        field they would fix. It is the WRONG one once they have left: `setError` on an
+        unmounted screen is a no-op, so a late failure used to be announced nowhere at all and
+        the post simply never appeared (#579). Fall through to the global host in that case.
+      */
+      if (mounted.current) setError(t(key, locale));
+      else showToast(t(key, locale));
     },
   });
 
@@ -134,19 +242,17 @@ export default function PostComposeScreen() {
     <KeyboardAvoiding>
       <Screen>
         {/*
-          Explicit `onBack` so the chevron renders even on a stack root: the default one
-          hides itself there (ModalHeader's own recipe), which left a deep-linked composer
-          with no way out BEFORE publishing either — same dead end as the unguarded exit.
-          Never gated on `isPending`, unlike attach and publish below: the way out stays
-          live while the screen works (MediaSheet's «Annulla» rule). The publish keeps
-          running after an early exit — the `mounted` ref above only stops it from
-          navigating the member a second time when it settles.
+          Never gated on `isPending`, unlike attach and publish below: the way out stays live
+          while the screen works (MediaSheet's «Annulla» rule). The publish keeps running after
+          an early exit — the `mounted` ref above only stops it from navigating the member a
+          second time when it settles, and the toast tells them how it ended wherever they are.
+
+          The explicit `onBack={leave}` this used to pass is gone with the reason for it: it
+          existed because the default chevron hid itself on a stack root, and #578 made the
+          affordance unconditional and routed the default through `useGuardedBack` — the exact
+          same call `leave` is. Passing it was saying the default twice.
         */}
-        <ModalHeader
-          title={t('create.post.title', locale)}
-          backLabel={t('common.back', locale)}
-          onBack={leave}
-        />
+        <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
 

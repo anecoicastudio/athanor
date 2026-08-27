@@ -25,7 +25,7 @@ const BASE_POST = {
 function stub(rows: Array<Record<string, unknown>> = []) {
   const calls: Array<{ method: string; arg: unknown; arg2?: unknown }> = [];
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'insert', 'update', 'order', 'limit', 'or']) {
+  for (const m of ['select', 'insert', 'upsert', 'update', 'order', 'limit', 'or']) {
     chain[m] = (arg?: unknown, arg2?: unknown) => {
       calls.push({ method: m, arg, arg2 });
       return chain;
@@ -248,16 +248,16 @@ describe('createPost', () => {
     expect(calls).toHaveLength(0); // stub untouched — not even from()
   });
 
-  it('inserts the parsed payload then select→single→parse', async () => {
+  it('writes the parsed payload then select→single→parse', async () => {
     const { client, calls } = stub([{ ...BASE_POST }]);
     const post = await createPost(client, {
       author_id: AUTHOR,
       category: 'business',
       body: '  Primo passo del progetto.  ',
     } as never);
-    const insert = calls.find((c) => c.method === 'insert');
+    const write = calls.find((c) => c.method === 'upsert');
     // insert schema defaults applied + body trimmed
-    expect(insert?.arg).toEqual({
+    expect(write?.arg).toEqual({
       author_id: AUTHOR,
       category: 'business',
       type: 'text',
@@ -265,8 +265,27 @@ describe('createPost', () => {
       is_step: false,
       tags: [],
     });
-    expect(calls.map((c) => c.method)).toEqual(['from', 'insert', 'select', 'single']);
+    expect(calls.map((c) => c.method)).toEqual(['from', 'upsert', 'select', 'single']);
     expect(post).toEqual(BASE_POST);
+  });
+
+  /**
+   * #579: the write is an upsert precisely so a retry converges. A plain insert would answer
+   * the second attempt with a 23505, and the composer would have to choose between minting a
+   * duplicate post and silently dropping whatever the member edited in between — which is why
+   * this asserts the METHOD, not only that the id survives into the payload.
+   */
+  it('carries a client-minted id through as the PK, and writes it as an upsert', async () => {
+    const { client, calls } = stub([{ ...BASE_POST }]);
+    await createPost(client, {
+      id: P1,
+      author_id: AUTHOR,
+      category: 'business',
+      body: 'Primo passo del progetto.',
+    } as never);
+    const write = calls.find((c) => c.method === 'upsert');
+    expect((write?.arg as { id?: string }).id).toBe(P1);
+    expect(calls.some((c) => c.method === 'insert')).toBe(false);
   });
 });
 
@@ -331,7 +350,7 @@ describe('posts — a database failure reaches the caller', () => {
   });
 
   it('createPost rethrows so the composer keeps the draft', async () => {
-    const fake = makeFakeClient({ 'posts.insert': [{ error: DB_DOWN }] });
+    const fake = makeFakeClient({ 'posts.upsert': [{ error: DB_DOWN }] });
     await expect(
       createPost(asClient(fake), {
         author_id: AUTHOR,

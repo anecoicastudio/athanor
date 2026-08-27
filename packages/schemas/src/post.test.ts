@@ -82,15 +82,35 @@ describe('postInsertSchema shape', () => {
     body: 'ciao',
   };
 
-  test('carries exactly author, category, body and the three defaulted fields', () => {
+  test('carries exactly author, category, body, the optional id and the three defaulted fields', () => {
     expect(Object.keys(postInsertSchema.shape).sort()).toEqual([
       'author_id',
       'body',
       'category',
+      'id',
       'is_step',
       'tags',
       'type',
     ]);
+  });
+
+  // #579: the composer's client-minted PK. A dropped `id` is the duplicate post it exists to
+  // prevent, and it fails silently — zod strips an undeclared key — so it is asserted by value.
+  test('keeps a client-minted id instead of stripping it', () => {
+    const id = '33333333-3333-3333-3333-333333333333';
+    expect(postInsertSchema.parse({ ...insert, id }).id).toBe(id);
+  });
+
+  test('id is optional, and absent rather than null when omitted', () => {
+    const parsed = postInsertSchema.parse(insert);
+    expect(parsed.id).toBeUndefined();
+    expect('id' in parsed).toBe(false);
+  });
+
+  test('rejects an id that is not a uuid', () => {
+    for (const bad of ['', 'not-a-uuid', '3333333-3333-3333-3333-333333333333']) {
+      expect(postInsertSchema.safeParse({ ...insert, id: bad }).success).toBe(false);
+    }
   });
 
   test('defaults type to text and tags to an empty list — not a placeholder tag', () => {

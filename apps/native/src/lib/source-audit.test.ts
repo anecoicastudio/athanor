@@ -1757,3 +1757,86 @@ describe('a (modal) screen always has a way out (#578)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 24 — a publish that buzzes also says so (#579)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A haptic is not feedback. `expo-haptics` is a no-op on web — the whole react-native-web
+ * surface this repo QAs on, and the only surface a tester without a device ever sees — and on
+ * a phone a single Light impact is one buzz among the several a publish already makes as the
+ * keyboard dismisses and the modal slides away. Every one of the three composers shipped with
+ * that as its ENTIRE success feedback: the screen closed, and whether the post existed was
+ * something the member had to go and check.
+ *
+ * So a success buzz owes a sentence, and #117 built the surface for it — `useToast()`, one
+ * global host, which also outlives the composer's own exit and so reaches a member whose
+ * publish settled after they left.
+ *
+ * ## What counts
+ *
+ * `impactAsync` and `notificationAsync` — the two that punctuate an OUTCOME, which is why the
+ * scan is not named for success alone: a `notificationAsync` marking a FAILURE owes a sentence
+ * for exactly the same reason, and lands in the same assertion. `selectionAsync` is the tick a
+ * picker makes as it moves through its options; it is out of scope by meaning rather than by
+ * exemption, and nothing calls it today.
+ *
+ * ## What it cannot see
+ *
+ * File-level, exactly like §11: it asserts that a screen which buzzes also announces, not that
+ * the two sit in the same handler. Two consequences, both real rather than theoretical —
+ * a screen with two outcome paths could toast one and buzz the other and read as clean, and a
+ * screen that buzzes on success while toasting only its ERROR satisfies this as written. That
+ * second one is a gap in what this can see, NOT a description of the tree it was written
+ * against: the three composers carried no `showToast` at all before #579 and announced their
+ * failures inline through `setError`, so this section flags all three of them on `dev` — which
+ * is what the injection proof rests on. Pinning the pairing means parsing the handler an await
+ * at a time; the register below is the honest escape and the floor is what keeps the section
+ * from going quietly vacuous instead.
+ */
+const HAPTIC_WITHOUT_TOAST: Record<string, string> = {
+  // A buzz that punctuates something other than an outcome belongs here, with the reason.
+};
+
+/** `Haptics.impactAsync(` / `Haptics.notificationAsync(` — the two that mark an outcome. */
+const OUTCOME_HAPTIC = /\bHaptics\.(?:impactAsync|notificationAsync)\s*\(/;
+
+describe('a success haptic is never the whole feedback (#579)', () => {
+  it('finds the screens it is walking', () => {
+    // A FLOOR, not a count — the three composers today. Without it, an `expo-haptics` drop or
+    // a renamed import leaves both assertions reading identically on a clean tree and on a
+    // scan that matched nothing at all. Dropping a composer's haptic is a decision, and this
+    // is where it gets made rather than where it goes unnoticed.
+    const sites = FILES.filter((p) => !isTest(p)).filter((p) =>
+      OUTCOME_HAPTIC.test(stripComments(read(p))),
+    );
+    expect(
+      sites.length,
+      'no outcome haptic resolves any more — has expo-haptics been dropped, or the import ' +
+        'renamed? This section is vacuous until the scan matches again.',
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('every screen that buzzes on success also announces', () => {
+    const silent = FILES.filter((p) => !isTest(p))
+      .filter((p) => {
+        const code = stripComments(read(p));
+        return OUTCOME_HAPTIC.test(code) && !code.includes('showToast(');
+      })
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .filter((p) => !(p in HAPTIC_WITHOUT_TOAST))
+      .sort();
+    const register = Object.entries(HAPTIC_WITHOUT_TOAST)
+      .map(([file, why]) => `  ${file} — ${why}`)
+      .join('\n');
+    expect(
+      silent,
+      `a success haptic with nothing said beside it:\n  ${silent.join('\n  ')}\n` +
+        `The buzz is silent on web and easily missed on a device, so on its own it leaves the ` +
+        `member to go and check whether their post exists. Announce with ` +
+        `useToast().showToast(t('…'), 'success'), or register the file above with the reason ` +
+        `its buzz marks something other than an outcome.\nRegistered exemptions:\n${register}`,
+    ).toEqual([]);
+  });
+});
