@@ -12,8 +12,10 @@ import { z } from 'zod';
  * WHICH buckets is not decided here. `gdpr_storage_footprint` (20260827110034, service_role-only,
  * pgTAP 0137) holds the list and the `{uid}/` prefix predicate; ./sweep-buckets.test.ts mirrors
  * that list against every bucket the migrations create and against packages/api's
- * `MediaBucketName`, so a new bucket cannot reach main unswept the way `chat-media` did. This
- * file is only the loop.
+ * `MediaBucketName`, so a new bucket cannot reach `main` unswept. Five already have: every upload
+ * target on `main` except candidacy-videos is unswept there today. `chat-media` is not one of them
+ * — it is still only on `dev` — it is simply the bucket whose arrival made the gap visible enough
+ * to file (#573). This file is only the loop.
  *
  * Like story-segment-reaper, each round RE-LISTS rather than paginating: a removed object leaves
  * `storage.objects`, so a cursor would skip every other batch (rule 9 is about rows that stay;

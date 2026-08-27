@@ -1185,3 +1185,21 @@ silently fall out of the sweep, and no policy would stop it. There is only one w
 Asserted by: `supabase/tests/0137_gdpr_storage_footprint.test.sql` seeds an `exports` object at
 the `{uid}/` shape and asserts the manifest lists it, so the sweep's coverage of that bucket is
 pinned regardless of where the shape comes from.
+
+### "the drift that let chat-media reach main unswept" — chat-media never reached main
+
+The comment above the bucket `in (…)` list explains why the list is explicit and mirror-tested, and
+attributes the need to `chat-media` having shipped unswept. The mechanism is right and the example
+is wrong. `chat-media` was created by `20260827054252`, which is on `dev` only; `origin/main` is
+`b203c48` (2026-08-12) and has never carried that migration. `chat-media` is the bucket whose
+arrival made the gap visible enough to file, not the one that shipped it.
+
+The claim the sentence was reaching for is true and is worse: `origin/main` declares six buckets —
+`post-media`, `moments`, `story-segments`, `candidacy-videos`, `avatars`, `exports` — and its
+`erasure-job` removes the candidacy-videos manifest alone. **Five unswept buckets are on `main`
+right now**, and have been since each was created. The drift did not need a seventh bucket to
+happen; it had already happened five times before anyone noticed.
+
+Asserted by: nothing, and nothing should — this is a fact about a branch at a point in time, not a
+property of the schema. `supabase/functions/erasure-job/sweep-buckets.test.ts` asserts the part
+that is a property (the list covers every declared bucket), which is what stops a sixth.
