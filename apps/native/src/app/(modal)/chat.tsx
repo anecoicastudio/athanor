@@ -26,6 +26,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import type { PickedMedia } from '@/lib/media/pick';
 import { chatMediaPath, newMediaId, processAndUpload } from '@/lib/media/upload';
@@ -47,6 +48,9 @@ export default function ChatScreen() {
   const locale = useLocale();
   const myId = session?.user.id;
   const router = useRouter();
+  /** The conversation list is this screen's parent; two callers `replace` into it, so it is
+   * a stack root often enough that a bare `back()` after a block does nothing (#578). */
+  const leave = useGuardedBack('/(modal)/messages');
   const queryClient = useQueryClient();
   const listRef = useRef<RNFlatList<Row>>(null);
   // Whether the viewport is pinned to the newest message — gates auto-scroll so loading
@@ -218,7 +222,7 @@ export default function ChatScreen() {
                 if (!peer?.peerId) return;
                 return blockUser(supabase, peer.peerId).then(() => {
                   void queryClient.invalidateQueries({ queryKey: blockKeys.all });
-                  router.back();
+                  leave();
                 });
               },
             },

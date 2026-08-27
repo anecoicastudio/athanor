@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addPostMedia, createPost, postKeys } from '@athanor/api';
@@ -28,6 +27,7 @@ import {
   uploadErrorKey,
   uploadLocalFile,
 } from '@/lib/media/upload';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -35,7 +35,6 @@ const CATEGORIES: PostCategory[] = ['business', 'human', 'creative', 'evolution'
 
 export default function PostComposeScreen() {
   const { session } = useAuth();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const locale = useLocale();
   const [body, setBody] = useState('');
@@ -48,13 +47,12 @@ export default function PostComposeScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   /**
-   * The exit. `dismissTo` pops back to the tabs when they are beneath us (the one in-app
-   * caller pushes from the community tab) and stands in for a replace when nothing is —
-   * a deep-linked load makes this screen the stack root, because the auth gate only ever
-   * `replace`s. The old bare `back()` was a silent no-op there: post published, member
-   * stranded. Same idiom as `trust` / `search-filters`, per ModalHeader's recipe.
+   * The exit. Hand-rolled as an unconditional `dismissTo('/(tabs)')` when #577 fixed this one
+   * screen; #578 moved the mechanism into `useGuardedBack`, which pops the stack when there is
+   * one (the in-app caller pushes from the community tab) and lands on the tabs when this
+   * screen IS the stack — a deep-linked load, because the auth gate only ever `replace`s.
    */
-  const leave = () => router.dismissTo('/(tabs)');
+  const leave = useGuardedBack();
 
   /**
    * TanStack v5 awaits the hook-level `onSuccess` even after this component unmounts, so

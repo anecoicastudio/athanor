@@ -9,6 +9,7 @@ import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -22,10 +23,16 @@ import { Screen } from '@/components/Screen';
  * The «Apri il Momento» / «Scrivi a {name}» CTA opens the freshly created
  * conversation (the deck forwards `conversationId` on a mutual match); with no
  * id it just dismisses. «Più tardi» / «Continua a esplorare» dismisses.
+ *
+ * All three exits go through `useGuardedBack` (#578). The in-app path is a push from the
+ * Momenti tab, so `back()` works there — but this route is also reachable by a custom-scheme
+ * link and on the expo-web QA harness, where it is the stack root and a bare `back()` is a
+ * silent no-op. The fallback is the Momenti tab, which is where the deck lives.
  */
 export default function MatchOverlay() {
   const locale = useLocale();
   const router = useRouter();
+  const dismiss = useGuardedBack('/(tabs)/momenti');
   const {
     name = '',
     source = 'accepted',
@@ -72,7 +79,7 @@ export default function MatchOverlay() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('common.close', locale)}
-            onPress={() => router.back()}
+            onPress={dismiss}
             className="h-11 w-11 items-center justify-center"
           >
             <Text className="text-2xl text-faint">×</Text>
@@ -108,13 +115,13 @@ export default function MatchOverlay() {
               label={accepted ? fill('match.accepted.writeCta') : t('match.openCta', locale)}
               onPress={() => {
                 if (conversationId) router.replace(`/chat?conversationId=${conversationId}`);
-                else router.back();
+                else dismiss();
               }}
             />
             <Button
               variant="ghost"
               label={accepted ? t('match.accepted.keepCta', locale) : t('match.laterCta', locale)}
-              onPress={() => router.back()}
+              onPress={dismiss}
             />
           </View>
         </View>

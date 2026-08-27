@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQuery } from '@tanstack/react-query';
@@ -18,12 +18,13 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { type Verdict, verdictText } from '@/lib/ticket-verdict';
 import { Screen } from '@/components/Screen';
 
 export default function CheckinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
+  const leave = useGuardedBack();
   const locale = useLocale();
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -94,7 +95,7 @@ export default function CheckinScreen() {
         >
           <Text className="text-[14px] text-on-aura">{t('ticket.scan.allow', locale)}</Text>
         </Pressable>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={leave} hitSlop={8}>
           <Text className="text-[13px] text-faint">{t('common.back', locale)}</Text>
         </Pressable>
       </Screen>

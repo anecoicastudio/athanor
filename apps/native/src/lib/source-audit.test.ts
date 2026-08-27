@@ -1620,3 +1620,122 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 23 — a (modal) screen always has a way out (#578, #577)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * §22 asks whether a sheet exposes a control. This asks whether the control does anything.
+ *
+ * `router.back()` is a no-op when the screen is the root of its stack: no throw, no warning,
+ * no navigation — the affordance is drawn, it is reachable, VoiceOver announces it, and
+ * pressing it does nothing at all. There is no way to see that in a screenshot or a walk that
+ * reached the screen by pushing, which is why it survived across 20 files.
+ *
+ * A `(modal)` screen is a stack root more often than the in-app push path suggests:
+ * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:52`
+ * `replace`s EVERY `/@handle` link into `/(modal)/user/[id]`; the Android `intentFilters` in
+ * `app.json` claim `/post`, `/event` and `/dream`, none of which has a top-level route
+ * directory, so they resolve into `(modal)` too; and a modal→modal `replace` hands its
+ * root-ness to the screen it replaced.
+ *
+ * So the pop goes through `useGuardedBack` (`src/lib/modal-exit.ts`) and nowhere else. That
+ * module is the only place `router.back()` may appear, and it is outside both scanned
+ * directories by construction rather than by an allowlist entry that could be widened.
+ *
+ * ## Scope, and why `src/components` is in it
+ *
+ * `(modal)` screens and shared components both. A component does not know which screen mounts
+ * it, so a `back()` inside `ModalHeader` is exactly as dead as one written in the screen —
+ * that is where #577's bug lived. `(tabs)` and `(auth)` are out: a tab root has no back
+ * affordance at all, and `(auth)/welcome.tsx:185` already renders its own conditionally.
+ *
+ * ## What it cannot see
+ *
+ * The scan reads `router.back()` / `goBack()` / `dismiss()` spelled as member calls, plus the
+ * one obvious rename (destructuring the popping methods off `useRouter()`). A router smuggled
+ * through a helper of another name, or `navigationRef.current?.goBack()`, reads as clean. The
+ * floor below is the partial answer §22 uses: it fails when the scan stops finding the screens
+ * it is meant to be walking, so this cannot go quietly vacuous — but it does not make the
+ * pattern list exhaustive, and a new spelling has to be added here when it arrives.
+ */
+const MODAL_SCREENS = FILES.filter((p) => !isTest(p) && p.includes('/app/(modal)/'));
+const SHARED_COMPONENTS = FILES.filter((p) => !isTest(p) && p.includes('/components/'));
+const EXIT_SCOPE = [...MODAL_SCREENS, ...SHARED_COMPONENTS];
+
+/** `router.back()`, `router.dismiss()`, `router.dismissAll()`, `navigation.goBack()`. */
+const BARE_POP = /\brouter\.(?:back|dismiss|dismissAll)\s*\(|\bgoBack\s*\(/;
+/** `const { back } = useRouter()` — the rename that would walk straight past `BARE_POP`. */
+const POP_OFF_ROUTER = /\{[^}]*\b(?:back|dismiss|dismissAll)\b[^}]*\}\s*=\s*useRouter\s*\(/;
+
+describe('a (modal) screen always has a way out (#578)', () => {
+  it('finds the screens it is walking', () => {
+    // A FLOOR, not the count — 52 `(modal)` files today. Without this the two assertions
+    // below read identically on a clean tree and on a walk that resolved no files at all
+    // (a renamed group, a changed `FILES` filter).
+    expect(
+      MODAL_SCREENS.length,
+      'the (modal) group no longer resolves — has the route group been renamed? This section ' +
+        'is vacuous until the path filter matches again.',
+    ).toBeGreaterThanOrEqual(40);
+  });
+
+  it('no (modal) screen or shared component pops the stack directly', () => {
+    const offenders = EXIT_SCOPE.flatMap((p) =>
+      stripComments(read(p))
+        .split('\n')
+        .flatMap((text, i) =>
+          BARE_POP.test(text) || POP_OFF_ROUTER.test(text)
+            ? [`${rel(p)}:${i + 1} ${text.trim()}`]
+            : [],
+        ),
+    );
+    expect(
+      offenders,
+      'a pop that is a silent no-op whenever this screen is the stack root — the member is ' +
+        'left on a screen whose only exit is force-quitting the app. Use `useGuardedBack()` ' +
+        'from src/lib/modal-exit.ts, which falls back to a real destination; pass a parent ' +
+        'route when home is not the right one.',
+    ).toEqual([]);
+  });
+
+  it('the guarded exit still branches, and the chevron never hides itself again', () => {
+    const helper = stripComments(read(`${SRC}lib/modal-exit.ts`));
+    expect(
+      [/\bcanGoBack\s*\(/.test(helper), /\brouter\.dismissTo\s*\(/.test(helper)],
+      'src/lib/modal-exit.ts no longer branches on canGoBack, or no longer falls back with ' +
+        'dismissTo. Flattening it to one call makes every assertion above vacuous: the whole ' +
+        'tree would route its exits through a helper that dead-ends exactly like a bare back().',
+    ).toEqual([true, true]);
+
+    const header = stripComments(read(`${SRC}components/ModalHeader.tsx`));
+    const showLeading = /const showLeading\s*=([^;]*);/.exec(header)?.[1] ?? '';
+    expect(
+      showLeading.includes('canGoBack'),
+      'ModalHeader gates its leading affordance on canGoBack again (#578). That is the ' +
+        'original defect, not a fix for it: on a stack root it renders NO way out at all, ' +
+        'which is worse than a dead chevron, because the screen then offers nothing to press.',
+    ).toBe(false);
+  });
+
+  it('every leading affordance carries a backLabel', () => {
+    const unlabelled = FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter(
+          (t) =>
+            t.base === 'ModalHeader' &&
+            !/leading=\{?['"]none['"]\}?/.test(t.raw) &&
+            !/\bbackLabel\b/.test(t.raw),
+        )
+        .map((t) => `${rel(p)}:${t.line}`),
+    );
+    expect(
+      unlabelled,
+      'a ModalHeader that renders a chevron or a ✕ with no accessibilityLabel. Since #578 the ' +
+        'affordance renders unconditionally on every `leading` other than "none", so a missing ' +
+        'backLabel is now an unlabelled button on every load rather than on a lucky one — ' +
+        'VoiceOver announces it as just «button». `common.back` exists in both catalogs.',
+    ).toEqual([]);
+  });
+});

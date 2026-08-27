@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -23,7 +24,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function LevelOverlay() {
   const locale = useLocale();
-  const router = useRouter();
+  const leave = useGuardedBack();
   const { tier = '' } = useLocalSearchParams<{ tier: string }>();
 
   const reduceMotion = useReducedMotion();
@@ -76,11 +77,7 @@ export default function LevelOverlay() {
         </Text>
 
         <View className="mt-8 w-full">
-          <Button
-            variant="light"
-            label={t('common.continue', locale)}
-            onPress={() => router.back()}
-          />
+          <Button variant="light" label={t('common.continue', locale)} onPress={leave} />
         </View>
       </Screen>
     </Animated.View>

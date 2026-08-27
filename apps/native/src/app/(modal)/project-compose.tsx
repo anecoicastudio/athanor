@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
@@ -14,6 +13,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -27,7 +27,7 @@ const CATEGORIES: ProjectCategory[] = [
 
 export default function ProjectComposeScreen() {
   const { session } = useAuth();
-  const router = useRouter();
+  const leave = useGuardedBack();
   const queryClient = useQueryClient();
   const locale = useLocale();
   const [title, setTitle] = useState('');
@@ -51,7 +51,7 @@ export default function ProjectComposeScreen() {
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: projectKeys.all });
-      router.back();
+      leave();
     },
     onError: () => setError(t('project.compose.error', locale)),
   });

@@ -19,6 +19,7 @@ import { t } from '@athanor/i18n';
 import { StoriesViewer } from '@/components/stories/StoriesViewer';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
@@ -37,6 +38,9 @@ export default function StoriesScreen() {
   const targetId = authorId === 'me' ? (myId ?? '') : authorId;
   const { seenIds, markSeen } = useStorySeen();
   const { showToast } = useToast();
+  /** Every way out of the viewer (#578) — the last-person end, the ✕, the two back-then-push
+   * exits and the post-delete pop. `back()` alone strands a viewer opened as a stack root. */
+  const leave = useGuardedBack();
   // The viewer's composer and dream CTA float OVER the story, so they cannot be a `Screen
   // footer` — that would put the story behind them instead of under them. They report their
   // measured height instead and the toast band clears it the same way (#102).
@@ -95,7 +99,7 @@ export default function StoriesScreen() {
       setStartAt('first');
       setAi(ai + 1);
     } else {
-      router.back(); // the session ends after the last person
+      leave(); // the session ends after the last person
     }
   };
   const goToPrevPerson = () => {
@@ -153,7 +157,7 @@ export default function StoriesScreen() {
         viewerReacted={Boolean(reactionQuery.data)}
         count={countQuery.data ?? 0}
         locale={locale}
-        onClose={() => router.back()}
+        onClose={leave}
         onAdvanceEnd={() => goToNextPerson(true)}
         onAdvanceStart={goToPrevPerson}
         onJumpNext={() => goToNextPerson(false)}
@@ -165,8 +169,8 @@ export default function StoriesScreen() {
             : () => {
                 // EXIT to the profile (#356), same back-then-push recipe as onAddMoment: a push
                 // on top would leave the story playing underneath, and its auto-advance end
-                // (goToNextPerson → router.back) would pop the profile out from under the reader.
-                router.back();
+                // (goToNextPerson → leave) would pop the profile out from under the reader.
+                leave();
                 router.push(`/(modal)/user/${currentAuthorId}`);
               }
         }
@@ -194,7 +198,7 @@ export default function StoriesScreen() {
         }}
         onAddMoment={() => {
           // The story composer (#317) — this used to misroute to the profile Momenti gallery.
-          router.back();
+          leave();
           router.push('/(modal)/story-compose');
         }}
         onPin={async (seg) => {
@@ -214,7 +218,7 @@ export default function StoriesScreen() {
                     await queryClient.invalidateQueries({
                       queryKey: storyKeys.person(currentAuthorId),
                     });
-                    router.back();
+                    leave();
                   } catch {
                     showToast(t('story.own.delete.error', locale));
                   }

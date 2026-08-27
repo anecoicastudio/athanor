@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import { useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
@@ -9,6 +8,7 @@ import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -19,7 +19,9 @@ import { Screen } from '@/components/Screen';
  */
 export default function ContributionThanksOverlay() {
   const locale = useLocale();
-  const router = useRouter();
+  // Reached by `replace` from the disclosure sheet, so this screen is routinely the stack
+  // root — the fund screen is its parent, not home (#578).
+  const leave = useGuardedBack('/(modal)/annual');
 
   const reduceMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(0.9)).current;
@@ -69,11 +71,7 @@ export default function ContributionThanksOverlay() {
         </Text>
 
         <View className="mt-8 w-full gap-3">
-          <Button
-            variant="light"
-            label={t('fund.thanks.cta', locale)}
-            onPress={() => router.back()}
-          />
+          <Button variant="light" label={t('fund.thanks.cta', locale)} onPress={leave} />
         </View>
       </Screen>
     </Animated.View>

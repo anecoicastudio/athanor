@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { helpKeys, offerHelp } from '@athanor/api';
 import { t } from '@athanor/i18n';
@@ -26,6 +26,7 @@ import { useActiveDream } from '@/hooks/use-active-dream';
 import { useLocale } from '@/hooks/use-locale';
 import { useMilestones } from '@/hooks/use-milestones';
 import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
+import { useGuardedBack } from '@/lib/modal-exit';
 
 const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
 
@@ -46,7 +47,7 @@ const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
  * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function HelpScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const { session } = useAuth();
   const locale = useLocale();
   const { milestoneId, need, userId } = useLocalSearchParams<{
@@ -122,7 +123,7 @@ export default function HelpScreen() {
       void qc.invalidateQueries({ queryKey: helpKeys.mine(session?.user.id ?? '') });
       // The host keeps the toast alive across the pop (#117).
       showToast(t('help.toast.offered', locale), 'moment');
-      setTimeout(() => router.back(), 700);
+      setTimeout(leave, 700);
     },
     onError: (e) => setError(isUniqueViolation(e) ? 'already' : 'generic'),
   });

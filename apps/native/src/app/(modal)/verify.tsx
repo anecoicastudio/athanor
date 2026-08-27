@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -17,6 +16,7 @@ import { Mandorla } from '@/components/Mandorla';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -34,7 +34,7 @@ const VERIFY_ERROR_COPY: Record<string, MessageKey> = {
  * never writes identity_verified or any Aura (the +50 is the M6 engine's job, rule #1).
  */
 export default function VerifyScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const { profile, refreshProfile } = useAuth();
   const locale = useLocale();
   const me = profile?.id;
@@ -79,11 +79,11 @@ export default function VerifyScreen() {
     // candidacy step 4, whose upload buttons now refuse on exactly that flag.
     void refreshProfile();
     showToast(t('trust.verify.toast.verified', locale), 'moment');
-    dismissTimer.current = setTimeout(() => router.back(), 1600);
+    dismissTimer.current = setTimeout(leave, 1600);
     return () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
     };
-  }, [state, locale, router, showToast, refreshProfile]);
+  }, [state, locale, leave, showToast, refreshProfile]);
 
   useEffect(
     () => () => {
@@ -124,7 +124,7 @@ export default function VerifyScreen() {
             {t('trust.verify.title', locale)}
           </Text>
           <Pressable
-            onPress={() => router.back()}
+            onPress={leave}
             accessibilityRole="button"
             accessibilityLabel={t('common.back', locale)}
             hitSlop={8}

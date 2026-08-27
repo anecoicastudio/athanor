@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import { auraKeys } from '@athanor/api';
 import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -17,6 +16,7 @@ import { useStars } from '@/hooks/use-stars';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { weekRecapIsEmpty } from '@/lib/week-slot';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -25,7 +25,7 @@ import { Screen } from '@/components/Screen';
  * Engine is DORMANT → getAuraEventsSince returns [] → recap all-zeros → empty-week state.
  */
 export default function RecapScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const { session } = useAuth();
   const locale = useLocale();
   const me = session?.user.id ?? '';
@@ -70,12 +70,7 @@ export default function RecapScreen() {
       <ModalHeader
         leading="none"
         title={t('recap.title' as MessageKey, locale)}
-        right={
-          <HeaderClose
-            label={t('common.back' as MessageKey, locale)}
-            onPress={() => router.back()}
-          />
-        }
+        right={<HeaderClose label={t('common.back' as MessageKey, locale)} onPress={leave} />}
       />
 
       {/* Sub */}

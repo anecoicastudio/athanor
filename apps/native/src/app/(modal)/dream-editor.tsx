@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
 import { getActiveDream, upsertActiveDream } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text } from '@/tw';
@@ -9,6 +8,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -19,7 +19,7 @@ import { Screen } from '@/components/Screen';
  * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function DreamEditorScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const { session } = useAuth();
   const locale = useLocale();
   const userId = session?.user.id;
@@ -64,7 +64,7 @@ export default function DreamEditorScreen() {
       await upsertActiveDream(supabase, userId, text);
       // The host keeps the toast alive across the pop (#117).
       showToast(t('dream.toast.saved', locale), 'moment');
-      setTimeout(() => router.back(), 700);
+      setTimeout(leave, 700);
     } catch {
       setError(true);
       setSaving(false);
