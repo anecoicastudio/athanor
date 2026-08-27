@@ -223,7 +223,12 @@ Deno.test('every specifier in a deployed graph resolves to a file that exists', 
 });
 
 /**
- * Every in-repo path an import map ALIASES — the functions-root deno.json plus each function's own.
+ * Every in-repo path an import map ALIASES, from EVERY deno.json under `supabase/functions`.
+ *
+ * Sourced by scanning for the config files themselves rather than from `ENTRYPOINTS`, which filters
+ * out `_`-prefixed directories and anything without an `index.ts`. Only the functions-root and the
+ * per-function configs declare an alias today, so the two sources agree — but a guard whose stated
+ * point is not to be a snapshot nobody re-checks should not itself be scoped by a snapshot.
  *
  * `GRAPHS` above says nothing about these. The entrypoint walk follows a bare specifier only when a
  * deployed source actually names it, and none names `@athanor/schemas` today, so appending an
@@ -237,9 +242,29 @@ Deno.test('every specifier in a deployed graph resolves to a file that exists', 
  * and merely being UNIMPORTED — the first is a guarantee, the second is a coincidence that the next
  * person to write the import silently spends.
  */
+/** Every directory under `supabase/functions` holding a deno.json, the root included. */
+function configDirs(root: URL): URL[] {
+  const found: URL[] = [];
+  const walk = (dir: URL) => {
+    try {
+      Deno.statSync(new URL('deno.json', dir));
+      found.push(dir);
+    } catch {
+      // no config here; keep descending
+    }
+    for (const e of Deno.readDirSync(dir)) {
+      if (e.isDirectory && e.name !== 'node_modules' && !e.name.startsWith('.')) {
+        walk(new URL(`${e.name}/`, dir));
+      }
+    }
+  };
+  walk(root);
+  return found;
+}
+
 const ALIAS_ROOTS = (() => {
   const out = new Map<string, { specifier: string; entry: URL; dir: URL }>();
-  for (const dir of [FUNCTIONS, ...ENTRYPOINTS.map((f) => f.dir)]) {
+  for (const dir of configDirs(FUNCTIONS)) {
     const { imports, base } = importMap(dir);
     for (const [specifier, mapped] of Object.entries(imports)) {
       if (EXTERNAL.test(mapped)) continue; // npm:/jsr:/node: — the runtime fetches those
