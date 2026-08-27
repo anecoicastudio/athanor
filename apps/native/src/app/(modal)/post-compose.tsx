@@ -62,12 +62,12 @@ export default function PostComposeScreen() {
    * screen they reached in the meantime.
    */
   const mounted = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -139,15 +139,15 @@ export default function PostComposeScreen() {
           Explicit `onBack` so the chevron renders even on a stack root: the default one
           hides itself there (ModalHeader's own recipe), which left a deep-linked composer
           with no way out BEFORE publishing either — same dead end as the unguarded exit.
-          Inert while a publish is in flight, like the attach and publish controls below:
-          leaving mid-upload would strand a created post with no media and no message.
+          Never gated on `isPending`, unlike attach and publish below: the way out stays
+          live while the screen works (MediaSheet's «Annulla» rule). The publish keeps
+          running after an early exit — the `mounted` ref above only stops it from
+          navigating the member a second time when it settles.
         */}
         <ModalHeader
           title={t('create.post.title', locale)}
           backLabel={t('common.back', locale)}
-          onBack={() => {
-            if (!mutation.isPending) leave();
-          }}
+          onBack={leave}
         />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
