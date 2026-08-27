@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { trimmedNonBlank } from './primitives';
-import { fundEditionSchema } from './fund';
+import { trimmedNonBlank } from './primitives.ts';
+import { fundEditionSchema } from './fund.ts';
 
 /** Moderation severity → maps to REPORT_PENALTY in @athanor/core (rule #10). */
 export const REPORT_SEVERITIES = ['low', 'medium', 'high'] as const;

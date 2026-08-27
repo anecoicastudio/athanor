@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { NOTIFICATION_TEMPLATE_KEYS } from './notification';
+import { NOTIFICATION_TEMPLATE_KEYS } from './notification.ts';
 
 /**
  * `notification.ts` says `NOTIFICATION_TEMPLATE_KEYS` is mirrored in the Deno push mirror

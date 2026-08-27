@@ -6,7 +6,7 @@ import {
   realizationPlanPhaseUpdateSchema,
   realizationPlanSchema,
   realizationPlanUpdateSchema,
-} from './realization-plan';
+} from './realization-plan.ts';
 
 /** A published plan as #229 will have written it. */
 const plan = {

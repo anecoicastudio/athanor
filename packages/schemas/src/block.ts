@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { peerIdentityFields } from './profile';
+import { peerIdentityFields } from './profile.ts';
 
 // Mirrors supabase/migrations/<ts>_m9_blocks_and_not_blocked.sql (06 §2.10).
 // Immutable table — no updated_at / deleted_at (unblock is a hard DELETE).

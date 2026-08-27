@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { dreamInsertSchema, dreamSchema, dreamUpdateSchema } from './dream';
+import { dreamInsertSchema, dreamSchema, dreamUpdateSchema } from './dream.ts';
 
 describe('dreamInsertSchema', () => {
   test('accepts text up to 500 chars', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockSchema, blockInput, blockedListItem } from './block';
+import { blockSchema, blockInput, blockedListItem } from './block.ts';
 
 describe('block schemas', () => {
   it('parses a valid raw block row', () => {

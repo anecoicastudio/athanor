@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { storySegmentInsertSchema, storySegmentSchema } from './story-segment';
+import { storySegmentInsertSchema, storySegmentSchema } from './story-segment.ts';
 
 const valid = {
   id: '11111111-1111-1111-1111-111111111111',

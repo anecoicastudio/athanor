@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { messageInsertSchema, messageKind, messageSchema } from './message';
+import { messageInsertSchema, messageKind, messageSchema } from './message.ts';
 
 describe('messageSchema', () => {
   test('parses a user row (snake_case)', () => {

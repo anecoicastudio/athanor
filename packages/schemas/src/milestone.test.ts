@@ -3,7 +3,7 @@ import {
   milestoneInsertSchema,
   milestoneStatusSchema,
   milestoneStatusUpdateSchema,
-} from './milestone';
+} from './milestone.ts';
 
 const DREAM_ID = '2e9c0a52-0b1e-4d1f-9c39-1d6a3a111111';
 

@@ -9,7 +9,7 @@ import {
   auraCelebrationPayload,
   auraEventTypeSchema,
   breakdownSchema,
-} from './aura';
+} from './aura.ts';
 
 describe('aura snapshot', () => {
   it('has the six canonical stars (PRD §4.10 order)', () => {

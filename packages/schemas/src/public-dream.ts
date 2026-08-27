@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { publicMilestoneSchema } from './public-profile';
-import { displayNameSchema, handleSchema } from './profile';
+import { publicMilestoneSchema } from './public-profile.ts';
+import { displayNameSchema, handleSchema } from './profile.ts';
 
 /**
  * The author byline on a public dream page (issue #159).

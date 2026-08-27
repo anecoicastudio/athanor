@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { nonBlankString, trimmedNonBlank } from './primitives';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 /** Mirrors supabase/migrations feed_posts. Update both together. */
 export const postCategorySchema = z.enum(['business', 'human', 'creative', 'evolution']);

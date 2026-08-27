@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { eventCategorySchema } from './event';
-import { handleSchema } from './profile';
+import { eventCategorySchema } from './event.ts';
+import { handleSchema } from './profile.ts';
 
 /**
  * The public event read-model (issue #159) — what a logged-out visitor and a crawler

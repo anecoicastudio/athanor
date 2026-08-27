@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entitlementsSchema } from './entitlements';
+import { entitlementsSchema } from './entitlements.ts';
 
 /** What the view returns for a profile with no membership row (left join, all coalesced false). */
 const nonMemberRow = {

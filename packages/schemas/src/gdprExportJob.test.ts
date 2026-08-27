@@ -3,7 +3,7 @@ import {
   gdprExportJobSchema,
   gdprRequestInsertSchema,
   GDPR_EXPORT_STATUSES,
-} from './gdprExportJob';
+} from './gdprExportJob.ts';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',

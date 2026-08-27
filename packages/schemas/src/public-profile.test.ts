@@ -4,7 +4,7 @@ import {
   publicHandleEntrySchema,
   publicMilestoneSchema,
   publicProfileSchema,
-} from './public-profile';
+} from './public-profile.ts';
 
 describe('handleSchema', () => {
   it('accepts a valid handle', () => {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { publicDreamAuthorSchema, publicDreamEntrySchema, publicDreamSchema } from './public-dream';
+import {
+  publicDreamAuthorSchema,
+  publicDreamEntrySchema,
+  publicDreamSchema,
+} from './public-dream.ts';
 
 const row = {
   id: '11111111-1111-4111-8111-111111111111',

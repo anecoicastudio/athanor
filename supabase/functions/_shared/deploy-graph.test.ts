@@ -55,11 +55,14 @@ function importMap(dir: URL): { imports: Record<string, string>; base: URL } {
  * than on a whole statement — an `import { … }` block spanning lines resolves the same either way.
  *
  * `import type` / `export type` statements are dropped: the runtime never sees them, so they can
- * name an extension-less specifier safely and flagging one would be a false positive. This is not
- * a technicality — `packages/core/src/score/stars.ts:1` type-imports `@athanor/schemas`, which
- * maps to `packages/schemas/src/index.ts` whose ~40 re-exports are all extension-less. Deleting
- * the word `type` there is a one-word edit that deploys a 503, and it is the assertions below,
- * not this exemption, that catch it: the statement becomes a runtime edge and the walk follows it.
+ * name an extension-less specifier safely and flagging one would be a false positive. The
+ * exemption still has to be sound rather than convenient — `packages/core/src/score/stars.ts:1`
+ * type-imports `@athanor/schemas` and `packages/core/src/score/display.ts:1` VALUE-imports it, so
+ * were that alias to lead back into an extension-less graph, erasing the type-only form would be
+ * hiding a live hazard rather than a false positive. #569 removed the exposure at its source:
+ * every specifier under `packages/schemas/src` now carries `.ts`, so the alias is safe to follow
+ * either way. The assertions below, not this exemption, remain what catches a regression — drop
+ * the word `type` and the statement simply becomes a runtime edge that the walk follows.
  *
  * Only the syntactically unambiguous form is erased. `import { STAR_KEYS, type StarKey }` keeps
  * its module edge because it has a value binding, and an all-inline-`type` binding list still
@@ -93,9 +96,10 @@ type Edge = { importer: string; specifier: string; target: URL };
  * External specifiers (`npm:`, `jsr:`, `node:`) are not followed — the runtime fetches those and
  * an extension would be wrong. A BARE specifier is followed only when the function's own
  * deno.json, or the functions-root one, maps it to an in-repo path: that is the `@athanor/schemas`
- * alias, which points at `packages/schemas/src/index.ts` whose re-exports are extension-LESS. No
- * deployed source imports it today, so the walk never reaches it — the day one does, the walk
- * follows the alias, sees `export * from './profile'`, and this goes red before the deploy.
+ * alias, which points at `packages/schemas/src/index.ts`. Since #569 that barrel and every module
+ * under it carry `.ts`, so a deployed source that value-imports the alias resolves rather than
+ * booting a 503 — but the walk still follows it, so an extension-less specifier added anywhere in
+ * that graph later still goes red here before the deploy.
  */
 function graph(entry: URL, dir: URL) {
   const local = importMap(dir);

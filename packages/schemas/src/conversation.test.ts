@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { conversationListItem, conversationPeerRow } from './conversation';
+import { conversationListItem, conversationPeerRow } from './conversation.ts';
 
 describe('conversationListItem', () => {
   test('parses the camelCase read-model', () => {

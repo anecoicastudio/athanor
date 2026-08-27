@@ -5,7 +5,7 @@ import {
   helpSchema,
   helpStatusSchema,
   helpTypeSchema,
-} from './help';
+} from './help.ts';
 
 const validRow = {
   id: '00000000-0000-0000-0000-000000000001',

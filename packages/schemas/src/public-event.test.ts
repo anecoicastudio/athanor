@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { publicEventSchema, upcomingEventEntrySchema } from './public-event';
+import { publicEventSchema, upcomingEventEntrySchema } from './public-event.ts';
 
 const row = {
   id: '11111111-1111-4111-8111-111111111111',

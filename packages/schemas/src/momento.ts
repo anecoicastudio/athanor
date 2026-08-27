@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { avatarPathSchema, displayNameSchema } from './profile';
+import { avatarPathSchema, displayNameSchema } from './profile.ts';
 
 // Mirrors supabase/migrations/<ts>_momento_proposals.sql (schemas mirror migrations).
 // `affinity` is intentionally absent — the column-level grant never sends it to the client.

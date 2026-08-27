@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { payoutLedgerSchema } from './payout-ledger';
+import { payoutLedgerSchema } from './payout-ledger.ts';
 
 /** A row as the transfer.created webhook first records it: pool 10000, split 10 → payable 9000. */
 const releasedRow = {

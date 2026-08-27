@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { starKeySchema } from './aura';
-import { avatarPathSchema, displayNameSchema } from './profile';
+import { starKeySchema } from './aura.ts';
+import { avatarPathSchema, displayNameSchema } from './profile.ts';
 
 export const searchScopeSchema = z.enum(['all', 'people', 'projects', 'events', 'marketplace']);
 export type SearchScope = z.infer<typeof searchScopeSchema>;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { notifPrefInput } from './notificationPreference';
+import { notifPrefInput } from './notificationPreference.ts';
 
 describe('notifPrefInput', () => {
   it('parses a valid pref input', () => {

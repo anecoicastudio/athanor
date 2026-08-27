@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { trimmedNonBlank } from './primitives';
+import { trimmedNonBlank } from './primitives.ts';
 
 /** Mirrors supabase/migrations community_projects. Update both together. */
 export const projectCategorySchema = z.enum([

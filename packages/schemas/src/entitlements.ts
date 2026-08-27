@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { circlePlanSchema, circleStatusSchema } from './circle';
+import { circlePlanSchema, circleStatusSchema } from './circle.ts';
 
 /**
  * One feature bit as the view emits it, defaulting to false.

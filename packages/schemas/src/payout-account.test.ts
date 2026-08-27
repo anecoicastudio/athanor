@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { payoutAccountSchema } from './payout-account';
+import { payoutAccountSchema } from './payout-account.ts';
 
 /** A fresh row as the account.updated webhook first writes it: flags false, not yet onboarded. */
 const freshRow = {

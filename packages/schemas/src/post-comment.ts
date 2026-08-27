@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { nonBlankString, trimmedNonBlank } from './primitives';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 /** Mirrors supabase/migrations community_post_comments. A reply on a post. */
 export const postCommentSchema = z.object({

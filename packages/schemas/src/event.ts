@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { trimmedNonBlank } from './primitives';
+import { trimmedNonBlank } from './primitives.ts';
 
 /** Mirrors supabase/migrations events (public.event_category). Update both together. */
 export const eventCategorySchema = z.enum([

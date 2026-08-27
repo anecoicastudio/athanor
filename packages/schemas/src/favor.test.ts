@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { favorInsertSchema, favorNeedSchema, favorOfferSchema } from './favor';
+import { favorInsertSchema, favorNeedSchema, favorOfferSchema } from './favor.ts';
 
 describe('favorOfferSchema', () => {
   test('parses a valid favor row', () => {
