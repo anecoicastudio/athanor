@@ -86,12 +86,24 @@ export default function PostComposeScreen() {
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
-      router.back();
+      leave();
     },
     onError: (err) => {
       setError(t(uploadErrorKey(err), locale));
     },
   });
+
+  /**
+   * The exit, guarded. `back()` needs a stack to pop, and on a deep-linked load this
+   * screen IS the stack root — the root layout's auth gate only ever `replace`s, so a
+   * direct URL (the ordinary entry on the Expo-web QA harness) builds no history. A bare
+   * `back()` there is a silent no-op: the post published and the member stayed, stranded
+   * on the composer. Home is the fallback, per `candidacy-success`'s exit.
+   */
+  const leave = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  };
 
   const onPublish = () => {
     if (body.trim().length === 0) {
@@ -113,7 +125,16 @@ export default function PostComposeScreen() {
   return (
     <KeyboardAvoiding>
       <Screen>
-        <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
+        {/*
+          Explicit `onBack` so the chevron renders even on a stack root: the default one
+          hides itself there (ModalHeader's own recipe), which left a deep-linked composer
+          with no way out BEFORE publishing either — same dead end as the unguarded exit.
+        */}
+        <ModalHeader
+          title={t('create.post.title', locale)}
+          backLabel={t('common.back', locale)}
+          onBack={leave}
+        />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
 
