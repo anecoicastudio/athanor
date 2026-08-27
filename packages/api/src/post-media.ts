@@ -70,10 +70,15 @@ export async function getPostMedia(client: AthanorClient, postId: string): Promi
  * stay in `post-media`, the same trade the composer already makes for an abandoned draft.
  * Erasure still reaches them — `gdpr_storage_footprint` sweeps the bucket by `{uid}/` prefix.
  *
- * Author-only on every verb it uses, by RLS: `post_media_update_post_author` (USING and WITH
- * CHECK) and `post_media_delete_post_author` both resolve the parent post's `author_id`, and
- * #106's restrictive `active_write_update` / `active_write_delete` gate them like any other
- * write. `supabase/tests/0012_post_media_rls.test.sql` asserts both directions.
+ * Author-only on every verb it uses, by RLS. Three policies, not two: the upsert goes out as
+ * `INSERT … ON CONFLICT DO UPDATE`, so `post_media_insert_post_author`'s WITH CHECK is
+ * evaluated on every proposed row — before the speculative insert, which is why a non-author
+ * is REFUSED here rather than filtered — alongside `post_media_update_post_author` (USING and
+ * WITH CHECK) for the rows that converge, and `post_media_delete_post_author` for the sweep.
+ * All three resolve the parent post's `author_id`, and #106's restrictive `active_write_insert`
+ * / `_update` / `_delete` gate them like any other write.
+ * `supabase/tests/0012_post_media_rls.test.sql` asserts both directions, through the composite
+ * statement as well as the bare ones.
  */
 export async function replacePostMedia(
   client: AthanorClient,

@@ -167,11 +167,13 @@ export default function PostComposeScreen() {
         uploaded bytes no row ever pointed at. What rendered was the first attempt's rows over
         the second attempt's files.
 
-        Still unfixed here, because it needs one transaction and this is two statements: the
-        post row is committed BEFORE its media, so a media write that fails for any reason
-        leaves a post whose `type` claims media with no rows behind it, which `PostMedia`
-        renders as a silently text-only card. Narrower than it was — the reorder above removed
-        the upload-failure half — but not closed (#586).
+        A DIFFERENT defect is still open here, and it is not the one #586 describes, so it is
+        deliberately left uncited rather than pointed at a closed issue: the post row is
+        committed BEFORE its media, so a media write that fails for any reason leaves a post
+        whose `type` claims media with no rows behind it, which `PostMedia` renders as a
+        silently text-only card. Narrower than it was — the reorder above removed the
+        upload-failure half — but not closed, and not closable from here: the two writes would
+        have to be one transaction, which means an RPC and a migration.
       */
       await createPost(supabase, {
         id: postId,

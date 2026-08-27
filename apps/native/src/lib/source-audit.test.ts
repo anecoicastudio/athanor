@@ -1866,7 +1866,7 @@ describe('a success haptic is never the whole feedback (#579)', () => {
  *
  * ## What it cannot see
  *
- * Textual, and deliberately narrow: it matches an `if (…​.length…)` immediately in front of the
+ * Textual, and deliberately narrow: it matches an `if (….length…)` immediately in front of the
  * call and a `.catch` immediately behind it, which is the shape both regressions actually
  * take (one is a revert). A `try`/`catch` around the whole publish, a guard split across a
  * helper, or a condition with a call in it all read as clean here. The floor below is what
