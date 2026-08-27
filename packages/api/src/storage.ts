@@ -6,7 +6,8 @@ export type MediaBucketName =
   | 'moments'
   | 'story-segments'
   | 'candidacy-videos'
-  | 'avatars';
+  | 'avatars'
+  | 'chat-media';
 
 /** Upload bytes to a private bucket at an exact key. `upsert` replaces on retry. */
 export async function uploadToBucket(
@@ -70,6 +71,10 @@ export const BUCKET_URL_TTL = {
   // (`{uid}/{uid}.{ext}`), so one signed URL is reused across screens for the whole hour rather
   // than re-minted per row. Nothing expires in this bucket, so the TTL bounds no deletion.
   avatars: 3600,
+  // Chat images never expire (no reaper touches the bucket), so like the other hour-long
+  // buckets the TTL bounds nothing — it just keeps a thread's images on one signed URL for
+  // the whole session instead of re-minting per scroll.
+  'chat-media': 3600,
 } as const satisfies Record<MediaBucketName, number>;
 
 /**

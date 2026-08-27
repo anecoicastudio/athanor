@@ -53,18 +53,23 @@ export async function getMessagesPage(
 }
 
 /**
- * Send a user message. `sender_id` is the caller's uid (RLS re-checks it; kind is pinned to
- * 'user' by the insert policy). Recording the message is the M6 +5 domain signal — this writes
- * only `messages`, never aura (rule #1). TODO(M6): the engine award at ≥10 msgs both sides.
+ * Send a user message: text, an image, or both (#155). `sender_id` is the caller's uid (RLS
+ * re-checks it; kind is pinned to 'user' by the insert policy). `mediaUrl` is a chat-media
+ * storage KEY ({sender}/{conversation}/{id}.jpg) whose bytes must already be uploaded — the
+ * client holds no UPDATE grant on messages, so there is no attach-after-insert. Pass `body`
+ * only when it is non-blank; an image-only send omits it. Recording the message is the M6 +5
+ * domain signal — this writes only `messages`, never aura (rule #1). TODO(M6): the engine
+ * award at ≥10 msgs both sides.
  */
 export async function sendMessage(
   client: AthanorClient,
-  input: { conversationId: string; senderId: string; body: string },
+  input: { conversationId: string; senderId: string; body?: string; mediaUrl?: string },
 ): Promise<Message> {
   const payload: MessageInsert = messageInsertSchema.parse({
     conversation_id: input.conversationId,
     sender_id: input.senderId,
-    body: input.body,
+    ...(input.body !== undefined ? { body: input.body } : {}),
+    ...(input.mediaUrl !== undefined ? { media_url: input.mediaUrl } : {}),
   });
   const { data, error } = await client
     .from('messages')

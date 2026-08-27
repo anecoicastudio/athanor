@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { signMediaUrls } from '@athanor/api';
 import { supabase } from '@/lib/supabase';
 import { signedUrlPolicy } from './signed-url-policy';
@@ -35,7 +35,18 @@ export function useSignedUrls(
     // Never persisted (#287): every URL here expires within its bucket's TTL (≤1h), while the
     // persisted cache lives 24h — rehydrating one hands the renderer a dead credential.
     meta: { persist: false },
+    // A GROWING path set (a chat thread as images arrive, #155) changes the queryKey on every
+    // addition; without this the whole set flashes back to skeletons and re-mints every URL
+    // while the new batch signs. The previous map's URLs stay valid for their remaining TTL,
+    // so serving them as placeholder is strictly better than serving nothing.
+    placeholderData: keepPreviousData,
   });
 
-  return { urls: query.data ?? {}, isLoading: query.isLoading };
+  return {
+    urls: query.data ?? {},
+    // Placeholder data is a SETTLED status to TanStack but not an answer for paths the old map
+    // never held — report loading so a just-arrived image renders the skeleton, not the
+    // terminal «unavailable» (#135's distinction).
+    isLoading: query.isLoading || query.isPlaceholderData,
+  };
 }

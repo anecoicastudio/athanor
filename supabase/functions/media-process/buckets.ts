@@ -18,4 +18,7 @@ export const BUCKETS = new Set([
   'story-segments',
   'candidacy-videos',
   'avatars',
+  // #155 chat images. A chat photo is the highest-stakes object here: taken inside a private
+  // 1:1 exchange, straight off the camera — exactly the shot whose EXIF carries a GPS fix.
+  'chat-media',
 ]);
