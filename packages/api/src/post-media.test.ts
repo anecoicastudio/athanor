@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { PostMediaInsert } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import { addPostMedia, getPostMedia } from './post-media';
+import { getPostMedia, replacePostMedia } from './post-media';
 
 const POST = '00000000-0000-0000-0000-0000000000b1';
 const M1 = '00000000-0000-0000-0000-0000000000d1';
@@ -72,53 +73,105 @@ describe('getPostMedia', () => {
   });
 });
 
-describe('addPostMedia', () => {
-  it('parses EVERY row, then performs one batch insert', async () => {
-    const { client, calls } = stub([
-      { ...BASE_MEDIA, id: M1, position: 0 },
-      { ...BASE_MEDIA, id: M2, position: 1 },
+/** One well-formed insert row; `over` names the fields a case actually cares about. */
+const row = (over: Partial<PostMediaInsert> = {}): PostMediaInsert => ({
+  post_id: POST,
+  kind: 'image',
+  storage_path: 'post-media/u1/img-0.jpg',
+  position: 0,
+  thumb_path: null,
+  duration_s: null,
+  width: null,
+  height: null,
+  ...over,
+});
+
+describe('replacePostMedia', () => {
+  it('upserts every row in one batch on the (post_id, position) index, not the PK', async () => {
+    const fake = makeFakeClient({
+      'post_media.upsert': [
+        {
+          data: [
+            { ...BASE_MEDIA, id: M2, position: 1 },
+            { ...BASE_MEDIA, id: M1, position: 0 },
+          ],
+        },
+      ],
+    });
+    const media = await replacePostMedia(asClient(fake), POST, [
+      row({ position: 0 }),
+      row({ position: 1, storage_path: 'post-media/u1/img-1.jpg' }),
     ]);
-    const media = await addPostMedia(client, [
-      { post_id: POST, kind: 'image', storage_path: 'post-media/u1/img-0.jpg', position: 0 },
-      { post_id: POST, kind: 'image', storage_path: 'post-media/u1/img-1.jpg', position: 1 },
-    ] as never);
-    const inserts = calls.filter((c) => c.method === 'insert');
-    expect(inserts).toHaveLength(1); // one batch, not per-row
-    expect(inserts[0]?.arg).toEqual([
-      {
-        post_id: POST,
-        kind: 'image',
-        storage_path: 'post-media/u1/img-0.jpg',
-        position: 0,
-        thumb_path: null, // insert-schema defaults applied to every row
-        duration_s: null,
-        width: null,
-        height: null,
-      },
-      {
-        post_id: POST,
-        kind: 'image',
-        storage_path: 'post-media/u1/img-1.jpg',
-        position: 1,
-        thumb_path: null,
-        duration_s: null,
-        width: null,
-        height: null,
-      },
+
+    const upserts = fake.calls.filter((c) => c.op === 'upsert');
+    expect(upserts).toHaveLength(1); // one batch, not per-row
+    expect(upserts[0]?.values).toEqual([
+      row({ position: 0 }),
+      row({ position: 1, storage_path: 'post-media/u1/img-1.jpg' }),
     ]);
-    expect(calls.map((c) => c.method)).toEqual(['from', 'insert', 'select']);
-    expect(media).toHaveLength(2);
+    // The conflict target is the whole point. `postMediaInsertSchema` carries no `id`, so the
+    // default (primary key) target makes every row new and answers the retry with the 23505
+    // this function exists to stop.
+    expect(upserts[0]?.options).toEqual({ onConflict: 'post_id,position' });
+    // PostgREST returns an upsert's rows unordered; the caller gets them in render order.
+    expect(media.map((m) => m.position)).toEqual([0, 1]);
+  });
+
+  it('sweeps only the positions the new set does not fill, scoped to the post', async () => {
+    const fake = makeFakeClient({ 'post_media.upsert': [{ data: [BASE_MEDIA] }] });
+    await replacePostMedia(asClient(fake), POST, [row({ position: 0 })]);
+
+    const del = fake.calls.find((c) => c.op === 'delete');
+    expect(del?.table).toBe('post_media');
+    expect(del?.filters).toEqual([
+      ['eq', 'post_id', POST],
+      ['not', 'position', 'in', '(0)'],
+    ]);
+  });
+
+  it('upserts BEFORE it deletes — the reverse order publishes a post with no media', async () => {
+    const fake = makeFakeClient({ 'post_media.upsert': [{ data: [BASE_MEDIA] }] });
+    await replacePostMedia(asClient(fake), POST, [row()]);
+    expect(fake.calls.map((c) => c.op)).toEqual(['upsert', 'delete']);
+  });
+
+  it('an EMPTY set writes nothing and deletes every media row of the post', async () => {
+    // The case an `if (rows.length > 0)` guard at the call site cannot see: a member who
+    // removed every attachment between a lost response and the re-tap. Without the unfiltered
+    // delete the first attempt's rows outlive the draft that no longer claims them.
+    const fake = makeFakeClient();
+    const media = await replacePostMedia(asClient(fake), POST, []);
+    expect(media).toEqual([]);
+    expect(fake.calls.map((c) => c.op)).toEqual(['delete']); // no upsert at all
+    expect(fake.calls[0]?.filters).toEqual([['eq', 'post_id', POST]]); // no position filter
   });
 
   it('an invalid row anywhere in the batch throws via zod BEFORE any db call', async () => {
-    const { client, calls } = stub();
+    const fake = makeFakeClient();
     await expect(
-      addPostMedia(client, [
-        { post_id: POST, kind: 'image', storage_path: 'post-media/u1/img-0.jpg', position: 0 },
-        { post_id: POST, kind: 'image', storage_path: 'post-media/u1/img-1.jpg', position: -1 },
-      ] as never),
+      replacePostMedia(asClient(fake), POST, [row({ position: 0 }), row({ position: -1 })]),
     ).rejects.toThrow();
-    expect(calls).toHaveLength(0); // stub untouched — not even from()
+    expect(fake.calls).toHaveLength(0); // fake untouched — not even from()
+  });
+
+  it('a row belonging to another post is refused before either statement', async () => {
+    // Destructive if it were not: the row would be upserted onto THAT post while the delete
+    // swept this one.
+    const fake = makeFakeClient();
+    await expect(replacePostMedia(asClient(fake), POST, [row({ post_id: M2 })])).rejects.toThrow(
+      /another|row for post/i,
+    );
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('two rows sharing a position are refused before either statement', async () => {
+    // ON CONFLICT cannot affect a row twice in one command; Postgres reports that as a fault
+    // of the statement, which says nothing about the set the caller handed over.
+    const fake = makeFakeClient();
+    await expect(
+      replacePostMedia(asClient(fake), POST, [row({ position: 1 }), row({ position: 1 })]),
+    ).rejects.toThrow(/share a position/);
+    expect(fake.calls).toHaveLength(0);
   });
 });
 
@@ -130,44 +183,33 @@ describe('post-media — a database failure reaches the caller', () => {
 
   // The upload already succeeded by this point, so swallowing this error would leave an
   // orphaned object in storage with no row pointing at it.
-  it('addPostMedia rethrows rather than orphaning the uploaded object', async () => {
-    const fake = makeFakeClient({ 'post_media.insert': [{ error: DB_DOWN }] });
-    await expect(
-      addPostMedia(asClient(fake), [
-        {
-          post_id: POST,
-          storage_path: 'post-media/u1/img-0.jpg',
-          kind: 'image',
-          position: 0,
-          thumb_path: null,
-          duration_s: null,
-          width: null,
-          height: null,
-        },
-      ]),
-    ).rejects.toMatchObject({ code: '57P01' });
+  it('a failed upsert rethrows rather than orphaning the uploaded object', async () => {
+    const fake = makeFakeClient({ 'post_media.upsert': [{ error: DB_DOWN }] });
+    await expect(replacePostMedia(asClient(fake), POST, [row()])).rejects.toMatchObject({
+      code: '57P01',
+    });
+    // And it does not go on to sweep: the delete would then be the only statement that landed,
+    // stripping the media off a post whose new rows never arrived.
+    expect(fake.calls.map((c) => c.op)).toEqual(['upsert']);
+  });
+
+  it('a failed sweep rethrows, so the caller is never told a stale set was replaced', async () => {
+    const fake = makeFakeClient({
+      'post_media.upsert': [{ data: [BASE_MEDIA] }],
+      'post_media.delete': [{ error: DB_DOWN }],
+    });
+    await expect(replacePostMedia(asClient(fake), POST, [row()])).rejects.toMatchObject({
+      code: '57P01',
+    });
   });
 
   // Both pin a `?? []` guard against a state that cannot actually occur: a zero-match select
-  // returns [], and a returning insert of one row cannot come back with none. They are here so
+  // returns [], and a returning upsert of one row cannot come back with none. They are here so
   // that deleting the guard fails rather than passes — NOT as a model of PostgREST behaviour.
   it('the read and the write both hold their empty-payload guard', async () => {
     const read = makeFakeClient({ 'post_media.select': [{ data: null }] });
     await expect(getPostMedia(asClient(read), POST)).resolves.toEqual([]);
-    const write = makeFakeClient({ 'post_media.insert': [{ data: null }] });
-    await expect(
-      addPostMedia(asClient(write), [
-        {
-          post_id: POST,
-          storage_path: 'post-media/u1/img-0.jpg',
-          kind: 'image',
-          position: 0,
-          thumb_path: null,
-          duration_s: null,
-          width: null,
-          height: null,
-        },
-      ]),
-    ).resolves.toEqual([]);
+    const write = makeFakeClient({ 'post_media.upsert': [{ data: null }] });
+    await expect(replacePostMedia(asClient(write), POST, [row()])).resolves.toEqual([]);
   });
 });

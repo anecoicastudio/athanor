@@ -3,7 +3,7 @@ import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { addPostMedia, createPost, postKeys } from '@athanor/api';
+import { createPost, postKeys, replacePostMedia } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
@@ -29,7 +29,6 @@ import {
   uploadLocalFile,
 } from '@/lib/media/upload';
 import { useGuardedBack } from '@/lib/modal-exit';
-import { isUniqueViolation } from '@/lib/pg-error';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
@@ -147,34 +146,32 @@ export default function PostComposeScreen() {
 
       phase.current = 'write';
       /*
-        Both writes are idempotent under retry BECAUSE the id is ours, but they earn it
-        differently, and the difference is what the member sees after a retry.
+        Both writes converge under retry BECAUSE the id is ours, and both converge on the draft
+        as it stands RIGHT NOW rather than as the failed attempt left it. That is the whole
+        property: a member who fixes something and re-taps must get what they are looking at.
 
-        `createPost` upserts on the PK, so a second attempt CONVERGES the row on the draft as
-        it stands — including any edit made after the failure. Swallowing a 23505 here instead
-        would publish the first attempt's text and toast success over the member's changes.
+        `createPost` upserts on the PK. `replacePostMedia` upserts on (post_id, position) and
+        then deletes whatever positions the new set does not fill — including all of them, when
+        the member removed every attachment (#586). It is called UNCONDITIONALLY for exactly
+        that reason: the `if (rows.length > 0)` guard this used to carry could not see an empty
+        set, so a cleared attachment list left the first attempt's rows in place under a post
+        that no longer claims them.
 
-        `addPostMedia` has no such converge: `post_media_post_position` answers a repeat with a
-        23505, which is the database confirming the first attempt landed rather than refusing
-        this one — the reading `isUniqueViolation` already carries for the two help sheets.
-        Swallowing it is what lets a publish that died BETWEEN the two writes be finished by
-        the same tap that failed, instead of dead-ending on a conflict the member cannot act
-        on.
+        What that replaced was a swallowed 23505 — `post_media_post_position` answering a
+        repeat, read as the database confirming the first attempt landed. It converged wrongly
+        whenever the ATTACHMENTS had been edited in between. `postMediaPath` keys by POSITION
+        and by the kind's extension, so the retry's uploads overwrite the bytes at every shared
+        position holding the SAME kind (`0.jpg` over `0.jpg`) while the insert — one batch
+        statement — aborted whole on the first collision, so NONE of the retry's rows landed.
+        A position whose kind had changed wrote a new key beside the old one; a longer new set
+        uploaded bytes no row ever pointed at. What rendered was the first attempt's rows over
+        the second attempt's files.
 
-        One case it gets wrong, and it is worth stating exactly because the mild version of it
-        is not true: if `addPostMedia` committed and only its response was lost, and the member
-        then edits the ATTACHMENTS and re-taps, the post does not simply keep the first
-        attempt's media. `postMediaPath` keys by POSITION and by the kind's extension, so the
-        second attempt overwrites the bytes at every shared position holding the SAME kind —
-        `0.jpg` over `0.jpg` — while the first attempt's rows survive the swallowed conflict,
-        leaving rows whose dimensions describe one file and whose storage key now holds
-        another. A position whose kind changed writes a different key (`0.mp4` beside `0.jpg`)
-        and leaves the surviving row pointing at its own intact byte, so what renders is a mix,
-        plus a tail of rows for positions the new set no longer fills. Repairing it needs a
-        write that can replace a media SET — rows to delete as well
-        as rows to upsert — which is a larger change than the orphan this closes and is
-        unreachable without a lost response on the very last await, so it is named here and
-        carried rather than fixed in this pass.
+        Still unfixed here, because it needs one transaction and this is two statements: the
+        post row is committed BEFORE its media, so a media write that fails for any reason
+        leaves a post whose `type` claims media with no rows behind it, which `PostMedia`
+        renders as a silently text-only card. Narrower than it was — the reorder above removed
+        the upload-failure half — but not closed (#586).
       */
       await createPost(supabase, {
         id: postId,
@@ -185,11 +182,7 @@ export default function PostComposeScreen() {
         is_step: isStep,
         tags: [],
       });
-      if (rows.length > 0) {
-        await addPostMedia(supabase, rows).catch((err: unknown) => {
-          if (!isUniqueViolation(err)) throw err;
-        });
-      }
+      await replacePostMedia(supabase, postId, rows);
     },
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

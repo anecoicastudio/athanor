@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(15);
+select plan(21);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -157,6 +157,79 @@ select results_eq(
   $$ values (1) $$,
   'post_media carries exactly one duration_s CHECK — the narrowing replaced it, not doubled it'
 );
+
+-- 15–20. Replacing a media SET (#586). `replacePostMedia` converges a post's media by
+-- upserting on (post_id, position) and then deleting the positions the new set no longer
+-- fills, so the author needs UPDATE and DELETE and no one else may have either. Arm 3 above
+-- asserts those two policies EXIST and `0121_grant_catalog_sweep` pins the privilege; what
+-- neither can say is what the predicates DO, and a predicate is only checked by writing
+-- through it.
+--
+-- A second, LIVE post: arm 8 soft-deleted the first, which hides its media from the SELECT
+-- policy and would make every count below read 0 for the wrong reason.
+insert into public.posts (id, author_id, category, body)
+values ('aaaaaaaa-0000-0000-0000-000000000002',
+        '11111111-1111-1111-1111-111111111111', 'human', 'Un secondo passo');
+
+insert into public.post_media (post_id, kind, storage_path, position) values
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'image', 'post-media/11111111/s0.jpg', 0),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'image', 'post-media/11111111/s1.jpg', 1),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'image', 'post-media/11111111/s2.jpg', 2);
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+-- 15/16. A denial here is NOT a raised code, unlike arm 6's INSERT: `authenticated` holds the
+-- UPDATE and DELETE grants, so RLS filters the rows out of the statement rather than refusing
+-- it. Both run clean; arm 17 is what says they did nothing.
+select lives_ok(
+  $$ update public.post_media set storage_path = 'post-media/22222222/hijack.jpg'
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000002' $$,
+  'a non-author UPDATE of another member''s media raises nothing — it matches no row'
+);
+
+select lives_ok(
+  $$ delete from public.post_media
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000002' $$,
+  'a non-author DELETE of another member''s media raises nothing — it matches no row'
+);
+
+-- 17. B can still READ the set (the post is live), and it is exactly as its author left it.
+select results_eq(
+  $$ select storage_path from public.post_media
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000002' order by position $$,
+  $$ values ('post-media/11111111/s0.jpg'::text),
+            ('post-media/11111111/s1.jpg'::text),
+            ('post-media/11111111/s2.jpg'::text) $$,
+  'a non-author changed and removed nothing — the set is as its author left it'
+);
+
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+-- 18/19/20. The author's two halves of a set replace: converge the position that survives
+-- (kind and path both change — a retry whose attachment at that slot became a video), then
+-- sweep the positions the new, shorter set no longer fills.
+select lives_ok(
+  $$ update public.post_media
+        set kind = 'video', storage_path = 'post-media/11111111/s0.mp4', duration_s = 12
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000002' and position = 0 $$,
+  'the author can converge a media row in place — the UPDATE half of a set replace'
+);
+
+select lives_ok(
+  $$ delete from public.post_media
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000002' and position not in (0) $$,
+  'the author can sweep the positions a new set no longer fills — the DELETE half'
+);
+
+select results_eq(
+  $$ select position, kind::text, storage_path from public.post_media
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000002' order by position $$,
+  $$ values (0::int, 'video'::text, 'post-media/11111111/s0.mp4'::text) $$,
+  'the set is exactly what the second attempt describes — converged, and with no tail left'
+);
+
+reset role;
 
 select * from finish();
 rollback;
