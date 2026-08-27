@@ -129,9 +129,9 @@ interface Statement {
  * name, in application order.
  *
  * `alter policy` is here because leaving it out is a silent hole rather than a smaller net: this
- * repo already changes predicates that way in eight migrations
- * (`20260818114947_banned_read_side_hiding.sql` alone does it seven times). A later
- * `alter policy "chat-media_insert_own" … with check
+ * repo already changes predicates that way in several migrations
+ * (`grep -l 'alter policy' supabase/migrations` says which, and stays right as they accrue). A
+ * later `alter policy "chat-media_insert_own" … with check
  * (… name ~ '^[0-9a-fA-F]{8}…' …)` would widen the database to accept the uppercase-hex key this
  * package refuses, while a create-only reader went on quoting the stale text from
  * 20260827092629 and passing — the exact drift this file exists to make impossible. Sweeping
@@ -158,10 +158,11 @@ const statementsByPolicy: () => Map<string, Statement[]> = (() => {
       heads.forEach((head, i) => {
         const start = head.index;
         const end = i + 1 < heads.length ? heads[i + 1]!.index : sql.length;
-        // Quoted OR bare. `chat-media_*` must be quoted (the hyphen forces it), but
-        // `messages_insert_own_user` needs no quotes and every `alter policy` in this repo so far
-        // is written bare — a quoted-only reader would have watched two of the three names and
-        // silently ignored the third.
+        // Quoted OR bare, because this repo writes policy names BOTH ways — neither branch of
+        // the alternation is dead. `chat-media_*` must be quoted (the hyphen forces it), while
+        // `messages_insert_own_user` needs no quotes, and the `alter policy` statements already
+        // in the migrations are split between the two forms. A quoted-only reader watched two of
+        // these three names and silently ignored the third.
         const name = head[2] ?? head[3]!;
         const list = byName.get(name) ?? [];
         list.push({ file, kind: head[1]!.toLowerCase(), text: sql.slice(start, end) });
@@ -213,10 +214,16 @@ function lastPinningStatement(name: string): Statement {
 /**
  * A policy statement's two predicate halves, split on the `with check` keyword.
  *
- * Crude on purpose — a real parser is not owed here, and `with check` cannot appear inside a
- * predicate as anything but the clause keyword (`check` is not a function and the halves are
- * parenthesised). `withCheck` is undefined for a statement that declares no such clause, which is
- * the INSERT-policy shape and, for an UPDATE policy, a rule-2 violation the caller reports.
+ * Crude on purpose, and safe for a reason that survives the crudeness: a mis-split FAILS CLOSED.
+ * It is not enough that `check` is no function and the halves are parenthesised — statement
+ * ranges deliberately over-read to the next head, so the words can reach here inside a trailing
+ * comment. Work both cases through. A stray "with check" BEFORE the real clause pushes both real
+ * pins into `withCheck`, and the caller's `toHaveLength(1)` goes red. One AFTER it does not move
+ * the first split at all, and `rest.join(' ')` puts the tail back. Neither produces a false
+ * green, which is the only direction a guard may not fail in.
+ *
+ * `withCheck` is undefined for a statement declaring no such clause — the INSERT-policy shape,
+ * and for an UPDATE policy a rule-2 violation the caller reports as one.
  */
 function halvesOf(statement: Statement): { using: string; withCheck: string | undefined } {
   const [using, ...rest] = statement.text.split(/\bwith\s+check\b/i);
