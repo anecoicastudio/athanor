@@ -130,7 +130,8 @@ interface Statement {
  *
  * `alter policy` is here because leaving it out is a silent hole rather than a smaller net: this
  * repo already changes predicates that way in several migrations
- * (`grep -l 'alter policy' supabase/migrations` says which, and stays right as they accrue). A
+ * (`grep -l '^alter policy' supabase/migrations/*.sql` says which, and stays right as they
+ * accrue — anchored, because the phrase also occurs in prose). A
  * later `alter policy "chat-media_insert_own" … with check
  * (… name ~ '^[0-9a-fA-F]{8}…' …)` would widen the database to accept the uppercase-hex key this
  * package refuses, while a create-only reader went on quoting the stale text from
@@ -161,8 +162,10 @@ const statementsByPolicy: () => Map<string, Statement[]> = (() => {
         // Quoted OR bare, because this repo writes policy names BOTH ways — neither branch of
         // the alternation is dead. `chat-media_*` must be quoted (the hyphen forces it), while
         // `messages_insert_own_user` needs no quotes, and the `alter policy` statements already
-        // in the migrations are split between the two forms. A quoted-only reader watched two of
-        // these three names and silently ignored the third.
+        // in the migrations are split between the two forms. Every statement naming these three
+        // is quoted TODAY, so the exposure is prospective rather than realised: a quoted-only
+        // reader would miss a bare-written `alter policy messages_insert_own_user`, which is
+        // valid SQL and the majority form here.
         const name = head[2] ?? head[3]!;
         const list = byName.get(name) ?? [];
         list.push({ file, kind: head[1]!.toLowerCase(), text: sql.slice(start, end) });
