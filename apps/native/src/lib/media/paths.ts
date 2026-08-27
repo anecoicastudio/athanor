@@ -98,6 +98,12 @@ export function storyPath(uid: string, segmentId: string, kind: VisualMediaKind)
  * second the conversation (what the participant-read policy and the messages insert policy's
  * prefix pin key on). Always `.jpg` — chat attaches images only, and `processImage` re-encodes
  * every pick to JPEG for the client-side EXIF strip, so no other extension survives to here.
+ *
+ * Since #575 the third segment and the extension are load-bearing too: the messages insert
+ * policy and both chat-media owner-write policies pin the WHOLE key to
+ * `^{uuid}/{uuid}/{uuid}\.jpg$`, lowercase-hex, so a caller passing anything else to this
+ * builder earns a 42501 rather than an oddly-named object. `newMediaId()` is
+ * `Crypto.randomUUID()`, which satisfies it.
  */
 export function chatMediaPath(uid: string, conversationId: string, mediaId: string): string {
   return `${uid}/${conversationId}/${mediaId}.jpg`;

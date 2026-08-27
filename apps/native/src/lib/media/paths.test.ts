@@ -119,7 +119,9 @@ describe('chatMediaPath', () => {
     // Segment order is what the policies key on: [1] = owner (owner-write, not_blocked read
     // predicate), [2] = conversation (participant-read, and the messages insert policy's
     // `media_url like sender/conversation/%` pin). Swapped segments would be refused on write
-    // and unreadable on read.
+    // and unreadable on read. Since #575 the same policies additionally pin the whole key to
+    // `^{uuid}/{uuid}/{uuid}\.jpg$`, so `m1` below is illustrative shorthand — a real send
+    // passes `newMediaId()`.
     expect(chatMediaPath('u1', 'c1', 'm1')).toBe('u1/c1/m1.jpg');
   });
 
@@ -131,9 +133,11 @@ describe('chatMediaPath', () => {
 describe('chatMediaPath output satisfies messageInsertSchema', () => {
   it('the key the builder mints is the key the schema accepts — one contract, tied here', () => {
     // The layout is spelled in three places: this builder, the chatMediaKey regex in
-    // @athanor/schemas, and the DB policy's LIKE pin. Nothing else in CI runs the builder's
-    // output through the schema, so a drift (say, a .webp re-encode) would compile in both
-    // packages and die at runtime with a ZodError on every send.
+    // @athanor/schemas, and the DB policies (a prefix LIKE plus, since #575, the same anchored
+    // full-shape regex the schema uses). Nothing else in CI runs the builder's output through
+    // the schema, so a drift (say, a .webp re-encode) would compile in both packages and die at
+    // runtime with a ZodError on every send. `chat-media-key.mirror.test.ts` pins the schema
+    // against the SQL; this pins the builder against the schema.
     const sender = '11111111-1111-4111-8111-111111111111';
     const conv = '22222222-2222-4222-8222-222222222222';
     const media = '33333333-3333-4333-8333-333333333333';
