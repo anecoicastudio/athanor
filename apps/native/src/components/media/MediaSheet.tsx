@@ -270,8 +270,10 @@ export function MediaSheet({
               locale,
             )}
           </Text>
+          {/* Gated with the title (#155): «aggiungili al tuo percorso» sells moments — wrong
+            promise over a chat attach or an avatar. The stills sub just names the two rows. */}
           <Text className="mt-1 text-center text-[14px] leading-5 text-faint">
-            {t('media.sheet.sub', locale)}
+            {t(allowVideo ? 'media.sheet.sub' : 'media.sheet.subPhoto', locale)}
           </Text>
 
           <View className="mt-6 gap-2">
