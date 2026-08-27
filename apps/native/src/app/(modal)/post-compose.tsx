@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useRouter } from 'expo-router';
@@ -47,6 +47,28 @@ export default function PostComposeScreen() {
   const [items, setItems] = useState<PickedMedia[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  /**
+   * The exit. `dismissTo` pops back to the tabs when they are beneath us (the one in-app
+   * caller pushes from the community tab) and stands in for a replace when nothing is —
+   * a deep-linked load makes this screen the stack root, because the auth gate only ever
+   * `replace`s. The old bare `back()` was a silent no-op there: post published, member
+   * stranded. Same idiom as `trust` / `search-filters`, per ModalHeader's recipe.
+   */
+  const leave = () => router.dismissTo('/(tabs)');
+
+  /**
+   * TanStack v5 awaits the hook-level `onSuccess` even after this component unmounts, so
+   * without this ref a publish finishing late would navigate the member off whatever
+   * screen they reached in the meantime.
+   */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!authorId) throw new Error('no session');
@@ -86,7 +108,7 @@ export default function PostComposeScreen() {
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
-      router.back();
+      if (mounted.current) leave();
     },
     onError: (err) => {
       setError(t(uploadErrorKey(err), locale));
@@ -113,7 +135,20 @@ export default function PostComposeScreen() {
   return (
     <KeyboardAvoiding>
       <Screen>
-        <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
+        {/*
+          Explicit `onBack` so the chevron renders even on a stack root: the default one
+          hides itself there (ModalHeader's own recipe), which left a deep-linked composer
+          with no way out BEFORE publishing either — same dead end as the unguarded exit.
+          Never gated on `isPending`, unlike attach and publish below: the way out stays
+          live while the screen works (MediaSheet's «Annulla» rule). The publish keeps
+          running after an early exit — the `mounted` ref above only stops it from
+          navigating the member a second time when it settles.
+        */}
+        <ModalHeader
+          title={t('create.post.title', locale)}
+          backLabel={t('common.back', locale)}
+          onBack={leave}
+        />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
 
