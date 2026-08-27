@@ -199,6 +199,30 @@ Deno.test('a folder that never drains burns the round budget and is NOT exhauste
   assert(MAX_ROUNDS >= 2, 'a single-round budget could never observe a drained folder');
 });
 
+Deno.test(
+  'the budget leaves a round to CONFIRM — a full-capacity sweep is not a failure',
+  async () => {
+    // The off-by-one this pins: `exhausted` is set only by an EMPTY listing, so one round is always
+    // spent confirming. A member whose every byte was deleted must not land on the terminal
+    // 'failed' status (which nothing re-queues) because the budget had no round left to prove it.
+    const listings: Listed[] = Array.from({ length: MAX_ROUNDS - 1 }, (_, i) => ({
+      data: [row('moments', `user-1/${i}.jpg`)],
+      error: null,
+    }));
+    listings.push({ data: [], error: null });
+
+    const { p } = ports({ list: listings });
+    assertEquals(await sweepMemberStorage(p, 'user-1'), {
+      removed: MAX_ROUNDS - 1,
+      rounds: MAX_ROUNDS,
+      exhausted: true,
+      failed: false,
+    });
+    // …and the capacity the docblock advertises follows from that, so the two cannot drift.
+    assertEquals((MAX_ROUNDS - 1) * REMOVE_BATCH, 5000);
+  },
+);
+
 Deno.test('rounds converge: each round re-lists what is LEFT, never a cursor', async () => {
   // Removed objects leave storage.objects, so a keyset cursor would skip every other batch.
   const { p, listCalls } = ports({
@@ -209,7 +233,9 @@ Deno.test('rounds converge: each round re-lists what is LEFT, never a cursor', a
     ],
   });
   const s = await sweepMemberStorage(p, 'user-1');
-  assertEquals(s, { removed: 3, rounds: 3, exhausted: true, failed: false });
+  // removed: 2, not 3 — `b.jpg` was handed over twice (the API accepted it and it came back),
+  // and the count is DISTINCT keys so a repeat does not read as extra work done.
+  assertEquals(s, { removed: 2, rounds: 3, exhausted: true, failed: false });
   // every listing asks for the same thing — no cursor, no offset
   assertEquals(new Set(listCalls.map(([, limit]) => limit)), new Set([REMOVE_BATCH]));
 });

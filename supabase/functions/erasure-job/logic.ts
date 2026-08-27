@@ -124,10 +124,20 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     bucket means this run did not finish what it started, so it is 'failed', never
       //     'partial'. Rounds running out without the folder draining counts the same way.
       //
-      //     Gated on the fund reach succeeding, as the candidacy removal was: that transaction
-      //     deletes the dream_candidacies rows whose video_url points at these keys, and
-      //     removing the bytes while the rows survive would leave live candidacies rendering a
-      //     broken video for everyone else until the request is re-driven by hand.
+      //     Gated on the fund reach succeeding, as the candidacy removal was — but the reason is
+      //     narrower than it looks, and is written down here so nobody "fixes" the asymmetry
+      //     later. For candidacy-videos the gate buys consistency outright: the same transaction
+      //     deletes the dream_candidacies rows whose video_url names those keys, so the rows and
+      //     their bytes go together or neither goes. For the other six buckets it buys nothing of
+      //     the kind — (4b) below is still commented behind the legal gate, so the member's posts,
+      //     moments, story segments, messages and profile row all survive this run, now pointing
+      //     at bytes that are gone. Other members see dead signed URLs where the photos were.
+      //
+      //     That is the deliberate side of the trade. Art. 17 is about the bytes: a broken image
+      //     on someone else's feed is a rendering defect, an erased member's photograph still
+      //     sitting in a bucket is the compliance failure #573 was filed for. The row half is
+      //     #107's job (gated on #184), and until it lands a processed erasure leaves that seam
+      //     visible. Do NOT close it by narrowing the sweep.
       const sweep = await sweepMemberStorage(
         {
           list: (profileId, limit) =>
@@ -176,9 +186,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       .map((row) => row.id)
       .filter((id): id is string => !!id);
 
-    // `kvPaths`, not `paths`: the fund branch above binds its own `paths` (the blob manifest),
-    // and two different lists of strings under one name in one loop body is how the wrong one
-    // gets handed to the wrong call.
+    // `kvPaths`, not `paths`: these are cache keys, and the run also deals in a second list of
+    // strings — ./sweep.ts's storage keys. Two different lists of strings under one name is how
+    // the wrong one gets handed to the wrong call, so they stay named apart even now that the
+    // storage half has moved out of this function.
     const kvPaths: string[] = [];
     // A key input we could not READ is not one that never existed: the subject's pages may well
     // be sitting in KV, and without the handle or the ids there is no key to derive. Same gap as

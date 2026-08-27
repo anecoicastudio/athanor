@@ -26,12 +26,18 @@ import { z } from 'zod';
 export const REMOVE_BATCH = 1000;
 
 /**
- * Rounds per member — 5 × 1000 objects. A member with more than 5000 stored objects does not
- * exist (PRD §4.3 allows one active dream; posts, moments and stories are all bounded per day),
- * so hitting the cap means the sweep is not converging, which is exactly the case that must NOT
- * report clean. Sized like the reaper's, for the same 30 s pg_net answer window.
+ * Rounds per member. Clean-sweep capacity is `(MAX_ROUNDS - 1) × REMOVE_BATCH` = 5000 objects,
+ * NOT `MAX_ROUNDS × REMOVE_BATCH`: `exhausted` is only set by a listing that comes back empty, so
+ * one round is always spent confirming rather than removing. Getting that off by one would land a
+ * member whose bytes were in fact all deleted on the terminal `'failed'` status, which nothing
+ * re-queues.
+ *
+ * 5000 because a member with more does not exist (PRD §4.3 allows one active dream; posts,
+ * moments and stories are all bounded per day), so exhausting the budget means the sweep is not
+ * converging — exactly the case that must not report clean. Sized like the reaper's, for the same
+ * 30 s pg_net answer window.
  */
-export const MAX_ROUNDS = 5;
+export const MAX_ROUNDS = 6;
 
 /** The bucket-aware Storage surface. index.ts wires `db.storage.from(bucket).remove(paths)`. */
 export type SweepStorage = {
@@ -46,9 +52,13 @@ export type SweepPorts = {
 
 export type SweepSummary = {
   /**
-   * Keys handed to a `remove()` that answered without an error. NOT a confirmation that each
-   * byte is gone — only the next round's listing proves that, which is why `exhausted` and not
-   * this number is what a caller may treat as success.
+   * DISTINCT keys handed to a `remove()` that answered without an error. Distinct because a key
+   * the API accepted and did not actually delete is re-listed next round and handed over again,
+   * and a count that grew each time would read as more work done rather than as the same work
+   * repeated — erasure-job reports this number as a health signal, so it must not inflate.
+   *
+   * Still not a confirmation that each byte is gone: only the next round's listing proves that,
+   * which is why `exhausted`, not this number, is what a caller may treat as success.
    */
   removed: number;
   /** List rounds performed. */
@@ -69,6 +79,8 @@ export async function sweepMemberStorage(
   profileId: string,
 ): Promise<SweepSummary> {
   const summary: SweepSummary = { removed: 0, rounds: 0, exhausted: false, failed: false };
+  /** `bucket/name` of every key a remove() accepted, so a re-listed key is counted once. */
+  const accepted = new Set<string>();
 
   while (summary.rounds < MAX_ROUNDS) {
     summary.rounds++;
@@ -116,7 +128,8 @@ export async function sweepMemberStorage(
         summary.failed = true;
         roundFailed = true;
       } else {
-        summary.removed += paths.length;
+        for (const path of paths) accepted.add(`${bucket}/${path}`);
+        summary.removed = accepted.size;
       }
     }
     // A Storage API that errored will not recover inside this invocation, and re-listing would

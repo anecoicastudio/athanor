@@ -82,16 +82,68 @@ async function bucketsFromSweepFunction(): Promise<Set<string>> {
   return latest;
 }
 
-/** Every bucket any migration creates, from `insert into storage.buckets (id, name, public, …)`. */
+/**
+ * Every bucket any migration creates, from `insert into storage.buckets (id, …) values (…)`.
+ *
+ * This one must fail CLOSED. A bucket it cannot see is a bucket the comparison below then
+ * silently agrees about — which is the exact shape of the bug this file exists to catch, only
+ * with a green test on top of it. So every assumption the parser makes is asserted rather than
+ * relied on: `id` first in the column list, at least one tuple per insert, and no bucket created
+ * through a route this parser does not read at all.
+ *
+ * What it deliberately does NOT require (an earlier draft did, and each was a way to fail open):
+ * that `name` repeat `id`, that `public` be a bare boolean, or that the column list be exactly
+ * the five the current migrations happen to use.
+ */
 async function declaredBuckets(): Promise<Set<string>> {
   const declared = new Set<string>();
-  for (const name of await migrationFiles()) {
-    const sql = await Deno.readTextFile(new URL(name, MIGRATIONS));
-    if (!/insert\s+into\s+storage\.buckets/i.test(sql)) continue;
-    for (const m of sql.matchAll(/\(\s*'([a-z0-9-]+)'\s*,\s*'\1'\s*,\s*(?:false|true)\b/gi)) {
-      declared.add(m[1]);
+  for (const file of await migrationFiles()) {
+    // Comments stripped FIRST: a commented-out example tuple is not a bucket, and counting one
+    // would invent a name the sweep list cannot match.
+    const sql = stripSqlComments(await Deno.readTextFile(new URL(file, MIGRATIONS)));
+
+    // Supabase also exposes `storage.create_bucket('id', …)`. Nothing uses it today; this parser
+    // cannot read it, so its appearance must stop the test rather than be skipped past.
+    assert(
+      !/storage\.create_bucket\s*\(/i.test(sql),
+      `${file} creates a bucket via storage.create_bucket(), which this parser does not read. ` +
+        `Teach it that form — until then the erasure sweep's completeness check is blind to it.`,
+    );
+
+    const inserts = [
+      ...sql.matchAll(/insert\s+into\s+storage\.buckets\s*\(([^)]*)\)\s*values([\s\S]*?);/gi),
+    ];
+    // An `insert into storage.buckets` this regex could not shape into (columns) values (…);
+    const unparsed =
+      (sql.match(/insert\s+into\s+storage\.buckets/gi) ?? []).length - inserts.length;
+    assert(
+      unparsed === 0,
+      `${file} has ${unparsed} \`insert into storage.buckets\` this test could not parse. ` +
+        `Teach the parser that file's syntax — until then it is asserting against a bucket set ` +
+        `it knows to be incomplete.`,
+    );
+
+    for (const [, columns, values] of inserts) {
+      // The parser reads the bucket id as the first quoted literal of each tuple, so `id` being
+      // the first column is load-bearing rather than incidental.
+      const first = columns.split(',')[0].trim().replace(/"/g, '').toLowerCase();
+      assert(
+        first === 'id',
+        `${file}: \`insert into storage.buckets\` lists '${first}' first, not 'id'. This test ` +
+          `reads the bucket id positionally; reordering the columns silently changes what it ` +
+          `thinks the bucket is called.`,
+      );
+      // `array['image/jpeg', …]` uses brackets, so a tuple's opening paren is unambiguous here.
+      const names = [...values.matchAll(/\(\s*'([^']+)'/g)].map((m) => m[1]);
+      assert(
+        names.length > 0,
+        `${file}: an \`insert into storage.buckets\` yielded no bucket id. Teach the parser its ` +
+          `VALUES syntax rather than letting a created bucket go unseen.`,
+      );
+      for (const n of names) declared.add(n);
     }
   }
+  assert(declared.size > 0, 'no bucket found in supabase/migrations — the parser is broken');
   return declared;
 }
 
