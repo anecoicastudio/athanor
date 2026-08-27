@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { useRouter } from 'expo-router';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { useGuardedBack, type ExitHref } from '@/lib/modal-exit';
 
 /**
  * Canonical screen header (DESIGN §6 → Screen headers): left-aligned, h1 = 24/600.
@@ -18,12 +18,20 @@ import { HIT_SLOP } from '@/lib/a11y';
  * - search: `titleSlot` replaces the title text entirely
  * - immersive media (lightbox): `leading="close"` — ✕ sits left, label left-aligned
  *
- * The default chevron hides itself on a stack root (`router.canGoBack()` false —
- * e.g. a deep link landed here), so no screen renders a dead back affordance. An
- * explicit `onBack` always renders: the caller knows where back goes (dismissTo).
+ * The default chevron ALWAYS renders and never dead-ends (#578): it pops the stack when
+ * there is one and lands on `fallbackHref` (home by default) when this screen IS the stack,
+ * via `useGuardedBack`. It used to hide itself on a stack root instead — which sounds safe
+ * and is not: a deep link, a `replace` from `[handle].tsx`, or the auth gate leaves the
+ * screen with no back affordance AND no other way out (DESIGN §11, 2026-08-27).
+ *
+ * An explicit `onBack` still wins, for a caller that knows where back goes — but it takes on
+ * the same duty: `useGuardedBack('/(tabs)/…')` for a plain exit to a specific parent, and
+ * never a bare `router.back()`. `source-audit.test.ts` §23 enforces that.
  *
  * `backLabel` / `title` arrive already translated (zero i18n keys here).
- * `backLabel` is required whenever a leading affordance can render.
+ * `backLabel` is required on every `leading` other than `'none'` — since #578 the affordance
+ * renders unconditionally there, so a missing label is a silent unlabelled button rather than
+ * a rare one. §23 asserts it.
  */
 export function ModalHeader({
   title,
@@ -33,6 +41,7 @@ export function ModalHeader({
   leading = 'chevron',
   backLabel,
   onBack,
+  fallbackHref,
   onIdentityPress,
   identityLabel,
   identityHint,
@@ -49,6 +58,12 @@ export function ModalHeader({
   leading?: 'chevron' | 'close' | 'none';
   backLabel?: string;
   onBack?: () => void;
+  /**
+   * Where the default affordance lands when this screen is the stack root — home unless the
+   * screen has a more specific parent. Ignored when `onBack` is given (that handler owns the
+   * destination, and owes the same guard).
+   */
+  fallbackHref?: ExitHref;
   /** Makes avatar+title+subtitle one pressable identity block (#356). */
   onIdentityPress?: () => void;
   /** a11y label for the identity block — arrives already translated, like `backLabel`. The
@@ -58,9 +73,8 @@ export function ModalHeader({
   identityHint?: string;
   right?: ReactNode;
 }) {
-  const router = useRouter();
-  const showLeading =
-    leading !== 'none' && (leading === 'close' || onBack != null || router.canGoBack());
+  const guardedBack = useGuardedBack(fallbackHref);
+  const showLeading = leading !== 'none';
   const compact = avatar != null;
   const titleClass = compact
     ? 'text-[15px] font-semibold text-foreground'
@@ -99,7 +113,7 @@ export function ModalHeader({
     <View className="flex-row items-center gap-3 px-gutter pb-4 pt-3">
       {showLeading ? (
         <Pressable
-          onPress={onBack ?? (() => router.back())}
+          onPress={onBack ?? guardedBack}
           hitSlop={HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel={backLabel}

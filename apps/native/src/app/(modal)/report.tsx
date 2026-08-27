@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
 import { t } from '@athanor/i18n';
@@ -12,6 +12,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -23,7 +24,7 @@ import { Screen } from '@/components/Screen';
  * event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
  */
 export default function ReportScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const qc = useQueryClient();
   const locale = useLocale();
   const { targetType, targetId } = useLocalSearchParams<{
@@ -33,7 +34,7 @@ export default function ReportScreen() {
 
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [note, setNote] = useState('');
-  // Track the auto-dismiss timer so an early close (✕) doesn't fire router.back() after unmount.
+  // Track the auto-dismiss timer so an early close (✕) doesn't fire the exit after unmount.
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -54,7 +55,7 @@ export default function ReportScreen() {
       void qc.invalidateQueries({ queryKey: reportKeys.mine() });
       // Confirmation auto-dismisses (~1.9s) unless this is a person report — there we keep
       // the sheet so the user can tap «Blocca anche questa persona».
-      if (targetType !== 'person') dismissTimer.current = setTimeout(() => router.back(), 1900);
+      if (targetType !== 'person') dismissTimer.current = setTimeout(leave, 1900);
     },
   });
 
@@ -62,7 +63,7 @@ export default function ReportScreen() {
     mutationFn: () => blockUser(supabase, targetId as string),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
-      router.back();
+      leave();
     },
   });
 
@@ -74,7 +75,7 @@ export default function ReportScreen() {
         backLabel={t('common.back', locale)}
         right={
           <Pressable
-            onPress={() => router.back()}
+            onPress={leave}
             accessibilityRole="button"
             accessibilityLabel={t('common.cancel', locale)}
             hitSlop={8}

@@ -146,7 +146,11 @@ export default function LedgerScreen() {
   return (
     <Screen>
       {/* Header */}
-      <ModalHeader title={t('ledger.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('ledger.title', locale)}
+        backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/aura"
+      />
       <Text className="px-5 text-[12px] text-faint">{t('ledger.sub', locale)}</Text>
 
       {/* Filter pills */}

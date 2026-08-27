@@ -38,6 +38,7 @@ import {
   submitBlockers,
 } from '@/lib/candidacy-wizard';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
@@ -74,6 +75,7 @@ import { useLocale } from '@/hooks/use-locale';
  */
 export default function CandidacyWizard() {
   const router = useRouter();
+  const leave = useGuardedBack();
   const { profile } = useAuth();
   const locale = useLocale();
   const uid = profile?.id ?? '';
@@ -112,7 +114,7 @@ export default function CandidacyWizard() {
           {t('candidacy.windowClosed', locale)}
         </Text>
         <View className="mt-6 w-full">
-          <Button variant="ghost" label={t('common.back', locale)} onPress={() => router.back()} />
+          <Button variant="ghost" label={t('common.back', locale)} onPress={leave} />
         </View>
       </Screen>
     );
@@ -167,6 +169,7 @@ function WizardForm({
   edition: FundEdition | null;
 }) {
   const router = useRouter();
+  const leave = useGuardedBack();
   const qc = useQueryClient();
   const { showToast } = useToast();
   const { profile, refreshProfile } = useAuth();
@@ -304,7 +307,7 @@ function WizardForm({
         });
         void qc.invalidateQueries({ queryKey: candidacyKeys.all });
         showToast(t('candidacy.edit.toast', locale), 'success');
-        router.back();
+        leave();
       } else {
         await submitCandidacy(supabase, {
           id: upload.candidacyId,
@@ -351,7 +354,7 @@ function WizardForm({
           {/* Real 44pt tap target (DESIGN §10, #164) — was a bare glyph + hitSlop ≈38pt
             wide. -ml-3 keeps the glyph optically near the gutter. */}
           <Pressable
-            onPress={() => (step > 0 ? setStep((s) => s - 1) : router.back())}
+            onPress={() => (step > 0 ? setStep((s) => s - 1) : leave())}
             className="-ml-3 h-11 w-11 items-center justify-center"
             accessibilityRole="button"
             accessibilityLabel={t('common.back', locale)}

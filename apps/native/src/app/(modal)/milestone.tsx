@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { addMilestone } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
@@ -11,6 +11,7 @@ import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
 /**
@@ -20,7 +21,7 @@ import { Screen } from '@/components/Screen';
  * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function MilestoneScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const locale = useLocale();
   const { dreamId } = useLocalSearchParams<{ dreamId?: string }>();
 
@@ -41,7 +42,7 @@ export default function MilestoneScreen() {
       await addMilestone(supabase, { dream_id: dreamId, body });
       // The host keeps the toast alive across the pop (#117).
       showToast(t('milestone.toast.added', locale), 'moment');
-      setTimeout(() => router.back(), 700);
+      setTimeout(leave, 700);
     } catch {
       setError(true);
       setSaving(false);

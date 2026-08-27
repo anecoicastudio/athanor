@@ -28,6 +28,7 @@ import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
@@ -57,6 +58,13 @@ export default function PersonDetailScreen() {
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { showToast } = useToast();
+  /**
+   * `/@handle` reaches this screen through a `replace` (`src/app/[handle].tsx:52`), so on every
+   * deep link to a member this screen IS the stack — warm or cold, not only on a cold start.
+   * A bare `back()` after blocking would leave the blocker staring at the person they just
+   * blocked (#578).
+   */
+  const leave = useGuardedBack();
 
   // Self guard — never double-render the own profile; bounce to the owner tab.
   const isSelf = id != null && id === session?.user?.id;
@@ -85,7 +93,7 @@ export default function PersonDetailScreen() {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
       void qc.invalidateQueries({ queryKey: profileKeys.detail(id as string) });
       showToast(t('block.toast.blocked', locale), 'success');
-      router.back();
+      leave();
     },
   });
 

@@ -65,7 +65,11 @@ export default function BlockedScreen() {
   return (
     <Screen>
       {/* Header */}
-      <ModalHeader title={t('block.list.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('block.list.title', locale)}
+        backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/settings"
+      />
 
       <FlatList
         data={rows}

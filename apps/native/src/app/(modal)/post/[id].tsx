@@ -34,6 +34,7 @@ import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { prependComment } from '@/lib/comment-cache';
 import { listState } from '@/lib/list-state';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -47,6 +48,9 @@ export default function PostDetailScreen() {
 
   const [draft, setDraft] = useState('');
   const { showToast } = useToast();
+  /** `/post/<id>` is an Android intent-filter target (`app.json`), so this screen can be the
+   * stack root — and the post is gone by the time this fires (#578). */
+  const leave = useGuardedBack();
   const listRef = useRef<RNFlatList<PostComment>>(null);
 
   const postQuery = useQuery({
@@ -161,7 +165,7 @@ export default function PostDetailScreen() {
     mutationFn: () => softDeletePost(supabase, id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
-      router.back();
+      leave();
     },
   });
   const confirmDelete = () => {

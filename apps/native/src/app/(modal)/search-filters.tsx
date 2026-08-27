@@ -10,6 +10,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useLocale } from '@/hooks/use-locale';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 import {
   AURA_BUCKETS,
@@ -47,6 +48,8 @@ import {
 
 export default function SearchFiltersScreen() {
   const router = useRouter();
+  /** Cancel lands where Apply does — the search screen this sheet filters. */
+  const cancel = useGuardedBack('/(modal)/search');
   const locale = useLocale();
 
   // ── Member guard (defence-in-depth) ──────────────────────────────────────────
@@ -94,9 +97,10 @@ export default function SearchFiltersScreen() {
       <ModalHeader
         title={t('search.filterSheet.title', locale)}
         backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/search"
         right={
           <Pressable
-            onPress={() => router.back()}
+            onPress={cancel}
             accessibilityRole="button"
             accessibilityLabel={t('common.cancel', locale)}
             hitSlop={8}

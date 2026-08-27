@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Image } from 'react-native';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
@@ -11,6 +10,7 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { type PickedMedia } from '@/lib/media/pick';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useStoryUpload } from '@/lib/media/use-story-upload';
@@ -28,7 +28,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function StoryComposeScreen() {
   const { session } = useAuth();
-  const router = useRouter();
+  const leave = useGuardedBack();
   const locale = useLocale();
   const uid = session?.user.id;
 
@@ -54,7 +54,7 @@ export default function StoryComposeScreen() {
           isStep,
         });
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.back();
+        leave();
       } catch (err) {
         setError(t(uploadErrorKey(err), locale));
       }

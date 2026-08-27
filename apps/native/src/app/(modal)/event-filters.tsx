@@ -10,6 +10,7 @@ import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useLocale } from '@/hooks/use-locale';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import {
   DATE_PRESETS,
   EMPTY_EVENT_FILTER_PARAMS,
@@ -38,6 +39,8 @@ import type { EventCategory } from '@athanor/schemas';
 
 export default function EventFiltersScreen() {
   const router = useRouter();
+  /** Cancel lands where Apply does — the Live screen this sheet filters. */
+  const cancel = useGuardedBack('/(modal)/live');
   const locale = useLocale();
 
   const params = useLocalSearchParams<EventFilterParamsIn>();
@@ -68,7 +71,7 @@ export default function EventFiltersScreen() {
       <ModalHeader
         title={t('live.filterSheet.title', locale)}
         leading="none"
-        right={<HeaderClose label={t('common.cancel', locale)} onPress={() => router.back()} />}
+        right={<HeaderClose label={t('common.cancel', locale)} onPress={cancel} />}
       />
       <ScrollView
         className="flex-1"

@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { auraGlow } from '@/lib/glow';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 // A unique violation here means you already passed this favor — treat it as "done".
 import { isUniqueViolation } from '@/lib/pg-error';
 import { Screen } from '@/components/Screen';
@@ -33,6 +34,7 @@ import { Screen } from '@/components/Screen';
  */
 export default function FavorScreen() {
   const router = useRouter();
+  const leave = useGuardedBack();
   const { session } = useAuth();
   const locale = useLocale();
   const queryClient = useQueryClient();
@@ -112,7 +114,7 @@ export default function FavorScreen() {
             disabled={writing}
             onPress={() => void write(done)}
           />
-          <Pressable onPress={() => router.back()} hitSlop={HIT_SLOP} className="items-center py-2">
+          <Pressable onPress={leave} hitSlop={HIT_SLOP} className="items-center py-2">
             <Text className="text-[14px] text-faint">{t('favor.done.dismiss', locale)}</Text>
           </Pressable>
         </View>
@@ -145,7 +147,7 @@ export default function FavorScreen() {
               leading="none"
               title={t('favor.sheet.title', locale)}
               subtitle={t('favor.sheet.sub', locale)}
-              right={<HeaderClose label={t('common.back', locale)} onPress={() => router.back()} />}
+              right={<HeaderClose label={t('common.back', locale)} onPress={leave} />}
             />
             {helpError ? (
               <Text className="px-5 pb-2 text-[13px] text-error">
