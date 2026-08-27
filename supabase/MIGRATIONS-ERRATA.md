@@ -1103,3 +1103,37 @@ covers the sweep for every user-media bucket.
 
 Asserted by: nothing yet — the missing sweep is the finding; the erasure-job test suite gains the
 assertion when the sweep lands.
+
+## `20260827054252_chat_media_images.sql` — §1 documents a key layout its own SQL did not enforce
+
+§1 states the path convention as `{sender_uid}/{conversation_id}/{media_id}.jpg`, and §4 says the
+insert policy "pins the media key to the sender's own folder for that conversation". Both
+sentences are true as far as they go, and a reader reasonably concludes the whole layout is what
+the database holds. It was not, on any gate:
+
+- `messages_insert_own_user` pinned `media_url like '{sender}/{conversation}/%'`. LIKE's `%`
+  matches zero characters and any depth, so the bare prefix `{sender}/{conversation}/`, a nested
+  folder, and any extension all satisfied it.
+- The three `chat-media_*` storage policies constrained `(storage.foldername(name))[1]` and `[2]`
+  only. `storage.foldername` drops the LAST segment, so the filename was never looked at, and the
+  array was never length-bounded — `{uid}/{conv}/sub/dir/anything` passed every one of them.
+- Those segment guards were `~*`, i.e. case-INsensitive, while `chatMediaKey` in
+  `packages/schemas` spells `[0-9a-f]` with no `i` flag. An uppercase-hex key passed SQL and
+  failed Zod.
+
+No authorization was ever affected: the sender-folder equality and the conversation-membership
+EXISTS carry that, and `20260827092629_chat_media_key_shape_pin.sql` did not touch them. What was
+affected is the agreement between the two mirrors — the client refused keys the database would
+have taken, and nothing tested the difference.
+
+Read §1's convention as a description of what the client produces, and `20260827092629` as the
+migration that made it a rule, on the three WRITE gates. `chat-media_select_participant`
+deliberately still pins path segments only: tightening a read predicate retroactively hides bytes
+already stored, and a filename tells a reader nothing that membership and
+`not_blocked`/`not_banned` do not already decide.
+
+Asserted by: `supabase/tests/0136_chat_media.test.sql` — the whole-key pin on both owner-write
+policies, the case-sensitive operator, the deliberate read-side asymmetry, the five keys the
+prefix pin used to accept, and the bucket's own write gate exercised under a JWT — and
+`packages/schemas/src/chat-media-key.mirror.test.ts`, which compares the SQL literal against
+`chatMediaKey` as strings across every `create policy` and `alter policy` that names them.

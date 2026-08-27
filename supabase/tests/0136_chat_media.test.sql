@@ -77,6 +77,15 @@ select is(
 );
 -- Pinned as the WHOLE array (0014's #461 lesson): images only, no video, no audio — a mime
 -- added here without a product decision is what this assertion exists to catch.
+--
+-- This list is deliberately WIDER than the key pin, which admits `.jpg` alone (#575). The two
+-- are not the same claim: `allowed_mime_types` gates the declared Content-Type of the bytes, the
+-- key pin gates the object's name, and an extension is not a mime. So PNG bytes can legally be
+-- stored under a `.jpg` key — nothing renders wrong, because a signed URL serves the stored
+-- content-type rather than guessing from the name. Narrowing this array to `image/jpeg` would
+-- make the layers agree and is the obvious follow-up, but it reverses a product decision (which
+-- is exactly what #461 taught this assertion to catch), so #575 left it alone rather than
+-- shrinking a shipped bucket's contract as a side effect of a key-shape fix.
 select is(
   (select allowed_mime_types from storage.buckets where id = 'chat-media'),
   array['image/jpeg','image/png','image/webp'],
@@ -163,13 +172,24 @@ select is_empty(
            or qual not like '%not_banned(((storage.foldername(name))[1])::uuid)%' ) $$,
   'the read policy gates on not_blocked AND not_banned of the owner-from-path'
 );
+-- Position, not mere presence (#575). Written as "contains a uuid class somewhere", this passed
+-- for the write policies by accident once the whole-key regex arrived carrying the same
+-- characters — the standalone `(storage.foldername(name))[2] ~* '^{uuid}$'` guards it was
+-- written for were dropped, not added to, and it would have gone on passing if the
+-- guard-before-cast property itself had regressed. What 20260808151808 established is an
+-- ORDERING: the shape guard has to precede `::uuid` in the predicate, so a malformed key denies
+-- instead of raising inside the clause. Assert that.
 select is_empty(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'chat-media\_%'
-        and coalesce(qual, '') || ' ' || coalesce(with_check, '')
-            not like '%[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}%' $$,
-  'every chat-media policy uuid-shape-guards the path segments before casting'
+        and not (
+          strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '[0-9a-f]{8}') > 0
+          and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid') > 0
+          and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '[0-9a-f]{8}')
+              < strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid')
+        ) $$,
+  'every chat-media policy uuid-shape-guards the key BEFORE the ::uuid cast (position, not presence)'
 );
 
 -- ── the whole-key pin (#575) ─────────────────────────────────────────────────────────

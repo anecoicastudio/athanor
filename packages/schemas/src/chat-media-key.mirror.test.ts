@@ -40,8 +40,8 @@ import { chatMediaKey, messageInsertSchema } from './message.ts';
  * sandbox copy of the package (`.stryker-tmp/sandbox-N/`), two levels deeper than the package
  * sits in the repo, where a fixed relative path resolves to `packages/schemas/supabase/
  * migrations` and kills the dry run. (`post-media-duration.mirror.test.ts`,
- * `reserved-handles.mirror.test.ts`, `audit-log-actions.mirror.test.ts` and
- * `affinity.mirror.test.ts` carry the same note.)
+ * `reserved-handles.mirror.test.ts` and `audit-log-actions.mirror.test.ts` alongside this file,
+ * and `packages/core/src/onboarding/affinity.mirror.test.ts`, carry the same note.)
  */
 const ROOT = (() => {
   let dir = fileURLToPath(new URL('.', import.meta.url).href);
@@ -61,6 +61,9 @@ const ROOT = (() => {
  * stored, and a filename tells a reader nothing that conversation membership and
  * not_blocked/not_banned do not already decide. Shape is enforced where a key is created. If a
  * later migration does pin the read side, add it here rather than letting it drift unwatched.
+ *
+ * A name added here is watched across every `create policy` and `alter policy` that ever names
+ * it, so a policy joining this list does not need its history curated.
  */
 const PINNING_POLICIES = [
   'messages_insert_own_user',
@@ -96,17 +99,17 @@ interface Pin {
 }
 
 /**
- * Every whole-key pin inside one `create policy` block.
+ * Every whole-key pin inside one policy statement.
  *
- * Scoped to a policy block rather than swept over the file for the reason
+ * Scoped to a statement rather than swept over the file for the reason
  * `post-media-duration.mirror.test.ts` scopes its inline read: the same migration also carries
  * per-SEGMENT uuid guards (`~* '^{uuid}$'`, on the read policy), and an unscoped sweep would
  * compare one of those against a three-segment key and fail for the wrong reason. A pin is
  * recognised by its shape — anchored, ending in the `.jpg` extension — not by its position.
  */
-function pinsIn(block: string): Pin[] {
+function pinsIn(statement: string): Pin[] {
   const pins: Pin[] = [];
-  for (const match of block.matchAll(/~(\*?)\s*'([^']*)'/g)) {
+  for (const match of statement.matchAll(/~(\*?)\s*'([^']*)'/g)) {
     const pattern = match[2]!;
     if (!pattern.startsWith('^') || !pattern.endsWith('\\.jpg$')) continue;
     pins.push({ pattern, caseInsensitive: match[1] === '*' });
@@ -114,49 +117,105 @@ function pinsIn(block: string): Pin[] {
   return pins;
 }
 
-/**
- * The `create policy` body in force for each name: the LAST one written, since migrations are
- * append-only and a predicate is changed by drop-and-recreate under the same name (which is also
- * why `supabase/tests/0030_messages_rls.test.sql` and `0121_grant_catalog_sweep.test.sql` can go
- * on keying off these names).
- *
- * A block runs from its name to the next `create policy` or end of file. That over-reads any
- * trailing statement, which is harmless: `pinsIn` only recognises whole-key patterns, and a
- * `comment on` or a `drop policy` carries none.
- */
-function policiesInForce(): Map<string, { file: string; block: string }> {
-  const dir = join(ROOT, 'supabase', 'migrations');
-  const inForce = new Map<string, { file: string; block: string }>();
-  for (const file of readdirSync(dir)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()) {
-    const sql = readFileSync(join(dir, file), 'utf8');
-    for (const block of sql.split(/create policy\s+/i).slice(1)) {
-      const name = block.match(/^"([^"]+)"/)?.[1];
-      if (name !== undefined) inForce.set(name, { file, block });
-    }
-  }
-  return inForce;
+interface Statement {
+  file: string;
+  /** `create` or `alter` — both can put a predicate in force. */
+  kind: string;
+  text: string;
 }
 
-function pinsFor(name: string): Pin[] {
-  const found = policiesInForce().get(name);
-  if (found === undefined) throw new Error(`no migration creates a policy named ${name}`);
-  const pins = pinsIn(found.block);
-  if (pins.length === 0) {
-    throw new Error(`${name} (last created in ${found.file}) declares no whole-key shape pin`);
+/**
+ * Every `create policy` AND `alter policy` statement in the migration history, keyed by policy
+ * name, in application order.
+ *
+ * `alter policy` is here because leaving it out is a silent hole rather than a smaller net: this
+ * repo already changes predicates that way (`20260818114947_banned_read_side_hiding.sql` does it
+ * four times, and it is not alone). A later `alter policy "chat-media_insert_own" … with check
+ * (… name ~ '^[0-9a-fA-F]{8}…' …)` would widen the database to accept the uppercase-hex key this
+ * package refuses, while a create-only reader went on quoting the stale text from
+ * 20260827092629 and passing — the exact drift this file exists to make impossible. Sweeping
+ * every statement, not just the last one, is what makes that fail: a widened pin is a wrong pin
+ * wherever it is written.
+ *
+ * A statement runs from its keyword to the start of the next one (or end of file). That
+ * over-reads any trailing `drop policy`, `comment on` or `grant`, which is harmless — `pinsIn`
+ * recognises whole-key patterns only, and none of those carry one.
+ */
+const statementsByPolicy: () => Map<string, Statement[]> = (() => {
+  let cached: Map<string, Statement[]> | undefined;
+  return () => {
+    if (cached !== undefined) return cached;
+    const dir = join(ROOT, 'supabase', 'migrations');
+    const byName = new Map<string, Statement[]>();
+    for (const file of readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()) {
+      const sql = readFileSync(join(dir, file), 'utf8');
+      const heads = [...sql.matchAll(/\b(create|alter)\s+policy\s+"([^"]+)"/gi)];
+      heads.forEach((head, i) => {
+        const start = head.index;
+        const end = i + 1 < heads.length ? heads[i + 1]!.index : sql.length;
+        const name = head[2]!;
+        const list = byName.get(name) ?? [];
+        list.push({ file, kind: head[1]!.toLowerCase(), text: sql.slice(start, end) });
+        byName.set(name, list);
+      });
+    }
+    cached = byName;
+    return cached;
+  };
+})();
+
+function statementsFor(name: string): Statement[] {
+  const statements = statementsByPolicy().get(name);
+  if (statements === undefined || statements.length === 0) {
+    throw new Error(`no migration creates or alters a policy named ${name}`);
   }
-  return pins;
+  return statements;
+}
+
+/** Every pin ever written for a policy, across create and alter alike. */
+function allPinsFor(name: string): { statement: Statement; pin: Pin }[] {
+  const found = statementsFor(name).flatMap((statement) =>
+    pinsIn(statement.text).map((pin) => ({ statement, pin })),
+  );
+  if (found.length === 0) {
+    throw new Error(`${name} declares no whole-key shape pin in any migration`);
+  }
+  return found;
+}
+
+/**
+ * The pins in the LAST statement that declares any — the shape actually in force.
+ *
+ * Deliberately "last statement carrying a pin" rather than "last statement": an `alter policy`
+ * that only changes roles carries no predicate and must not read as "the pin was dropped". An
+ * alter that restates ONE half of an UPDATE policy will make the both-halves count below go red;
+ * that is intended, because a half-restated predicate is a shape worth re-deriving this
+ * assertion for by hand rather than inferring.
+ */
+function pinsInForce(name: string): Pin[] {
+  const withPins = statementsFor(name).filter((s) => pinsIn(s.text).length > 0);
+  const last = withPins.at(-1);
+  if (last === undefined)
+    throw new Error(`${name} declares no whole-key shape pin in any migration`);
+  return pinsIn(last.text);
 }
 
 describe('the chat-media key shape is one pattern in two languages', () => {
-  it('every policy that pins a whole key spells exactly chatMediaKey', () => {
+  it('every whole-key pin ever written spells exactly chatMediaKey', () => {
     // The mirror itself. A segment class widened on one side only, a second extension admitted
     // in SQL, an anchor dropped — each shows up here as a string inequality naming the policy.
+    // Swept over EVERY create and alter rather than only the one in force: an `alter policy` that
+    // widens the pattern is wrong at the moment it is written, and reading only the newest
+    // statement is how a create-only mirror would have missed it entirely.
     const expected = asSqlPattern(chatMediaKey);
     for (const name of PINNING_POLICIES) {
-      for (const pin of pinsFor(name)) {
-        expect(pin.pattern, `${name} pins a shape the schema does not`).toBe(expected);
+      for (const { statement, pin } of allPinsFor(name)) {
+        expect(
+          pin.pattern,
+          `${name} pins a shape the schema does not (${statement.kind} policy in ${statement.file})`,
+        ).toBe(expected);
       }
     }
   });
@@ -175,8 +234,11 @@ describe('the chat-media key shape is one pattern in two languages', () => {
     // uppercase-hex key this package refuses. That asymmetry is what #575 found on the segment
     // guards, so the replacement is asserted not to reintroduce it.
     for (const name of PINNING_POLICIES) {
-      for (const pin of pinsFor(name)) {
-        expect(pin.caseInsensitive, `${name} pins with ~* (case-insensitive)`).toBe(false);
+      for (const { statement, pin } of allPinsFor(name)) {
+        expect(
+          pin.caseInsensitive,
+          `${name} pins with ~* in ${statement.file} (case-insensitive)`,
+        ).toBe(false);
       }
     }
   });
@@ -184,7 +246,7 @@ describe('the chat-media key shape is one pattern in two languages', () => {
   it('pins the shape in BOTH halves of the UPDATE policy', () => {
     // A USING-only pin would let an existing object be renamed INTO a shape the insert path
     // refuses — the upsert-retry path is the one place a chat-media key can move at all.
-    expect(pinsFor('chat-media_update_own')).toHaveLength(2);
+    expect(pinsInForce('chat-media_update_own')).toHaveLength(2);
   });
 
   it('is the three-segment lowercase-uuid .jpg key, and not merely two copies of whatever it became', () => {
