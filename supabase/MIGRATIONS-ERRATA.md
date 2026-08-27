@@ -1136,12 +1136,83 @@ that names them.
 The §2 comment explaining the missing delete policy ends "Erasure/moderation delete via service
 role, which needs no policy." The mechanism claim is true — the service role bypasses storage RLS,
 so no policy is needed for a privileged delete — but at the time the migration was applied **no
-erasure code touches `chat-media`**: `erasure-job` sweeps only the candidacy-videos manifest, and
-no reaper covers this bucket (the same gap holds for `post-media`, `moments` and `avatars`).
-An erased member's chat-image bytes therefore persist, unreadable by any client policy but never
-deleted, until a bucket-wide erasure sweep exists. Read the sentence as "the future privileged
-delete needs no policy", not "erasure handles this today". The follow-up filed off PR #155's lane
-covers the sweep for every user-media bucket.
+erasure code touched `chat-media`**: `erasure-job` swept only the candidacy-videos manifest, and no
+reaper covers this bucket. The same gap held for `post-media`, `moments`, `story-segments` (whose
+nightly reaper frees only ORPHANED objects, so a live segment's bytes survived too) and `avatars`,
+and for the member's own `exports` archives, which no code path had ever deleted from. An erased
+member's chat-image bytes therefore persisted, unreadable by any client policy but never deleted.
+Read the sentence as it was written: the privileged delete needs no policy — not that erasure
+performed one.
 
-Asserted by: nothing yet — the missing sweep is the finding; the erasure-job test suite gains the
-assertion when the sweep lands.
+**The erasure half is closed by #573** (`20260827110034_gdpr_storage_footprint_sweep.sql`).
+`gdpr_storage_footprint` lists every object under the member's `{uid}/` prefix across all seven
+declared buckets, and `erasure-job` removes it in re-listing rounds. The **moderation** half of
+that same sentence still describes a capability rather than existing code: `moderation-enforce`
+names no bucket and calls no `remove()`, so a suspension or ban hides a chat image behind the
+policies and leaves its bytes in place. Read the sentence as closed for erasure only.
+
+Two things this entry is often misread as also claiming, and does not: the **export** side was
+never narrow — `gdpr-export-job` selects `messages.*`, so `media_url` (the chat-media key) has
+always been in the archive, as have the key columns of every other bucket. And the export carries
+**keys, not bytes**, for every bucket including candidacy-videos; whether Art. 20 wants the bytes
+themselves is an open product decision, not a defect of this migration.
+
+Asserted by: `supabase/tests/0137_gdpr_storage_footprint.test.sql` (the manifest is exactly one
+object per declared bucket, the prefix is anchored, a bucket outside the list is not swept),
+`supabase/functions/erasure-job/sweep.test.ts` (the removal rounds, and every way the sweep can
+quietly do nothing) and `supabase/functions/erasure-job/sweep-buckets.test.ts`, which mirrors the
+bucket list against every `insert into storage.buckets` in the migrations and against
+`packages/api`'s `MediaBucketName` — so the next bucket cannot repeat this.
+
+## `20260827110034_gdpr_storage_footprint_sweep.sql`
+
+### "the owner-write storage policies enforce exactly that shape" is true of six buckets, not seven
+
+The comment above the prefix predicate explains why one `{uid}/` filter covers every bucket, and
+attributes the guarantee to the buckets' own write policies. That holds for the six user-upload
+buckets. It does **not** hold for `exports`: `20260620140149_m9_gdpr_export_erasure.sql` creates
+that bucket with **no `create policy` at all** — nothing writes to it but the service role, and
+nothing reads from it but a signed URL — so no policy constrains its keys.
+
+The shape is real all the same; its source is code, not SQL. `gdpr-export-job` writes each archive
+at `${job.profile_id}/${job.id}.json` (`supabase/functions/gdpr-export-job/logic.ts`), which the
+same migration comment notes a dozen lines earlier when it explains why `exports` is in scope.
+Read the parenthetical as covering the six, with `exports` held to the shape by its only writer.
+
+The consequence to watch: a future writer to `exports` that chose a different key layout would
+silently fall out of the sweep, and no policy would stop it. There is only one writer today.
+
+Asserted by: `supabase/tests/0137_gdpr_storage_footprint.test.sql` seeds an `exports` object at
+the `{uid}/` shape and asserts the manifest lists it, so the sweep's coverage of that bucket is
+pinned regardless of where the shape comes from.
+
+### "the drift that let chat-media reach main unswept" — chat-media never reached main
+
+The comment above the bucket `in (…)` list explains why the list is explicit and mirror-tested, and
+attributes the need to `chat-media` having shipped unswept. The mechanism is right and the example
+is wrong. `chat-media` was created by `20260827054252`, which is on `dev` only; `origin/main` is
+`b203c48` (2026-08-12) and has never carried that migration. `chat-media` is the bucket whose
+arrival made the gap visible enough to file, not the one that shipped it.
+
+The claim the sentence was reaching for is worse than the one it made, and worse than the first
+draft of this paragraph said. At `b203c48`, `erasure-job` has **no storage port at all**: its
+`ErasureCtx` is `{ db, auth }`, `ErasureAuth` exposes only `signOut`, and no file under
+`supabase/functions/erasure-job/` contains a `remove(` call or the word `storage`. The
+candidacy-videos manifest is not a narrower reach there — it does not exist, because
+`20260815131925_gdpr_fund_erasure_tombstone.sql`, which creates `gdpr_erase_fund_footprint`,
+postdates that sha and is on `dev` only.
+
+So a GDPR erasure at `b203c48` deletes **no bytes from any bucket**, and that sha declares six:
+`post-media`, `moments`, `story-segments`, `candidacy-videos`, `avatars`, `exports`. The drift did
+not need a seventh bucket to happen — it had already happened six times. On `dev` the count then
+moved twice: `20260815131925` narrowed it to five on 2026-08-15, `20260827054252` widened it back
+to six on 2026-08-27 by adding `chat-media`, and this migration closes all of them.
+
+Asserted by: nothing, and nothing should — which commits a remote branch contains is a fact about a
+branch at a point in time, not a property of the schema, and a test pinning it would go red at the
+next release for the right reason and then be deleted. Every count above is anchored to the sha or
+date beside it — six at `b203c48`, five on `dev` from 2026-08-15, six again from 2026-08-27 — and
+none of them survives this branch reaching `main`, which is the point. Do not carry a number here
+forward without its anchor. `supabase/functions/erasure-job/sweep-buckets.test.ts` holds the half
+that IS a property — that the sweep's list covers every declared bucket — and that is what stops
+an eighth.

@@ -3366,6 +3366,13 @@ export type Database = {
         }[]
       }
       gdpr_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
+      gdpr_storage_footprint: {
+        Args: { p_limit?: number; p_profile_id: string }
+        Returns: {
+          bucket_id: string
+          name: string
+        }[]
+      }
       gdpr_tombstone_profile_id: { Args: never; Returns: string }
       get_momenti_deck: {
         Args: never
