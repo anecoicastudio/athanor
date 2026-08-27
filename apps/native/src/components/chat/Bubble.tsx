@@ -5,9 +5,41 @@ import type { Message } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
+import { MediaFrame } from '@/components/media/MediaFrame';
 
 /** Small enough to sit under a bubble's last line without stealing width from the text. */
 const AVATAR_SIZE = 28;
+
+/**
+ * Fixed frame for a chat image (#155). `messages` stores no width/height (unlike `post_media`),
+ * so the ratio cannot be per-row data: one landscape box, image covered, keeps a thread's
+ * bubbles from re-flowing as each image loads. 4/3 over 4/5 because a chat column is narrow
+ * and a tall frame would eat the viewport one message at a time.
+ */
+const IMAGE_WIDTH = 220;
+const IMAGE_RATIO = 4 / 3;
+
+/** The image block inside a bubble — same three states as every media surface (#135). */
+function BubbleImage({
+  url,
+  isLoading,
+  locale,
+}: {
+  url?: string;
+  isLoading: boolean;
+  locale: Locale;
+}) {
+  return (
+    <MediaFrame
+      kind="photo"
+      url={url}
+      isLoading={isLoading}
+      locale={locale}
+      className="overflow-hidden rounded-xl bg-raise-2"
+      style={{ width: IMAGE_WIDTH, aspectRatio: IMAGE_RATIO }}
+    />
+  );
+}
 
 /**
  * One chat message. `me` (own, aura tint — the "me" bubble is an allowed cyan surface, rule #4),
@@ -28,6 +60,8 @@ export function Bubble({
   locale,
   peer,
   showPeerAvatar = false,
+  mediaUrl,
+  mediaLoading = false,
 }: {
   message: Message;
   myId: string;
@@ -36,6 +70,10 @@ export function Bubble({
   peer?: { handle: string | null; displayName: string | null; avatarPath: string | null } | null;
   /** True on the LAST bubble of a run from the peer; the rest keep the gutter and skip the face. */
   showPeerAvatar?: boolean;
+  /** Signed URL for `message.media_url` (#155), from the screen's one `useSignedUrls` call. */
+  mediaUrl?: string;
+  /** That signing query's `isLoading` — what separates "signing" from "gone" (#135). */
+  mediaLoading?: boolean;
 }) {
   const router = useRouter();
   if (message.kind === 'system' || message.kind === 'prompt') {
@@ -52,11 +90,22 @@ export function Bubble({
     );
   }
   const mine = message.sender_id === myId;
+  // A body-less image renders the frame alone; a caption sits under its image in one bubble.
+  const hasMedia = Boolean(message.media_url);
   if (mine) {
     return (
       <View className="my-1 max-w-[80%] self-end">
-        <View className="rounded-2xl bg-aura px-4 py-2">
-          <Text className="text-[15px] leading-5 text-on-aura">{message.body}</Text>
+        <View className={`rounded-2xl bg-aura ${hasMedia ? 'p-1.5' : 'px-4 py-2'}`}>
+          {hasMedia ? (
+            <BubbleImage url={mediaUrl} isLoading={mediaLoading} locale={locale} />
+          ) : null}
+          {message.body ? (
+            <Text
+              className={`text-[15px] leading-5 text-on-aura ${hasMedia ? 'px-2.5 py-1.5' : ''}`}
+            >
+              {message.body}
+            </Text>
+          ) : null}
         </View>
       </View>
     );
@@ -85,8 +134,17 @@ export function Bubble({
           </Pressable>
         ) : null}
       </View>
-      <View className="flex-1 rounded-2xl border border-hair bg-raise px-4 py-2">
-        <Text className="text-[15px] leading-5 text-foreground">{message.body}</Text>
+      <View
+        className={`flex-1 rounded-2xl border border-hair bg-raise ${hasMedia ? 'p-1.5' : 'px-4 py-2'}`}
+      >
+        {hasMedia ? <BubbleImage url={mediaUrl} isLoading={mediaLoading} locale={locale} /> : null}
+        {message.body ? (
+          <Text
+            className={`text-[15px] leading-5 text-foreground ${hasMedia ? 'px-2.5 py-1.5' : ''}`}
+          >
+            {message.body}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
