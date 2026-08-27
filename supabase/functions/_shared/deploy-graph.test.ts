@@ -59,10 +59,10 @@ function importMap(dir: URL): { imports: Record<string, string>; base: URL } {
  * exemption still has to be sound rather than convenient — `packages/core/src/score/stars.ts:1`
  * type-imports `@athanor/schemas` and `packages/core/src/score/display.ts:1` VALUE-imports it, so
  * were that alias to lead back into an extension-less graph, erasing the type-only form would be
- * hiding a live hazard rather than a false positive. #569 removed the exposure at its source:
- * every specifier under `packages/schemas/src` now carries `.ts`, so the alias is safe to follow
- * either way. The assertions below, not this exemption, remain what catches a regression — drop
- * the word `type` and the statement simply becomes a runtime edge that the walk follows.
+ * hiding a live hazard rather than a false positive. #569 removed the exposure at its source —
+ * every specifier under `packages/schemas/src` now carries `.ts` — and the ALIAS ROOTS at the
+ * bottom of this file are what keep that true, rather than a snapshot nobody re-checks. Drop the
+ * word `type` and the statement simply becomes a runtime edge that the entrypoint walk follows.
  *
  * Only the syntactically unambiguous form is erased. `import { STAR_KEYS, type StarKey }` keeps
  * its module edge because it has a value binding, and an all-inline-`type` binding list still
@@ -96,10 +96,10 @@ type Edge = { importer: string; specifier: string; target: URL };
  * External specifiers (`npm:`, `jsr:`, `node:`) are not followed — the runtime fetches those and
  * an extension would be wrong. A BARE specifier is followed only when the function's own
  * deno.json, or the functions-root one, maps it to an in-repo path: that is the `@athanor/schemas`
- * alias, which points at `packages/schemas/src/index.ts`. Since #569 that barrel and every module
- * under it carry `.ts`, so a deployed source that value-imports the alias resolves rather than
- * booting a 503 — but the walk still follows it, so an extension-less specifier added anywhere in
- * that graph later still goes red here before the deploy.
+ * alias, which points at `packages/schemas/src/index.ts`. No deployed source names that bare
+ * specifier today, so THIS walk never reaches the barrel — an extension-less re-export added to it
+ * leaves every assertion here green (verified by injection). That gap is covered separately, by the
+ * alias roots at the bottom of this file, not by the entrypoint graphs.
  */
 function graph(entry: URL, dir: URL) {
   const local = importMap(dir);
@@ -218,6 +218,86 @@ Deno.test('every specifier in a deployed graph resolves to a file that exists', 
         }
       })
       .map((e) => `${g.slug}: ${e.importer} imports '${e.specifier}' — no such file`),
+  );
+  assertEquals(missing, [], `dangling module specifiers:\n  ${missing.join('\n  ')}`);
+});
+
+/**
+ * Every in-repo path an import map ALIASES — the functions-root deno.json plus each function's own.
+ *
+ * `GRAPHS` above says nothing about these. The entrypoint walk follows a bare specifier only when a
+ * deployed source actually names it, and none names `@athanor/schemas` today, so appending an
+ * extension-less `export * from './primitives'` to `packages/schemas/src/index.ts` leaves all of
+ * the assertions above green. That was verified by injection, not assumed.
+ *
+ * The alias being DECLARED is what makes that a hazard rather than a curiosity: importing it is a
+ * one-line edit in any function, and `packages/core/src/score/display.ts` already value-imports the
+ * specifier from inside the directory score-engine imports from. So the property is asserted on the
+ * alias target itself. That is the difference between `packages/schemas/src` being SAFE to import
+ * and merely being UNIMPORTED — the first is a guarantee, the second is a coincidence that the next
+ * person to write the import silently spends.
+ */
+const ALIAS_ROOTS = (() => {
+  const out = new Map<string, { specifier: string; entry: URL; dir: URL }>();
+  for (const dir of [FUNCTIONS, ...ENTRYPOINTS.map((f) => f.dir)]) {
+    const { imports, base } = importMap(dir);
+    for (const [specifier, mapped] of Object.entries(imports)) {
+      if (EXTERNAL.test(mapped)) continue; // npm:/jsr:/node: — the runtime fetches those
+      const entry = new URL(mapped, base);
+      if (!out.has(entry.href)) out.set(entry.href, { specifier, entry, dir });
+    }
+  }
+  return [...out.values()].sort((a, b) => a.entry.href.localeCompare(b.entry.href));
+})();
+
+Deno.test('the in-repo import-map aliases are found, and resolve to files', () => {
+  // Pinned first so the two assertions below cannot pass vacuously the day an alias is renamed.
+  assertEquals(
+    ALIAS_ROOTS.map((a) => `${a.specifier} -> ${rel(a.entry)}`),
+    ['@athanor/schemas -> packages/schemas/src/index.ts'],
+    'in-repo import-map aliases changed — update this list and check the walk still covers them',
+  );
+  const missing = ALIAS_ROOTS.filter((a) => {
+    try {
+      return !Deno.statSync(a.entry).isFile;
+    } catch {
+      return true;
+    }
+  }).map((a) => `'${a.specifier}' -> ${rel(a.entry)} — no such file`);
+  assertEquals(missing, [], `import-map alias points at nothing:\n  ${missing.join('\n  ')}`);
+});
+
+Deno.test('every specifier reachable from an in-repo alias carries a file extension', () => {
+  const walks = ALIAS_ROOTS.map((a) => ({ ...a, ...graph(a.entry, a.dir) }));
+  // Same vacuity guard as the entrypoint graphs: a walker that returned nothing would pass.
+  for (const w of walks) {
+    assert(w.edges.length > 20, `implausibly small graph for '${w.specifier}': ${w.edges.length}`);
+  }
+  const bare = walks.flatMap((w) =>
+    w.edges
+      .filter((e) => !EXTENSIONED.test(e.specifier))
+      .map((e) => `${w.specifier}: ${e.importer} imports '${e.specifier}'`),
+  );
+  assertEquals(
+    bare,
+    [],
+    'an aliased module a deployed function may import at any time resolves only under ' +
+      `sloppy-imports, which the deployed runtime does not honour (#569):\n  ${bare.join('\n  ')}`,
+  );
+});
+
+Deno.test('every specifier reachable from an in-repo alias resolves to a file that exists', () => {
+  const missing = ALIAS_ROOTS.flatMap((a) =>
+    graph(a.entry, a.dir)
+      .edges.filter((e) => EXTENSIONED.test(e.specifier))
+      .filter((e) => {
+        try {
+          return !Deno.statSync(e.target).isFile;
+        } catch {
+          return true;
+        }
+      })
+      .map((e) => `${a.specifier}: ${e.importer} imports '${e.specifier}' — no such file`),
   );
   assertEquals(missing, [], `dangling module specifiers:\n  ${missing.join('\n  ')}`);
 });
