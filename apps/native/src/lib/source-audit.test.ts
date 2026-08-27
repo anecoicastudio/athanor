@@ -1654,7 +1654,9 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * ## What it cannot see
  *
  * The scan reads `router.back()` / `goBack()` / `dismiss()` spelled as member calls, plus the
- * one obvious rename (destructuring the popping methods off `useRouter()`). A router smuggled
+ * one obvious rename (destructuring the popping methods off `useRouter()` — matched against the
+ * whole file rather than per line, because prettier wraps a long destructuring across lines and
+ * a line-scoped test would let exactly the wrapped form through). A router smuggled
  * through a helper of another name, or `navigationRef.current?.goBack()`, reads as clean. The
  * floor below is the partial answer §22 uses: it fails when the scan stops finding the screens
  * it is meant to be walking, so this cannot go quietly vacuous — but it does not make the
@@ -1666,8 +1668,13 @@ const EXIT_SCOPE = [...MODAL_SCREENS, ...SHARED_COMPONENTS];
 
 /** `router.back()`, `router.dismiss()`, `router.dismissAll()`, `navigation.goBack()`. */
 const BARE_POP = /\brouter\.(?:back|dismiss|dismissAll)\s*\(|\bgoBack\s*\(/;
-/** `const { back } = useRouter()` — the rename that would walk straight past `BARE_POP`. */
-const POP_OFF_ROUTER = /\{[^}]*\b(?:back|dismiss|dismissAll)\b[^}]*\}\s*=\s*useRouter\s*\(/;
+/**
+ * `const { back } = useRouter()` — the rename that would walk straight past `BARE_POP`. Global
+ * and newline-tolerant (`[\s\S]`), because it is run against the whole file: prettier wraps a
+ * destructuring that outgrows the print width, and the wrapped form is the one a line-scoped
+ * test would miss.
+ */
+const POP_OFF_ROUTER = /\{[\s\S]*?\b(?:back|dismiss|dismissAll)\b[\s\S]*?\}\s*=\s*useRouter\s*\(/g;
 
 describe('a (modal) screen always has a way out (#578)', () => {
   it('finds the screens it is walking', () => {
@@ -1682,15 +1689,18 @@ describe('a (modal) screen always has a way out (#578)', () => {
   });
 
   it('no (modal) screen or shared component pops the stack directly', () => {
-    const offenders = EXIT_SCOPE.flatMap((p) =>
-      stripComments(read(p))
+    const offenders = EXIT_SCOPE.flatMap((p) => {
+      const code = stripComments(read(p));
+      const perLine = code
         .split('\n')
-        .flatMap((text, i) =>
-          BARE_POP.test(text) || POP_OFF_ROUTER.test(text)
-            ? [`${rel(p)}:${i + 1} ${text.trim()}`]
-            : [],
-        ),
-    );
+        .flatMap((text, i) => (BARE_POP.test(text) ? [`${rel(p)}:${i + 1} ${text.trim()}`] : []));
+      // Whole-file, so a prettier-wrapped destructuring cannot slip between two lines.
+      const destructured = [...code.matchAll(POP_OFF_ROUTER)].map(
+        (m) =>
+          `${rel(p)}:${code.slice(0, m.index).split('\n').length} destructured off useRouter()`,
+      );
+      return [...perLine, ...destructured];
+    });
     expect(
       offenders,
       'a pop that is a silent no-op whenever this screen is the stack root — the member is ' +

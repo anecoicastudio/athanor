@@ -20,8 +20,8 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { auraGlow } from '@/lib/glow';
 import { MODAL_A11Y } from '@/lib/a11y';
-// A unique violation here means you already passed this favor — treat it as "done".
 import { useGuardedBack } from '@/lib/modal-exit';
+// A unique violation here means you already passed this favor — treat it as "done".
 import { isUniqueViolation } from '@/lib/pg-error';
 import { Screen } from '@/components/Screen';
 

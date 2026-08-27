@@ -250,6 +250,7 @@ export default function ChatScreen() {
       <Screen>
         <ModalHeader
           backLabel={t('common.back', locale)}
+          fallbackHref="/(modal)/messages"
           avatar={
             <Avatar
               handle={peer?.peerHandle ?? null}

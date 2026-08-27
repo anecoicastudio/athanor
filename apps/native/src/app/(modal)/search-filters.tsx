@@ -97,6 +97,7 @@ export default function SearchFiltersScreen() {
       <ModalHeader
         title={t('search.filterSheet.title', locale)}
         backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/search"
         right={
           <Pressable
             onPress={cancel}
