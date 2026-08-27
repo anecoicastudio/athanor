@@ -89,3 +89,16 @@ export function avatarPath(uid: string): string {
 export function storyPath(uid: string, segmentId: string, kind: VisualMediaKind): string {
   return `${uid}/${segmentId}.${EXTENSION[kind]}`;
 }
+
+/**
+ * Storage key for a chat image: `${uid}/${conversationId}/${mediaId}.jpg` (#155).
+ *
+ * Two uuid segments, and BOTH are load-bearing: the first is the owner uid (what the
+ * chat-media owner-write policies and the not_blocked/not_banned read predicates key on), the
+ * second the conversation (what the participant-read policy and the messages insert policy's
+ * prefix pin key on). Always `.jpg` — chat attaches images only, and `processImage` re-encodes
+ * every pick to JPEG for the client-side EXIF strip, so no other extension survives to here.
+ */
+export function chatMediaPath(uid: string, conversationId: string, mediaId: string): string {
+  return `${uid}/${conversationId}/${mediaId}.jpg`;
+}
