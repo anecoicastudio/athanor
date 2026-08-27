@@ -1089,7 +1089,49 @@ them — the column definition, the anon column-scoped grant list, and the two c
 Asserted by: `supabase/tests/0020_events_rls.test.sql` — the anon column-read assertion no longer
 selects the dropped column, and the from-zero CI replay applies the fold before anything reads it.
 
-## `20260827054252_chat_media_images.sql` — "Erasure/moderation delete via service role" describes a capability, not existing code
+## `20260827054252_chat_media_images.sql`
+
+Two corrections, newest first.
+
+### §1 and header item 3 document a key layout the SQL did not enforce (#575)
+
+§1 states the path convention as `{sender_uid}/{conversation_id}/{media_id}.jpg` (lines 24-26),
+and header item 3 (lines 10-11) says `messages_insert_own_user` "pins the media key to the
+sender's own folder for that conversation" — §4 (lines 133-139) puts it as "a non-null media_url
+must sit in the sender's own chat-media folder FOR THIS conversation." Every one of those
+sentences is true as far as it goes, and a reader reasonably concludes the whole layout is what
+the database holds. It was not, on any gate:
+
+- `messages_insert_own_user` (line 153) pinned `media_url like '{sender}/{conversation}/%'`.
+  LIKE's `%` matches zero characters and any depth, so the bare prefix `{sender}/{conversation}/`,
+  a nested folder, and any extension all satisfied it.
+- The three `chat-media_*` storage policies (lines 38-98) constrained
+  `(storage.foldername(name))[1]` and `[2]` only. `storage.foldername` drops the LAST segment, so
+  the filename was never looked at, and the array was never length-bounded —
+  `{uid}/{conv}/sub/dir/anything` passed every one of them.
+- Those segment guards were `~*`, i.e. case-INsensitive, while `chatMediaKey` in
+  `packages/schemas` spells `[0-9a-f]` with no `i` flag. An uppercase-hex key passed SQL and
+  failed Zod.
+
+No authorization was ever affected: the sender-folder equality and the conversation-membership
+EXISTS carry that, and `20260827092629_chat_media_key_shape_pin.sql` did not touch them. What was
+affected is the agreement between the two mirrors — the client refused keys the database would
+have taken, and nothing tested the difference.
+
+Read the convention as a description of what the client produces, and `20260827092629` as the
+migration that made it a rule, on the three WRITE gates. `chat-media_select_participant`
+deliberately still pins path segments only: tightening a read predicate retroactively hides bytes
+already stored, and a filename tells a reader nothing that membership and
+`not_blocked`/`not_banned` do not already decide.
+
+Asserted by: `supabase/tests/0136_chat_media.test.sql` — the whole-key pin on both owner-write
+policies (both halves of the UPDATE separately), the case-sensitive operator, the deliberate
+read-side asymmetry, the five keys the prefix pin used to accept, and the bucket's own write gate
+exercised under a JWT — and `packages/schemas/src/chat-media-key.mirror.test.ts`, which compares
+the SQL literal against `chatMediaKey` as strings across every `create policy` and `alter policy`
+that names them.
+
+### "Erasure/moderation delete via service role" describes a capability, not existing code
 
 The §2 comment explaining the missing delete policy ends "Erasure/moderation delete via service
 role, which needs no policy." The mechanism claim is true — the service role bypasses storage RLS,

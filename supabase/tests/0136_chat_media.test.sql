@@ -1,4 +1,14 @@
--- 0136 — chat images (#155, migration 20260827054252_chat_media_images).
+-- 0136 — chat images (#155, migrations 20260827054252_chat_media_images and, for the key-shape
+-- pin, 20260827092629_chat_media_key_shape_pin).
+--
+-- #575: the original migration's write gates were looser than the convention its own header
+-- documented — a prefix LIKE on messages, path SEGMENTS only on the bucket — while
+-- `packages/schemas` pinned the whole anchored three-segment `.jpg` key. Nothing was exposed
+-- (the sender-folder and membership predicates are untouched) but the two mirrors disagreed, and
+-- no test said so. The whole-key assertions below, and the five keys the prefix pin used to
+-- accept, are that gap closed from the SQL side;
+-- `packages/schemas/src/chat-media-key.mirror.test.ts` closes it from the TypeScript side by
+-- comparing the two patterns as strings, which pgTAP alone cannot do.
 --
 -- Spec-first like 0014: the chat-media policy predicates are asserted from pg_policies (a
 -- policy rewritten to `true` keeps its name), and the parts predicate text cannot prove —
@@ -13,7 +23,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(44);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'chatmedia_a@test.dev'),
@@ -67,6 +77,16 @@ select is(
 );
 -- Pinned as the WHOLE array (0014's #461 lesson): images only, no video, no audio — a mime
 -- added here without a product decision is what this assertion exists to catch.
+--
+-- This list is deliberately WIDER than the key pin, which admits `.jpg` alone (#575). The two
+-- are not the same claim: `allowed_mime_types` gates the declared Content-Type of the bytes, the
+-- key pin gates the object's name, and an extension is not a mime. So PNG bytes can legally be
+-- stored under a `.jpg` key. Whether anything renders wrong depends on whether Storage serves the
+-- stored content-type or infers one from the name — NOT verified here, and worth checking before
+-- anyone relies on the mismatch being harmless. Narrowing this array to `image/jpeg` would
+-- make the layers agree and is the obvious follow-up, but it reverses a product decision (which
+-- is exactly what #461 taught this assertion to catch), so #575 left it alone rather than
+-- shrinking a shipped bucket's contract as a side effect of a key-shape fix.
 select is(
   (select allowed_mime_types from storage.buckets where id = 'chat-media'),
   array['image/jpeg','image/png','image/webp'],
@@ -153,13 +173,81 @@ select is_empty(
            or qual not like '%not_banned(((storage.foldername(name))[1])::uuid)%' ) $$,
   'the read policy gates on not_blocked AND not_banned of the owner-from-path'
 );
+-- Position, not mere presence (#575). Written as "contains a uuid class somewhere", this passed
+-- for the write policies by accident once the whole-key regex arrived carrying the same
+-- characters — the standalone `(storage.foldername(name))[2] ~* '^{uuid}$'` guards it was
+-- written for were dropped, not added to, and it would have gone on passing if the
+-- guard-before-cast property itself had regressed. What 20260808151808 established is an
+-- ORDERING: the shape guard has to precede `::uuid` in the predicate, so a malformed key denies
+-- instead of raising inside the clause. Assert that.
 select is_empty(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'chat-media\_%'
-        and coalesce(qual, '') || ' ' || coalesce(with_check, '')
-            not like '%[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}%' $$,
-  'every chat-media policy uuid-shape-guards the path segments before casting'
+        and not (
+          strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '[0-9a-f]{8}') > 0
+          and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid') > 0
+          and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '[0-9a-f]{8}')
+              < strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid')
+        ) $$,
+  'every chat-media policy uuid-shape-guards the key BEFORE the ::uuid cast (position, not presence)'
+);
+
+-- ── the whole-key pin (#575) ─────────────────────────────────────────────────────────
+-- The guard above only says a uuid class appears somewhere. Until 20260827092629 that was
+-- satisfied by segment guards alone, which is exactly what #575 found: `storage.foldername`
+-- drops the LAST segment, so the filename was never looked at and the array was never length-
+-- bounded — `{uid}/{conv}/sub/dir/anything` passed every write policy. `strpos`, not LIKE:
+-- backslash is LIKE's default escape character, so `like '%\.jpg$%'` would quietly search for
+-- `.jpg$` and pass on a policy that pins no extension at all.
+select is_empty(
+  $$ select policyname::text from pg_policies
+      where schemaname = 'storage' and tablename = 'objects'
+        and policyname in ('chat-media_insert_own', 'chat-media_update_own')
+        and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '\.jpg$') = 0 $$,
+  'both chat-media owner-write policies pin the WHOLE key, extension included (#575)'
+);
+-- Halves, separately. The assertion above concatenates qual and with_check, so it is satisfied by
+-- an UPDATE policy that pins only its USING half — and that is the one arrangement that matters
+-- here: the upsert-retry path is the only way a chat-media key can move, so a WITH CHECK without
+-- the pin would let an existing object be renamed INTO a shape the insert path refuses.
+select ok(
+  (select strpos(qual, '\.jpg$') > 0 and strpos(with_check, '\.jpg$') > 0
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'chat-media_update_own'),
+  'the chat-media UPDATE policy pins the whole key in BOTH halves, not just USING'
+);
+-- Case matters as much as shape. `packages/schemas` spells `[0-9a-f]` with no `i` flag, so a
+-- `~*` here would accept an uppercase-hex key the client refuses — the same asymmetry #575 came
+-- to close, reintroduced by one character.
+select is_empty(
+  $$ select policyname::text from pg_policies
+      where schemaname = 'storage' and tablename = 'objects'
+        and policyname in ('chat-media_insert_own', 'chat-media_update_own')
+        and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '~* ') > 0 $$,
+  'the owner-write shape pins are case-SENSITIVE (~, never ~*), matching the lowercase Zod class'
+);
+-- The read policy is NOT part of that pin, and its absence is a decision rather than an
+-- oversight: tightening a read predicate retroactively hides bytes already stored, and a
+-- filename tells a reader nothing that membership and not_blocked/not_banned do not decide.
+-- Asserted so a later reader finds the reasoning attached to the fact.
+select ok(
+  (select strpos(qual, '\.jpg$') = 0 and strpos(qual, '~* ') > 0
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'chat-media_select_participant'),
+  'the read policy still pins path SEGMENTS only — shape is enforced where a key is created'
+);
+-- On messages both halves must survive: the LIKE (rendered `~~`) is what binds the key to THIS
+-- sender and THIS conversation, the regex only says what a key looks like. Dropping either one
+-- passes the other's test.
+select ok(
+  (select strpos(with_check, '~~') > 0 and strpos(with_check, '\.jpg$') > 0
+     from pg_policies
+    where schemaname = 'public' and tablename = 'messages'
+      and policyname = 'messages_insert_own_user'),
+  'messages_insert_own_user keeps the sender/conversation prefix pin AND adds the shape pin'
 );
 
 -- ── the strip trigger covers the bucket ──────────────────────────────────────────────
@@ -265,6 +353,57 @@ select throws_ok(
   '42501', null,
   'a media key belonging to a DIFFERENT conversation is refused (no cross-thread reference)'
 );
+
+-- ── the five keys the prefix pin used to accept (#575) ────────────────────────────────
+-- All five sit in the sender's own folder for this conversation, so the authorization half of
+-- the predicate is satisfied by every one of them — which is the point. Before 20260827092629
+-- `like '{sender}/{conversation}/%'` was the whole test and all five landed rows;
+-- `messageInsertSchema` refused all five. Each is one way the two mirrors disagreed.
+select throws_ok(
+  $$ insert into public.messages (conversation_id, sender_id, kind, body, media_url)
+     values (current_setting('test.conv_ab')::uuid,
+             '11111111-1111-1111-1111-111111111111', 'user', null,
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab') || '/') $$,
+  '42501', null,
+  'the bare prefix is refused — LIKE''s % matches zero characters, so this used to pass'
+);
+select throws_ok(
+  $$ insert into public.messages (conversation_id, sender_id, kind, body, media_url)
+     values (current_setting('test.conv_ab')::uuid,
+             '11111111-1111-1111-1111-111111111111', 'user', null,
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/sub/ffffffff-0000-0000-0000-00000000000f.jpg') $$,
+  '42501', null,
+  'a deeper path under the right prefix is refused (the key is three segments, not at least two)'
+);
+select throws_ok(
+  $$ insert into public.messages (conversation_id, sender_id, kind, body, media_url)
+     values (current_setting('test.conv_ab')::uuid,
+             '11111111-1111-1111-1111-111111111111', 'user', null,
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/ffffffff-0000-0000-0000-00000000000f.png') $$,
+  '42501', null,
+  'another extension is refused — processImage re-encodes every pick to JPEG'
+);
+select throws_ok(
+  $$ insert into public.messages (conversation_id, sender_id, kind, body, media_url)
+     values (current_setting('test.conv_ab')::uuid,
+             '11111111-1111-1111-1111-111111111111', 'user', null,
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/not-a-uuid.jpg') $$,
+  '42501', null,
+  'a non-uuid media id is refused (the third segment is newMediaId(), not free text)'
+);
+select throws_ok(
+  $$ insert into public.messages (conversation_id, sender_id, kind, body, media_url)
+     values (current_setting('test.conv_ab')::uuid,
+             '11111111-1111-1111-1111-111111111111', 'user', null,
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/FFFFFFFF-0000-0000-0000-00000000000F.jpg') $$,
+  '42501', null,
+  'an uppercase-hex media id is refused — the pin is ~ and the class is lowercase-only'
+);
+
 -- a plain text message is exactly as legal as it was before v3.
 select lives_ok(
   $$ insert into public.messages (conversation_id, sender_id, kind, body)
@@ -317,6 +456,42 @@ select is(
   (select count(*)::int from storage.objects where bucket_id = 'chat-media'
      and name like '%' || current_setting('test.conv_ac') || '%'),
   0, 'a block hides the counterpart''s chat image even inside a shared conversation'
+);
+
+-- ── behaviour: the bucket's own write gate (#575) ─────────────────────────────────────
+-- Every object above was seeded as the owning role, i.e. with RLS bypassed, so nothing in this
+-- file had ever exercised chat-media_insert_own. These three do, under A's JWT — the storage
+-- half of the claim the messages assertions make, and the half the issue's title actually named.
+-- `enqueue_media_process` (the EXIF/GPS strip enqueue) is SECURITY DEFINER, so the trigger these
+-- inserts fire behaves the same under `authenticated` as under the seeding role.
+-- Last in the file deliberately: a successful insert would move the object counts the read
+-- assertions above depend on.
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select lives_ok(
+  $$ insert into storage.objects (bucket_id, name, owner_id)
+     values ('chat-media',
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/99999999-0000-0000-0000-000000000099.jpg',
+             '11111111-1111-1111-1111-111111111111') $$,
+  'a participant uploads a well-shaped object into their own folder for the conversation'
+);
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, owner_id)
+     values ('chat-media',
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/sub/dir/anything.exe',
+             '11111111-1111-1111-1111-111111111111') $$,
+  '42501', null,
+  'a deeper, arbitrarily-named object is refused — foldername() drops the filename, so this passed'
+);
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, owner_id)
+     values ('chat-media',
+             '11111111-1111-1111-1111-111111111111/' || current_setting('test.conv_ab')
+               || '/99999999-0000-0000-0000-000000000098.png',
+             '11111111-1111-1111-1111-111111111111') $$,
+  '42501', null,
+  'another extension is refused on the bucket too, not only on the messages row'
 );
 
 reset role;
