@@ -1204,12 +1204,15 @@ postdates that sha and is on `dev` only.
 
 So a GDPR erasure at `b203c48` deletes **no bytes from any bucket**, and that sha declares six:
 `post-media`, `moments`, `story-segments`, `candidacy-videos`, `avatars`, `exports`. The drift did
-not need a seventh bucket to happen — it had already happened six times. `dev` narrowed it to five
-when `20260815131925` landed, and this migration closes the rest.
+not need a seventh bucket to happen — it had already happened six times. On `dev` the count then
+moved twice: `20260815131925` narrowed it to five on 2026-08-15, `20260827054252` widened it back
+to six on 2026-08-27 by adding `chat-media`, and this migration closes all of them.
 
 Asserted by: nothing, and nothing should — which commits a remote branch contains is a fact about a
 branch at a point in time, not a property of the schema, and a test pinning it would go red at the
-next release for the right reason and then be deleted. Read every count above as describing
-`b203c48` specifically; they stop being true of `main` the moment this branch reaches it, which is
-the point. `supabase/functions/erasure-job/sweep-buckets.test.ts` holds the half that IS a property
-— that the sweep's list covers every declared bucket — and that is what stops a seventh.
+next release for the right reason and then be deleted. Every count above is anchored to the sha or
+date beside it — six at `b203c48`, five on `dev` from 2026-08-15, six again from 2026-08-27 — and
+none of them survives this branch reaching `main`, which is the point. Do not carry a number here
+forward without its anchor. `supabase/functions/erasure-job/sweep-buckets.test.ts` holds the half
+that IS a property — that the sweep's list covers every declared bucket — and that is what stops
+an eighth.
