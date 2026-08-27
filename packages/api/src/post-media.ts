@@ -58,6 +58,14 @@ export async function getPostMedia(client: AthanorClient, postId: string): Promi
  * Closing that window entirely would take an RPC and a migration; the state it can leave is
  * strictly narrower than the state it replaces.
  *
+ * The sweep therefore rethrows, and the cost of that is worth naming: it is a statement that
+ * can fail with NOTHING to do. A retry whose first attempt landed completely converges on the
+ * upsert and then sweeps zero rows — and if that empty DELETE drops on a flaky connection the
+ * caller is told the publish failed when the post and its media are already exactly right.
+ * The trade is deliberate and one-sided: a false failure costs one more tap on a path that is
+ * idempotent by construction, where swallowing it would report success over a set still
+ * carrying rows the member deleted, which nothing afterwards corrects.
+ *
  * The BYTES are not swept. Objects the previous set uploaded and this one does not reference
  * stay in `post-media`, the same trade the composer already makes for an abandoned draft.
  * Erasure still reaches them — `gdpr_storage_footprint` sweeps the bucket by `{uid}/` prefix.

@@ -3,7 +3,7 @@ import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createPost, postKeys, replacePostMedia } from '@athanor/api';
+import { createPost, postKeys, postMediaKeys, replacePostMedia } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
@@ -187,6 +187,18 @@ export default function PostComposeScreen() {
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: postKeys.all });
+      /*
+        `postMediaKeys.forPost` is a DISJOINT key from `postKeys.all` (`['post-media', id]` vs
+        `['posts']`), so the line above does not reach it. It changes nothing today — `PostMedia`
+        only mounts once the feed refetch surfaces the post, which is after this — but the write
+        that just ran can now REPLACE a set rather than only create one, and a cached set for a
+        post whose bytes have already been overwritten at the shared positions is the exact
+        row-describes-one-file-key-holds-another state #586 closed. Invalidate what was written.
+      */
+      const postId = draftPostId.current;
+      if (postId) {
+        await queryClient.invalidateQueries({ queryKey: postMediaKeys.forPost(postId) });
+      }
       /*
         A haptic is not feedback (#579): it is silent on web, and on a device it is one buzz
         among the several a publish already makes. The toast is what says the post exists.
