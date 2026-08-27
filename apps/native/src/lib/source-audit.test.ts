@@ -1840,3 +1840,85 @@ describe('a success haptic is never the whole feedback (#579)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 25 — a media SET is replaced whole, never conditionally (#586)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `replacePostMedia` converges a post's media on the draft as it stands: it upserts the new
+ * rows on `(post_id, position)` and then deletes every position the new set does not fill.
+ * The second half is the one that gets optimised away, and both ways of doing it restore the
+ * defect it was written for.
+ *
+ * **Guarding it on a count.** The call site carried `if (rows.length > 0)` right up to #586,
+ * and it reads as obviously free — why sweep a post that has no media? Because an EMPTY set is
+ * not "nothing to do", it is the member having removed every attachment between a lost
+ * response and the re-tap, and it is the only input for which the sweep is the entire point.
+ * Restored, the first attempt's rows outlive a post whose `type` no longer claims them, and
+ * the feed renders photos the member deleted.
+ *
+ * **Swallowing its failure.** What the call site did before was `.catch()` a 23505 from the
+ * insert-only write, reading the conflict as the database confirming the first attempt landed.
+ * There is no conflict left to swallow — the upsert converges instead — so a `.catch` here now
+ * could only discard a real fault, and would toast success over a post whose media never
+ * changed.
+ *
+ * ## What it cannot see
+ *
+ * Textual, and deliberately narrow: it matches an `if (….length…)` immediately in front of the
+ * call and a `.catch` immediately behind it, which is the shape both regressions actually
+ * take (one is a revert). A `try`/`catch` around the whole publish, a guard split across a
+ * helper, or a condition with a call in it all read as clean here. The floor below is what
+ * keeps the section from going quietly vacuous when the function is renamed instead.
+ */
+const MEDIA_SET_WRITE = /\breplacePostMedia\s*\(/;
+/** `if (rows.length > 0) [{] await replacePostMedia(` — the guard #586 removed. */
+const COUNT_GUARDED_SET_WRITE =
+  /\bif\s*\([^()]*\.length[^()]*\)\s*\{?\s*(?:await\s+)?replacePostMedia\s*\(/;
+/** `await replacePostMedia(…).catch(` — the swallow #586 removed. */
+const SWALLOWED_SET_WRITE = /\breplacePostMedia\s*\([^;]*\)\s*\.catch\b/;
+
+describe('a media set is replaced whole, never conditionally (#586)', () => {
+  it('finds the composer it is walking', () => {
+    // A FLOOR, not a count — one composer writes post media today. Without it, a rename of
+    // the API function leaves both assertions below reading identically on a clean tree and
+    // on a scan that matched nothing at all.
+    const sites = FILES.filter((p) => !isTest(p)).filter((p) =>
+      MEDIA_SET_WRITE.test(stripComments(read(p))),
+    );
+    expect(
+      sites.length,
+      'nothing writes a post media set any more — has replacePostMedia been renamed? This ' +
+        'section is vacuous until the scan matches again.',
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it('no call site guards the replace on how much media there is', () => {
+    const guarded = FILES.filter((p) => !isTest(p))
+      .filter((p) => COUNT_GUARDED_SET_WRITE.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(
+      guarded,
+      `a media set replace behind an attachment count:\n  ${guarded.join('\n  ')}\n` +
+        `An empty set is the case the sweep exists for — the member removed every ` +
+        `attachment — so skipping the call leaves the previous attempt's rows on a post ` +
+        `that no longer claims them. Call replacePostMedia unconditionally.`,
+    ).toEqual([]);
+  });
+
+  it('no call site swallows the failure of the replace', () => {
+    const swallowed = FILES.filter((p) => !isTest(p))
+      .filter((p) => SWALLOWED_SET_WRITE.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(
+      swallowed,
+      `a media set replace whose failure is discarded:\n  ${swallowed.join('\n  ')}\n` +
+        `The 23505 this used to swallow cannot happen any more — the upsert converges — so a ` +
+        `catch here can only hide a real fault and toast success over media that never ` +
+        `changed. Let it throw; onError already says which half of the publish failed.`,
+    ).toEqual([]);
+  });
+});
