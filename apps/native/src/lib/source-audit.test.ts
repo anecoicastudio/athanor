@@ -1669,12 +1669,20 @@ const EXIT_SCOPE = [...MODAL_SCREENS, ...SHARED_COMPONENTS];
 /** `router.back()`, `router.dismiss()`, `router.dismissAll()`, `navigation.goBack()`. */
 const BARE_POP = /\brouter\.(?:back|dismiss|dismissAll)\s*\(|\bgoBack\s*\(/;
 /**
- * `const { back } = useRouter()` — the rename that would walk straight past `BARE_POP`. Global
- * and newline-tolerant (`[\s\S]`), because it is run against the whole file: prettier wraps a
- * destructuring that outgrows the print width, and the wrapped form is the one a line-scoped
- * test would miss.
+ * `const { back } = useRouter()` — the rename that would walk straight past `BARE_POP`. Global,
+ * and run against the whole file rather than per line, because prettier wraps a destructuring
+ * that outgrows the print width and the wrapped form is the one a line-scoped test misses.
+ *
+ * The gap is `[^{}]`, not `[\s\S]` — newline-tolerant either way, but a gap that may cross a
+ * brace matches far more than a destructuring. `stripComments` preserves string literals on
+ * purpose, `\bback\b` hits inside `'common.back'`, and nearly every screen in `EXIT_SCOPE`
+ * carries that key: an unbounded gap starts at some earlier `{` (an import brace suffices),
+ * crosses the key, and closes on an unrelated `}` before `= useRouter(`. That turns
+ * `const { push } = useRouter()` — a perfectly legal line that pops nothing — red, with a
+ * message accusing it of destructuring a popping method. Refusing to cross a brace keeps the
+ * wrapped offender in range and puts that whole class out of it.
  */
-const POP_OFF_ROUTER = /\{[\s\S]*?\b(?:back|dismiss|dismissAll)\b[\s\S]*?\}\s*=\s*useRouter\s*\(/g;
+const POP_OFF_ROUTER = /\{[^{}]*\b(?:back|dismiss|dismissAll)\b[^{}]*\}\s*=\s*useRouter\s*\(/g;
 
 describe('a (modal) screen always has a way out (#578)', () => {
   it('finds the screens it is walking', () => {

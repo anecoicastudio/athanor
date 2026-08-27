@@ -119,7 +119,11 @@ export default function NotifPrefsScreen() {
   return (
     <Screen {...MODAL_A11Y}>
       {/* Header — outside the ScrollView so it can't scroll away (#161). */}
-      <ModalHeader title={t('notif.prefs.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('notif.prefs.title', locale)}
+        backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/notifications"
+      />
       <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-12">
         {/* Subtitle */}
         <Text className="px-5 text-[14px] leading-relaxed text-faint">
