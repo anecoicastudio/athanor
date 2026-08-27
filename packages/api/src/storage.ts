@@ -5,8 +5,9 @@ import type { AthanorClient } from './client';
  *
  * KEEP IN SYNC with the GDPR erasure sweep's bucket list — `gdpr_storage_footprint`'s `in (…)`
  * predicate in `supabase/migrations/20260827110034_gdpr_storage_footprint_sweep.sql`. A bucket a
- * member can upload to and an erasure never deletes from is #573, and five of the names below are
- * in exactly that state on `main` today.
+ * member can upload to and an erasure never deletes from is #573. Every name below except
+ * `chat-media` is in exactly that state on `main` (`b203c48`), where this union is five long and
+ * `erasure-job` has no storage port at all — no bucket is swept there, not even candidacy-videos.
  * `supabase/functions/erasure-job/sweep-buckets.test.ts` parses this union textually and fails if
  * the sweep does not cover it — textually, because that test runs in the Deno edge job, outside
  * this workspace, so nothing in the import graph ties the two files together.

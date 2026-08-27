@@ -1194,12 +1194,22 @@ is wrong. `chat-media` was created by `20260827054252`, which is on `dev` only; 
 `b203c48` (2026-08-12) and has never carried that migration. `chat-media` is the bucket whose
 arrival made the gap visible enough to file, not the one that shipped it.
 
-The claim the sentence was reaching for is true and is worse: `origin/main` declares six buckets —
-`post-media`, `moments`, `story-segments`, `candidacy-videos`, `avatars`, `exports` — and its
-`erasure-job` removes the candidacy-videos manifest alone. **Five unswept buckets are on `main`
-right now**, and have been since each was created. The drift did not need a seventh bucket to
-happen; it had already happened five times before anyone noticed.
+The claim the sentence was reaching for is worse than the one it made, and worse than the first
+draft of this paragraph said. At `b203c48`, `erasure-job` has **no storage port at all**: its
+`ErasureCtx` is `{ db, auth }`, `ErasureAuth` exposes only `signOut`, and no file under
+`supabase/functions/erasure-job/` contains a `remove(` call or the word `storage`. The
+candidacy-videos manifest is not a narrower reach there — it does not exist, because
+`20260815131925_gdpr_fund_erasure_tombstone.sql`, which creates `gdpr_erase_fund_footprint`,
+postdates that sha and is on `dev` only.
 
-Asserted by: nothing, and nothing should — this is a fact about a branch at a point in time, not a
-property of the schema. `supabase/functions/erasure-job/sweep-buckets.test.ts` asserts the part
-that is a property (the list covers every declared bucket), which is what stops a sixth.
+So a GDPR erasure at `b203c48` deletes **no bytes from any bucket**, and that sha declares six:
+`post-media`, `moments`, `story-segments`, `candidacy-videos`, `avatars`, `exports`. The drift did
+not need a seventh bucket to happen — it had already happened six times. `dev` narrowed it to five
+when `20260815131925` landed, and this migration closes the rest.
+
+Asserted by: nothing, and nothing should — which commits a remote branch contains is a fact about a
+branch at a point in time, not a property of the schema, and a test pinning it would go red at the
+next release for the right reason and then be deleted. Read every count above as describing
+`b203c48` specifically; they stop being true of `main` the moment this branch reaches it, which is
+the point. `supabase/functions/erasure-job/sweep-buckets.test.ts` holds the half that IS a property
+— that the sweep's list covers every declared bucket — and that is what stops a seventh.
