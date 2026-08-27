@@ -4,7 +4,7 @@ import {
   searchFiltersSchema,
   searchScopeSchema,
   searchEntitySchema,
-} from './search';
+} from './search.ts';
 
 describe('search schemas', () => {
   test('parses a valid search result row', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { handleSchema } from './profile';
-import { RESERVED_HANDLES, RESERVED_HANDLE_PREFIX, isReservedHandle } from './reserved-handles';
+import { handleSchema } from './profile.ts';
+import { RESERVED_HANDLES, RESERVED_HANDLE_PREFIX, isReservedHandle } from './reserved-handles.ts';
 
 describe('RESERVED_HANDLES', () => {
   it('holds only values the handle shape itself would admit', () => {

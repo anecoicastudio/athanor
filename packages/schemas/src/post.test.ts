@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { postCategorySchema, postInsertSchema, postSchema, postTypeSchema } from './post';
+import { postCategorySchema, postInsertSchema, postSchema, postTypeSchema } from './post.ts';
 
 describe('postSchema', () => {
   test('parses a valid post row', () => {

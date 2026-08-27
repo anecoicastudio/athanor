@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NOTIFICATION_TYPES, notificationType } from './notification';
+import { NOTIFICATION_TYPES, notificationType } from './notification.ts';
 
 // Mirrors supabase/migrations/20260620025158_m9_notifications.sql (06 §2.12).
 // One row per (profile_id, type, channel). The master «Notifiche push» toggle is NOT a row here —

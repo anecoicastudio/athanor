@@ -4,7 +4,7 @@ import {
   projectInsertSchema,
   projectSchema,
   projectStatusSchema,
-} from './project';
+} from './project.ts';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',

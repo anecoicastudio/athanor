@@ -5,7 +5,7 @@ import {
   personProfileSchema,
   profileSchema,
   profileUpdateSchema,
-} from './profile';
+} from './profile.ts';
 
 const validRow = {
   id: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11',

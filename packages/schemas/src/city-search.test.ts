@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { citySuggestionSchema, mapboxGeocodeResponseSchema } from './city-search';
+import { citySuggestionSchema, mapboxGeocodeResponseSchema } from './city-search.ts';
 
 const mapboxResponse = {
   type: 'FeatureCollection',

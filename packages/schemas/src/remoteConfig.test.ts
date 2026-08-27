@@ -4,7 +4,7 @@ import {
   maintenanceModeSchema,
   minAppVersionSchema,
   remoteConfigSnapshotSchema,
-} from './remoteConfig';
+} from './remoteConfig.ts';
 
 describe('remoteConfig schemas', () => {
   it('parses a valid min_app_version', () => {

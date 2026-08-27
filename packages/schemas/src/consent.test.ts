@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consentSchema, setConsentInput, CONSENT_KINDS } from './consent';
+import { consentSchema, setConsentInput, CONSENT_KINDS } from './consent.ts';
 
 const validRow = {
   id: '11111111-1111-1111-1111-111111111111',

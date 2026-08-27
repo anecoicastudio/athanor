@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { AUDIT_LOG_ACTIONS } from './admin';
+import { AUDIT_LOG_ACTIONS } from './admin.ts';
 
 /**
  * Third link in the same chain. `audit-log-actions.mirror.test.ts` pins the vocabulary to the

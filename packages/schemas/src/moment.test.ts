@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { momentInsertSchema, momentSchema } from './moment';
+import { momentInsertSchema, momentSchema } from './moment.ts';
 
 const OWNER = '00000000-0000-0000-0000-000000000001';
 

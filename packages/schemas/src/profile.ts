@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { nonBlankString, trimmedNonBlank } from './primitives';
-import { isReservedHandle } from './reserved-handles';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
+import { isReservedHandle } from './reserved-handles.ts';
 
 /** Mirrors supabase/migrations init_profiles. Update both together. */
 export const localeSchema = z.enum(['it', 'en']);

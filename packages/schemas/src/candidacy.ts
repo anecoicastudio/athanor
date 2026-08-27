@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { projectCategorySchema } from './project';
+import { projectCategorySchema } from './project.ts';
 
 /**
  * dream_candidacies.status — service-role/ethics drive transitions; client only ever 'submitted'.

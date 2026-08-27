@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { nonBlankString } from './primitives';
-import { avatarPathSchema, displayNameSchema } from './profile';
+import { nonBlankString } from './primitives.ts';
+import { avatarPathSchema, displayNameSchema } from './profile.ts';
 
 /** Mirrors supabase/migrations favor_offers. Update both together. */
 export const favorOfferSchema = z.object({

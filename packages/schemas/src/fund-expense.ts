@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { nonBlankString, trimmedNonBlank } from './primitives';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 /**
  * The published expense vocabulary (#234, FUND-29) — doc §20 «principali categorie di spesa;

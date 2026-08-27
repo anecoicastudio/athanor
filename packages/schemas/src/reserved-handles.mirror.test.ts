@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { RESERVED_HANDLES, RESERVED_HANDLE_PREFIX } from './reserved-handles';
+import { RESERVED_HANDLES, RESERVED_HANDLE_PREFIX } from './reserved-handles.ts';
 
 /**
  * `reserved-handles.ts` says it is the authored home of a list the DATABASE enforces (#430).

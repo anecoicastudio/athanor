@@ -5,7 +5,7 @@ import {
   fundCycleExpenseSchema,
   fundEditionExpenseTotalSchema,
   fundExpenseCategorySchema,
-} from './fund-expense';
+} from './fund-expense.ts';
 
 const EDITION = '00000000-0000-0000-0000-0000000000e1';
 

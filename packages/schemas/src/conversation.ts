@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { avatarPathSchema, displayNameSchema, peerIdentityFields } from './profile';
+import { avatarPathSchema, displayNameSchema, peerIdentityFields } from './profile.ts';
 
 /** What each aliased `profiles` embed selects — one shape, so a/b cannot drift apart. */
 const peerEmbed = z.object({

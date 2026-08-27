@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { waitlistAdminRowSchema, waitlistInsertSchema } from './waitlist';
+import { waitlistAdminRowSchema, waitlistInsertSchema } from './waitlist.ts';
 
 describe('waitlistInsertSchema', () => {
   it('normalizes email (trim + lowercase) — the dedup contract', () => {

@@ -6,7 +6,7 @@ import {
   adminReportRow,
   auditLogRow,
   resolveReportInput,
-} from './admin';
+} from './admin.ts';
 
 describe('resolveReportInput', () => {
   it('accepts a dismiss verdict without severity', () => {

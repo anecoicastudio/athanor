@@ -5,7 +5,7 @@ import {
   fundAggregateSchema,
   contributionSessionInputSchema,
   fundContributionSchema,
-} from './fund';
+} from './fund.ts';
 
 const validEdition = {
   id: '00000000-0000-0000-0000-0000000000a1',

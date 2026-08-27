@@ -4,7 +4,7 @@ import {
   connectionRequestListItem,
   connectionRequestRow,
   connectionState,
-} from './connection';
+} from './connection.ts';
 
 const uuid = '2b7e6a1e-9c4d-4f4a-9a3b-1c2d3e4f5a6b';
 

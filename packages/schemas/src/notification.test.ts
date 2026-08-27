@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { entityRefSchema, notificationSchema, NOTIFICATION_TYPES } from './notification';
+import { entityRefSchema, notificationSchema, NOTIFICATION_TYPES } from './notification.ts';
 
 describe('notificationSchema', () => {
   it('parses a valid notification row', () => {

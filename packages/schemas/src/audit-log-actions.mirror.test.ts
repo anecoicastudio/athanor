@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { AUDIT_LOG_ACTIONS, AUDIT_LOG_FUND_ACTIONS } from './admin';
+import { AUDIT_LOG_ACTIONS, AUDIT_LOG_FUND_ACTIONS } from './admin.ts';
 
 /**
  * `admin.ts` says its audit-log vocabulary mirrors two CHECK constraints, and until this

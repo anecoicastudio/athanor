@@ -6,7 +6,7 @@ import {
   POST_MEDIA_MAX_DURATION_SECONDS,
   postMediaInsertSchema,
   postMediaSchema,
-} from './post-media';
+} from './post-media.ts';
 
 /**
  * One bound on a post clip, written down in FOUR languages (#56, widened by #154):

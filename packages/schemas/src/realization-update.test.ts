@@ -3,7 +3,7 @@ import {
   realizationUpdateEditSchema,
   realizationUpdateInsertSchema,
   realizationUpdateSchema,
-} from './realization-update';
+} from './realization-update.ts';
 
 /** A note as the winner posted it and the row holds it (#230). */
 const row = {

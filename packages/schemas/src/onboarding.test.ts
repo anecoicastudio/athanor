@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { onboardingAnswersSchema } from './onboarding';
+import { onboardingAnswersSchema } from './onboarding.ts';
 
 describe('onboardingAnswersSchema', () => {
   const valid = {

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { PASSWORD_MIN_LENGTH, unmetPasswordRequirements } from './password';
+import { PASSWORD_MIN_LENGTH, unmetPasswordRequirements } from './password.ts';
 
 /**
  * `password.ts` says it mirrors `supabase/config.toml [auth]`, and until this file

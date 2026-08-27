@@ -5,7 +5,7 @@ import {
   circleMembershipSchema,
   circlePlanSchema,
   circleStatusSchema,
-} from './circle';
+} from './circle.ts';
 
 describe('circle schemas', () => {
   test('parses a valid membership row', () => {

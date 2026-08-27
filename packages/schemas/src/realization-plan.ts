@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { nonBlankString } from './primitives';
+import { nonBlankString } from './primitives.ts';
 
 /**
  * Read-model of one cycle's realization plan (#228, FUND-25) — the winner's published

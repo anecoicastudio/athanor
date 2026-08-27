@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { localeSchema } from './profile';
+import { localeSchema } from './profile.ts';
 
 /**
  * Joining the waitlist — the single write boundary. Email is normalized here

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { nonBlankString, trimmedNonBlank } from './primitives';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 describe('nonBlankString (read idiom — no transform)', () => {
   const schema = nonBlankString(10, 'must not be blank');

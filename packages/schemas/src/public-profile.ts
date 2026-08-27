@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { milestoneStatusSchema } from './milestone';
+import { milestoneStatusSchema } from './milestone.ts';
 // Import and re-export the canonical handleSchema from profile (mirrors profiles.handle CHECK
 // ^[a-z0-9_]{3,30}$) so the package index can export * from both files without a name clash.
-import { displayNameSchema, handleSchema } from './profile';
+import { displayNameSchema, handleSchema } from './profile.ts';
 export { handleSchema };
 export type Handle = string;
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { claimableHandleSchema, localeSchema } from './profile';
+import { claimableHandleSchema, localeSchema } from './profile.ts';
 
 /**
  * Onboarding payload. Tag values are generic strings here; membership in the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mediaKindSchema, postMediaInsertSchema, postMediaSchema } from './post-media';
+import { mediaKindSchema, postMediaInsertSchema, postMediaSchema } from './post-media.ts';
 
 const POST = '00000000-0000-0000-0000-000000000002';
 

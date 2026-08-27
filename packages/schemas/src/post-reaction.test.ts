@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { postReactionInsertSchema } from './post-reaction';
+import { postReactionInsertSchema } from './post-reaction.ts';
 
 const valid = {
   post_id: '11111111-1111-1111-1111-111111111111',

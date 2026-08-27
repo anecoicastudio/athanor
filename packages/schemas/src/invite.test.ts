@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inviteSchema } from './invite';
+import { inviteSchema } from './invite.ts';
 
 const ROW = {
   id: '00000000-0000-0000-0000-000000000001',

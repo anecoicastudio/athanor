@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { trimmedNonBlank } from './primitives';
+import { trimmedNonBlank } from './primitives.ts';
 
 export const messageKind = z.enum(['user', 'system', 'prompt']);
 export type MessageKind = z.infer<typeof messageKind>;

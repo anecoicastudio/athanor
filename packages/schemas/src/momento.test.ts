@@ -6,7 +6,7 @@ import {
   momentoReasonKind,
   momentoStatus,
   momentoSuggestion,
-} from './momento';
+} from './momento.ts';
 
 describe('momento schemas', () => {
   it('parses a deck card with peer + dream quote', () => {

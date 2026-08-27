@@ -13,7 +13,7 @@ import {
   rsvpStatusSchema,
   ticketSchema,
   ticketStatusSchema,
-} from './event';
+} from './event.ts';
 
 const baseRow = {
   id: '11111111-1111-1111-1111-111111111111',
