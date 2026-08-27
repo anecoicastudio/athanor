@@ -1088,3 +1088,18 @@ them — the column definition, the anon column-scoped grant list, and the two c
 
 Asserted by: `supabase/tests/0020_events_rls.test.sql` — the anon column-read assertion no longer
 selects the dropped column, and the from-zero CI replay applies the fold before anything reads it.
+
+## `20260827054252_chat_media_images.sql` — "Erasure/moderation delete via service role" describes a capability, not existing code
+
+The §2 comment explaining the missing delete policy ends "Erasure/moderation delete via service
+role, which needs no policy." The mechanism claim is true — the service role bypasses storage RLS,
+so no policy is needed for a privileged delete — but at the time the migration was applied **no
+erasure code touches `chat-media`**: `erasure-job` sweeps only the candidacy-videos manifest, and
+no reaper covers this bucket (the same gap holds for `post-media`, `moments` and `avatars`).
+An erased member's chat-image bytes therefore persist, unreadable by any client policy but never
+deleted, until a bucket-wide erasure sweep exists. Read the sentence as "the future privileged
+delete needs no policy", not "erasure handles this today". The follow-up filed off PR #155's lane
+covers the sweep for every user-media bucket.
+
+Asserted by: nothing yet — the missing sweep is the finding; the erasure-job test suite gains the
+assertion when the sweep lands.

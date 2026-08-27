@@ -164,8 +164,11 @@ export default function ChatScreen() {
       }
       return sendMessage(supabase, { conversationId, senderId, body: input.body });
     },
-    onSuccess: async () => {
-      setDraft('');
+    onSuccess: async (_data, vars) => {
+      // Clear only what was SENT. An image upload takes seconds, the Input stays enabled, and
+      // an unconditional setDraft('') here would wipe whatever the member typed during it —
+      // pre-#155 the mutation was a fast insert and the race was academic.
+      setDraft((d) => (d.trim() === (vars.body ?? '') ? '' : d));
       setAttachment(null);
       await queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
       await queryClient.invalidateQueries({ queryKey: conversationKeys.list() });

@@ -91,22 +91,24 @@ export function Bubble({
   }
   const mine = message.sender_id === myId;
   // A body-less image renders the frame alone; a caption sits under its image in one bubble.
+  // ONE content block for both arms — only the text color differs, so a change to the media
+  // or caption layout cannot land on one side and drift the other.
   const hasMedia = Boolean(message.media_url);
+  const content = (textClass: string) => (
+    <>
+      {hasMedia ? <BubbleImage url={mediaUrl} isLoading={mediaLoading} locale={locale} /> : null}
+      {message.body ? (
+        <Text className={`text-[15px] leading-5 ${textClass} ${hasMedia ? 'px-2.5 py-1.5' : ''}`}>
+          {message.body}
+        </Text>
+      ) : null}
+    </>
+  );
+  const bubblePad = hasMedia ? 'p-1.5' : 'px-4 py-2';
   if (mine) {
     return (
       <View className="my-1 max-w-[80%] self-end">
-        <View className={`rounded-2xl bg-aura ${hasMedia ? 'p-1.5' : 'px-4 py-2'}`}>
-          {hasMedia ? (
-            <BubbleImage url={mediaUrl} isLoading={mediaLoading} locale={locale} />
-          ) : null}
-          {message.body ? (
-            <Text
-              className={`text-[15px] leading-5 text-on-aura ${hasMedia ? 'px-2.5 py-1.5' : ''}`}
-            >
-              {message.body}
-            </Text>
-          ) : null}
-        </View>
+        <View className={`rounded-2xl bg-aura ${bubblePad}`}>{content('text-on-aura')}</View>
       </View>
     );
   }
@@ -134,17 +136,8 @@ export function Bubble({
           </Pressable>
         ) : null}
       </View>
-      <View
-        className={`flex-1 rounded-2xl border border-hair bg-raise ${hasMedia ? 'p-1.5' : 'px-4 py-2'}`}
-      >
-        {hasMedia ? <BubbleImage url={mediaUrl} isLoading={mediaLoading} locale={locale} /> : null}
-        {message.body ? (
-          <Text
-            className={`text-[15px] leading-5 text-foreground ${hasMedia ? 'px-2.5 py-1.5' : ''}`}
-          >
-            {message.body}
-          </Text>
-        ) : null}
+      <View className={`flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`}>
+        {content('text-foreground')}
       </View>
     </View>
   );

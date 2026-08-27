@@ -257,13 +257,16 @@ export function MediaSheet({
             className="text-center text-lg font-semibold text-foreground"
           >
             {/* The title names what the rows below actually offer: a stills-only sheet
-              (avatars, chat) promised «foto o video» while rendering no video row (#155). */}
+              (avatars, chat) promised «foto o video» while rendering no video row (#155).
+              Derived from allowVideo FIRST so an audio-without-video sheet — no caller today,
+              and no catalog key — degrades to the photo title rather than promising a video
+              row line 280 will not render. Its first real caller owes it copy of its own. */}
             {t(
-              allowAudio
-                ? 'media.sheet.titleAudio'
-                : allowVideo
-                  ? 'media.sheet.title'
-                  : 'media.sheet.titlePhoto',
+              allowVideo
+                ? allowAudio
+                  ? 'media.sheet.titleAudio'
+                  : 'media.sheet.title'
+                : 'media.sheet.titlePhoto',
               locale,
             )}
           </Text>

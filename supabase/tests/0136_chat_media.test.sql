@@ -13,7 +13,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(31);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'chatmedia_a@test.dev'),
@@ -171,6 +171,19 @@ select ok(
     where n.nspname = 'storage' and c.relname = 'objects'
       and t.tgname = 'media_process_enqueue'),
   'media_process_enqueue WHEN clause includes chat-media (EXIF/GPS strip, buckets.ts mirror)'
+);
+
+-- ── the push half of the '📷' fallback ───────────────────────────────────────────────
+-- The glyph lives in TWO SECURITY DEFINER bodies (bump_conversation_on_message,
+-- on_message_push). The preview half is asserted behaviourally below; the push half cannot
+-- be — enqueue_push no-ops while the Vault pair is unset in CI — so pin the source: a later
+-- migration recreating on_message_push (the #521 outbox TODO) that drops the fallback goes
+-- red here instead of shipping a «marco:» push for every image-only message.
+select ok(
+  (select prosrc like '%📷%' and prosrc like '%nullif(new.body%'
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'on_message_push'),
+  'on_message_push carries the image-only preview fallback (the glyph and the nullif)'
 );
 
 -- ── messages_user_shape v3 (server-side writes, constraint only) ─────────────────────

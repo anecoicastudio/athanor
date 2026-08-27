@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { messageInsertSchema } from '@athanor/schemas';
 import {
   avatarPath,
   chatMediaPath,
@@ -124,5 +125,23 @@ describe('chatMediaPath', () => {
 
   it('is always .jpg — chat attaches images only, re-encoded by processImage', () => {
     expect(chatMediaPath('u1', 'c1', 'm1').endsWith('.jpg')).toBe(true);
+  });
+});
+
+describe('chatMediaPath output satisfies messageInsertSchema', () => {
+  it('the key the builder mints is the key the schema accepts — one contract, tied here', () => {
+    // The layout is spelled in three places: this builder, the chatMediaKey regex in
+    // @athanor/schemas, and the DB policy's LIKE pin. Nothing else in CI runs the builder's
+    // output through the schema, so a drift (say, a .webp re-encode) would compile in both
+    // packages and die at runtime with a ZodError on every send.
+    const sender = '11111111-1111-4111-8111-111111111111';
+    const conv = '22222222-2222-4222-8222-222222222222';
+    const media = '33333333-3333-4333-8333-333333333333';
+    const parsed = messageInsertSchema.parse({
+      conversation_id: conv,
+      sender_id: sender,
+      media_url: chatMediaPath(sender, conv, media),
+    });
+    expect(parsed.media_url).toBe(`${sender}/${conv}/${media}.jpg`);
   });
 });
