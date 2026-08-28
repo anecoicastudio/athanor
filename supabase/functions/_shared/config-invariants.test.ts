@@ -38,6 +38,7 @@ export const POSTURE: Record<string, Posture> = {
   'media-process': 'internal',
   'moderation-enforce': 'internal',
   'notification-fan-out': 'internal',
+  'post-media-reaper': 'internal',
   'push-dispatch': 'internal',
   'release-fund-payout': 'internal',
   'score-engine': 'internal',

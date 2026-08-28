@@ -16,6 +16,30 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260828083140_publish_post_atomic.sql` — "The BYTES are not swept" is now superseded
+
+The comment at `:159`, immediately above the row sweep, reads «The BYTES are not swept. Objects
+the previous set uploaded and this one does not reference stay in the `post-media` bucket, the
+same trade the composer already makes for an abandoned draft.» That was true when it was written
+and is no longer: `20260828103400_post_media_bytes_reaper.sql` (#589) adds
+`post_media_reap_candidates` and the nightly `reap-post-media-bytes` job, which frees exactly
+those objects — plus the posters that go with them, reached through `thumb_path`.
+
+Nothing about `publish_post` changed, which is why the correction lives here rather than in a new
+version of the function. The sentence is still right about this migration: the sweep it performs
+is a row sweep, in the caller's transaction, and it deliberately costs no round trip for a
+pre-read of the old paths. What is no longer right is the implication that the bytes stay
+forever. Read it as «the bytes are not swept **here**; the reaper frees them nightly».
+
+The clause about erasure is unaffected and still true — `gdpr_storage_footprint` sweeps the
+bucket by `{uid}/` prefix either way, which is why #589 is a storage-cost fix and not a
+compliance one.
+
+Asserted by: `supabase/tests/0139_post_media_bytes_reaper.test.sql` §5, which drives two real
+`publish_post` calls — a two-item set then a one-item set — and asserts that the objects the row
+sweep orphaned become reap candidates. If `publish_post` ever stops sweeping, or sweeps
+differently, that is where it surfaces.
+
 ## `20260828083140_publish_post_atomic.sql` — the header's "changes no grant" is narrower than the file
 
 The header's `:23` reads «It is also why this migration changes no grant.» The file ends with two
