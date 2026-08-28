@@ -37,6 +37,20 @@ export const mediaKindSchema = z.enum(['image', 'video', 'audio']);
  */
 export const POST_MEDIA_MAX_DURATION_SECONDS = 60;
 
+/**
+ * How many media rows one post may carry — the same 10 as `MEDIA_LIMITS.MAX_POST_MEDIA` in
+ * `@athanor/core` (#591), held to it by `post-media-count.mirror.test.ts` for the same reason
+ * as the duration above: this package cannot import core.
+ *
+ * It is a COUNT, and what the row schema below can express is a bound on `position`, so it is
+ * spelled `.max(POST_MEDIA_MAX_COUNT - 1)` there. That is not a convenience: it is exactly how
+ * the database states it. `post_media_position_check` confines `position` to `[0, 10)` and
+ * `post_media_post_position` is UNIQUE on (post_id, position), so ten admissible slots holding
+ * one row each is the cap — no row ever counts its siblings, and no writer can race it.
+ * Anything that changes the number changes a migration too.
+ */
+export const POST_MEDIA_MAX_COUNT = 10;
+
 export const postMediaSchema = z.object({
   id: z.string().uuid(),
   post_id: z.string().uuid(),
@@ -46,7 +60,11 @@ export const postMediaSchema = z.object({
   duration_s: z.number().int().min(0).max(POST_MEDIA_MAX_DURATION_SECONDS).nullable(),
   width: z.number().int().positive().nullable(),
   height: z.number().int().positive().nullable(),
-  position: z.number().int().min(0),
+  position: z
+    .number()
+    .int()
+    .min(0)
+    .max(POST_MEDIA_MAX_COUNT - 1),
   created_at: z.string(),
   updated_at: z.string(),
 });

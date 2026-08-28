@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(27);
 
 -- two deterministic users (handle_new_user trigger auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -156,6 +156,67 @@ select results_eq(
         and pg_get_constraintdef(oid) like '%duration_s%' $$,
   $$ values (1) $$,
   'post_media carries exactly one duration_s CHECK — the narrowing replaced it, not doubled it'
+);
+
+-- 15 — a post carries at most ten media rows (#591), and the cap is NOT a count of siblings.
+-- `MEDIA_LIMITS.MAX_POST_MEDIA` lived in the composer screen and nowhere else, so a direct
+-- `POST /rest/v1/post_media` (or a direct `publish_post` call) could attach as many rows as it
+-- liked to a post the caller genuinely authors — RLS has nothing to say about it, and a CHECK
+-- cannot see a sibling row. What refuses it is the pair: `position` bounded to [0, 10) by
+-- `post_media_position_check`, and `post_media_post_position` UNIQUE on (post_id, position).
+-- Ten admissible slots, one row each. Both arms below therefore matter — a future edit that
+-- dropped the unique index would leave the position bound intact and the CAP gone, and only
+-- the 23505 arm would notice.
+--
+-- Run at the test-runner role, after `reset role`: a constraint and a unique index refuse
+-- whoever writes the row, which is exactly why they were chosen over a guard inside the RPC.
+insert into public.posts (id, author_id, category, body)
+values ('aaaaaaaa-0000-0000-0000-000000000003',
+        '11111111-1111-1111-1111-111111111111', 'human', 'Un passo con dieci allegati');
+
+select lives_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position)
+     select 'aaaaaaaa-0000-0000-0000-000000000003', 'image',
+            'post-media/11111111/c' || g || '.jpg', g
+       from generate_series(0, 9) as g $$,
+  'ten media rows, positions 0..9, are accepted — the cap is ten, not nine'
+);
+
+select throws_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position)
+     values ('aaaaaaaa-0000-0000-0000-000000000003', 'image',
+             'post-media/11111111/c10.jpg', 10) $$,
+  '23514', null,
+  'an eleventh slot does not exist — position 10 is refused by post_media_position_check'
+);
+
+select throws_ok(
+  $$ insert into public.post_media (post_id, kind, storage_path, position)
+     values ('aaaaaaaa-0000-0000-0000-000000000003', 'image',
+             'post-media/11111111/c3-again.jpg', 3) $$,
+  '23505', null,
+  'nor may an eleventh row take an occupied slot — the unique index is the other half of the cap'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.post_media
+      where post_id = 'aaaaaaaa-0000-0000-0000-000000000003' $$,
+  $$ values (10) $$,
+  'the post still holds exactly ten rows — neither refusal wrote'
+);
+
+-- The same argument as arm 14, for the same reason: #591 drops `post_media_position_check` and
+-- re-adds it under the name Postgres auto-generated for the inline `check (position >= 0)`. A
+-- name that did not match would make the drop a no-op and leave both the unbounded constraint
+-- and the bounded one in the catalog — invisible, since the effective bound would still be
+-- right, and unremovable, since the migration that would have dropped it is already applied.
+select results_eq(
+  $$ select count(*)::int from pg_constraint
+      where conrelid = 'public.post_media'::regclass
+        and contype = 'c'
+        and pg_get_constraintdef(oid) like '%position%' $$,
+  $$ values (1) $$,
+  'post_media carries exactly one position CHECK — the cap migration replaced it, not doubled it'
 );
 
 -- Replacing a media SET (#586). `publish_post` converges a post's media by upserting on
