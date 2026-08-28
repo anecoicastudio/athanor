@@ -67,6 +67,18 @@ export const postMediaInsertSchema = postMediaSchema
     height: z.number().int().positive().nullable().default(null),
   });
 
+/**
+ * One row of the set the composer hands to `publish_post` (#588) — the insert shape minus
+ * `post_id`.
+ *
+ * The RPC assigns the parent from the post it is publishing in the same statement, so a row
+ * aimed at somebody else's post is not refused, it is unrepresentable. That retires
+ * `replacePostMedia`'s foreign-row guard rather than moving it: a check that can only ever pass
+ * is a check nobody maintains.
+ */
+export const postMediaPublishSchema = postMediaInsertSchema.omit({ post_id: true });
+
 export type MediaKind = z.infer<typeof mediaKindSchema>;
 export type PostMedia = z.infer<typeof postMediaSchema>;
 export type PostMediaInsert = z.infer<typeof postMediaInsertSchema>;
+export type PostMediaPublish = z.infer<typeof postMediaPublishSchema>;

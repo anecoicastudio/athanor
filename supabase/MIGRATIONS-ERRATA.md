@@ -16,6 +16,30 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260828083140_publish_post_atomic.sql` — the header's "changes no grant" is narrower than the file
+
+The header's `:23` reads «It is also why this migration changes no grant.» The file ends with two
+grant statements at `:184-187`:
+
+```sql
+revoke execute on function public.publish_post(…) from public, anon;
+grant  execute on function public.publish_post(…) to authenticated;
+```
+
+The paragraph's own next clause scopes the claim correctly — it is `0121_grant_catalog_sweep`'s
+declared **table** surface that is untouched, and it goes on to name the `revoke` as something
+0121 requires — but the flat sentence read alone says something the file contradicts, and it
+never mentions the `grant execute` at all. Read it as «changes no **table** grant».
+
+The substantive half is true and asserted: `authenticated` keeps exactly the privileges it
+already held on `posts` and `post_media`, because the RPC is SECURITY INVOKER and needs no more.
+`supabase/tests/0138_publish_post.test.sql` holds the verified EXECUTE surface — `authenticated`
+may execute it, `anon` may not, and PUBLIC holds nothing — and 0121 pins the two allow-lists that
+make the revoke necessary. Nothing is enforced less than the comment claims; the comment simply
+does not describe the two lines that make its own claim about 0121 come out right.
+
+---
+
 ## `20260825074614_gdpr_revoke_sessions.sql` — one comment narrower than its statement, one header wider than the evidence
 
 Neither changes what the SQL does. Both were caught in review after the migration had reached

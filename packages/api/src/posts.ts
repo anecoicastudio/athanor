@@ -2,8 +2,12 @@ import { type FeedFrontier, mergeBoostedFeed } from '@athanor/core';
 import {
   type Post,
   type PostCategory,
-  type PostInsert,
-  postInsertSchema,
+  type PostMediaPublish,
+  postMediaPublishSchema,
+  type PostPublish,
+  type PostPublishResult,
+  postPublishResultSchema,
+  postPublishSchema,
   postSchema,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
@@ -128,38 +132,65 @@ export async function getPostById(client: AthanorClient, id: string): Promise<Po
 }
 
 /**
- * Create a post (text this slice; type defaults to 'text'). RLS enforces
- * author = (select auth.uid()). Creating a post is the +6 domain event the M6
- * engine reads — this writes only `posts`, never Aura (rule #1).
- * TODO(M6): the score-engine (backend `07`) consumes this insert for the +6 award.
+ * Publish a post and its media set as ONE transaction — the `publish_post` RPC (#588).
  *
- * Idempotent on an `id` the caller mints (#579). `upsert`, not `insert`, and the difference
- * only shows on a retry: the composer sends its own uuid as the PK, so a re-tap after a
- * response was lost converges the row that already exists on what the member has on screen.
- * A plain insert answers that with a 23505, and a caller that swallows one to avoid minting a
- * duplicate post silently discards whatever they edited between the two taps.
+ * This used to be two calls: `createPost` upserted the row, then `replacePostMedia` wrote the
+ * set. Both converged under a retry, but the post was COMMITTED between them, so a media write
+ * that failed for any reason left a row whose `type` claimed media with nothing behind it — and
+ * `PostMedia` returns null on zero rows, so the post published as a silently text-only card.
+ * PostgREST has no client-side transaction, so no ordering of two requests could close that;
+ * the statements had to move behind one function. Both are gone rather than kept beside this,
+ * because a second, non-atomic way to write the same two tables is how the defect returns.
  *
- * It cannot overwrite a post that is not the caller's: `posts_update_own` carries
- * `(select auth.uid()) = author_id` in USING as well as WITH CHECK, so a colliding id
- * belonging to someone else is refused rather than merged, and nothing of theirs is returned
- * either way. #106's restrictive `active_write_update` sits on the same path, so a suspended
- * author's converge is gated exactly like any other update.
+ * Idempotent on an `id` the caller mints (#579): the composer sends its own uuid as the PK, so
+ * a re-tap after a lost response converges the row that already exists on what the member has
+ * on screen — where a plain insert answers with a 23505 and a caller that swallows one to avoid
+ * minting a duplicate silently discards whatever they edited in between. The media set
+ * converges the same way, on `(post_id, position)`, and the RPC then deletes every position the
+ * new set does not fill — including all of them, when the member removed every attachment
+ * (#586). That sweep is why the set is passed WHOLE and never conditionally: an empty array is
+ * not "nothing to do", it is the case the sweep exists for.
  *
- * Note what that costs even when no `id` is sent: supabase-js always sends
- * `Prefer: resolution=merge-duplicates`, so every call goes out as
- * `INSERT … ON CONFLICT (id) DO UPDATE` and traverses the UPDATE grant and policies as well
- * as the INSERT ones. With no `id` there is nothing that can conflict, so the OUTCOME is the
- * insert every caller had before #579 — but it is not the statement that used to be sent, and
- * a future policy change on the update side would be felt here.
+ * It cannot touch a post that is not the caller's, and not because this function checks. The
+ * RPC is SECURITY INVOKER, so `posts_update_own` (ownership in USING as well as WITH CHECK),
+ * the three `post_media_*_post_author` policies and #106's restrictive `active_write_*` net all
+ * still run as the caller. `author_id` and each row's `post_id` are not on the wire at all —
+ * the RPC derives one from `auth.uid()` and assigns the other — so a row aimed at someone
+ * else's post is unrepresentable rather than merely refused.
  *
- * `subscribeNewPosts` filters `event: 'INSERT'`, so a converge emits UPDATE and does not
- * re-fire the "Nuovi passi ›" banner for a post the feed already showed.
+ * Writing a post is the +6 domain event the M6 engine reads; this writes no Aura (rule #1).
+ * TODO(M6): the score-engine (backend `07`) consumes the insert for the +6 award.
+ *
+ * The converge is an UPDATE, never a delete-and-reinsert: `subscribeNewPosts` filters
+ * `event: 'INSERT'`, so a retry does not re-fire the "Nuovi passi ›" banner for a post the feed
+ * already showed.
+ *
+ * The BYTES are not swept. Objects a previous set uploaded and this one does not reference stay
+ * in the `post-media` bucket — the same trade the composer already makes for an abandoned
+ * draft, and a storage cost rather than a visible defect. Erasure still reaches them, because
+ * `gdpr_storage_footprint` sweeps the bucket by `{uid}/` prefix.
+ *
+ * Rethrows, deliberately. The publish is idempotent by construction, so a false failure costs
+ * one more tap; swallowing one would toast success over a post that does not exist.
  */
-export async function createPost(client: AthanorClient, insert: PostInsert): Promise<Post> {
-  const payload = postInsertSchema.parse(insert);
-  const { data, error } = await client.from('posts').upsert(payload).select('*').single();
+export async function publishPost(
+  client: AthanorClient,
+  post: PostPublish,
+  media: PostMediaPublish[] = [],
+): Promise<PostPublishResult> {
+  const parsed = postPublishSchema.parse(post);
+  const rows = media.map((row) => postMediaPublishSchema.parse(row));
+  const { data, error } = await client.rpc('publish_post', {
+    p_category: parsed.category,
+    p_body: parsed.body,
+    p_type: parsed.type,
+    p_is_step: parsed.is_step,
+    p_tags: parsed.tags,
+    p_media: rows,
+    ...(parsed.id === undefined ? {} : { p_id: parsed.id }),
+  });
   if (error) throw error;
-  return postSchema.parse(data);
+  return postPublishResultSchema.parse(data);
 }
 
 /** Soft-delete an own post (owner UPDATE policy; no hard delete). Idempotent. */

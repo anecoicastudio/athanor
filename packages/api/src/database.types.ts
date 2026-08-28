@@ -3482,6 +3482,18 @@ export type Database = {
         }[]
       }
       prune_expired_story_segments: { Args: never; Returns: undefined }
+      publish_post: {
+        Args: {
+          p_body: string
+          p_category: Database["public"]["Enums"]["post_category"]
+          p_id?: string
+          p_is_step?: boolean
+          p_media?: Json
+          p_tags?: string[]
+          p_type?: Database["public"]["Enums"]["post_type"]
+        }
+        Returns: Json
+      }
       publish_realization_plan: { Args: { p_plan_id: string }; Returns: string }
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }

@@ -3,11 +3,11 @@ import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createPost, postKeys, postMediaKeys, replacePostMedia } from '@athanor/api';
+import { postKeys, postMediaKeys, publishPost } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
-import type { PostCategory, PostMediaInsert } from '@athanor/schemas';
+import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { MediaSheet } from '@/components/media/MediaSheet';
@@ -59,7 +59,7 @@ export default function PostComposeScreen() {
    *
    * The idiom is `postCommentInsertSchema`'s, from #101 — same problem one table over, though
    * not the same answer: a repeated comment conflicts and is dropped, where a repeated publish
-   * converges on the draft as it now stands (see `createPost`). A ref rather than state —
+   * converges on the draft as it now stands (see `publishPost`). A ref rather than state —
    * nothing renders from it, and a re-render between the tap and the response must not mint a
    * new one.
    */
@@ -69,8 +69,10 @@ export default function PostComposeScreen() {
    * Which half of the publish was in flight when it threw. `uploadErrorKey` classifies the
    * three typed transport errors and falls back to `media.failed` — «Caricamento non
    * riuscito» — for everything else, which is the wrong sentence for a TEXT-ONLY post whose
-   * insert was refused: there was no upload to have failed. The order below makes the phase
-   * unambiguous, so record it rather than infer it from an error that cannot say.
+   * write was refused: there was no upload to have failed. The order below makes the phase
+   * unambiguous, so record it rather than infer it from an error that cannot say. Two phases
+   * and not three, still: the post and its media are ONE write now (#588), so nothing can fail
+   * between them.
    */
   const phase = useRef<'upload' | 'write'>('upload');
 
@@ -121,14 +123,13 @@ export default function PostComposeScreen() {
         visible defect. Erasure still reaches them, because `gdpr_storage_footprint` sweeps
         `post-media` by `{uid}/` prefix and these keys start with the uid.
       */
-      const rows: PostMediaInsert[] =
+      const rows: PostMediaPublish[] =
         items.length > 0
           ? await Promise.all(
               items.map(async (item, index) => {
                 const path = postMediaPath(authorId, postId, index, item.kind);
                 const up = await processAndUpload(item, { bucket: 'post-media', path });
                 return {
-                  post_id: postId,
                   kind: item.kind,
                   storage_path: up.storage_path,
                   thumb_path:
@@ -139,23 +140,30 @@ export default function PostComposeScreen() {
                   width: up.width ?? null,
                   height: up.height ?? null,
                   duration_s: up.duration_s ?? null,
-                } satisfies PostMediaInsert;
+                } satisfies PostMediaPublish;
               }),
             )
           : [];
 
       phase.current = 'write';
       /*
-        Both writes converge under retry BECAUSE the id is ours, and both converge on the draft
-        as it stands RIGHT NOW rather than as the failed attempt left it. That is the whole
-        property: a member who fixes something and re-taps must get what they are looking at.
+        ONE write, and that is #588 rather than a tidier call site. This used to be `createPost`
+        and then `replacePostMedia`: two requests, with the post row COMMITTED between them, so
+        a media write that failed for any reason left a post whose `type` claimed media with no
+        rows behind it — which `PostMedia` renders as a silently text-only card. The reorder
+        above (upload first) removed the upload half of that; nothing here could remove the
+        write half, because PostgREST has no client-side transaction. `publishPost` calls the
+        `publish_post` RPC, so the post row and its media set land together or not at all.
 
-        `createPost` upserts on the PK. `replacePostMedia` upserts on (post_id, position) and
-        then deletes whatever positions the new set does not fill — including all of them, when
-        the member removed every attachment (#586). It is called UNCONDITIONALLY for exactly
-        that reason: the `if (rows.length > 0)` guard this used to carry could not see an empty
-        set, so a cleared attachment list left the first attempt's rows in place under a post
-        that no longer claims them.
+        Both writes still converge under retry BECAUSE the id is ours, and both converge on the
+        draft as it stands RIGHT NOW rather than as the failed attempt left it. That is the
+        whole property: a member who fixes something and re-taps must get what they are looking
+        at. The post upserts on the PK; the media set upserts on (post_id, position) and then
+        loses every position the new set does not fill — including all of them, when the member
+        removed every attachment (#586). `rows` is therefore passed UNCONDITIONALLY: the
+        `if (rows.length > 0)` guard this used to carry could not see an empty set, so a cleared
+        attachment list left the first attempt's rows in place under a post that no longer
+        claims them.
 
         What that replaced was a swallowed 23505 — `post_media_post_position` answering a
         repeat, read as the database confirming the first attempt landed. It converged wrongly
@@ -167,24 +175,15 @@ export default function PostComposeScreen() {
         uploaded bytes no row ever pointed at. What rendered was the first attempt's rows over
         the second attempt's files.
 
-        A DIFFERENT defect is still open here, and it is not the one #586 describes, so it is
-        deliberately left uncited rather than pointed at a closed issue: the post row is
-        committed BEFORE its media, so a media write that fails for any reason leaves a post
-        whose `type` claims media with no rows behind it, which `PostMedia` renders as a
-        silently text-only card. Narrower than it was — the reorder above removed the
-        upload-failure half — but not closed, and not closable from here: the two writes would
-        have to be one transaction, which means an RPC and a migration.
+        Neither `author_id` nor a row's `post_id` is on the wire any more: the RPC derives the
+        author from `auth.uid()` and assigns the parent itself. The uid is still needed HERE,
+        because the storage keys are `{uid}/{postId}/…`.
       */
-      await createPost(supabase, {
-        id: postId,
-        author_id: authorId,
-        category,
-        type,
-        body,
-        is_step: isStep,
-        tags: [],
-      });
-      await replacePostMedia(supabase, postId, rows);
+      await publishPost(
+        supabase,
+        { id: postId, category, type, body, is_step: isStep, tags: [] },
+        rows,
+      );
     },
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
