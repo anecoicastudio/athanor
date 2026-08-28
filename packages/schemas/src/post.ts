@@ -29,8 +29,9 @@ const postBodySchema = trimmedNonBlank(5000, 'post body must not be blank');
  * not the same resolution, and the difference is worth spelling out because the two sit one
  * table apart. The composer mints the uuid before it writes anything and sends it as the PK,
  * so a second tap after a lost response lands on the row the first one wrote. A comment then
- * conflicts, because `addComment` inserts; a post CONVERGES, because `createPost` upserts and
- * a member who edited their draft after the failure must get what is on their screen.
+ * conflicts, because `addComment` inserts; a post CONVERGES, because `publish_post` upserts on
+ * the PK and a member who edited their draft after the failure must get what is on their
+ * screen.
  *
  * It must be a FIELD rather than a value the caller passes anyway — a zod object strips what
  * it does not declare, so an undeclared `id` would be dropped here in silence and the row

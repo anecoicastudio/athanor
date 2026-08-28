@@ -158,9 +158,11 @@ select results_eq(
   'post_media carries exactly one duration_s CHECK — the narrowing replaced it, not doubled it'
 );
 
--- Replacing a media SET (#586). `replacePostMedia` converges a post's media by upserting on
+-- Replacing a media SET (#586). `publish_post` converges a post's media by upserting on
 -- (post_id, position) and then deleting the positions the new set no longer fills, so the
--- author needs UPDATE and DELETE and no one else may have either. The `policies_are` arm above
+-- author needs UPDATE and DELETE and no one else may have either. The RPC is SECURITY
+-- INVOKER (#588), so these are still the policies that decide — the transaction changed, the
+-- privileges did not. The `policies_are` arm above
 -- asserts those two policies EXIST and `0121_grant_catalog_sweep` pins the privilege; what
 -- neither can say is what the predicates DO, and a predicate is only checked by writing
 -- through it.
