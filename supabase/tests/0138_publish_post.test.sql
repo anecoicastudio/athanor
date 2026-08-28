@@ -269,10 +269,17 @@ select is(
 --
 -- What refuses it is the TABLE, not a guard added here — which is the point. The same
 -- constraint binds `POST /rest/v1/post_media`, the path no function-level check could ever
--- reach, and it cannot be raced the way a counting trigger could. These two arms belong here
--- anyway, because the RPC is the path the app uses and «the cap holds through publish_post» is
--- not implied by «the cap holds on the table»: a future edit that made this function write its
--- media through a DEFINER helper would pass 0012 and fail here.
+-- reach, and it cannot be raced the way a counting trigger could. A CHECK is not
+-- privilege-mediated, so these arms are NOT about who calls: 0012 already pins that the table
+-- refuses an eleventh row whoever writes it, and a DEFINER rewrite of this function would meet
+-- the same 23514.
+--
+-- What they pin is what 0012 cannot see, because 0012 never calls the function: that
+-- `publish_post` meets the refusal by FAILING rather than by absorbing it. An
+-- `exception when others` here, or a caller-shaped `limit` on the media payload, would truncate
+-- an over-cap set to ten and report success — publishing a card missing the attachments the
+-- member watched upload. The `lives_ok` arm is the other half: the RPC must still accept a full
+-- ten, so a future guard cannot buy safety by refusing at nine.
 select lives_ok(
   $$ select public.publish_post(
        p_category => 'human', p_body => 'Dieci allegati',
