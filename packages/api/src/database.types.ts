@@ -3459,6 +3459,7 @@ export type Database = {
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
       invoke_fund_settle_sweep: { Args: never; Returns: undefined }
+      invoke_post_media_reaper: { Args: never; Returns: undefined }
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
       invoke_story_segment_reaper: { Args: never; Returns: undefined }
@@ -3472,6 +3473,12 @@ export type Database = {
       owns_help_milestone: {
         Args: { p_milestone_id: string }
         Returns: boolean
+      }
+      post_media_reap_candidates: {
+        Args: { p_grace?: string; p_limit?: number }
+        Returns: {
+          name: string
+        }[]
       }
       post_reaction_count: { Args: { p_post_id: string }; Returns: number }
       profile_stat_counts: {
