@@ -1,4 +1,9 @@
-import { z } from 'zod';
+// `npm:zod@3` fully qualified, not the bare `zod` alias: `_shared/` owns no deno.json, so a
+// bare specifier here resolves only through whichever function happens to import this file
+// and happens to map it. The next one that does not would boot as a 503 — the failure
+// `_shared/deploy-graph.test.ts` exists to prevent and cannot see, since its walk skips a
+// bare specifier that maps to an external target.
+import { z } from 'npm:zod@3';
 import { json } from './respond.ts';
 
 /**

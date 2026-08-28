@@ -118,10 +118,13 @@ export default function PostComposeScreen() {
 
         In this order a failure before the insert leaves no row at all. It does not leave
         NOTHING: the bytes already uploaded stay in the bucket, and a member who abandons the
-        draft rather than retrying leaves them with no row pointing at them and no reaper —
-        the same trade `use-moment-upload` already makes, and a storage cost rather than a
-        visible defect. Erasure still reaches them, because `gdpr_storage_footprint` sweeps
-        `post-media` by `{uid}/` prefix and these keys start with the uid.
+        draft rather than retrying leaves them with no row pointing at them — the same trade
+        `use-moment-upload` already makes, and a storage cost rather than a visible defect.
+        They are no longer permanent: the nightly `post-media-reaper` (#589) frees every object
+        in the bucket that no `post_media` row references, so nothing has to be cleaned up from
+        here on an error path the member has already walked away from. Erasure reaches them
+        either way, because `gdpr_storage_footprint` sweeps `post-media` by `{uid}/` prefix and
+        these keys start with the uid.
       */
       const rows: PostMediaPublish[] =
         items.length > 0

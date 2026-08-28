@@ -165,9 +165,12 @@ export async function getPostById(client: AthanorClient, id: string): Promise<Po
  * `event: 'INSERT'`, so a retry does not re-fire the "Nuovi passi ›" banner for a post the feed
  * already showed.
  *
- * The BYTES are not swept. Objects a previous set uploaded and this one does not reference stay
- * in the `post-media` bucket — the same trade the composer already makes for an abandoned
- * draft, and a storage cost rather than a visible defect. Erasure still reaches them, because
+ * The BYTES are not swept HERE. Objects a previous set uploaded and this one does not
+ * reference stay in the `post-media` bucket for now — the same trade the composer already makes
+ * for an abandoned draft, and a storage cost rather than a visible defect. The nightly
+ * `post-media-reaper` frees them (#589): `post_media_reap_candidates` lists every object no
+ * `post_media` row references, from `storage_path` or `thumb_path`, so this call site stays one
+ * write and pays no round trip for a pre-read. Erasure reaches them either way, because
  * `gdpr_storage_footprint` sweeps the bucket by `{uid}/` prefix.
  *
  * Rethrows, deliberately. The publish is idempotent by construction, so a false failure costs
