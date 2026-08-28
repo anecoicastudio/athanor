@@ -1986,7 +1986,15 @@ describe('a post and its media are one write (#588)', () => {
  * (`text-red-500`) IS reported, deliberately: it would resolve, but rule 4 says colours come
  * from the token set. The allowlist below is the non-colour utilities that share these three
  * prefixes; a new one has to be added there, which is the guard asking for a look rather than
- * a defect.
+ * a defect. One entry is pre-emptive and slightly too wide: `shadow-` masks Tailwind v4's
+ * `text-shadow-<color>`, which does take a colour. Nothing in the tree uses it today, and
+ * narrowing it is the fix if anything ever does.
+ *
+ * It reports in the other direction too. Scanning code lines rather than `className`
+ * attributes is what catches a class held in a variable, and the cost is that ANY string
+ * containing `text-`/`bg-`/`border-` — an i18n key, a storage path, a URL — would be reported
+ * as a violation. None exists today; the remedy if one lands is to name the false positive
+ * rather than to narrow the walk, because the walk is what found `LedgerRow`.
  */
 const GLOBAL_CSS = readFileSync(`${SRC}global.css`, 'utf8');
 
@@ -2074,18 +2082,20 @@ const NON_COLOR_CLASS_RE = [
  */
 const COLOR_CLASS = /(?<![\w-])(?:text|bg|border)-([A-Za-z0-9][A-Za-z0-9._-]*(?:\/\d+)?)/g;
 
-/** Every colour-position class in app code, located. Comments stripped, tests excluded. */
-const COLOR_CLASS_HITS = FILES.filter((p) => !isTest(p)).flatMap((p) =>
-  stripComments(read(p))
-    .split('\n')
-    .flatMap((t, i) =>
-      [...t.matchAll(COLOR_CLASS)].map((m) => ({
-        where: `${rel(p)}:${i + 1}`,
-        cls: m[0],
-        token: (m[1] as string).replace(/\/\d+$/, ''),
-        text: t.trim(),
-      })),
-    ),
+/**
+ * Every colour-position class in app code, located. Off `CODE_LINES`, which is already the
+ * whole tree comment-stripped and split — re-reading it here would double this file's
+ * collection cost for nothing.
+ */
+const COLOR_CLASS_HITS = CODE_LINES.filter(([p]) => !isTest(p)).flatMap(([p, ls]) =>
+  ls.flatMap((t, i) =>
+    [...t.matchAll(COLOR_CLASS)].map((m) => ({
+      where: `${rel(p)}:${i + 1}`,
+      cls: m[0],
+      token: (m[1] as string).replace(/\/\d+$/, ''),
+      text: t.trim(),
+    })),
+  ),
 );
 
 describe('every colour class names a token that exists (#595)', () => {

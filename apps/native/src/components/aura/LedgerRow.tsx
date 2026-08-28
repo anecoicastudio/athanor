@@ -45,7 +45,10 @@ const LEDGER_TITLE: Record<AuraEventType, MessageKey> = {
 /**
  * One row in the Aura ledger list (spec §3.2).
  * glyph + title + relative time + signed ±N points (tabular-nums).
- * Point colour: aura (>0), muted (decay), danger (<0 non-decay).
+ * Point colour: aura (>0), muted (decay), error (<0 non-decay). `danger` was the
+ * prototype-palette name and never landed in @athanor/config — naming it here is how
+ * the wrong class gets written next (#595), and source-audit §26 strips comments, so
+ * it cannot see this line.
  */
 export function LedgerRow({
   type,
