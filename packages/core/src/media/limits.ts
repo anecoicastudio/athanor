@@ -209,7 +209,16 @@ export const MEDIA_LIMITS = {
    */
   AUDIO_OUTPUT_FORMAT_ANDROID: 'mpeg4',
   AUDIO_ENCODER_ANDROID: 'aac',
-  /** Max media items attached to one post (multi-image). */
+  /**
+   * Max media items attached to one post (multi-image).
+   *
+   * Since #591 this is a database constraint too, and therefore a migration-gated product
+   * constant: `post_media.position` is bounded to `[0, MAX_POST_MEDIA)` and (post_id, position)
+   * is unique, so the table admits exactly this many rows per post whoever writes them. Editing
+   * the number here alone changes nothing a direct API caller can reach and reds
+   * `packages/schemas/src/post-media-count.mirror.test.ts`; it moves with a migration or not at
+   * all.
+   */
   MAX_POST_MEDIA: 10,
   /** Caption character cap (matches moments.caption CHECK). */
   MAX_CAPTION: 280,
