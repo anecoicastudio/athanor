@@ -16,7 +16,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(35);
 
 -- two deterministic users (handle_new_user auto-creates their profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -260,6 +260,48 @@ select is(
   (select count(*)::int from public.posts where id = 'eeeeeeee-0000-0000-0000-000000000001'),
   0,
   'the duplicate-position refusal writes nothing'
+);
+
+-- The row cap (#591). `MEDIA_LIMITS.MAX_POST_MEDIA` is 10 and was, until `post_media_position_
+-- check` gained an upper bound, a property of the composer screen and nothing else: this
+-- function counts the set for duplicates and for the type biconditional, never for its size, so
+-- a direct call could attach an unbounded media set to a post the caller genuinely authors.
+--
+-- What refuses it is the TABLE, not a guard added here — which is the point. The same
+-- constraint binds `POST /rest/v1/post_media`, the path no function-level check could ever
+-- reach, and it cannot be raced the way a counting trigger could. These two arms belong here
+-- anyway, because the RPC is the path the app uses and «the cap holds through publish_post» is
+-- not implied by «the cap holds on the table»: a future edit that made this function write its
+-- media through a DEFINER helper would pass 0012 and fail here.
+select lives_ok(
+  $$ select public.publish_post(
+       p_category => 'human', p_body => 'Dieci allegati',
+       p_id => 'eeeeeeee-0000-0000-0000-000000000006', p_type => 'image',
+       p_media => (select jsonb_agg(jsonb_build_object(
+                            'kind', 'image',
+                            'storage_path', '11111111/p6/' || g || '.jpg',
+                            'position', g))
+                     from generate_series(0, 9) as g)) $$,
+  'a ten-row media set publishes — the cap is ten, not nine'
+);
+
+select throws_ok(
+  $$ select public.publish_post(
+       p_category => 'human', p_body => 'Undici allegati',
+       p_id => 'eeeeeeee-0000-0000-0000-000000000007', p_type => 'image',
+       p_media => (select jsonb_agg(jsonb_build_object(
+                            'kind', 'image',
+                            'storage_path', '11111111/p7/' || g || '.jpg',
+                            'position', g))
+                     from generate_series(0, 10) as g)) $$,
+  '23514', null,
+  'an eleven-row media set is refused — the cap binds the RPC path too'
+);
+
+select is(
+  (select count(*)::int from public.posts where id = 'eeeeeeee-0000-0000-0000-000000000007'),
+  0,
+  'the over-cap refusal writes nothing — atomicity holds for it as for any other failure'
 );
 
 -- The #588 invariant itself: a post is text if and only if it carries no media. Atomicity
