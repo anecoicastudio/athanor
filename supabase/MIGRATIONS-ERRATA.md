@@ -18,7 +18,7 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ## `20260828083140_publish_post_atomic.sql` — "The BYTES are not swept" is now superseded
 
-The header's `:159` and the comment above the sweep both read «The BYTES are not swept. Objects
+The comment at `:159`, immediately above the row sweep, reads «The BYTES are not swept. Objects
 the previous set uploaded and this one does not reference stay in the `post-media` bucket, the
 same trade the composer already makes for an abandoned draft.» That was true when it was written
 and is no longer: `20260828103400_post_media_bytes_reaper.sql` (#589) adds
