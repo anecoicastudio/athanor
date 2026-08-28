@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mediaKindSchema, postMediaInsertSchema, postMediaSchema } from './post-media.ts';
+import {
+  mediaKindSchema,
+  postMediaInsertSchema,
+  postMediaPublishSchema,
+  postMediaSchema,
+} from './post-media.ts';
 
 const POST = '00000000-0000-0000-0000-000000000002';
 
@@ -145,5 +150,46 @@ describe('thumb_path', () => {
       postMediaInsertSchema.parse({ ...baseInsert, thumb_path: 'uid/post/0-thumb.jpg' }).thumb_path,
     ).toBe('uid/post/0-thumb.jpg');
     expect(() => postMediaInsertSchema.parse({ ...baseInsert, thumb_path: '' })).toThrow();
+  });
+});
+
+describe('postMediaPublishSchema', () => {
+  const publishRow = { kind: 'image', storage_path: 'uid/post/0.jpg', position: 0 };
+
+  // #588: publish_post assigns the parent, so a row aimed at another post is unrepresentable
+  // rather than refused. Asserted on the shape — a schema that still declared post_id would
+  // behave identically here and differ only on the wire.
+  it('carries the insert shape minus post_id', () => {
+    expect(Object.keys(postMediaPublishSchema.shape).sort()).toEqual([
+      'duration_s',
+      'height',
+      'kind',
+      'position',
+      'storage_path',
+      'thumb_path',
+      'width',
+    ]);
+  });
+
+  it('parses a row that names no post, and strips one that does', () => {
+    expect(postMediaPublishSchema.parse(publishRow)).toEqual({
+      kind: 'image',
+      storage_path: 'uid/post/0.jpg',
+      position: 0,
+      thumb_path: null,
+      duration_s: null,
+      width: null,
+      height: null,
+    });
+    expect('post_id' in postMediaPublishSchema.parse({ ...publishRow, post_id: POST })).toBe(false);
+  });
+
+  it('inherits the insert rules it does not restate', () => {
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, kind: 'gif' }).success).toBe(false);
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, position: -1 }).success).toBe(false);
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, storage_path: '' }).success).toBe(
+      false,
+    );
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, duration_s: 61 }).success).toBe(false);
   });
 });

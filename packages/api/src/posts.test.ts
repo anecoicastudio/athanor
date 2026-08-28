@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { PostMediaPublish } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
-import { createPost, getFeedPage, getPostById, softDeletePost, subscribeNewPosts } from './posts';
+import { getFeedPage, getPostById, publishPost, softDeletePost, subscribeNewPosts } from './posts';
 
 const AUTHOR = '00000000-0000-0000-0000-000000000001';
 const P1 = '00000000-0000-0000-0000-0000000000b1';
@@ -239,53 +240,172 @@ describe('getPostById', () => {
   });
 });
 
-describe('createPost', () => {
-  it('rejects an invalid insert via zod BEFORE any db call', async () => {
-    const { client, calls } = stub();
+/** Valid `postMediaSchema` row for the RPC's answer. */
+const BASE_MEDIA = {
+  id: '00000000-0000-0000-0000-0000000000d1',
+  post_id: P1,
+  kind: 'image' as const,
+  storage_path: 'u1/p1/0.jpg',
+  thumb_path: null,
+  duration_s: null,
+  width: 1080,
+  height: 1350,
+  position: 0,
+  created_at: '2026-01-02T00:00:00Z',
+  updated_at: '2026-01-02T00:00:00Z',
+};
+
+/** One well-formed media row for the publish payload. */
+const mediaRow = (over: Partial<PostMediaPublish> = {}): PostMediaPublish => ({
+  kind: 'image',
+  storage_path: 'u1/p1/0.jpg',
+  position: 0,
+  thumb_path: null,
+  duration_s: null,
+  width: null,
+  height: null,
+  ...over,
+});
+
+describe('publishPost', () => {
+  it('rejects an invalid post via zod BEFORE any db call', async () => {
+    const fake = makeFakeClient();
     await expect(
-      createPost(client, { author_id: AUTHOR, category: 'business', body: '   ' } as never),
+      publishPost(asClient(fake), { category: 'business', body: '   ' } as never),
     ).rejects.toThrow();
-    expect(calls).toHaveLength(0); // stub untouched — not even from()
+    expect(fake.calls).toHaveLength(0); // fake untouched — not even rpc()
   });
 
-  it('writes the parsed payload then select→single→parse', async () => {
-    const { client, calls } = stub([{ ...BASE_POST }]);
-    const post = await createPost(client, {
-      author_id: AUTHOR,
-      category: 'business',
-      body: '  Primo passo del progetto.  ',
-    } as never);
-    const write = calls.find((c) => c.method === 'upsert');
-    // insert schema defaults applied + body trimmed
-    expect(write?.arg).toEqual({
-      author_id: AUTHOR,
-      category: 'business',
-      type: 'text',
-      body: 'Primo passo del progetto.',
-      is_step: false,
-      tags: [],
-    });
-    expect(calls.map((c) => c.method)).toEqual(['from', 'upsert', 'select', 'single']);
-    expect(post).toEqual(BASE_POST);
+  it('rejects an invalid media row via zod BEFORE any db call', async () => {
+    const fake = makeFakeClient();
+    await expect(
+      publishPost(asClient(fake), { category: 'business', body: 'ciao', type: 'image' } as never, [
+        mediaRow({ position: -1 }),
+      ]),
+    ).rejects.toThrow();
+    expect(fake.calls).toHaveLength(0);
   });
 
   /**
-   * #579: the write is an upsert precisely so a retry converges. A plain insert would answer
-   * the second attempt with a 23505, and the composer would have to choose between minting a
-   * duplicate post and silently dropping whatever the member edited in between — which is why
-   * this asserts the METHOD, not only that the id survives into the payload.
+   * #588: ONE call, and it is the RPC. Two PostgREST writes cannot be one transaction, so a
+   * post committed before its media is exactly the orphan card this closes — asserted on the
+   * TRANSPORT, because a version that split the write again would satisfy every value
+   * assertion below and still publish a text-only card whenever the media half failed.
    */
-  it('carries a client-minted id through as the PK, and writes it as an upsert', async () => {
-    const { client, calls } = stub([{ ...BASE_POST }]);
-    await createPost(client, {
+  it('writes through the publish_post RPC, once, and never touches the tables', async () => {
+    const fake = makeFakeClient({
+      'rpc.publish_post': [{ data: { post: BASE_POST, media: [] } }],
+    });
+    await publishPost(asClient(fake), {
       id: P1,
-      author_id: AUTHOR,
       category: 'business',
-      body: 'Primo passo del progetto.',
-    } as never);
-    const write = calls.find((c) => c.method === 'upsert');
-    expect((write?.arg as { id?: string }).id).toBe(P1);
-    expect(calls.some((c) => c.method === 'insert')).toBe(false);
+      body: 'Primo passo',
+      type: 'text',
+      is_step: false,
+      tags: [],
+    });
+    expect(fake.calls.map((c) => c.op)).toEqual(['rpc']);
+    expect(fake.calls[0]?.columns).toBe('publish_post');
+  });
+
+  it('sends the parsed payload — defaults applied, body trimmed, author never on the wire', async () => {
+    const fake = makeFakeClient({
+      'rpc.publish_post': [{ data: { post: BASE_POST, media: [] } }],
+    });
+    const result = await publishPost(asClient(fake), {
+      id: P1,
+      category: 'business',
+      body: '  Primo passo del progetto.  ',
+      type: 'text',
+      is_step: false,
+      tags: [],
+    });
+    expect(fake.calls[0]?.values).toEqual({
+      p_id: P1,
+      p_category: 'business',
+      p_body: 'Primo passo del progetto.',
+      p_type: 'text',
+      p_is_step: false,
+      p_tags: [],
+      p_media: [],
+    });
+    expect(result).toEqual({ post: BASE_POST, media: [] });
+  });
+
+  /**
+   * The media set is passed WHOLE and the parent is never spelled: `publish_post` assigns
+   * `post_id` from the post it is writing, so a row aimed at another post is unrepresentable
+   * rather than refused (#588), and an EMPTY set is the sweep the member asked for (#586).
+   */
+  it('passes the media set whole, with no post_id on any row', async () => {
+    const fake = makeFakeClient({
+      'rpc.publish_post': [
+        { data: { post: { ...BASE_POST, type: 'image' }, media: [BASE_MEDIA] } },
+      ],
+    });
+    const result = await publishPost(
+      asClient(fake),
+      { id: P1, category: 'business', body: 'Con foto', type: 'image', is_step: false, tags: [] },
+      [mediaRow({ position: 0 }), mediaRow({ position: 1, storage_path: 'u1/p1/1.jpg' })],
+    );
+    const args = fake.calls[0]?.values as { p_media: PostMediaPublish[] };
+    expect(args.p_media).toEqual([
+      mediaRow({ position: 0 }),
+      mediaRow({ position: 1, storage_path: 'u1/p1/1.jpg' }),
+    ]);
+    expect(args.p_media.some((r) => 'post_id' in r)).toBe(false);
+    expect(result.media).toEqual([BASE_MEDIA]);
+  });
+
+  /**
+   * #579: the client-minted PK is what makes a re-tap converge rather than mint a second post.
+   * zod strips an undeclared key, so a dropped `id` fails silently — asserted by value.
+   */
+  it('carries a client-minted id through as p_id', async () => {
+    const fake = makeFakeClient({
+      'rpc.publish_post': [{ data: { post: BASE_POST, media: [] } }],
+    });
+    await publishPost(asClient(fake), {
+      id: P1,
+      category: 'business',
+      body: 'Primo passo',
+      type: 'text',
+      is_step: false,
+      tags: [],
+    });
+    expect((fake.calls[0]?.values as { p_id?: string }).p_id).toBe(P1);
+  });
+
+  // Omitted rather than sent as null: the RPC coalesces a missing p_id to gen_random_uuid(),
+  // and an explicit null would be the same thing said less clearly.
+  it('omits p_id entirely when the caller mints none', async () => {
+    const fake = makeFakeClient({
+      'rpc.publish_post': [{ data: { post: BASE_POST, media: [] } }],
+    });
+    await publishPost(asClient(fake), {
+      category: 'business',
+      body: 'Primo passo',
+      type: 'text',
+      is_step: false,
+      tags: [],
+    });
+    expect('p_id' in (fake.calls[0]?.values as object)).toBe(false);
+  });
+
+  it('parses the answer rather than trusting it', async () => {
+    const fake = makeFakeClient({
+      'rpc.publish_post': [{ data: { post: { ...BASE_POST, category: 'spam' }, media: [] } }],
+    });
+    await expect(
+      publishPost(asClient(fake), {
+        id: P1,
+        category: 'business',
+        body: 'Primo passo',
+        type: 'text',
+        is_step: false,
+        tags: [],
+      }),
+    ).rejects.toThrow();
   });
 });
 
@@ -349,11 +469,11 @@ describe('posts — a database failure reaches the caller', () => {
     await expect(getPostById(asClient(fake), P1)).rejects.toMatchObject({ code: '57P01' });
   });
 
-  it('createPost rethrows so the composer keeps the draft', async () => {
-    const fake = makeFakeClient({ 'posts.upsert': [{ error: DB_DOWN }] });
+  it('publishPost rethrows so the composer keeps the draft', async () => {
+    const fake = makeFakeClient({ 'rpc.publish_post': [{ error: DB_DOWN }] });
     await expect(
-      createPost(asClient(fake), {
-        author_id: AUTHOR,
+      publishPost(asClient(fake), {
+        id: P1,
         category: 'evolution',
         body: 'primo passo',
         type: 'text',
