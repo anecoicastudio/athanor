@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { momentiDeckView } from './momenti-deck-state';
 
-/** A settled read of a deck holding `n` cards, before any swipe. */
+/** A settled read of a deck holding `n` cards, before any swipe, for a member who has
+ *  never answered a Momento — both signals absent, which is the never-had-one case. */
 const settled = (n: number) => ({
   isLoading: false,
   isError: false,
   isSuccess: true,
   cardCount: n,
   sweptThrough: false,
+  everAnswered: false,
 });
 
 describe('momentiDeckView', () => {
@@ -25,6 +27,7 @@ describe('momentiDeckView', () => {
       isSuccess: false,
       cardCount: 0,
       sweptThrough: false,
+      everAnswered: false,
     });
     expect(view).toEqual({ hasMomento: false, exhausted: false, neverHadOne: false });
   });
@@ -38,6 +41,7 @@ describe('momentiDeckView', () => {
       isSuccess: false,
       cardCount: 3,
       sweptThrough: false,
+      everAnswered: false,
     });
     expect(view.hasMomento).toBe(false);
     expect(view.exhausted).toBe(false);
@@ -54,6 +58,7 @@ describe('momentiDeckView', () => {
       isSuccess: false,
       cardCount: 0,
       sweptThrough: false,
+      everAnswered: false,
     });
     expect(view).toEqual({ hasMomento: false, exhausted: false, neverHadOne: false });
   });
@@ -88,6 +93,41 @@ describe('momentiDeckView', () => {
     expect(view.neverHadOne).toBe(false);
   });
 
+  // #600, the whole point of the persisted fact: the latch is component state, so a remount —
+  // a cold start, a dev reload, a sign-out/sign-in — brings `sweptThrough` back as false while
+  // the persisted query cache rehydrates the empty deck as a settled success. That is the exact
+  // input below, and before the fact it rendered «Quando troviamo la persona giusta» to a member
+  // who had swiped through the day before. (A tab switch is NOT this input: bottom-tabs keeps a
+  // visited tab mounted, so the latch survives navigation.)
+  it('drops «never had one» on a remount, where the latch is gone and the fact is not', () => {
+    expect(momentiDeckView({ ...settled(0), everAnswered: true })).toEqual({
+      hasMomento: false,
+      exhausted: true,
+      neverHadOne: false,
+    });
+  });
+
+  // The fact is a READ, and a read in flight is not an answer — the same discipline the loading
+  // and error arms get. «Torna più tardi» is true for both members; the promise is true for only
+  // one, so it is the one that waits.
+  it('withholds the promise while the fact is still unread', () => {
+    expect(momentiDeckView({ ...settled(0), everAnswered: undefined })).toEqual({
+      hasMomento: false,
+      exhausted: true,
+      neverHadOne: false,
+    });
+  });
+
+  // Belt and braces, and not redundant: the latch answers the beat between `onEmpty` and the
+  // mutation settling, when the server fact still legitimately reads false.
+  it('is exhausted without the promise the moment the latch fires, fact or no fact', () => {
+    for (const everAnswered of [true, false, undefined]) {
+      const view = momentiDeckView({ ...settled(0), sweptThrough: true, everAnswered });
+      expect(view.exhausted).toBe(true);
+      expect(view.neverHadOne).toBe(false);
+    }
+  });
+
   // Two claims about the same screen that must never both be made: one says a Momento waits,
   // the other says none ever has.
   it('never claims a Momento and «never had one» at once', () => {
@@ -96,16 +136,27 @@ describe('momentiDeckView', () => {
         for (const isSuccess of [true, false]) {
           for (const cardCount of [0, 1, 3]) {
             for (const sweptThrough of [true, false]) {
-              const view = momentiDeckView({
-                isLoading,
-                isError,
-                isSuccess,
-                cardCount,
-                sweptThrough,
-              });
-              expect(view.hasMomento && view.neverHadOne).toBe(false);
-              // The eyebrow and the empty state are opposite arms of one branch.
-              expect(view.hasMomento && view.exhausted).toBe(false);
+              // `undefined` is the third state and not a formality: it is what the screen
+              // holds on the first frame after a restart, which is exactly when #600 fired.
+              for (const everAnswered of [true, false, undefined]) {
+                const view = momentiDeckView({
+                  isLoading,
+                  isError,
+                  isSuccess,
+                  cardCount,
+                  sweptThrough,
+                  everAnswered,
+                });
+                expect(view.hasMomento && view.neverHadOne).toBe(false);
+                // The eyebrow and the empty state are opposite arms of one branch.
+                expect(view.hasMomento && view.exhausted).toBe(false);
+                // #600's invariant, over every input: a member who has answered a Momento is
+                // never told that none has ever been offered — with or without the latch.
+                if (everAnswered === true) expect(view.neverHadOne).toBe(false);
+                // And the promise is never made on an unsettled fact (#594's rule, one
+                // signal further out).
+                if (everAnswered === undefined) expect(view.neverHadOne).toBe(false);
+              }
             }
           }
         }

@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { AthanorClient } from './client';
-import { getMomentiDeck, getMomentiSuggestions, momentiKeys, rowToDeckCard } from './momenti';
+import {
+  getMomentiDeck,
+  getMomentiSuggestions,
+  hasAnsweredMomento,
+  momentiKeys,
+  rowToDeckCard,
+} from './momenti';
+import { DB_DOWN, asClient, makeFakeClient } from './test-support/fake-client';
 
 describe('momentiKeys', () => {
   it('builds stable keys', () => {
     expect(momentiKeys.deck()).toEqual(['momenti', 'deck']);
     expect(momentiKeys.suggestions()).toEqual(['momenti', 'suggestions']);
+    expect(momentiKeys.answered()).toEqual(['momenti', 'answered']);
   });
 });
 
@@ -244,5 +252,62 @@ describe('getMomentiSuggestions (get_momenti_suggestion RPC)', () => {
     await expect(getMomentiSuggestions(client, [])).rejects.toEqual({
       message: 'permission denied',
     });
+  });
+});
+
+describe('hasAnsweredMomento', () => {
+  const answeredRow = { id: '11111111-1111-1111-1111-111111111111' };
+
+  it('asks only whether an ANSWERED row exists — never how many (rule #3)', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ data: [answeredRow] }] });
+    await hasAnsweredMomento(asClient(fake));
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('momento_proposals');
+    expect(call.op).toBe('select');
+    expect(call.filters).toContainEqual(['neq', 'status', 'pending']);
+    expect(call.modifiers).toContainEqual(['limit', 1]);
+    // No `{ count: 'exact' }`: a Momento count is a vanity metric, and the row's existence
+    // is the whole value.
+    expect(call.options).toBeUndefined();
+  });
+
+  // `affinity` is excluded from the client column grant, so `select('*')` is a 42501 — and the
+  // generated Row type lists the column anyway, because types cannot see column ACLs. Only a
+  // named projection survives contact with the database.
+  it('names its column rather than starring, which the affinity grant would reject', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ data: [] }] });
+    await hasAnsweredMomento(asClient(fake));
+    expect(fake.calls[0]?.columns).toBe('id');
+  });
+
+  // The subject is the session's, established by `momento_proposals_select_own`
+  // (`(select auth.uid()) = user_id`). A client-supplied recipient id would be the shape
+  // rule #8 forbids on the server, arriving one layer earlier.
+  it('sends no recipient id — RLS scopes the read to the caller', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ data: [] }] });
+    await hasAnsweredMomento(asClient(fake));
+    expect(fake.calls[0]?.filters.flat()).not.toContain('user_id');
+  });
+
+  it('is true once a single answered row comes back', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ data: [answeredRow] }] });
+    expect(await hasAnsweredMomento(asClient(fake))).toBe(true);
+  });
+
+  it('is false for a member who has answered nothing', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ data: [] }] });
+    expect(await hasAnsweredMomento(asClient(fake))).toBe(false);
+  });
+
+  it('is false, not a crash, when PostgREST answers with null', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ data: null }] });
+    expect(await hasAnsweredMomento(asClient(fake))).toBe(false);
+  });
+
+  // A failed read is the absence of an answer, not an answer (#111 / #594). Swallowing it into
+  // `false` would make the never-had-one promise the copy a database outage renders.
+  it('rethrows a database failure instead of claiming nothing was ever answered', async () => {
+    const fake = makeFakeClient({ 'momento_proposals.select': [{ error: DB_DOWN }] });
+    await expect(hasAnsweredMomento(asClient(fake))).rejects.toMatchObject({ code: '57P01' });
   });
 });

@@ -15,6 +15,7 @@ import { SuggestionRow } from '@/components/momenti/SuggestionRow';
 import { momentiDeckView } from '@/lib/momenti-deck-state';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/hooks/use-locale';
+import { useMomentiAnswered } from '@/hooks/use-momenti-answered';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
 /**
@@ -34,6 +35,12 @@ export default function MomentiScreen() {
 
   const deck = useMomentiDeck();
   const cards = deck.data ?? [];
+  // The persisted «has ever answered a Momento» fact. `done` cannot carry it: it is component
+  // state, so a remount (cold start, dev reload, re-auth) resets it while the persisted query
+  // cache rehydrates the empty deck as a settled success — and the empty state offered the
+  // never-had-one promise to a member who swiped through yesterday (#600). A tab switch is not
+  // that case: bottom-tabs keeps a visited tab mounted, so `done` survives navigation.
+  const answered = useMomentiAnswered();
 
   // `done` latches the in-session swipe-through (SwipeDeck.onEmpty fires once its
   // local index passes the array). A refetch that brings fresh cards back must
@@ -52,6 +59,16 @@ export default function MomentiScreen() {
     enabled: deck.isSuccess,
   });
 
+  // Both swipes flip a proposal out of `pending`, so both change the deck AND the answered
+  // fact. Invalidating only the deck left `answered` on the `false` cached at mount for
+  // `staleTime` (30s), which is long enough to render the never-had-one promise to a member
+  // who has just swiped through — #600 reintroduced inside the very session that fixed it.
+  const invalidateMomenti = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
+      qc.invalidateQueries({ queryKey: momentiKeys.answered() }),
+    ]);
+
   const accept = useMutation({
     mutationFn: (card: MomentoDeckCard) => acceptMoment(supabase, card.id),
     onSuccess: (res, card) => {
@@ -68,13 +85,13 @@ export default function MomentiScreen() {
         setAcceptToast(card.handle ?? '');
         setTimeout(() => setAcceptToast(null), 1900);
       }
-      void qc.invalidateQueries({ queryKey: momentiKeys.deck() });
+      void invalidateMomenti();
     },
   });
 
   const pass = useMutation({
     mutationFn: (card: MomentoDeckCard) => passMoment(supabase, card.id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
+    onSuccess: () => void invalidateMomenti(),
   });
 
   // Every claim this screen makes about the deck comes from one derivation, tested in
@@ -86,6 +103,7 @@ export default function MomentiScreen() {
     isSuccess: deck.isSuccess,
     cardCount: cards.length,
     sweptThrough: done,
+    everAnswered: answered.data,
   });
   const topHandle = cards[0]?.handle ?? '';
 

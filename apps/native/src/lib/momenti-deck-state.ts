@@ -20,11 +20,26 @@
  * 2. `neverHadOne` — nobody has been proposed yet, as opposed to «you have seen them all».
  *    An empty read alone cannot tell those apart: both mutations invalidate the deck, so
  *    swiping through makes the refetch return `[]` and «Quando troviamo la persona giusta»
- *    would land on a member who had just answered every card. `sweptThrough` is the only
- *    signal that separates them, and only WITHIN a session — it is the tab's latched
- *    `SwipeDeck.onEmpty`, so a member who swipes through, leaves and returns to an empty deck
- *    reads the never-had-one copy again. Closing that last gap needs a server-side «was ever
- *    proposed» fact, not a longer-lived client latch.
+ *    would land on a member who had just answered every card. Two signals separate them, and
+ *    it takes both (#600):
+ *
+ *    - `sweptThrough`, the tab's latched `SwipeDeck.onEmpty`, holds WITHIN a session. It fires
+ *      the instant the deck runs out, before the mutation and the refetch have settled, which
+ *      is why it cannot be dropped in favour of the server fact alone.
+ *    - `everAnswered`, a persisted read of «has this member ever accepted or passed a Momento»
+ *      (`hasAnsweredMomento`), holds ACROSS sessions. It exists because the latch is component
+ *      state and dies on a REMOUNT — a cold start, a dev reload, a sign-out/sign-in. A tab
+ *      switch is not one of those: `@react-navigation/bottom-tabs` keeps a visited tab mounted
+ *      (no `unmountOnBlur` in v7, and this app sets no `freezeOnBlur`/`detachInactiveScreens`),
+ *      so the latch survives navigation. #600's original wording said otherwise and a QA walk
+ *      following it would have found the screen correct. What the remount does is worse than a
+ *      plain refetch: the persisted query cache rehydrates the empty deck as a settled success
+ *      while `done` resets to false, so the very first frame after a restart offered the
+ *      never-had-one promise to someone who swiped through yesterday.
+ *
+ *    `everAnswered` is `undefined` until its own read settles, and an unsettled fact may not be
+ *    claimed on — the rule this whole module exists to enforce. So the promise is made only on
+ *    a settled `false`; anything else falls back to «Torna più tardi», which is true either way.
  */
 export type MomentiDeckView = {
   /** A card is on the stack: the eyebrow may claim it and the swipe buttons may act on it. */
@@ -41,6 +56,7 @@ export function momentiDeckView({
   isSuccess,
   cardCount,
   sweptThrough,
+  everAnswered,
 }: {
   /** `query.isLoading` — pending AND fetching, i.e. a first read with nothing in hand. */
   isLoading: boolean;
@@ -52,6 +68,12 @@ export function momentiDeckView({
   cardCount: number;
   /** The latched in-session swipe-through (`SwipeDeck.onEmpty`), cleared when cards return. */
   sweptThrough: boolean;
+  /**
+   * Settled «this member has accepted or passed a Momento before», surviving a remount.
+   * `undefined` while that read is in flight or after it failed — never a claim, so the
+   * never-had-one promise is withheld rather than guessed.
+   */
+  everAnswered: boolean | undefined;
 }): MomentiDeckView {
   const deckIsEmpty = isSuccess && cardCount === 0;
   const exhausted = deckIsEmpty || sweptThrough;
@@ -59,6 +81,8 @@ export function momentiDeckView({
   return {
     hasMomento: !exhausted && !isLoading && !isError && cardCount > 0,
     exhausted,
-    neverHadOne: deckIsEmpty && !sweptThrough,
+    // `everAnswered === false` and not `!everAnswered`: `undefined` is an unsettled read,
+    // and the two must not collapse into the same claim.
+    neverHadOne: deckIsEmpty && !sweptThrough && everAnswered === false,
   };
 }
