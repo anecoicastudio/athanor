@@ -33,7 +33,7 @@ export default function MomentiScreen() {
 
   const deck = useMomentiDeck();
   const cards = deck.data ?? [];
-  const startedEmpty = deck.isSuccess && cards.length === 0;
+  const deckIsEmpty = deck.isSuccess && cards.length === 0;
 
   // `done` latches the in-session swipe-through (SwipeDeck.onEmpty fires once its
   // local index passes the array). A refetch that brings fresh cards back must
@@ -77,14 +77,27 @@ export default function MomentiScreen() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
   });
 
-  const exhausted = (deck.isSuccess && cards.length === 0) || done;
-  const showActions = !exhausted && !deck.isLoading && !deck.isError && cards.length > 0;
+  const exhausted = deckIsEmpty || done;
+  // «Hai un Momento» is a claim about the deck, so it renders only when a card is actually on
+  // the stack — the gate the swipe buttons already used, now shared so the two cannot drift
+  // apart again. The eyebrow used to sit above the whole four-way branch, telling a member whose
+  // read is still in flight, whose read failed, or who has no Momento at all that they have one,
+  // in the cyan rule #4 spends on meaning (#594). Home gates the same string the same way:
+  // `MomentiCard` collapses the block when there is no top card.
+  const hasMomento = !exhausted && !deck.isLoading && !deck.isError && cards.length > 0;
+  // `done` is the only trustworthy «this member HAD a Momento» signal. `deckIsEmpty` is a
+  // property of the current read, and both mutations invalidate the deck, so swiping through
+  // makes the refetch return [] — which would otherwise serve «Quando troviamo la persona
+  // giusta» (the never-had-one copy) to someone who has just consumed their whole deck.
+  const neverHadOne = deckIsEmpty && !done;
   const topHandle = cards[0]?.handle ?? '';
 
   return (
     <Screen>
       <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-12">
-        <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+        {hasMomento ? (
+          <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+        ) : null}
         {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
           {t('momenti.title', locale)}
@@ -109,7 +122,7 @@ export default function MomentiScreen() {
             <View className="flex-1 items-center justify-center">
               <EmptyState
                 body={
-                  startedEmpty ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
+                  neverHadOne ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
                 }
               >
                 {t('momenti.empty.title', locale)}
@@ -127,7 +140,7 @@ export default function MomentiScreen() {
           )}
         </View>
 
-        {showActions ? (
+        {hasMomento ? (
           <View className="mt-5 flex-row gap-4">
             <SwipeActionButton
               variant="pass"

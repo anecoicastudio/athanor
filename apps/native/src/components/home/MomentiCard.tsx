@@ -21,13 +21,13 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * that takes one (`DreamHeroCard`, `PrimeStelleCard`) is a block whose MILESTONE hasn't landed:
  * the placeholder promises a feature. This block has landed; its empty state is a fact about
  * today, and «Presto qui» over it would be a lie. #177 settled that a short honest Home beats a
- * full one made of promises, and the tab-bar ✦ (`(tabs)/_layout.tsx:18-21`) is already the
+ * full one made of promises, and the tab-bar ✦ (`(tabs)/_layout.tsx:16-19`) is already the
  * has/hasn't signal, so a silent slot loses nothing. Don't add one back.
  *
  * ROUTE-ONLY — a second DELIBERATE DEVIATION, from DESIGN §8.2's `[Scopri][passa]` mockup,
  * which predates the swipe deck. Deciding belongs in the tab now: `acceptMoment` branches into
- * `(modal)/match` plus a toast (`(tabs)/momenti.tsx:61-79`), and `passMoment` is destructive for
- * 90 days with no undo (`packages/api/src/momenti.ts:111-121`). A stray tap on a scrolling Home
+ * `(modal)/match` plus a toast (`(tabs)/momenti.tsx:55-73`), and `passMoment` is destructive for
+ * 90 days with no undo (`packages/api/src/momenti.ts:143-153`). A stray tap on a scrolling Home
  * must not be able to spend either. Don't "restore" the buttons from the mockup.
  *
  * Same `useMomentiDeck()` entry as the tab-bar badge, with NO options: TanStack
@@ -35,20 +35,20 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * `lib/query-client.ts:13`). Adding `enabled` / `refetchInterval` / `staleTime` here would fork
  * this observer's behaviour from the badge's for no gain — Home would then be able to show a
  * card the tab bar doesn't spark for. The tab's accept/pass mutations already invalidate this
- * key (`(tabs)/momenti.tsx:77,83`), so acting there refreshes Home on return with no wiring.
+ * key (`(tabs)/momenti.tsx:71,77`), so acting there refreshes Home on return with no wiring.
  *
  * An error WITH cached data still renders: tapping through re-reads the deck in the tab, which
- * owns an error branch and a retry (`(tabs)/momenti.tsx:99-109`). This deliberately is NOT the
+ * owns an error branch and a retry (`(tabs)/momenti.tsx:110-120`). This deliberately is NOT the
  * isError-wins rule of `lib/aura-display.ts` — a stale Aura number is a claim about a person's
  * worth, a stale proposal costs one wasted tap.
  *
  * Flat, per DESIGN §9 ("Moment cards add 1px `aura` border" — border, not shadow): the
- * `border-aura-line bg-raise` recipe is `MomentoCard.tsx:22` minus its `flex-1` wrapper, so Home
+ * `border-aura-line bg-raise` recipe is `MomentoCard.tsx:25` minus its `flex-1` wrapper, so Home
  * and the tab render the same object. No `auraGlow()` — rule #4 permits one here but every glow
  * site in the app is a terminal confirmation (the match), not an invitation.
  *
- * One a11y label on the Pressable, like all three Home siblings (`DreamHeroCard.tsx:56`,
- * `StarsMiniRow.tsx:39`, `InviteCard.tsx:43`): VoiceOver reads one node, so it costs the peer's
+ * One a11y label on the Pressable, like all three Home siblings (`DreamHeroCard.tsx:78`,
+ * `StarsMiniRow.tsx:39`, `InviteCard.tsx:41`): VoiceOver reads one node, so it costs the peer's
  * handle. The trade is deliberate — `handle` is nullable, and a `{name}` label would read the
  * «—» fallback aloud as "dash".
  *
