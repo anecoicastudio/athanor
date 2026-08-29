@@ -11,7 +11,7 @@ export function RuleRow({ glyph, title, desc }: { glyph: string; title: string; 
         {glyph}
       </Text>
       <View className="flex-1 gap-0.5">
-        <Text className="text-[14px] font-semibold text-ink">{title}</Text>
+        <Text className="text-[14px] font-semibold text-foreground">{title}</Text>
         <Text className="text-[12px] text-muted-foreground">{desc}</Text>
       </View>
     </View>

@@ -1947,3 +1947,195 @@ describe('a post and its media are one write (#588)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 26 — every colour class names a token that exists (#595)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A `text-`/`bg-`/`border-` class whose token is not declared in `global.css` produces no
+ * declaration at all. react-native-css has nothing to emit, so the property is simply absent
+ * and RN falls back to its own default — black text, no border colour — on a `#0a0a1a`
+ * canvas. Nothing throws, nothing warns, and TypeScript cannot see inside a string literal.
+ * #595 was `text-ink` on `RuleRow`: the Aura screen's three protection-rule headings rendered
+ * at 1.07:1 against the background, invisible, for as long as the screen has existed.
+ *
+ * Nothing else in the tree looks at this. `contrast.test.ts` reads token VALUES out of
+ * `@athanor/config` and never a `className` — it says so itself ("NOT a usage audit"), and a
+ * class that resolves to nothing has no value to check. `tokens-mirror.test.ts` proves the CSS
+ * and the TS agree on the tokens that DO exist, which is silent about who names one that does
+ * not. §5 above catches a literal hex, not a class naming a colour that was never adopted.
+ *
+ * Both names this caught are residue of the prototype palette transcribed in `docs/DESIGN.md`
+ * (§"Palette lineage": `cosmo · ink · ink2 · muted · faint · raise · raise2 · hair · auraSoft ·
+ * auraLine · glow · onAura · danger`). Only part of that set landed in `@athanor/config`;
+ * `ink` and `danger` did not, and their shipped equivalents are `foreground` and `error`. The
+ * third was `border-border` in `(modal)/fund-disclosure.tsx`, an `apps/web` idiom carried
+ * across — `apps/web/app/globals.css` really does declare `--color-border`, and native calls
+ * the same token `line` while the card hairline everywhere else is `hair`.
+ *
+ * The scan is over comment-stripped CODE LINES, not over JSX attributes, and that is load
+ * bearing: `LedgerRow` held `'text-danger'` in a `tone` variable, outside any opening tag, so
+ * §6's `jsxOpeningTags` walk would never have seen it.
+ *
+ * ## What it cannot see
+ *
+ * An interpolated class (`` `text-${tone}` ``) and an arbitrary value (`text-[14px]`,
+ * `text-[#fff]`) are both skipped by the leading `[A-Za-z0-9]` — the first has no token to
+ * check, and a hex inside the second is §5's job. A default Tailwind palette colour
+ * (`text-red-500`) IS reported, deliberately: it would resolve, but rule 4 says colours come
+ * from the token set. The allowlist below is the non-colour utilities that share these three
+ * prefixes; a new one has to be added there, which is the guard asking for a look rather than
+ * a defect. One entry is pre-emptive and slightly too wide: `shadow-` masks Tailwind v4's
+ * `text-shadow-<color>`, which does take a colour. Nothing in the tree uses it today, and
+ * narrowing it is the fix if anything ever does.
+ *
+ * It reports in the other direction too. Scanning code lines rather than `className`
+ * attributes is what catches a class held in a variable, and the cost is that ANY string
+ * containing `text-`/`bg-`/`border-` — an i18n key, a storage path, a URL — would be reported
+ * as a violation. None exists today; the remedy if one lands is to name the false positive
+ * rather than to narrow the walk, because the walk is what found `LedgerRow`.
+ */
+const GLOBAL_CSS = readFileSync(`${SRC}global.css`, 'utf8');
+
+/** Every `--color-*` custom property `global.css` declares, without the prefix. */
+const DECLARED_COLORS = new Set(
+  [...GLOBAL_CSS.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1] as string),
+);
+
+/** Non-colour utilities sharing these prefixes, plus the CSS-wide colour keywords. */
+const NON_COLOR_CLASS = new Set([
+  // text-* font sizes
+  'xs',
+  'sm',
+  'base',
+  'lg',
+  'xl',
+  '2xl',
+  '3xl',
+  '4xl',
+  '5xl',
+  '6xl',
+  '7xl',
+  '8xl',
+  '9xl',
+  // text-* alignment, wrapping, overflow
+  'left',
+  'center',
+  'right',
+  'justify',
+  'start',
+  'end',
+  'wrap',
+  'nowrap',
+  'balance',
+  'pretty',
+  'ellipsis',
+  'clip',
+  // bg-* attachment, repeat, size and position keywords
+  'fixed',
+  'local',
+  'scroll',
+  'none',
+  'repeat',
+  'no-repeat',
+  'repeat-x',
+  'repeat-y',
+  'repeat-round',
+  'repeat-space',
+  'auto',
+  'cover',
+  'contain',
+  'top',
+  'bottom',
+  'radial',
+  'conic',
+  // border-* styles and table behaviour
+  'solid',
+  'dashed',
+  'dotted',
+  'double',
+  'hidden',
+  'collapse',
+  'separate',
+  // CSS-wide colour keywords — real colours, no token behind them
+  'transparent',
+  'current',
+  'inherit',
+]);
+
+/** The same, where the tail varies: border widths and sides, and the compound families. */
+const NON_COLOR_CLASS_RE = [
+  /^\d+$/, // border-2
+  /^[xytrbles]$/, // border-t
+  /^[xytrbles]-\d+$/, // border-l-2
+  /^(clip|origin|blend|linear|radial|conic|gradient|position|size|image)-/, // bg-clip-border
+  /^spacing-/, // border-spacing-2
+  /^shadow(-|$)/, // text-shadow-sm
+  /^(top|bottom|left|right|center)-/, // bg-left-top
+];
+
+/**
+ * `text-…`, `bg-…`, `border-…` with an optional `/NN` opacity modifier. The leading
+ * `[A-Za-z0-9]` is what skips arbitrary values and interpolations; the lookbehind keeps
+ * `border-` from matching inside `bg-gradient-to-r`-style compounds already consumed.
+ */
+const COLOR_CLASS = /(?<![\w-])(?:text|bg|border)-([A-Za-z0-9][A-Za-z0-9._-]*(?:\/\d+)?)/g;
+
+/**
+ * Every colour-position class in app code, located. Off `CODE_LINES`, which is already the
+ * whole tree comment-stripped and split — re-reading it here would double this file's
+ * collection cost for nothing.
+ */
+const COLOR_CLASS_HITS = CODE_LINES.filter(([p]) => !isTest(p)).flatMap(([p, ls]) =>
+  ls.flatMap((t, i) =>
+    [...t.matchAll(COLOR_CLASS)].map((m) => ({
+      where: `${rel(p)}:${i + 1}`,
+      cls: m[0],
+      token: (m[1] as string).replace(/\/\d+$/, ''),
+      text: t.trim(),
+    })),
+  ),
+);
+
+describe('every colour class names a token that exists (#595)', () => {
+  it('reads a token set out of global.css', () => {
+    // A FLOOR, not a count. If the `--color-*` scan ever matches nothing — the stylesheet
+    // moved, the custom properties were renamed — the assertion below would pass on a tree
+    // where every single class resolves to nothing.
+    expect(
+      DECLARED_COLORS.size,
+      'no --color-* tokens found in global.css — has the stylesheet moved? This section is ' +
+        'vacuous until the scan matches again.',
+    ).toBeGreaterThanOrEqual(15);
+  });
+
+  it('finds the colour classes it is walking', () => {
+    // The other half of the same floor: a broken class regex reports zero violations exactly
+    // like a clean tree does.
+    expect(
+      COLOR_CLASS_HITS.length,
+      'no text-/bg-/border- classes found in apps/native/src — has the styling idiom changed? ' +
+        'This section is vacuous until the scan matches again.',
+    ).toBeGreaterThanOrEqual(500);
+  });
+
+  it('no text-, bg- or border- class names a token global.css does not declare', () => {
+    const hits = COLOR_CLASS_HITS.filter(
+      ({ token }) =>
+        !NON_COLOR_CLASS.has(token) &&
+        !NON_COLOR_CLASS_RE.some((re) => re.test(token)) &&
+        !DECLARED_COLORS.has(token),
+    ).map(({ where, cls, text }) => `${where}  ${cls}  ${text.slice(0, 100)}`);
+    expect(
+      hits,
+      `a colour class that resolves to nothing:\n  ${hits.join('\n  ')}\n` +
+        `react-native-css emits no declaration for an undeclared token, so the property is ` +
+        `absent and RN falls back to its own default — black text, no border colour — with ` +
+        `nothing thrown and nothing logged. Name a token declared in ` +
+        `apps/native/src/global.css (foreground, muted-foreground, ink-2, faint, error, hair, ` +
+        `line, …). A default Tailwind palette colour is reported here on purpose: rule 4 says ` +
+        `colours come from the token set. A new NON-colour utility goes in NON_COLOR_CLASS.`,
+    ).toEqual([]);
+  });
+});

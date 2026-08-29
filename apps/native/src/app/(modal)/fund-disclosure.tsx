@@ -114,10 +114,7 @@ export default function FundDisclosureScreen() {
             consent is worse than nothing. Flat card surfaces: this is a money screen,
             nothing here glows. */}
         {DISCLOSURE_BLOCKS.map((block) => (
-          <View
-            key={block.title}
-            className="rounded-card border border-border bg-surface p-5 gap-3"
-          >
+          <View key={block.title} className="rounded-card border border-hair bg-surface p-5 gap-3">
             <Text className="text-[15px] font-semibold text-foreground">
               {t(block.title, locale)}
             </Text>
@@ -141,7 +138,7 @@ export default function FundDisclosureScreen() {
             surcharge (PSD2 Art. 62(4)) and never pre-ticked (CRD Art. 22). Flat surface, no
             glow — a money screen, and nothing has happened yet (rule #4). */}
         {split ? (
-          <View className="rounded-card border border-border bg-surface p-5 gap-3">
+          <View className="rounded-card border border-hair bg-surface p-5 gap-3">
             <Pressable
               accessibilityRole="checkbox"
               accessibilityState={{ checked: coverFees }}
