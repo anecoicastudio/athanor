@@ -12,6 +12,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
 import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
+import { momentiDeckView } from '@/lib/momenti-deck-state';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/hooks/use-locale';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
@@ -33,7 +34,6 @@ export default function MomentiScreen() {
 
   const deck = useMomentiDeck();
   const cards = deck.data ?? [];
-  const deckIsEmpty = deck.isSuccess && cards.length === 0;
 
   // `done` latches the in-session swipe-through (SwipeDeck.onEmpty fires once its
   // local index passes the array). A refetch that brings fresh cards back must
@@ -77,19 +77,16 @@ export default function MomentiScreen() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
   });
 
-  const exhausted = deckIsEmpty || done;
-  // «Hai un Momento» is a claim about the deck, so it renders only when a card is actually on
-  // the stack — the gate the swipe buttons already used, now shared so the two cannot drift
-  // apart again. The eyebrow used to sit above the whole four-way branch, telling a member whose
-  // read is still in flight, whose read failed, or who has no Momento at all that they have one,
-  // in the cyan rule #4 spends on meaning (#594). Home gates the same string the same way:
-  // `MomentiCard` collapses the block when there is no top card.
-  const hasMomento = !exhausted && !deck.isLoading && !deck.isError && cards.length > 0;
-  // `done` is the only trustworthy «this member HAD a Momento» signal. `deckIsEmpty` is a
-  // property of the current read, and both mutations invalidate the deck, so swiping through
-  // makes the refetch return [] — which would otherwise serve «Quando troviamo la persona
-  // giusta» (the never-had-one copy) to someone who has just consumed their whole deck.
-  const neverHadOne = deckIsEmpty && !done;
+  // Every claim this screen makes about the deck comes from one derivation, tested in
+  // `lib/momenti-deck-state.ts`: which arm renders, whether the cyan eyebrow may say «Hai un
+  // Momento», and which of the two empty sentences is true (#594).
+  const { hasMomento, exhausted, neverHadOne } = momentiDeckView({
+    isLoading: deck.isLoading,
+    isError: deck.isError,
+    isSuccess: deck.isSuccess,
+    cardCount: cards.length,
+    sweptThrough: done,
+  });
   const topHandle = cards[0]?.handle ?? '';
 
   return (

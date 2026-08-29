@@ -38,7 +38,7 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * key (`(tabs)/momenti.tsx:71,77`), so acting there refreshes Home on return with no wiring.
  *
  * An error WITH cached data still renders: tapping through re-reads the deck in the tab, which
- * owns an error branch and a retry (`(tabs)/momenti.tsx:110-120`). This deliberately is NOT the
+ * owns an error branch and a retry (`(tabs)/momenti.tsx:107-117`). This deliberately is NOT the
  * isError-wins rule of `lib/aura-display.ts` — a stale Aura number is a claim about a person's
  * worth, a stale proposal costs one wasted tap.
  *
