@@ -22,6 +22,7 @@ vi.mock('@athanor/api', async (importOriginal) => ({
   getActiveEdition: vi.fn(),
   getAuraScore: vi.fn(),
   getMomentiDeck: vi.fn(),
+  hasAnsweredMomento: vi.fn(),
   getMomentsPage: vi.fn(),
   getMyReferralCode: vi.fn(),
   getPersonStory: vi.fn(),
@@ -37,6 +38,7 @@ const { auraScoreQuery } = await import('./use-aura-score');
 const { starsQuery } = await import('./use-stars');
 const { momentsPageQuery } = await import('./use-moments-page');
 const { momentiDeckQuery } = await import('./use-momenti-deck');
+const { momentiAnsweredQuery } = await import('./use-momenti-answered');
 const { activeEditionQuery } = await import('./use-active-edition');
 const { referralCodeQuery } = await import('./use-referral-code');
 const { personStoryQuery } = await import('./use-person-story');
@@ -57,6 +59,7 @@ describe('the key each hook publishes is the key its screens already used', () =
     ['stars', starsQuery('p1').queryKey, api.starKeys.list('p1')],
     ['moments page', momentsPageQuery('p1').queryKey, api.momentKeys.list('p1')],
     ['momenti deck', momentiDeckQuery().queryKey, api.momentiKeys.deck()],
+    ['momenti answered', momentiAnsweredQuery().queryKey, api.momentiKeys.answered()],
     ['active edition', activeEditionQuery().queryKey, api.fundKeys.activeEdition()],
     ['referral code', referralCodeQuery().queryKey, api.inviteKeys.code()],
     ['person story', personStoryQuery('p1').queryKey, api.storyKeys.person('p1')],
@@ -101,8 +104,12 @@ describe('a query with no subject stays disabled', () => {
     expect(build('').enabled).toBe(false);
   });
 
-  it('the deck and the active edition have no subject, so neither carries a gate', () => {
+  it('the deck, the answered fact and the active edition have no subject, so none carries a gate', () => {
     expect(momentiDeckQuery().enabled).toBeUndefined();
+    // Deliberately ungated rather than gated on an empty deck (#600): it is needed exactly when
+    // the deck settles empty, and a gate would make it start fetching at that moment — so the
+    // empty state would render «Torna più tardi» and then swap to the promise a beat later.
+    expect(momentiAnsweredQuery().enabled).toBeUndefined();
     expect(activeEditionQuery().enabled).toBeUndefined();
   });
 
@@ -142,6 +149,11 @@ describe('each queryFn forwards the module client and its subject', () => {
   it('momenti deck', () => {
     run(momentiDeckQuery());
     expect(api.getMomentiDeck).toHaveBeenCalledWith(supabase);
+  });
+
+  it('momenti answered', () => {
+    run(momentiAnsweredQuery());
+    expect(api.hasAnsweredMomento).toHaveBeenCalledWith(supabase);
   });
 
   it('active edition', () => {

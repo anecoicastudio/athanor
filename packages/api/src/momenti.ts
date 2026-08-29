@@ -16,6 +16,7 @@ export const momentiKeys = {
   all: ['momenti'] as const,
   deck: () => [...momentiKeys.all, 'deck'] as const,
   suggestions: () => [...momentiKeys.all, 'suggestions'] as const,
+  answered: () => [...momentiKeys.all, 'answered'] as const,
 };
 
 /** Parse an RPC row, then map it to the deck card. `affinity` is never returned/exposed. */
@@ -150,4 +151,42 @@ export async function passMoment(client: AthanorClient, proposalId: string): Pro
     .update({ status: 'passed' })
     .eq('id', proposalId);
   if (error) throw error;
+}
+
+/**
+ * Has this member ever ANSWERED a Momento — the durable fact the empty state consults to pick
+ * between «you have seen them all» and «nobody has been offered yet» (#600). The in-session
+ * swipe-through latch cannot answer it: it is component state, so a remount (cold start, dev
+ * reload, sign-out/sign-in) resets it while the persisted query cache restores the empty deck
+ * as a settled success — and the never-had-one promise renders to someone who swiped through
+ * yesterday.
+ *
+ * `status <> 'pending'` and NOT "a row exists", for two independent reasons:
+ *
+ *  - a pending row is not evidence of anything, because `expire_momento_proposals()` deletes
+ *    pending rows older than 7 days — an unopened deck leaves nothing behind;
+ *  - the deck can be empty WHILE pending rows exist, because `get_momenti_deck()` filters on
+ *    far more than status (not_blocked, `banned_at is null`, `field_visible` on the dream, and
+ *    an inner join to an active dream). "Any row" would tell a member who has never been dealt
+ *    a card that they have seen them all.
+ *
+ * Accepted and passed rows are the honest signal and nothing deletes them: the stale-reasons
+ * purge apparatus was retired with the read-time recompute (`tests/0074` asserts it gone), so
+ * `expire_momento_proposals` is the only delete path and it is pending-only.
+ *
+ * No caller id: `momento_proposals_select_own` scopes the read to `(select auth.uid())`, so the
+ * subject is the session's, never an argument. Columns are NAMED rather than `*` — the client
+ * grant excludes `affinity`, and a star select is a 42501 (the generated Row type lists the
+ * column anyway; types cannot see column ACLs). `limit(1)` and not a count: this returns whether,
+ * never how many — a Momento count is a vanity metric (rule #3), and the existence of the row IS
+ * the value, so no row shape is read and there is nothing here for a schema to parse.
+ */
+export async function hasAnsweredMomento(client: AthanorClient): Promise<boolean> {
+  const { data, error } = await client
+    .from('momento_proposals')
+    .select('id')
+    .neq('status', 'pending')
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
 }
