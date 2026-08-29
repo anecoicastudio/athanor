@@ -12,6 +12,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
 import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
+import { momentiDeckView } from '@/lib/momenti-deck-state';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/hooks/use-locale';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
@@ -33,7 +34,6 @@ export default function MomentiScreen() {
 
   const deck = useMomentiDeck();
   const cards = deck.data ?? [];
-  const startedEmpty = deck.isSuccess && cards.length === 0;
 
   // `done` latches the in-session swipe-through (SwipeDeck.onEmpty fires once its
   // local index passes the array). A refetch that brings fresh cards back must
@@ -77,14 +77,24 @@ export default function MomentiScreen() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
   });
 
-  const exhausted = (deck.isSuccess && cards.length === 0) || done;
-  const showActions = !exhausted && !deck.isLoading && !deck.isError && cards.length > 0;
+  // Every claim this screen makes about the deck comes from one derivation, tested in
+  // `lib/momenti-deck-state.ts`: which arm renders, whether the cyan eyebrow may say «Hai un
+  // Momento», and which of the two empty sentences is true (#594).
+  const { hasMomento, exhausted, neverHadOne } = momentiDeckView({
+    isLoading: deck.isLoading,
+    isError: deck.isError,
+    isSuccess: deck.isSuccess,
+    cardCount: cards.length,
+    sweptThrough: done,
+  });
   const topHandle = cards[0]?.handle ?? '';
 
   return (
     <Screen>
       <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-12">
-        <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+        {hasMomento ? (
+          <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+        ) : null}
         {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
           {t('momenti.title', locale)}
@@ -109,7 +119,7 @@ export default function MomentiScreen() {
             <View className="flex-1 items-center justify-center">
               <EmptyState
                 body={
-                  startedEmpty ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
+                  neverHadOne ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
                 }
               >
                 {t('momenti.empty.title', locale)}
@@ -127,7 +137,7 @@ export default function MomentiScreen() {
           )}
         </View>
 
-        {showActions ? (
+        {hasMomento ? (
           <View className="mt-5 flex-row gap-4">
             <SwipeActionButton
               variant="pass"
