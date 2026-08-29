@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -17,6 +17,23 @@ select ok((select relrowsecurity from pg_class where oid='public.momento_proposa
 select policies_are('public','momento_proposals',
   array['momento_proposals_select_own','momento_proposals_update_own',
         'active_write_insert', 'active_write_update', 'active_write_delete'],'expected policies (no insert/delete)');
+
+-- The deck read goes through get_momenti_deck() (SECURITY DEFINER, so client column ACLs never
+-- apply to it), but the empty state's «has ever answered» probe is a direct client SELECT
+-- naming `id` and filtering on `status` (#600, packages/api hasAnsweredMomento). Column
+-- privileges are a separate ACL from the table's, so the two columns that read depends on are
+-- asserted BY NAME — the count() assertion below succeeds on any surviving column grant, and
+-- rules/supabase-db.md is explicit that a privilege must be asserted rather than inferred from a
+-- read that happens to work. Narrowing this list would otherwise ship a 42501 on a screen that
+-- CI still calls green.
+select ok(
+  has_column_privilege('authenticated', 'public.momento_proposals', 'id', 'SELECT'),
+  'authenticated can SELECT momento_proposals.id (the existence probe projects it)'
+);
+select ok(
+  has_column_privilege('authenticated', 'public.momento_proposals', 'status', 'SELECT'),
+  'authenticated can SELECT momento_proposals.status (the probe filters status <> pending on it)'
+);
 
 -- seed as SERVICE ROLE (the only writer): A←B and B←A (reciprocal, so accept_momento can match)
 set local role service_role;

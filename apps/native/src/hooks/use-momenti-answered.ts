@@ -18,7 +18,12 @@ import { supabase } from '@/lib/supabase';
  *
  * It carries no `meta.persist: false`, so the shared persister rehydrates it — the same
  * mechanism that restored the empty deck as a settled success and made #600 visible now
- * restores the fact beside it, and the first frame after a cold start already holds both.
+ * restores the fact beside it, and on the device where the swipe happened the first frame
+ * after a cold start already holds both. Not on a SECOND device, though: one that persisted
+ * `false` before the member answered elsewhere rehydrates that `false` as settled data, so it
+ * can show the never-had-one copy for one frame — the symptom one layer out. It self-corrects
+ * on the mount refetch (rehydrated data is older than `staleTime`), and the copy it degrades to
+ * is a promise rather than a falsehood, so this is a known soft edge and not a second latch.
  */
 export function momentiAnsweredQuery() {
   return queryOptions({
