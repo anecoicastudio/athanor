@@ -4,7 +4,8 @@ import { z } from 'zod';
 // statement of both CHECKs (06 §2.11, 09 §2.6).
 // The 10 canonical notification types — must match notification_preferences.type. NOT the same
 // set as the M9 prefs UI, and deliberately: 'connection', 'moderation', 'gdprExport' and
-// 'reportQueue' carry no PREF_ROWS toggle, each for a reason stated at its entry below.
+// 'reportQueue' carry no PREF_ROWS toggle. The reason is stated at or beside each — the one
+// for 'connection' lives at the 'moderation' entry, which is where the two are contrasted.
 // Two of them have no producer yet; that is intentional, not a broken fan-out (see below).
 //
 // When a producerless type is KEPT vs DELETED: it stays when only the producer is missing and
@@ -46,7 +47,7 @@ export const NOTIFICATION_TYPES = [
   // #602: the moderation queue alert. Its recipient is not a member but the WATCHER — the
   // admin role, read from app_metadata — so it is the one type in this set that is never
   // about the person receiving it. A new type rather than a template key on 'moderation'
-  // for the reason stated at the top of this list: a second key rides an existing type only
+  // for the reason stated at the 'fundMilestone' entry above: a second key rides a type only
   // when lead, glyph, route and toggle are shared, and 'moderation' is a notice TO a
   // sanctioned member («Un richiamo», the warning triangle). Same no-PREF_ROWS stance as
   // 'moderation' and 'gdprExport', for a sibling reason: a watcher must not be able to

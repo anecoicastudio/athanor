@@ -47,6 +47,7 @@ select bag_eq(
   $$ select sch || '.' || tbl from convention_tables where not has_updated_at $$,
   $$ values ('athanor.event_reminder_sends'::text),
             ('athanor.fund_broadcast_sends'),
+            ('athanor.report_alert_sends'),
             ('athanor.waitlist_throttle'),
             ('public.athanor_days_interest'),
             ('public.audit_log'),
@@ -60,8 +61,7 @@ select bag_eq(
             ('public.messages'),
             ('public.post_reactions'),
             ('public.story_reactions'),
-            ('public.stripe_webhook_events'),
-            ('athanor.report_alert_sends') $$,
+            ('public.stripe_webhook_events') $$,
   'the exempt set is exactly these seventeen tables');
 
 select * from finish();

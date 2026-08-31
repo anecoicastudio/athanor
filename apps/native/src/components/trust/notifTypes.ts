@@ -48,7 +48,7 @@ export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
   moderation: { glyph: '△', accentClass: 'bg-raise-2', celebratory: false },
   // #129 export ready — neutral: a delivery notice is service, not a moment (rule #4).
   gdprExport: { glyph: '▽', accentClass: 'bg-raise-2', celebratory: false },
-  // #602 the moderation queue alert. `eye` from the 20-glyph set (DESIGN.md §6.2) — this is
+  // #602 the moderation queue alert. `eye` from the 20-glyph set (DESIGN.md §6) — this is
   // the one notification that exists because someone is watching. Neutral, emphatically: a
   // queue filling up is the least moment-like thing the app can tell anyone (rule #4).
   reportQueue: { glyph: '◎', accentClass: 'bg-raise-2', celebratory: false },
