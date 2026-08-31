@@ -10,8 +10,15 @@ import type { AdminReportedMessage, ReportedMessageState } from '@athanor/api';
  * would let an RLS regression on the evidence policy read as an erasure — the one dressing in
  * which nobody would ever investigate it.
  *
- * `notApplicable` has no entry: this component only renders on a `'message'` report, so the
- * state cannot occur here, and inventing copy for it would be copy nobody can reach.
+ * `notApplicable` has no entry, and the `??` fallback below is what covers it. It is rare rather
+ * than impossible: `getReportDetail` enters the evidence branch only when `target_id` is set, so
+ * a `'message'` report filed with a NULL target leaves the state at `notApplicable` while this
+ * component still renders. Nothing in the app produces that — the chat sheet always sends the
+ * message id — but `reports_target_type_check` constrains the type and not the pairing, and
+ * `reportInput` marks `targetId` `.nullish()` for every type, so the shape is admitted. Such a
+ * report reads as «no longer available», which is not exactly right and is close enough for a
+ * row nobody can currently file; requiring a target per type is a pre-existing gap on `'person'`
+ * and `'post'` too, so it belongs in an issue rather than here.
  */
 const ABSENCE_COPY: Partial<Record<ReportedMessageState, MessageKey>> = {
   absent: 'admin.report.evidenceGone',

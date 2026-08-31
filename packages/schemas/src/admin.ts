@@ -186,8 +186,11 @@ export type AdminReportedMessage = z.infer<typeof adminReportedMessage>;
  * most ONE row: a count would only ever be 0 or 1 and would say nothing a null does not, so the
  * withheld thing is named instead of counted.
  *
- * Invariant, held by construction in `getReportDetail` and asserted in both test suites:
- * `state === 'present'` exactly when `reportedMessage !== null`.
+ * Invariant: `state === 'present'` exactly when `reportedMessage !== null`. Held by
+ * construction in `getReportDetail` and asserted case by case in `packages/api/src/admin.test.ts`,
+ * where every ending pins both fields together — a Zod object cannot express a cross-field rule
+ * without a `.refine()`, and adding one here would turn this into a `ZodEffects` with no
+ * `.shape`, which the key-list assertions read. The schemas suite pins the vocabulary instead.
  */
 export const REPORTED_MESSAGE_STATES = [
   'notApplicable',
