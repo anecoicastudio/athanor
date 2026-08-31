@@ -7,13 +7,7 @@ import { Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
-
-/** A drag this long is a dismissal; anything shorter falls back to the tap test below. */
-const SWIPE_DISMISS = 100;
-/** Movement under this in both axes was a tap that wobbled, not a drag. */
-const TAP_SLOP = 10;
-/** Past this the gesture is a drag and the responder takes it from whatever is underneath. */
-const DRAG_START = 8;
+import { dismissesOnRelease, shouldClaimViewerDrag } from '@/lib/viewer-gesture';
 
 /**
  * Fullscreen viewer for ONE photo that is already signed (#576). Tap or swipe down dismisses,
@@ -73,16 +67,12 @@ export function PhotoViewer({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_e, g) =>
-          Math.abs(g.dy) > DRAG_START || Math.abs(g.dx) > DRAG_START,
+        onMoveShouldSetPanResponder: (_e, g) => shouldClaimViewerDrag(g.dx, g.dy),
+        // What a release means lives in `lib/viewer-gesture.ts`, tested — a PanResponder
+        // config cannot be asserted, and "an upward flick does not dismiss" is exactly the
+        // kind of tuning that regresses silently.
         onPanResponderRelease: (_e, g) => {
-          // Down only, the StoriesViewer idiom (#298): an upward flick is how a thumb scrolls,
-          // and dismissing on it would fire on a gesture nobody aimed at this viewer.
-          if (g.dy > SWIPE_DISMISS) {
-            onClose();
-            return;
-          }
-          if (Math.abs(g.dx) < TAP_SLOP && Math.abs(g.dy) < TAP_SLOP) onClose();
+          if (dismissesOnRelease(g.dx, g.dy)) onClose();
         },
       }),
     [onClose],
