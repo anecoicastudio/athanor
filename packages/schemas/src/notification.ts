@@ -64,10 +64,12 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.dreamMilestone',
   'notif.tpl.review',
   // #126 sends two reminder slots and #523 gave them separate copy: t24 keeps the neutral
-  // «è tra poco», t1 says the hour. Both ride type 'eventReminder' — the split is copy, not
-  // routing, so the push route map and the in-app router are untouched.
+  // «è tra poco», t1 says the hour. #522 adds a third, org_t1 — the organiser's own reminder at
+  // the hour, sent whether or not they RSVP'd. All three ride type 'eventReminder' — the split
+  // is copy, not routing, so the push route map and the in-app router are untouched.
   'notif.tpl.eventReminder',
   'notif.tpl.eventReminderSoon',
+  'notif.tpl.eventReminderOrganizer',
   'notif.tpl.projectResponse',
   'notif.tpl.connection',
   'notif.tpl.connectionAccepted',

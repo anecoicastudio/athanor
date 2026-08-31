@@ -111,8 +111,13 @@ export const eventCreateSchema = z
 export type EventCreate = z.infer<typeof eventCreateSchema>;
 
 /**
- * rsvp — free-event attendance intent (mirrors public.rsvps). Toggle is going⇄cancelled;
- * the (user_id, event_id) pair is the idempotency key. No deleted_at (intent, not content).
+ * rsvp — attendance intent (mirrors public.rsvps). Toggle is going⇄cancelled; the
+ * (user_id, event_id) pair is the idempotency key. No deleted_at (intent, not content).
+ *
+ * The member's own tap is no longer the only source: since #522 stripe-webhook writes one of
+ * these when a paid ticket settles, and flips it to 'cancelled' when the charge is reversed, so
+ * that reminders and «N partecipano» reach ticket holders too. The shape is unchanged — a
+ * mirrored row is indistinguishable here, which is the point.
  */
 export const rsvpStatusSchema = z.enum(['going', 'cancelled']);
 export type RsvpStatus = z.infer<typeof rsvpStatusSchema>;

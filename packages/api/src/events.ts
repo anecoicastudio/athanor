@@ -333,6 +333,10 @@ export async function registerAthanorDaysInterest(
  * conflict flips status — a second "Partecipo" tap is a no-op, a cancel sets
  * status='cancelled' (we keep the row, never delete — backend §2.2). NEVER writes Aura
  * (rule #1): the +15 attend award is the M6 score-engine (TODO(M6)).
+ *
+ * No longer the table's only writer: stripe-webhook mirrors a settled ticket as a going row
+ * (#522). Nothing here has to know that — the mirror is an ordinary row, and the capacity gate
+ * exempts a member whose ticket has settled (20260831090931).
  */
 export async function upsertRsvp(
   client: AthanorClient,
@@ -366,7 +370,13 @@ export async function getMyRsvp(
   return rsvpSchema.parse(data);
 }
 
-/** Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest user_ids. */
+/**
+ * Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest
+ * user_ids. Since #522 that count is the whole audience on a paid event too — the webhook
+ * mirrors each settled ticket as a going RSVP, so «N partecipano» stopped reading zero there
+ * without this query changing. The preview ids follow: a paid event's attendees are as visible
+ * as a free one's, which is the same rule the product already applies to attendance.
+ */
 export type AttendeePreview = { count: number; userIds: string[] };
 export async function getEventAttendees(
   client: AthanorClient,

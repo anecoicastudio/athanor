@@ -14,7 +14,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(31);
 
 -- organizer A + members B, C, D (handle_new_user auto-creates profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -235,6 +235,73 @@ select lives_ok($$ update public.rsvps set status='going'
   where user_id='44444444-4444-4444-4444-444444444444'
     and event_id='ffffffff-ffff-ffff-ffff-ffffffffffff' $$,
   'the freed seat admits the next member');
+reset role;
+
+-- ── #522: a mirrored RSVP is not a second seat ───────────────────────────────────────────
+-- stripe-webhook writes a going RSVP when a ticket settles, as the service role. Service role
+-- bypasses RLS but NOT triggers, so that INSERT lands on this gate — and a refusal there throws
+-- inside the webhook, which releases its processing lease and answers 500 until Stripe disables
+-- the endpoint. The seat was already arbitrated by claim_event_seat, under the same events-row
+-- lock and against the same capacity, so a member who holds one is exempt.
+--
+-- The exemption is per-holder and deliberately NOT "exclude ticket holders from the count":
+-- mirrored rows still count, so nobody who paid nothing can appear beside people who did. It is
+-- also SETTLED tickets only (20260831090931): a pending claim expires by predicate and the RSVP
+-- it would have admitted does not, so the wider seat-holding predicate would have let somebody
+-- open a Checkout they never paid and sit in the count forever.
+
+-- The paid event has capacity 2. Bring it to capacity in rsvps terms the way the webhook would.
+-- B's row is a live claim again (re-claimed after the refund above) — pay it.
+set local role service_role;
+update public.event_tickets set status='paid', expires_at=null, stripe_payment_id='pi_mirror_b'
+  where user_id='22222222-2222-2222-2222-222222222222'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+select lives_ok($$ insert into public.rsvps (user_id, event_id, status)
+  values ('22222222-2222-2222-2222-222222222222','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','going') $$,
+  'the webhook mirrors B''s settled ticket as a going RSVP');
+-- C's claim expired long ago, so C is NOT exempt — and passes anyway, on one going row against
+-- a capacity of two. This fills the second slot for the refusal below.
+insert into public.rsvps (user_id, event_id, status)
+  values ('33333333-3333-3333-3333-333333333333','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','going');
+reset role;
+
+-- D holds no ticket at all (their claim was released above), and the two going rows fill the
+-- capacity. The gate refuses exactly as it did before the mirror existed.
+set local role service_role;
+select throws_ok($$ insert into public.rsvps (user_id, event_id, status)
+  values ('44444444-4444-4444-4444-444444444444','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','going') $$,
+  'P0001', 'sold out', 'a member holding no ticket is still refused at capacity');
+reset role;
+
+-- …and the same member, once their ticket is paid, is admitted. This is the webhook's INSERT:
+-- the money has already moved, and a refusal here is a 500 loop against a condition no retry
+-- clears.
+set local role service_role;
+insert into public.event_tickets (user_id, event_id, status, stripe_payment_id)
+  values ('44444444-4444-4444-4444-444444444444','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+          'paid','pi_mirror_d');
+select lives_ok($$ insert into public.rsvps (user_id, event_id, status)
+  values ('44444444-4444-4444-4444-444444444444','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','going') $$,
+  'a ticket holder''s mirror is admitted at capacity — the seat was arbitrated on the paid path');
+reset role;
+
+-- …and a LIVE pending claim does not exempt, which is what separates this predicate from
+-- event_seats_taken's. C gives up their going row and opens a fresh 30-minute claim; B and D
+-- (both settled) fill the capacity, so C is refused. Under the pre-20260831090931 predicate C
+-- would have been waved through and stayed counted after the claim lapsed.
+set local role service_role;
+update public.rsvps set status='cancelled'
+  where user_id='33333333-3333-3333-3333-333333333333'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+update public.event_tickets
+   set status='pending', expires_at = now() + interval '30 minutes', stripe_payment_id = null
+ where user_id='33333333-3333-3333-3333-333333333333'
+   and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+select throws_ok($$ update public.rsvps set status='going'
+  where user_id='33333333-3333-3333-3333-333333333333'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' $$,
+  'P0001', 'sold out',
+  'an unexpired pending CLAIM is not a seat — only a settled ticket exempts');
 reset role;
 
 select * from finish();

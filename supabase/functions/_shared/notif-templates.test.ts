@@ -73,6 +73,16 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: "un'ora",
       enHas: 'an hour',
     },
+    // The org_t1 slot (#522). Same hour as the t1 above and the same type; what distinguishes
+    // it is whose event it is, which lives in the TITLE — so this case pins the body's hour and
+    // the title assertion below pins the rest.
+    {
+      templateKey: 'notif.tpl.eventReminderOrganizer',
+      type: 'eventReminder',
+      params: { title: 'Notte', count: 38 },
+      itHas: "un'ora",
+      enHas: 'an hour',
+    },
     {
       templateKey: 'notif.tpl.projectResponse',
       type: 'projectResponse',
@@ -186,6 +196,47 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
     }
   }
 });
+
+// #522 — the organiser slot is a different sentence, not a different notification: same type,
+// same route as the attendee reminders, and the only place that says whose event it is is the
+// title. A regression that pointed the key at the attendee copy would still pass the loop above,
+// which only asserts a title exists.
+Deno.test(
+  'the organiser reminder is titled as the organiser and routes like the attendee ones',
+  () => {
+    const build = (templateKey: string, locale: 'it' | 'en') =>
+      buildPushMessages(
+        ['ExponentPushToken[a]'],
+        {
+          type: 'eventReminder',
+          templateKey,
+          params: { title: 'Notte', count: 2 },
+          entityRef: 'ev-1',
+          locale,
+        },
+        allValid,
+      )[0];
+
+    assertEquals(build('notif.tpl.eventReminderOrganizer', 'it').title, 'Il tuo evento');
+    assertEquals(build('notif.tpl.eventReminderOrganizer', 'en').title, 'Your event');
+    // …and no head-count, unlike both attendee slots. org_t1 joins no rsvps, so it fires for an
+    // event nobody has answered yet, and «0 partecipano» an hour before your own event is a
+    // metric rather than a wise friend (PRD §4.14). The `count` param stays in the payload —
+    // the sweep builds one params object per notification, not per template — and is simply
+    // not read by this key, which is what these two pin.
+    assertEquals(
+      build('notif.tpl.eventReminderOrganizer', 'it').body.includes('partecipano'),
+      false,
+    );
+    assertEquals(build('notif.tpl.eventReminderOrganizer', 'en').body.includes('attending'), false);
+    // …and NOT the attendee title, which is what a copy-paste of the neighbouring entry yields.
+    assertEquals(build('notif.tpl.eventReminder', 'it').title, 'Promemoria evento');
+    assertEquals(
+      build('notif.tpl.eventReminderOrganizer', 'it').data.route,
+      build('notif.tpl.eventReminderSoon', 'it').data.route,
+    );
+  },
+);
 
 Deno.test('an unknown reason token degrades to itself, never to undefined', () => {
   const msgs = buildPushMessages(

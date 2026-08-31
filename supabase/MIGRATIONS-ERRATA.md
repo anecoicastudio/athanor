@@ -1264,3 +1264,105 @@ none of them survives this branch reaching `main`, which is the point. Do not ca
 forward without its anchor. `supabase/functions/erasure-job/sweep-buckets.test.ts` holds the half
 that IS a property — that the sweep's list covers every declared bucket — and that is what stops
 an eighth.
+
+---
+
+## `20260615115831_rsvps.sql` — «Free-event attendance intent … NEVER touches money» is one writer out of date
+
+The header and the table comment both scope the table to the free path: «rsvps — free-event
+attendance intent (PRD §4.6 1-tap RSVP) … this migration NEVER writes aura (rule #1) and NEVER
+touches money (event_tickets is the tickets-qr slice)». Since `20260831085517_paid_ticket_rsvp_mirror.sql`
+(#522), `stripe-webhook` writes a going row here when a ticket Checkout settles and flips it to
+'cancelled' when the charge is reversed — so a row in this table can now come from a purchase and
+not only from a tap.
+
+Both halves of the aura/money sentence are still true **of this migration**: it writes no aura and
+it writes no money row, and neither does the mirror — a mirrored RSVP is a consequence of money
+having moved, never a cause, and Circle membership and fund contributions still yield zero points
+(rule 1). What is no longer true is the implication that a reader can infer the free path from the
+row's existence. `20260831085517` restates the table comment; the header keeps the old wording,
+because migrations are append-only.
+
+The shape is untouched: same columns, same unique (user_id, event_id), same going⇄cancelled check,
+same policies. A client still cannot write anybody's row but their own.
+
+Asserted by: `supabase/functions/stripe-webhook/handlers.test.ts` («handleTicketPaid mirrors a
+settled ticket as a going RSVP», «a reversal cancels the mirrored RSVP as well as the ticket») for
+the writer, and `supabase/tests/0130_event_reminder_sweep.test.sql` for what the widened audience
+changes downstream.
+
+---
+
+## `20260812225214_event_capacity_enforcement.sql` — "a seat is held by a 'going' RSVP" now has an exception
+
+The header states the capacity model it introduces: «from here on a seat is held by · a 'going'
+RSVP (free path), and · a paid / checked_in ticket, or an UNEXPIRED pending claim (paid path)».
+Since `20260831085517_paid_ticket_rsvp_mirror.sql` (#522) a settled ticket ALSO produces a going
+RSVP, and those two clauses would then count the same person twice — so `enforce_rsvp_capacity`
+returns early for a member whose ticket for that event has settled (`20260831090931` narrowed that
+to 'paid'/'checked_in'). Read the first clause as «a 'going' RSVP **from somebody holding no
+settled ticket for that event**».
+
+The exemption is per-holder, and the count is not narrowed: mirrored rows still count toward
+`v_going`, so a member who bought nothing is refused on a sold-out paid event exactly as before.
+Excluding them from the count instead would have let a non-payer PATCH themselves into
+«N partecipano» beside people who paid — the reason `20260831085517`'s header records that arm as
+considered and rejected.
+
+`claim_event_seat`, `release_event_seat` and `event_seats_taken` are unchanged and still read
+`event_tickets` alone; nothing about the paid path moved.
+
+Asserted by: `supabase/tests/0090_event_capacity.test.sql`, the three assertions after «a mirrored
+RSVP is not a second seat» — a ticket holder is admitted at capacity, a member with no ticket is
+still refused there, and the mirror the webhook writes cannot raise `P0001` at the moment the money
+has already moved.
+
+---
+
+## `20260831085517_paid_ticket_rsvp_mirror.sql` — the exemption predicate is narrower than its header says
+
+The header describes the capacity exemption as «Same predicate as claim_event_seat and
+event_seats_taken (20260812225214): paid, checked_in, or an UNEXPIRED pending claim», and the SQL
+matched. `20260831090931_rsvp_capacity_exemption_paid_only.sql` drops the pending arm in the same
+change: the live predicate is `status in ('paid','checked_in')` and nothing else.
+
+The pending arm was a hole, and specifically the one the same header calls impossible («The
+exemption is per-holder, never a hole»). A claim expires by predicate and an RSVP does not, so a
+member could open a Checkout Session on a sold-out paid event, never pay, PATCH a going RSVP
+through PostgREST inside the 35-minute window, and stay in «N partecipano» and the reminder
+fan-out permanently once the claim lapsed. It bought nothing either: the webhook mirrors only from
+`handleTicketPaid`, downstream of `assertSettled`, and the ticket row is already 'paid' on every
+branch that reaches `mirrorRsvp`.
+
+Everything else in that migration stands — the backfill, the rsvps table comment, and the reason
+the exemption exists at all.
+
+Asserted by: `supabase/tests/0090_event_capacity.test.sql`, «an unexpired pending CLAIM is not a
+seat» — a member holding one is refused at capacity, beside the assertion that a settled ticket
+holder is admitted.
+
+---
+
+## `20260831085518_event_reminder_organizer_slot.sql` — "the marker table … untouched" is contradicted by the file's own first statement
+
+The header says of the `create or replace`:
+
+> This is `create or replace` on the same signature — the cron entry, the marker table and the
+> retention are untouched.
+
+The first statement in the same file is an `alter table athanor.event_reminder_sends drop
+constraint event_reminder_sends_slot_check, add constraint … check (slot in ('t24','t1','org_t1'))`.
+The marker table IS touched: its CHECK is widened to admit the new slot, which is what makes the
+organiser claim insertable at all.
+
+What the sentence was reaching for is still true and is the part that matters for a reader
+deciding whether this migration is safe to replay: the table's **shape** does not move — same
+columns, same composite `(event_id, user_id, slot)` primary key, same `sent_at` index, same
+`athanor`-schema placement off the client grant surface, same retention. No existing row is
+touched either: every marker in flight is `t24` or `t1`, so the widened CHECK validates
+unconditionally. Read the clause as «the marker table's shape, the cron entry and the retention
+are untouched».
+
+Asserted by: `supabase/tests/0130_event_reminder_sweep.test.sql` §A, which pins the marker
+table's RLS, its zero client privileges and the cron schedule, and the `bag_eq` in §C, which pins
+`org_t1` as a claimable slot alongside the other two.

@@ -138,9 +138,12 @@ Deno.test(
         'event_tickets.select': [{ data: { status, stripe_payment_id: 'pi_1' } }],
       });
       await handleTicketPaid(asDb(db), SECRET, ticketSession());
+      // The trailing upsert is the #522 RSVP mirror, restated on every redelivery of a live
+      // ticket — idempotent, and the only path that heals a ticket sold before the mirror
+      // existed. It is an rsvps write, so it touches nothing this test is guarding.
       assertEquals(
-        db.calls.map((c) => c.op),
-        ['upsert', 'select'],
+        db.calls.map((c) => `${c.table}.${c.op}`),
+        ['event_tickets.upsert', 'event_tickets.select', 'rsvps.upsert'],
         `status ${status}: no repair update expected`,
       );
     }
@@ -402,6 +405,100 @@ Deno.test('assertSettled passes final statuses and throws on everything else', (
   );
 });
 
+// ── #522 the RSVP mirror ─────────────────────────────────────────────────────
+// `rsvps` was the free path's table alone, so the reminder sweep and «N partecipano» could not
+// see anybody who paid. The mirror is what widens the audience without changing either read.
+
+Deno.test('handleTicketPaid mirrors a settled ticket as a going RSVP', async () => {
+  const db = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+
+  const mirror = db.calls.find((c) => c.table === 'rsvps');
+  assert(mirror, 'expected an rsvps write');
+  assertEquals(mirror.op, 'upsert');
+  assertEquals(mirror.values, {
+    user_id: 'prof-1',
+    event_id: 'evt-row-1',
+    status: 'going',
+  });
+  // do UPDATE, not ignoreDuplicates: a re-buy after a refund has to move 'cancelled' back.
+  assertEquals(mirror.options, { onConflict: 'user_id,event_id' });
+  // Order matters: the seat exists before the row that claims it does.
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['event_tickets.upsert', 'rsvps.upsert'],
+  );
+});
+
+Deno.test('the mirror rides assertSettled — unsettled money writes no RSVP', async () => {
+  // The whole point of riding the existing gate rather than a narrower `=== 'paid'`: a 100%
+  // coupon session reports 'no_payment_required' and IS a ticket, while a delayed-notification
+  // method reports 'unpaid' and is not money yet. Neither may be special-cased here.
+  const paid = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
+  await handleTicketPaid(
+    asDb(paid),
+    SECRET,
+    ticketSession({ payment_status: 'no_payment_required' }),
+  );
+  assert(
+    paid.calls.some((c) => c.table === 'rsvps'),
+    'a free ticket still books a seat',
+  );
+
+  const unpaid = makeFakeDb();
+  await assertRejects(
+    () => handleTicketPaid(asDb(unpaid), SECRET, ticketSession({ payment_status: 'unpaid' })),
+    Error,
+    'unsettled',
+  );
+  assertEquals(unpaid.calls.length, 0, 'nothing at all is written before the money exists');
+});
+
+Deno.test('an indeterminate upsert count writes no RSVP', async () => {
+  // The ticket half reads a null count as "inserted" (worst case: the old swallow). The mirror
+  // cannot afford the same guess: on that branch a pre-existing `pending` row is possible, and
+  // 20260831090931's exemption covers settled tickets only — so an RSVP written here would be a
+  // capacity candidate and could raise P0001 INSIDE the webhook, which releases the lease and
+  // 500s until Stripe disables the endpoint. A redelivery restates the mirror off the live-row
+  // branch; one buyer's missed reminder is the cheaper side of that trade.
+  const db = makeFakeDb(); // no script → count comes back null
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['event_tickets.upsert'],
+  );
+});
+
+Deno.test(
+  'the repair path mirrors, and a refunded replay does not resurrect the mirror',
+  async () => {
+    // A genuine re-purchase (NEW payment intent) flips the refunded ticket back to paid — and the
+    // RSVP with it, or the buyer is silently missing from their own event again.
+    const rebuy = makeFakeDb({
+      'event_tickets.upsert': [{ count: 0 }],
+      'event_tickets.select': [{ data: { status: 'refunded', stripe_payment_id: 'pi_old' } }],
+    });
+    await handleTicketPaid(asDb(rebuy), SECRET, ticketSession({ payment_intent: 'pi_2' }));
+    const mirrored = rebuy.calls.find((c) => c.table === 'rsvps');
+    assert(mirrored, 'a re-purchase re-books the seat');
+    assertEquals((mirrored.values as Record<string, unknown>).status, 'going');
+
+    // …but a redelivery of the ORIGINAL session after its refund carries the SAME payment intent.
+    // Re-issuing there would undo the revocation, and re-mirroring would put a refunded ticket
+    // holder back in «N partecipano».
+    const replay = makeFakeDb({
+      'event_tickets.upsert': [{ count: 0 }],
+      'event_tickets.select': [{ data: { status: 'refunded', stripe_payment_id: 'pi_1' } }],
+    });
+    await handleTicketPaid(asDb(replay), SECRET, ticketSession());
+    assertEquals(
+      replay.calls.filter((c) => c.table === 'rsvps'),
+      [],
+      'a replay of the refunded session writes no RSVP',
+    );
+  },
+);
+
 // ── W4 handleChargeRefunded ──────────────────────────────────────────────────
 
 Deno.test('handleChargeRefunded acks charges without payment_intent or matching row', async () => {
@@ -416,10 +513,11 @@ Deno.test('handleChargeRefunded acks charges without payment_intent or matching 
     payment_intent: 'pi_x',
   } as unknown as Stripe.Charge);
   // Fund rows are never updated on a miss — only the select ran, plus the guarded ticket
-  // revocation (a no-op update when nothing matches).
+  // revocation (a no-op update when nothing matches). The ticket SELECT in front of it is the
+  // #522 mirror lookup; it returns nothing here, so no rsvps write follows.
   assertEquals(
     db2.calls.map((c) => `${c.table}.${c.op}`),
-    ['fund_contributions.select', 'event_tickets.update'],
+    ['fund_contributions.select', 'event_tickets.select', 'event_tickets.update'],
   );
 });
 
@@ -449,7 +547,7 @@ Deno.test('handleChargeRefunded revokes the matching ticket at the door', async 
   await handleChargeRefunded(asDb(db), {
     payment_intent: { id: 'pi_1' },
   } as unknown as Stripe.Charge);
-  const revoke = db.calls.find((c) => c.table === 'event_tickets');
+  const revoke = db.calls.find((c) => c.table === 'event_tickets' && c.op === 'update');
   assert(revoke, 'expected an event_tickets update');
   assertEquals(revoke.op, 'update');
   assertEquals(revoke.values, { status: 'refunded', qr_token: null });
@@ -457,6 +555,65 @@ Deno.test('handleChargeRefunded revokes the matching ticket at the door', async 
     ['eq', 'stripe_payment_id', 'pi_1'],
     ['in', 'status', ['paid', 'checked_in']], // guard: a re-delivered reversal can't re-flip
   ]);
+});
+
+Deno.test('a reversal cancels the mirrored RSVP as well as the ticket', async () => {
+  // The seat is gone, so the reminder and the head-count go with it. Both reversal paths share
+  // revokeTicket, so both are asserted — a chargeback leaves exactly as little behind as a refund.
+  for (const [label, run] of [
+    [
+      'refund',
+      (db: FakeDb) =>
+        handleChargeRefunded(asDb(db), { payment_intent: 'pi_1' } as unknown as Stripe.Charge),
+    ],
+    [
+      'dispute',
+      (db: FakeDb) =>
+        handleDisputeCreated(asDb(db), { payment_intent: 'pi_1' } as unknown as Stripe.Dispute),
+    ],
+  ] as const) {
+    const db = makeFakeDb({
+      'fund_contributions.select': [{ data: [] }],
+      'event_tickets.select': [{ data: [{ user_id: 'prof-1', event_id: 'evt-row-1' }] }],
+    });
+    await run(db);
+
+    // The pair lookup runs BEFORE the guarded ticket flip: rsvps carries no payment column, and
+    // reading after the flip would return nothing on a retry — stranding the mirror at 'going'
+    // if a first delivery died between the two writes.
+    assertEquals(
+      db.calls.map((c) => `${c.table}.${c.op}`),
+      ['fund_contributions.select', 'event_tickets.select', 'event_tickets.update', 'rsvps.update'],
+      label,
+    );
+    const cancel = db.calls[3];
+    assertEquals(cancel.values, { status: 'cancelled' }, label);
+    assertEquals(
+      cancel.filters,
+      [
+        ['eq', 'user_id', 'prof-1'],
+        ['eq', 'event_id', 'evt-row-1'],
+        ['eq', 'status', 'going'], // idempotency guard: a redelivered reversal can't re-flip
+      ],
+      label,
+    );
+  }
+});
+
+Deno.test('a reversal of a charge that bought no ticket leaves rsvps alone', async () => {
+  // A fund contribution's refund reaches revokeTicket too. It must not touch the free path:
+  // the match is the ticket row carrying this payment intent, and there is none.
+  const db = makeFakeDb({
+    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+    'event_tickets.select': [{ data: [] }],
+  });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: 'pi_c1',
+  } as unknown as Stripe.Charge);
+  assertEquals(
+    db.calls.filter((c) => c.table === 'rsvps'),
+    [],
+  );
 });
 
 // ── W5/W6/W7/W11 handleSubscription ──────────────────────────────────────────
@@ -576,10 +733,10 @@ Deno.test('handleDisputeCreated acks disputes with no matching contribution', as
   const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
   await handleDisputeCreated(asDb(db2), { payment_intent: 'pi_x' } as unknown as Stripe.Dispute);
   // A disputed ticket never touches fund rows: no fund update, no aggregate recompute —
-  // just the select miss and the guarded ticket revocation.
+  // just the select miss, the #522 mirror lookup and the guarded ticket revocation.
   assertEquals(
     db2.calls.map((c) => `${c.table}.${c.op}`),
-    ['fund_contributions.select', 'event_tickets.update'],
+    ['fund_contributions.select', 'event_tickets.select', 'event_tickets.update'],
   );
 });
 
@@ -590,7 +747,7 @@ Deno.test('handleDisputeCreated revokes the matching ticket at the door', async 
   await handleDisputeCreated(asDb(db), {
     payment_intent: 'pi_1',
   } as unknown as Stripe.Dispute);
-  const revoke = db.calls.find((c) => c.table === 'event_tickets');
+  const revoke = db.calls.find((c) => c.table === 'event_tickets' && c.op === 'update');
   assert(revoke, 'expected an event_tickets update');
   assertEquals(revoke.values, { status: 'refunded', qr_token: null });
   assertEquals(revoke.filters, [
@@ -1094,6 +1251,10 @@ Deno.test('handleWebhook 500s when the disambiguating ledger read fails', async 
 
 Deno.test('handleWebhook happy path: lease claim → process → stamp processed_at', async () => {
   const db = makeFakeDb({
+    // count 1 = the ticket row was inserted. Scripted rather than left to the fake's `null`
+    // default, because an indeterminate count deliberately skips the #522 mirror — this test
+    // is about the pipeline around a ticket that really was issued.
+    'event_tickets.upsert': [{ count: 1 }],
     'stripe_webhook_events.update': [
       { data: [{ event_id: 'evt_1' }] }, // lease claim won
       { data: [{ event_id: 'evt_1' }] }, // processed_at stamp
@@ -1109,13 +1270,14 @@ Deno.test('handleWebhook happy path: lease claim → process → stamp processed
     'stripe_webhook_events.upsert',
     'stripe_webhook_events.update', // lease claim (claimed_at)
     'event_tickets.upsert',
+    'rsvps.upsert', // #522 — the mirror rides INSIDE the lease, before the completion stamp
     'stripe_webhook_events.update', // completion stamp AFTER successful processing
   ]);
   const ourClaim = (db.calls[1].values as Record<string, unknown>).claimed_at;
   assert(ourClaim);
-  assert((db.calls[3].values as Record<string, unknown>).processed_at);
+  assert((db.calls[4].values as Record<string, unknown>).processed_at);
   // the completion stamp is guarded on OUR lease — never stamps over a re-claim
-  assertEquals(db.calls[3].filters, [
+  assertEquals(db.calls[4].filters, [
     ['eq', 'event_id', 'evt_1'],
     ['eq', 'claimed_at', ourClaim],
   ]);
