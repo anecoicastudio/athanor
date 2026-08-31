@@ -107,7 +107,7 @@
 row **before** any work happens, and `processed_at` is stamped only after processing succeeded — so
 a row with `processed_at` still NULL is money Stripe has taken that Athanor has not acted on. The
 handler says so in as many words — "a standing, queryable alarm"
-(`supabase/functions/stripe-webhook/handlers.ts:46`), echoed as "a standing alarm" at `:580`.
+(`supabase/functions/stripe-webhook/handlers.ts:46`), echoed as "a standing alarm" at `:589`.
 Nothing queries it: no `pg_cron` job, no edge function, no Sentry rule.
 
 **Ruling (2026-08-21, #474): this stays a manual check the operator runs, not a built alarm.**
@@ -348,7 +348,7 @@ production. `packages/api/src/deploy-check.test.ts` pins that behaviour.
 questions. A migration that starts emitting a `notif.tpl.*` key the **deployed** `push-dispatch`
 does not know fails **silently and unrecoverably**:
 
-- `buildPushMessages` returns `[]` for an unknown key (`_shared/notif-templates.ts:271-272`);
+- `buildPushMessages` returns `[]` for an unknown key (`_shared/notif-templates.ts:277-278`);
 - `push-dispatch` returns `200 {sent:0,failed:0,pruned:0}` on the zero-message path **before**
   it reaches its `report()` log (`push-dispatch/logic.ts:152`), so there is no console line;
 - a 200 is a delivered dispatch, so the #521 outbox marks it done — **no retry, no
