@@ -1,4 +1,4 @@
-import { t } from '@athanor/i18n';
+import { localeTag, t } from '@athanor/i18n';
 import { getWaitlistCount, getWaitlistPage } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
 import { getLocale } from '@/lib/get-locale';
@@ -63,7 +63,7 @@ export default async function AdminWaitlist({
                 <td className="py-2">{r.email}</td>
                 <td className="py-2 text-muted-foreground">{r.source ?? '—'}</td>
                 <td className="py-2 text-muted-foreground">
-                  {new Date(r.created_at).toLocaleDateString(locale)}
+                  {new Date(r.created_at).toLocaleDateString(localeTag(locale))}
                 </td>
               </tr>
             ))}

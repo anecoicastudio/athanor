@@ -2139,3 +2139,56 @@ describe('every colour class names a token that exists (#595)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 27 — a date/time formatter always speaks localeTag(), never a bare Locale (#502)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `toLocaleDateString(locale)` compiles: `Locale` is `'it' | 'en'`, both are valid BCP-47
+ * tags, and `'en'` resolves byte-identically to en-US — month-first dates and a 12-hour
+ * clock on a member-facing surface whose canonical language pairs Italian with en-GB.
+ * That is #502: the chat day separator shipped American dates for anyone in English, and
+ * no grep for `'en-US'` could find it, because the literal never appears. The mapping has
+ * one home, `localeTag()` (`packages/i18n/src/locale-tag.ts`), and `locale-tag.test.ts`
+ * pins `en-GB ≠ en-US`; this section makes the raw form unable to recur here.
+ *
+ * The rule is per call line: any `toLocaleDateString` / `toLocaleTimeString` /
+ * `toLocaleString` / `new Intl.DateTimeFormat` / `new Intl.NumberFormat` must name
+ * `localeTag(` on the same line. Every conforming site does (`lib/time.ts`,
+ * `(modal)/star.tsx`), because the tag is the first argument. A zero-argument call is a
+ * violation too — it formats in the DEVICE locale, which is not the signed-in locale §14
+ * resolves. The one deliberate exception is `lib/locale.ts`'s
+ * `Intl.DateTimeFormat().resolvedOptions().locale`: that call is not formatting anything —
+ * it is how the device locale is DISCOVERED before any profile exists, which is the single
+ * place the device locale is allowed to matter.
+ *
+ * ## What it cannot see
+ *
+ * A call whose argument list wraps to the next line would slip through the same-line
+ * check; none exists today, and the remedy is to keep the tag on the call line. The two
+ * `apps/web` halves of #502 (the countdown, the admin waitlist) are out of this file's
+ * reach — this suite walks `apps/native/src` only — so the web form CAN recur; it went
+ * through review with that recorded rather than growing a second audit file.
+ */
+describe('date/time formatting always goes through localeTag() (#502)', () => {
+  const FORMATTER =
+    /\.toLocale(?:Date|Time)?String\s*\(|new\s+Intl\.(?:DateTimeFormat|NumberFormat)\s*\(/;
+  const DEVICE_LOCALE_PROBE = 'lib/locale.ts';
+
+  it('every formatter call site names localeTag on the call line', () => {
+    const hits = codeLines().filter(
+      ([where, text]) =>
+        FORMATTER.test(text) &&
+        !text.includes('localeTag(') &&
+        !where.includes(DEVICE_LOCALE_PROBE),
+    );
+    expect(
+      hits.map(([where, text]) => `${where}  ${text.trim().slice(0, 120)}`),
+      `a date/time formatter without localeTag():\n` +
+        `A bare Locale ('en') resolves to en-US and a zero-argument call resolves to the ` +
+        `device locale; both drift from the it-IT/en-GB pair the app speaks. Pass ` +
+        `localeTag(locale) from @athanor/i18n as the first argument (#502).`,
+    ).toEqual([]);
+  });
+});
