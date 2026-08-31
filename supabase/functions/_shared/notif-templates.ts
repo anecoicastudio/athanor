@@ -231,6 +231,21 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: () => "Voting closes tomorrow. If you haven't voted yet, now is the time.",
     },
   },
+  // #602 — the moderation queue alert, two keys on one type. Grammatical split, as with the
+  // fund's *Countdown/*LastDay pair: {count} has no plural support. `count` is the ONLY param
+  // either key reads, deliberately — this body renders on a lock screen, and #97 scopes the
+  // admin read path to reported content, so no handle, note excerpt or report id belongs here.
+  'notif.tpl.reportQueue': {
+    it: {
+      title: 'Le segnalazioni',
+      body: (p) => `${p.count ?? 0} segnalazioni aspettano il tuo sguardo.`,
+    },
+    en: { title: 'Reports', body: (p) => `${p.count ?? 0} reports are waiting for you.` },
+  },
+  'notif.tpl.reportQueueOne': {
+    it: { title: 'Le segnalazioni', body: () => 'Una segnalazione aspetta il tuo sguardo.' },
+    en: { title: 'Reports', body: () => 'One report is waiting for you.' },
+  },
 };
 
 const ROUTE: Record<string, string> = {
@@ -249,6 +264,10 @@ const ROUTE: Record<string, string> = {
   gdprExport: 'data-export',
   // #127: matches notification-route.ts's arm — every fund broadcast opens the annual screen.
   fundMilestone: 'annual',
+  // #602: like 'moderation', there is nothing in this app to open — the moderation queue is a
+  // web surface. Lands on the notification centre. The `?? 'momenti'` fallback below is what
+  // makes an omission here silent, which is why the row is explicit.
+  reportQueue: 'trust',
 };
 
 export type DispatchInput = {

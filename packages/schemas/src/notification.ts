@@ -41,6 +41,15 @@ export const NOTIFICATION_TYPES = [
   // «Your archive is ready» (#129, gdpr_export_jobs status→ready). Same no-PREF_ROWS stance
   // as 'moderation': the delivery of a member's own data must not be mutable by type.
   'gdprExport',
+  // #602: the moderation queue alert. Its recipient is not a member but the WATCHER — the
+  // admin role, read from app_metadata — so it is the one type in this set that is never
+  // about the person receiving it. A new type rather than a template key on 'moderation'
+  // for the reason stated at the top of this list: a second key rides an existing type only
+  // when lead, glyph, route and toggle are shared, and 'moderation' is a notice TO a
+  // sanctioned member («Un richiamo», the warning triangle). Same no-PREF_ROWS stance as
+  // 'moderation' and 'gdprExport', for a sibling reason: a watcher must not be able to
+  // silence the moderation queue from a preferences screen.
+  'reportQueue',
 ] as const;
 export const notificationType = z.enum(NOTIFICATION_TYPES);
 export type NotificationType = z.infer<typeof notificationType>;
@@ -89,6 +98,13 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.fundAnnounceLastDay',
   'notif.tpl.fundBallotCountdown',
   'notif.tpl.fundBallotLastDay',
+  // #602, both on type 'reportQueue'. The split is grammatical, exactly as the fund's
+  // *Countdown/*LastDay pair: `t()` interpolates {count} with no plural support, so
+  // «Ci sono 1 segnalazioni» cannot be served by the plural key. Neither carries a report
+  // id, a handle or any note text — the params are a count and nothing else (#97 scopes the
+  // admin read path to reported content, and push params render on a lock screen).
+  'notif.tpl.reportQueue',
+  'notif.tpl.reportQueueOne',
   'notif.tpl.generic',
 ] as const;
 export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);

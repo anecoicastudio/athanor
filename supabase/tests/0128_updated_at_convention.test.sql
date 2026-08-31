@@ -60,8 +60,9 @@ select bag_eq(
             ('public.messages'),
             ('public.post_reactions'),
             ('public.story_reactions'),
-            ('public.stripe_webhook_events') $$,
-  'the exempt set is exactly these sixteen tables');
+            ('public.stripe_webhook_events'),
+            ('athanor.report_alert_sends') $$,
+  'the exempt set is exactly these seventeen tables');
 
 select * from finish();
 rollback;

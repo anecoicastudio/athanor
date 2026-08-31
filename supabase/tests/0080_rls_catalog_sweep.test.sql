@@ -81,14 +81,18 @@ select is_empty(
 --           `public` for the same reason as the two send markers above: no client role has any
 --           business seeing another member's pending notification body, and the schema is not
 --           exposed to PostgREST at all.
+-- 60 -> 61: athanor.report_alert_sends (issue #602), covered by 0140_report_queue_alert. The
+--           third send marker, and in `athanor` for the same reason as the first two — except
+--           that here the alternative was a column on `reports`, which carries a client INSERT
+--           grant: a marker there would ride a row the reporter writes.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  60,
-  'PRD.md:417 tripwire: 60 tables, each with its own pgTAP file (bump only WITH a new test)'
+  61,
+  'PRD.md:417 tripwire: 61 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────

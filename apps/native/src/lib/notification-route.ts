@@ -34,6 +34,12 @@ export function routeForNotification(n: Notification): string | null {
     case 'gdprExport':
       // #129: the download button lives on the Data Export modal (Settings → I tuoi dati).
       return '/(modal)/data-export';
+    case 'reportQueue':
+      // #602: the moderation queue is a WEB surface (apps/web /admin) and this app has no
+      // admin screen at all — #311 is where one would land, and it is partner-owned. There is
+      // nothing here to open, so the row marks itself read and stays put, exactly as
+      // 'moderation' does. The copy carries the whole signal: how many are waiting.
+      return null;
     default:
       return null;
   }

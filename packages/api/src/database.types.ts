@@ -3512,6 +3512,7 @@ export type Database = {
       }
       redeem_pending_referral: { Args: { p_code: string }; Returns: undefined }
       release_event_seat: { Args: { p_event_id: string }; Returns: undefined }
+      report_queue_alert_sweep: { Args: never; Returns: undefined }
       resolve_report: {
         Args: {
           p_action: string
