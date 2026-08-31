@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, type FlatList as RNFlatList } from 'react-native';
+import { Alert, Image, Platform, type FlatList as RNFlatList } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +22,7 @@ import { Input } from '@/components/Input';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
+import { MessageActionsSheet } from '@/components/chat/MessageActionsSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
@@ -57,6 +58,13 @@ export default function ChatScreen() {
   // older history (scroll-up pagination) doesn't yank the reader back to the bottom.
   const atBottomRef = useRef(true);
   const [draft, setDraft] = useState('');
+  // The peer message whose action sheet is open (#574), and — on iOS only — the one whose
+  // report screen is queued behind the sheet's dismissal. Two pieces of state rather than one
+  // because they are true at different moments: the sheet is open, THEN it is gone and the
+  // push may happen. See MessageActionsSheet's onDismissed for why the push cannot ride along
+  // with the close.
+  const [actionsFor, setActionsFor] = useState<Message | null>(null);
+  const queuedReport = useRef<Message | null>(null);
   // The staged image, one per message (#155). `mediaId` is minted at PICK time, not at send:
   // a failed send retried from the same staging re-uploads to the SAME key (upsert), instead
   // of orphaning an object per attempt.
@@ -207,6 +215,12 @@ export default function ChatScreen() {
       ? t('aura.unknown', locale)
       : t('chat.peerAura', locale, { score: peerScore });
 
+  const openReport = (message: Message) =>
+    router.push({
+      pathname: '/(modal)/report',
+      params: { targetType: 'message', targetId: message.id },
+    });
+
   const openMenu = () =>
     Alert.alert(t('chat.a11y.menu', locale), undefined, [
       {
@@ -308,6 +322,12 @@ export default function ChatScreen() {
                 peer={peerIdentity}
                 mediaUrl={item.message.media_url ? mediaUrls[item.message.media_url] : undefined}
                 mediaLoading={mediaUrlsLoading}
+                // The peer's own words only. Reporting your own message names nobody, and an
+                // ice-breaker is server-authored copy with no author — Bubble returns before
+                // the affordance for those, and this gate says so at the call site too.
+                {...(item.message.kind === 'user' && item.message.sender_id !== myId
+                  ? { onLongPress: () => setActionsFor(item.message) }
+                  : {})}
                 // The face sits on the LAST bubble of a run, beside the row it is bottom-aligned
                 // to. A run ends when the next row is a day marker, the end of the thread, or a
                 // message from anyone else.
@@ -429,6 +449,29 @@ export default function ChatScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Mounted unconditionally, `visible` toggled: the iOS report push is queued behind
+          this Modal's onDismiss, and a conditional render would unmount it before that fires. */}
+        <MessageActionsSheet
+          visible={actionsFor !== null}
+          locale={locale}
+          onClose={() => setActionsFor(null)}
+          onReport={() => {
+            const target = actionsFor;
+            setActionsFor(null);
+            if (!target) return;
+            if (Platform.OS === 'ios') {
+              queuedReport.current = target;
+              return;
+            }
+            openReport(target);
+          }}
+          onDismissed={() => {
+            const target = queuedReport.current;
+            queuedReport.current = null;
+            if (target) openReport(target);
+          }}
+        />
 
         {/* Kept mounted (visible={false}), never conditionally rendered: the iOS
           close-then-launch dance queues the picker on this Modal's onDismiss. */}

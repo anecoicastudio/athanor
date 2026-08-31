@@ -3,10 +3,12 @@ import {
   AUDIT_LOG_ACTIONS,
   adminFundEditionRow,
   adminReportDetail,
+  adminReportedMessage,
   adminReportRow,
   auditLogRow,
   resolveReportInput,
 } from './admin.ts';
+import { REPORT_TARGET_TYPES } from './report.ts';
 
 describe('resolveReportInput', () => {
   it('accepts a dismiss verdict without severity', () => {
@@ -298,14 +300,20 @@ describe('admin read shapes', () => {
     ]);
   });
 
-  it('target_type is the reports vocabulary — person, post, behavior — and nothing else', () => {
-    expect(adminReportRow.shape.target_type.options).toEqual(['person', 'post', 'behavior']);
-    for (const bad of ['comment', 'event', 'message', '']) {
+  // Not a hand-written list any more (#574): the queue's enum IS `reportTargetType`, so this
+  // asserts the DERIVATION rather than a second copy that has to be remembered. Comparing
+  // against REPORT_TARGET_TYPES is what makes it fail if the two ever come apart again — a
+  // literal here would go on passing while the reporter side widened underneath it, which is
+  // precisely how 'message' came to be admitted by the CHECK and refused by the panel.
+  it('target_type is the reports vocabulary itself, derived — and nothing else', () => {
+    expect(adminReportRow.shape.target_type.options).toEqual([...REPORT_TARGET_TYPES]);
+    expect(adminReportRow.shape.target_type.options).toContain('message');
+    for (const bad of ['comment', 'event', 'thread', '']) {
       expect(adminReportRow.shape.target_type.safeParse(bad).success).toBe(false);
     }
   });
 
-  it('the detail is the queue row plus note, resolution, target handle and the audit trail with its withheld count', () => {
+  it('the detail is the queue row plus note, resolution, target handle, the audit trail with its withheld count, and the reported message with its state', () => {
     expect(Object.keys(adminReportDetail.shape)).toEqual([
       'id',
       'target_type',
@@ -319,7 +327,50 @@ describe('admin read shapes', () => {
       'target_handle',
       'audit',
       'auditExcluded',
+      'reportedMessage',
+      'reportedMessageState',
     ]);
+  });
+
+  // The four ways a null can happen, named. A single null would present an RLS regression on
+  // the evidence policy as an erasure — the one dressing in which nobody investigates it.
+  it('names why the reported message is absent rather than collapsing four facts into null', () => {
+    expect(adminReportDetail.shape.reportedMessageState.options).toEqual([
+      'notApplicable',
+      'present',
+      'absent',
+      'unreadable',
+      'withheld',
+    ]);
+    expect(adminReportDetail.shape.reportedMessageState.safeParse('gone').success).toBe(false);
+  });
+
+  // The evidence shape is the privacy boundary written down (#574 / #97's ruling). A
+  // conversation id here would be the affordance that turns "the reported message" into "the
+  // thread it came from" — so the absence is asserted, not merely arranged.
+  it('the reported message carries no conversation id and no thread handle', () => {
+    expect(Object.keys(adminReportedMessage.shape)).toEqual([
+      'id',
+      'body',
+      'media_url',
+      'created_at',
+      'sender_handle',
+    ]);
+    expect(Object.keys(adminReportedMessage.shape)).not.toContain('conversation_id');
+  });
+
+  it('accepts an image-only reported message and a text-only one', () => {
+    const base = {
+      id: '00000000-0000-0000-0000-0000000000a1',
+      created_at: '2026-08-31T10:00:00Z',
+      sender_handle: 'marco',
+    };
+    expect(
+      adminReportedMessage.safeParse({ ...base, body: null, media_url: 'a/b/c.jpg' }).success,
+    ).toBe(true);
+    expect(adminReportedMessage.safeParse({ ...base, body: 'ciao', media_url: null }).success).toBe(
+      true,
+    );
   });
 });
 

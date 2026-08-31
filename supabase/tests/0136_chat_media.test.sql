@@ -23,7 +23,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(46);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'chatmedia_a@test.dev'),
@@ -94,16 +94,23 @@ select is(
   'chat-media accepts exactly image/jpeg (#582)'
 );
 
--- ── the policy set is exactly the three we own ───────────────────────────────────────
--- No delete policy, deliberately (migration §2): nothing consumes one, and it would let a
+-- ── the policy set is exactly the four we own ────────────────────────────────────────
+-- No delete policy, deliberately (20260827054252 §2): nothing consumes one, and it would let a
 -- sender delete the bytes out from under a delivered message.
+--
+-- The fourth arrived with #574: `chat-media_select_reported` is the moderator's read of a
+-- REPORTED object, and it is the one policy in this family that is not participant-scoped —
+-- deliberately, because #97's ruling (2026-08-30) scopes the admin read to reported content
+-- and a membership predicate would be the conversation-wide reach it forbids. Several
+-- assertions below therefore had to learn the difference between "every chat-media policy" and
+-- "every participant chat-media policy"; each says which it means and why.
 select set_eq(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'chat-media\_%' $$,
   $$ values ('chat-media_insert_own'), ('chat-media_update_own'),
-            ('chat-media_select_participant') $$,
-  'exactly the three chat-media policies exist on storage.objects (no delete)'
+            ('chat-media_select_participant'), ('chat-media_select_reported') $$,
+  'exactly the four chat-media policies exist on storage.objects (no delete)'
 );
 
 -- ── spec assertions on the predicates (0014 patterns, scoped to chat-media) ──────────
@@ -155,16 +162,42 @@ select is_empty(
         and (qual is null or with_check is null) $$,
   'the chat-media UPDATE policy carries both USING and WITH CHECK'
 );
--- Every chat-media policy — reads AND writes — must reach into public.conversations: the
--- membership EXISTS is what makes the bucket participant-scoped rather than members-wide,
+-- Every chat-media policy EXCEPT the reported-content arm must reach into public.conversations:
+-- the membership EXISTS is what makes the bucket participant-scoped rather than members-wide,
 -- which is the entire reason `moments` could not host these bytes.
+--
+-- The exclusion is named, not a wildcard, so a FIFTH policy cannot slip out of this assertion
+-- by being new: anything not on this list still owes the membership predicate.
 select is_empty(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'chat-media\_%'
+        and policyname <> 'chat-media_select_reported'
         and coalesce(qual, '') || ' ' || coalesce(with_check, '')
             not like '%participant_a%' $$,
-  'every chat-media policy carries the conversation-membership EXISTS'
+  'every participant chat-media policy carries the conversation-membership EXISTS'
+);
+-- …and the one exception pays for itself with a NARROWER gate, not with no gate. It is
+-- admin-only and joined to a report that names the message this object belongs to, so an
+-- object becomes readable only while some report points at it. Both halves asserted: an
+-- admin-only policy with no report join would hand a moderator the whole bucket, and a report
+-- join with no admin gate would hand every member the objects other people reported.
+select ok(
+  (select qual like '%is_admin%' and qual like '%reports%' and qual like '%target_type%'
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'chat-media_select_reported'),
+  'the reported-content read is gated on BOTH is_admin() and a report naming the message'
+);
+-- The privacy line from #97's ruling, as a property of the predicate: this policy must not
+-- mention the conversation at all. Reaching `conversations` here — even innocently, even as an
+-- extra safety conjunct — is how "the reported message" becomes "the thread it came from".
+select ok(
+  (select qual not like '%participant_a%' and qual not like '%conversation%'
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'chat-media_select_reported'),
+  'the reported-content read never mentions the conversation (reported content only, #97)'
 );
 select is_empty(
   $$ select policyname::text from pg_policies
@@ -181,17 +214,24 @@ select is_empty(
 -- guard-before-cast property itself had regressed. What 20260808151808 established is an
 -- ORDERING: the shape guard has to precede `::uuid` in the predicate, so a malformed key denies
 -- instead of raising inside the clause. Assert that.
+--
+-- Scoped to the policies that actually CAST, which is what the property is about. #574's
+-- reported-content arm parses no path at all — it compares the object's whole name to
+-- `messages.media_url` — so it has no cast to raise inside and nothing to guard. Written as
+-- "every policy must contain a uuid class", it would have failed a policy that is safe by
+-- having no unsafe operation, which is the wrong shape of test. The `::uuid` predicate below
+-- keeps the ordering requirement binding for every policy that does cast, new ones included.
 select is_empty(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'chat-media\_%'
+        and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid') > 0
         and not (
           strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '[0-9a-f]{8}') > 0
-          and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid') > 0
           and strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '[0-9a-f]{8}')
               < strpos(coalesce(qual, '') || ' ' || coalesce(with_check, ''), '::uuid')
         ) $$,
-  'every chat-media policy uuid-shape-guards the key BEFORE the ::uuid cast (position, not presence)'
+  'every chat-media policy that casts uuid-shape-guards the key BEFORE the ::uuid cast (position, not presence)'
 );
 
 -- ── the whole-key pin (#575) ─────────────────────────────────────────────────────────

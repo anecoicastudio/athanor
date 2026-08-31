@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { trimmedNonBlank } from './primitives.ts';
 import { fundEditionSchema } from './fund.ts';
+import { messageSchema } from './message.ts';
+import { reportTargetType } from './report.ts';
 
 /** Moderation severity → maps to REPORT_PENALTY in @athanor/core (rule #10). */
 export const REPORT_SEVERITIES = ['low', 'medium', 'high'] as const;
@@ -138,7 +140,12 @@ export type AuditLogRow = z.infer<typeof auditLogRow>;
 /** Admin queue row shape (read from reports table + reporter join). */
 export const adminReportRow = z.object({
   id: z.string().uuid(),
-  target_type: z.enum(['person', 'post', 'behavior']),
+  // DERIVED from `reportTargetType`, not re-declared (rules/schemas.md). It was a second copy
+  // until #574, and the copy is exactly what went stale: widening the CHECK with 'message'
+  // moved the reporter-side vocabulary and left the admin queue refusing the rows it now had
+  // to render. One entity, one spelling — a third target type only has to be added in
+  // `report.ts` and in the migration that widens the CHECK.
+  target_type: reportTargetType,
   target_id: z.string().uuid().nullable(),
   category: z.string(),
   status: z.string(),
@@ -146,6 +153,54 @@ export const adminReportRow = z.object({
   reporter_handle: z.string().nullable(),
 });
 export type AdminReportRow = z.infer<typeof adminReportRow>;
+
+/**
+ * The reported message itself — the evidence a `target_type = 'message'` report points at (#574).
+ *
+ * Derived from `messageSchema` rather than re-declared (rules/schemas.md), then narrowed to the
+ * four columns the panel renders. The narrowing is the point: `conversation_id` is deliberately
+ * NOT here. #97's ruling (2026-08-30) scopes the admin read to reported content only, and a
+ * conversation id on an admin surface is an invitation to widen the query to the thread — the
+ * one thing the ruling forbids. `sender_handle` rides along because the verdict lands on the
+ * sender (`resolve_report` v5 resolves the subject the same way), and a moderator who cannot
+ * see whose message it is cannot judge it.
+ *
+ * `media_url` is a `chat-media` storage KEY, never a URL (20260827054252). The panel signs it
+ * per render; nothing persists a signed URL.
+ */
+export const adminReportedMessage = messageSchema
+  .pick({ id: true, body: true, media_url: true, created_at: true })
+  .extend({ sender_handle: z.string().nullable() });
+export type AdminReportedMessage = z.infer<typeof adminReportedMessage>;
+
+/**
+ * Why `adminReportDetail.reportedMessage` holds what it holds.
+ *
+ * A single `null` would collapse four different facts into one, and on an evidence surface they
+ * are not interchangeable: «this report does not name a message», «the message is gone», «the
+ * read failed» and «the row did not match its schema» call for different sentences and, for the
+ * last two, for someone to go and look. An RLS regression on `messages_select_reported` would
+ * otherwise reach the moderator dressed as an erasure.
+ *
+ * This is `auditExcluded`'s discipline (#421, rules/api.md) applied to a read that returns at
+ * most ONE row: a count would only ever be 0 or 1 and would say nothing a null does not, so the
+ * withheld thing is named instead of counted.
+ *
+ * Invariant: `state === 'present'` exactly when `reportedMessage !== null`. Held by
+ * construction in `getReportDetail` and asserted case by case in `packages/api/src/admin.test.ts`,
+ * where every ending pins both fields together — a Zod object cannot express a cross-field rule
+ * without a `.refine()`, and adding one here would turn this into a `ZodEffects` with no
+ * `.shape`, which the key-list assertions read. The schemas suite pins the vocabulary instead.
+ */
+export const REPORTED_MESSAGE_STATES = [
+  'notApplicable',
+  'present',
+  'absent',
+  'unreadable',
+  'withheld',
+] as const;
+export const reportedMessageState = z.enum(REPORTED_MESSAGE_STATES);
+export type ReportedMessageState = z.infer<typeof reportedMessageState>;
 
 /**
  * Admin detail shape (report + audit trail + target handle).
@@ -163,6 +218,15 @@ export const adminReportDetail = adminReportRow.extend({
   target_handle: z.string().nullable(),
   audit: z.array(auditLogRow),
   auditExcluded: z.number().int().nonnegative(),
+  /**
+   * The reported message, on a `'message'` report only (#574) — null everywhere else, and null
+   * on a message report whose target no longer resolves: `reports.target_id` has no FK, so an
+   * erased or soft-deleted message leaves the report pointing at nothing. Read it together with
+   * `reportedMessageState`, which is what says WHICH of those a null is.
+   */
+  reportedMessage: adminReportedMessage.nullable(),
+  /** Why `reportedMessage` is what it is — see {@link REPORTED_MESSAGE_STATES}. */
+  reportedMessageState,
 });
 export type AdminReportDetail = z.infer<typeof adminReportDetail>;
 

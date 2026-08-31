@@ -16,6 +16,28 @@ This is not a changelog. Only add an entry when a comment in an applied migratio
 
 ---
 
+## `20260831153523_reports_target_type_message.sql` — "no policy in this schema mentions `target_type`" is false of its own sibling
+
+The header at `:18-19` reads «Nothing else in the table's security surface moves: no policy in
+this schema mentions `target_type` …». That is true of the three policies on `reports` itself
+(`reports_select_own`, `reports_insert_own`, `reports_select_admin` all key on `reporter_id` or
+`athanor.is_admin()`), and it was the point being made — widening the CHECK forces no policy
+change on `reports`. But "in this schema" is wider than the sentence needed, and the very next
+migration in the same commit falsifies it: `20260831153525_message_report_evidence_read.sql`
+creates `messages_select_reported` on `public.messages` and `chat-media_select_reported` on
+`storage.objects`, and BOTH key on `r.target_type = 'message'`.
+
+Read it as «no policy **on `reports`** mentions `target_type`». The substantive claim the
+paragraph exists to make is unaffected and still true: this migration changes no policy, no
+grant, and no `0121` row, because `reports` already grants `SELECT, INSERT` to `authenticated`
+(`0121:115`) and the widening touches neither.
+
+Asserted by: `supabase/tests/0141_message_reports.test.sql` §B, which reads the two new
+policies' predicates out of `pg_policies` — including the assertion that the evidence policy is
+"scoped through the report join", which is exactly the `target_type` reference the header says
+does not exist. `0053_reports_rls.test.sql:14-16` holds the unchanged three-policy list on
+`reports`.
+
 ## `20260828083140_publish_post_atomic.sql` — "The BYTES are not swept" is now superseded
 
 The comment at `:159`, immediately above the row sweep, reads «The BYTES are not swept. Objects

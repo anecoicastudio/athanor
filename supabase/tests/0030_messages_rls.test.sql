@@ -22,8 +22,13 @@ reset role;
 select has_table('public', 'messages', 'messages exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.messages'::regclass),
   'RLS enabled on messages');
+-- `messages_select_reported` (#574, 20260831153525) is the admin's evidence arm: it admits a
+-- message a report NAMES, and nothing else. It is asserted in full — predicate and behaviour,
+-- including what it must not reach — in 0141; here it only has to be in the list, because this
+-- list is exhaustive and a fourth permissive policy appearing unannounced is the thing it
+-- exists to catch.
 select policies_are('public', 'messages',
-  array['messages_select_participant', 'messages_insert_own_user',
+  array['messages_select_participant', 'messages_select_reported', 'messages_insert_own_user',
         'active_write_insert', 'active_write_update', 'active_write_delete'], 'expected policies');
 
 set local role authenticated;

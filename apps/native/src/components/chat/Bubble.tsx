@@ -10,6 +10,21 @@ import { MediaFrame } from '@/components/media/MediaFrame';
 /** Small enough to sit under a bubble's last line without stealing width from the text. */
 const AVATAR_SIZE = 28;
 
+/** Module-scope so the array is not rebuilt on every bubble render of a long thread. */
+const LONG_PRESS_ACTION = [{ name: 'longpress' as const }];
+
+/**
+ * What a screen reader announces for a peer bubble that carries the action sheet.
+ *
+ * An image-only message has no text of its own, so «Foto» is the whole label — without it the
+ * button would announce as nothing but its hint. A captioned image announces both, image
+ * first, matching the order the bubble renders them in.
+ */
+function bubbleLabel(message: Message, locale: Locale): string {
+  const photo = message.media_url ? t('chat.a11y.imageMessage', locale) : null;
+  return [photo, message.body].filter(Boolean).join(', ');
+}
+
 /**
  * Fixed frame for a chat image (#155). `messages` stores no width/height (unlike `post_media`),
  * so the ratio cannot be per-row data: one landscape box, image covered, keeps a thread's
@@ -62,6 +77,7 @@ export function Bubble({
   showPeerAvatar = false,
   mediaUrl,
   mediaLoading = false,
+  onLongPress,
 }: {
   message: Message;
   myId: string;
@@ -74,6 +90,13 @@ export function Bubble({
   mediaUrl?: string;
   /** That signing query's `isLoading` — what separates "signing" from "gone" (#135). */
   mediaLoading?: boolean;
+  /**
+   * Opens the per-message action sheet (#574). Passed for the PEER's bubbles only — reporting
+   * your own message names nobody, and an ice-breaker is server-authored copy with no author
+   * to report. Absent means the bubble stays a plain View: the affordance is what makes the
+   * surface an accessibility element, so a bubble that has none must not become one.
+   */
+  onLongPress?: () => void;
 }) {
   const router = useRouter();
   if (message.kind === 'system' || message.kind === 'prompt') {
@@ -136,9 +159,30 @@ export function Bubble({
           </Pressable>
         ) : null}
       </View>
-      <View className={`flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`}>
-        {content('text-foreground')}
-      </View>
+      {onLongPress ? (
+        <Pressable
+          className={`flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`}
+          onLongPress={onLongPress}
+          // The gesture, declared. RN fires `onAccessibilityAction` for the standard
+          // 'longpress' action, which is the only way a screen-reader user reaches a long
+          // press at all — without it the sheet would be mouse-and-finger only.
+          accessibilityActions={LONG_PRESS_ACTION}
+          onAccessibilityAction={onLongPress}
+          accessibilityRole="button"
+          // ONE composed label (the MomentTile precedent, #292): a Pressable is an
+          // accessibility element and on iOS an atomic one, so anything `accessible` nested
+          // inside it — the image frame's own label — may never be spoken. It has to ride the
+          // button's label instead.
+          accessibilityLabel={bubbleLabel(message, locale)}
+          accessibilityHint={t('chat.a11y.messageActions', locale)}
+        >
+          {content('text-foreground')}
+        </Pressable>
+      ) : (
+        <View className={`flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`}>
+          {content('text-foreground')}
+        </View>
+      )}
     </View>
   );
 }
