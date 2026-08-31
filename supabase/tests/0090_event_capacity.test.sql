@@ -14,7 +14,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(31);
 
 -- organizer A + members B, C, D (handle_new_user auto-creates profiles)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -245,7 +245,10 @@ reset role;
 -- lock and against the same capacity, so a member who holds one is exempt.
 --
 -- The exemption is per-holder and deliberately NOT "exclude ticket holders from the count":
--- mirrored rows still count, so nobody who paid nothing can appear beside people who did.
+-- mirrored rows still count, so nobody who paid nothing can appear beside people who did. It is
+-- also SETTLED tickets only (20260831090931): a pending claim expires by predicate and the RSVP
+-- it would have admitted does not, so the wider seat-holding predicate would have let somebody
+-- open a Checkout they never paid and sit in the count forever.
 
 -- The paid event has capacity 2. Bring it to capacity in rsvps terms the way the webhook would.
 -- B's row is a live claim again (re-claimed after the refund above) — pay it.
@@ -280,6 +283,25 @@ insert into public.event_tickets (user_id, event_id, status, stripe_payment_id)
 select lives_ok($$ insert into public.rsvps (user_id, event_id, status)
   values ('44444444-4444-4444-4444-444444444444','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','going') $$,
   'a ticket holder''s mirror is admitted at capacity — the seat was arbitrated on the paid path');
+reset role;
+
+-- …and a LIVE pending claim does not exempt, which is what separates this predicate from
+-- event_seats_taken's. C gives up their going row and opens a fresh 30-minute claim; B and D
+-- (both settled) fill the capacity, so C is refused. Under the pre-20260831090931 predicate C
+-- would have been waved through and stayed counted after the claim lapsed.
+set local role service_role;
+update public.rsvps set status='cancelled'
+  where user_id='33333333-3333-3333-3333-333333333333'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+update public.event_tickets
+   set status='pending', expires_at = now() + interval '30 minutes', stripe_payment_id = null
+ where user_id='33333333-3333-3333-3333-333333333333'
+   and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+select throws_ok($$ update public.rsvps set status='going'
+  where user_id='33333333-3333-3333-3333-333333333333'
+    and event_id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' $$,
+  'P0001', 'sold out',
+  'an unexpired pending CLAIM is not a seat — only a settled ticket exempts');
 reset role;
 
 select * from finish();

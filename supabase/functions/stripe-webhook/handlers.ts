@@ -86,10 +86,12 @@ function refId(ref: unknown): string | null {
  * A throw here 500s the delivery and Stripe retries, which is right for a transient failure and
  * would be catastrophic for a permanent one — `handleWebhook`'s lease is released and sustained
  * 5xx gets the endpoint disabled. The one permanent refusal this write could hit is the free
- * path's capacity trigger (`P0001 'sold out'`), and 20260831085517 is what makes it unreachable:
- * a member who already holds a seat on the paid path is exempt, because a mirrored RSVP is not a
- * second seat. Do not add a catch here without reading that migration's header — swallowing the
- * error would hide a real schema fault instead.
+ * path's capacity trigger (`P0001 'sold out'`), and 20260831090931 is what makes it unreachable:
+ * a member whose ticket has SETTLED is exempt, because a mirrored RSVP is not a second seat. That
+ * exemption is narrower than the seat-holding predicate on purpose, and this function is why it
+ * can be: every branch that reaches the mirror has already put the ticket row at 'paid'. Do not
+ * add a catch here without reading that migration's header — swallowing the error would hide a
+ * real schema fault instead.
  */
 async function mirrorRsvp(db: Db, eventId: string, userId: string): Promise<void> {
   const { error } = await db

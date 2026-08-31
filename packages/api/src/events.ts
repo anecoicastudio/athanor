@@ -336,7 +336,7 @@ export async function registerAthanorDaysInterest(
  *
  * No longer the table's only writer: stripe-webhook mirrors a settled ticket as a going row
  * (#522). Nothing here has to know that — the mirror is an ordinary row, and the capacity gate
- * exempts a member who already holds a seat on the paid path (20260831085517).
+ * exempts a member whose ticket has settled (20260831090931).
  */
 export async function upsertRsvp(
   client: AthanorClient,
