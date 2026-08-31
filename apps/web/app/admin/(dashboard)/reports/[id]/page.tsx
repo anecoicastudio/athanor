@@ -1,12 +1,16 @@
 import { notFound } from 'next/navigation';
 import { localeTag, t } from '@athanor/i18n';
-import { getReportDetail } from '@athanor/api';
+import { getReportDetail, signMediaUrls } from '@athanor/api';
 import { createAuthedClient } from '@/utils/supabase/server';
 import { getLocale } from '@/lib/get-locale';
 import { VerdictForm } from '@/components/admin/VerdictForm';
 import { AuditTrail } from '@/components/admin/AuditTrail';
+import { ReportedMessage } from '@/components/admin/ReportedMessage';
 
 export const dynamic = 'force-dynamic';
+
+/** Seconds a reported image's signed URL stays valid. See the note at its call site. */
+const EVIDENCE_URL_TTL = 300;
 
 export default async function ReportDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,6 +22,22 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
     notFound();
   }
   const resolved = report.status === 'upheld' || report.status === 'dismissed';
+  // Signed here rather than in `getReportDetail` so the ephemeral URL never enters the report
+  // SHAPE — the schema describes a row, and a signed URL is not one. `EVIDENCE_URL_TTL`
+  // deliberately undercuts the bucket's hour: a storage predicate is evaluated when a URL is
+  // MINTED, not when it is used, so an hour-long link outlives the verdict that justified it
+  // and keeps working after the report is resolved. The page is `force-dynamic`, so it re-signs
+  // on every view and nothing is lost by the shorter life. (`signMediaUrls` accepts a shorter
+  // `expiresIn`, never a longer one — packages/api/src/storage.ts.)
+  const mediaKey = report.reportedMessage?.media_url ?? null;
+  const signed: Record<string, string> = mediaKey
+    ? // A signing failure must not take the verdict page down: the report, its note and its
+      // audit trail are still the thing the moderator came for, and the evidence block says
+      // «no longer available» rather than the page saying nothing at all.
+      await signMediaUrls(supabase, 'chat-media', [mediaKey], EVIDENCE_URL_TTL).catch(
+        () => ({}) as Record<string, string>,
+      )
+    : {};
   return (
     <section className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
@@ -36,6 +56,13 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
       </header>
       {report.note && (
         <p className="rounded-[14px] border border-border bg-card p-4">{report.note}</p>
+      )}
+      {report.target_type === 'message' && (
+        <ReportedMessage
+          message={report.reportedMessage}
+          {...(mediaKey && signed[mediaKey] ? { imageUrl: signed[mediaKey] } : {})}
+          locale={locale}
+        />
       )}
       {resolved ? (
         <p className="rounded-[14px] border border-border bg-card p-4">

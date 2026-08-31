@@ -130,6 +130,9 @@ describe('resolveReport', () => {
 const R1 = '00000000-0000-0000-0000-0000000000c1';
 const R2 = '00000000-0000-0000-0000-0000000000c2';
 const T1 = '00000000-0000-0000-0000-0000000000d1';
+const M1 = '00000000-0000-0000-0000-0000000000e9';
+const C1 = '00000000-0000-0000-0000-0000000000f9';
+const MEDIA = '00000000-0000-0000-0000-0000000000fa';
 
 const reportRow = (over: Record<string, unknown> = {}) => ({
   id: R1,
@@ -454,6 +457,138 @@ describe('getReportDetail target resolution', () => {
 
     const detail = await getReportDetail(asClient(fake), R1);
     expect(detail.target_handle).toBeNull();
+  });
+});
+
+// ── the reported message: what a moderator may see, and what they may not (#574 / #97) ──
+describe('getReportDetail — the reported message', () => {
+  const messageRow = (over: Record<string, unknown> = {}) => ({
+    id: M1,
+    body: 'ciao',
+    media_url: null,
+    created_at: '2026-08-30T09:00:00Z',
+    sender_id: T1,
+    ...over,
+  });
+  const messageReport = (over: Record<string, unknown> = {}) =>
+    reportRow({ target_type: 'message', target_id: M1, note: null, resolution: null, ...over });
+
+  it('resolves the reported message and names its sender as the subject', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [messageReport()] }],
+      'messages.select': [{ data: [messageRow({ media_url: `${T1}/${C1}/${MEDIA}.jpg` })] }],
+      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'audit_log.select': [{ data: [] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.reportedMessage).toEqual({
+      id: M1,
+      body: 'ciao',
+      media_url: `${T1}/${C1}/${MEDIA}.jpg`,
+      created_at: '2026-08-30T09:00:00Z',
+      sender_handle: 'marco',
+    });
+    // The verdict lands on the sender (resolve_report v5), so the header names the sender.
+    expect(detail.target_handle).toBe('marco');
+  });
+
+  // The privacy boundary, asserted at the query rather than only at the schema: reading
+  // `conversation_id` is the one column that would let a later change ask for the thread.
+  it('never selects the conversation the message came from', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [messageReport()] }],
+      'messages.select': [{ data: [messageRow()] }],
+      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'audit_log.select': [{ data: [] }],
+    });
+
+    await getReportDetail(asClient(fake), R1);
+
+    const messageCalls = fake.calls.filter((c) => c.table === 'messages');
+    expect(messageCalls).toHaveLength(1);
+    expect(messageCalls[0]!.columns).not.toContain('conversation_id');
+    expect(messageCalls[0]!.filters).toContainEqual(['eq', 'id', M1]);
+    // One message, by id. Never a thread read.
+    expect(fake.calls.some((c) => c.table === 'conversations')).toBe(false);
+  });
+
+  it('reads no message at all for a person, post or behaviour report', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'audit_log.select': [{ data: [] }],
+      'profiles.select': [{ data: [] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.reportedMessage).toBeNull();
+    expect(fake.calls.some((c) => c.table === 'messages')).toBe(false);
+  });
+
+  it('renders the rest of the report when the message is gone (no FK on target_id)', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [messageReport({ note: 'ha mandato questa foto' })] }],
+      'messages.select': [{ data: [] }],
+      'audit_log.select': [{ data: [] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.reportedMessage).toBeNull();
+    expect(detail.target_handle).toBeNull();
+    expect(detail.note).toBe('ha mandato questa foto');
+  });
+
+  it('does not take the verdict page down when the evidence read fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [messageReport()] }],
+      'messages.select': [{ error: { message: 'boom' } }],
+      'audit_log.select': [{ data: [] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.reportedMessage).toBeNull();
+    expect(detail.id).toBe(R1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain(M1);
+    warn.mockRestore();
+  });
+
+  it('withholds a message row the schema rejects rather than typing it as valid', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [messageReport()] }],
+      // `created_at` null: the column is NOT NULL in the database, so this can only mean the
+      // read and the schema disagree — #392's failure mode, one table over.
+      'messages.select': [{ data: [messageRow({ created_at: null })] }],
+      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'audit_log.select': [{ data: [] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.reportedMessage).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('keeps the message readable when its sender has been erased', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [messageReport()] }],
+      // sender_id ON DELETE SET NULL — the deleted-member shape messages_user_shape admits.
+      'messages.select': [{ data: [messageRow({ sender_id: null })] }],
+      'audit_log.select': [{ data: [] }],
+    });
+
+    const detail = await getReportDetail(asClient(fake), R1);
+
+    expect(detail.reportedMessage?.sender_handle).toBeNull();
+    expect(detail.reportedMessage?.body).toBe('ciao');
+    expect(fake.calls.some((c) => c.table === 'profiles')).toBe(false);
   });
 });
 

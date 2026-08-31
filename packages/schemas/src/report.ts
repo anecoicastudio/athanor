@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
-// Mirrors supabase/migrations/20260620011307_m9_reports.sql (06 §2.9).
-export const REPORT_TARGET_TYPES = ['person', 'post', 'behavior'] as const;
+// Mirrors the `reports_target_type_check` CHECK — declared inline by
+// supabase/migrations/20260620011307_m9_reports.sql (06 §2.9), widened with 'message' by
+// 20260831153523 (#574). `packages/schemas/src/admin.ts` DERIVES the admin queue's enum from
+// `reportTargetType` below rather than re-declaring it, so this array is the single spelling
+// on the TypeScript side and the CHECK is the single spelling in the database.
+export const REPORT_TARGET_TYPES = ['person', 'post', 'behavior', 'message'] as const;
 export const reportTargetType = z.enum(REPORT_TARGET_TYPES);
 export type ReportTargetType = z.infer<typeof reportTargetType>;
 
@@ -36,7 +40,9 @@ export const reportSchema = z.object({
 export type Report = z.infer<typeof reportSchema>;
 
 // Insert input (camelCase from the report sheet). reporter_id + status default server-side;
-// RLS WITH CHECK pins reporter_id=auth.uid() and status='open'. targetId is null for 'behavior'.
+// RLS WITH CHECK pins reporter_id=auth.uid() and status='open'. targetId is null for 'behavior';
+// for 'message' it is a `public.messages` id (no FK, so an erased message leaves the report
+// pointing at nothing and the admin read path resolves that to "no longer available").
 export const reportInput = z.object({
   targetType: reportTargetType,
   targetId: z.string().uuid().nullish(),

@@ -8,12 +8,14 @@ import { reportPenaltyPoints } from '@athanor/core';
 import {
   auditLogRow,
   adminFundEditionRow,
+  adminReportedMessage,
   waitlistAdminRowSchema,
   abandonedDispatchRowSchema,
   type ResolveReportInput,
   type AuditLogRow,
   type AdminReportRow,
   type AdminReportDetail,
+  type AdminReportedMessage,
   type AdminFundEditionRow,
   type WaitlistAdminRow,
   type AbandonedDispatchRow,
@@ -25,6 +27,7 @@ import { parseOrWithhold } from './parse-or-withhold';
 export type {
   AdminReportRow,
   AdminReportDetail,
+  AdminReportedMessage,
   AdminFundEditionRow,
   WaitlistAdminRow,
   AbandonedDispatchRow,
@@ -105,6 +108,7 @@ export async function getReportDetail(
     .single();
   if (error) throw error;
   let target_handle: string | null = null;
+  let reportedMessage: AdminReportedMessage | null = null;
   if (data.target_type === 'person' && data.target_id) {
     const { data: t } = await client
       .from('profiles')
@@ -112,6 +116,12 @@ export async function getReportDetail(
       .eq('id', data.target_id)
       .maybeSingle();
     target_handle = t?.handle ?? null;
+  } else if (data.target_type === 'message' && data.target_id) {
+    // A message report's subject is the SENDER, which is also what `resolve_report` v5 resolves
+    // the verdict onto — so the header names the same person the verdict will hit. Reading it
+    // here rather than letting the panel derive it keeps the two in one place.
+    reportedMessage = await readReportedMessage(client, data.target_id);
+    target_handle = reportedMessage?.sender_handle ?? null;
   }
   const { data: audit } = await client
     .from('audit_log')
@@ -137,7 +147,66 @@ export async function getReportDetail(
     target_handle,
     audit: parsedAudit,
     auditExcluded,
+    reportedMessage,
   };
+}
+
+/**
+ * The reported message and its sender's handle — the evidence half of a `'message'` report (#574).
+ *
+ * Reachable only because `messages_select_reported` (20260831153525) admits an admin to a
+ * message a report names, and to no other. This function does not widen anything: it issues an
+ * ordinary `authenticated` read with the operator's own session, and a non-admin caller gets
+ * zero rows from the same code. Nothing here queries `conversation_id`, by design — #97's
+ * ruling scopes the read to reported content, and the surrounding thread is not it.
+ *
+ * Three endings, all of them `null`, and they are not the same thing — which is why each says
+ * so in the log rather than only in the return:
+ *   • no row — the message was erased or soft-deleted (`target_id` has no FK), or RLS withheld
+ *     it, which from here are indistinguishable and mean the same thing to the reader;
+ *   • the read failed — logged, not thrown, because a verdict page that 500s over its evidence
+ *     read takes away the moderator's ability to act at all, and the report and its audit trail
+ *     are still worth rendering;
+ *   • the row failed the schema — withheld rather than typed as valid (rules/api.md; the same
+ *     boundary discipline `parseOrWithhold` applies to the audit trail).
+ * The panel renders all three as "no longer available"; the console line is what tells the
+ * three apart on the day it matters.
+ */
+async function readReportedMessage(
+  client: AthanorClient,
+  messageId: string,
+): Promise<AdminReportedMessage | null> {
+  const { data, error } = await client
+    .from('messages')
+    .select('id, body, media_url, created_at, sender_id')
+    .eq('id', messageId)
+    .maybeSingle();
+  if (error) {
+    console.warn(`[admin] reported message ${messageId} could not be read: ${error.message}`);
+    return null;
+  }
+  if (!data) return null;
+  let sender_handle: string | null = null;
+  if (data.sender_id) {
+    const { data: sender } = await client
+      .from('profiles')
+      .select('handle')
+      .eq('id', data.sender_id)
+      .maybeSingle();
+    sender_handle = sender?.handle ?? null;
+  }
+  const parsed = adminReportedMessage.safeParse({
+    id: data.id,
+    body: data.body,
+    media_url: data.media_url,
+    created_at: data.created_at,
+    sender_handle,
+  });
+  if (!parsed.success) {
+    console.warn(`[admin] reported message ${messageId} failed its schema and was withheld`);
+    return null;
+  }
+  return parsed.data;
 }
 
 /**
