@@ -28,8 +28,9 @@ import { reasonChipLabel } from '@/lib/momenti-reason';
  *
  * The Tag names the REASON — «Sapete fare», «Vicino a te» — from `momenti.reason.chip.*`, the
  * SHORT vocabulary this surface owns (#526), not the `momenti.reason.*` clauses the deck's
- * AffinityRow splices its terms into. Five of the eight read identically; three did not fit the
- * pill at 375/390 and say it shorter here. Until #124 the chip was the fixed «Sogno nuovo»,
+ * AffinityRow splices its terms into. Six of the eight read identically; `offering` and
+ * `profession` say it shorter here, because three of their four localized forms did not fit the
+ * pill at 375/390. Until #124 the chip was the fixed «Sogno nuovo»,
  * because get_momenti_suggestion ranked by newest dream and computed no affinity at all; the row
  * now shows what the two actually have in common, and «Sogno nuovo» survives as
  * `momenti.reason.chip.newDream` — the honest chip for the cold-start arm, where there still is

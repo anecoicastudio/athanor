@@ -58,17 +58,20 @@ export function reasonPrefix(kind: MomentoReasonKind, locale: Locale): string {
  * clamp, which leaves a 92.4 px text box at a 390 viewport and 86.4 px at 375. Three of the
  * sixteen localized full forms need a THIRD line in that box and truncate: «Potrebbe cercare
  * ciò che offri», "May be looking for what you offer", "Crafts that complete each other".
- * Widening the cap is not the fix — the pixels come out of the member's NAME, and the row is
- * built name > dream > label. Marco ruled a second key set for this surface on 2026-08-30.
+ * Widening the cap is not the fix — the pixels come out of the member's NAME, and this row is
+ * built payload first: name, then dream, then the label that annotates them. Marco ruled a
+ * second key set for this surface on 2026-08-30.
  *
  * Separate keys rather than a shortened `REASON_KEY`, because the two surfaces want different
  * grammar. On the deck the prefix is a CLAUSE with the terms spliced after a colon
  * («Potrebbe cercare ciò che offri: Investitore»), where the hedge is load-bearing — affinity
- * is a guess, and the deck has the width to say so. The chip is a LABEL with no terms and one
- * line of chrome, so it names the reason and stops.
+ * is a guess, and the deck has the width to say so. The chip is a LABEL: get_momenti_suggestion
+ * sends KINDS without tags (#124), so there is nothing to splice, and it names the reason and
+ * stops.
  *
- * Five of the eight kinds say the same thing in both registers and are duplicated verbatim.
- * That is deliberate: the chip can move later without dragging the deck's sentence with it.
+ * Six of the eight kinds say the same thing in both registers and are duplicated verbatim; only
+ * `offering` and `profession` are shortened. That duplication is deliberate: the chip can move
+ * later without dragging the deck's sentence with it.
  */
 const CHIP_KEY: Record<MomentoReasonKind, MessageKey> = {
   shared: 'momenti.reason.chip.shared',
@@ -85,7 +88,7 @@ const CHIP_KEY: Record<MomentoReasonKind, MessageKey> = {
  * The reason as the suggestion pill says it — short enough to wrap inside the pill's two lines.
  *
  * `reasonPrefix` is still the deck's; the two are asserted against each other in the test for
- * the six kinds that share their wording, so a drift in the five duplicated strings fails.
+ * the six kinds that share their wording, so a silent drift in those twelve strings fails.
  */
 export function reasonChipLabel(kind: MomentoReasonKind, locale: Locale): string {
   return t(CHIP_KEY[kind], locale);

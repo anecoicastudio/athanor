@@ -116,9 +116,10 @@ describe('reasonChipLabel', () => {
     );
   });
 
-  it('says exactly what the deck says wherever the full form already fit', () => {
-    // Five of the eight kinds are unchanged copy. The keys are still separate, so the chip can
-    // move later without touching the deck — but the words must not drift for no reason.
+  it('says exactly what the deck says for the six kinds that kept their wording', () => {
+    // Six of the eight kinds are unchanged copy — `offering` and `profession` are the two that
+    // moved. The keys are still separate, so the chip can move later without touching the deck
+    // — but the words must not drift for no reason.
     for (const kind of [
       'shared',
       'seeking',
