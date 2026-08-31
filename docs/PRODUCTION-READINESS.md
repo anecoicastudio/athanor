@@ -84,7 +84,7 @@ Two auth gaps are **deliberately shipped**, not outstanding work. Both were deci
 
   Reversal, in this order — flipping first is the failure mode that tests clean and breaks at the third real signup: a domain you control with DKIM/SPF verified → custom SMTP on the hosted project → `rate_limit_email_sent` raised off 2 → `mailer_autoconfirm` false → re-run the `generate_link` check. Pin the untested duplicate-email branch at `apps/native/src/app/(auth)/welcome.tsx:120` **before** flipping: with confirmations ON, a signup for an existing address returns 200 with an obfuscated user rather than 422, and an empty `identities` array is the only tell.
 
-**#72 was ruled and closed on 2026-08-30**: TOTP had been enabled on both projects with no client enrol or verify surface, so the flags were turned back off (Management API, readback-verified) and `supabase/config.toml [auth.mfa.totp]` reverted to match. An MFA surface (enrol + verify + `aal2` gating) is post-launch work; until it ships, auth hardening = password policy only.
+**#72 was ruled on 2026-08-30** (it closes with the PR that lands this correction): TOTP had been enabled on both projects with no client enrol or verify surface, so the flags were turned back off (Management API, readback-verified) and `supabase/config.toml [auth.mfa.totp]` reverted to match. An MFA surface (enrol + verify + `aal2` gating) is post-launch work; until it ships, auth hardening = password policy only.
 
 ### P1.7 — Tag-visibility authenticated smoke `[manual-you]` (recorded 2026-08-08)
 
