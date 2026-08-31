@@ -2,7 +2,8 @@
 -- Issue #126 — event reminders had every consumer and no producer. 20260823103624 adds
 -- public.event_reminder_sweep() (pg_cron, every minute) plus athanor.event_reminder_sends,
 -- the idempotency marker; 20260823110358 adds the online guard band and unconditional
--- retention; 20260825085916 gives the t1 slot its own copy (#523).
+-- retention; 20260825085916 gives the t1 slot its own copy (#523); 20260831085518 adds the
+-- organiser slot org_t1 and drops the organiser from the attendee t1 arm (#522).
 --
 -- Asserts: catalog shape (cron-only function, marker table off the client grant surface,
 -- schedule) · fan-out unconfigured → NOTHING is claimed, so no reminder is burned undelivered,
@@ -11,7 +12,8 @@
 -- notification, is what dedupes) · the slots: t24 for every event, t1 for online only, and an
 -- online event inside the 3h guard band claims NEITHER t24 nor (yet) t1 · cancelled RSVPs,
 -- soft-deleted events and events beyond the window are all silent · «N partecipano» counts
--- going RSVPs at send time.
+-- going RSVPs at send time · the organiser is reminded an hour out whether the event is online
+-- or physical, and an organiser who self-RSVP'd gets org_t1 INSTEAD OF t1, never both (#522).
 --
 -- pg_net's worker never sees uncommitted queue rows, so net.http_request_queue is a safe
 -- in-txn witness of the exact enqueued payload (0064 K, 0094 D).
@@ -30,7 +32,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(24);
 
 -- ── fixtures: an organizer and three attendees (handle_new_user auto-creates profiles) ────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -87,7 +89,13 @@ insert into public.events (id, organizer_id, title, category, is_online, venue, 
   -- E1: physical, 5h out → t24 for every going RSVP (physical events never get a t1)
   ('e1300000-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000130',
    'Cerchio in presenza','networking',false,'Sala','Milano',
-   extensions.st_point(9.19, 45.46)::extensions.geography, now() + interval '5 hours');
+   extensions.st_point(9.19, 45.46)::extensions.geography, now() + interval '5 hours'),
+  -- E7: physical, 40m out → its RSVP still gets t24 (physical has no floor), and its ORGANISER
+  --     gets org_t1. The attendee t1 is online-only because of travel; the organiser slot is
+  --     not, because the organiser is not deciding whether to travel (#522).
+  ('e1300000-0000-0000-0000-000000000007','11111111-0000-0000-0000-000000000130',
+   'Apertura bottega','networking',false,'Bottega','Torino',
+   extensions.st_point(7.68, 45.07)::extensions.geography, now() + interval '40 minutes');
 
 insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at) values
   -- E2: online, 30m out → t1 ONLY. The t24 floor is what stops a late RSVP getting both.
@@ -119,7 +127,12 @@ insert into public.rsvps (event_id, user_id, status) values
   ('e1300000-0000-0000-0000-000000000003','aaaa1111-0000-0000-0000-000000000130','going'),
   ('e1300000-0000-0000-0000-000000000004','aaaa1111-0000-0000-0000-000000000130','going'),
   ('e1300000-0000-0000-0000-000000000005','bbbb1111-0000-0000-0000-000000000130','going'),
-  ('e1300000-0000-0000-0000-000000000006','bbbb1111-0000-0000-0000-000000000130','going');
+  ('e1300000-0000-0000-0000-000000000006','bbbb1111-0000-0000-0000-000000000130','going'),
+  -- The organiser RSVPs to their OWN online event, 30m out. RsvpBar has no isOrganizer gate, so
+  -- this is reachable in the app — and it is the case that would otherwise produce two reminders
+  -- in the same tick, org_t1 landing on the same hour as t1.
+  ('e1300000-0000-0000-0000-000000000002','11111111-0000-0000-0000-000000000130','going'),
+  ('e1300000-0000-0000-0000-000000000007','aaaa1111-0000-0000-0000-000000000130','going');
 
 -- A stale marker from a past life of E1, planted before any sweep: retention must reap it
 -- whether or not fan-out is configured (20260823110358 §2).
@@ -164,8 +177,11 @@ select bag_eq(
   $$ values ('e1300000-0000-0000-0000-000000000001/aaaa1111-0000-0000-0000-000000000130/t24'::text),
             ('e1300000-0000-0000-0000-000000000001/bbbb1111-0000-0000-0000-000000000130/t24'),
             ('e1300000-0000-0000-0000-000000000002/aaaa1111-0000-0000-0000-000000000130/t1'),
-            ('e1300000-0000-0000-0000-000000000006/bbbb1111-0000-0000-0000-000000000130/t24') $$,
-  'exactly four markers: t24 per going RSVP on the physical event, t1 on the imminent stream, t24 on the 5h stream');
+            ('e1300000-0000-0000-0000-000000000002/11111111-0000-0000-0000-000000000130/org_t1'),
+            ('e1300000-0000-0000-0000-000000000006/bbbb1111-0000-0000-0000-000000000130/t24'),
+            ('e1300000-0000-0000-0000-000000000007/aaaa1111-0000-0000-0000-000000000130/t24'),
+            ('e1300000-0000-0000-0000-000000000007/11111111-0000-0000-0000-000000000130/org_t1') $$,
+  'exactly seven markers: t24 per going RSVP on the two physical events, t1 on the imminent stream, t24 on the 5h stream, org_t1 for both organisers an hour out');
 
 -- The guard band: an online event 2h out is past the t24 floor (3h) and short of the t1 lead
 -- (1h). It claims nothing on this tick; its t1 will fire at 1h. Before 20260823110358 this
@@ -186,6 +202,26 @@ select is(
     where user_id = 'cccc1111-0000-0000-0000-000000000130'),
   0, 'a cancelled RSVP is never reminded');
 
+-- #522: the organiser of E2 is a going RSVP on their own online event 30m out, so the attendee
+-- t1 arm would have claimed for them too. Both slots fire on the SAME tick — the PK keeps them
+-- as two rows, and the member sees two reminders seconds apart. The t1 arm excludes the
+-- organiser instead: same hour, one notification, in the voice that fits.
+select is(
+  (select count(*)::int from athanor.event_reminder_sends
+    where event_id = 'e1300000-0000-0000-0000-000000000002'
+      and user_id  = '11111111-0000-0000-0000-000000000130'
+      and slot     = 't1'),
+  0, 'an organiser who self-RSVPs gets org_t1 instead of t1, never both');
+
+-- The organiser slot is NOT scoped to online events the way the attendee t1 is: E7 is a room,
+-- 40 minutes out, and its organiser has to be there to open it.
+select is(
+  (select count(*)::int from athanor.event_reminder_sends
+    where event_id = 'e1300000-0000-0000-0000-000000000007'
+      and user_id  = '11111111-0000-0000-0000-000000000130'
+      and slot     = 'org_t1'),
+  1, 'a physical event reminds its organiser an hour out');
+
 select is(
   (select count(*)::int from athanor.event_reminder_sends
     where event_id in ('e1300000-0000-0000-0000-000000000003',
@@ -198,7 +234,7 @@ select is(
   (select count(*)::int from net.http_request_queue q
     where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'eventReminder'
       and convert_from(q.body, 'utf8')::jsonb #>> '{entity_ref,id}' like 'e1300000-%'),
-  4, 'four eventReminder bodies were enqueued, one per claimed marker');
+  7, 'seven eventReminder bodies were enqueued, one per claimed marker');
 
 select is(
   (select convert_from(q.body, 'utf8')::jsonb -> 'entity_ref'
@@ -224,8 +260,11 @@ select bag_eq(
   $$ values ('e1300000-0000-0000-0000-000000000001 → notif.tpl.eventReminder'::text),
             ('e1300000-0000-0000-0000-000000000001 → notif.tpl.eventReminder'),
             ('e1300000-0000-0000-0000-000000000002 → notif.tpl.eventReminderSoon'),
-            ('e1300000-0000-0000-0000-000000000006 → notif.tpl.eventReminder') $$,
-  'each slot enqueues its own template_key: t24 the neutral copy, t1 the one that says the hour');
+            ('e1300000-0000-0000-0000-000000000002 → notif.tpl.eventReminderOrganizer'),
+            ('e1300000-0000-0000-0000-000000000006 → notif.tpl.eventReminder'),
+            ('e1300000-0000-0000-0000-000000000007 → notif.tpl.eventReminder'),
+            ('e1300000-0000-0000-0000-000000000007 → notif.tpl.eventReminderOrganizer') $$,
+  'each slot enqueues its own template_key: t24 the neutral copy, t1 the one that says the hour, org_t1 the one that says the event is yours');
 
 -- «N partecipano» counts going RSVPs only — the cancelled third seat must not inflate it.
 select is(
@@ -243,13 +282,13 @@ select public.event_reminder_sweep();
 
 select is(
   (select count(*)::int from athanor.event_reminder_sends where event_id::text like 'e1300000-%'),
-  4, 'a second sweep claims no new marker (the ON CONFLICT claim is the dedupe)');
+  7, 'a second sweep claims no new marker (the ON CONFLICT claim is the dedupe)');
 
 select is(
   (select count(*)::int from net.http_request_queue q
     where convert_from(q.body, 'utf8')::jsonb ->> 'type' = 'eventReminder'
       and convert_from(q.body, 'utf8')::jsonb #>> '{entity_ref,id}' like 'e1300000-%'),
-  4, 'a second sweep enqueues nothing — two sweeps remind once');
+  7, 'a second sweep enqueues nothing — two sweeps remind once');
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (E) rule 1: reminding somebody is worth zero Aura
@@ -260,9 +299,10 @@ select is(
 -- NOTHING to the ledger (0094 F asserts the same shape for the star sweep).
 select is(
   (select count(*)::int from public.aura_events
-    where profile_id in ('aaaa1111-0000-0000-0000-000000000130',
+    where profile_id in ('11111111-0000-0000-0000-000000000130',
+                         'aaaa1111-0000-0000-0000-000000000130',
                          'bbbb1111-0000-0000-0000-000000000130')),
-  0, 'the reminder writes no aura_events row (rule 1 — the sweep never touches the ledger)');
+  0, 'the reminder writes no aura_events row (rule 1 — organising one is worth no more than attending)');
 
 select * from finish();
 rollback;

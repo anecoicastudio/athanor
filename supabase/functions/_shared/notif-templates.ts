@@ -95,6 +95,18 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `«${p.title ?? ''}» starts in an hour. ${p.count ?? 0} attending.`,
     },
   },
+  // The organiser slot (#522). Same type and route again; the sentence names the event as
+  // theirs, because the organiser is not deciding whether to come — they are the event.
+  'notif.tpl.eventReminderOrganizer': {
+    it: {
+      title: 'Il tuo evento',
+      body: (p) => `«${p.title ?? ''}» comincia tra un'ora. ${p.count ?? 0} partecipano.`,
+    },
+    en: {
+      title: 'Your event',
+      body: (p) => `«${p.title ?? ''}» starts in an hour. ${p.count ?? 0} attending.`,
+    },
+  },
   'notif.tpl.projectResponse': {
     it: {
       title: 'Risposta',

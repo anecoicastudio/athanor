@@ -71,6 +71,36 @@ function refId(ref: unknown): string | null {
   return (ref as { id?: string } | null | undefined)?.id ?? null;
 }
 
+/**
+ * #522 — mirror a settled ticket as a going RSVP.
+ *
+ * `rsvps` was the free path's table alone, so `event_reminder_sweep()` reminded nobody who paid
+ * and «N partecipano» counted nobody who paid. Marco's ruling (2026-08-30) widens the AUDIENCE
+ * rather than the queries: one row here and both read paths see ticket holders unchanged.
+ *
+ * Never called before `assertSettled` — the seat must exist before the row claiming it does.
+ * The upsert is `do update`, not `ignoreDuplicates`: a re-buy after a refund has to move the
+ * mirror back from 'cancelled' to 'going', and a redelivery that rewrites 'going' over 'going'
+ * costs an updated_at and nothing else.
+ *
+ * A throw here 500s the delivery and Stripe retries, which is right for a transient failure and
+ * would be catastrophic for a permanent one — `handleWebhook`'s lease is released and sustained
+ * 5xx gets the endpoint disabled. The one permanent refusal this write could hit is the free
+ * path's capacity trigger (`P0001 'sold out'`), and 20260831085517 is what makes it unreachable:
+ * a member who already holds a seat on the paid path is exempt, because a mirrored RSVP is not a
+ * second seat. Do not add a catch here without reading that migration's header — swallowing the
+ * error would hide a real schema fault instead.
+ */
+async function mirrorRsvp(db: Db, eventId: string, userId: string): Promise<void> {
+  const { error } = await db
+    .from('rsvps')
+    .upsert(
+      { user_id: userId, event_id: eventId, status: 'going' },
+      { onConflict: 'user_id,event_id' },
+    );
+  if (error) throw error;
+}
+
 /** W1 — a ticket Checkout completed. Issue the ticket + sign the QR (service role). Idempotent. */
 export async function handleTicketPaid(
   db: Db,
@@ -115,7 +145,10 @@ export async function handleTicketPaid(
   // NEW payment intent. Both would otherwise be silently discarded — charged, no QR. Pay
   // exactly those; a null count is indeterminate and falls through to "inserted" (worst
   // case: the old swallow, no rewrite).
-  if (count !== 0) return;
+  if (count !== 0) {
+    await mirrorRsvp(db, eventId, profileId); // the seat is real → it counts and it gets reminded
+    return;
+  }
   // A repair without a PI would write a row revokeTicket can never match again. Unreachable
   // for mode:'payment' Checkout, but the swallow is the safe failure direction.
   if (!paymentIntent) return;
@@ -134,7 +167,16 @@ export async function handleTicketPaid(
   // enforced at claim time, not here). And a replay of the ORIGINAL purchase session after
   // its refund carries the SAME payment intent as the refunded row: resurrecting it would
   // undo the revocation, so only a different PI (a genuinely new purchase) re-issues.
-  if (!row || (row.status !== 'refunded' && row.status !== 'pending')) return;
+  if (!row || (row.status !== 'refunded' && row.status !== 'pending')) {
+    // A live (paid/checked_in) row: this delivery is a replay of a ticket already issued. The
+    // mirror is restated anyway — it is idempotent, and it is the only path that ever heals a
+    // ticket sold before #522 shipped whose event Stripe redelivers. (20260831085517 backfills
+    // the ones it does not.) `!row` is nothing at all, so there is nothing to mirror.
+    if (row) await mirrorRsvp(db, eventId, profileId);
+    return;
+  }
+  // A replay of the ORIGINAL session after its refund: same PI, so no ticket is re-issued and
+  // the mirror stays 'cancelled' where revokeTicket left it.
   if (row.stripe_payment_id === paymentIntent) return;
 
   const { error: updErr } = await db
@@ -149,6 +191,7 @@ export async function handleTicketPaid(
     .eq('event_id', eventId)
     .in('status', ['pending', 'refunded']); // guard: a concurrent status change wins over the flip
   if (updErr) throw updErr;
+  await mirrorRsvp(db, eventId, profileId);
 }
 
 /** Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change. */
@@ -300,14 +343,30 @@ async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<v
  * Revoke the event ticket bought by a charge that lost its money. The QR token is stateless
  * HMAC — there is no revocation list, so this status flip IS the revocation: check-in admits
  * only paid/checked_in, and the nulled qr_token stops the viewer rendering a door pass.
- * A single guarded update: no match (the charge was a contribution) or a re-delivered
- * reversal both no-op. The status flip is also the capacity unwind (#105 reversed the old
- * "paid tickets consume no capacity" design): a refunded row stops counting as a held
- * seat, so the seat frees itself. Attendance/aura stay attendance-based by design.
+ * A guarded update: no match (the charge was a contribution) or a re-delivered reversal both
+ * no-op. The status flip is also the capacity unwind (#105 reversed the old "paid tickets
+ * consume no capacity" design): a refunded row stops counting as a held seat, so the seat frees
+ * itself. Attendance/aura stay attendance-based by design.
+ *
+ * Since #522 it carries a second write: the mirrored RSVP the purchase created is flipped to
+ * 'cancelled' in the same call, because the reminder audience and «N partecipano» are now that
+ * table and a revoked ticket must leave both.
  */
 async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
   const paymentIntent = refId(paymentIntentRef);
   if (!paymentIntent) return; // nothing to match — ack (idempotency ledger already recorded it)
+
+  // Read the (user, event) pairs FIRST, and unfiltered by status. `rsvps` carries no payment
+  // column — id, user_id, event_id, status, timestamps — so the only join key to the mirror is
+  // the ticket row itself (#522). Reading it AFTER the guarded update would return nothing on a
+  // redelivery, and a first delivery that died between the two writes would strand the mirror at
+  // 'going' forever: the sweep would remind a revoked ticket holder and «N partecipano» would
+  // keep counting them. Reading first makes the retry the repair.
+  const { data: ticketRows, error: selErr } = await db
+    .from('event_tickets')
+    .select('user_id,event_id')
+    .eq('stripe_payment_id', paymentIntent);
+  if (selErr) throw selErr;
 
   const { error } = await db
     .from('event_tickets')
@@ -315,6 +374,22 @@ async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
     .eq('stripe_payment_id', paymentIntent)
     .in('status', ['paid', 'checked_in']); // guard: a re-delivered reversal won't re-flip
   if (error) throw error;
+
+  // The seat is gone, so the RSVP that mirrored it goes too. Guarded on 'going', so a
+  // redelivery is a no-op. Matching on the ticket row rather than on (event, user) alone is what
+  // keeps this off the free path: a member who tapped RSVP on a free event has no ticket row
+  // carrying this payment intent, so nothing here can reach them. A re-buy is safe for the same
+  // reason — the row now carries the NEW payment intent, so a late redelivery of the old
+  // refund matches nothing and cannot cancel the ticket that replaced it.
+  for (const t of (ticketRows ?? []) as { user_id: string; event_id: string }[]) {
+    const { error: rsvpErr } = await db
+      .from('rsvps')
+      .update({ status: 'cancelled' })
+      .eq('user_id', t.user_id)
+      .eq('event_id', t.event_id)
+      .eq('status', 'going');
+    if (rsvpErr) throw rsvpErr;
+  }
 }
 
 /**

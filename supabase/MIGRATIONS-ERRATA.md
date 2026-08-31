@@ -1264,3 +1264,54 @@ none of them survives this branch reaching `main`, which is the point. Do not ca
 forward without its anchor. `supabase/functions/erasure-job/sweep-buckets.test.ts` holds the half
 that IS a property — that the sweep's list covers every declared bucket — and that is what stops
 an eighth.
+
+---
+
+## `20260615115831_rsvps.sql` — «Free-event attendance intent … NEVER touches money» is one writer out of date
+
+The header and the table comment both scope the table to the free path: «rsvps — free-event
+attendance intent (PRD §4.6 1-tap RSVP) … this migration NEVER writes aura (rule #1) and NEVER
+touches money (event_tickets is the tickets-qr slice)». Since `20260831085517_paid_ticket_rsvp_mirror.sql`
+(#522), `stripe-webhook` writes a going row here when a ticket Checkout settles and flips it to
+'cancelled' when the charge is reversed — so a row in this table can now come from a purchase and
+not only from a tap.
+
+Both halves of the aura/money sentence are still true **of this migration**: it writes no aura and
+it writes no money row, and neither does the mirror — a mirrored RSVP is a consequence of money
+having moved, never a cause, and Circle membership and fund contributions still yield zero points
+(rule 1). What is no longer true is the implication that a reader can infer the free path from the
+row's existence. `20260831085517` restates the table comment; the header keeps the old wording,
+because migrations are append-only.
+
+The shape is untouched: same columns, same unique (user_id, event_id), same going⇄cancelled check,
+same policies. A client still cannot write anybody's row but their own.
+
+Asserted by: `supabase/functions/stripe-webhook/handlers.test.ts` («handleTicketPaid mirrors a
+settled ticket as a going RSVP», «a reversal cancels the mirrored RSVP as well as the ticket») for
+the writer, and `supabase/tests/0130_event_reminder_sweep.test.sql` for what the widened audience
+changes downstream.
+
+---
+
+## `20260812225214_event_capacity_enforcement.sql` — "a seat is held by a 'going' RSVP" now has an exception
+
+The header states the capacity model it introduces: «from here on a seat is held by · a 'going'
+RSVP (free path), and · a paid / checked_in ticket, or an UNEXPIRED pending claim (paid path)».
+Since `20260831085517_paid_ticket_rsvp_mirror.sql` (#522) a settled ticket ALSO produces a going
+RSVP, and those two clauses would then count the same person twice — so `enforce_rsvp_capacity`
+returns early for a member who already holds a seat on the paid path. Read the first clause as «a
+'going' RSVP **from somebody holding no ticket for that event**».
+
+The exemption is per-holder, and the count is not narrowed: mirrored rows still count toward
+`v_going`, so a member who bought nothing is refused on a sold-out paid event exactly as before.
+Excluding them from the count instead would have let a non-payer PATCH themselves into
+«N partecipano» beside people who paid — the reason `20260831085517`'s header records that arm as
+considered and rejected.
+
+`claim_event_seat`, `release_event_seat` and `event_seats_taken` are unchanged and still read
+`event_tickets` alone; nothing about the paid path moved.
+
+Asserted by: `supabase/tests/0090_event_capacity.test.sql`, the three assertions after «a mirrored
+RSVP is not a second seat» — a ticket holder is admitted at capacity, a member with no ticket is
+still refused there, and the mirror the webhook writes cannot raise `P0001` at the moment the money
+has already moved.
