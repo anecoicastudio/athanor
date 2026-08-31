@@ -332,13 +332,15 @@ auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
-# Enabled on both hosted projects on 2026-08-10 — TOTP enrol/verify is accepted on the free
-# plan (the Management API took it without complaint; it is leaked-password protection that
-# is Pro-only, and that request came back HTTP 402). Mirrored here so a local stack behaves
-# like hosted.
+# Off on both hosted projects since 2026-08-30 (#72 ruling): the app has no enrol/verify
+# surface, so the enabled flags bought no security and left auth.mfa.enroll() reachable via
+# the public API with no in-app unenrol. TOTP itself IS accepted on the free plan (verified
+# 2026-08-10; it is leaked-password protection that is Pro-only, HTTP 402) — re-enabling is
+# one Management API call once a client surface ships. Mirrored here so a local stack
+# behaves like hosted.
 [auth.mfa.totp]
-enroll_enabled = true
-verify_enabled = true
+enroll_enabled = false
+verify_enabled = false
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
