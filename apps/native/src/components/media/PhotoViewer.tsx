@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Modal, PanResponder } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { t } from '@athanor/i18n';
@@ -56,6 +56,19 @@ export function PhotoViewer({
   locale: Locale;
   onClose: () => void;
 }) {
+  // What the fade-out shows. `visible` flips before the caller can clear what it was showing —
+  // the chat screen nulls its `viewing` message in the same handler that closes this — and the
+  // Modal keeps rendering its children for the length of the animation. Rendering the live props
+  // through that would hand `MediaFrame` a `url` of undefined with nothing loading, i.e. the
+  // terminal «this photo won't load» state, so every dismissal would flash an error where the
+  // photo was. The ref is written from an effect rather than during render, so the close render
+  // still reads what the last OPEN render was given.
+  const last = useRef<{ url?: string; caption?: string | null }>({});
+  useEffect(() => {
+    if (visible) last.current = { url, caption };
+  }, [visible, url, caption]);
+  const shown = visible ? { url, caption } : last.current;
+
   const pan = useMemo(
     () =>
       PanResponder.create({
@@ -97,16 +110,18 @@ export function PhotoViewer({
           <View className="flex-1" {...pan.panHandlers}>
             <MediaFrame
               kind="photo"
-              url={url}
-              isLoading={isLoading}
+              url={shown.url}
+              isLoading={visible && isLoading}
               locale={locale}
               contentFit="contain"
               className="absolute inset-0"
             />
           </View>
 
-          {caption ? (
-            <Text className="px-gutter pb-10 pt-3 text-center text-foreground">{caption}</Text>
+          {shown.caption ? (
+            <Text className="px-gutter pb-10 pt-3 text-center text-foreground">
+              {shown.caption}
+            </Text>
           ) : (
             <View className="pb-10" />
           )}

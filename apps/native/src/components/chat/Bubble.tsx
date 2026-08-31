@@ -33,10 +33,16 @@ function bubbleLabel(message: Message, locale: Locale): string {
  * a long press has no visual affordance, and VoiceOver reaches it only through the declared
  * `longpress` action below.
  */
-function bubbleHint(locale: Locale, canOpenPhoto: boolean, hasActions: boolean): string {
+function bubbleHint(
+  locale: Locale,
+  canOpenPhoto: boolean,
+  hasActions: boolean,
+): string | undefined {
   if (canOpenPhoto && hasActions) return t('chat.a11y.photoAndActions', locale);
   if (canOpenPhoto) return t('chat.a11y.openPhoto', locale);
-  return t('chat.a11y.messageActions', locale);
+  // No fallback: a bubble with neither affordance is not a button at all, and returning the
+  // actions hint for it would announce a gesture that does nothing.
+  return hasActions ? t('chat.a11y.messageActions', locale) : undefined;
 }
 
 /**

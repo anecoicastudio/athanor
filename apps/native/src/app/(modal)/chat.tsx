@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Platform, type FlatList as RNFlatList } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -70,6 +70,9 @@ export default function ChatScreen() {
   // shows the caption too, and the signed URL is read from the map below at render time so a
   // re-sign mid-view reaches the viewer the same way it reaches the bubble.
   const [viewing, setViewing] = useState<Message | null>(null);
+  // Stable, unlike this screen's other modal handlers: the viewer builds a PanResponder keyed on
+  // it, and an inline arrow would rebuild that responder on every keystroke in the composer.
+  const closeViewer = useCallback(() => setViewing(null), []);
   // The staged image, one per message (#155). `mediaId` is minted at PICK time, not at send:
   // a failed send retried from the same staging re-uploads to the SAME key (upsert), instead
   // of orphaning an object per attempt.
@@ -493,7 +496,7 @@ export default function ChatScreen() {
           label={t('chat.photo.label', locale)}
           caption={viewing?.body}
           locale={locale}
-          onClose={() => setViewing(null)}
+          onClose={closeViewer}
         />
 
         {/* Kept mounted (visible={false}), never conditionally rendered: the iOS
