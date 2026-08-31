@@ -2161,7 +2161,8 @@ describe('every colour class names a token that exists (#595)', () => {
  * resolves. The one deliberate exception is `lib/locale.ts`'s
  * `Intl.DateTimeFormat().resolvedOptions().locale`: that call is not formatting anything —
  * it is how the device locale is DISCOVERED before any profile exists, which is the single
- * place the device locale is allowed to matter.
+ * place the device locale is allowed to matter (`Intl` is callable without `new`, so the
+ * pattern matches both spellings — which is also why that probe needs the exception at all).
  *
  * ## What it cannot see
  *
@@ -2173,7 +2174,7 @@ describe('every colour class names a token that exists (#595)', () => {
  */
 describe('date/time formatting always goes through localeTag() (#502)', () => {
   const FORMATTER =
-    /\.toLocale(?:Date|Time)?String\s*\(|new\s+Intl\.(?:DateTimeFormat|NumberFormat)\s*\(/;
+    /\.toLocale(?:Date|Time)?String\s*\(|(?:new\s+)?Intl\.(?:DateTimeFormat|NumberFormat)\s*\(/;
   const DEVICE_LOCALE_PROBE = 'lib/locale.ts';
 
   it('every formatter call site names localeTag on the call line', () => {
