@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
-// Mirrors supabase/migrations/20260823121933_fund_broadcast_notifications.sql, the current
+// Mirrors supabase/migrations/20260831123550_report_queue_alert.sql, the current
 // statement of both CHECKs (06 §2.11, 09 §2.6).
-// The 9 canonical notification types — must match notification_preferences.type + the M9 prefs UI.
+// The 10 canonical notification types — must match notification_preferences.type. NOT the same
+// set as the M9 prefs UI, and deliberately: 'connection', 'moderation', 'gdprExport' and
+// 'reportQueue' carry no PREF_ROWS toggle, each for a reason stated at its entry below.
 // Two of them have no producer yet; that is intentional, not a broken fan-out (see below).
 //
 // When a producerless type is KEPT vs DELETED: it stays when only the producer is missing and
