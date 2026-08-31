@@ -93,15 +93,19 @@ describe('reasonChipLabel', () => {
   it('shortens the prefixes that overflowed the pill (#526)', () => {
     expect(reasonChipLabel('offering', 'it')).toBe('Cerca ciò che offri');
     expect(reasonChipLabel('offering', 'en')).toBe('Seeks what you offer');
-    expect(reasonChipLabel('profession', 'en')).toBe('Kindred crafts');
+    expect(reasonChipLabel('profession', 'en')).toBe('Complementary crafts');
   });
 
-  it('shortens profession IT too, though it fit — one reason, one register', () => {
-    // «Mestieri che si completano» wraps inside two lines at both widths, so this key is not
-    // forced. It is shortened anyway: the EN chip must be short, and a reason that reads as a
-    // clause in one locale and a label in the other is the worse outcome. Marco's ruling names
-    // this exact string.
-    expect(reasonChipLabel('profession', 'it')).toBe('Mestieri affini');
+  it("keeps profession IT on the deck's words — they fit, and they are the accurate ones", () => {
+    // Marco's ruling gave «Mestieri affini» as an EXAMPLE of a short form. It fits (one line at
+    // both widths, measured) and it is not used, because it is not what the reason means: the
+    // profession term fires only on crafts that COMPLEMENT one another and the map refuses to
+    // pair a craft with itself (`packages/core/src/onboarding/affinity.test.ts`), while «affini»
+    // — and the English "kindred" this lane first wrote — say same-kind. «Mestieri che si
+    // completano» is 26 characters and wraps inside the two lines at 375, so IT needs no short
+    // form at all; only the EN string had to move.
+    expect(reasonChipLabel('profession', 'it')).toBe('Mestieri che si completano');
+    expect(reasonChipLabel('profession', 'it')).toBe(reasonPrefix('profession', 'it'));
   });
 
   it('leaves the deck on the full form — the two surfaces are separate key sets', () => {
@@ -116,10 +120,11 @@ describe('reasonChipLabel', () => {
     );
   });
 
-  it('says exactly what the deck says for the six kinds that kept their wording', () => {
-    // Six of the eight kinds are unchanged copy — `offering` and `profession` are the two that
-    // moved. The keys are still separate, so the chip can move later without touching the deck
-    // — but the words must not drift for no reason.
+  it('says exactly what the deck says for the six kinds that kept both locales', () => {
+    // Thirteen of the sixteen strings are unchanged copy. `offering` moved in both locales and
+    // `profession` in EN only, so these six kinds match on both. The keys are still separate,
+    // so the chip can move later without touching the deck — but the words must not drift for
+    // no reason.
     for (const kind of [
       'shared',
       'seeking',
@@ -147,12 +152,18 @@ describe('reasonChipLabel', () => {
   });
 
   it('stays inside the two-line budget the pill clamps at', () => {
-    // A character count is a PROXY for the px measurement, calibrated on the render: at the
-    // narrower 86.4 px box (375) every label at or under 21 characters wrapped within two
-    // lines, and «You've already shared» — 21 — is the longest that did. The three strings
-    // this issue is about are 30, 33 and 31. A 22-character chip label is not necessarily
-    // broken; it means this budget has to be re-measured before it ships.
-    const CHIP_LABEL_MAX_CHARS = 21;
+    // A character count is a PROXY for the px measurement, and a deliberately conservative
+    // one: 26 is the longest label in the current set, not the longest that fits. Measured in
+    // the live pill at the narrower 86.4 px box (375), «Mestieri che si completano» — 26 —
+    // wraps inside the two lines, while the three strings this issue removed (30, 31, 33) need
+    // a third. The real ceiling is therefore somewhere between 26 and 30 and depends on where
+    // the words break, not on the count. A 27-character label is not necessarily broken; it
+    // means this budget has to be re-measured in the pill before it ships.
+    //
+    // Not a per-word cap as well: a word wider than the box BREAKS across the two lines here
+    // rather than ellipsizing (`scrollHeight === clientHeight` for a 15-character single word
+    // at 86.4 px), so word length costs lines but never truncates on its own.
+    const CHIP_LABEL_MAX_CHARS = 26;
     for (const kind of momentoReasonKind.options) {
       for (const locale of ['it', 'en'] as const) {
         expect(reasonChipLabel(kind, locale).length).toBeLessThanOrEqual(CHIP_LABEL_MAX_CHARS);

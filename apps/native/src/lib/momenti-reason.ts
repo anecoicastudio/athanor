@@ -69,9 +69,12 @@ export function reasonPrefix(kind: MomentoReasonKind, locale: Locale): string {
  * sends KINDS without tags (#124), so there is nothing to splice, and it names the reason and
  * stops.
  *
- * Six of the eight kinds say the same thing in both registers and are duplicated verbatim; only
- * `offering` and `profession` are shortened. That duplication is deliberate: the chip can move
- * later without dragging the deck's sentence with it.
+ * Thirteen of the sixteen strings are the deck's, duplicated verbatim — only the three that did
+ * not fit moved: `offering` in both locales, `profession` in EN. «Mestieri che si completano» is
+ * 26 characters and wraps inside the two lines, so IT keeps it; the EN chip says "Complementary
+ * crafts" rather than anything shorter-and-vaguer, because this term fires only on crafts that
+ * COMPLEMENT one another and never on the same craft twice. The duplication is deliberate: the
+ * chip can move later without dragging the deck's sentence with it.
  */
 const CHIP_KEY: Record<MomentoReasonKind, MessageKey> = {
   shared: 'momenti.reason.chip.shared',
@@ -88,7 +91,7 @@ const CHIP_KEY: Record<MomentoReasonKind, MessageKey> = {
  * The reason as the suggestion pill says it — short enough to wrap inside the pill's two lines.
  *
  * `reasonPrefix` is still the deck's; the two are asserted against each other in the test for
- * the six kinds that share their wording, so a silent drift in those twelve strings fails.
+ * every string the two sets share, so a silent drift in those thirteen fails.
  */
 export function reasonChipLabel(kind: MomentoReasonKind, locale: Locale): string {
   return t(CHIP_KEY[kind], locale);
