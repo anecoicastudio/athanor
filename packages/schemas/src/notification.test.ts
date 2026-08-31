@@ -55,14 +55,16 @@ describe('notificationSchema', () => {
     ).toThrow();
   });
 
-  it('exposes the 9 canonical types', () => {
-    // 7 from M9 + 'moderation' (#313 warn verdicts) + 'gdprExport' (#129 export delivery).
+  it('exposes the 10 canonical types', () => {
+    // 7 from M9 + 'moderation' (#313 warn verdicts) + 'gdprExport' (#129 export delivery)
+    // + 'reportQueue' (#602 moderation queue alert).
     // 'fundMilestone' left in #241 and came back in #127, once the fan-out-to-many it needed
     // existed — the exact condition #241 named for its return.
-    expect(NOTIFICATION_TYPES).toHaveLength(9);
+    expect(NOTIFICATION_TYPES).toHaveLength(10);
     expect(NOTIFICATION_TYPES).toContain('moderation');
     expect(NOTIFICATION_TYPES).toContain('gdprExport');
     expect(NOTIFICATION_TYPES).toContain('fundMilestone');
+    expect(NOTIFICATION_TYPES).toContain('reportQueue');
   });
 
   // #127: five keys, one type. The guard is that they all PASS THROUGH rather than degrading to

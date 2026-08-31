@@ -57,9 +57,13 @@ describe('routeForNotification — eventReminder needs its entity_ref', () => {
 });
 
 describe('routeForNotification — coverage of the canonical type set', () => {
-  it('every type except moderation resolves to a route', () => {
+  // The two deliberate nulls are named, not skipped by predicate: a THIRD type added without a
+  // route arm falls through the switch's `default` and would join them silently otherwise.
+  const NO_ROUTE = ['moderation', 'reportQueue'] as const;
+
+  it('every type except the two deliberate nulls resolves to a route', () => {
     for (const type of NOTIFICATION_TYPES) {
-      if (type === 'moderation') continue; // deliberate null — asserted below
+      if ((NO_ROUTE as readonly string[]).includes(type)) continue; // asserted below
       const n = notif({ type, entity_ref: { kind: 'event', id: 'ev-1' } });
       expect(routeForNotification(n)).not.toBeNull();
     }
@@ -68,6 +72,14 @@ describe('routeForNotification — coverage of the canonical type set', () => {
   it('moderation stays put — the warn row is the outcome, not a doorway (#313)', () => {
     const n = notif({ type: 'moderation', entity_ref: { kind: 'report', id: 'r-1' } });
     expect(routeForNotification(n)).toBeNull();
+  });
+
+  it('reportQueue stays put — the queue is a web surface, absent from this app (#602)', () => {
+    // …and it stays null even WITH a ref, because there is no screen to send it to. The day
+    // #311 lands a native admin queue, this is the assertion that has to change first.
+    const n = notif({ type: 'reportQueue', entity_ref: { kind: 'report', id: 'r-1' } });
+    expect(routeForNotification(n)).toBeNull();
+    expect(routeForNotification(notif({ type: 'reportQueue', entity_ref: null }))).toBeNull();
   });
 
   it('fundMilestone → the annual fund screen, ref or no ref (#127)', () => {

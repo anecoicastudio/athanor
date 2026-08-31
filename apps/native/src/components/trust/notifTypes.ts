@@ -22,6 +22,7 @@ import type { Notification } from '@athanor/schemas';
  *  triangle → △  (outline triangle — moderation warn, #313)
  *  triangle2→ ▽  (down triangle — your data coming to you, #129)
  *  azoth    → ◐  (half-filled circle — the vessel filling: the fund, #127)
+ *  eye      → ◎  (circle within circle — the iris: the watcher, #602)
  */
 type Visual = { glyph: string; accentClass: string; celebratory: boolean };
 
@@ -47,6 +48,10 @@ export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
   moderation: { glyph: '△', accentClass: 'bg-raise-2', celebratory: false },
   // #129 export ready — neutral: a delivery notice is service, not a moment (rule #4).
   gdprExport: { glyph: '▽', accentClass: 'bg-raise-2', celebratory: false },
+  // #602 the moderation queue alert. `eye` from the 20-glyph set (DESIGN.md §6) — this is
+  // the one notification that exists because someone is watching. Neutral, emphatically: a
+  // queue filling up is the least moment-like thing the app can tell anyone (rule #4).
+  reportQueue: { glyph: '◎', accentClass: 'bg-raise-2', celebratory: false },
 };
 
 /** Maps each type to the i18n lead key (bold prefix on the row). Typed MessageKey so a lead
@@ -61,6 +66,7 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   connection: 'notif.type.connection',
   moderation: 'notif.type.moderation',
   gdprExport: 'notif.type.gdprExport',
+  reportQueue: 'notif.type.reportQueue',
 };
 
 /** Per-template lead overrides, checked before NOTIF_LEAD. The help* templates reuse type

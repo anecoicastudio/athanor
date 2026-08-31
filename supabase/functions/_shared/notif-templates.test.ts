@@ -175,6 +175,22 @@ Deno.test('localizes every notification template in IT + EN with interpolation',
       itHas: 'domani',
       enHas: 'tomorrow',
     },
+    // #602 — the queue alert's two keys. The plural interpolates {count}; the singular writes
+    // the case into the sentence, because `t()` has no plural support.
+    {
+      templateKey: 'notif.tpl.reportQueue',
+      type: 'reportQueue',
+      params: { count: 3 },
+      itHas: '3 segnalazioni',
+      enHas: '3 reports',
+    },
+    {
+      templateKey: 'notif.tpl.reportQueueOne',
+      type: 'reportQueue',
+      params: { count: 1 },
+      itHas: 'Una segnalazione',
+      enHas: 'One report',
+    },
   ];
   for (const c of cases) {
     for (const [locale, needle] of [
@@ -235,6 +251,30 @@ Deno.test(
       build('notif.tpl.eventReminderOrganizer', 'it').data.route,
       build('notif.tpl.eventReminderSoon', 'it').data.route,
     );
+  },
+);
+
+// #602 — ROUTE misses degrade SILENTLY: buildPushMessages does `ROUTE[input.type] ?? 'momenti'`,
+// so a type with no row ships a push whose tap opens the Momenti tab. The loop above only checks
+// bodies and titles, and would never see it. This pins the row and, with it, the fallback's
+// invisibility: 'momenti' here would mean the entry was dropped.
+Deno.test(
+  'the queue alert routes to the notification centre, never to the momenti fallback',
+  () => {
+    const build = (templateKey: string, params: Record<string, unknown>) =>
+      buildPushMessages(
+        ['ExponentPushToken[a]'],
+        { type: 'reportQueue', templateKey, params, entityRef: '{}', locale: 'it' },
+        allValid,
+      )[0];
+
+    assertEquals(build('notif.tpl.reportQueue', { count: 4 }).data.route, 'trust');
+    assertEquals(build('notif.tpl.reportQueueOne', { count: 1 }).data.route, 'trust');
+    // Both keys share the type's title — the sentence is the only thing that differs.
+    assertEquals(build('notif.tpl.reportQueue', { count: 4 }).title, 'Le segnalazioni');
+    assertEquals(build('notif.tpl.reportQueueOne', { count: 1 }).title, 'Le segnalazioni');
+    // A missing count degrades to a number, never to «undefined segnalazioni».
+    assertEquals(build('notif.tpl.reportQueue', {}).body.includes('undefined'), false);
   },
 );
 
