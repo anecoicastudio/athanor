@@ -75,22 +75,23 @@ select is(
   10485760::bigint,
   'chat-media file_size_limit = 10485760 (one processed JPEG, not a camera-roll original)'
 );
--- Pinned as the WHOLE array (0014's #461 lesson): images only, no video, no audio — a mime
--- added here without a product decision is what this assertion exists to catch.
+-- Pinned as the WHOLE array (0014's #461 lesson): a mime added here without a product
+-- decision is what this assertion exists to catch.
 --
--- This list is deliberately WIDER than the key pin, which admits `.jpg` alone (#575). The two
--- are not the same claim: `allowed_mime_types` gates the declared Content-Type of the bytes, the
--- key pin gates the object's name, and an extension is not a mime. So PNG bytes can legally be
--- stored under a `.jpg` key. Whether anything renders wrong depends on whether Storage serves the
--- stored content-type or infers one from the name — NOT verified here, and worth checking before
--- anyone relies on the mismatch being harmless. Narrowing this array to `image/jpeg` would
--- make the layers agree and is the obvious follow-up, but it reverses a product decision (which
--- is exactly what #461 taught this assertion to catch), so #575 left it alone rather than
--- shrinking a shipped bucket's contract as a side effect of a key-shape fix.
+-- `image/jpeg` alone since the #582 ruling (2026-08-30, migration
+-- 20260831*_chat_media_mime_jpeg_only): the bucket now agrees with the `.jpg`-only key pin
+-- (#575), so the declared Content-Type and the object name can no longer disagree. The
+-- question this comment used to leave open — does Storage serve the stored content-type or
+-- infer one from the key name? — was answered by probe against hosted staging on
+-- 2026-08-31: it serves the STORED type (PNG bytes under a `.jpg` key came back
+-- `content-type: image/png` on both the direct GET and a signed URL). That made the old
+-- three-mime allowlist a real mismatch rather than a cosmetic one, which is why it was
+-- narrowed by ruling instead of left recorded. Widening again is a product decision; this
+-- assertion is where it gets caught.
 select is(
   (select allowed_mime_types from storage.buckets where id = 'chat-media'),
-  array['image/jpeg','image/png','image/webp'],
-  'chat-media accepts exactly image/jpeg, image/png, image/webp'
+  array['image/jpeg'],
+  'chat-media accepts exactly image/jpeg (#582)'
 );
 
 -- ── the policy set is exactly the three we own ───────────────────────────────────────
