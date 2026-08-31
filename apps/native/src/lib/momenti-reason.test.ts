@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { momentoReasonText, reasonPrefix } from './momenti-reason';
+import { momentoReasonKind } from '@athanor/schemas';
+import { momentoReasonText, reasonChipLabel, reasonPrefix } from './momenti-reason';
 
 describe('momentoReasonText', () => {
   it('localizes the prefix AND the tag keys (both locales)', () => {
@@ -80,6 +81,81 @@ describe('reasonPrefix', () => {
     // momentoReasonText is built on this function precisely so they cannot.
     for (const kind of ['mutualActivity', 'profession', 'city', 'shared'] as const) {
       expect(momentoReasonText({ kind, tags: [] }, 'it')).toBe(reasonPrefix(kind, 'it'));
+    }
+  });
+});
+
+describe('reasonChipLabel', () => {
+  // #526: `Tag shrink` caps the «Ti potrebbe interessare» pill at 40 % with a two-line clamp,
+  // which leaves a 92.4 px text box at 390 and 86.4 px at 375 (measured on Expo web, 13 px
+  // HankenGrotesk). Three of the sixteen localized full forms need a THIRD line there and
+  // truncate. Marco ruled a short vocabulary for the chip alone on 2026-08-30.
+  it('shortens the prefixes that overflowed the pill (#526)', () => {
+    expect(reasonChipLabel('offering', 'it')).toBe('Cerca ciò che offri');
+    expect(reasonChipLabel('offering', 'en')).toBe('Seeks what you offer');
+    expect(reasonChipLabel('profession', 'en')).toBe('Kindred crafts');
+  });
+
+  it('shortens profession IT too, though it fit — one reason, one register', () => {
+    // «Mestieri che si completano» wraps inside two lines at both widths, so this key is not
+    // forced. It is shortened anyway: the EN chip must be short, and a reason that reads as a
+    // clause in one locale and a label in the other is the worse outcome. Marco's ruling names
+    // this exact string.
+    expect(reasonChipLabel('profession', 'it')).toBe('Mestieri affini');
+  });
+
+  it('leaves the deck on the full form — the two surfaces are separate key sets', () => {
+    // AffinityRow (the swipe deck AND the home widget) keeps the sentence: there the prefix is
+    // a clause with tags spliced after a colon, and «Cerca ciò che offri: Investitore» would
+    // assert what «Potrebbe cercare» deliberately hedges.
+    expect(reasonPrefix('offering', 'it')).toBe('Potrebbe cercare ciò che offri');
+    expect(reasonPrefix('offering', 'en')).toBe('May be looking for what you offer');
+    expect(reasonPrefix('profession', 'en')).toBe('Crafts that complete each other');
+    expect(momentoReasonText({ kind: 'offering', tags: ['investitore'] }, 'it')).toBe(
+      'Potrebbe cercare ciò che offri: Investitore',
+    );
+  });
+
+  it('says exactly what the deck says wherever the full form already fit', () => {
+    // Five of the eight kinds are unchanged copy. The keys are still separate, so the chip can
+    // move later without touching the deck — but the words must not drift for no reason.
+    for (const kind of [
+      'shared',
+      'seeking',
+      'skills',
+      'city',
+      'mutualActivity',
+      'newDream',
+    ] as const) {
+      for (const locale of ['it', 'en'] as const) {
+        expect(reasonChipLabel(kind, locale)).toBe(reasonPrefix(kind, locale));
+      }
+    }
+  });
+
+  it('covers every reason kind in both locales — no chip renders a raw key', () => {
+    // t() degrades a missing key to the key itself (#113), so an unmapped kind would ship a
+    // pill reading «momenti.reason.chip.skills» rather than throwing.
+    for (const kind of momentoReasonKind.options) {
+      for (const locale of ['it', 'en'] as const) {
+        const label = reasonChipLabel(kind, locale);
+        expect(label).not.toMatch(/^momenti\.reason\./);
+        expect(label.trim()).not.toBe('');
+      }
+    }
+  });
+
+  it('stays inside the two-line budget the pill clamps at', () => {
+    // A character count is a PROXY for the px measurement, calibrated on the render: at the
+    // narrower 86.4 px box (375) every label at or under 21 characters wrapped within two
+    // lines, and «You've already shared» — 21 — is the longest that did. The three strings
+    // this issue is about are 30, 33 and 31. A 22-character chip label is not necessarily
+    // broken; it means this budget has to be re-measured before it ships.
+    const CHIP_LABEL_MAX_CHARS = 21;
+    for (const kind of momentoReasonKind.options) {
+      for (const locale of ['it', 'en'] as const) {
+        expect(reasonChipLabel(kind, locale).length).toBeLessThanOrEqual(CHIP_LABEL_MAX_CHARS);
+      }
     }
   });
 });
