@@ -82,7 +82,7 @@ select results_eq(
   'event-reminder-sweep runs every minute');
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
--- fixtures: six events, each probing one branch of the window logic
+-- fixtures: seven events, each probing one branch of the window logic
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, starts_at) values

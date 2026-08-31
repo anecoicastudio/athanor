@@ -219,6 +219,16 @@ Deno.test(
 
     assertEquals(build('notif.tpl.eventReminderOrganizer', 'it').title, 'Il tuo evento');
     assertEquals(build('notif.tpl.eventReminderOrganizer', 'en').title, 'Your event');
+    // …and no head-count, unlike both attendee slots. org_t1 joins no rsvps, so it fires for an
+    // event nobody has answered yet, and «0 partecipano» an hour before your own event is a
+    // metric rather than a wise friend (PRD §4.14). The `count` param stays in the payload —
+    // the sweep builds one params object per notification, not per template — and is simply
+    // not read by this key, which is what these two pin.
+    assertEquals(
+      build('notif.tpl.eventReminderOrganizer', 'it').body.includes('partecipano'),
+      false,
+    );
+    assertEquals(build('notif.tpl.eventReminderOrganizer', 'en').body.includes('attending'), false);
     // …and NOT the attendee title, which is what a copy-paste of the neighbouring entry yields.
     assertEquals(build('notif.tpl.eventReminder', 'it').title, 'Promemoria evento');
     assertEquals(

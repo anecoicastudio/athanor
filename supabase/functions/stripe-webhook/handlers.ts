@@ -148,7 +148,16 @@ export async function handleTicketPaid(
   // exactly those; a null count is indeterminate and falls through to "inserted" (worst
   // case: the old swallow, no rewrite).
   if (count !== 0) {
-    await mirrorRsvp(db, eventId, profileId); // the seat is real → it counts and it gets reminded
+    // count > 0: this call inserted the row, as 'paid' — mirror it.
+    //
+    // count === null is indeterminate, and the ticket half above deliberately reads it as
+    // "inserted". The mirror must NOT: a pre-existing `pending` row is possible on that branch,
+    // and 20260831090931's exemption covers settled tickets only, so the RSVP would become a
+    // capacity candidate and could raise P0001 inside the webhook — the one failure mode
+    // 20260831085517's header exists to make unreachable. A later redelivery lands on the
+    // live-row branch below and restates the mirror; a missed reminder for one buyer is the
+    // cheaper side of this trade than a 5xx loop that gets the endpoint disabled.
+    if (count !== null) await mirrorRsvp(db, eventId, profileId);
     return;
   }
   // A repair without a PI would write a row revokeTicket can never match again. Unreachable

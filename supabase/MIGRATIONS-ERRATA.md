@@ -1340,3 +1340,29 @@ the exemption exists at all.
 Asserted by: `supabase/tests/0090_event_capacity.test.sql`, «an unexpired pending CLAIM is not a
 seat» — a member holding one is refused at capacity, beside the assertion that a settled ticket
 holder is admitted.
+
+---
+
+## `20260831085518_event_reminder_organizer_slot.sql` — "the marker table … untouched" is contradicted by the file's own first statement
+
+The header says of the `create or replace`:
+
+> This is `create or replace` on the same signature — the cron entry, the marker table and the
+> retention are untouched.
+
+The first statement in the same file is an `alter table athanor.event_reminder_sends drop
+constraint event_reminder_sends_slot_check, add constraint … check (slot in ('t24','t1','org_t1'))`.
+The marker table IS touched: its CHECK is widened to admit the new slot, which is what makes the
+organiser claim insertable at all.
+
+What the sentence was reaching for is still true and is the part that matters for a reader
+deciding whether this migration is safe to replay: the table's **shape** does not move — same
+columns, same composite `(event_id, user_id, slot)` primary key, same `sent_at` index, same
+`athanor`-schema placement off the client grant surface, same retention. No existing row is
+touched either: every marker in flight is `t24` or `t1`, so the widened CHECK validates
+unconditionally. Read the clause as «the marker table's shape, the cron entry and the retention
+are untouched».
+
+Asserted by: `supabase/tests/0130_event_reminder_sweep.test.sql` §A, which pins the marker
+table's RLS, its zero client privileges and the cron schedule, and the `bag_eq` in §C, which pins
+`org_t1` as a claimable slot alongside the other two.

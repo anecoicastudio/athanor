@@ -454,6 +454,21 @@ Deno.test('the mirror rides assertSettled — unsettled money writes no RSVP', a
   assertEquals(unpaid.calls.length, 0, 'nothing at all is written before the money exists');
 });
 
+Deno.test('an indeterminate upsert count writes no RSVP', async () => {
+  // The ticket half reads a null count as "inserted" (worst case: the old swallow). The mirror
+  // cannot afford the same guess: on that branch a pre-existing `pending` row is possible, and
+  // 20260831090931's exemption covers settled tickets only — so an RSVP written here would be a
+  // capacity candidate and could raise P0001 INSIDE the webhook, which releases the lease and
+  // 500s until Stripe disables the endpoint. A redelivery restates the mirror off the live-row
+  // branch; one buyer's missed reminder is the cheaper side of that trade.
+  const db = makeFakeDb(); // no script → count comes back null
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['event_tickets.upsert'],
+  );
+});
+
 Deno.test(
   'the repair path mirrors, and a refunded replay does not resurrect the mirror',
   async () => {
@@ -1236,6 +1251,10 @@ Deno.test('handleWebhook 500s when the disambiguating ledger read fails', async 
 
 Deno.test('handleWebhook happy path: lease claim → process → stamp processed_at', async () => {
   const db = makeFakeDb({
+    // count 1 = the ticket row was inserted. Scripted rather than left to the fake's `null`
+    // default, because an indeterminate count deliberately skips the #522 mirror — this test
+    // is about the pipeline around a ticket that really was issued.
+    'event_tickets.upsert': [{ count: 1 }],
     'stripe_webhook_events.update': [
       { data: [{ event_id: 'evt_1' }] }, // lease claim won
       { data: [{ event_id: 'evt_1' }] }, // processed_at stamp

@@ -97,14 +97,20 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   },
   // The organiser slot (#522). Same type and route again; the sentence names the event as
   // theirs, because the organiser is not deciding whether to come — they are the event.
+  //
+  // No head-count, unlike the two attendee slots. Those only ever reach somebody who is
+  // themselves a going RSVP, so their {count} is >= 1 by construction. The organiser slot joins
+  // no rsvps at all — it fires for an event nobody has answered yet — and «0 partecipano» an
+  // hour before your own event is a metric, not a wise friend (PRD §4.14). The hour is the
+  // payload here; the head-count is what t24 is for.
   'notif.tpl.eventReminderOrganizer': {
     it: {
       title: 'Il tuo evento',
-      body: (p) => `«${p.title ?? ''}» comincia tra un'ora. ${p.count ?? 0} partecipano.`,
+      body: (p) => `«${p.title ?? ''}» comincia tra un'ora.`,
     },
     en: {
       title: 'Your event',
-      body: (p) => `«${p.title ?? ''}» starts in an hour. ${p.count ?? 0} attending.`,
+      body: (p) => `«${p.title ?? ''}» starts in an hour.`,
     },
   },
   'notif.tpl.projectResponse': {
