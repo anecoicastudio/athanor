@@ -15,7 +15,7 @@ import {
   subscribeMessages,
 } from '@athanor/api';
 import { dayBucket, memberLabel } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { localeTag, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
@@ -125,7 +125,7 @@ export default function ChatScreen() {
             ? t('chat.day.today', locale)
             : b.kind === 'yesterday'
               ? t('chat.day.yesterday', locale)
-              : new Date(b.iso).toLocaleDateString(locale);
+              : new Date(b.iso).toLocaleDateString(localeTag(locale));
         out.push({ type: 'marker', key: `m-${dayId}`, label });
         lastDay = dayId;
       }

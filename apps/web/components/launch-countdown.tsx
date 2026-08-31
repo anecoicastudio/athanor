@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { timeRemaining } from '@athanor/core';
-import { t, type Locale } from '@athanor/i18n';
+import { localeTag, t, type Locale } from '@athanor/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -43,7 +43,7 @@ export function LaunchCountdown({ locale, className }: { locale: Locale; classNa
 
   // Derived from LAUNCH_AT so the prose date can never drift from the countdown.
   // Rome civil date pinned so SSR and client format identically.
-  const date = new Intl.DateTimeFormat(locale === 'it' ? 'it-IT' : 'en-US', {
+  const date = new Intl.DateTimeFormat(localeTag(locale), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
