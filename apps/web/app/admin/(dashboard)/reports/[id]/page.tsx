@@ -27,8 +27,9 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
   // deliberately undercuts the bucket's hour: a storage predicate is evaluated when a URL is
   // MINTED, not when it is used, so an hour-long link outlives the verdict that justified it
   // and keeps working after the report is resolved. The page is `force-dynamic`, so it re-signs
-  // on every view and nothing is lost by the shorter life. (`signMediaUrls` accepts a shorter
-  // `expiresIn`, never a longer one — packages/api/src/storage.ts.)
+  // on every view and nothing is lost by the shorter life. (`signMediaUrls` asks callers to pass
+  // `expiresIn` only to go SHORTER — packages/api/src/storage.ts:94 — but the parameter is an
+  // unclamped number, so that is a convention this call keeps, not one it is held to.)
   const mediaKey = report.reportedMessage?.media_url ?? null;
   const signed: Record<string, string> = mediaKey
     ? // A signing failure must not take the verdict page down: the report, its note and its
@@ -60,6 +61,7 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
       {report.target_type === 'message' && (
         <ReportedMessage
           message={report.reportedMessage}
+          state={report.reportedMessageState}
           {...(mediaKey && signed[mediaKey] ? { imageUrl: signed[mediaKey] } : {})}
           locale={locale}
         />

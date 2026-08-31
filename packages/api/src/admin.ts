@@ -16,6 +16,7 @@ import {
   type AdminReportRow,
   type AdminReportDetail,
   type AdminReportedMessage,
+  type ReportedMessageState,
   type AdminFundEditionRow,
   type WaitlistAdminRow,
   type AbandonedDispatchRow,
@@ -28,6 +29,7 @@ export type {
   AdminReportRow,
   AdminReportDetail,
   AdminReportedMessage,
+  ReportedMessageState,
   AdminFundEditionRow,
   WaitlistAdminRow,
   AbandonedDispatchRow,
@@ -109,6 +111,7 @@ export async function getReportDetail(
   if (error) throw error;
   let target_handle: string | null = null;
   let reportedMessage: AdminReportedMessage | null = null;
+  let reportedMessageState: ReportedMessageState = 'notApplicable';
   if (data.target_type === 'person' && data.target_id) {
     const { data: t } = await client
       .from('profiles')
@@ -120,7 +123,9 @@ export async function getReportDetail(
     // A message report's subject is the SENDER, which is also what `resolve_report` v5 resolves
     // the verdict onto — so the header names the same person the verdict will hit. Reading it
     // here rather than letting the panel derive it keeps the two in one place.
-    reportedMessage = await readReportedMessage(client, data.target_id);
+    const evidence = await readReportedMessage(client, data.target_id);
+    reportedMessage = evidence.message;
+    reportedMessageState = evidence.state;
     target_handle = reportedMessage?.sender_handle ?? null;
   }
   const { data: audit } = await client
@@ -148,6 +153,7 @@ export async function getReportDetail(
     audit: parsedAudit,
     auditExcluded,
     reportedMessage,
+    reportedMessageState,
   };
 }
 
@@ -160,22 +166,30 @@ export async function getReportDetail(
  * zero rows from the same code. Nothing here queries `conversation_id`, by design — #97's
  * ruling scopes the read to reported content, and the surrounding thread is not it.
  *
- * Three endings, all of them `null`, and they are not the same thing — which is why each says
- * so in the log rather than only in the return:
- *   • no row — the message was erased or soft-deleted (`target_id` has no FK), or RLS withheld
- *     it, which from here are indistinguishable and mean the same thing to the reader;
- *   • the read failed — logged, not thrown, because a verdict page that 500s over its evidence
- *     read takes away the moderator's ability to act at all, and the report and its audit trail
- *     are still worth rendering;
- *   • the row failed the schema — withheld rather than typed as valid (rules/api.md; the same
- *     boundary discipline `parseOrWithhold` applies to the audit trail).
- * The panel renders all three as "no longer available"; the console line is what tells the
- * three apart on the day it matters.
+ * Returns a STATE beside the row rather than a bare null, because the three ways this can come
+ * back empty are not the same fact and the panel must not present them as one (rules/api.md's
+ * "dropping evidence quietly is the worse failure on an audit surface", applied to a read that
+ * returns at most one row — hence a name rather than `auditExcluded`'s count):
+ *
+ *   • `absent` — no row. The message was erased or soft-deleted (`target_id` carries no FK), or
+ *     RLS withheld it; from here those are indistinguishable and mean the same thing to a reader.
+ *   • `unreadable` — the query itself failed. NOT thrown: a verdict page that 500s over its
+ *     evidence read takes away the moderator's ability to act at all, and the report and its
+ *     audit trail are still worth rendering. Distinguishing this from `absent` is the point —
+ *     an RLS regression on the evidence policy would otherwise reach the panel dressed as an
+ *     erasure, which is the failure nobody would investigate.
+ *   • `withheld` — the row failed its schema, so it is withheld rather than typed as valid, the
+ *     same boundary discipline `parseOrWithhold` applies to the audit trail.
+ *
+ * The `console.warn` on the last two carries what the state cannot: WHICH message, and which
+ * error or which Zod issue. rules/api.md grants the warn for boundary-parse failures — the
+ * `withheld` branch — and the `unreadable` branch is deliberately held to the same shape; see
+ * the PR body, which puts the question of widening that sentence to Marco rather than assuming it.
  */
 async function readReportedMessage(
   client: AthanorClient,
   messageId: string,
-): Promise<AdminReportedMessage | null> {
+): Promise<{ message: AdminReportedMessage | null; state: ReportedMessageState }> {
   const { data, error } = await client
     .from('messages')
     .select('id, body, media_url, created_at, sender_id')
@@ -183,9 +197,9 @@ async function readReportedMessage(
     .maybeSingle();
   if (error) {
     console.warn(`[admin] reported message ${messageId} could not be read: ${error.message}`);
-    return null;
+    return { message: null, state: 'unreadable' };
   }
-  if (!data) return null;
+  if (!data) return { message: null, state: 'absent' };
   let sender_handle: string | null = null;
   if (data.sender_id) {
     const { data: sender } = await client
@@ -203,10 +217,14 @@ async function readReportedMessage(
     sender_handle,
   });
   if (!parsed.success) {
-    console.warn(`[admin] reported message ${messageId} failed its schema and was withheld`);
-    return null;
+    // Same shape as parseOrWithhold's line: the path and the message, so the row can be found.
+    const why = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    console.warn(
+      `[admin] reported message ${messageId} failed its schema and was withheld: ${why}`,
+    );
+    return { message: null, state: 'withheld' };
   }
-  return parsed.data;
+  return { message: parsed.data, state: 'present' };
 }
 
 /**

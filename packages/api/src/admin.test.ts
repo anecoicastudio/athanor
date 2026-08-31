@@ -490,6 +490,7 @@ describe('getReportDetail — the reported message', () => {
       created_at: '2026-08-30T09:00:00Z',
       sender_handle: 'marco',
     });
+    expect(detail.reportedMessageState).toBe('present');
     // The verdict lands on the sender (resolve_report v5), so the header names the sender.
     expect(detail.target_handle).toBe('marco');
   });
@@ -524,6 +525,7 @@ describe('getReportDetail — the reported message', () => {
     const detail = await getReportDetail(asClient(fake), R1);
 
     expect(detail.reportedMessage).toBeNull();
+    expect(detail.reportedMessageState).toBe('notApplicable');
     expect(fake.calls.some((c) => c.table === 'messages')).toBe(false);
   });
 
@@ -537,6 +539,7 @@ describe('getReportDetail — the reported message', () => {
     const detail = await getReportDetail(asClient(fake), R1);
 
     expect(detail.reportedMessage).toBeNull();
+    expect(detail.reportedMessageState).toBe('absent');
     expect(detail.target_handle).toBeNull();
     expect(detail.note).toBe('ha mandato questa foto');
   });
@@ -552,6 +555,9 @@ describe('getReportDetail — the reported message', () => {
     const detail = await getReportDetail(asClient(fake), R1);
 
     expect(detail.reportedMessage).toBeNull();
+    // The distinction the state exists for: a failed read is NOT an erasure, and the panel
+    // must not say it was.
+    expect(detail.reportedMessageState).toBe('unreadable');
     expect(detail.id).toBe(R1);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]![0]).toContain(M1);
@@ -572,7 +578,11 @@ describe('getReportDetail — the reported message', () => {
     const detail = await getReportDetail(asClient(fake), R1);
 
     expect(detail.reportedMessage).toBeNull();
+    expect(detail.reportedMessageState).toBe('withheld');
     expect(warn).toHaveBeenCalledTimes(1);
+    // The Zod issue rides the log, matching parseOrWithhold's line — the state says THAT a row
+    // was withheld, only this says which column disagreed.
+    expect(warn.mock.calls[0]![0]).toContain('created_at');
     warn.mockRestore();
   });
 
@@ -586,6 +596,7 @@ describe('getReportDetail — the reported message', () => {
 
     const detail = await getReportDetail(asClient(fake), R1);
 
+    expect(detail.reportedMessageState).toBe('present');
     expect(detail.reportedMessage?.sender_handle).toBeNull();
     expect(detail.reportedMessage?.body).toBe('ciao');
     expect(fake.calls.some((c) => c.table === 'profiles')).toBe(false);

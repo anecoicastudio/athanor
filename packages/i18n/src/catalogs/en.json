@@ -1506,6 +1506,8 @@
   "admin.report.evidenceGone": "This message is no longer available.",
   "admin.report.evidenceImage": "Reported image",
   "admin.report.evidenceImageGone": "The image is no longer available.",
+  "admin.report.evidenceUnreadable": "This message could not be read. Try again; if it keeps happening, something is wrong with the read path.",
+  "admin.report.evidenceWithheld": "This message arrived in a shape that does not add up, so it is not shown.",
   "admin.verdict.title": "Decision",
   "admin.verdict.dismiss": "Dismiss",
   "admin.verdict.uphold": "Uphold with penalty",

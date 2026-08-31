@@ -17,11 +17,14 @@ import { Screen } from '@/components/Screen';
 
 /**
  * Report sheet (M9, frontend `09` §3.3). One sheet parameterized by targetType ∈
- * {person, post, behavior} + optional targetId. Files a `reports` row (status='open'); the
- * reporter NEVER sees the outcome — the −50..−200 Aura penalty, if upheld, is the M6 engine's
- * job, server-only (rule #1). After a person report, offers «Blocca anche questa persona»
- * (routes through the merged blocks flow). Flat `light` CTA — reporting is not a moment-grade
- * event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
+ * {person, post, behavior, message} + optional targetId — `message` since #574, pushed here by
+ * the chat bubble's action sheet with the message id as the targetId. Files a `reports` row
+ * (status='open'); the reporter NEVER sees the outcome — the −50..−200 Aura penalty, if upheld,
+ * is the M6 engine's job, server-only (rule #1). After a person report, offers «Blocca anche
+ * questa persona» (routes through the merged blocks flow); a message report does not, because
+ * the affordance below keys on `targetId` being a person and for a message it is a message —
+ * the chat overflow menu still offers «Blocca» directly. Flat `light` CTA — reporting is not a
+ * moment-grade event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
  */
 export default function ReportScreen() {
   const leave = useGuardedBack();

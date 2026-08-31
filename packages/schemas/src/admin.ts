@@ -174,6 +174,32 @@ export const adminReportedMessage = messageSchema
 export type AdminReportedMessage = z.infer<typeof adminReportedMessage>;
 
 /**
+ * Why `adminReportDetail.reportedMessage` holds what it holds.
+ *
+ * A single `null` would collapse four different facts into one, and on an evidence surface they
+ * are not interchangeable: «this report does not name a message», «the message is gone», «the
+ * read failed» and «the row did not match its schema» call for different sentences and, for the
+ * last two, for someone to go and look. An RLS regression on `messages_select_reported` would
+ * otherwise reach the moderator dressed as an erasure.
+ *
+ * This is `auditExcluded`'s discipline (#421, rules/api.md) applied to a read that returns at
+ * most ONE row: a count would only ever be 0 or 1 and would say nothing a null does not, so the
+ * withheld thing is named instead of counted.
+ *
+ * Invariant, held by construction in `getReportDetail` and asserted in both test suites:
+ * `state === 'present'` exactly when `reportedMessage !== null`.
+ */
+export const REPORTED_MESSAGE_STATES = [
+  'notApplicable',
+  'present',
+  'absent',
+  'unreadable',
+  'withheld',
+] as const;
+export const reportedMessageState = z.enum(REPORTED_MESSAGE_STATES);
+export type ReportedMessageState = z.infer<typeof reportedMessageState>;
+
+/**
  * Admin detail shape (report + audit trail + target handle).
  *
  * `auditExcluded` counts the audit rows the reader could not validate and therefore
@@ -192,11 +218,12 @@ export const adminReportDetail = adminReportRow.extend({
   /**
    * The reported message, on a `'message'` report only (#574) — null everywhere else, and null
    * on a message report whose target no longer resolves: `reports.target_id` has no FK, so an
-   * erased or soft-deleted message leaves the report pointing at nothing. Null therefore means
-   * "not applicable OR no longer available", and the panel says the second out loud rather than
-   * rendering an empty evidence box.
+   * erased or soft-deleted message leaves the report pointing at nothing. Read it together with
+   * `reportedMessageState`, which is what says WHICH of those a null is.
    */
   reportedMessage: adminReportedMessage.nullable(),
+  /** Why `reportedMessage` is what it is — see {@link REPORTED_MESSAGE_STATES}. */
+  reportedMessageState,
 });
 export type AdminReportDetail = z.infer<typeof adminReportDetail>;
 

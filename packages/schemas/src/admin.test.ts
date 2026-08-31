@@ -313,7 +313,7 @@ describe('admin read shapes', () => {
     }
   });
 
-  it('the detail is the queue row plus note, resolution, target handle, the audit trail with its withheld count, and the reported message', () => {
+  it('the detail is the queue row plus note, resolution, target handle, the audit trail with its withheld count, and the reported message with its state', () => {
     expect(Object.keys(adminReportDetail.shape)).toEqual([
       'id',
       'target_type',
@@ -328,7 +328,21 @@ describe('admin read shapes', () => {
       'audit',
       'auditExcluded',
       'reportedMessage',
+      'reportedMessageState',
     ]);
+  });
+
+  // The four ways a null can happen, named. A single null would present an RLS regression on
+  // the evidence policy as an erasure — the one dressing in which nobody investigates it.
+  it('names why the reported message is absent rather than collapsing four facts into null', () => {
+    expect(adminReportDetail.shape.reportedMessageState.options).toEqual([
+      'notApplicable',
+      'present',
+      'absent',
+      'unreadable',
+      'withheld',
+    ]);
+    expect(adminReportDetail.shape.reportedMessageState.safeParse('gone').success).toBe(false);
   });
 
   // The evidence shape is the privacy boundary written down (#574 / #97's ruling). A

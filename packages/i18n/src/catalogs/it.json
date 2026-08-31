@@ -1506,6 +1506,8 @@
   "admin.report.evidenceGone": "Questo messaggio non è più disponibile.",
   "admin.report.evidenceImage": "Immagine segnalata",
   "admin.report.evidenceImageGone": "L'immagine non è più disponibile.",
+  "admin.report.evidenceUnreadable": "Non è stato possibile leggere questo messaggio. Riprova; se succede ancora, qualcosa non va nel percorso di lettura.",
+  "admin.report.evidenceWithheld": "Questo messaggio è arrivato in una forma che non torna, quindi non viene mostrato.",
   "admin.verdict.title": "Decisione",
   "admin.verdict.dismiss": "Archivia",
   "admin.verdict.uphold": "Conferma con penalità",

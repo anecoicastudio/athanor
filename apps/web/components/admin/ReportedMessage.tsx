@@ -1,5 +1,23 @@
-import { localeTag, t, type Locale } from '@athanor/i18n';
-import type { AdminReportedMessage } from '@athanor/api';
+import { localeTag, t, type Locale, type MessageKey } from '@athanor/i18n';
+import type { AdminReportedMessage, ReportedMessageState } from '@athanor/api';
+
+/**
+ * What the moderator is told when there is no message to show.
+ *
+ * Three sentences, not one, because the three states are not one fact: an erased message is
+ * normal and final, a failed read is a bug someone should look at, and a row that failed its
+ * schema is a different bug in a different place. Collapsing them into «no longer available»
+ * would let an RLS regression on the evidence policy read as an erasure — the one dressing in
+ * which nobody would ever investigate it.
+ *
+ * `notApplicable` has no entry: this component only renders on a `'message'` report, so the
+ * state cannot occur here, and inventing copy for it would be copy nobody can reach.
+ */
+const ABSENCE_COPY: Partial<Record<ReportedMessageState, MessageKey>> = {
+  absent: 'admin.report.evidenceGone',
+  unreadable: 'admin.report.evidenceUnreadable',
+  withheld: 'admin.report.evidenceWithheld',
+};
 
 /**
  * The evidence block on a `target_type = 'message'` report (#574).
@@ -17,10 +35,13 @@ import type { AdminReportedMessage } from '@athanor/api';
  */
 export function ReportedMessage({
   message,
+  state,
   imageUrl,
   locale,
 }: {
   message: AdminReportedMessage | null;
+  /** Why `message` is null when it is — the sentence below is chosen from it. */
+  state: ReportedMessageState;
   /** Short-lived signed URL for `message.media_url`, minted per render by the page. */
   imageUrl?: string;
   locale: Locale;
@@ -32,7 +53,9 @@ export function ReportedMessage({
         <p className="text-xs text-muted-foreground">{t('admin.report.evidenceScope', locale)}</p>
       </header>
       {message === null ? (
-        <p className="text-sm text-muted-foreground">{t('admin.report.evidenceGone', locale)}</p>
+        <p className="text-sm text-muted-foreground">
+          {t(ABSENCE_COPY[state] ?? 'admin.report.evidenceGone', locale)}
+        </p>
       ) : (
         <>
           <p className="text-xs text-muted-foreground">
