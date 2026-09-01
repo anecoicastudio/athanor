@@ -37,7 +37,21 @@ const TRACE = __DEV__;
  * node carrying it — so the sheet's own window offset is never added. Designs 2 and 3 were
  * therefore fed a `y` measured from the sheet's top-left while the keyboard frame they were
  * subtracted from is in window space. Garbage, and garbage that clamps to 0 for a view near
- * the sheet's top. The value WAS arriving; it was wrong.
+ * the sheet's top. So the value was most likely arriving and wrong, not failing to arrive.
+ *
+ * "Most likely", because one step of that is inference rather than observation. What is
+ * verified is that the call is sheet-relative by construction; that this is what produced
+ * both reds was never watched happening, and it carries a loose end — design 3's narrowing
+ * committing 0 would have printed `[keyboard] measured 0: …` exactly once, and that round
+ * was reported as printing nothing. Those logs have still not been read. If any survive,
+ * they settle it for free.
+ *
+ * What is not inference is the blast radius, and it is what turns deleting the measurement
+ * from a judgement into a consequence: of the twelve `KeyboardAvoiding` consumers, NINE are
+ * `(modal)/*`, and `StoriesViewer` renders on `(modal)/stories` too. Only `welcome`,
+ * `(onboarding)` and `(tabs)/profile` were ever outside a sheet — and `welcome` is exactly
+ * the screen that lifts correctly on device. The measurement was structurally wrong on ten
+ * of the thirteen surfaces that use it.
  *
  * So: **never reach for `measureInWindow` on a modal screen.** Every `(modal)/*` route is
  * inside a sheet — the group itself carries `presentation: 'modal'` (`app/_layout.tsx`) —
