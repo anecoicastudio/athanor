@@ -100,8 +100,23 @@ function resolveContentPath(contentPath: string): URL {
   return new URL(contentPath.replace(/^\.\//, ''), REPO_ROOT);
 }
 
+/**
+ * A missing content_path is the likeliest real break here — a typo, or a template deleted
+ * while its block stayed. Reading it raw throws Deno.errors.NotFound, which reports as an
+ * error rather than a failed assertion and buries the path that was wrong. Fail on the
+ * assertion instead, naming the file.
+ */
 function readTemplate(name: string): string {
-  return Deno.readTextFileSync(resolveContentPath(declared[name].contentPath));
+  const { contentPath } = declared[name];
+  const url = resolveContentPath(contentPath);
+  try {
+    return Deno.readTextFileSync(url);
+  } catch (cause) {
+    const why = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `[auth.email.template.${name}] content_path is unreadable: ${contentPath} (${why})`,
+    );
+  }
 }
 
 Deno.test('config.toml declares exactly the templates in DECLARED', () => {
@@ -117,8 +132,14 @@ Deno.test('every declared template has a non-empty subject and an existing conte
     assert(subject.length > 0, `[auth.email.template.${name}] has no subject`);
     assert(contentPath.length > 0, `[auth.email.template.${name}] has no content_path`);
     const url = resolveContentPath(contentPath);
+    let isFile = false;
+    try {
+      isFile = Deno.statSync(url).isFile;
+    } catch {
+      isFile = false;
+    }
     assert(
-      Deno.statSync(url).isFile,
+      isFile,
       `[auth.email.template.${name}] content_path does not resolve to a file: ${contentPath}`,
     );
   }
