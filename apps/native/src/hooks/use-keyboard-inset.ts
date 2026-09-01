@@ -13,8 +13,10 @@ const TRACE = __DEV__;
  *
  * ── WHY THIS IS THE KEYBOARD'S HEIGHT AND NOTHING ELSE ────────────────────────────
  * It reads `endCoordinates.height` and stops. Every consumer's wrapper reaches the window
- * bottom except the three named below, so that IS the covered height, and on Android it is
- * already net of the system bars, which `Screen`'s own bottom inset carries.
+ * bottom except `(modal)/plan`, `(modal)/progress` and `(tabs)/profile`, so that IS the
+ * covered height, and on Android it is already net of the system bars, which `Screen`'s own
+ * bottom inset carries. (Named rather than counted: there is a SECOND trio further down —
+ * the consumers that were never inside a sheet — and it overlaps this one by `profile`.)
  *
  * Three earlier designs measured the view instead, and all three failed on device:
  *
