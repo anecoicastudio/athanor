@@ -14,7 +14,8 @@ const AVATAR_SIZE = 28;
 const LONG_PRESS_ACTION = [{ name: 'longpress' as const }];
 
 /**
- * What a screen reader announces for a peer bubble that carries the action sheet.
+ * What a screen reader announces for a bubble that carries an affordance — the peer's action
+ * sheet (#574), the photo viewer (#576), or both.
  *
  * An image-only message has no text of its own, so «Foto» is the whole label — without it the
  * button would announce as nothing but its hint. A captioned image announces both, image
@@ -23,6 +24,25 @@ const LONG_PRESS_ACTION = [{ name: 'longpress' as const }];
 function bubbleLabel(message: Message, locale: Locale): string {
   const photo = message.media_url ? t('chat.a11y.imageMessage', locale) : null;
   return [photo, message.body].filter(Boolean).join(', ');
+}
+
+/**
+ * The hint for what pressing actually does, which since #576 is no longer one thing. A peer's
+ * photo carries BOTH gestures — tap opens the viewer, long press opens the actions — and a hint
+ * naming only one of them would hide the other from the one member who cannot find it by trying:
+ * a long press has no visual affordance, and VoiceOver reaches it only through the declared
+ * `longpress` action below.
+ */
+function bubbleHint(
+  locale: Locale,
+  canOpenPhoto: boolean,
+  hasActions: boolean,
+): string | undefined {
+  if (canOpenPhoto && hasActions) return t('chat.a11y.photoAndActions', locale);
+  if (canOpenPhoto) return t('chat.a11y.openPhoto', locale);
+  // No fallback: a bubble with neither affordance is not a button at all, and returning the
+  // actions hint for it would announce a gesture that does nothing.
+  return hasActions ? t('chat.a11y.messageActions', locale) : undefined;
 }
 
 /**
@@ -78,6 +98,7 @@ export function Bubble({
   mediaUrl,
   mediaLoading = false,
   onLongPress,
+  onImagePress,
 }: {
   message: Message;
   myId: string;
@@ -97,6 +118,12 @@ export function Bubble({
    * surface an accessibility element, so a bubble that has none must not become one.
    */
   onLongPress?: () => void;
+  /**
+   * Opens the fullscreen photo viewer (#576). Passed for any bubble carrying an image, own or
+   * peer's — an own photo is cropped by the same 220pt · 4/3 frame, so it wants the same way to
+   * see the whole of it. Absent (or on a text-only message) leaves the bubble as it was.
+   */
+  onImagePress?: () => void;
 }) {
   const router = useRouter();
   if (message.kind === 'system' || message.kind === 'prompt') {
@@ -128,13 +155,31 @@ export function Bubble({
     </>
   );
   const bubblePad = hasMedia ? 'p-1.5' : 'px-4 py-2';
+  // The tap only exists where there is something to open. A text bubble stays a plain View for
+  // the same reason an unreportable one does: the affordance is what makes a surface an
+  // accessibility element, and a bubble with none must not become one.
+  const canOpenPhoto = hasMedia && onImagePress != null;
   if (mine) {
+    const own = `rounded-2xl bg-aura ${bubblePad}`;
     return (
       <View className="my-1 max-w-[80%] self-end">
-        <View className={`rounded-2xl bg-aura ${bubblePad}`}>{content('text-on-aura')}</View>
+        {canOpenPhoto ? (
+          <Pressable
+            className={own}
+            onPress={onImagePress}
+            accessibilityRole="button"
+            accessibilityLabel={bubbleLabel(message, locale)}
+            accessibilityHint={bubbleHint(locale, true, false)}
+          >
+            {content('text-on-aura')}
+          </Pressable>
+        ) : (
+          <View className={own}>{content('text-on-aura')}</View>
+        )}
       </View>
     );
   }
+  const peerBubble = `flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`;
   return (
     <View className="my-1 max-w-[80%] flex-row items-end gap-2 self-start">
       {/* The gutter is always AVATAR_SIZE wide; only the last bubble of a run fills it.
@@ -159,29 +204,36 @@ export function Bubble({
           </Pressable>
         ) : null}
       </View>
-      {onLongPress ? (
+      {onLongPress || canOpenPhoto ? (
         <Pressable
-          className={`flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`}
-          onLongPress={onLongPress}
+          className={peerBubble}
+          // Both gestures on ONE Pressable, never two nested ones: on iOS the inner control
+          // would be unreachable to VoiceOver (source-audit §21), and a fresh Pressable around
+          // the image is exactly the shape that would take the report affordance away from the
+          // image-only messages #574 was filed about.
+          {...(canOpenPhoto ? { onPress: onImagePress } : {})}
           // The gesture, declared. RN fires `onAccessibilityAction` for the standard
           // 'longpress' action, which is the only way a screen-reader user reaches a long
           // press at all — without it the sheet would be mouse-and-finger only.
-          accessibilityActions={LONG_PRESS_ACTION}
-          onAccessibilityAction={onLongPress}
+          {...(onLongPress
+            ? {
+                onLongPress,
+                accessibilityActions: LONG_PRESS_ACTION,
+                onAccessibilityAction: onLongPress,
+              }
+            : {})}
           accessibilityRole="button"
           // ONE composed label (the MomentTile precedent, #292): a Pressable is an
           // accessibility element and on iOS an atomic one, so anything `accessible` nested
           // inside it — the image frame's own label — may never be spoken. It has to ride the
           // button's label instead.
           accessibilityLabel={bubbleLabel(message, locale)}
-          accessibilityHint={t('chat.a11y.messageActions', locale)}
+          accessibilityHint={bubbleHint(locale, canOpenPhoto, onLongPress != null)}
         >
           {content('text-foreground')}
         </Pressable>
       ) : (
-        <View className={`flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`}>
-          {content('text-foreground')}
-        </View>
+        <View className={peerBubble}>{content('text-foreground')}</View>
       )}
     </View>
   );

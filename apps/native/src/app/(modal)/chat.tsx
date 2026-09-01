@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Platform, type FlatList as RNFlatList } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -29,6 +29,7 @@ import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { MediaSheet } from '@/components/media/MediaSheet';
+import { PhotoViewer } from '@/components/media/PhotoViewer';
 import type { PickedMedia } from '@/lib/media/pick';
 import { chatMediaPath, newMediaId, processAndUpload } from '@/lib/media/upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
@@ -65,6 +66,13 @@ export default function ChatScreen() {
   // with the close.
   const [actionsFor, setActionsFor] = useState<Message | null>(null);
   const queuedReport = useRef<Message | null>(null);
+  // The message whose photo is open fullscreen (#576). The MESSAGE, not the URL: the viewer
+  // shows the caption too, and the signed URL is read from the map below at render time so a
+  // re-sign mid-view reaches the viewer the same way it reaches the bubble.
+  const [viewing, setViewing] = useState<Message | null>(null);
+  // Stable, unlike this screen's other modal handlers: the viewer builds a PanResponder keyed on
+  // it, and an inline arrow would rebuild that responder on every keystroke in the composer.
+  const closeViewer = useCallback(() => setViewing(null), []);
   // The staged image, one per message (#155). `mediaId` is minted at PICK time, not at send:
   // a failed send retried from the same staging re-uploads to the SAME key (upsert), instead
   // of orphaning an object per attempt.
@@ -328,6 +336,12 @@ export default function ChatScreen() {
                 {...(item.message.kind === 'user' && item.message.sender_id !== myId
                   ? { onLongPress: () => setActionsFor(item.message) }
                   : {})}
+                // Tap-to-fullscreen (#576), on either side of the thread: an own photo is
+                // cropped by the same fixed frame as the peer's. Only where there is a photo —
+                // a text bubble must not become a button that does nothing.
+                {...(item.message.media_url
+                  ? { onImagePress: () => setViewing(item.message) }
+                  : {})}
                 // The face sits on the LAST bubble of a run, beside the row it is bottom-aligned
                 // to. A run ends when the next row is a day marker, the end of the thread, or a
                 // message from anyone else.
@@ -471,6 +485,18 @@ export default function ChatScreen() {
             queuedReport.current = null;
             if (target) openReport(target);
           }}
+        />
+
+        {/* The photo a bubble was tapped on (#576). Handed the URL the thread already signed —
+          the viewer never mints its own, so opening one costs no round trip. */}
+        <PhotoViewer
+          visible={viewing !== null}
+          url={viewing?.media_url ? mediaUrls[viewing.media_url] : undefined}
+          isLoading={mediaUrlsLoading}
+          label={t('chat.photo.label', locale)}
+          caption={viewing?.body}
+          locale={locale}
+          onClose={closeViewer}
         />
 
         {/* Kept mounted (visible={false}), never conditionally rendered: the iOS

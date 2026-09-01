@@ -37,6 +37,14 @@ type Props = {
   /** For the one caller whose aspect ratio is per-row data rather than a class. */
   style?: StyleProp<ViewStyle>;
   /**
+   * How the ready photo fills the frame. `cover` for every fixed box — a tile, a bubble, a
+   * story segment — where a letterboxed image would leave the box half empty and the grid
+   * ragged. `contain` for a fullscreen viewer, whose whole reason to exist is showing the
+   * parts the cropped frame cut off. Ignored when `children` draws the ready state: a player
+   * owns its own fit.
+   */
+  contentFit?: 'cover' | 'contain';
+  /**
    * Ready-state renderer, for the kinds `expo-image` cannot draw: the video and audio players.
    * A render prop rather than a node, so a player is only ever constructed with a URL in hand —
    * the old `url ? <Player uri={url}/> : ▶` shape could not express that. Omit it and the ready
@@ -84,6 +92,7 @@ export function MediaFrame({
   compact = false,
   className,
   style,
+  contentFit = 'cover',
   children,
   overlay,
 }: Props) {
@@ -120,7 +129,7 @@ export function MediaFrame({
             <ExpoImage
               source={{ uri: readyUrl }}
               style={StyleSheet.absoluteFill}
-              contentFit="cover"
+              contentFit={contentFit}
               // Reduced motion replaces transitions with a cut (DESIGN §10).
               transition={reduce ? 0 : 200}
               // Tiles recycle in a grid; without this a scrolled-away image can flash in the cell
