@@ -404,8 +404,8 @@ a member receives until someone does.
 | Magic Link                                          | `Il tuo varco per Athanor`                    | `supabase/templates/magic_link.html`   |
 
 Both are also declared in `supabase/config.toml` under `[auth.email.template.*]`. That block is
-read by a local stack, which this project does not run — **do not install them with
-`supabase config push`.** `config push` sends the whole `[auth.email]` block to whatever
+read only by a local stack, which only CI runs (the `db` job spins one up per push) — **do not
+install them with `supabase config push`.** `config push` sends the whole `[auth.email]` block to whatever
 `supabase/.temp/linked-project.json` points at, and that block carries `enable_confirmations =
 false`, which would turn staging's confirmations **off** as a side effect (staging has them on;
 production runs `mailer_autoconfirm = true` and sends no confirmation mail at all — §P1.6 of
@@ -417,8 +417,8 @@ DKIM/SPF first (#471). Neither project has an SMTP provider, so both are on Supa
 mailer at 2 mails/hour — enough for a manual check, not for a cohort.
 
 `supabase/functions/_shared/mail-templates.test.ts` gates the repo side of this (every declared
-template resolves, is Italian, carries the GoTrue variable its flow needs, and has no stock
-English subject). It cannot see the hosted projects, so it will stay green while both dashboards
+template resolves, is Italian, carries the GoTrue variable its flow needs, and has the subject
+pinned in the guard's own table). It cannot see the hosted projects, so it will stay green while both dashboards
 hold the stock English defaults. Verify by sending yourself one of each after installing.
 
 ---
