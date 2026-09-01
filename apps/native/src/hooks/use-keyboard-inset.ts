@@ -159,7 +159,9 @@ export function useKeyboardInset(): {
         // Dev-only, generously long: the point is to name a callback that never came,
         // not to time one that did.
         setTimeout(() => {
-          if (!answered) console.warn('[keyboard] measureInWindow never answered');
+          // `alive` too: a screen dismissed within the window did not lose a callback, it
+          // went away — and a false alarm here is an alarm on the exact bug this names.
+          if (!answered && alive.current) console.warn('[keyboard] measureInWindow never answered');
         }, 500);
       }
     },
