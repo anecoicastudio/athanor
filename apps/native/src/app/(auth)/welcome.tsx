@@ -49,6 +49,10 @@ export default function WelcomeScreen() {
   // it to AuthGuard. Replaces the old `submitting` + `notice` pair, which could not express
   // "the request finished and the screen is now the confirmation" (#618).
   const [phase, setPhase] = useState<'idle' | 'submitting' | 'sent'>('idle');
+  // Marco could not see what he was typing on the device walk. Revealing also turns the
+  // field non-secure, which is the only remedy there is for #615's first-ranked hypothesis
+  // (UIKit clears a SECURE field when editing resumes) — so this doubles as its discriminator.
+  const [revealed, setRevealed] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<null | 'apple' | 'google'>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -347,9 +351,30 @@ export default function WelcomeScreen() {
                 </View>
 
                 <View className="gap-2">
-                  <Text className="text-xs font-medium text-muted-foreground">
-                    {t('auth.password.label', locale)}
-                  </Text>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-xs font-medium text-muted-foreground">
+                      {t('auth.password.label', locale)}
+                    </Text>
+                    {/* Ghost register (DESIGN §9): no fill, no border, muted label, 13/600
+                      letterspaced. A reveal is a confirmation-grade affordance, never a
+                      moment — no cyan, no glow. The state is carried by the word itself and
+                      by an explicit SR label, not by colour (G2). Rendered unconditionally:
+                      a control that appears once you start typing is worse than one that
+                      waits, and its slot must not move under the field. */}
+                    <Pressable
+                      onPress={() => setRevealed((shown) => !shown)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(
+                        revealed ? 'a11y.password.hide' : 'a11y.password.show',
+                        locale,
+                      )}
+                      hitSlop={12}
+                    >
+                      <Text className="text-[13px] font-semibold tracking-[0.14em] text-muted-foreground">
+                        {t(revealed ? 'auth.password.hide' : 'auth.password.show', locale)}
+                      </Text>
+                    </Pressable>
+                  </View>
                   {/* #615: `textContentType` is iOS-only and OVERRIDES the value RN derives from
                     `autoComplete` (TextInput.js maps one to the other only when the explicit prop
                     is absent), so the two props can be set independently — Android keeps its
@@ -364,7 +389,7 @@ export default function WelcomeScreen() {
                     autoCapitalize="none"
                     autoComplete={login ? 'current-password' : 'new-password'}
                     textContentType={login ? 'password' : 'none'}
-                    secureTextEntry
+                    secureTextEntry={!revealed}
                     placeholder={t('auth.password.placeholder', locale)}
                     value={password}
                     onChangeText={setPassword}
