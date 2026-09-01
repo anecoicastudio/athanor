@@ -15,10 +15,11 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * The census on `dev` @ b94fd10 found all twelve sharing `rounded-hero border bg-raise px-5 py-4
  * text-foreground` exactly, and diverging on four axes. Three were drift, one was meaning:
  *
- * (The family is really fifteen. The three compose screens — story, post, project — are the same
- * shape and were left out of #499's count because they already passed the placeholder prop it was
- * filed about, not because they differed. #504's ruling folded them in on 2026-08-30, so
- * `source-audit.test.ts` §15 now names this file and nothing else.)
+ * (The family is really fifteen. The three compose screens — story, post, project — were the same
+ * shape with their own padding, type and height, and #499 left them out of its count because they
+ * already passed the placeholder prop it was filed about, not because it judged them a different
+ * shape. #504's ruling folded them in on 2026-08-30, so `source-audit.test.ts` §15 now names this
+ * file and nothing else.)
  *
  * ── WHY TWO SIZES AND NOT THREE ───────────────────────────────────────────────────────────
  * `min-h-36` ×2, `min-h-32` ×2, `min-h-28` ×3. Only one boundary is a design decision: whether
