@@ -3,12 +3,12 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useLocale } from '@/hooks/use-locale';
@@ -143,14 +143,12 @@ export default function ProjectComposeScreen() {
 
           <View className="gap-2">
             <SectionLabel>{t('project.compose.descLabel', locale)}</SectionLabel>
-            <TextInput
-              className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
+            <Field
+              size="lg"
+              multiline
               placeholder={t('project.compose.descPlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={description}
               onChangeText={setDescription}
-              multiline
-              textAlignVertical="top"
             />
           </View>
 

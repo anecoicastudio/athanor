@@ -16,9 +16,9 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * text-foreground` exactly, and diverging on four axes. Three were drift, one was meaning:
  *
  * (The family is really fifteen. The three compose screens — story, post, project — are the same
- * shape with their own padding and type, and #499 did not count them because they already pass
- * the placeholder prop it was filed about. They are named in `source-audit.test.ts` §15 with the
- * reason they have not been routed here yet.)
+ * shape and were left out of #499's count because they already passed the placeholder prop it was
+ * filed about, not because they differed. #504's ruling folded them in on 2026-08-30, so
+ * `source-audit.test.ts` §15 now names this file and nothing else.)
  *
  * ── WHY TWO SIZES AND NOT THREE ───────────────────────────────────────────────────────────
  * `min-h-36` ×2, `min-h-32` ×2, `min-h-28` ×3. Only one boundary is a design decision: whether
@@ -26,8 +26,10 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * hold it) or is one field among several (the report's optional note, the profile's bio and
  * mission). 36-vs-32 draws no such line, so it collapses.
  *
- * - `md` (default) — a field among fields. `min-h-28`.
- * - `lg` — the field the screen is about. `min-h-36`.
+ * - `md` (default) — a field among fields. `min-h-28` (98px on device, 112 on web). The story
+ *   caption, which sits beside the media it annotates.
+ * - `lg` — the field the screen is about. `min-h-36` (126px on device, 144 on web). The dream, the
+ *   help message, the candidacy prose, and — since #504 — the post body and the project description.
  *
  * A single-line field takes neither: `size` applies only when `multiline` is set, because
  * without it there is no box to give a floor to.
@@ -36,9 +38,15 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * Eight of the twelve set `text-lg`; four set nothing at all (`CityPicker`, and `ProfileEditForm`'s
  * name/bio/mission), so their text rendered at whatever size the PLATFORM defaults a `TextInput`
  * to — the same failure as the placeholder colour this primitive exists to fix, one axis over.
- * The majority spelling wins and the four join it. Note 15pt (`Input`) and 18pt (here) are both
- * off §4's mobile scale, which has no step between body 16 and h2 20; reconciling the two input
- * families against that scale is a separate question and is NOT settled here.
+ * The majority spelling wins and the four join it. What `text-lg` RENDERS depends on the platform,
+ * which is worth knowing before anyone quotes a number at it. On device, `react-native-css` inlines
+ * `rem` at **14** unless the stylesheet declares `:root { font-size: Npx }` or metro passes
+ * `inlineRem`, and this app does neither — so 1.125rem is **15.75px** and each `--spacing` step is
+ * 3.5px. The react-native-web build takes the browser's 16 instead, so the same classes measure
+ * **18px** there. `Input`'s `text-[15px]` is 15 on both. The two input families are 0.75px apart on
+ * device and 3px apart on web, and BOTH sit off §4's mobile scale, which has no step between body
+ * 16 and h2 20; reconciling them against that scale is a separate question and is NOT settled
+ * here.
  *
  * ── WHY `register` IS A PROP AND `font-dream` IS NOT A CLASS ───────────────────────────────
  * Three fields carry `font-dream` and all three hold a dream (§4: the italic register is the
@@ -114,8 +122,9 @@ export function Field({
         multiline={multiline}
         // Android-only, and only meaningful on a box: without it a multiline TextInput centers
         // its text vertically, so a half-empty field floats its first line in the middle. iOS
-        // already starts at the top. The three compose screens set it by hand for this same
-        // shape; here it comes with the shape. Before `rest`, so a caller can still override.
+        // already starts at the top. The three compose screens each set it by hand until #504
+        // routed them here; now it comes with the shape. Before `rest`, so a caller can still
+        // override.
         textAlignVertical={multiline ? 'top' : undefined}
         placeholderTextColor={semantic.foregroundMuted}
         {...rest}

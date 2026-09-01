@@ -4,12 +4,12 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postKeys, postMediaKeys, publishPost } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -265,14 +265,12 @@ export default function PostComposeScreen() {
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
 
-          <TextInput
-            className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
+          <Field
+            size="lg"
+            multiline
             placeholder={t('post.compose.placeholder', locale)}
-            placeholderTextColor={semantic.foregroundMuted}
             value={body}
             onChangeText={setBody}
-            multiline
-            textAlignVertical="top"
           />
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
