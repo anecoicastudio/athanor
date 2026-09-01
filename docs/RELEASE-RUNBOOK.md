@@ -391,6 +391,38 @@ gated (§4.3).
 
 ---
 
+### 4.5 Auth mail templates — installed by hand, per project (#625)
+
+`supabase/templates/` is the source of truth for the two auth mails this product can send, but
+nothing in the repo installs them. GoTrue holds one template per type **per project**, so each of
+staging and production needs both pasted in by hand, and a template edited in a PR changes nothing
+a member receives until someone does.
+
+| Template slot (Dashboard → Authentication → Emails) | Subject                                       | Body                                   |
+| --------------------------------------------------- | --------------------------------------------- | -------------------------------------- |
+| Confirm signup                                      | `Conferma la tua email e accendi la tua Aura` | `supabase/templates/confirmation.html` |
+| Magic Link                                          | `Il tuo varco per Athanor`                    | `supabase/templates/magic_link.html`   |
+
+Both are also declared in `supabase/config.toml` under `[auth.email.template.*]`. That block is
+read only by a local stack, which only CI runs (the `db` job spins one up per push) — **do not
+install them with `supabase config push`.** `config push` sends the whole `[auth.email]` block to whatever
+`supabase/.temp/linked-project.json` points at, and that block carries `enable_confirmations =
+false`, which would turn staging's confirmations **off** as a side effect (staging has them on;
+production runs `mailer_autoconfirm = true` and sends no confirmation mail at all — §P1.6 of
+`PRODUCTION-READINESS.md`, #70).
+
+Two consequences for the confirmation mail specifically: its live audience today is **staging
+only**, and it stays that way until #70's reversal sequence runs, which needs a domain with
+DKIM/SPF first (#471). Neither project has an SMTP provider, so both are on Supabase's built-in
+mailer at 2 mails/hour — enough for a manual check, not for a cohort.
+
+`supabase/functions/_shared/mail-templates.test.ts` gates the repo side of this (every declared
+template resolves, is Italian, carries the GoTrue variable its flow needs, and has the subject
+pinned in the guard's own table). It cannot see the hosted projects, so it will stay green while both dashboards
+hold the stock English defaults. Verify by sending yourself one of each after installing.
+
+---
+
 ## 5. Apple IAP / Stripe Compliance Posture (S-IAP-1 … S-IAP-4)
 
 Spec ref: `10-m10-launch.md` §7.

@@ -1,22 +1,19 @@
 <!doctype html>
 <!--
-  GoTrue "Magic Link" mail. Its one live caller is the admin panel's sign-in fallback:
-  apps/web/app/admin/login/page.tsx calls signInWithOtp with
-  `emailRedirectTo: ${origin}/admin/auth/callback`, and that route reads `?code=` and calls
-  exchangeCodeForSession (apps/web/app/admin/auth/callback/route.ts).
+  GoTrue "Confirm signup" mail — sent by supabase.auth.signUp() in
+  apps/native/src/app/(auth)/welcome.tsx, whose `emailRedirectTo` lands the link on
+  src/app/auth-callback.tsx for the PKCE exchange.
 
-  So this mail must carry a LINK. It previously carried a bare `.Token` code and nothing else —
-  a leftover of the retired OTP design (the app now signs in with email + password) — which
-  gave that admin a six-digit code and no field anywhere in the product to type it into,
-  under UI copy that promises one («Controlla la mail per il link d'accesso»,
-  i18n key admin.login.sent). verifyOtp is called nowhere outside the e2e seed harness.
+  Live audience today is STAGING ONLY: production runs mailer_autoconfirm = true, so it
+  sends no confirmation mail at all (docs/PRODUCTION-READINESS.md §P1.6, issue #70).
 
   Variables GoTrue exposes here: .ConfirmationURL .Token .TokenHash .SiteURL .Email
-  .Data .RedirectTo.
+  .Data .RedirectTo — and NOT .NewEmail, which exists only in the email-change template.
 
   Colors are literal because a mail template cannot import @athanor/config; each one is
   annotated with the semantic token it copies (packages/config/src/tokens.ts). Rule 4:
-  flat `aura` CTA, no glow; the mandala gradient stays logo/hero only.
+  flat `aura` CTA, no glow — a confirmation is not a moment-grade event, and the mandala
+  gradient stays logo/hero only.
 -->
 <html lang="it">
   <head>
@@ -25,7 +22,7 @@
     <!-- Declared dark so Gmail/Outlook do not force-invert a palette that is already dark. -->
     <meta name="color-scheme" content="dark" />
     <meta name="supported-color-schemes" content="dark" />
-    <title>Il tuo varco per Athanor</title>
+    <title>Conferma la tua email</title>
   </head>
   <body style="margin: 0; padding: 0; background-color: #0a0a1a">
     <!-- Inbox preview line. Hidden in the body itself. -->
@@ -40,7 +37,7 @@
         width: 0;
       "
     >
-      Apri il varco qui sotto ed entri subito.
+      Apri il varco e il tuo profilo è confermato.
     </div>
     <table
       role="presentation"
@@ -118,7 +115,7 @@
                     color: #9a9db5;
                   "
                 >
-                  Accesso
+                  Ultimo passo
                 </p>
                 <!-- h2: 24px/600, foreground #F0EDF7. Sentence case, never uppercase. -->
                 <h1
@@ -130,11 +127,12 @@
                     color: #f0edf7;
                   "
                 >
-                  Ti abbiamo aperto un varco
+                  Conferma la tua email
                 </h1>
                 <!-- body: 16px/24, ink2 #C9C3DE -->
                 <p style="margin: 0 0 28px; font-size: 16px; line-height: 24px; color: #c9c3de">
-                  Apri il varco qui sotto ed entri in Athanor. Vale per una volta sola.
+                  Hai appena creato il tuo account su Athanor. Apri il varco qui sotto: il tuo
+                  profilo è confermato e puoi entrare.
                 </p>
                 <!-- Bulletproof pill CTA: bgcolor on the <td>, padding on the <a>, because
                      Outlook's Word engine ignores padding on an inline <a>. Flat aura fill
@@ -167,7 +165,7 @@
                           text-decoration: none;
                           border-radius: 26px;
                         "
-                        >Entra in Athanor</a
+                        >Conferma la tua email</a
                       >
                     </td>
                   </tr>
@@ -204,11 +202,12 @@
                 "
               >
                 <p style="margin: 0 0 8px">
-                  Il varco si chiude dopo un po'. Se è già scaduto, chiedine uno nuovo.
+                  Il varco si chiude dopo un po'. Se è già scaduto, torna su Athanor e chiedine uno
+                  nuovo.
                 </p>
                 <p style="margin: 0">
-                  Se non hai chiesto tu di entrare, ignora questa email: nessuno può usare questo
-                  varco al posto tuo.
+                  Se non hai creato tu questo account, ignora questa email: senza la tua conferma
+                  non succede nulla.
                 </p>
               </td>
             </tr>

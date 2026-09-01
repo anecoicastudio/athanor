@@ -151,9 +151,12 @@ export default function WelcomeScreen() {
       setError(t('auth.error.emailTaken', locale));
       return;
     }
-    // Confirmations OFF (dev) → session is set → AuthGuard routes, and the spinner rides
-    // that hop for the same reason the sign-in branch does. Confirmations ON (staging and
-    // production) → no session, so the screen becomes the confirmation.
+    // Confirmations OFF → session is set → AuthGuard routes, and the spinner rides that hop
+    // for the same reason the sign-in branch does. Confirmations ON → no session, so the
+    // screen becomes the confirmation. Which of the two a build gets is per-project and they
+    // differ: STAGING has confirmations on, PRODUCTION runs mailer_autoconfirm = true and
+    // sends no confirmation mail at all (docs/PRODUCTION-READINESS.md §P1.6, issue #70).
+    // Both branches are live somewhere, so neither is dead code.
     if (!data.session) setPhase('sent');
   };
 
