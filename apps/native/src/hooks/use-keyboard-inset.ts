@@ -47,7 +47,10 @@ const TRACE = __DEV__;
  * failure is entirely in getting a non-zero number OUT of this hook, never in what the
  * consumers do with it. What remains is whether the listener fires at all and whether
  * `__DEV__` was even true in the build under test — which is what the registration trace
- * below exists to settle.
+ * below exists to settle. The experiment is re-runnable: PR #620's body carries the recipe
+ * (web build, force a fixed inset through `KeyboardAvoiding`, read the composer's
+ * `getBoundingClientRect().bottom` before and after), so this account and that one can be
+ * checked against each other rather than drifting apart.
  *
  * What the MEASUREMENT bought, and what deleting it costs: a trimmed lift on
  * `(modal)/plan`, `(modal)/progress` (content above a pinned `Screen footer`) and
@@ -67,9 +70,10 @@ const TRACE = __DEV__;
  * `TRACE` is unconditional on purpose, and is a named constant so that turning it off is a
  * one-line revert rather than an archaeology exercise. The previous design logged only
  * anomalies, so a run where nothing arrived printed nothing, and a device round was spent
- * unable to tell "never fired" from "fired and was overwritten". Traces are `console.log`;
- * only the cross-fade branch, which really is a surprise, warns. Note this hook runs per
- * mounted consumer, so a sheet over a tab screen prints two of every line.
+ * unable to tell "never fired" from "fired and was overwritten". The traces are
+ * `console.log`; the two surprises — cross-fade transitions on, and a throw out of the
+ * show handler — warn. Note this hook runs per mounted consumer, so a sheet over a tab
+ * screen prints two of every line.
  */
 export function useKeyboardInset(): number {
   const alive = useRef(true);
