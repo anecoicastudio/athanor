@@ -23,22 +23,33 @@ const TRACE = __DEV__;
  *    modal sheet sliding into place moves the view through the window without ever
  *    firing it again, and the mid-presentation `y` was never corrected.
  * 2. Measuring inside the keyboard event instead. The composer stayed under the keyboard
- *    with an inset of 0 — and no correct measurement can return 0 there, so the value was
- *    never arriving: `measureInWindow` is a round trip the UI thread may decline.
+ *    with an inset of 0.
  * 3. Committing the keyboard height synchronously and letting the measurement NARROW it
  *    for the three consumers that stop short of the window bottom. Still 0 on device.
  *
- * ── WHAT IS AND IS NOT ESTABLISHED ────────────────────────────────────────────────
- * The narrowing is the only thing in design 3 that can undo a correct baseline — `covered`
- * clamps at 0, so one bad frame commits 0 and the lift disappears a frame after being set
- * right. That is why it is gone rather than guarded a third time.
+ * ── WHY 2 AND 3 FAILED, AND THE RULE THAT FALLS OUT OF IT ─────────────────────────
+ * Both of those reds were read at the time as "the measured value never arrived". That was
+ * wrong, and the real reason is structural rather than a race:
  *
- * It is NOT established that this is what happened, and the instrumentation argues against
- * it: on the bundle that was tested, a `covered` of 0 would have printed
- * `[keyboard] measured 0: …` exactly once, because it is below the keyboard height and the
- * once-per-mount flag was still unset. So if that build's logs were captured and silent,
- * the narrowing is exonerated and the cause is elsewhere. No logs have been read yet, so
- * even the silence is unconfirmed.
+ * **`measureInWindow` inside a `presentation: 'modal'` screen is SHEET-RELATIVE, by
+ * construction.** `RNSModalScreenShadowNode` sets the `RootNodeKind` trait, and RN's
+ * `LayoutableShadowNode.cpp` (`getLayoutMetricsFromRoot`, the ancestor walk) stops at any
+ * node carrying it — so the sheet's own window offset is never added. Designs 2 and 3 were
+ * therefore fed a `y` measured from the sheet's top-left while the keyboard frame they were
+ * subtracted from is in window space. Garbage, and garbage that clamps to 0 for a view near
+ * the sheet's top. The value WAS arriving; it was wrong.
+ *
+ * So: **never reach for `measureInWindow` on a modal screen.** Every `(modal)/*` route is
+ * inside a sheet — the group itself carries `presentation: 'modal'` (`app/_layout.tsx`) —
+ * and that call has now cost this branch two device rounds. It will lie the same way a
+ * third time.
+ *
+ * ── WHAT THAT STILL DOES NOT EXPLAIN ──────────────────────────────────────────────
+ * `(auth)/welcome` lifts correctly on device, which proves the whole chain end to end:
+ * listener registers, event fires, a non-zero inset commits, `paddingBottom` propagates
+ * through `Screen`, content shrinks, the focused field clears the keyboard. `(modal)/chat`
+ * on the same build does not. Since nothing measures any more, whatever is left is specific
+ * to that screen and is NOT the arithmetic above. The trace is what will say which.
  *
  * One half IS established, and it removes a whole branch of the search: **the layout works.**
  * Forcing a fixed inset through this hook's consumer in the web build moved chat's composer

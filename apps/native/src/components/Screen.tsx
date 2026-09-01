@@ -25,6 +25,18 @@ import { ToastViewport } from '@/components/ToastHost';
  * bottom. Trailing breathing room stays in scroll content as `pb-12` — the one
  * shared value (#163) — because container padding cannot scroll.
  *
+ * That last clause has an exception, and it is INSIDE A SHEET — which is every
+ * `(modal)/*` route, since the group itself carries `presentation: 'modal'`.
+ * `SafeAreaView`'s Fabric implementation walks the NATIVE superview chain for a
+ * provider and falls back to measuring itself when it finds none, and a presented
+ * modal has none: react-native-screens reparents modal views out of the RN root
+ * tree. In that fallback the keyboard observers and the `RNCSafeAreaDidChange`
+ * broadcast that would refresh the inset both belong to the provider, so neither
+ * reaches this view. The bottom inset inside a sheet therefore stays at its
+ * home-indicator value while the keyboard is up instead of going to 0 — a ~34pt
+ * over-reservation, not a hidden control, and not something this component can
+ * fix from JS. Named here so the next reader does not spend a device round on it.
+ *
  * `gutter` adds the DESIGN.md §6 20pt horizontal screen padding
  * (`spacing.gutter` / `--spacing-gutter`) for screens whose content doesn't
  * carry its own `px-*` on an inner container.
