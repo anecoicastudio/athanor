@@ -241,8 +241,6 @@
   "auth.name.placeholder": "Jane Doe",
   "auth.password.label": "Password",
   "auth.password.placeholder": "Your password",
-  "auth.password.show": "Show",
-  "auth.password.hide": "Hide",
   "auth.password.hint": "At least 8 characters, with an uppercase letter, a lowercase letter and a number.",
   "auth.password.req.length": "At least 8 characters",
   "auth.password.req.lowercase": "A lowercase letter",

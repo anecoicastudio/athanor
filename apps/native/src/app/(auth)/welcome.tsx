@@ -4,6 +4,7 @@ import { t, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
@@ -351,30 +352,9 @@ export default function WelcomeScreen() {
                 </View>
 
                 <View className="gap-2">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-xs font-medium text-muted-foreground">
-                      {t('auth.password.label', locale)}
-                    </Text>
-                    {/* Ghost register (DESIGN §9): no fill, no border, muted label, 13/600
-                      letterspaced. A reveal is a confirmation-grade affordance, never a
-                      moment — no cyan, no glow. The state is carried by the word itself and
-                      by an explicit SR label, not by colour (G2). Rendered unconditionally:
-                      a control that appears once you start typing is worse than one that
-                      waits, and its slot must not move under the field. */}
-                    <Pressable
-                      onPress={() => setRevealed((shown) => !shown)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t(
-                        revealed ? 'a11y.password.hide' : 'a11y.password.show',
-                        locale,
-                      )}
-                      hitSlop={12}
-                    >
-                      <Text className="text-[13px] font-semibold tracking-[0.14em] text-muted-foreground">
-                        {t(revealed ? 'auth.password.hide' : 'auth.password.show', locale)}
-                      </Text>
-                    </Pressable>
-                  </View>
+                  <Text className="text-xs font-medium text-muted-foreground">
+                    {t('auth.password.label', locale)}
+                  </Text>
                   {/* #615: `textContentType` is iOS-only and OVERRIDES the value RN derives from
                     `autoComplete` (TextInput.js maps one to the other only when the explicit prop
                     is absent), so the two props can be set independently — Android keeps its
@@ -393,6 +373,20 @@ export default function WelcomeScreen() {
                     placeholder={t('auth.password.placeholder', locale)}
                     value={password}
                     onChangeText={setPassword}
+                    // The `eye` from the esoteric set (DESIGN §6), inside the field where the
+                    // affordance is looked for. SHAPE carries the state — struck vs open — so
+                    // both variants keep the same muted token: a reveal is confirmation-grade,
+                    // never a moment, so no cyan and no glow (rule 4). The label swaps with it,
+                    // because a glyph alone tells a screen reader nothing (G2). `Input` owns
+                    // the 44pt box; see its docblock for why the caller does not.
+                    trailing={{
+                      icon: revealed ? <EyeOffGlyph size={20} /> : <EyeGlyph size={20} />,
+                      onPress: () => setRevealed((shown) => !shown),
+                      accessibilityLabel: t(
+                        revealed ? 'a11y.password.hide' : 'a11y.password.show',
+                        locale,
+                      ),
+                    }}
                   />
                   {/* Signup only — the rule is stated once before typing, then becomes a
                     live checklist. `success`, not `aura`: a satisfied form rule is a
