@@ -151,3 +151,71 @@ export function SettingsIcon({ size = 22, color }: GlyphProps) {
     </Svg>
   );
 }
+
+/**
+ * The `eye` from the 20-glyph esoteric set (DESIGN §6), ported from the prototype's
+ * `GLYPHS.eye` rather than drawn fresh — the set names it, so this is unported debt
+ * (`glyphs.tsx` header above; `trust/notifTypes.ts` still stands in with a `◎` char)
+ * being paid down, not a new mark. `line()`'s 1.8px, because §6 specifies 1.2–1.8 for
+ * set glyphs; the 2px `stroke()` family above is a deliberate deviation for header icons.
+ *
+ * Two collisions the geometry has to survive, both settled by the lashes:
+ * - The lid outline ALONE is a vesica, and §6 reserves the mandorla to the logo.
+ * - `ProfiloGlyph` is a circle with an ellipse through it; an eye is an ellipse with a
+ *   circle in it, and at 20px on the dark canvas the two would otherwise read alike.
+ *
+ * The iris stays UNFILLED — §6: "never filled except a center point", and this is not
+ * the center point of a circumpunct.
+ */
+const EYE_LID = 'M3 12C7 7.5 17 7.5 21 12 17 16.5 7 16.5 3 12Z';
+const EYE_LASH_LEFT = 'M9 15.9q-1.4 3-4 3.5';
+const EYE_LASH_RIGHT = 'M13.7 15.6l1.1 3.2';
+
+export function EyeGlyph({ size = 22, color }: GlyphProps) {
+  const c = color ?? semantic.foregroundMuted;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Path d={EYE_LID} {...line(c)} />
+      <Circle cx={12} cy={12} r={2.3} {...line(c)} />
+      <Path d={EYE_LASH_LEFT} {...line(c)} />
+      <Path d={EYE_LASH_RIGHT} {...line(c)} />
+    </Svg>
+  );
+}
+
+/**
+ * The struck eye — hidden. The set has no crossed variant, so the diagonal is new, but it
+ * is the one stroke §6 allows ("designed in this same system"): a straight line, corner
+ * to corner.
+ *
+ * ── WHY THIS ONE DROPS THE LASHES, AND WHY THE DIAGONAL RUNS THIS WAY ─────────────
+ * Both were settled by rendering the candidates at the size that actually ships (20pt),
+ * not at inspection size. A bottom-left-to-top-right diagonal runs straight through the
+ * lower-left lash and the two merge into a smudge — at 20pt it was barely distinguishable
+ * from the open eye, which is the one thing this glyph has to be. Top-left to bottom-right
+ * clears the lashes, and dropping them as well is what makes the struck state read
+ * decisively small: the pair then differs by a whole stroke group plus the diagonal
+ * rather than by one line crossing a busy corner.
+ *
+ * So this is not `EyeGlyph` plus a line, deliberately. The SHAPE is the state, never the
+ * colour — both variants render in the same token, per the app's paired-glyph vocabulary
+ * (DESIGN §11, 2026-08-08, where a colour-only lit/unlit distinction was rejected) and G2.
+ *
+ * Dropping the lashes takes away what `EyeGlyph` above names as the settlement of the
+ * vesica collision, so it has to be settled again here rather than assumed: the diagonal
+ * does it. Rule 4 reserves the mandorla to the logo and `Mandorla.tsx` draws it today as
+ * the avatar frame, but that mark is a VERTICAL almond in `auraLine` at avatar scale,
+ * closed; this is a horizontal lens in `foregroundMuted` at 20pt whose silhouette the
+ * corner-to-corner stroke breaks open. A closed lid alone would be the argument to have;
+ * a struck one is not.
+ */
+export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
+  const c = color ?? semantic.foregroundMuted;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Path d={EYE_LID} {...line(c)} />
+      <Circle cx={12} cy={12} r={2.3} {...line(c)} />
+      <Line x1={2.5} y1={2.5} x2={21.5} y2={21.5} {...line(c)} />
+    </Svg>
+  );
+}

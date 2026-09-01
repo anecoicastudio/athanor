@@ -8,6 +8,7 @@ import { Share } from 'react-native';
 import { semantic } from '@athanor/config';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
 import { SettingsIcon } from '@/components/glyphs';
 import { useToast } from '@/components/ToastHost';
@@ -116,76 +117,83 @@ function ProfileEditor({
   };
 
   return (
-    <Screen>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-8 px-5 pb-12 pt-4"
-        keyboardShouldPersistTaps="handled"
-      >
-        {!editing ? (
-          <>
-            {/* Header row: share + edit toggle — sized to the 24px icon scale
+    // #614 beyond-the-issue: that issue's out-of-scope note read this screen as a
+    // top-anchored search field, which it is not. `ProfileEditForm`'s name/bio/mission fields sit well down the scroll,
+    // so it had the same defect and takes the same primitive, outside `Screen`.
+    <KeyboardAvoiding>
+      <Screen>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-8 px-5 pb-12 pt-4"
+          keyboardShouldPersistTaps="handled"
+        >
+          {!editing ? (
+            <>
+              {/* Header row: share + edit toggle — sized to the 24px icon scale
               (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. gap-6 (24px)
               keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
               side, so anything under 22px overlaps and taps cross-fire. */}
-            <View className="flex-row items-center justify-end gap-6">
-              {shareMessage != null && (
+              <View className="flex-row items-center justify-end gap-6">
+                {shareMessage != null && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('profile.share.label', locale)}
+                    hitSlop={HIT_SLOP}
+                    onPress={() => void shareProfile()}
+                  >
+                    <Text className="text-2xl text-aura">✦</Text>
+                  </Pressable>
+                )}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('profile.share.label', locale)}
+                  accessibilityLabel={t('settings.title', locale)}
                   hitSlop={HIT_SLOP}
-                  onPress={() => void shareProfile()}
+                  onPress={() => router.push('/(modal)/settings')}
                 >
-                  <Text className="text-2xl text-aura">✦</Text>
+                  <SettingsIcon size={24} color={semantic.faint} />
                 </Pressable>
-              )}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('settings.title', locale)}
-                hitSlop={HIT_SLOP}
-                onPress={() => router.push('/(modal)/settings')}
-              >
-                <SettingsIcon size={24} color={semantic.faint} />
-              </Pressable>
-              <Pressable
-                onPress={() => setEditing(true)}
-                accessibilityRole="button"
-                hitSlop={HIT_SLOP}
-              >
-                <Text className="text-base font-semibold text-faint">
-                  {t('profile.edit', locale)}
-                </Text>
-              </Pressable>
-            </View>
+                <Pressable
+                  onPress={() => setEditing(true)}
+                  accessibilityRole="button"
+                  hitSlop={HIT_SLOP}
+                >
+                  <Text className="text-base font-semibold text-faint">
+                    {t('profile.edit', locale)}
+                  </Text>
+                </Pressable>
+              </View>
 
-            <ProfileView
+              <ProfileView
+                userId={userId}
+                profile={profile}
+                locale={locale}
+                hasDream={dream.dreamText != null}
+                dreamSlot={<DreamSection locale={locale} dream={dream} />}
+              />
+            </>
+          ) : (
+            <ProfileEditForm
               userId={userId}
               profile={profile}
-              locale={locale}
-              hasDream={dream.dreamText != null}
-              dreamSlot={<DreamSection locale={locale} dream={dream} />}
+              dreamText={dream.dreamText}
+              refreshProfile={refreshProfile}
+              onSaved={onSaved}
+              onCancel={() => setEditing(false)}
             />
-          </>
-        ) : (
-          <ProfileEditForm
-            userId={userId}
-            profile={profile}
-            dreamText={dream.dreamText}
-            refreshProfile={refreshProfile}
-            onSaved={onSaved}
-            onCancel={() => setEditing(false)}
-          />
-        )}
+          )}
 
-        {saved ? <Text className="text-sm text-success">{t('profile.saved', locale)}</Text> : null}
+          {saved ? (
+            <Text className="text-sm text-success">{t('profile.saved', locale)}</Text>
+          ) : null}
 
-        {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
-        <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
+          {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
+          <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
 
-        {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
+          {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
           The matching toast fires through the global host (#117). */}
-        <MomentFlash visible={starFlash} locale={locale} />
-      </ScrollView>
-    </Screen>
+          <MomentFlash visible={starFlash} locale={locale} />
+        </ScrollView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }

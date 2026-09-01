@@ -16,6 +16,7 @@ import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
 import { toggleTag } from '@/lib/tags';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
 
 /** identity → seeking → dream → face. The last one is skippable and writes nothing required. */
@@ -120,202 +121,214 @@ export default function OnboardingScreen() {
     t(`${prefix}.${key}` as MessageKey, locale);
 
   return (
-    <Screen>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow px-5 pb-9 pt-4"
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Top bar: «Completa il profilo» (+ back) left, «Hai un account? Accedi» right. */}
-        <View className="flex-row items-center justify-between gap-4">
-          {/* Yoga's default flexShrink is 0, so without flex-1 here + shrink-0 on the login
+    // #614 beyond-the-issue: that issue's out-of-scope note read this screen as a
+    // top-anchored search field, which it is not. The dream field is centred, so the keyboard lands squarely on it,
+    // so it had the same defect and takes the same primitive, outside `Screen`.
+    <KeyboardAvoiding>
+      <Screen>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="grow px-5 pb-9 pt-4"
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Top bar: «Completa il profilo» (+ back) left, «Hai un account? Accedi» right. */}
+          <View className="flex-row items-center justify-between gap-4">
+            {/* Yoga's default flexShrink is 0, so without flex-1 here + shrink-0 on the login
             link the row overflows the gutter instead of compressing (EN strings are ~40pt
             wider than IT on a 390pt device). The eyebrow is the yielding side. */}
-          <View className="flex-1 flex-row items-center gap-3">
-            {/* The back slot is reserved unconditionally (#164): a conditionally rendered
+            <View className="flex-1 flex-row items-center gap-3">
+              {/* The back slot is reserved unconditionally (#164): a conditionally rendered
               arrow moved the eyebrow's x-origin ~25pt between step 0 and 1. The slot is a
               real 44pt tap target (DESIGN §10 — the old bare glyph + hitSlop measured
               ~38pt wide); -ml-3 keeps the glyph optically near the gutter. Step 0 renders
               the empty slot, not a disabled button, so screen readers gain no phantom
               control. */}
-            <View className="-ml-3 h-11 w-11">
-              {step > 0 ? (
-                <Pressable
-                  onPress={() => setStep((s) => s - 1)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('onboarding.back', locale)}
-                  className="h-11 w-11 items-center justify-center"
-                >
-                  <Text className="text-2xl text-foreground">‹</Text>
-                </Pressable>
-              ) : null}
+              <View className="-ml-3 h-11 w-11">
+                {step > 0 ? (
+                  <Pressable
+                    onPress={() => setStep((s) => s - 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('onboarding.back', locale)}
+                    className="h-11 w-11 items-center justify-center"
+                  >
+                    <Text className="text-2xl text-foreground">‹</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <SectionLabel numberOfLines={1} className="shrink">
+                {t('onboarding.eyebrow', locale)}
+              </SectionLabel>
             </View>
-            <SectionLabel numberOfLines={1} className="shrink">
-              {t('onboarding.eyebrow', locale)}
-            </SectionLabel>
+            <Pressable
+              onPress={goLogin}
+              accessibilityRole="button"
+              hitSlop={8}
+              className="shrink-0"
+            >
+              <Text className="text-[13px] font-semibold text-aura">
+                {t('auth.haveAccount', locale)}
+              </Text>
+            </Pressable>
           </View>
-          <Pressable onPress={goLogin} accessibilityRole="button" hitSlop={8} className="shrink-0">
-            <Text className="text-[13px] font-semibold text-aura">
-              {t('auth.haveAccount', locale)}
-            </Text>
-          </Pressable>
-        </View>
-        <View className="mt-3">
-          <StepBars count={STEPS} current={step} />
-        </View>
+          <View className="mt-3">
+            <StepBars count={STEPS} current={step} />
+          </View>
 
-        {/* Centre: the active step's question, vertically centred. */}
-        <View className="grow justify-center">
-          <View>
-            {step === 0 ? (
-              <View className="gap-4">
-                <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
-                <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
-                  {t('onboarding.identity.title', locale)}
-                </Text>
-                <Text className="text-muted-foreground">
-                  {t('onboarding.identity.sub', locale)}
-                </Text>
-                <View className="flex-row flex-wrap gap-3">
-                  {IDENTITY_TAGS.map((tag) => (
-                    <Chip
-                      key={tag}
-                      label={tagLabel('tag.identity', tag)}
-                      selected={identity.includes(tag)}
-                      onPress={() => setIdentity(toggleTag(identity, tag))}
-                    />
-                  ))}
-                </View>
-                {/* Locale picker (PRD §4.1, #158) — inline on the first step, no
+          {/* Centre: the active step's question, vertically centred. */}
+          <View className="grow justify-center">
+            <View>
+              {step === 0 ? (
+                <View className="gap-4">
+                  <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
+                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                    {t('onboarding.identity.title', locale)}
+                  </Text>
+                  <Text className="text-muted-foreground">
+                    {t('onboarding.identity.sub', locale)}
+                  </Text>
+                  <View className="flex-row flex-wrap gap-3">
+                    {IDENTITY_TAGS.map((tag) => (
+                      <Chip
+                        key={tag}
+                        label={tagLabel('tag.identity', tag)}
+                        selected={identity.includes(tag)}
+                        onPress={() => setIdentity(toggleTag(identity, tag))}
+                      />
+                    ))}
+                  </View>
+                  {/* Locale picker (PRD §4.1, #158) — inline on the first step, no
                   step of its own. The small variant keeps it visually apart from
                   the identity tags above. */}
-                <View className="gap-3 pt-2">
-                  <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
-                  <LocaleChips small value={locale} onChange={switchLocale} />
-                </View>
-              </View>
-            ) : null}
-
-            {step === 1 ? (
-              <View className="gap-4">
-                <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
-                <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
-                  {t('onboarding.seeking.title', locale)}
-                </Text>
-                <Text className="text-muted-foreground">{t('onboarding.seeking.sub', locale)}</Text>
-                <View className="flex-row flex-wrap gap-3">
-                  {SEEKING_TAGS.map((tag) => (
-                    <Chip
-                      key={tag}
-                      label={tagLabel('tag.seeking', tag)}
-                      selected={seeking.includes(tag)}
-                      onPress={() => setSeeking(toggleTag(seeking, tag))}
-                    />
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            {step === 2 ? (
-              <View className="gap-4">
-                <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
-                <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
-                  {t('onboarding.dream.title', locale)}
-                </Text>
-                <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
-                <Field
-                  size="lg"
-                  register="dream"
-                  multiline
-                  maxLength={500}
-                  placeholder={t('onboarding.dream.placeholder', locale)}
-                  value={dream}
-                  onChangeText={setDream}
-                />
-              </View>
-            ) : null}
-
-            {step === 3 ? (
-              <View className="gap-4">
-                <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
-                <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
-                  {t('onboarding.face.title', locale)}
-                </Text>
-                <Text className="text-muted-foreground">{t('onboarding.face.sub', locale)}</Text>
-                <View className="items-center gap-4 pt-2">
-                  {/* No Avatar here: it resolves a STORAGE key through a signed URL, and this
-                    photo has no key yet — it is a local file that nobody has uploaded. */}
-                  <View className="h-[116px] w-[116px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface-muted">
-                    {avatarUri ? (
-                      <Image
-                        source={{ uri: avatarUri }}
-                        style={StyleSheet.absoluteFill}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <Text className="text-[40px] text-faint">✦</Text>
-                    )}
+                  <View className="gap-3 pt-2">
+                    <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
+                    <LocaleChips small value={locale} onChange={switchLocale} />
                   </View>
-                  <Pressable accessibilityRole="button" onPress={() => setSheetOpen(true)}>
-                    <Text className="text-[15px] font-semibold text-aura">
-                      {avatarUri
-                        ? t('onboarding.face.change', locale)
-                        : t('onboarding.face.add', locale)}
-                    </Text>
-                  </Pressable>
-                  {avatarUri ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => {
-                        setAvatarUri(null);
-                        void persist({ locale, identity, seeking, dream, avatarUri: null });
-                      }}
-                    >
-                      <Text className="text-[13px] text-muted-foreground">
-                        {t('onboarding.face.remove', locale)}
+                </View>
+              ) : null}
+
+              {step === 1 ? (
+                <View className="gap-4">
+                  <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
+                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                    {t('onboarding.seeking.title', locale)}
+                  </Text>
+                  <Text className="text-muted-foreground">
+                    {t('onboarding.seeking.sub', locale)}
+                  </Text>
+                  <View className="flex-row flex-wrap gap-3">
+                    {SEEKING_TAGS.map((tag) => (
+                      <Chip
+                        key={tag}
+                        label={tagLabel('tag.seeking', tag)}
+                        selected={seeking.includes(tag)}
+                        onPress={() => setSeeking(toggleTag(seeking, tag))}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {step === 2 ? (
+                <View className="gap-4">
+                  <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
+                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                    {t('onboarding.dream.title', locale)}
+                  </Text>
+                  <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
+                  <Field
+                    size="lg"
+                    register="dream"
+                    multiline
+                    maxLength={500}
+                    placeholder={t('onboarding.dream.placeholder', locale)}
+                    value={dream}
+                    onChangeText={setDream}
+                  />
+                </View>
+              ) : null}
+
+              {step === 3 ? (
+                <View className="gap-4">
+                  <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
+                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                    {t('onboarding.face.title', locale)}
+                  </Text>
+                  <Text className="text-muted-foreground">{t('onboarding.face.sub', locale)}</Text>
+                  <View className="items-center gap-4 pt-2">
+                    {/* No Avatar here: it resolves a STORAGE key through a signed URL, and this
+                    photo has no key yet — it is a local file that nobody has uploaded. */}
+                    <View className="h-[116px] w-[116px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface-muted">
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Text className="text-[40px] text-faint">✦</Text>
+                      )}
+                    </View>
+                    <Pressable accessibilityRole="button" onPress={() => setSheetOpen(true)}>
+                      <Text className="text-[15px] font-semibold text-aura">
+                        {avatarUri
+                          ? t('onboarding.face.change', locale)
+                          : t('onboarding.face.add', locale)}
                       </Text>
                     </Pressable>
-                  ) : null}
+                    {avatarUri ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          setAvatarUri(null);
+                          void persist({ locale, identity, seeking, dream, avatarUri: null });
+                        }}
+                      >
+                        <Text className="text-[13px] text-muted-foreground">
+                          {t('onboarding.face.remove', locale)}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-            ) : null}
+              ) : null}
+            </View>
           </View>
-        </View>
 
-        {/* CTA pinned at the bottom — cyan «light» button per the prototype. */}
-        <View className="mt-6">
-          {step < STEPS - 1 ? (
-            <Button
-              variant="light"
-              label={t('onboarding.next', locale)}
-              accessibilityLabel={t('onboarding.next', locale)}
-              disabled={!canNext}
-              onPress={next}
-            />
-          ) : (
-            <Button
-              variant="light"
-              label={t('onboarding.createAccount', locale)}
-              accessibilityLabel={t('onboarding.createAccount', locale)}
-              onPress={createAccount}
-            />
-          )}
-        </View>
+          {/* CTA pinned at the bottom — cyan «light» button per the prototype. */}
+          <View className="mt-6">
+            {step < STEPS - 1 ? (
+              <Button
+                variant="light"
+                label={t('onboarding.next', locale)}
+                accessibilityLabel={t('onboarding.next', locale)}
+                disabled={!canNext}
+                onPress={next}
+              />
+            ) : (
+              <Button
+                variant="light"
+                label={t('onboarding.createAccount', locale)}
+                accessibilityLabel={t('onboarding.createAccount', locale)}
+                onPress={createAccount}
+              />
+            )}
+          </View>
 
-        {/* Kept mounted (see MediaSheet's docblock — iOS launches from onDismiss). Nothing is
+          {/* Kept mounted (see MediaSheet's docblock — iOS launches from onDismiss). Nothing is
           uploaded here: with no session there is no uid, and every avatars policy keys on it.
           The local uri rides the draft and `flushOnboardingDraft` uploads it after the OTP. */}
-        <MediaSheet
-          visible={sheetOpen}
-          locale={locale}
-          onClose={() => setSheetOpen(false)}
-          onPick={(asset) => {
-            if (asset.kind !== 'image') return;
-            setAvatarUri(asset.uri);
-            void persist({ locale, identity, seeking, dream, avatarUri: asset.uri });
-          }}
-        />
-      </ScrollView>
-    </Screen>
+          <MediaSheet
+            visible={sheetOpen}
+            locale={locale}
+            onClose={() => setSheetOpen(false)}
+            onPick={(asset) => {
+              if (asset.kind !== 'image') return;
+              setAvatarUri(asset.uri);
+              void persist({ locale, identity, seeking, dream, avatarUri: asset.uri });
+            }}
+          />
+        </ScrollView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }

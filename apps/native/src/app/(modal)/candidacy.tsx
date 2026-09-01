@@ -40,6 +40,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
 import { useActiveEdition } from '@/hooks/use-active-edition';
@@ -343,235 +344,240 @@ function WizardForm({
   const input = active.input;
 
   return (
-    <Screen>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow px-5 pb-9 pt-4"
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header: back chevron + eyebrow */}
-        <View className="flex-row items-center gap-3">
-          {/* Real 44pt tap target (DESIGN §10, #164) — was a bare glyph + hitSlop ≈38pt
+    // #614 beyond-the-issue: that issue's out-of-scope note read this screen as a
+    // top-anchored search field, which it is not. Its prose fields sit mid-screen inside a `grow justify-center` block,
+    // so it had the same defect and takes the same primitive, outside `Screen`.
+    <KeyboardAvoiding>
+      <Screen>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="grow px-5 pb-9 pt-4"
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header: back chevron + eyebrow */}
+          <View className="flex-row items-center gap-3">
+            {/* Real 44pt tap target (DESIGN §10, #164) — was a bare glyph + hitSlop ≈38pt
             wide. -ml-3 keeps the glyph optically near the gutter. */}
-          <Pressable
-            onPress={() => (step > 0 ? setStep((s) => s - 1) : leave())}
-            className="-ml-3 h-11 w-11 items-center justify-center"
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', locale)}
-          >
-            <Text className="text-2xl text-foreground">‹</Text>
-          </Pressable>
-          <SectionLabel tone="aura" numberOfLines={1} className="shrink">
-            {t('candidacy.eyebrow', locale)}
-          </SectionLabel>
-        </View>
+            <Pressable
+              onPress={() => (step > 0 ? setStep((s) => s - 1) : leave())}
+              className="-ml-3 h-11 w-11 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back', locale)}
+            >
+              <Text className="text-2xl text-foreground">‹</Text>
+            </Pressable>
+            <SectionLabel tone="aura" numberOfLines={1} className="shrink">
+              {t('candidacy.eyebrow', locale)}
+            </SectionLabel>
+          </View>
 
-        {/* Step dots (7 dots, current and past filled cyan) */}
-        <View className="mt-3">
-          <StepDots count={TOTAL_STEPS} current={step} />
-        </View>
+          {/* Step dots (7 dots, current and past filled cyan) */}
+          <View className="mt-3">
+            <StepDots count={TOTAL_STEPS} current={step} />
+          </View>
 
-        {/* Step content — vertically centred */}
-        <View className="grow justify-center">
-          <SectionLabel>{t(active.label, locale)}</SectionLabel>
-          <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
-            {t(active.question, locale)}
-          </Text>
-          <Text className="mt-2 text-muted-foreground">{t(active.sub, locale)}</Text>
+          {/* Step content — vertically centred */}
+          <View className="grow justify-center">
+            <SectionLabel>{t(active.label, locale)}</SectionLabel>
+            <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
+              {t(active.question, locale)}
+            </Text>
+            <Text className="mt-2 text-muted-foreground">{t(active.sub, locale)}</Text>
 
-          {/* One mounted step, driven by WIZARD_STEPS. The four long-form fields were the
+            {/* One mounted step, driven by WIZARD_STEPS. The four long-form fields were the
               same control four times over, so they come from `active.input`; the bespoke
               bodies below switch on the step's KEY, never on its index. The plan step is
               the one that mixes both, and carries on its container the gap its parts used
               to get from a wrapper of their own. */}
-          <View className={active.key === 'plan' ? 'mt-5 gap-4' : 'mt-5'}>
-            {input ? (
-              <Field
-                size="lg"
-                register="dream"
-                multiline
-                maxLength={input.maxLength}
-                placeholder={t(input.placeholder, locale)}
-                value={values[input.field]}
-                onChangeText={(v) => setText(input.field, v)}
-              />
-            ) : null}
-            {active.key === 'video' ? (
-              <View className="gap-3">
-                {/* id-gate, stated where it bites (#412). Storage refuses the video object
+            <View className={active.key === 'plan' ? 'mt-5 gap-4' : 'mt-5'}>
+              {input ? (
+                <Field
+                  size="lg"
+                  register="dream"
+                  multiline
+                  maxLength={input.maxLength}
+                  placeholder={t(input.placeholder, locale)}
+                  value={values[input.field]}
+                  onChangeText={(v) => setText(input.field, v)}
+                />
+              ) : null}
+              {active.key === 'video' ? (
+                <View className="gap-3">
+                  {/* id-gate, stated where it bites (#412). Storage refuses the video object
                     itself unless identity_verified — the candidacy-videos insert policy
                     (20260617234036) carries the same precondition as the row INSERT — so an
                     unverified member used to walk four steps, get a 403 that rendered as
                     nothing, and only meet this sentence on step 7. No glow: a gate is not a
                     moment (rule #4). */}
-                {!profile?.identity_verified ? (
-                  <View className="gap-2 rounded-card border border-hair bg-raise px-4 py-3">
-                    <Text className="text-[13px] leading-[18px] text-muted-foreground">
-                      {t('candidacy.idGate', locale)}
-                    </Text>
-                    <Pressable
-                      onPress={() => router.push('/(modal)/verify')}
-                      accessibilityRole="button"
-                    >
-                      <Text className="text-[13px] font-semibold text-aura">
-                        {t('candidacy.idGate.cta', locale)}
+                  {!profile?.identity_verified ? (
+                    <View className="gap-2 rounded-card border border-hair bg-raise px-4 py-3">
+                      <Text className="text-[13px] leading-[18px] text-muted-foreground">
+                        {t('candidacy.idGate', locale)}
                       </Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-                <VideoUploadTile
-                  locale={locale}
-                  status={upload.status}
-                  failure={upload.failure}
-                  progress={upload.progress}
-                  posterUri={upload.posterUri}
-                  standing={standing}
-                  standingPosterUrl={
-                    standing?.thumbPath ? standingUrls[standing.thumbPath] : undefined
-                  }
-                  isLoadingStandingPoster={isLoadingStandingPoster}
-                  onPick={upload.pick}
-                  onRecord={upload.record}
-                  onCancel={upload.cancel}
-                />
-                {/* Edit mode: the stored video stands unless a replacement lands. */}
-                {mode === 'edit' && initial && upload.status !== 'done' ? (
-                  <Text className="text-[12px] leading-[18px] text-faint">
-                    {t('candidacy.step4.keepHint', locale)}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-            {active.key === 'plan' ? (
-              <>
-                {/* Budget + minimum viable (#225): whole euros; the minimum informs the
-                    ballot, it is not the shortfall gate (FUND-42 is). */}
-                <View className="flex-row gap-3">
-                  <View className="flex-1 gap-1.5">
-                    <SectionLabel>{t('candidacy.budget.label', locale)}</SectionLabel>
-                    <Field
-                      keyboardType="number-pad"
-                      maxLength={9}
-                      placeholder="8000"
-                      value={values.budgetEuro}
-                      onChangeText={(v) => setText('budgetEuro', v)}
-                    />
-                  </View>
-                  <View className="flex-1 gap-1.5">
-                    <SectionLabel>{t('candidacy.budget.min.label', locale)}</SectionLabel>
-                    <Field
-                      keyboardType="number-pad"
-                      maxLength={9}
-                      placeholder="5000"
-                      value={values.minViableEuro}
-                      onChangeText={(v) => setText('minViableEuro', v)}
-                    />
-                  </View>
-                </View>
-                <Text className="text-[12px] leading-[18px] text-faint">
-                  {t('candidacy.budget.hint', locale)}
-                </Text>
-              </>
-            ) : null}
-            {active.key === 'skills' ? (
-              // Skills the dream needs (#226, FUND-10) — curated keys, ≤ MAX_SKILLS, optional.
-              <View className="flex-row flex-wrap gap-3">
-                {SKILLS.map((key) => (
-                  <Chip
-                    key={key}
-                    label={t(`tag.skill.${key}` as MessageKey, locale)}
-                    selected={values.skills.includes(key)}
-                    onPress={() => toggleSkill(key)}
+                      <Pressable
+                        onPress={() => router.push('/(modal)/verify')}
+                        accessibilityRole="button"
+                      >
+                        <Text className="text-[13px] font-semibold text-aura">
+                          {t('candidacy.idGate.cta', locale)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                  <VideoUploadTile
+                    locale={locale}
+                    status={upload.status}
+                    failure={upload.failure}
+                    progress={upload.progress}
+                    posterUri={upload.posterUri}
+                    standing={standing}
+                    standingPosterUrl={
+                      standing?.thumbPath ? standingUrls[standing.thumbPath] : undefined
+                    }
+                    isLoadingStandingPoster={isLoadingStandingPoster}
+                    onPick={upload.pick}
+                    onRecord={upload.record}
+                    onCancel={upload.cancel}
                   />
-                ))}
-              </View>
-            ) : null}
-            {active.key === 'category' ? (
-              <View className="gap-6">
-                {/* Category (#226, D43) — tapping the selected chip clears it: «no
-                    category» stays first-class. */}
-                <View className="gap-3">
-                  <SectionLabel>{t('candidacy.category.label', locale)}</SectionLabel>
-                  <View className="flex-row flex-wrap gap-3">
-                    {projectCategorySchema.options.map((key) => (
-                      <Chip
-                        key={key}
-                        label={t(`costellazioni.filter.${key}` as MessageKey, locale)}
-                        selected={values.category === key}
-                        onPress={() =>
-                          setValues((prev) => ({
-                            ...prev,
-                            category: prev.category === key ? null : key,
-                          }))
-                        }
-                      />
-                    ))}
-                  </View>
+                  {/* Edit mode: the stored video stands unless a replacement lands. */}
+                  {mode === 'edit' && initial && upload.status !== 'done' ? (
+                    <Text className="text-[12px] leading-[18px] text-faint">
+                      {t('candidacy.step4.keepHint', locale)}
+                    </Text>
+                  ) : null}
                 </View>
-                {/* Optional link to the author's own personal dream (#226, D12/FUND-50). */}
-                <View className="gap-3">
-                  <SectionLabel>{t('candidacy.dream.label', locale)}</SectionLabel>
-                  {activeDream || (mode === 'edit' && initial?.dream_id) ? (
-                    <View className="gap-3">
-                      <View className="flex-row flex-wrap gap-3">
+              ) : null}
+              {active.key === 'plan' ? (
+                <>
+                  {/* Budget + minimum viable (#225): whole euros; the minimum informs the
+                    ballot, it is not the shortfall gate (FUND-42 is). */}
+                  <View className="flex-row gap-3">
+                    <View className="flex-1 gap-1.5">
+                      <SectionLabel>{t('candidacy.budget.label', locale)}</SectionLabel>
+                      <Field
+                        keyboardType="number-pad"
+                        maxLength={9}
+                        placeholder="8000"
+                        value={values.budgetEuro}
+                        onChangeText={(v) => setText('budgetEuro', v)}
+                      />
+                    </View>
+                    <View className="flex-1 gap-1.5">
+                      <SectionLabel>{t('candidacy.budget.min.label', locale)}</SectionLabel>
+                      <Field
+                        keyboardType="number-pad"
+                        maxLength={9}
+                        placeholder="5000"
+                        value={values.minViableEuro}
+                        onChangeText={(v) => setText('minViableEuro', v)}
+                      />
+                    </View>
+                  </View>
+                  <Text className="text-[12px] leading-[18px] text-faint">
+                    {t('candidacy.budget.hint', locale)}
+                  </Text>
+                </>
+              ) : null}
+              {active.key === 'skills' ? (
+                // Skills the dream needs (#226, FUND-10) — curated keys, ≤ MAX_SKILLS, optional.
+                <View className="flex-row flex-wrap gap-3">
+                  {SKILLS.map((key) => (
+                    <Chip
+                      key={key}
+                      label={t(`tag.skill.${key}` as MessageKey, locale)}
+                      selected={values.skills.includes(key)}
+                      onPress={() => toggleSkill(key)}
+                    />
+                  ))}
+                </View>
+              ) : null}
+              {active.key === 'category' ? (
+                <View className="gap-6">
+                  {/* Category (#226, D43) — tapping the selected chip clears it: «no
+                    category» stays first-class. */}
+                  <View className="gap-3">
+                    <SectionLabel>{t('candidacy.category.label', locale)}</SectionLabel>
+                    <View className="flex-row flex-wrap gap-3">
+                      {projectCategorySchema.options.map((key) => (
                         <Chip
-                          label={t('candidacy.dream.link', locale)}
-                          selected={values.linkDream}
+                          key={key}
+                          label={t(`costellazioni.filter.${key}` as MessageKey, locale)}
+                          selected={values.category === key}
                           onPress={() =>
-                            setValues((prev) => ({ ...prev, linkDream: !prev.linkDream }))
+                            setValues((prev) => ({
+                              ...prev,
+                              category: prev.category === key ? null : key,
+                            }))
                           }
                         />
-                      </View>
-                      {activeDream ? (
-                        <DreamQuote text={activeDream.text} compact numberOfLines={2} />
-                      ) : null}
+                      ))}
                     </View>
-                  ) : (
-                    <Text className="text-[13px] text-muted-foreground">
-                      {t('candidacy.dream.none', locale)}
-                    </Text>
-                  )}
+                  </View>
+                  {/* Optional link to the author's own personal dream (#226, D12/FUND-50). */}
+                  <View className="gap-3">
+                    <SectionLabel>{t('candidacy.dream.label', locale)}</SectionLabel>
+                    {activeDream || (mode === 'edit' && initial?.dream_id) ? (
+                      <View className="gap-3">
+                        <View className="flex-row flex-wrap gap-3">
+                          <Chip
+                            label={t('candidacy.dream.link', locale)}
+                            selected={values.linkDream}
+                            onPress={() =>
+                              setValues((prev) => ({ ...prev, linkDream: !prev.linkDream }))
+                            }
+                          />
+                        </View>
+                        {activeDream ? (
+                          <DreamQuote text={activeDream.text} compact numberOfLines={2} />
+                        ) : null}
+                      </View>
+                    ) : (
+                      <Text className="text-[13px] text-muted-foreground">
+                        {t('candidacy.dream.none', locale)}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-              </View>
+              ) : null}
+            </View>
+
+            {/* Error caption */}
+            {error ? <Text className="mt-3 text-[13px] text-error">{error}</Text> : null}
+
+            {/* id-gate CTA (last step, unverified identity). Step 4 carries its own copy of this
+              beside the upload tile (#412) — the same gate, said at both places it decides
+              something: the video write and the row write. */}
+            {isLast && !profile?.identity_verified ? (
+              <Pressable
+                className="mt-4"
+                onPress={() => router.push('/(modal)/verify')}
+                accessibilityRole="button"
+              >
+                <Text className="text-[13px] font-semibold text-aura">
+                  {t('candidacy.idGate.cta', locale)}
+                </Text>
+              </Pressable>
             ) : null}
           </View>
 
-          {/* Error caption */}
-          {error ? <Text className="mt-3 text-[13px] text-error">{error}</Text> : null}
-
-          {/* id-gate CTA (last step, unverified identity). Step 4 carries its own copy of this
-              beside the upload tile (#412) — the same gate, said at both places it decides
-              something: the video write and the row write. */}
-          {isLast && !profile?.identity_verified ? (
-            <Pressable
-              className="mt-4"
-              onPress={() => router.push('/(modal)/verify')}
-              accessibilityRole="button"
-            >
-              <Text className="text-[13px] font-semibold text-aura">
-                {t('candidacy.idGate.cta', locale)}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        {/* Footer: primary CTA + legal note */}
-        <View className="mt-6 gap-3">
-          <Button
-            variant="light"
-            label={
-              isLast
-                ? t(mode === 'edit' ? 'candidacy.edit.submit' : 'candidacy.submit', locale)
-                : t('candidacy.continue', locale)
-            }
-            disabled={submitting || upload.status === 'uploading'}
-            onPress={isLast ? () => void onSubmit() : advance}
-          />
-          <Text className="text-center text-[12px] leading-[18px] text-faint">
-            {t('candidacy.legal', locale)}
-          </Text>
-        </View>
-      </ScrollView>
-    </Screen>
+          {/* Footer: primary CTA + legal note */}
+          <View className="mt-6 gap-3">
+            <Button
+              variant="light"
+              label={
+                isLast
+                  ? t(mode === 'edit' ? 'candidacy.edit.submit' : 'candidacy.submit', locale)
+                  : t('candidacy.continue', locale)
+              }
+              disabled={submitting || upload.status === 'uploading'}
+              onPress={isLast ? () => void onSubmit() : advance}
+            />
+            <Text className="text-center text-[12px] leading-[18px] text-faint">
+              {t('candidacy.legal', locale)}
+            </Text>
+          </View>
+        </ScrollView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }
