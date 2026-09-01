@@ -1365,6 +1365,40 @@ holder is admitted.
 
 ---
 
+## `20260831085518_event_reminder_organizer_slot.sql` — «`t24` … cannot collide» is false of a physical event
+
+The header at `:36-37`, explaining why the organiser was dropped from the attendee `t1` arm but
+left in `t24`:
+
+> `t24` is untouched — it fires a day earlier, cannot collide, and «{count} partecipano» is
+> genuinely useful to an organiser.
+
+«Fires a day earlier» describes the LEAD, not the window. `t24`'s floor at `:94-95` is
+`case when e.is_online then c_online_floor else interval '0' end`, so for a **physical** event the
+window runs from `starts_at` all the way out to 24h — a room 40 minutes away satisfies it. `t24`
+also joins `rsvps` without regard to whose row it is, and `RsvpBar` has no `isOrganizer` gate, so
+an organiser who self-RSVP'd to their own free physical event was matched by the `t24` arm and by
+`due_org` on the same tick. It collides exactly where the sentence promised it could not, and the
+member gets two pushes about one event seconds apart.
+
+The claim was true of the case its author was reasoning about: for an ONLINE event the floor is
+already the 3h guard band, so `t24` and `org_t1` cannot meet. `is_online` was standing in for "does
+this member have a second slot inside the day?", which `org_t1` had just made a different question.
+
+Read the clause as «`t24` cannot collide **for an online event**; for a physical one it can, and
+#617 fixes it». Corrected by `20260901131442_event_reminder_organizer_t24_floor.sql`, which floors
+`t24` on `e.is_online or rs.user_id = e.organizer_id` and renames the constant `c_guard_floor` so
+the name stops answering the superseded question. The same header's «An organiser who wants the
+day-out reminder can RSVP to their own free event and receive `t24` as an attendee» survives, but
+only outside 3h.
+
+Asserted by: `supabase/tests/0130_event_reminder_sweep.test.sql` §C — «an organiser who self-RSVPs
+to their own PHYSICAL event gets org_t1 instead of t24, never both», on an E7 fixture that reddens
+this file's four count assertions under the pre-#617 function, and beside it the rule-shaped
+`is_empty` that no `(event, member)` claims two slots on one tick.
+
+---
+
 ## `20260831085518_event_reminder_organizer_slot.sql` — "the marker table … untouched" is contradicted by the file's own first statement
 
 The header says of the `create or replace`:
