@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { semantic } from '@athanor/config';
 import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
 
@@ -99,14 +99,20 @@ export function Input({ size = 'md', trailing, className, onFocus, onBlur, ...re
   // site decision. Nothing in the type system says that, so this does — and the wrong
   // shape to copy is already in the tree at `SearchBar`, whose clear-✕ is conditional
   // on the value being non-empty.
-  const hadTrailing = useRef(trailing != null);
-  if (__DEV__ && hadTrailing.current !== (trailing != null)) {
-    hadTrailing.current = trailing != null;
-    console.warn(
-      '[Input] `trailing` appeared or disappeared, which remounts the TextInput. Render it ' +
-        'unconditionally and change its `icon`/`onPress` instead.',
-    );
-  }
+  // In an effect, not during render: a ref written while rendering is also written by a
+  // render React then discards, which would burn the flag and swallow the next real one.
+  const hasTrailing = trailing != null;
+  const hadTrailing = useRef(hasTrailing);
+  useEffect(() => {
+    if (hadTrailing.current === hasTrailing) return;
+    hadTrailing.current = hasTrailing;
+    if (__DEV__) {
+      console.warn(
+        '[Input] `trailing` appeared or disappeared, which remounts the TextInput. Render it ' +
+          'unconditionally and change its `icon`/`onPress` instead.',
+      );
+    }
+  }, [hasTrailing]);
 
   // Forwarded, not replaced: StoriesViewer pauses the story on focus and resumes on
   // blur, so swallowing these would freeze the viewer on the reply field.

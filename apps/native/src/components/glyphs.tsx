@@ -200,6 +200,14 @@ export function EyeGlyph({ size = 22, color }: GlyphProps) {
  * So this is not `EyeGlyph` plus a line, deliberately. The SHAPE is the state, never the
  * colour — both variants render in the same token, per the app's paired-glyph vocabulary
  * (DESIGN §11, 2026-08-08, where a colour-only lit/unlit distinction was rejected) and G2.
+ *
+ * Dropping the lashes takes away what `EyeGlyph` above names as the settlement of the
+ * vesica collision, so it has to be settled again here rather than assumed: the diagonal
+ * does it. Rule 4 reserves the mandorla to the logo and `Mandorla.tsx` draws it today as
+ * the avatar frame, but that mark is a VERTICAL almond in `auraLine` at avatar scale,
+ * closed; this is a horizontal lens in `foregroundMuted` at 20pt whose silhouette the
+ * corner-to-corner stroke breaks open. A closed lid alone would be the argument to have;
+ * a struck one is not.
  */
 export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
   const c = color ?? semantic.foregroundMuted;
