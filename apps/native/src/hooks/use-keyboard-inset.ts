@@ -28,8 +28,8 @@ const TRACE = __DEV__;
  *    for the three consumers that stop short of the window bottom. Still 0 on device.
  *
  * ── WHY 2 AND 3 FAILED, AND THE RULE THAT FALLS OUT OF IT ─────────────────────────
- * Both of those reds were read at the time as "the measured value never arrived". That was
- * wrong, and the real reason is structural rather than a race:
+ * Both of those reds were read at the time as "the measured value never arrived", which was
+ * asserted without evidence. There is a structural reason it is probably the wrong reading:
  *
  * **`measureInWindow` inside a `presentation: 'modal'` screen is SHEET-RELATIVE, by
  * construction.** `RNSModalScreenShadowNode` sets the `RootNodeKind` trait, and RN's
