@@ -365,7 +365,10 @@ jobs:
       # from the repo root, Deno finds package.json and expects npm deps in node_modules.
       # --allow-env: _shared/keys.ts reads the injected SUPABASE_* key variables.
       # --allow-read: _shared/config-invariants.test.ts parses config.toml and the function
-      # sources to assert every function's verify_jwt posture matches its in-handler gate.
+      # sources to assert every function's verify_jwt posture matches its in-handler gate,
+      # and _shared/mail-templates.test.ts reads config.toml plus supabase/templates/*.html
+      # to assert every declared auth mail resolves, is Italian, and carries the GoTrue
+      # variable its flow needs. Both read above supabase/functions/, so the bare form.
       - run: deno test --allow-env --allow-read .
         working-directory: supabase/functions
       # Typecheck every entrypoint (#557): `deno test` typechecks only what a test

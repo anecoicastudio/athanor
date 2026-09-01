@@ -246,6 +246,12 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
+# NOTE: this is the LOCAL value and it does not match either hosted project. Staging has
+# confirmations ON, production runs mailer_autoconfirm = true (docs/PRODUCTION-READINESS.md
+# §"Auth", issue #70). `supabase config push` sends this whole [auth.email] block —
+# templates included — to whatever supabase/.temp/linked-project.json points at, so pushing
+# it would flip staging's confirmations OFF as a side effect. Install mail templates from
+# the dashboard (Auth → Emails), not with `config push`.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
@@ -271,9 +277,17 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# Kept from the superseded OTP design. The app now signs in with email + password
-# (signInWithPassword / signUp) and calls verifyOtp nowhere, so this template is
-# only reached by flows that still mint a magic link (e.g. a future password reset).
+# Signup confirmation. Minted by supabase.auth.signUp() in apps/native (auth)/welcome.tsx;
+# the link lands on src/app/auth-callback.tsx, which exchanges the PKCE code.
+[auth.email.template.confirmation]
+subject = "Conferma la tua email e accendi la tua Aura"
+content_path = "./supabase/templates/confirmation.html"
+
+# Minted by the admin panel's sign-in fallback: apps/web/app/admin/login/page.tsx calls
+# signInWithOtp, and apps/web/app/admin/auth/callback/route.ts exchanges the PKCE code.
+# (The mobile app signs in with email + password and calls verifyOtp nowhere, so this is
+# the only flow that reaches this template.) The mail must therefore carry a LINK, not the
+# six-digit code the superseded OTP design put here — nothing in the product accepts one.
 [auth.email.template.magic_link]
 subject = "Il tuo varco per Athanor"
 content_path = "./supabase/templates/magic_link.html"
