@@ -59,17 +59,29 @@ import { AccessibilityInfo, Keyboard, Platform, type KeyboardEvent, type View } 
  * that callback is a lift that can silently not happen.
  *
  * So the event's own `endCoordinates.height` is committed synchronously, before
- * any hop. It is already the right answer for every view that reaches the window
- * bottom — every consumer but the two `Screen footer` screens — and it is what
- * the keyboard covers on both platforms (Android's is net of the system bars,
- * which `Screen`'s own bottom inset carries). The measurement then only NARROWS
- * it, for a view that stops short of the window bottom: a tab screen above the
- * tab bar, a content region above a pinned footer. It can never raise the lift,
- * and a non-positive covered height is read as "this measurement is not about the
- * view we are padding" and ignored — no consumer's wrapper sits entirely above
- * the keyboard, so that value can only be noise, and believing it is what left a
- * composer unreachable. In `__DEV__` any disagreement prints, so the next device
- * run names the case instead of leaving it to arithmetic.
+ * any hop. It is the right answer for every view that reaches the window bottom,
+ * and it is what the keyboard covers on both platforms (Android's is net of the
+ * system bars, which `Screen`'s own bottom inset carries). Three consumers do not
+ * reach it — `(modal)/plan` and `(modal)/progress` sit above a pinned
+ * `Screen footer`, `(tabs)/profile` above the tab bar — and for those the
+ * measurement NARROWS the baseline when it arrives. It is applied only on a
+ * keyboard event, never on a re-layout, so a narrowed screen is not raised back
+ * to the full height and then narrowed again on every relayout.
+ *
+ * A measurement is believed whenever it describes a real frame, including a
+ * result of zero: a short keyboard — a hardware accessory bar — under a tall
+ * footer genuinely covers none of the content region. What is NOT believed is a
+ * zero-height frame, which is not a measurement of anything. That is the only
+ * discard, and it is deliberately not a floor on the covered height: guarding
+ * that instead would defend against a delivered-but-wrong value, which is a
+ * hypothesis the diagnosis above rejected, and would make a legitimate zero
+ * unfalsifiable.
+ *
+ * The `__DEV__` warnings are placed where the failure can actually be seen: on a
+ * missing node, on a callback that never answers, on a degenerate frame, on a
+ * covered height above the keyboard's own, and once per mount on a narrowing.
+ * A silent early return inside the callback would have been blind to exactly the
+ * case that motivated this.
  */
 export function useKeyboardInset(): {
   ref: React.RefObject<View | null>;
@@ -82,6 +94,9 @@ export function useKeyboardInset(): {
   const frame = useRef<KeyboardEvent['endCoordinates'] | null>(null);
   const applied = useRef(0);
   const alive = useRef(true);
+  // Bounds the narrowing warning to one line per mount, so the three consumers that
+  // narrow by design cannot bury a real one.
+  const logged = useRef(false);
   const [inset, setInset] = useState(0);
 
   const commit = useCallback((next: number, event?: KeyboardEvent) => {
@@ -92,7 +107,7 @@ export function useKeyboardInset(): {
   }, []);
 
   const measure = useCallback(
-    async (event?: KeyboardEvent) => {
+    async (event: KeyboardEvent | undefined, baseline: boolean) => {
       const current = frame.current;
       if (!current) {
         commit(0, event);
@@ -109,25 +124,44 @@ export function useKeyboardInset(): {
         return;
       }
       // Synchronous, before any round trip: what the keyboard covers of the window.
-      commit(current.height, event);
+      // Only on a keyboard event — a re-layout must not raise a narrowed screen back.
+      if (baseline) commit(current.height, event);
+
       const node = ref.current;
-      if (!node) return;
+      if (!node) {
+        if (__DEV__) console.warn('[keyboard] nothing to measure; keeping the keyboard height');
+        return;
+      }
+      let answered = false;
       node.measureInWindow((_x, y, _width, height) => {
+        answered = true;
         // The keyboard may have hidden — the hide listener already committing 0 — or
         // changed frame while this hop was in flight. Either way this measurement is
         // about a keyboard that is no longer the one on screen, and committing it would
         // leave the view padded up with nothing under it.
         if (frame.current !== current) return;
-        const covered = Math.max(0, y) + height - current.screenY;
-        if (__DEV__ && covered !== current.height) {
-          console.warn(
-            `[keyboard] y=${y} h=${height} screenY=${current.screenY} kb=${current.height} covered=${covered}`,
-          );
+        const numbers = `y=${y} h=${height} screenY=${current.screenY} kb=${current.height}`;
+        if (height <= 0) {
+          if (__DEV__) console.warn(`[keyboard] degenerate frame, keeping the height: ${numbers}`);
+          return;
         }
-        // Narrows only. See the docblock: raising is never needed, and a non-positive
-        // result is noise rather than a view that sits clear of the keyboard.
-        if (covered > 0) commit(Math.min(current.height, covered), event);
+        const covered = Math.max(0, Math.max(0, y) + height - current.screenY);
+        if (
+          __DEV__ &&
+          (covered > current.height || (covered < current.height && !logged.current))
+        ) {
+          logged.current = true;
+          console.warn(`[keyboard] measured ${covered}: ${numbers}`);
+        }
+        commit(Math.min(current.height, covered), event);
       });
+      if (__DEV__) {
+        // Dev-only, generously long: the point is to name a callback that never came,
+        // not to time one that did.
+        setTimeout(() => {
+          if (!answered) console.warn('[keyboard] measureInWindow never answered');
+        }, 500);
+      }
     },
     [commit],
   );
@@ -139,7 +173,7 @@ export function useKeyboardInset(): {
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (event: KeyboardEvent) => {
         frame.current = event.endCoordinates;
-        void measure(event);
+        void measure(event, true);
       },
     );
     const hide = Keyboard.addListener(
@@ -152,7 +186,7 @@ export function useKeyboardInset(): {
     // Mounted with the keyboard already up — a screen pushed from one that had it.
     if (Keyboard.isVisible()) {
       frame.current = Keyboard.metrics() ?? null;
-      void measure();
+      void measure(undefined, true);
     }
     return () => {
       alive.current = false;
@@ -165,7 +199,7 @@ export function useKeyboardInset(): {
   // bar hiding, content growing). Padding does not move the view's frame, so this
   // cannot feed back on itself.
   const onLayout = useCallback(() => {
-    if (frame.current) void measure();
+    if (frame.current) void measure(undefined, false);
   }, [measure]);
 
   return { ref, onLayout, inset };
