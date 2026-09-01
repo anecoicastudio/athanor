@@ -24,13 +24,16 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
  * (secure_password_change = false) have zero call sites in this repo — a template for a
  * mail nothing can send is a file that rots unread.
  */
-const DECLARED: Record<string, { requires: readonly string[] }> = {
+const DECLARED: Record<string, { subject: string; requires: readonly string[] }> = {
   // signUp() in apps/native/src/app/(auth)/welcome.tsx; the link lands on
   // src/app/auth-callback.tsx, which exchanges the PKCE code.
-  confirmation: { requires: ['ConfirmationURL'] },
+  confirmation: {
+    subject: 'Conferma la tua email e accendi la tua Aura',
+    requires: ['ConfirmationURL'],
+  },
   // signInWithOtp() in apps/web/app/admin/login/page.tsx; the link lands on
   // apps/web/app/admin/auth/callback/route.ts, which exchanges the PKCE code.
-  magic_link: { requires: ['ConfirmationURL'] },
+  magic_link: { subject: 'Il tuo varco per Athanor', requires: ['ConfirmationURL'] },
 };
 
 /**
@@ -101,12 +104,6 @@ function resolveContentPath(contentPath: string): URL {
 }
 
 /**
- * A missing content_path is the likeliest real break here — a typo, or a template deleted
- * while its block stayed. Reading it raw throws Deno.errors.NotFound, which reports as an
- * error rather than a failed assertion and buries the path that was wrong. Fail on the
- * assertion instead, naming the file.
- */
-/**
  * The rendered body, comments removed. Every "does the copy say/carry X" assertion runs on
  * this, never on the raw file: an HTML comment is not delivered to the member, so a
  * required variable found only in a comment is a green test over a broken mail. The
@@ -116,6 +113,12 @@ function templateBody(name: string): string {
   return readTemplate(name).replace(/<!--[\s\S]*?-->/g, '');
 }
 
+/**
+ * A missing content_path is the likeliest real break here — a typo, or a template deleted
+ * while its block stayed. Reading it raw throws Deno.errors.NotFound, which reports as an
+ * error rather than a failed assertion and buries the path that was wrong. Fail on the
+ * assertion instead, naming the file.
+ */
 function readTemplate(name: string): string {
   const { contentPath } = declared[name];
   const url = resolveContentPath(contentPath);
@@ -203,7 +206,9 @@ Deno.test('templates use only variables GoTrue exposes for their type', () => {
 
 Deno.test('templates declare utf-8 and Italian', () => {
   for (const name of Object.keys(DECLARED)) {
-    const html = readTemplate(name);
+    // Body, not raw: a <meta charset> or lang="it" written as an example inside a docblock
+    // would satisfy this for a template that had lost the real one.
+    const html = templateBody(name);
     // GoTrue does not wrap the template, so a body with no charset renders «è» as mojibake
     // in any client that guesses latin-1.
     assert(
@@ -236,24 +241,18 @@ Deno.test('templates use the Athanor voice — no metrics vocabulary', () => {
   }
 });
 
-Deno.test('no subject is GoTrue stock English', () => {
-  // A stock subject over Italian body copy is the exact half-migrated state issue #625
-  // describes, and the subject is not in the template file — so nothing else here sees it.
-  const STOCK = [
-    'confirm your signup',
-    'confirm your email',
-    'you have been invited',
-    'your magic link',
-    'magic link',
-    'reset your password',
-    'confirm password reset',
-    'confirm email change',
-    'confirm reauthentication',
-  ];
-  for (const [name, { subject }] of Object.entries(declared)) {
-    assert(
-      !STOCK.includes(subject.trim().toLowerCase()),
-      `[auth.email.template.${name}] subject is GoTrue's stock English: "${subject}"`,
+Deno.test('config.toml pins the exact subject DECLARED expects', () => {
+  // The subject lives in config.toml, not in the template, so every body assertion here is
+  // blind to it — and a stock English subject over Italian body copy is the exact
+  // half-migrated state issue #625 describes. A blocklist of known stock spellings would
+  // miss "Please confirm your account"; pinning the value cannot. Changing a subject means
+  // changing it in both places, which is the point: this is the most visible string in the
+  // mail, and the one nothing else in the repo renders.
+  for (const [name, { subject }] of Object.entries(DECLARED)) {
+    assertEquals(
+      declared[name].subject,
+      subject,
+      `[auth.email.template.${name}] subject drifted from DECLARED`,
     );
   }
 });
