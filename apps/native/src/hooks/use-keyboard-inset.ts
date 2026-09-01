@@ -48,6 +48,28 @@ import { AccessibilityInfo, Keyboard, Platform, type KeyboardEvent, type View } 
  * `endCoordinates` object — a new one per show, null on hide — so object identity
  * says whether a measurement still describes what is on screen, and `alive` says
  * whether anything is left to pad.
+ *
+ * ── WHY THE KEYBOARD'S OWN HEIGHT IS APPLIED FIRST ────────────────────────────
+ * The first device run of the rewrite came back with the DM composer still fully
+ * under the keyboard — inset 0, not a short lift. On that screenshot (375×812,
+ * sheet top 47pt, keyboard top 463pt) the wrapper runs from 47 to the window
+ * bottom, so the covered height is 349 and NO correct measurement can return 0.
+ * The value was therefore never arriving: `measureInWindow` is a round trip to
+ * the UI thread that can decline to call back, and a lift that exists only inside
+ * that callback is a lift that can silently not happen.
+ *
+ * So the event's own `endCoordinates.height` is committed synchronously, before
+ * any hop. It is already the right answer for every view that reaches the window
+ * bottom — every consumer but the two `Screen footer` screens — and it is what
+ * the keyboard covers on both platforms (Android's is net of the system bars,
+ * which `Screen`'s own bottom inset carries). The measurement then only NARROWS
+ * it, for a view that stops short of the window bottom: a tab screen above the
+ * tab bar, a content region above a pinned footer. It can never raise the lift,
+ * and a non-positive covered height is read as "this measurement is not about the
+ * view we are padding" and ignored — no consumer's wrapper sits entirely above
+ * the keyboard, so that value can only be noise, and believing it is what left a
+ * composer unreachable. In `__DEV__` any disagreement prints, so the next device
+ * run names the case instead of leaving it to arithmetic.
  */
 export function useKeyboardInset(): {
   ref: React.RefObject<View | null>;
@@ -72,8 +94,7 @@ export function useKeyboardInset(): {
   const measure = useCallback(
     async (event?: KeyboardEvent) => {
       const current = frame.current;
-      const node = ref.current;
-      if (!current || !node) {
+      if (!current) {
         commit(0, event);
         return;
       }
@@ -84,16 +105,28 @@ export function useKeyboardInset(): {
         current.screenY === 0 &&
         (await AccessibilityInfo.prefersCrossFadeTransitions())
       ) {
-        commit(0, event);
+        if (frame.current === current) commit(0, event);
         return;
       }
+      // Synchronous, before any round trip: what the keyboard covers of the window.
+      commit(current.height, event);
+      const node = ref.current;
+      if (!node) return;
       node.measureInWindow((_x, y, _width, height) => {
         // The keyboard may have hidden — the hide listener already committing 0 — or
         // changed frame while this hop was in flight. Either way this measurement is
         // about a keyboard that is no longer the one on screen, and committing it would
         // leave the view padded up with nothing under it.
         if (frame.current !== current) return;
-        commit(Math.max(0, Math.max(0, y) + height - current.screenY), event);
+        const covered = Math.max(0, y) + height - current.screenY;
+        if (__DEV__ && covered !== current.height) {
+          console.warn(
+            `[keyboard] y=${y} h=${height} screenY=${current.screenY} kb=${current.height} covered=${covered}`,
+          );
+        }
+        // Narrows only. See the docblock: raising is never needed, and a non-positive
+        // result is noise rather than a view that sits clear of the keyboard.
+        if (covered > 0) commit(Math.min(current.height, covered), event);
       });
     },
     [commit],
