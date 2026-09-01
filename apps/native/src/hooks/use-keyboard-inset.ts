@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Keyboard, Platform, type KeyboardEvent } from 'react-native';
 
+/** Keyboard tracing, on while #616's mechanism is unproven on device. Delete with the doubt. */
+const TRACE = __DEV__;
+
 /**
  * How far the soft keyboard covers the bottom of the window, in points (#616).
  *
@@ -44,12 +47,14 @@ import { AccessibilityInfo, Keyboard, Platform, type KeyboardEvent } from 'react
  * failure is entirely in getting a non-zero number OUT of this hook, never in what the
  * consumers do with it. What remains is whether the listener fires at all and whether
  * `__DEV__` was even true in the build under test — which is what the registration trace
- * below exists to settle. What it bought was a
- * trimmed lift on `(modal)/plan`, `(modal)/progress` (content above a pinned
- * `Screen footer`) and `(tabs)/profile` (above the tab bar); those three now over-lift by
- * their bottom chrome, leaving a band of empty space above the keyboard. That is the
- * deliberate trade, and the direction matters: over-lifting wastes space, under-lifting
- * hides the control the member is typing into. Two device reds bought that lesson.
+ * below exists to settle.
+ *
+ * What the MEASUREMENT bought, and what deleting it costs: a trimmed lift on
+ * `(modal)/plan`, `(modal)/progress` (content above a pinned `Screen footer`) and
+ * `(tabs)/profile` (above the tab bar). Those three now over-lift by their bottom chrome,
+ * leaving a band of empty space above the keyboard. That is the deliberate trade, and the
+ * direction matters: over-lifting wastes space, under-lifting hides the control the member
+ * is typing into. Two device reds bought that lesson.
  *
  * Two behaviours are ported from `KeyboardAvoidingView`: `scheduleLayoutAnimation` (its
  * LayoutAnimation config, taken from the event, so the padding rides the keyboard's own
@@ -66,9 +71,6 @@ import { AccessibilityInfo, Keyboard, Platform, type KeyboardEvent } from 'react
  * only the cross-fade branch, which really is a surprise, warns. Note this hook runs per
  * mounted consumer, so a sheet over a tab screen prints two of every line.
  */
-
-/** Keyboard tracing, on while #616's mechanism is unproven on device. Delete with the doubt. */
-const TRACE = __DEV__;
 export function useKeyboardInset(): number {
   const alive = useRef(true);
   const applied = useRef(0);
@@ -95,8 +97,8 @@ export function useKeyboardInset(): number {
         commit(0, event);
         return;
       }
-      if (__DEV__) {
-        console.warn(
+      if (TRACE) {
+        console.log(
           `[keyboard] show h=${frame.height} screenY=${frame.screenY} -> ${frame.height}`,
         );
       }
