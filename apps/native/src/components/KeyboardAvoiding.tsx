@@ -12,10 +12,11 @@ import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
  * form: its bottom safe-area inset measures 0 while this wrapper has lifted the
  * view off the window bottom, so the home indicator is not reserved twice.
  *
- * The measurement and its arithmetic live in `hooks/use-keyboard-inset.ts` — read
- * that docblock for why `KeyboardAvoidingView` is gone and why measuring at
- * keyboard time (not at mount) is the fix. Layout style, not themable UI, hence
- * no `@/tw` here.
+ * The lift is the keyboard's own height, from `hooks/use-keyboard-inset.ts` — read
+ * that docblock for why `KeyboardAvoidingView` is gone and why nothing here
+ * measures the view any more. It also names what this wrapper now over-lifts by
+ * on the three consumers that stop short of the window bottom. Layout style, not
+ * themable UI, hence no `@/tw` here.
  *
  * Static-audit invariant (`lib/source-audit.test.ts` §8): `KeyboardAvoidingView`
  * appears nowhere in the app, and the hook has exactly two consumers — this file
@@ -25,10 +26,6 @@ import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
  * Wrap where you can, take the hook where you cannot, copy neither.
  */
 export function KeyboardAvoiding({ children }: { children: ReactNode }) {
-  const { ref, onLayout, inset } = useKeyboardInset();
-  return (
-    <View ref={ref} onLayout={onLayout} style={{ flex: 1, paddingBottom: inset }}>
-      {children}
-    </View>
-  );
+  const inset = useKeyboardInset();
+  return <View style={{ flex: 1, paddingBottom: inset }}>{children}</View>;
 }

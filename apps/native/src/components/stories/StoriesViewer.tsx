@@ -112,7 +112,7 @@ export function StoriesViewer({
   // the photo with it — only the chrome band may carry the inset, which is why this screen
   // cannot take the `KeyboardAvoiding` wrapper. It reads the same hook rather than holding a
   // second copy of the measurement, which is what left it broken by every earlier fix.
-  const keyboard = useKeyboardInset();
+  const keyboardInset = useKeyboardInset();
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const { showToast } = useToast();
@@ -230,11 +230,7 @@ export function StoriesViewer({
         />
       )}
 
-      <View
-        ref={keyboard.ref}
-        onLayout={keyboard.onLayout}
-        style={[styles.chrome, { paddingBottom: keyboard.inset }]}
-      >
+      <View style={[styles.chrome, { paddingBottom: keyboardInset }]}>
         <SafeAreaView edges={['top']} className="bg-background/70">
           <View className="flex-row gap-1 px-3 pt-3">
             {segments.map((seg, i) => (
