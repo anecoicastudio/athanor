@@ -107,10 +107,11 @@ export function StoriesViewer({
   // Tap-zone width from onLayout, not Dimensions-at-module-scope: that snapshot goes stale
   // after a rotation or in split view (#297 beyond-the-issue).
   const [zoneW, setZoneW] = useState(0);
-  // Keyboard avoidance for the reply composer (#163, remeasured in #616). The chrome is an
-  // absolute overlay rather than a flex column, so it cannot take the `KeyboardAvoiding`
-  // wrapper's shape — it pads itself from the same hook instead of holding a second copy of
-  // the measurement.
+  // Keyboard avoidance for the reply composer (#163, remeasured in #616). The media is a
+  // full-bleed `absolute inset-0` sibling of this chrome, so padding the root would shrink
+  // the photo with it — only the chrome band may carry the inset, which is why this screen
+  // cannot take the `KeyboardAvoiding` wrapper. It reads the same hook rather than holding a
+  // second copy of the measurement, which is what left it broken by every earlier fix.
   const keyboard = useKeyboardInset();
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);

@@ -188,8 +188,10 @@ export default function WelcomeScreen() {
     );
 
   // G2: the in-flight and confirmed states are carried by text, not by a spinner or a colour.
-  // `accessibilityLiveRegion` is Android-only, so the announcement is explicit — the hook
-  // re-announces whenever this string changes, which is exactly the two transitions.
+  // Announced explicitly rather than through `accessibilityLiveRegion`, which is Android-only
+  // and would have left the confirmation silent on iOS — and, on the in-flight line, spoken
+  // twice on Android. The hook re-announces whenever this string changes, which is exactly
+  // the two transitions.
   const inFlightLabel = t(login ? 'auth.login.signingIn' : 'auth.signup.creating', locale);
   useAnnounceOnMount(
     submitting ? inFlightLabel : phase === 'sent' ? t('auth.confirm.title', locale) : undefined,
@@ -198,8 +200,8 @@ export default function WelcomeScreen() {
   return (
     // #614: this screen predates the #163 sweep and never picked up the primitive, so the
     // keyboard sat over the password field — the third and last one — with no way to scroll
-    // it clear. OUTSIDE `Screen`, which is where six of the eight other consumers put it and
-    // what `Screen`'s bottom-inset docblock is written for.
+    // it clear. OUTSIDE `Screen`, which is where every consumer but the two `Screen footer`
+    // screens puts it, and what `Screen`'s bottom-inset docblock is written for.
     <KeyboardAvoiding>
       <Screen>
         <ScrollView
@@ -411,10 +413,7 @@ export default function WelcomeScreen() {
                 {/* The spinner alone said only «something is happening». This names it, and
                   keeps saying it across the session hop the spinner now rides out (#618). */}
                 {submitting ? (
-                  <Text
-                    className="text-center text-[13px] text-muted-foreground"
-                    accessibilityLiveRegion="polite"
-                  >
+                  <Text className="text-center text-[13px] text-muted-foreground">
                     {inFlightLabel}
                   </Text>
                 ) : null}

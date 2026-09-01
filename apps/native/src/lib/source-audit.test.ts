@@ -446,7 +446,7 @@ describe('author-only reaction counts (rule 3)', () => {
 });
 
 // ---------------------------------------------------------------------------------------
-// 8 — keyboard avoidance goes through the one wrapper (#163)
+// 8 — keyboard avoidance goes through the one hook (#163, #616)
 // ---------------------------------------------------------------------------------------
 
 /**
