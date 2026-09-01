@@ -88,6 +88,12 @@ export default function WelcomeScreen() {
       // and dropping the spinner here left the screen silent for all of it. Whichever way
       // that hop ends replaces this screen: the app routes, or `app/_layout.tsx` swaps in
       // ProfileErrorScreen. Neither leaves the spinner up.
+      //
+      // The trade, named because it is one: if that hop hung — resolving neither a profile
+      // nor an error — the spinner would have no escape. Weighed against the behaviour it
+      // replaces, which re-enabled the CTA over an already-set session and so invited a
+      // second sign-in at it. A stuck spinner would be auth-context's bug to fix, and no
+      // timeout invented here could tell a hung hydrate from a slow one.
       return;
     }
     // `display_name` goes into auth.users.user_metadata, and handle_new_user copies it

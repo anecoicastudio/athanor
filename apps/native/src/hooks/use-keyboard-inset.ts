@@ -33,11 +33,21 @@ import { AccessibilityInfo, Keyboard, Platform, type KeyboardEvent, type View } 
  * `behavior` split goes with it: padding shrinks the box on both platforms,
  * whether or not Android's window resized for the IME.
  *
- * Two behaviours are ported deliberately from `KeyboardAvoidingView`:
+ * Three behaviours are ported deliberately from `KeyboardAvoidingView`:
  * `Keyboard.scheduleLayoutAnimation` (its LayoutAnimation config, taken straight
- * from the event, so the padding rides the keyboard's own curve) and the
- * `prefersCrossFadeTransitions` guard (with that iOS setting on, the keyboard
- * frame reports `screenY: 0` and the naive math would lift by a whole screen).
+ * from the event, so the padding rides the keyboard's own curve and is a no-op on
+ * Android, where duration is 0); the `prefersCrossFadeTransitions` guard (with
+ * that iOS setting on, the keyboard frame reports `screenY: 0` and the naive math
+ * would lift by a whole screen); and the choice of `willShow`/`willHide` over
+ * `willChangeFrame` — undocked, split and floating keyboards emit a change-frame
+ * before the hide, so the pair is what reads them correctly.
+ *
+ * Measuring is asynchronous twice over (an `await` on iOS, then the
+ * `measureInWindow` hop), so a result can land after the keyboard it describes is
+ * gone, or after the screen is. `frame.current` holds the event's own
+ * `endCoordinates` object — a new one per show, null on hide — so object identity
+ * says whether a measurement still describes what is on screen, and `alive` says
+ * whether anything is left to pad.
  */
 export function useKeyboardInset(): {
   ref: React.RefObject<View | null>;
@@ -49,10 +59,11 @@ export function useKeyboardInset(): {
   // `onLayout` can recompute against it without re-subscribing.
   const frame = useRef<KeyboardEvent['endCoordinates'] | null>(null);
   const applied = useRef(0);
+  const alive = useRef(true);
   const [inset, setInset] = useState(0);
 
   const commit = useCallback((next: number, event?: KeyboardEvent) => {
-    if (applied.current === next) return;
+    if (!alive.current || applied.current === next) return;
     applied.current = next;
     if (event) Keyboard.scheduleLayoutAnimation(event);
     setInset(next);
@@ -77,6 +88,11 @@ export function useKeyboardInset(): {
         return;
       }
       node.measureInWindow((_x, y, _width, height) => {
+        // The keyboard may have hidden — the hide listener already committing 0 — or
+        // changed frame while this hop was in flight. Either way this measurement is
+        // about a keyboard that is no longer the one on screen, and committing it would
+        // leave the view padded up with nothing under it.
+        if (frame.current !== current) return;
         commit(Math.max(0, Math.max(0, y) + height - current.screenY), event);
       });
     },
@@ -84,6 +100,7 @@ export function useKeyboardInset(): {
   );
 
   useEffect(() => {
+    alive.current = true;
     // iOS fires `will*` ahead of the animation; Android only has `did*`.
     const show = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -105,6 +122,7 @@ export function useKeyboardInset(): {
       void measure();
     }
     return () => {
+      alive.current = false;
       show.remove();
       hide.remove();
     };
