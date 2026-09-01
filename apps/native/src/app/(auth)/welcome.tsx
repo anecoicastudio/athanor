@@ -155,7 +155,7 @@ export default function WelcomeScreen() {
     // for the same reason the sign-in branch does. Confirmations ON → no session, so the
     // screen becomes the confirmation. Which of the two a build gets is per-project and they
     // differ: STAGING has confirmations on, PRODUCTION runs mailer_autoconfirm = true and
-    // sends no confirmation mail at all (docs/PRODUCTION-READINESS.md §"Auth", issue #70).
+    // sends no confirmation mail at all (docs/PRODUCTION-READINESS.md §P1.6, issue #70).
     // Both branches are live somewhere, so neither is dead code.
     if (!data.session) setPhase('sent');
   };

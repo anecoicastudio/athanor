@@ -5,7 +5,7 @@
   src/app/auth-callback.tsx for the PKCE exchange.
 
   Live audience today is STAGING ONLY: production runs mailer_autoconfirm = true, so it
-  sends no confirmation mail at all (docs/PRODUCTION-READINESS.md §"Auth", issue #70).
+  sends no confirmation mail at all (docs/PRODUCTION-READINESS.md §P1.6, issue #70).
 
   Variables GoTrue exposes here: .ConfirmationURL .Token .TokenHash .SiteURL .Email
   .Data .RedirectTo — and NOT .NewEmail, which exists only in the email-change template.
@@ -58,8 +58,9 @@
             style="max-width: 520px"
           >
             <!-- Wordmark. DESIGN.md §4: always letterspaced, weight 400. The ✦ spark is
-                 drawn as text because no asset host exists yet (issue #471) and Gmail
-                 strips inline <svg> and blocks data: URIs in <img>. -->
+                 drawn as text, not served: Gmail strips inline <svg> and blocks data: URIs
+                 in <img>, and the only host we have is moving (issue #471) — a sent mail
+                 keeps its <img src> forever, so it would break in every inbox at the cut. -->
             <tr>
               <td
                 align="center"
@@ -135,8 +136,10 @@
                 </p>
                 <!-- Bulletproof pill CTA: bgcolor on the <td>, padding on the <a>, because
                      Outlook's Word engine ignores padding on an inline <a>. Flat aura fill
-                     #2BD0D2 with onAura ink #04222A. Button.tsx: rounded-full, 13px/600,
-                     tracking 0.14em. -->
+                     #2BD0D2 with onAura ink #04222A; 13px/600 at tracking 0.14em, matching
+                     apps/native Button.tsx. Its rounded-full cannot be expressed here — a
+                     mail client needs a length — so 26px (radius.hero) reads as the same
+                     pill at this button's height, and Outlook squares it off either way. -->
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center" bgcolor="#2BD0D2" style="border-radius: 26px">

@@ -74,7 +74,7 @@ function readTemplates(toml: string): Record<string, Declared> {
   for (const raw of toml.split('\n')) {
     const line = raw.trim();
     if (line.startsWith('#')) continue;
-    const header = line.match(/^\[auth\.email\.template\.([a-z_]+)\]$/);
+    const header = line.match(/^\[auth\.email\.template\.([a-z_]+)\]\s*(?:#.*)?$/);
     if (header) {
       current = header[1];
       out[current] = { subject: '', contentPath: '' };
@@ -106,6 +106,16 @@ function resolveContentPath(contentPath: string): URL {
  * error rather than a failed assertion and buries the path that was wrong. Fail on the
  * assertion instead, naming the file.
  */
+/**
+ * The rendered body, comments removed. Every "does the copy say/carry X" assertion runs on
+ * this, never on the raw file: an HTML comment is not delivered to the member, so a
+ * required variable found only in a comment is a green test over a broken mail. The
+ * secret scan is the deliberate exception — a committed comment is world-readable too.
+ */
+function templateBody(name: string): string {
+  return readTemplate(name).replace(/<!--[\s\S]*?-->/g, '');
+}
+
 function readTemplate(name: string): string {
   const { contentPath } = declared[name];
   const url = resolveContentPath(contentPath);
@@ -161,7 +171,9 @@ Deno.test('no orphan template file — every .html in supabase/templates/ is dec
 
 Deno.test('each template carries the GoTrue variable its flow cannot work without', () => {
   for (const [name, { requires }] of Object.entries(DECLARED)) {
-    const html = readTemplate(name);
+    // An empty `requires` would make the loop below pass vacuously.
+    assert(requires.length > 0, `DECLARED.${name} lists no required variable`);
+    const html = templateBody(name);
     for (const v of requires) {
       assert(
         new RegExp(`\\{\\{\\s*\\.${v}\\s*\\}\\}`).test(html),
@@ -173,6 +185,9 @@ Deno.test('each template carries the GoTrue variable its flow cannot work withou
 
 Deno.test('templates use only variables GoTrue exposes for their type', () => {
   for (const name of Object.keys(DECLARED)) {
+    // Raw, not the body: Go's template engines do not treat an HTML comment as inert, so a
+    // `{{ … }}` action written inside one is still substituted into the delivered mail.
+    // Prose in these headers therefore names variables bare (`.Token`), never braced.
     const html = readTemplate(name);
     const allowed = ALLOWED_VARS[name];
     assert(allowed, `no ALLOWED_VARS entry for template '${name}'`);
@@ -207,15 +222,39 @@ Deno.test('templates declare utf-8 and Italian', () => {
 Deno.test('templates use the Athanor voice — no metrics vocabulary', () => {
   // rules/i18n.md: never the words "engagement" or "utenti". The product's claim is that
   // people are not metrics, so the copy holds that line too.
+  // Subject included — it is the single most visible string in the mail, and it lives in
+  // config.toml rather than in the template, so every other assertion here was blind to it.
   const banned = ['engagement', 'utenti'];
   for (const name of Object.keys(DECLARED)) {
-    const html = readTemplate(name);
+    const copy = `${declared[name].subject}\n${templateBody(name)}`;
     for (const word of banned) {
       assert(
-        !new RegExp(`\\b${word}\\b`, 'i').test(html),
-        `${declared[name].contentPath} contains the banned word "${word}" (rules/i18n.md)`,
+        !new RegExp(`\\b${word}\\b`, 'i').test(copy),
+        `template '${name}' contains the banned word "${word}" (rules/i18n.md)`,
       );
     }
+  }
+});
+
+Deno.test('no subject is GoTrue stock English', () => {
+  // A stock subject over Italian body copy is the exact half-migrated state issue #625
+  // describes, and the subject is not in the template file — so nothing else here sees it.
+  const STOCK = [
+    'confirm your signup',
+    'confirm your email',
+    'you have been invited',
+    'your magic link',
+    'magic link',
+    'reset your password',
+    'confirm password reset',
+    'confirm email change',
+    'confirm reauthentication',
+  ];
+  for (const [name, { subject }] of Object.entries(declared)) {
+    assert(
+      !STOCK.includes(subject.trim().toLowerCase()),
+      `[auth.email.template.${name}] subject is GoTrue's stock English: "${subject}"`,
+    );
   }
 });
 
@@ -230,9 +269,10 @@ Deno.test('no secret or project ref is baked into a template', () => {
     [/[a-z]{20}\.supabase\.(co|in)\b/, 'a hosted project ref'],
   ];
   for (const name of Object.keys(DECLARED)) {
-    const html = readTemplate(name);
+    // Raw file plus subject: a secret in a comment is committed and world-readable too.
+    const text = `${declared[name].subject}\n${readTemplate(name)}`;
     for (const [pattern, what] of forbidden) {
-      assert(!pattern.test(html), `${declared[name].contentPath} appears to contain ${what}`);
+      assert(!pattern.test(text), `template '${name}' appears to contain ${what}`);
     }
   }
 });

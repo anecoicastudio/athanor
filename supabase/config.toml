@@ -248,7 +248,7 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 # NOTE: this is the LOCAL value and it does not match either hosted project. Staging has
 # confirmations ON, production runs mailer_autoconfirm = true (docs/PRODUCTION-READINESS.md
-# §"Auth", issue #70). `supabase config push` sends this whole [auth.email] block —
+# §P1.6, issue #70). `supabase config push` sends this whole [auth.email] block —
 # templates included — to whatever supabase/.temp/linked-project.json points at, so pushing
 # it would flip staging's confirmations OFF as a side effect. Install mail templates from
 # the dashboard (Auth → Emails), not with `config push`.
