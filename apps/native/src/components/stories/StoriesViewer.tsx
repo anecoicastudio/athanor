@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Keyboard,
-  KeyboardAvoidingView,
-  PanResponder,
-  Platform,
-  StyleSheet,
-  type View as RNView,
-} from 'react-native';
+import { Animated, Keyboard, PanResponder, StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
@@ -15,6 +7,7 @@ import { Pressable, SafeAreaView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { useToast } from '@/components/ToastHost';
+import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { star } from '@/lib/star';
@@ -114,10 +107,11 @@ export function StoriesViewer({
   // Tap-zone width from onLayout, not Dimensions-at-module-scope: that snapshot goes stale
   // after a rotation or in split view (#297 beyond-the-issue).
   const [zoneW, setZoneW] = useState(0);
-  // How far this screen sits below the window top (the iOS `(modal)` pageSheet gap) — the
-  // keyboardVerticalOffset #163 documents, measured rather than guessed.
-  const [kbOffset, setKbOffset] = useState(0);
-  const rootRef = useRef<RNView>(null);
+  // Keyboard avoidance for the reply composer (#163, remeasured in #616). The chrome is an
+  // absolute overlay rather than a flex column, so it cannot take the `KeyboardAvoiding`
+  // wrapper's shape — it pads itself from the same hook instead of holding a second copy of
+  // the measurement.
+  const keyboard = useKeyboardInset();
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const { showToast } = useToast();
@@ -212,13 +206,7 @@ export function StoriesViewer({
   if (!current) return null;
 
   return (
-    <View
-      ref={rootRef}
-      onLayout={() => {
-        rootRef.current?.measureInWindow((_x, y) => setKbOffset(Math.max(0, y)));
-      }}
-      className="flex-1 bg-background"
-    >
+    <View className="flex-1 bg-background">
       {current.kind === 'video' ? (
         <MediaFrame
           kind="video"
@@ -241,13 +229,10 @@ export function StoriesViewer({
         />
       )}
 
-      <KeyboardAvoidingView
-        style={styles.chrome}
-        // `height`, not `undefined`: an undefined behavior leaves the component inert on
-        // Android (#163). The chrome is an absolute overlay, so it cannot take the shared
-        // KeyboardAvoiding wrapper's flex-column shape — same recipe, local copy.
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={kbOffset}
+      <View
+        ref={keyboard.ref}
+        onLayout={keyboard.onLayout}
+        style={[styles.chrome, { paddingBottom: keyboard.inset }]}
       >
         <SafeAreaView edges={['top']} className="bg-background/70">
           <View className="flex-row gap-1 px-3 pt-3">
@@ -410,7 +395,7 @@ export function StoriesViewer({
             </View>
           )}
         </SafeAreaView>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }

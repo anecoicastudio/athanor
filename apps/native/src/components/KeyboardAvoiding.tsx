@@ -1,38 +1,33 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { type ReactNode } from 'react';
+import { View } from 'react-native';
+import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
 
 /**
- * The one keyboard-avoidance recipe (#163). Five composers had each copied
- * `behavior={Platform.OS === 'ios' ? 'padding' : undefined}` — which pushes by
- * the raw keyboard height on iOS (wrong by the sheet's own top gap plus any
- * header above the scroll area) and is inert on Android.
+ * The one keyboard-avoidance recipe (#163, remeasured for #616). Wrap a screen
+ * in it and the content region shrinks to sit above the soft keyboard.
  *
- * - `keyboardVerticalOffset` is MEASURED, not guessed: the root reports its own
- *   window-top y on layout (`measureInWindow`) — exactly the chrome above this
- *   view, whatever it is (pageSheet gap, header). Same pattern StoriesViewer
- *   proved in-tree; layout style, not themable UI, hence no `@/tw` here.
- * - Android gets an explicit `height` branch instead of `undefined`.
+ * Goes OUTSIDE `Screen`, not inside — six of the eight consumers already spell it
+ * that way, and `Screen`'s docblock is written for it: its bottom safe-area inset
+ * measures 0 while this wrapper has lifted the view off the window bottom, so the
+ * home indicator is not reserved twice. The two exceptions (`plan`, `progress`)
+ * put it inside because they use `Screen footer`, which pins an action bar the
+ * wrapper is not meant to lift.
  *
- * Static-audit invariant (`lib/source-audit.test.ts`): outside this file only
- * StoriesViewer (whose chrome is an absolute overlay, not a flex column) may
- * touch KeyboardAvoidingView — wrap, don't copy.
+ * The measurement and its arithmetic live in `hooks/use-keyboard-inset.ts` — read
+ * that docblock for why `KeyboardAvoidingView` is gone and why measuring at
+ * keyboard time (not at mount) is the fix. Layout style, not themable UI, hence
+ * no `@/tw` here.
+ *
+ * Static-audit invariant (`lib/source-audit.test.ts` §8): `KeyboardAvoidingView`
+ * appears nowhere in the app, and the hook has exactly two consumers — this file
+ * and `StoriesViewer`, whose chrome is an absolute overlay rather than a flex
+ * column and so cannot take this wrapper's shape. Wrap, don't copy.
  */
 export function KeyboardAvoiding({ children }: { children: ReactNode }) {
-  const ref = useRef<View>(null);
-  const [offset, setOffset] = useState(0);
+  const { ref, onLayout, inset } = useKeyboardInset();
   return (
-    <View
-      ref={ref}
-      onLayout={() => ref.current?.measureInWindow((_x, y) => setOffset(Math.max(0, y)))}
-      style={{ flex: 1 }}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={offset}
-        style={{ flex: 1 }}
-      >
-        {children}
-      </KeyboardAvoidingView>
+    <View ref={ref} onLayout={onLayout} style={{ flex: 1, paddingBottom: inset }}>
+      {children}
     </View>
   );
 }

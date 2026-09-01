@@ -452,24 +452,34 @@ describe('author-only reaction counts (rule 3)', () => {
 /**
  * Five composers had each copied `behavior={Platform.OS === 'ios' ? 'padding' : undefined}`
  * — overshooting inside an iOS sheet (no measured offset) and inert on Android, where an
- * undefined behavior disables the component entirely. The fix is the one measured wrapper,
- * `components/KeyboardAvoiding.tsx`. StoriesViewer keeps a local copy because its chrome is
- * an absolute overlay rather than a flex column, but it must still branch to a real Android
- * behavior — which the second assertion checks for every file, allowlisted or not.
+ * undefined behavior disables the component entirely. #163 replaced them with one measured
+ * wrapper; #616 found the measurement itself was taken once, at mount, and so was wrong on
+ * exactly the screen that needed it most (a sheet pushed from a sheet).
+ *
+ * The mechanism is now `hooks/use-keyboard-inset.ts`: it measures inside the keyboard event
+ * and pads. `KeyboardAvoidingView` is therefore gone from the app — the first assertion pins
+ * its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
+ * this section exists to catch. The second keeps the old copied branch out even so, since a
+ * reintroduction would most likely arrive in that shape. The third pins the new single point
+ * of truth: nothing else subscribes to keyboard show/hide, so nobody hand-rolls avoidance at
+ * a call site again.
  */
-describe('keyboard avoidance goes through the one wrapper (#163)', () => {
-  const ALLOWED = ['components/KeyboardAvoiding.tsx', 'components/stories/StoriesViewer.tsx'];
+describe('keyboard avoidance goes through the one hook (#163, #616)', () => {
+  const INSET_CONSUMERS = [
+    'components/KeyboardAvoiding.tsx',
+    'components/stories/StoriesViewer.tsx',
+  ];
 
-  it('KeyboardAvoidingView is referenced only in the wrapper and the stories overlay', () => {
+  it('KeyboardAvoidingView is referenced nowhere in the app', () => {
     const users = FILES.filter((p) => !isTest(p))
       .filter((p) => stripComments(read(p)).includes('KeyboardAvoidingView'))
       .map((p) => rel(p).replace('apps/native/src/', ''))
       .sort();
-    expect(users).toEqual([...ALLOWED].sort());
+    expect(users).toEqual([]);
   });
 
   it('no Android-inert keyboard behavior (a `: undefined` branch) anywhere', () => {
-    // Comment-stripped: the wrapper's own docblock quotes the forbidden pattern to explain it.
+    // Comment-stripped: the hook's own docblock quotes the forbidden pattern to explain it.
     const hits = CODE_LINES.flatMap(([p, stripped]) =>
       stripped
         .map((text, i) => [`${rel(p)}:${i + 1}`, text] as const)
@@ -477,6 +487,23 @@ describe('keyboard avoidance goes through the one wrapper (#163)', () => {
         .map(([where]) => where),
     );
     expect(hits).toEqual([]);
+  });
+
+  it('only the hook subscribes to keyboard show/hide', () => {
+    const subscribers = FILES.filter((p) => !isTest(p))
+      .filter((p) => stripComments(read(p)).includes('Keyboard.addListener('))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(subscribers).toEqual(['hooks/use-keyboard-inset.ts']);
+  });
+
+  it('the keyboard inset hook has exactly the wrapper and the stories overlay as consumers', () => {
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => rel(p) !== 'apps/native/src/hooks/use-keyboard-inset.ts')
+      .filter((p) => stripComments(read(p)).includes('useKeyboardInset'))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(users).toEqual([...INSET_CONSUMERS].sort());
   });
 });
 
