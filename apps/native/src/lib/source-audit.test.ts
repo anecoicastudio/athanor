@@ -1036,20 +1036,15 @@ describe('placeholders are a token, never the platform default (#499)', () => {
    * Matched on the ELEMENT's own attributes, not on the file — a file-level match would also
    * name every screen that merely wraps something in a `rounded-hero` container.
    *
-   * The three compose screens are the rest of this family — same `rounded-hero border border-hair
-   * bg-raise` shape — and they are deliberately NOT routed through `Field` yet. #499 defined its
-   * twelve as the fields missing `placeholderTextColor`, and these three already pass it; folding
-   * them in would change padding (`p-4` → `px-5 py-4`), type (15pt → 18pt) and height (arbitrary
-   * `min-h-[80px]`/`[120px]`) on three screens no issue has asked for, and would widen the size
-   * taxonomy from three spellings to five — a design decision to take deliberately, not as a side
-   * effect of a placeholder fix. Listed so the next reader inherits the reason, not the mystery.
+   * The list carries NO exceptions, and keeping it that way is the whole of #504. The three
+   * compose screens — story, post, project — were the rest of this family and sat here in a
+   * `HERO_NOT_YET_ROUTED` array, because #499 had defined its twelve as the fields MISSING
+   * `placeholderTextColor` and these three already passed it. Marco's ruling (2026-08-30) folded
+   * them in, so the assertion below now says what its own title always claimed.
+   *
+   * The exception array is gone rather than emptied: an empty list is an invitation to append to,
+   * and the next hand-rolled field should have nowhere to be written down.
    */
-  const HERO_NOT_YET_ROUTED = [
-    'app/(modal)/post-compose.tsx',
-    'app/(modal)/project-compose.tsx',
-    'app/(modal)/story-compose.tsx',
-  ];
-
   it('the hero-radius block field exists in exactly one place', () => {
     const users = [
       ...new Set(
@@ -1061,7 +1056,7 @@ describe('placeholders are a token, never the platform default (#499)', () => {
     expect(
       users,
       'a hero-radius text field has been hand-rolled again — use the Field primitive (#499)',
-    ).toEqual([...HERO_NOT_YET_ROUTED, 'components/Field.tsx'].sort());
+    ).toEqual(['components/Field.tsx']);
   });
 });
 

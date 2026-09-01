@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
@@ -154,15 +154,12 @@ export default function StoryComposeScreen() {
             </Text>
           ) : null}
 
-          <TextInput
-            className="min-h-[80px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
+          <Field
+            multiline
+            maxLength={280}
             placeholder={t('story.add.captionPlaceholder', locale)}
-            placeholderTextColor={semantic.foregroundMuted}
             value={caption}
             onChangeText={setCaption}
-            maxLength={280}
-            multiline
-            textAlignVertical="top"
           />
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
