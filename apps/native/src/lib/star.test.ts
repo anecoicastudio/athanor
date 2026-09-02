@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STAR_KEYS, type StarKey } from '@athanor/schemas';
 import { AURA_UNKNOWN } from './aura-display';
-import { STAR, star, starCellState, starGlyph, starsBlockMode } from './star';
+import { STAR, spoken, star, starCellState, starGlyph, starsBlockMode } from './star';
 
 const row = (starId: StarKey, grantedAt: string | null) => ({ starId, grantedAt });
 
@@ -94,5 +94,45 @@ describe('starsBlockMode — the rule #3 asymmetry', () => {
     ];
     const unavailable = inputs.filter(([s, owner]) => starsBlockMode(s, owner) === 'unavailable');
     expect(unavailable).toEqual([[null, false]]);
+  });
+});
+
+describe('spoken() — the ornament never reaches an imperative announcement (#635)', () => {
+  /**
+   * `AccessibilityInfo.announceForAccessibility` speaks the string it is handed; there is no
+   * element to mark decorative, so a ✦ that is pure ornament in ~58 catalog values is read out
+   * as a glyph name or silently dropped. Both are the sentence arriving wrong.
+   */
+  it('removes the spark and the gap it leaves', () => {
+    expect(spoken('Invito inviato ✦')).toBe('Invito inviato');
+    expect(spoken('✦ Aura 120')).toBe('Aura 120');
+    expect(spoken('Hai un Momento ✦ da Lucia')).toBe('Hai un Momento da Lucia');
+    expect(spoken('Momento inviato ✦ …')).toBe('Momento inviato …');
+  });
+
+  it('removes the unlit spark too', () => {
+    // ✧ reaches speech from the same places ✦ does — `star(false)` is in feed and profile copy.
+    expect(spoken('✧ Nessuna stella')).toBe('Nessuna stella');
+    expect(spoken(`${STAR.lit}${STAR.unlit}`)).toBe('');
+  });
+
+  it('leaves a string with no ornament exactly as it is', () => {
+    // The identity case is the one a mutant that over-strips breaks first.
+    expect(spoken('Momento inviato')).toBe('Momento inviato');
+    expect(spoken('Aura non disponibile')).toBe('Aura non disponibile');
+  });
+
+  it('never touches the marks that carry MEANING', () => {
+    // «—» is the Aura placeholder (`AURA_UNKNOWN`) and «›» is an affordance cue inside visible
+    // copy. Stripping either would delete content, not decoration.
+    expect(spoken(STAR.unknown)).toBe(STAR.unknown);
+    expect(spoken('3 di 6 accese ›')).toBe('3 di 6 accese ›');
+    expect(spoken('Aura —')).toBe('Aura —');
+  });
+
+  it('collapses only a RUN of whitespace, and trims the ends', () => {
+    expect(spoken('  Invito   inviato  ')).toBe('Invito inviato');
+    // A single space between words survives — collapsing those would rewrite the sentence.
+    expect(spoken('a b c')).toBe('a b c');
   });
 });

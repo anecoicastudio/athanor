@@ -47,10 +47,14 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * and the tab render the same object. No `auraGlow()` — rule #4 permits one here but every glow
  * site in the app is a terminal confirmation (the match), not an invitation.
  *
- * One a11y label on the Pressable, like all three Home siblings (`DreamHeroCard.tsx:78`,
- * `StarsMiniRow.tsx:39`, `InviteCard.tsx:41`): VoiceOver reads one node, so it costs the peer's
- * handle. The trade is deliberate — `handle` is nullable, and a `{name}` label would read the
- * «—» fallback aloud as "dash".
+ * One a11y label on the Pressable: VoiceOver reads one node, so it costs the peer's handle. The
+ * trade is deliberate — `handle` is nullable, and a `{name}` label would read the «—» fallback
+ * aloud as "dash". `InviteCard.tsx:41` is the other card the argument covers.
+ *
+ * It does NOT cover `DreamHeroCard` and `StarsMiniRow` any more (#635). A static label is enough
+ * where it already says what the card says — «Hai un Momento in attesa» IS the content here —
+ * and is not enough where the card's content is a number. Those two compose their data into the
+ * label now; this one still cannot, for the nullability reason above.
  *
  * `tone="aura"` is safe HERE only because Home has no other cyan eyebrow — `SectionLabel.tsx:12`
  * warns that a second one costs the first its rank. Check that before adding one.

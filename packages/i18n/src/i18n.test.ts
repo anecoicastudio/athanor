@@ -382,6 +382,7 @@ describe('translation completeness', () => {
     'aura.unit',
     'auth.codePlaceholder',
     'auth.password.label',
+    'chat.a11y.peerAura',
     'chat.peerAura',
     'circle.benefit.ai.t',
     'circle.benefit.analytics.t',

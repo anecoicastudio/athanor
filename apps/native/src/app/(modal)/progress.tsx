@@ -17,8 +17,9 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, TextInput, View, cn } from '@/tw';
+import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -223,20 +224,16 @@ export default function ProgressScreen() {
 
   const busy = postMutation.isPending || editMutation.isPending || withdrawMutation.isPending;
 
+  // `Chip small` (#635). The role was already here; the SELECTED state was not, so which phase
+  // an update belongs to was conveyed by cyan alone — and at py-2 the pill missed 44pt.
   const phaseChip = (id: string | null, label: string) => (
-    <Pressable
+    <Chip
       key={id ?? 'none'}
+      small
+      label={label}
+      selected={phaseId === id}
       onPress={() => setPhaseId(id)}
-      accessibilityRole="button"
-      className={cn(
-        'rounded-full border px-4 py-2',
-        phaseId === id ? 'border-aura bg-aura-soft' : 'border-hair bg-raise',
-      )}
-    >
-      <Text className={cn('text-[12px]', phaseId === id ? 'text-aura' : 'text-muted-foreground')}>
-        {label}
-      </Text>
-    </Pressable>
+    />
   );
 
   const ownControls = (update: RealizationUpdateRow) =>

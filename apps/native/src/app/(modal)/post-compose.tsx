@@ -9,6 +9,7 @@ import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -387,28 +388,39 @@ export default function PostComposeScreen() {
 
           <View className="gap-2">
             <SectionLabel>{t('post.compose.catLabel', locale)}</SectionLabel>
+            {/* `Chip`, not a hand-rolled pill (#635). These four announced no selected state at
+                all — the cyan fill was the only thing saying which category was chosen, and
+                colour is not an announcement. `small` is the compact variant and the only one
+                that carries DESIGN §10's 44pt floor, which these pills (py-2, ~34pt) missed. */}
             <View className="flex-row flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
-                const isActive = c === category;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setCategory(c)}
-                    className={`rounded-full border px-4 py-2 ${
-                      isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-                    }`}
-                  >
-                    <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-                      {t(`feed.filter.${c}` as MessageKey, locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {CATEGORIES.map((c) => (
+                <Chip
+                  key={c}
+                  small
+                  label={t(`feed.filter.${c}` as MessageKey, locale)}
+                  selected={c === category}
+                  onPress={() => setCategory(c)}
+                />
+              ))}
             </View>
           </View>
 
+          {/*
+            A `switch`, because that is what it is (#635). It announced as prose — the title and
+            the description read as one flat sentence — with no role, no state, and the ✦/○ that
+            carries the state visually read aloud as a glyph. Whether a post is a STEP of your
+            dream is real product meaning, so a member has to be able to hear it and hear it
+            change: `checked` is what says so.
+
+            Title as the label, description as the hint: the hint is the sentence VoiceOver
+            defers, which is the right rank for the «why» under the «what».
+          */}
           <Pressable
             className="flex-row items-center justify-between rounded-card border border-hair bg-raise p-5"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isStep }}
+            accessibilityLabel={t('post.compose.stepTitle', locale)}
+            accessibilityHint={t('post.compose.stepDesc', locale)}
             onPress={() => setIsStep((v) => !v)}
           >
             <View className="flex-1 pr-4">

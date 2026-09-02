@@ -27,12 +27,14 @@ export function LocaleChips({
       accessibilityLabel={t('settings.lang.title', value)}
     >
       <Chip
+        role="radio"
         small={small}
         label={t('lang.it', value)}
         selected={value === 'it'}
         onPress={() => onChange('it')}
       />
       <Chip
+        role="radio"
         small={small}
         label={t('lang.en', value)}
         selected={value === 'en'}

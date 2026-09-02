@@ -11,6 +11,7 @@ import {
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { spoken } from '@/lib/star';
 import { Button } from '@/components/Button';
 import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
@@ -50,7 +51,7 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
       // No toast: the button itself flips to «Richiesta inviata» — the state change IS
       // the feedback, and the removed toast said those exact words over it (#118).
       // Screen readers can't see the flip, so announce the new state once.
-      AccessibilityInfo.announceForAccessibility(t('connection.pending', locale));
+      AccessibilityInfo.announceForAccessibility(spoken(t('connection.pending', locale)));
     },
     onError: () => {
       resyncStatus();

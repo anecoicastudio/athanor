@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing } from 'react-native';
 import { Text } from '@/tw';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { spoken } from '@/lib/star';
 
 /**
  * Single animated tabular-nums Aura number (spec §4 DRY).
@@ -33,7 +34,7 @@ export function AuraValue({
     if (reduce) {
       anim.setValue(value);
       setDisplay(value);
-      AccessibilityInfo.announceForAccessibility(`Aura ${value}`);
+      AccessibilityInfo.announceForAccessibility(spoken(`Aura ${value}`));
     } else {
       Animated.timing(anim, {
         toValue: value,
@@ -41,7 +42,7 @@ export function AuraValue({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start(({ finished }) => {
-        if (finished) AccessibilityInfo.announceForAccessibility(`Aura ${value}`);
+        if (finished) AccessibilityInfo.announceForAccessibility(spoken(`Aura ${value}`));
       });
     }
   }, [value, reduce, anim]);

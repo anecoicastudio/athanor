@@ -14,6 +14,7 @@ import { MediaSheet } from '@/components/media/MediaSheet';
 import { SectionLabel } from '@/components/SectionLabel';
 import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
+import { spoken } from '@/lib/star';
 import { toggleTag } from '@/lib/tags';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
@@ -69,7 +70,7 @@ export default function OnboardingScreen() {
   // Announce the current step to screen readers whenever it changes (A-5).
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility(
-      t('onboarding.a11y.step', locale, { n: String(step + 1), total: String(STEPS) }),
+      spoken(t('onboarding.a11y.step', locale, { n: String(step + 1), total: String(STEPS) })),
     );
   }, [step, locale]);
 
@@ -265,7 +266,15 @@ export default function OnboardingScreen() {
                           contentFit="cover"
                         />
                       ) : (
-                        <Text className="text-[40px] text-faint">✦</Text>
+                        // The empty avatar slot's placeholder. Decorative: the «Aggiungi una
+                        // foto» control below is what names this (#635).
+                        <Text
+                          className="text-[40px] text-faint"
+                          accessibilityElementsHidden
+                          importantForAccessibility="no-hide-descendants"
+                        >
+                          ✦
+                        </Text>
                       )}
                     </View>
                     <Pressable accessibilityRole="button" onPress={() => setSheetOpen(true)}>

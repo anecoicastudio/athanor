@@ -218,10 +218,14 @@ export default function ChatScreen() {
   const peerName = memberLabel(peer?.peerDisplayName, peer?.peerHandle) ?? '—';
   // The identity pressable masks its children for screen readers, so its label re-carries
   // name + Aura; «Vedi il profilo» rides along as the hint (the action, not the content).
+  // `chat.a11y.peerAura`, not `chat.peerAura`: the visible string is «✦ Aura {score}» and the
+  // glyph is decoration that a screen reader either spells out or drops (#635). The a11y key is
+  // the same sentence without it. Same string in both catalogs, so it is registered in
+  // `i18n.test.ts`'s IDENTICAL_BY_DESIGN beside the visible one.
   const peerAuraA11y =
     peerScore === AURA_UNKNOWN
       ? t('aura.unknown', locale)
-      : t('chat.peerAura', locale, { score: peerScore });
+      : t('chat.a11y.peerAura', locale, { score: peerScore });
 
   const openReport = (message: Message) =>
     router.push({

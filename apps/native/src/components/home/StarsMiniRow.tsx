@@ -34,9 +34,29 @@ export function StarsMiniRow({
   const lit = snapshot ? STAR_KEYS.filter((key) => snapshot.stars[key]).length : 0;
 
   return (
+    /*
+      The label carries the score and the lit count (#635). This Pressable is atomic on iOS, so
+      the per-star labels below (:87-95) and the count at the end of the row are announced by
+      nothing — «Le tue stelle» alone was the row saying its title and withholding every number
+      in it.
+
+      Two arms rather than a «—» in the sentence: the unknown snapshot is the row DECLINING to
+      answer (see the docblock), and «Aura non disponibile» says that, where "{score} Aura" with
+      score «—» would be read aloud as "dash Aura". `total` is `STAR_KEYS.length` and not a
+      literal 6, so the sentence follows the star set rather than restating it — `home.stars.count`
+      still hardcodes its own, and that one is visible copy this issue does not touch.
+    */
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t('home.stars.title', locale)}
+      accessibilityLabel={
+        snapshot
+          ? t('home.stars.a11y', locale, {
+              score: snapshot.score,
+              lit,
+              total: STAR_KEYS.length,
+            })
+          : t('home.stars.a11yUnknown', locale)
+      }
       onPress={onPress}
       className="gap-3 min-h-[56px] justify-center"
     >

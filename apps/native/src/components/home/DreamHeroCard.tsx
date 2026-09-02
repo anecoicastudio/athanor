@@ -73,9 +73,26 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
   const fundTotal = formatFundTotal(raisedCents, locale);
 
   return (
+    /*
+      The label CARRIES the card's three numbers (#635). This Pressable is an accessibility
+      element, so on iOS it is atomic: VoiceOver reads its label and never descends, and a label
+      of «Dai Vita al Tuo Sogno» alone left the countdown, the total and the contributor count
+      unreachable — the whole payload of the card.
+
+      That is a deliberate DEPARTURE from the one-static-node shape `MomentiCard` and
+      `FavorNudgeCard` document, and the departure has a rule: a static label is enough when it
+      already says what the card says («Hai un Momento in attesa»), and is not enough when the
+      card's content is DATA. Nothing here is nullable — `days`, `fundTotal` and `contributors`
+      all resolve to a rendered number before this branch — so the «—»-read-aloud argument that
+      keeps `MomentiCard`'s handle out of its label does not apply.
+    */
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t('home.dream.title', locale)}
+      accessibilityLabel={t('home.dream.a11y', locale, {
+        days,
+        total: fundTotal,
+        people: contributors,
+      })}
       onPress={() => router.push('/annual')}
       className="gap-3 min-h-[56px]"
     >

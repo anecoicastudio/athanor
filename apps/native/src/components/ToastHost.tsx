@@ -11,6 +11,7 @@ import { AccessibilityInfo, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { View } from '@/tw';
 import { Toast, type ToastTone } from '@/components/Toast';
+import { spoken } from '@/lib/star';
 
 /**
  * Global toast host (#117). One state, one timer, one position: screens call
@@ -64,8 +65,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToast({ label, tone });
     // Android hears the viewport's accessibilityLiveRegion; iOS has no
     // live-region equivalent, so announce imperatively — once, here, not per
-    // mounted viewport.
-    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(label);
+    // mounted viewport. `spoken()` because that is exactly what an imperative
+    // announcement costs (#635): a RENDERED glyph can be marked decorative, and
+    // a string handed to the platform cannot, so a ✦ carried as
+    // ornament by dozens of catalog values would be read out. The sentence is the message.
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(spoken(label));
   }, []);
 
   const registerViewport = useCallback(() => {

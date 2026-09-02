@@ -98,6 +98,7 @@ export default function CostellazioniScreen() {
               </SectionLabel>
               <Pressable
                 onPress={() => router.push(COMPOSE_HREF)}
+                accessibilityRole="button"
                 hitSlop={HIT_SLOP}
                 className="shrink-0"
               >

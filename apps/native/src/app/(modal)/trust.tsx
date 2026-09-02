@@ -1,4 +1,8 @@
 import { useCallback, useEffect } from 'react';
+// A bare `Switch` is an UNNAMED toggle: RN gives it the `switch` role and the checked state from
+// `value`, and nothing else — the label `Text` beside it is a sibling, not an association, so
+// VoiceOver announced «attivato, interruttore» with no subject (#635). Every instance below names
+// itself with the key its visible label already uses; no new copy, and the two can never drift.
 import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -207,6 +211,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.location.label', locale)}
                 value={grantedFor('location_approx', true)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
@@ -225,6 +230,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.neverSold.label', locale)}
                 value
                 disabled
                 accessibilityState={{ disabled: true }}
@@ -247,6 +253,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.consent.comms', locale)}
                 value={grantedFor('comms', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'comms', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
@@ -265,6 +272,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.consent.diagnostics', locale)}
                 value={grantedFor('analytics', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'analytics', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}

@@ -11,6 +11,7 @@ import { parseEuroToCents } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { EVENT_HREF } from '@/components/live/EventRow';
 import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -192,40 +193,30 @@ export default function EventCreateScreen() {
           <View className="gap-2">
             {label('event.create.category')}
             <View className="flex-row flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
-                const on = c === category;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setCategory(c)}
-                    className={`rounded-full border px-4 py-2 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                  >
-                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                      {t(`event.cat.${c}` as MessageKey, locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {CATEGORIES.map((c) => (
+                <Chip
+                  key={c}
+                  small
+                  label={t(`event.cat.${c}` as MessageKey, locale)}
+                  selected={c === category}
+                  onPress={() => setCategory(c)}
+                />
+              ))}
             </View>
           </View>
 
           <View className="gap-2">
             {label('event.create.type')}
             <View className="flex-row gap-2">
-              {[false, true].map((online) => {
-                const on = online === isOnline;
-                return (
-                  <Pressable
-                    key={String(online)}
-                    onPress={() => setIsOnline(online)}
-                    className={`flex-1 items-center rounded-full border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                  >
-                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                      {t(online ? 'event.create.online' : 'event.create.inPerson', locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {[false, true].map((online) => (
+                <Chip
+                  key={String(online)}
+                  className="flex-1 items-center"
+                  label={t(online ? 'event.create.online' : 'event.create.inPerson', locale)}
+                  selected={online === isOnline}
+                  onPress={() => setIsOnline(online)}
+                />
+              ))}
             </View>
           </View>
 
@@ -330,20 +321,15 @@ export default function EventCreateScreen() {
           <View className="gap-2">
             {label('event.create.ticket')}
             <View className="flex-row gap-2">
-              {[false, true].map((p) => {
-                const on = p === paid;
-                return (
-                  <Pressable
-                    key={String(p)}
-                    onPress={() => setPaid(p)}
-                    className={`flex-1 items-center rounded-full border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                  >
-                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                      {t(p ? 'event.create.paid' : 'event.create.free', locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {[false, true].map((p) => (
+                <Chip
+                  key={String(p)}
+                  className="flex-1 items-center"
+                  label={t(p ? 'event.create.paid' : 'event.create.free', locale)}
+                  selected={p === paid}
+                  onPress={() => setPaid(p)}
+                />
+              ))}
             </View>
             {paid ? (
               <View className="gap-2">

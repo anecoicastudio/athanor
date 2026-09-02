@@ -143,6 +143,9 @@ export default function NotifPrefsScreen() {
                 {t(key as MessageKey, locale)}
               </Text>
               <Switch
+                // See trust.tsx: the row's `Text` is a sibling, so the toggle is unnamed without
+                // this. One JSX site, six runtime switches — `PREF_ROWS` drives them all (#635).
+                accessibilityLabel={t(key as MessageKey, locale)}
                 value={enabledFor(type)}
                 onValueChange={(v) => setPref.mutate({ type, channel: 'push', enabled: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
@@ -159,6 +162,7 @@ export default function NotifPrefsScreen() {
               <Text className="text-base text-foreground">{t('notif.prefs.push', locale)}</Text>
             </View>
             <Switch
+              accessibilityLabel={t('notif.prefs.push', locale)}
               value={pushQuery.data ?? true}
               onValueChange={(v) => setMaster.mutate(v)}
               trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}

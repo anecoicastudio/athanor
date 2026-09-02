@@ -8,12 +8,16 @@ import { momentoReasonText } from '@/lib/momenti-reason';
  * are the only "why this match" signal — there is no Aura number here (rule #1), and
  * since #273 no affinity number either: the card receives TERMS and localizes them
  * per render (`lib/momenti-reason.ts`), so an English deck never reads an Italian tag.
- * a11y label = «Motivo di affinità: <reason>».
+ * a11y label = «Motivo di affinità: <reason>» — and it needs `accessible` to be one (#635). A
+ * plain `View` is not an accessibility element, so the label sat on a node VoiceOver never
+ * focused: the row announced its two `Text` children separately and the «Motivo di affinità»
+ * framing was announced by nothing at all.
  */
 export function AffinityRow({ reason, locale }: { reason: MomentoReason; locale: Locale }) {
   const text = momentoReasonText(reason, locale);
   return (
     <View
+      accessible
       className="flex-row items-start gap-2 py-1"
       accessibilityLabel={`${t('momenti.a11y.affinity', locale)}: ${text}`}
     >

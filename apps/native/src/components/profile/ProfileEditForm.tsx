@@ -175,6 +175,7 @@ export function ProfileEditForm({
             {(['public', 'members'] as const).map((opt) => (
               <Chip
                 key={opt}
+                role="radio"
                 small
                 label={t(`visibility.${opt}`, locale)}
                 selected={
