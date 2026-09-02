@@ -8,6 +8,7 @@ const row = {
   is_online: false,
   venue: 'Casa delle Idee',
   city: 'Milano',
+  description: null,
   starts_at: '2026-09-01T18:00:00.000Z',
   ends_at: '2026-09-01T21:00:00.000Z',
   price_cents: 1500,
@@ -21,6 +22,14 @@ describe('publicEventSchema', () => {
     const parsed = publicEventSchema.parse(row);
     expect(parsed.city).toBe('Milano');
     expect(parsed.organizer_handle).toBe('sole');
+  });
+
+  it('carries the organizer-written description, capped where the DB CHECK caps it (#634)', () => {
+    expect(publicEventSchema.parse(row).description).toBeNull();
+    expect(
+      publicEventSchema.parse({ ...row, description: 'a'.repeat(2000) }).description,
+    ).toHaveLength(2000);
+    expect(() => publicEventSchema.parse({ ...row, description: 'a'.repeat(2001) })).toThrow();
   });
 
   it('parses an online event with no venue, no city, no end, and a private organizer', () => {

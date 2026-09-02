@@ -281,9 +281,12 @@ export default function EventDetailScreen() {
               />
             </View>
 
-            <Text className="text-[15px] leading-6 text-ink-2">
-              {t('event.descFallback', locale)}
-            </Text>
+            {/* #634: the organizer's own words, or NOTHING. The old descFallback rendered the
+                same fabricated sentence for every event under the organizer's name; an absent
+                paragraph asserts nothing. */}
+            {event.description ? (
+              <Text className="text-[15px] leading-6 text-ink-2">{event.description}</Text>
+            ) : null}
 
             {event.is_athanor_day ? (
               <View className="rounded-card border border-aura-line bg-aura-soft p-4">

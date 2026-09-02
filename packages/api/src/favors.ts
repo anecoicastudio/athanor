@@ -63,8 +63,10 @@ export async function listOpenNeeds(
  * actor_id is set from the caller's auth uid; RLS forces actor = auth.uid and blocks
  * favoring yourself. Unique (actor_id, target_id, need) → a repeat raises 23505.
  * Writes ONLY favor_offers — never Aura (rule #1).
- * TODO(M6): the score-engine (backend `07`) reads this row and awards the Collaboratore
- * star + points once the help is real/confirmed (service-role only).
+ * The score-engine does NOT read favor_offers today (its .from() set carries no such table),
+ * so a favor currently lights no star and earns no points — which is why the favor copy makes
+ * no such promise (#634). TODO(M6): when the engine grows a confirmed-help reader, it awards
+ * the Collaboratore star service-role-side; the copy earns its clause back then.
  *
  * The self-target guard lives here, not in favorInsertSchema: that schema deliberately
  * omits actor_id (it comes from auth.uid via RLS), so it cannot express the migration's

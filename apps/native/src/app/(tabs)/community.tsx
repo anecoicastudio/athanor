@@ -154,7 +154,7 @@ export default function CommunityScreen() {
         accessibilityRole="link"
       >
         <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
-        <Text className="text-[13px] text-aura">{t('home.today.seeLive', locale)}</Text>
+        <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
       </Pressable>
       {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
         <StoryRail

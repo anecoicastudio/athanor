@@ -69,8 +69,18 @@ export default function VerifyScreen() {
   }, [me, qc]);
 
   // On verified: stop polling, toast (survives the pop via the host, #117), auto-dismiss.
+  // Only on a WITNESSED flip (#634): the effect used to fire on first commit for a member who
+  // arrived already verified (deep link, athanor://verify return on a cold stack), handing them
+  // an unearned success toast and ~1.6s later an eject — to Home, because on those entry paths
+  // there is nothing to pop back to. An already-verified visitor now just sees the verified
+  // state and leaves on their own.
+  const sawUnverified = useRef(false);
   useEffect(() => {
-    if (state !== 'verified') return;
+    if (state !== 'verified') {
+      sawUnverified.current = true;
+      return;
+    }
+    if (!sawUnverified.current) return;
     setSessionPending(false);
     // Re-read the AuthContext profile (#412). This query flipping is NOT enough: the context
     // hydrates `profile` once per session (auth-context keys that effect on [userId, email],

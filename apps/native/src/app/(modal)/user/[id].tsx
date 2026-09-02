@@ -364,6 +364,9 @@ export default function PersonDetailScreen() {
             locale,
             auraLabel: t('profile.aura.theirLabel', locale),
             founding: person.founding_member,
+            // #634: the column is selected and granted; only this prop was missing, so a
+            // verified member's badge never rendered on their public profile.
+            verified: person.identity_verified,
           }}
           statCounts={statCounts}
           stars={stars}

@@ -27,6 +27,8 @@ export const publicEventSchema = z
     is_online: z.boolean(),
     venue: z.string().max(240).nullable(),
     city: z.string().max(120).nullable(),
+    /** Published deliberately (grant in 20260902084656): the organizer wrote it for the page. */
+    description: z.string().max(2000).nullable(),
     starts_at: z.string(),
     ends_at: z.string().nullable(),
     price_cents: z.number().int().min(0),

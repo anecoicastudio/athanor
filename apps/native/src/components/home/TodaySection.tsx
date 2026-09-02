@@ -68,13 +68,13 @@ export function TodaySection({ locale }: { locale: Locale }) {
   return (
     <View className="gap-3">
       <View className="flex-row items-center justify-between">
-        <SectionLabel>{t('home.today.title', locale)}</SectionLabel>
+        <SectionLabel>{t('home.upcoming.title', locale)}</SectionLabel>
         <Pressable
           onPress={() => router.push(LIVE_HREF)}
           hitSlop={HIT_SLOP}
           accessibilityRole="link"
         >
-          <Text className="text-[13px] text-aura">{t('home.today.seeLive', locale)}</Text>
+          <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
         </Pressable>
       </View>
       <View className="gap-3">

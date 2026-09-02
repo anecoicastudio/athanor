@@ -32,7 +32,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(26);
+select plan(28);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The declared surface
@@ -335,6 +335,10 @@ select ok(has_column_privilege('authenticated', 'public.notifications', 'read_at
 -- events: anon reads the published columns only; the organiser's private fields are withheld.
 select ok(has_column_privilege('anon', 'public.events', 'title', 'SELECT'),
   'events: anon still reads the public event columns');
+-- description joined the published set in 20260902084656 (#634): the organizer's own words are
+-- what the public page renders instead of the deleted event.descFallback fabrication.
+select ok(has_column_privilege('anon', 'public.events', 'description', 'SELECT'),
+  'events: anon reads the organizer-written description (#634)');
 
 -- events / authenticated (#446): the organiser's INSERT is scoped to the columns create_event
 -- writes, and UPDATE is gone entirely. RLS filters rows and never columns, so before this the
@@ -343,6 +347,8 @@ select ok(has_column_privilege('anon', 'public.events', 'title', 'SELECT'),
 -- write that fails could always be RLS swallowing it rather than the grant refusing it.
 select ok(has_column_privilege('authenticated', 'public.events', 'title', 'INSERT'),
   'events: the organiser still inserts the columns create_event writes');
+select ok(has_column_privilege('authenticated', 'public.events', 'description', 'INSERT'),
+  'events: the organiser inserts their own description — create_event is INVOKER, so this grant is the write path (#634)');
 select ok(not has_column_privilege('authenticated', 'public.events', 'fee_pct', 'INSERT'),
   'events: nobody sets their own platform fee (fee_pct is server config, PRD §4.6)');
 select ok(not has_column_privilege('authenticated', 'public.events', 'is_athanor_day', 'INSERT'),

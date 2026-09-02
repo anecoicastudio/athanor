@@ -29,6 +29,8 @@ export const eventSchema = z.object({
   is_online: z.boolean(),
   venue: z.string().max(240).nullable(),
   city: z.string().max(120).nullable(),
+  /** Organizer-written; null renders as NOTHING, never a fallback paragraph (#634). */
+  description: z.string().max(2000).nullable(),
   stream_url: z.string().nullable(),
   starts_at: z.string(),
   ends_at: z.string().nullable(),
@@ -73,6 +75,17 @@ export const eventCreateSchema = z
     is_online: z.boolean(),
     venue: z.string().max(240).nullable().default(null),
     city: z.string().max(120).nullable().default(null),
+    /**
+     * Optional, unlike title: a blank description must land as NULL, because the detail
+     * screens render null as nothing and `''` as an empty paragraph (#634).
+     */
+    description: z
+      .string()
+      .trim()
+      .max(2000)
+      .nullable()
+      .default(null)
+      .transform((v) => (v === '' ? null : v)),
     lat: z.number().min(-90).max(90).nullable().default(null),
     long: z.number().min(-180).max(180).nullable().default(null),
     stream_url: z.string().url().nullable().default(null),
