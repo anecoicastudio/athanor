@@ -381,8 +381,9 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │  costellazione →       │ invite, ghost
 │                        │
 ├────────────────────────┤
-│ ⌂   ⊞   ◉   ✦   ◍     │ tab bar, surfaceMuted
-│ Home Comm Live Mom Pro │ micro labels
+│ ⌂   ⊞   ✦   ✱   ◍     │ tab bar, surfaceMuted —
+│ Home·Comm·Mom·Cost·Pro │ icons only (§6); names
+│                        │ here are a legend, not labels
 └────────────────────────┘
 ```
 
@@ -411,7 +412,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │  │  ▶ 0:42]         │  │ avatar = journey-pinned
 │  └──────────────────┘  │
 ├────────────────────────┤
-│ ⌂   ⊞   ◉   ✦   ◍     │
+│ ⌂   ⊞   ✦   ✱   ◍     │
 └────────────────────────┘
 ```
 
@@ -443,7 +444,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │  TI POTREBBE           │
 │  INTERESSARE           │ micro + small list
 ├────────────────────────┤
-│ ⌂   ⊞   ◉   ✦   ◍     │
+│ ⌂   ⊞   ✦   ✱   ◍     │
 └────────────────────────┘
 ```
 
@@ -473,7 +474,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │                        │
 │  Eventi 12 · Inviti 3  │
 ├────────────────────────┤
-│ ⌂   ⊞   ◉   ✦   ◍     │
+│ ⌂   ⊞   ✦   ✱   ◍     │
 └────────────────────────┘
 ```
 
@@ -720,7 +721,7 @@ Rules:
 | **Modal/popup**      | surfaceMuted card radius lg on 60% background scrim, max-w 360pt, content centered (reference Stay-Updated pattern)                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Accordion (web)**  | Hairline top rule per row, question body-strong, `+`/`–` right, 24px padding-y                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | **Tabs (feed)**      | Text pills, active = foreground text + 2px foreground underline, inactive foregroundMuted. Horizontal scroll on mobile                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **Tab bar (mobile)** | surfaceMuted, hairline-top, 5 items, esoteric glyph 24 (§6 set) + micro label, active foreground, `aura` ✦ dot on Momenti when a Momento waits                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Tab bar (mobile)** | surfaceMuted, hairline-top, 5 items, esoteric glyph 24 (§6 set), icons only — the localized title ships as the accessibility label, never rendered (§6, 2026-09-02); active foreground, `aura` ✦ dot on Momenti when a Momento waits                                                                                                                                                                                                                                                                                                                    |
 | **Countdown widget** | Numbers display/tabular `aura`, captions micro muted, realtime via Supabase. Compact chip (topbar) and full card forms                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Star badge ✦**     | 4-point star. Earned: foreground (`aura` flash animation on earn). Unearned (own profile only): border outline                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | **Reaction ✦**       | Outline default → `aura` fill when lit by you. Count visible to author only                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
