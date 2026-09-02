@@ -53,11 +53,15 @@ import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 import { useLocale } from '@/hooks/use-locale';
+import { useToast } from '@/components/ToastHost';
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
   const router = useRouter();
   const locale = useLocale();
+  const { showToast } = useToast();
+  // True only for the move branch's confirmed re-vote; read once in onSuccess.
+  const movedRef = useRef(false);
   // ── Edition query ────────────────────────────────────────────────────────────
   const editionQuery = useActiveEdition();
 
@@ -172,6 +176,14 @@ export default function AnnualFundScreen() {
       // published). Re-read it so the ballot flips to its real state instead of arguing.
       if (editionStale) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
     },
+    onSuccess: (_data, candidacyId) => {
+      // #633: fund.vote.toast / fund.vote.moved sat in both catalogs with zero render
+      // sites — a cast vote produced no confirmation at all. `movedRef` is set in onVote's
+      // move branch; optimistic state has already flipped by the time this runs.
+      showToast(t(movedRef.current ? 'fund.vote.moved' : 'fund.vote.toast', locale), 'moment');
+      movedRef.current = false;
+      void candidacyId;
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: voteKeys.mine(editionId) });
       qc.invalidateQueries({ queryKey: voteKeys.tally(editionId) });
@@ -190,11 +202,25 @@ export default function AnnualFundScreen() {
           { text: t('common.cancel', locale), style: 'cancel' },
           {
             text: t('fund.vote.cta', locale),
-            onPress: () => voteMutation.mutate(card.candidacy_id),
+            onPress: () => {
+              movedRef.current = true;
+              voteMutation.mutate(card.candidacy_id);
+            },
           },
         ]);
       } else {
-        voteMutation.mutate(card.candidacy_id);
+        // #633: the FIRST vote used to be the unguarded one — «Un voto per edizione» was
+        // disclosed only on the move branch, i.e. at the moment the rule was already being
+        // violated, while plan-publish and progress-withdraw both confirm. Title carries
+        // the one-vote rule, body the equal-weight rule (FUND-SPEC D6/D11); the ballot
+        // list itself has no per-card slot for either sentence.
+        Alert.alert(t('fund.vote.oneOnly', locale), t('fund.vote.equal', locale), [
+          { text: t('common.cancel', locale), style: 'cancel' },
+          {
+            text: t('fund.vote.cta', locale),
+            onPress: () => voteMutation.mutate(card.candidacy_id),
+          },
+        ]);
       }
     },
     [myVote, locale, voteMutation],
