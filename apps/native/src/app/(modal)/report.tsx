@@ -106,18 +106,14 @@ export default function ReportScreen() {
                 // has no display name in its params, so its twin key drops the {name}. One
                 // block, one confirm, everywhere.
                 onPress={() =>
-                  Alert.alert(
-                    t('report.block.confirm', locale),
-                    undefined,
-                    [
-                      { text: t('common.cancel', locale), style: 'cancel' },
-                      {
-                        text: t('report.alsoBlock', locale),
-                        style: 'destructive',
-                        onPress: () => blockAlso.mutate(),
-                      },
-                    ],
-                  )
+                  Alert.alert(t('report.block.confirm', locale), undefined, [
+                    { text: t('common.cancel', locale), style: 'cancel' },
+                    {
+                      text: t('report.alsoBlock', locale),
+                      style: 'destructive',
+                      onPress: () => blockAlso.mutate(),
+                    },
+                  ])
                 }
                 disabled={blockAlso.isPending}
                 accessibilityRole="button"

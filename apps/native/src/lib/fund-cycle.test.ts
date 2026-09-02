@@ -180,26 +180,60 @@ describe('candidacyBallotOpen', () => {
 
 describe('detailVoteState', () => {
   it('says the ballot is shut before anything else, exactly as the card does', () => {
-    expect(detailVoteState({ ballotOpen: false, pending: true, votedThis: true })).toBe(
-      'votingClosed',
-    );
+    expect(
+      detailVoteState({ ballotOpen: false, pending: true, votedThis: true, votedElsewhere: false }),
+    ).toBe('votingClosed');
   });
 
   it('shows the in-flight vote, then the recorded one', () => {
-    expect(detailVoteState({ ballotOpen: true, pending: true, votedThis: false })).toBe('voting');
-    expect(detailVoteState({ ballotOpen: true, pending: false, votedThis: true })).toBe('voted');
-    expect(detailVoteState({ ballotOpen: true, pending: false, votedThis: false })).toBe(
-      'notVoted',
-    );
+    expect(
+      detailVoteState({ ballotOpen: true, pending: true, votedThis: false, votedElsewhere: false }),
+    ).toBe('voting');
+    expect(
+      detailVoteState({ ballotOpen: true, pending: false, votedThis: true, votedElsewhere: false }),
+    ).toBe('voted');
+    expect(
+      detailVoteState({
+        ballotOpen: true,
+        pending: false,
+        votedThis: false,
+        votedElsewhere: false,
+      }),
+    ).toBe('notVoted');
+  });
+
+  // #633: a vote held on ANOTHER candidacy makes this screen's action a move, and the label
+  // must say so — «Vota» here would promise a second vote cast_vote refuses.
+  it('names the move when the vote is held elsewhere, but never over a shut ballot', () => {
+    expect(
+      detailVoteState({ ballotOpen: true, pending: false, votedThis: false, votedElsewhere: true }),
+    ).toBe('voteElsewhere');
+    expect(
+      detailVoteState({
+        ballotOpen: false,
+        pending: false,
+        votedThis: false,
+        votedElsewhere: true,
+      }),
+    ).toBe('votingClosed');
   });
 
   // An unknown ballot keeps the pre-#382 behaviour rather than asserting closure: the action
   // stays live, and a refusal now reaches the member as copy instead of as silence.
   it('treats an unknown ballot as it treats an open one', () => {
-    expect(detailVoteState({ ballotOpen: null, pending: false, votedThis: false })).toBe(
-      'notVoted',
-    );
-    expect(detailVoteState({ ballotOpen: null, pending: false, votedThis: true })).toBe('voted');
-    expect(detailVoteState({ ballotOpen: null, pending: true, votedThis: false })).toBe('voting');
+    expect(
+      detailVoteState({
+        ballotOpen: null,
+        pending: false,
+        votedThis: false,
+        votedElsewhere: false,
+      }),
+    ).toBe('notVoted');
+    expect(
+      detailVoteState({ ballotOpen: null, pending: false, votedThis: true, votedElsewhere: false }),
+    ).toBe('voted');
+    expect(
+      detailVoteState({ ballotOpen: null, pending: true, votedThis: false, votedElsewhere: false }),
+    ).toBe('voting');
   });
 });

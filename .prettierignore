@@ -15,5 +15,7 @@ apps/web/next-env.d.ts
 apps/native/assets/expo.icon/icon.json
 .open-next
 .wrangler
+.impeccable
+.scratch
 apps/web/cloudflare-env.d.ts
 PROJECT_INDEX.json

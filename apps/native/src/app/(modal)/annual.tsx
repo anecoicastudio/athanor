@@ -198,10 +198,13 @@ export default function AnnualFundScreen() {
     (card: CandidateCardModel) => {
       const move = !!myVote && myVote.candidacy_id !== card.candidacy_id;
       if (move) {
+        // Title is the rule; the BUTTON carries the move («Sposta il voto») — «Vota» here
+        // would read as a second vote, and a «Vuoi spostarlo?» title would be a falsehood
+        // on the first-vote branch that shares the key.
         Alert.alert(t('fund.vote.oneOnly', locale), undefined, [
           { text: t('common.cancel', locale), style: 'cancel' },
           {
-            text: t('fund.vote.cta', locale),
+            text: t('fund.vote.move', locale),
             onPress: () => {
               movedRef.current = true;
               voteMutation.mutate(card.candidacy_id);
@@ -309,6 +312,9 @@ export default function AnnualFundScreen() {
     if (edition && !isBallotOpen(edition, nowMs)) return 'votingClosed';
     if (pendingCandidacyId === card.candidacy_id) return 'voting';
     if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
+    // #633: a held vote makes every OTHER card's action a move, and the pill says so
+    // («Sposta il voto») instead of offering a second «Vota» the server would refuse.
+    if (myVote) return 'voteElsewhere';
     return 'notVoted';
   };
 

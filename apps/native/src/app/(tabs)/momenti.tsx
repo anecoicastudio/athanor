@@ -42,9 +42,12 @@ export default function MomentiScreen() {
     if (deckToastTimer.current) clearTimeout(deckToastTimer.current);
     deckToastTimer.current = setTimeout(() => setDeckToast(null), 1900);
   };
-  useEffect(() => () => {
-    if (deckToastTimer.current) clearTimeout(deckToastTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (deckToastTimer.current) clearTimeout(deckToastTimer.current);
+    },
+    [],
+  );
   const [done, setDone] = useState(false);
 
   const deck = useMomentiDeck();
