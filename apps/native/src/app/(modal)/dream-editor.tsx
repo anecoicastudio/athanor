@@ -6,8 +6,10 @@ import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -25,10 +27,16 @@ export default function DreamEditorScreen() {
   const userId = session?.user.id;
 
   const [text, setText] = useState('');
+  // What the editor opened with, so an edit is told apart from the prefill (#636).
+  const [baseline, setBaseline] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const { showToast } = useToast();
+
+  // `saving` stays true from the write through the 700ms farewell below, so the guard is
+  // already standing down by the time `leave()` fires on the success path.
+  useDirtyGuard({ dirty: loaded && isDraftDirty(baseline, text), saving });
 
   // Prefill with the current active dream when editing (empty draft when none).
   useEffect(() => {
@@ -39,7 +47,9 @@ export default function DreamEditorScreen() {
     let cancelled = false;
     getActiveDream(supabase, userId)
       .then((d) => {
-        if (!cancelled) setText(d?.text ?? '');
+        if (cancelled) return;
+        setText(d?.text ?? '');
+        setBaseline(d?.text ?? '');
       })
       .catch(() => {
         // empty draft is the safe default

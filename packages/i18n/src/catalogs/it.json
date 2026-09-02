@@ -1623,5 +1623,10 @@
   "notif.tpl.fundAnnounceCountdown": "Mancano {days} giorni all'annuncio. Tieni d'occhio il conto alla rovescia.",
   "notif.tpl.fundAnnounceLastDay": "Domani si annuncia il sogno scelto. Ci sei?",
   "notif.tpl.fundBallotCountdown": "Mancano {days} giorni alla chiusura del voto. Se vuoi votare, sei ancora in tempo.",
-  "notif.tpl.fundBallotLastDay": "Il voto chiude domani. Se non hai ancora votato, è il momento."
+  "notif.tpl.fundBallotLastDay": "Il voto chiude domani. Se non hai ancora votato, è il momento.",
+  "draft.discard.title": "Esci senza salvare?",
+  "draft.discard.body": "Quello che hai scritto qui non verrà salvato.",
+  "draft.discard.keep": "Continua a scrivere",
+  "draft.discard.leave": "Esci",
+  "skills.max": "Puoi scegliere fino a {count} competenze."
 }

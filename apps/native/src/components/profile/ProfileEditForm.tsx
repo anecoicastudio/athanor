@@ -15,6 +15,9 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { CityPicker } from '@/components/profile/CityPicker';
 import { Section, type Visibility } from '@/components/profile/Section';
+import { useToast } from '@/components/ToastHost';
+import { useDiscardConfirm } from '@/hooks/use-dirty-guard';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAvatarUpload } from '@/lib/media/use-avatar-upload';
 import { toggleTag } from '@/lib/tags';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +47,22 @@ export function ProfileEditForm({
 }) {
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [avatarPath, setAvatarPath] = useState<string | null>(profile.avatar_path);
+  /**
+   * The picked photo, held LOCALLY until Save (#636).
+   *
+   * It used to upload the moment it was picked. `avatarPath(uid)` is deterministic
+   * (`{uid}/{uid}.jpg`), so that upload did not strand an orphan — it overwrote the member's
+   * live avatar at the canonical key, and `useAvatarUpload` then dropped the cached signed URL
+   * so the new face appeared everywhere immediately. Cancelling could not put the old bytes
+   * back, because there was nowhere left holding them. Staging the pick is what makes «Annulla»
+   * mean what it says.
+   *
+   * A URI rather than the `PickedMedia` it came from, because that is the whole truth of what
+   * this screen keeps: its sheet offers stills only (no `allowVideo`), `onPick` refuses any
+   * other kind, and the avatar is re-encoded to JPEG on upload. Holding the wider type would
+   * claim this form might have to draw a video it can never receive.
+   */
+  const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const avatar = useAvatarUpload(userId);
   const [bio, setBio] = useState(profile.bio ?? '');
@@ -61,6 +80,46 @@ export function ProfileEditForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const confirmDiscard = useDiscardConfirm();
+
+  /**
+   * #636. The largest form in the app, and its only exit was a bare `setEditing(false)`.
+   * Compared against the `profile` row it opened with rather than against a snapshot taken on
+   * mount, so a background refetch that changes nothing cannot register as an edit.
+   */
+  const dirty = isDraftDirty(
+    {
+      displayName: profile.display_name,
+      avatarPath: profile.avatar_path,
+      pendingAvatar: null,
+      bio: profile.bio,
+      mission: profile.mission,
+      identity: profile.identity_tags,
+      seeking: profile.seeking,
+      profession: profile.profession,
+      skills: profile.skills,
+      city: profile.city,
+      cityGeohash: profile.city_geohash,
+      locale: profile.locale,
+      visibility: profile.visibility as Record<string, Visibility>,
+    },
+    {
+      displayName,
+      avatarPath,
+      pendingAvatar,
+      bio,
+      mission,
+      identity,
+      seeking,
+      profession,
+      skills,
+      city,
+      cityGeohash,
+      locale,
+      visibility,
+    },
+  );
 
   const setVis = (field: string, value: Visibility) =>
     setVisibility((v) => ({ ...v, [field]: value }));
@@ -69,10 +128,23 @@ export function ProfileEditForm({
     setSaving(true);
     setError(null);
     try {
+      // The staged photo is uploaded here and nowhere else, so the member's live avatar is
+      // only ever overwritten by a save they asked for (#636). A failed upload stops the
+      // whole save: writing the row against the previous key would silently drop the photo.
+      let nextAvatarPath = avatarPath;
+      if (pendingAvatar) {
+        const key = await avatar.upload({ kind: 'image', uri: pendingAvatar });
+        if (!key) {
+          setError(t('profile.photo.error', locale));
+          setSaving(false);
+          return;
+        }
+        nextAvatarPath = key;
+      }
       await updateProfile(supabase, userId, {
         // Empty means «I have no name», which is a legal state — not «leave it as it was».
         display_name: displayName.trim() ? displayName.trim() : null,
-        avatar_path: avatarPath,
+        avatar_path: nextAvatarPath,
         bio: bio.trim() ? bio.trim() : null,
         mission: mission.trim() ? mission.trim() : null,
         identity_tags: identity,
@@ -100,13 +172,16 @@ export function ProfileEditForm({
   ) => t(`${prefix}.${key}` as MessageKey, locale);
 
   const toggleSkill = (key: string) =>
-    setSkills((prev) =>
-      prev.includes(key)
-        ? prev.filter((x) => x !== key)
-        : prev.length >= MAX_SKILLS
-          ? prev
-          : [...prev, key],
-    );
+    setSkills((prev) => {
+      if (prev.includes(key)) return prev.filter((x) => x !== key);
+      if (prev.length >= MAX_SKILLS) {
+        // #636: the 11th tap used to return `prev` and say nothing, which reads as a broken
+        // chip. The «Fino a 10.» hint below discloses the rule; this answers the tap.
+        showToast(t('skills.max', locale, { count: String(MAX_SKILLS) }));
+        return prev;
+      }
+      return [...prev, key];
+    });
 
   return (
     <>
@@ -123,6 +198,7 @@ export function ProfileEditForm({
             handle={profile.handle}
             displayName={displayName}
             avatarPath={avatarPath}
+            previewUri={pendingAvatar}
             size={72}
           />
           <View className="flex-1 gap-1.5">
@@ -134,13 +210,18 @@ export function ProfileEditForm({
               className="min-h-[44px] justify-center"
             >
               <Text className="text-[14px] font-semibold text-aura">
-                {avatarPath ? t('profile.photo.change', locale) : t('profile.photo.add', locale)}
+                {avatarPath || pendingAvatar
+                  ? t('profile.photo.change', locale)
+                  : t('profile.photo.add', locale)}
               </Text>
             </Pressable>
-            {avatarPath ? (
+            {avatarPath || pendingAvatar ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setAvatarPath(null)}
+                onPress={() => {
+                  setPendingAvatar(null);
+                  setAvatarPath(null);
+                }}
                 className="min-h-[44px] justify-center"
               >
                 <Text className="text-[13px] text-muted-foreground">
@@ -412,7 +493,7 @@ export function ProfileEditForm({
             label={t('profile.cancel', locale)}
             variant="ghost"
             disabled={saving}
-            onPress={onCancel}
+            onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
           />
         </View>
       </View>
@@ -423,10 +504,10 @@ export function ProfileEditForm({
         visible={sheetOpen}
         locale={locale}
         onClose={() => setSheetOpen(false)}
+        // Staged, not uploaded — see `pendingAvatar`. The bytes travel on Save.
         onPick={(asset) => {
-          void avatar.upload(asset).then((key) => {
-            if (key) setAvatarPath(key);
-          });
+          if (asset.kind !== 'image') return;
+          setPendingAvatar(asset.uri);
         }}
       />
     </>

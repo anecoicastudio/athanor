@@ -27,6 +27,7 @@ import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 import { PlanPhaseCard } from '@/components/fund/PlanPhaseCard';
 import { useToast } from '@/components/ToastHost';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { planRefusalKey } from '@/lib/plan-refusal';
 import {
@@ -39,6 +40,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { calendarDay, dayKey } from '@/lib/time';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -111,6 +113,16 @@ export default function RealizationPlanScreen() {
   // a legitimate draft state — the member just removed the last phase — and re-hydrating on
   // it would resurrect the phase on the next background refetch.
   const [phasesHydrated, setPhasesHydrated] = useState(false);
+  // #636. Captured AT hydration, in the same effects that fill the fields — a baseline taken
+  // at mount would be the empty draft, and every loaded plan would read as edited before the
+  // member touched it.
+  const [proseBaseline, setProseBaseline] = useState({
+    objective: '',
+    expectedResult: '',
+    professionals: '',
+    suppliers: '',
+  });
+  const [phasesBaseline, setPhasesBaseline] = useState<DraftPhase[]>([]);
 
   useEffect(() => {
     if (hydrated || !plan) return;
@@ -118,12 +130,19 @@ export default function RealizationPlanScreen() {
     setExpectedResult(plan.expected_result);
     setProfessionals(plan.professionals);
     setSuppliers(plan.suppliers);
+    setProseBaseline({
+      objective: plan.objective,
+      expectedResult: plan.expected_result,
+      professionals: plan.professionals,
+      suppliers: plan.suppliers,
+    });
     setHydrated(true);
   }, [hydrated, plan]);
 
   useEffect(() => {
     if (phasesHydrated || !plan || phasesQuery.data === undefined) return;
     setPhases(draftFromPhases(serverPhases));
+    setPhasesBaseline(draftFromPhases(serverPhases));
     setPhasesHydrated(true);
   }, [phasesHydrated, plan, phasesQuery.data, serverPhases]);
 
@@ -233,6 +252,18 @@ export default function RealizationPlanScreen() {
     <ModalHeader title={t('fund.plan.title', locale)} backLabel={t('common.back', locale)} />
   );
 
+  const busy = saveMutation.isPending || publishMutation.isPending;
+  // Only once both halves have hydrated: comparing against a not-yet-arrived row would make
+  // every load dirty. Unpublished prose and phase edits are the work at risk here.
+  useDirtyGuard({
+    dirty:
+      hydrated &&
+      phasesHydrated &&
+      (isDraftDirty(proseBaseline, { objective, expectedResult, professionals, suppliers }) ||
+        isDraftDirty(phasesBaseline, phases)),
+    saving: busy,
+  });
+
   if (editionQuery.isLoading || myCandidacyQuery.isLoading || planQuery.isLoading) {
     return (
       <Screen>
@@ -267,8 +298,6 @@ export default function RealizationPlanScreen() {
       </Screen>
     );
   }
-
-  const busy = saveMutation.isPending || publishMutation.isPending;
 
   const proseField = (
     label: string,

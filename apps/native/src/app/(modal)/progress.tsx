@@ -27,10 +27,12 @@ import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
 import { useToast } from '@/components/ToastHost';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -108,6 +110,10 @@ export default function ProgressScreen() {
   // open editors on one trail is a way to save the wrong one.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
+  // The note's text as it was when the editor opened. Without it the baseline for a
+  // correction would be '', and merely OPENING a posted note to re-read it would count as
+  // an unsaved change — the guard would then fire on the way out having lost nothing.
+  const [editingBaseline, setEditingBaseline] = useState('');
   // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
   const now = useRef(Date.now()).current;
 
@@ -187,6 +193,22 @@ export default function ProgressScreen() {
     />
   );
 
+  const busy = postMutation.isPending || editMutation.isPending || withdrawMutation.isPending;
+  // #636. The only roster screen that is NOT a sheet — `progress` has no <Stack.Screen> entry
+  // in (modal)/_layout.tsx, so it presents as a push card and its gesture is the iOS left-edge
+  // back-swipe rather than a swipe-down. `usePreventRemove` covers both. Two drafts live here:
+  // the new note being composed, and a posted note reopened for correction.
+  const [composeBaseline] = useState(() => body);
+  useDirtyGuard({
+    dirty:
+      isDraftDirty(composeBaseline, body) ||
+      // Gated on `editingId`, not on the text alone: both the save and the cancel path close
+      // the editor with `setEditingId(null)` and leave `editingBody` holding the corrected
+      // text, so an ungated comparison would stay dirty for the rest of the session.
+      (editingId !== null && isDraftDirty(editingBaseline, editingBody)),
+    saving: busy,
+  });
+
   if (editionQuery.isLoading || myCandidacyQuery.isLoading) {
     return (
       <Screen>
@@ -222,8 +244,6 @@ export default function ProgressScreen() {
     );
   }
 
-  const busy = postMutation.isPending || editMutation.isPending || withdrawMutation.isPending;
-
   // `Chip small` (#635). The role was already here; the SELECTED state was not, so which phase
   // an update belongs to was conveyed by cyan alone — and at py-2 the pill missed 44pt.
   const phaseChip = (id: string | null, label: string) => (
@@ -246,6 +266,7 @@ export default function ProgressScreen() {
           onPress={() => {
             setEditingId(update.id);
             setEditingBody(update.body);
+            setEditingBaseline(update.body);
           }}
           accessibilityRole="button"
           disabled={busy}

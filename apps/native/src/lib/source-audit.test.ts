@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -2504,13 +2505,13 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:423':
+    'app/(modal)/chat.tsx:433':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:478':
+    'app/(modal)/chat.tsx:488':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:368': 'same measured 20pt remove-badge as chat.tsx:423',
-    'app/(modal)/story-compose.tsx:141': 'same measured 20pt remove-badge as chat.tsx:423',
+    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:433',
+    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:433',
     'app/(onboarding)/index.tsx:266':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -2518,7 +2519,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:478',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:488',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
@@ -2666,5 +2667,198 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
         'setting entirely. If a glyph genuinely cannot grow, cap it to ' +
         'FONT_SCALE_CAP.ornament and say why at the call site (#639).',
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 31 — a composer confirms before it throws a draft away (#636)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `useGuardedBack` (§23) answers "where does this screen exit TO". Nothing answered "may it
+ * exit at all", so every composer in the app discarded typed work in silence: one swipe down
+ * on an iOS sheet took a dream, a post body with up to ten staged media, or seven steps of
+ * candidacy prose, with no confirmation and no undo.
+ *
+ * The guard is `useDirtyGuard` (`src/hooks/use-dirty-guard.ts`), and it is deliberately ONE
+ * call per screen rather than a change at each exit: `usePreventRemove` intercepts the removal
+ * itself, so the header chevron, the Android hardware back button, the iOS sheet swipe-down and
+ * the left-edge back-swipe are all covered together and none of them can be forgotten
+ * separately.
+ *
+ * ## Why the roster is a list and not a scan
+ *
+ * "Holds a draft" is a claim about meaning, not about syntax — `search-filters` binds text to
+ * state too and loses nothing worth confirming. So the roster is written down, and the
+ * discovery assertion below is what stops the list going stale: any `(modal)` screen that binds
+ * a `Field`, `Input` or `TextInput` to state and appears in neither the roster nor the
+ * register fails,
+ * which turns a new composer into a decision someone has to make rather than an omission.
+ *
+ * ## What it cannot see
+ *
+ * That the `dirty` argument is CORRECT — a screen passing `dirty={false}` satisfies every
+ * assertion here and guards nothing. The comparison itself is unit-tested
+ * (`src/lib/dirty-guard.test.ts`); this pins the wiring.
+ *
+ * The other thing a grep cannot see is DUPLICATION. `usePreventRemoveContext` is a React
+ * context object, so the hook and the navigator must resolve the same physical copy of
+ * `@react-navigation/native`; under two copies the hook fills a context the navigator never
+ * reads and every guard below goes dead with this section still green. The last assertion
+ * pins that, because the declared `^7.1.8` makes the dedup incidental rather than guaranteed.
+ */
+const DIRTY_GUARD_ROSTER = [
+  'app/(modal)/dream-editor.tsx',
+  'app/(modal)/post-compose.tsx',
+  // The comment composer at the foot of a post — an `Input`, not a `Field`.
+  'app/(modal)/post/[id].tsx',
+  'app/(modal)/story-compose.tsx',
+  'app/(modal)/project-compose.tsx',
+  'app/(modal)/milestone.tsx',
+  'app/(modal)/help.tsx',
+  'app/(modal)/chat.tsx',
+  'app/(modal)/candidacy.tsx',
+  'app/(modal)/event-create.tsx',
+  'app/(modal)/plan.tsx',
+  'app/(modal)/progress.tsx',
+  'app/(modal)/report.tsx',
+  // Not a route: an `editing` flag inside the persistent Profilo tab, so nothing is ever
+  // removed and `usePreventRemove` cannot fire. It takes `useDiscardConfirm` on its «Annulla».
+  'components/profile/ProfileEditForm.tsx',
+];
+
+/**
+ * `(modal)` screens that bind text to state and are deliberately NOT guarded, with the reason.
+ * A filter is not a draft: closing one loses a choice that costs a tap to remake.
+ */
+const NO_DRAFT_TO_GUARD: Record<string, string> = {
+  'app/(modal)/search.tsx': 'a query, re-typed in a second; the screen IS the search',
+  'app/(modal)/connections.tsx': 'a filter field over a list, not authored content',
+  'app/(modal)/search-filters.tsx': 'filter choices, not authored content',
+  'app/(modal)/event-filters.tsx': 'filter choices, not authored content',
+  'app/(modal)/new-message.tsx': 'a recipient picker; the message itself is composed in chat',
+  'app/(modal)/new-password.tsx': 'a credential field, force-presented and re-presented',
+  'app/(modal)/delete-account.tsx': 'type-to-confirm; the whole point is that it is retyped',
+  'app/(modal)/verify.tsx': 'identity handoff, no authored draft',
+  'app/(modal)/circle.tsx': 'membership CTAs, no authored draft',
+  'app/(modal)/favor.tsx': 'a confirm sheet, no free text',
+};
+
+/** `useDirtyGuard(` or `useDiscardConfirm(` — the two shapes of the one primitive. */
+const GUARD_CALL = /\buse(?:DirtyGuard|DiscardConfirm)\s*\(/;
+
+describe('a composer confirms before it throws a draft away (#636)', () => {
+  it('finds the screens it is walking', () => {
+    // Tracks the roster rather than carrying a number of its own. The usual shape here is a
+    // slack FLOOR, because the set being walked is DISCOVERED and its size moves on its own;
+    // this roster is an explicit list, so its length is known exactly and a hand-written floor
+    // could only drift below it — as it did, sitting at 12 while the roster grew to 14.
+    const present = DIRTY_GUARD_ROSTER.filter((p) => FILES.some((f) => rel(f).endsWith(p)));
+    expect(
+      present.length,
+      'the dirty-guard roster no longer resolves to files on disk — have these screens been ' +
+        'renamed? This section is vacuous until the paths match again.',
+    ).toBe(DIRTY_GUARD_ROSTER.length);
+  });
+
+  it('both lists name files that exist', () => {
+    // A register entry whose file was renamed or deleted stops exempting anything and starts
+    // rotting in silence — and a roster entry that no longer resolves would be skipped by the
+    // assertion below rather than failing it.
+    const missing = [...DIRTY_GUARD_ROSTER, ...Object.keys(NO_DRAFT_TO_GUARD)].filter(
+      (suffix) => !FILES.some((f) => rel(f).endsWith(suffix)),
+    );
+    expect(
+      missing,
+      'a dirty-guard roster or NO_DRAFT_TO_GUARD entry names a file that is not on disk — ' +
+        'drop it, or fix the path (#636).',
+    ).toEqual([]);
+  });
+
+  it('every screen on the roster calls the guard', () => {
+    const unguarded = DIRTY_GUARD_ROSTER.filter((suffix) => {
+      const file = FILES.find((f) => rel(f).endsWith(suffix));
+      return file ? !GUARD_CALL.test(stripComments(read(file))) : false;
+    });
+    expect(
+      unguarded,
+      'a composer that discards typed work without asking. Add `useDirtyGuard({ dirty, ... })` ' +
+        'from src/hooks/use-dirty-guard.ts — one call covers the chevron, the hardware back ' +
+        'button and the sheet swipe together (#636).',
+    ).toEqual([]);
+  });
+
+  it('a new (modal) composer is a decision, not an omission', () => {
+    // `Input` as well as `Field`/`TextInput` — the tree has three text wrappers, and a scan
+    // that knew only two left `post/[id].tsx`'s comment composer unguarded AND unregistered
+    // while this section read green (caught in review of #636).
+    const bound = /<(?:Field|Input|TextInput)\b[^>]*\bvalue=\{/;
+    const undeclared = FILES.filter((p) => !isTest(p) && p.includes('/app/(modal)/')).flatMap(
+      (p) => {
+        // `rel()` yields `apps/native/src/app/(modal)/x.tsx`; both lists are keyed from
+        // `app/` down, so the prefix to strip includes `src/`. Stripping only `apps/native/`
+        // left every register lookup missing its key — latent until the scan widened to
+        // `Input` and started matching files that are on the lists.
+        const key = rel(p).replace('apps/native/src/', '');
+        if (DIRTY_GUARD_ROSTER.includes(key) || key in NO_DRAFT_TO_GUARD) return [];
+        const code = stripComments(read(p));
+        if (!bound.test(code) || GUARD_CALL.test(code)) return [];
+        return [key];
+      },
+    );
+    expect(
+      undeclared,
+      'a (modal) screen binds a text field to state, guards nothing, and is on neither list. ' +
+        'Either give it `useDirtyGuard` or add it to NO_DRAFT_TO_GUARD with the reason it ' +
+        'loses nothing worth confirming (#636).',
+    ).toEqual([]);
+  });
+
+  it('the hook and the navigator share one @react-navigation/native', () => {
+    // `usePreventRemoveContext` is a React context OBJECT. Two physical copies of the package
+    // means `usePreventRemove` populates a context `native-stack` never reads: no
+    // `preventNativeDismiss`, no interception, every guard above dead — and every other
+    // assertion in this section still green, because they only grep for the call.
+    // Resolved along the path the APP actually takes — apps/native -> expo-router ->
+    // native-stack -> native. Resolving native-stack from apps/native instead would walk
+    // pnpm's hidden hoist directory and can land on an orphaned peer variant left behind by
+    // an earlier install, which says nothing about what Metro bundles. Node's resolver is a
+    // PROXY for Metro's here: the two agree on plain node_modules directory walking, which is
+    // all this edge depends on.
+    const req = createRequire(`${SRC}package.json`);
+    const fromApp = req.resolve('@react-navigation/native');
+    const stack = createRequire(req.resolve('expo-router')).resolve(
+      '@react-navigation/native-stack',
+    );
+    const fromStack = createRequire(stack).resolve('@react-navigation/native');
+    expect(
+      fromApp,
+      'apps/native and @react-navigation/native-stack resolve DIFFERENT copies of ' +
+        '@react-navigation/native, so the prevent-remove context the hook fills is not the ' +
+        'one the navigator reads. Dedupe them (the declared range is a caret, so this is not ' +
+        'guaranteed by the manifest) (#636).',
+    ).toBe(fromStack);
+  });
+
+  it('the primitive still branches, so the roster cannot go vacuous', () => {
+    const hook = stripComments(read(`${SRC}hooks/use-dirty-guard.ts`));
+    expect(
+      [/\busePreventRemove\s*\(/.test(hook), /\bshouldGuardExit\s*\(/.test(hook)],
+      'src/hooks/use-dirty-guard.ts no longer calls usePreventRemove, or no longer defers to ' +
+        'shouldGuardExit. Only usePreventRemove populates the prevent-remove context that ' +
+        'native-stack reads to set `preventNativeDismiss`, so a `beforeRemove` listener in its ' +
+        'place would let the iOS sheet dismiss natively while every assertion above stayed ' +
+        'green.',
+    ).toEqual([true, true]);
+
+    const decision = stripComments(read(`${SRC}lib/dirty-guard.ts`));
+    expect(
+      [/'web'/.test(decision), /\bsaving\b/.test(decision), /\bsubmitted\b/.test(decision)],
+      'shouldGuardExit stopped standing down on one of its three grounds. Each is load-bearing: ' +
+        'web because Alert.alert is a no-op stub there and a prevented pop with no dialog ' +
+        'strands the member; saving/submitted because a composer pops itself on success with ' +
+        'the fields still full, and a guard without them fires hardest on the one path where ' +
+        'nothing is at stake.',
+    ).toEqual([true, true, true]);
   });
 });

@@ -14,6 +14,7 @@ import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { MilestoneRow } from '@/components/profile/MilestoneRow';
 import { useToast } from '@/components/ToastHost';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { helpableMilestones } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
@@ -23,6 +24,7 @@ import { MODAL_A11Y } from '@/lib/a11y';
 import { isUniqueViolation } from '@/lib/pg-error';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { useMilestones } from '@/hooks/use-milestones';
 import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
@@ -132,6 +134,15 @@ export default function HelpScreen() {
   // those 700ms `isPending` is already false — a re-enabled CTA there is a second offer the
   // unique index can only answer with a 23505.
   const saving = offer.isPending || offer.isSuccess;
+
+  // #636. `picked` is a navigation step inside the screen, not typed work, but `type` and
+  // `message` are: the offer a member composed for someone else is what a swipe used to drop.
+  const [baseline] = useState(() => ({ type, message }));
+  useDirtyGuard({
+    dirty: isDraftDirty(baseline, { type, message }),
+    saving: offer.isPending,
+    submitted: offer.isSuccess,
+  });
 
   const submit = () => {
     if (saving) return;

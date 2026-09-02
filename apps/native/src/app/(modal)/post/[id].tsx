@@ -30,7 +30,9 @@ import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { PostMedia } from '@/components/feed/PostMedia';
 import { ReactionStar } from '@/components/feed/ReactionStar';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { prependComment } from '@/lib/comment-cache';
 import { listState } from '@/lib/list-state';
@@ -174,6 +176,15 @@ export default function PostDetailScreen() {
       { text: t('post.delete', locale), style: 'destructive', onPress: () => del.mutate() },
     ]);
   };
+
+  // #636. A typed comment is a draft like any other — `sendComment` clears it on success, so
+  // `isPending` alone covers the self-dismissal window. Above the early returns below, because
+  // a hook cannot be called conditionally.
+  const [commentBaseline] = useState(() => draft);
+  useDirtyGuard({
+    dirty: isDraftDirty(commentBaseline, draft),
+    saving: sendComment.isPending,
+  });
 
   if (postQuery.isLoading) {
     return (

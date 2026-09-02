@@ -14,8 +14,10 @@ import { Field } from '@/components/Field';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { devWarn } from '@/lib/log';
 import { formatDuration } from '@/lib/media/format';
 import { type PickedMedia } from '@/lib/media/pick';
@@ -230,6 +232,15 @@ export default function PostComposeScreen() {
       if (mounted.current) setError(t(key, locale));
       else showToast(t(key, locale));
     },
+  });
+
+  // #636: a swipe-down used to take the body and every staged medium with it. `isSuccess`
+  // rides alongside `isPending` because `onSuccess` above pops the screen itself.
+  const [baseline] = useState(() => ({ body, category, isStep, items }));
+  useDirtyGuard({
+    dirty: isDraftDirty(baseline, { body, category, isStep, items }),
+    saving: mutation.isPending,
+    submitted: mutation.isSuccess,
   });
 
   const onPublish = () => {

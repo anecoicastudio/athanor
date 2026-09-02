@@ -1623,5 +1623,10 @@
   "notif.tpl.fundAnnounceCountdown": "{days} days to the announcement. Keep an eye on the countdown.",
   "notif.tpl.fundAnnounceLastDay": "Tomorrow the chosen dream is announced. Will you be there?",
   "notif.tpl.fundBallotCountdown": "{days} days until voting closes. If you want to vote, there is still time.",
-  "notif.tpl.fundBallotLastDay": "Voting closes tomorrow. If you haven't voted yet, now is the time."
+  "notif.tpl.fundBallotLastDay": "Voting closes tomorrow. If you haven't voted yet, now is the time.",
+  "draft.discard.title": "Leave without saving?",
+  "draft.discard.body": "What you wrote here won't be saved.",
+  "draft.discard.keep": "Keep writing",
+  "draft.discard.leave": "Leave",
+  "skills.max": "You can choose up to {count} skills."
 }
