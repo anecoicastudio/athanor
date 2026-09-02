@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { semantic } from '@athanor/config';
+import { NotificationRouter } from '@/components/boot/NotificationRouter';
 import { PushPrimer } from '@/components/boot/PushPrimer';
 import { useLocale } from '@/hooks/use-locale';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
@@ -24,6 +25,9 @@ export default function TabsLayout() {
       {/* Notifications pre-permission primer (#561): here and not in the root layout, so it
           can only ever appear over the signed-in tab world — never the funnel or auth. */}
       <PushPrimer />
+      {/* Routes a tapped OS banner (#637). No UI; mounted here so it runs only once the guard
+          has parked a complete profile in the authed world — see its docblock. */}
+      <NotificationRouter />
       <Tabs
         screenOptions={{
           // No native title bar anywhere (DESIGN §6 → Screen headers, #162): tab roots

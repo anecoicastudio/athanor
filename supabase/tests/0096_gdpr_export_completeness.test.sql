@@ -24,7 +24,7 @@ insert into gdpr_exported values
   ('moments'), ('momento_proposals'), ('story_segments'), ('story_reactions'),
   ('projects'), ('favor_offers'),
   ('events'), ('athanor_days_interest'), ('rsvps'), ('event_tickets'), ('event_attendance'),
-  ('messages'), ('connection_requests'), ('connections'), ('blocks'), ('reports'),
+  ('messages'), ('conversation_reads'), ('connection_requests'), ('connections'), ('blocks'), ('reports'),
   ('notifications'), ('notification_preferences'), ('push_tokens'),
   ('aura_events'), ('aura_scores'), ('stars'),
   ('dream_candidacies'), ('realization_plans'), ('realization_plan_phases'),

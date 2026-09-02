@@ -4,18 +4,25 @@ import type { Locale, Notification } from '@athanor/schemas';
 import { displayParams } from '@/lib/notif-params';
 import { timeAgo } from '@/lib/time';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
-import { NOTIF_VISUAL, NOTIF_LEAD, NOTIF_LEAD_BY_TEMPLATE } from './notifTypes';
+import {
+  NOTIF_VISUAL,
+  NOTIF_VISUAL_BY_TEMPLATE,
+  NOTIF_LEAD,
+  NOTIF_LEAD_BY_TEMPLATE,
+} from './notifTypes';
 
 /**
  * One notification row (M9 §4). Composed of:
- *  - ndot: accent circle (cyan for `moment`, neutral for all others — rule #4) + Unicode glyph
+ *  - ndot: accent circle (cyan for `moment` and for the `helpConfirmed` template, neutral for
+ *    everything else — rule #4) + Unicode glyph
  *  - body: bolded lead (`notif.type.*`, or a per-template override) + tail (interpolated
  *    `notif.tpl.*` template)
  *  - relative time stamp
  *  - optional «Apri Momento» action chip (moment type only)
  *  - unread presence dot (`read_at == null`) — never a number (rule #3)
  *
- * No glow on this surface (rule #4). The `moment` accent is a flat `aura-soft` fill — not a glow.
+ * No glow on this surface (rule #4). Both celebratory accents are a flat `aura-soft` fill —
+ * not a glow.
  */
 export default function NotificationRow({
   item,
@@ -26,7 +33,9 @@ export default function NotificationRow({
   locale: Locale;
   onPress: (n: Notification) => void;
 }) {
-  const v = NOTIF_VISUAL[item.type];
+  // Template first, then type — the same precedence the lead uses, and for the same reason:
+  // a template can mean something its type does not (#637).
+  const v = NOTIF_VISUAL_BY_TEMPLATE[item.template_key] ?? NOTIF_VISUAL[item.type];
   const unread = item.read_at == null;
   const lead = t(NOTIF_LEAD_BY_TEMPLATE[item.template_key] ?? NOTIF_LEAD[item.type], locale);
   // Template tail: interpolate `{name}`, `{count}`, `{title}`, `{amount}` etc. from params.

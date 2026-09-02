@@ -26,8 +26,11 @@ export async function peekPushPermission(): Promise<PermStatus> {
 /**
  * Resolve the notification permission. Reads the current status first; only fires the OS
  * prompt while it can still show (`canAskAgain`) — the same read-then-request-once shape as
- * `ensureCameraPermission`. PushPrimer primes before calling this, so the OS dialog is
- * expected (#561).
+ * `ensureCameraPermission`. Two callers, and both are intent gestures rather than cold asks:
+ * PushPrimer primes before calling it (#561), and the notification-preferences screen calls it
+ * when a member switches a notification ON while the OS permission is missing (#637) — the
+ * switch itself is the priming there. iOS grants exactly ONE ask per install, so a third caller
+ * needs the same justification before it lands.
  */
 export async function ensurePushPermission(): Promise<PermStatus> {
   const current = await Notifications.getPermissionsAsync();

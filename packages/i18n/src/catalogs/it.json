@@ -1042,6 +1042,7 @@
   "notif.prefs.events": "Promemoria eventi",
   "notif.prefs.projects": "Risposte alle ricerche",
   "notif.prefs.push": "Notifiche push",
+  "notif.prefs.osOff": "Le notifiche sono spente nelle impostazioni del telefono. Finché restano spente, non ti arriva nulla.",
   "notif.tpl.moment": "{name} ha una forte affinità sul tuo sogno.",
   "notif.tpl.message": "Nuovo messaggio",
   "notif.tpl.dreamMilestone": "{name} si è offerto come mentor per il tuo sogno.",

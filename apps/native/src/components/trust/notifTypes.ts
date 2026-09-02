@@ -9,8 +9,9 @@ import type { Notification } from '@athanor/schemas';
  * inside the accent circle.
  *
  * `accentClass`: NativeWind token class for the ndot circle background.
- * `moment` is the ONLY celebratory (cyan `aura-soft`) accent — rule #4 glow discipline.
- * All other types use the neutral `raise-2` fill.
+ * `moment` is the only celebratory (cyan `aura-soft`) accent at TYPE level — rule #4 glow
+ * discipline. All other types use the neutral `raise-2` fill. One TEMPLATE overrides its type's
+ * neutral accent (`notif.tpl.helpConfirmed`); see NOTIF_VISUAL_BY_TEMPLATE for why.
  *
  * Glyph substitutions (plan used non-existent named glyphs; Unicode equivalents used):
  *  sun      → ✦  (the spark — the project's signature mark)
@@ -67,6 +68,25 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   moderation: 'notif.type.moderation',
   gdprExport: 'notif.type.gdprExport',
   reportQueue: 'notif.type.reportQueue',
+};
+
+/**
+ * Per-template VISUAL overrides, checked before NOTIF_VISUAL. Same reason the lead map below
+ * exists: several templates ride one type and do not all mean the same thing.
+ *
+ * `notif.tpl.helpConfirmed` is the dream owner confirming that a helper's help actually happened —
+ * «{name} ha confermato il tuo aiuto. La tua Aura cresce ✦». Rule #4 names "dream helped" in its
+ * short list of moment-grade events, and the RECEIVER of that help already gets a MomentFlash on
+ * their own profile. The giver — the person whose Aura just moved, the one the rule is about —
+ * was reading a grey row whose own copy claimed a moment. That is the mismatch #637 flags.
+ *
+ * Deliberately only the confirmation. `helpAccepted` stays neutral: being taken up on an offer is
+ * the START of helping, not the moment help became real, and a glow on both would spend the
+ * distinction rule #4 exists to keep. The glyph is unchanged too — ◉ is the dream's mark and this
+ * is still a dream row; what lights is the accent, exactly as `moment`'s does.
+ */
+export const NOTIF_VISUAL_BY_TEMPLATE: Partial<Record<Notification['template_key'], Visual>> = {
+  'notif.tpl.helpConfirmed': { glyph: '◉', accentClass: 'bg-aura-soft', celebratory: true },
 };
 
 /** Per-template lead overrides, checked before NOTIF_LEAD. The help* templates reuse type

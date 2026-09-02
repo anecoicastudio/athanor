@@ -25,7 +25,9 @@ import { ensurePushPermission, peekPushPermission } from '@/lib/push';
  *
  * State machine = MediaSheet's primer flow: the peek seeds `undetermined` (a `blocked` peek
  * with no member action is not a moment to nag about Settings, and `granted` needs nothing);
- * «Attiva» runs `ensurePushPermission` — the one real OS prompt; `blocked` keeps the primer
+ * «Attiva» runs `ensurePushPermission` — the OS prompt (this is one of its two callers since
+ * #637 gave notif-prefs the other, and iOS still grants only one ask per install);
+ * `blocked` keeps the primer
  * up swapped to the Settings deep-link; `denied` (Android, still askable) keeps the normal
  * copy for a retry or a dismiss. Registration goes through auth-context's `registerPush` so
  * the token lands in the same ref signOut unregisters.

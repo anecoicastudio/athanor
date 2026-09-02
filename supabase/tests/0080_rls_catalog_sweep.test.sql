@@ -85,14 +85,18 @@ select is_empty(
 --           third send marker, and in `athanor` for the same reason as the first two — except
 --           that here the alternative was a column on `reports`, which carries a client INSERT
 --           grant: a marker there would ride a row the reporter writes.
+-- 61 -> 62: public.conversation_reads (issue #637), covered by 0142_conversation_reads_rls. The
+--           per-member read cursor the unread pip derives from. In `public` and not `athanor`
+--           because unlike the three send markers above it IS a client-written row — the member
+--           moves their own cursor — so it owes a declared grant surface in 0121.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  61,
-  'PRD.md:417 tripwire: 61 tables, each with its own pgTAP file (bump only WITH a new test)'
+  62,
+  'PRD.md:417 tripwire: 62 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import {
   conversationKeys,
   getConversation,
   getMessagesPage,
+  markConversationRead,
   type MessageCursor,
   messageKeys,
   sendMessage,
@@ -20,6 +21,7 @@ import type { Message } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { isDraftDirty } from '@/lib/dirty-guard';
+import { devWarn } from '@/lib/log';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
@@ -114,6 +116,28 @@ export default function ChatScreen() {
       void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
     });
     return unsubscribe;
+  }, [conversationId, queryClient]);
+
+  /**
+   * Move the read cursor (#637), on the way in and on the way out.
+   *
+   * On mount because this screen is reachable without passing the thread list at all — a tapped
+   * message push lands here directly, and that is the tap most likely to happen. On unmount
+   * because messages that arrive WHILE the thread is open have been read too: marking only at
+   * mount would send the member back to a list lighting a conversation they just finished
+   * reading. Two upserts a visit, against a cursor whose whole job is to be cheap.
+   *
+   * Fire-and-forget with a logged failure: a cursor that did not move costs a stale pip, and
+   * taking the chat down over it would be the worse trade.
+   */
+  useEffect(() => {
+    if (!conversationId) return;
+    markConversationRead(supabase, conversationId).catch((e) => devWarn('[chat] markRead', e));
+    return () => {
+      markConversationRead(supabase, conversationId)
+        .then(() => queryClient.invalidateQueries({ queryKey: conversationKeys.list() }))
+        .catch((e) => devWarn('[chat] markRead on leave', e));
+    };
   }, [conversationId, queryClient]);
 
   // pages are newest-first; flatten then reverse into chronological order.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOTIFICATION_TYPES, type Notification } from '@athanor/schemas';
-import { routeForNotification } from './notification-route';
+import { routeForNotification, routeForPushData } from './notification-route';
 
 const notif = (patch: Partial<Notification>): Notification =>
   ({
@@ -17,13 +17,15 @@ const notif = (patch: Partial<Notification>): Notification =>
   }) as Notification;
 
 describe('routeForNotification', () => {
-  it('moment → the match modal', () => {
-    expect(routeForNotification(notif({ type: 'moment' }))).toBe('/(modal)/match');
+  it('moment → the Momenti deck, which is where «Apri Momento» promises to go (#637)', () => {
+    // It used to be '/(modal)/match', with no params: that screen defaults source='accepted',
+    // renders the mutual-match headline over an empty name and drops its CTA to dismiss(). The
+    // producer fires on a PROPOSAL insert, so there is no match to show yet.
+    expect(routeForNotification(notif({ type: 'moment' }))).toBe('/(tabs)/momenti');
   });
 
-  it('review and dreamMilestone both land on your profile', () => {
+  it('review lands on your profile', () => {
     expect(routeForNotification(notif({ type: 'review' }))).toBe('/(tabs)/profile');
-    expect(routeForNotification(notif({ type: 'dreamMilestone' }))).toBe('/(tabs)/profile');
   });
 
   it('projectResponse → the costellazioni tab', () => {
@@ -32,6 +34,46 @@ describe('routeForNotification', () => {
 
   it('connection → the connections modal', () => {
     expect(routeForNotification(notif({ type: 'connection' }))).toBe('/(modal)/connections');
+  });
+});
+
+describe('routeForNotification — dreamMilestone faces two ways (#637)', () => {
+  it('a profile ref sends the HELPER to the dream owner', () => {
+    const n = notif({ type: 'dreamMilestone', entity_ref: { kind: 'profile', id: 'p-1' } });
+    expect(routeForNotification(n)).toBe('/(modal)/user/p-1');
+  });
+
+  it('the owner-directed offer still lands on your own profile', () => {
+    // The offer's recipient IS the dream owner, and (tabs)/profile carries their dream, its
+    // tappe and the incoming offers they accept from. Same type, opposite audience.
+    const n = notif({ type: 'dreamMilestone', entity_ref: { kind: 'milestone_help', id: 'h-1' } });
+    expect(routeForNotification(n)).toBe('/(tabs)/profile');
+  });
+
+  it('a row written before the producers were re-signed still lands somewhere', () => {
+    expect(routeForNotification(notif({ type: 'dreamMilestone', entity_ref: null }))).toBe(
+      '/(tabs)/profile',
+    );
+  });
+
+  it('a profile ref with no id degrades rather than building /(modal)/user/undefined', () => {
+    const n = notif({ type: 'dreamMilestone', entity_ref: { kind: 'profile', id: '' } });
+    expect(routeForNotification(n)).toBe('/(tabs)/profile');
+  });
+});
+
+describe('routeForNotification — message is transport-only', () => {
+  // 'message' is pushed by public.on_message_push and never writes a notifications row, so it is
+  // absent from NOTIFICATION_TYPES on purpose. Without this arm the commonest push of all fell
+  // through `default` to null, and wiring the tap listener would still have left it dead.
+  it('opens the conversation the push names', () => {
+    expect(routeForNotification({ type: 'message', entity_ref: { kind: null, id: 'c-1' } })).toBe(
+      '/(modal)/chat?conversationId=c-1',
+    );
+  });
+
+  it('falls back to the thread list when the ref is lost', () => {
+    expect(routeForNotification({ type: 'message', entity_ref: null })).toBe('/(modal)/messages');
   });
 });
 
@@ -99,5 +141,52 @@ describe('routeForNotification — coverage of the canonical type set', () => {
 
   it('an unknown type is ignored rather than routed somewhere wrong', () => {
     expect(routeForNotification(notif({ type: 'somethingNew' as never }))).toBeNull();
+  });
+});
+
+describe('routeForPushData — the OS banner payload (#637 item 1)', () => {
+  // The fan-out crosses the whole ref object JSON-stringified; enqueue_push crosses a bare id.
+  // One router serves both surfaces only because this normalises the two spellings.
+  it('unpacks the fan-out spelling, kind and all', () => {
+    expect(
+      routeForPushData({
+        type: 'dreamMilestone',
+        route: 'dream',
+        entity_ref: JSON.stringify({ kind: 'profile', id: 'p-9' }),
+      }),
+    ).toBe('/(modal)/user/p-9');
+  });
+
+  it('accepts the bare-id spelling the message push uses', () => {
+    expect(routeForPushData({ type: 'message', route: 'chat', entity_ref: 'conv-7' })).toBe(
+      '/(modal)/chat?conversationId=conv-7',
+    );
+  });
+
+  it("the fan-out's empty-ref default routes without a target rather than crashing", () => {
+    // logic.ts sends '{}' when a producer passed no ref at all.
+    expect(routeForPushData({ type: 'moment', route: 'momenti', entity_ref: '{}' })).toBe(
+      '/(tabs)/momenti',
+    );
+    expect(
+      routeForPushData({ type: 'eventReminder', route: 'event', entity_ref: '{}' }),
+    ).toBeNull();
+  });
+
+  it('malformed JSON costs the route, not the tap', () => {
+    expect(routeForPushData({ type: 'eventReminder', entity_ref: '{not json' })).toBeNull();
+    expect(routeForPushData({ type: 'moment', entity_ref: '{not json' })).toBe('/(tabs)/momenti');
+  });
+
+  it('a payload with no usable type yields no destination', () => {
+    // Remote input arriving through the OS: every shape below is something a malformed or
+    // hostile push could carry, and none of them may throw inside a listener.
+    expect(routeForPushData(undefined)).toBeNull();
+    expect(routeForPushData(null)).toBeNull();
+    expect(routeForPushData('moment')).toBeNull();
+    expect(routeForPushData({})).toBeNull();
+    expect(routeForPushData({ type: '' })).toBeNull();
+    expect(routeForPushData({ type: 42 })).toBeNull();
+    expect(routeForPushData({ type: 'moment', entity_ref: 42 })).toBe('/(tabs)/momenti');
   });
 });
