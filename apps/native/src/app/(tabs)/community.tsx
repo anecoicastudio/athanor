@@ -141,21 +141,22 @@ export default function CommunityScreen() {
           <Text className="text-2xl text-faint">+</Text>
         </Pressable>
       </View>
-      <Pressable
-        className="mx-5 rounded-card border border-hair bg-raise px-5 py-4"
-        onPress={() => router.push(COMPOSE_HREF)}
-      >
-        <Text className="text-[14px] text-faint">{t('community.compose.prompt', locale)}</Text>
-      </Pressable>
+      {/* No compose prompt card (#640): §8.3's recipe is `Community +` — the card pushed
+          the same route with the same a11y label as the «+» above it, and together with the
+          Live row it spent 383pt of an SE fold on chrome before the first author's name. */}
       <CategoryTabs active={tab} onChange={setTab} locale={locale} />
-      <Pressable
-        className="mx-5 flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
-        onPress={() => router.push(LIVE_HREF)}
-        accessibilityRole="link"
-      >
-        <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
-        <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
-      </Pressable>
+      {/* Athanor Live folded into the «Eventi» tab (#640): a standalone row on every tab
+          was fold-chrome; on the events tab it is context. */}
+      {!showsPosts ? (
+        <Pressable
+          className="mx-5 flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
+          onPress={() => router.push(LIVE_HREF)}
+          accessibilityRole="link"
+        >
+          <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
+          <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
+        </Pressable>
+      ) : null}
       {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
         <StoryRail
           you={{

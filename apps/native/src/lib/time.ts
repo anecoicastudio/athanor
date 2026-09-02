@@ -56,9 +56,12 @@ export function longDate(iso: string, locale: Locale): string {
   });
 }
 
-/** "17 giu, 18:00" / "17 Jun, 18:00" — when an event happens, within the current year. */
+/** "mar 17 giu, 18:00" / "Tue 17 Jun, 18:00" — when an event happens, within the current
+ * year. Weekday included (#640): «which evening is that» is the question a member actually
+ * asks of an event date, and the bare day number made them do calendar math. */
 export function dateTime(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleString(localeTag(locale), {
+    weekday: 'short',
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

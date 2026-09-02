@@ -338,7 +338,20 @@ export default function PersonDetailScreen() {
               }}
             />
           </View>
-          <ConnectButton peerId={id} locale={locale} />
+          {/* #640 item 1: when a helpable tappa exists, the pinned action is the product's
+              claim — «Fai accadere questo sogno» — not the generic «Connetti» (which stays
+              the footer everywhere else; the connect state machine is still reachable from
+              a profile with nothing to help). */}
+          {dreamText != null && hasHelpableTappa ? (
+            <View className="flex-1">
+              <Button
+                label={t('dream.makeHappenCta', locale)}
+                onPress={() => router.push({ pathname: '/(modal)/help', params: { userId: id } })}
+              />
+            </View>
+          ) : (
+            <ConnectButton peerId={id} locale={locale} />
+          )}
         </View>
       }
     >
@@ -369,6 +382,25 @@ export default function PersonDetailScreen() {
             verified: person.identity_verified,
           }}
           statCounts={statCounts}
+          dream={
+            /* Il suo sogno — read-only, per-tappa «Aiuta»; directly under the hero (#640). */
+            <DreamCard
+              variant="read"
+              dream={dreamText}
+              locale={locale}
+              milestones={tappe}
+              helpStateById={helpStateById}
+              onHelpMilestone={(milestoneId) => {
+                const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
+                router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
+              }}
+              onMakeHappen={
+                dreamText != null && hasHelpableTappa
+                  ? () => router.push({ pathname: '/(modal)/help', params: { userId: id } })
+                  : undefined
+              }
+            />
+          }
           stars={stars}
           viewerIsOwner={false}
           gallery={{
@@ -390,24 +422,6 @@ export default function PersonDetailScreen() {
             label: t('profile.moments.theirLabel', locale),
             emptyLabel: t('profile.moments.theirEmpty', locale),
           }}
-        />
-
-        {/* Il suo sogno — read-only, per-tappa «Aiuta». */}
-        <DreamCard
-          variant="read"
-          dream={dreamText}
-          locale={locale}
-          milestones={tappe}
-          helpStateById={helpStateById}
-          onHelpMilestone={(milestoneId) => {
-            const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
-            router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
-          }}
-          onMakeHappen={
-            dreamText != null && hasHelpableTappa
-              ? () => router.push({ pathname: '/(modal)/help', params: { userId: id } })
-              : undefined
-          }
         />
 
         {/* Recensioni umane — Fase 3, no backend. A real empty line, no vanity count (#119

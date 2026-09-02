@@ -310,7 +310,11 @@ export default function ChatScreen() {
           ref={listRef}
           data={rows}
           keyExtractor={(r) => r.key}
-          contentContainerClassName="px-4 py-3"
+          // flex-grow + justify-end (#640): a short thread — every new match's first
+          // exchange — used to hang from the top with the whole viewport of void between
+          // the last bubble and the composer. Messages belong at the composer's edge,
+          // exactly where the next one will appear (DESIGN §8.8).
+          contentContainerClassName="flex-grow justify-end px-4 py-3"
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onContentSizeChange={() => {
             // Auto-scroll to the newest message only when the reader is already at the bottom;

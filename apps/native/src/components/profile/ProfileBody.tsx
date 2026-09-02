@@ -7,21 +7,28 @@ import { MomentiGallery } from '@/components/media/MomentiGallery';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/profile/SixStarsGrid';
-import { StatLine } from '@/components/StatLine';
 import { StarProgress } from '@/components/aura/StarProgress';
 
 /**
- * Shared Profilo VIEW stack — hero → stat line → Sei Stelle → Momenti gallery — used by
- * both the own tab ((tabs)/profile) and the third-person modal ((modal)/user/[id]), which
- * frontend `02` §3.5 mandates mirror each other. Divergent blocks (completeness hint,
- * Connessioni row, dream card, reviews, action bar) are injected via slots/children so the
- * layout has one source. Reviews stat stays a literal 0 until Fase 3 (no vanity counts).
+ * Shared Profilo VIEW stack — hero → IL SOGNO → stat dot-line → Sei Stelle → Momenti
+ * gallery — used by both the own tab ((tabs)/profile) and the third-person modal
+ * ((modal)/user/[id]), which frontend `02` §3.5 mandates mirror each other. Divergent
+ * blocks (completeness hint, Connessioni row, reviews, action bar) are injected via
+ * slots/children so the layout has one source.
+ *
+ * #640 item 1: the dream used to render LAST (72% scroll depth measured), while DESIGN
+ * §8.5 and PRD §4.2 both put it directly under identity — the dream is the product's
+ * claim about a person, the stats are bookkeeping. The `dream` slot sits under the hero
+ * so both surfaces move together, and the stat slab is the spec's compact dot-line
+ * («Eventi 12 · …»), one muted caption instead of a display-size block outranking it.
+ * Reviews stays a literal 0 until Fase 3 (no vanity counts).
  */
 export function ProfileBody({
   locale,
   hero,
   statCounts,
   afterHero,
+  dream,
   afterStats,
   stars,
   viewerIsOwner,
@@ -32,8 +39,10 @@ export function ProfileBody({
   locale: Locale;
   hero: ComponentProps<typeof ProfileHero>;
   statCounts?: { collabsCount: number; eventsCount: number };
-  /** Slot between hero and stat line (own view: completeness hint). */
+  /** Slot between hero and the dream (own view: completeness hint). */
   afterHero?: ReactNode;
+  /** IL SOGNO — directly under the hero on both surfaces (DESIGN §8.5, #640). */
+  dream?: ReactNode;
   /** Slot between stat line and stars (own view: Connessioni row). */
   afterStats?: ReactNode;
   /** `null` = the stars read failed or has not landed — NOT «none earned» (issue #16). */
@@ -47,22 +56,18 @@ export function ProfileBody({
     <>
       <ProfileHero {...hero} />
       {afterHero}
+      {dream}
 
-      {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3.
-          tn: «1 eventi» is a grammar bug — each label declares a `.one` sibling (#634). */}
-      <StatLine
-        items={[
-          {
-            value: String(statCounts?.collabsCount ?? 0),
-            label: tn('profile.stat.collabs', statCounts?.collabsCount ?? 0, locale),
-          },
-          {
-            value: String(statCounts?.eventsCount ?? 0),
-            label: tn('profile.stat.events', statCounts?.eventsCount ?? 0, locale),
-          },
-          { value: '0', label: tn('profile.stat.reviews', 0, locale) },
-        ]}
-      />
+      {/* Stat dot-line (#640): the spec's compact caption, not a display-size slab —
+          «3 collaborazioni · 12 eventi · 0 recensioni». tn: «1 eventi» is a grammar
+          bug — each label declares a `.one` sibling (#634). */}
+      <Text className="text-center text-[13px] text-faint">
+        {[
+          `${statCounts?.collabsCount ?? 0} ${tn('profile.stat.collabs', statCounts?.collabsCount ?? 0, locale)}`,
+          `${statCounts?.eventsCount ?? 0} ${tn('profile.stat.events', statCounts?.eventsCount ?? 0, locale)}`,
+          `0 ${tn('profile.stat.reviews', 0, locale)}`,
+        ].join(' · ')}
+      </Text>
       {afterStats}
 
       {/* Le Sei Stelle — earned-only for others via RLS (rule #3); progress row is owner-only */}
