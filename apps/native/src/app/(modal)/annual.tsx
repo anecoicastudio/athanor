@@ -46,7 +46,7 @@ import {
   filterCandidates,
   resolveFilter,
 } from '@/lib/ballot-card';
-import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
+import { annualFundBody, ballotVoteState, fundCycleState } from '@/lib/fund-cycle';
 import { castVoteError } from '@/lib/vote-error';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -165,6 +165,9 @@ export default function AnnualFundScreen() {
       return { previous };
     },
     onError: (err, _candidacyId, context) => {
+      // A failed move must not leave the flag armed, or the NEXT successful vote would
+      // toast «Voto spostato ✦» about a move that never happened.
+      movedRef.current = false;
       qc.setQueryData(voteKeys.mine(editionId), context?.previous ?? null);
       // #382: the rollback used to be the WHOLE error path, so a server refusal was
       // indistinguishable from a tap that never landed — the card flipped back and said
@@ -307,16 +310,18 @@ export default function AnnualFundScreen() {
    * `nowMs` is pinned per render pass (above), so a window that closes while the screen sits
    * open is not caught here — that residual race is what the mutation's error copy is for.
    */
-  const voteStateFor = (card: CandidateCardModel): VoteState => {
-    if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
-    if (edition && !isBallotOpen(edition, nowMs)) return 'votingClosed';
-    if (pendingCandidacyId === card.candidacy_id) return 'voting';
-    if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
+  const voteStateFor = (card: CandidateCardModel): VoteState =>
     // #633: a held vote makes every OTHER card's action a move, and the pill says so
     // («Sposta il voto») instead of offering a second «Vota» the server would refuse.
-    if (myVote) return 'voteElsewhere';
-    return 'notVoted';
-  };
+    // The ordering itself lives in `ballotVoteState` (lib/fund-cycle.ts), where it is
+    // test-covered beside its detail twin.
+    ballotVoteState({
+      isWinner: edition?.winner_candidacy_id === card.candidacy_id,
+      ballotOpen: edition ? isBallotOpen(edition, nowMs) : null,
+      pending: pendingCandidacyId === card.candidacy_id,
+      votedThis: myVote?.candidacy_id === card.candidacy_id,
+      votedElsewhere: !!myVote && myVote.candidacy_id !== card.candidacy_id,
+    });
 
   // ── Contribution amount (payment itself lives behind the disclosure, #235) ──
   // Defaults to the floor: the smallest chip is the one selected on open.

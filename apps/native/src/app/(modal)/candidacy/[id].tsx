@@ -142,8 +142,9 @@ export default function CandidacyDetailScreen() {
 
   // #633: same asymmetry annual.tsx had — the FIRST vote was the unguarded one, so the
   // one-vote rule reached the member only at the moment it was being violated. One confirm
-  // for both branches now: title is the rule («Un voto per edizione. Vuoi spostarlo…?»),
-  // no body, because this screen already says «Ogni voce pesa uguale» inline above the CTA.
+  // for both branches now: title is the rule («Un voto per edizione.»), the button carries
+  // the action («Sposta il voto» when a vote is held elsewhere, «Vota» otherwise), and no
+  // body, because this screen already says «Ogni voce pesa uguale» inline above the CTA.
   const onVote = useCallback(() => {
     if (!card) return;
     const move = !!myVote && myVote.candidacy_id !== card.candidacy_id;

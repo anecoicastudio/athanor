@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FundPhase } from '@athanor/schemas';
 import {
   annualFundBody,
+  ballotVoteState,
   candidacyBallotOpen,
   detailVoteState,
   dreamHeroSlot,
@@ -206,6 +207,15 @@ describe('detailVoteState', () => {
   // must say so — «Vota» here would promise a second vote cast_vote refuses.
   it('names the move when the vote is held elsewhere, but never over a shut ballot', () => {
     expect(
+      ballotVoteState({
+        isWinner: false,
+        ballotOpen: true,
+        pending: false,
+        votedThis: false,
+        votedElsewhere: true,
+      }),
+    ).toBe('voteElsewhere');
+    expect(
       detailVoteState({ ballotOpen: true, pending: false, votedThis: false, votedElsewhere: true }),
     ).toBe('voteElsewhere');
     expect(
@@ -235,5 +245,42 @@ describe('detailVoteState', () => {
     expect(
       detailVoteState({ ballotOpen: null, pending: true, votedThis: false, votedElsewhere: false }),
     ).toBe('voting');
+  });
+});
+
+describe('ballotVoteState', () => {
+  // The list's one extra state: a declared winner outranks EVERYTHING, a shut ballot
+  // included — the edition is over and this card is why.
+  it('puts the winner ribbon above every other state', () => {
+    expect(
+      ballotVoteState({
+        isWinner: true,
+        ballotOpen: false,
+        pending: true,
+        votedThis: true,
+        votedElsewhere: false,
+      }),
+    ).toBe('winner');
+  });
+
+  it('otherwise answers exactly as the detail does', () => {
+    expect(
+      ballotVoteState({
+        isWinner: false,
+        ballotOpen: false,
+        pending: false,
+        votedThis: false,
+        votedElsewhere: true,
+      }),
+    ).toBe('votingClosed');
+    expect(
+      ballotVoteState({
+        isWinner: false,
+        ballotOpen: null,
+        pending: false,
+        votedThis: false,
+        votedElsewhere: false,
+      }),
+    ).toBe('notVoted');
   });
 });

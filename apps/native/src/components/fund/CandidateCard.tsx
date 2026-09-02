@@ -27,7 +27,8 @@ export type VoteState =
  *
  * Glow discipline (rule #4): the ONLY glow here is the `winner` ribbon «Sogno
  * scelto ✦» — a moment happened. «Vota» is FLAT aura cyan; «Votato ✦» /
- * «Voto chiuso» are quiet. No vanity counts beyond the sanctioned consensus %
+ * «Voto chiuso» / «Sposta il voto» are quiet — moving a held vote is a
+ * correction, not a moment. No vanity counts beyond the sanctioned consensus %
  * (rule #3) — tapping the body opens the detail with the real player.
  *
  * #227 adds the two things the vote is actually about: BOTH money figures (a

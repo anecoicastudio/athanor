@@ -172,3 +172,27 @@ export function detailVoteState({
   if (votedElsewhere) return 'voteElsewhere';
   return 'notVoted';
 }
+
+/**
+ * The ballot list's per-card action state — `detailVoteState` plus the one state only the
+ * list renders: the declared `winner`, which outranks everything (the ballot is over and
+ * this card is why). Pure and here, not inline in annual.tsx, so the `voteElsewhere` branch
+ * is test-covered like its detail twin.
+ */
+export type BallotVoteState = 'winner' | DetailVoteState;
+
+export function ballotVoteState({
+  isWinner,
+  ...rest
+}: {
+  /** this card is the edition's declared winner */
+  isWinner: boolean;
+  /** `null` means the edition is not known yet — behaves as an open ballot, like the detail */
+  ballotOpen: boolean | null;
+  pending: boolean;
+  votedThis: boolean;
+  votedElsewhere: boolean;
+}): BallotVoteState {
+  if (isWinner) return 'winner';
+  return detailVoteState(rest);
+}
