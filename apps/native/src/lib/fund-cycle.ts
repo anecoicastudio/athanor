@@ -142,18 +142,20 @@ export function candidacyBallotOpen({
 
 /**
  * The candidacy detail screen's action state — `CandidateCard`'s `VoteState` minus `winner`,
- * which that screen does not render (its docblock names three states, not four).
+ * which that screen does not render.
  *
  * Gate order is the card's, so the two surfaces cannot disagree about what wins: a shut ballot
- * outranks an in-flight vote, which outranks a recorded one. An unknown ballot behaves as an
- * open one — see `candidacyBallotOpen` — and the refusal, if it comes, arrives as copy.
+ * outranks an in-flight vote, which outranks a recorded one, which outranks a vote held on
+ * another candidacy (#633: «Sposta il voto», not a second «Vota»). An unknown ballot behaves as
+ * an open one — see `candidacyBallotOpen` — and the refusal, if it comes, arrives as copy.
  */
-export type DetailVoteState = 'votingClosed' | 'voting' | 'voted' | 'notVoted';
+export type DetailVoteState = 'votingClosed' | 'voting' | 'voted' | 'voteElsewhere' | 'notVoted';
 
 export function detailVoteState({
   ballotOpen,
   pending,
   votedThis,
+  votedElsewhere,
 }: {
   /** `candidacyBallotOpen`'s answer; `null` means not known yet. */
   ballotOpen: boolean | null;
@@ -161,9 +163,36 @@ export function detailVoteState({
   pending: boolean;
   /** this member's recorded vote is on THIS candidacy */
   votedThis: boolean;
+  /** this member's recorded vote is on a DIFFERENT candidacy (#633: the action is a move) */
+  votedElsewhere: boolean;
 }): DetailVoteState {
   if (ballotOpen === false) return 'votingClosed';
   if (pending) return 'voting';
   if (votedThis) return 'voted';
+  if (votedElsewhere) return 'voteElsewhere';
   return 'notVoted';
+}
+
+/**
+ * The ballot list's per-card action state — `detailVoteState` plus the one state only the
+ * list renders: the declared `winner`, which outranks everything (the ballot is over and
+ * this card is why). Pure and here, not inline in annual.tsx, so the `voteElsewhere` branch
+ * is test-covered like its detail twin.
+ */
+export type BallotVoteState = 'winner' | DetailVoteState;
+
+export function ballotVoteState({
+  isWinner,
+  ...rest
+}: {
+  /** this card is the edition's declared winner */
+  isWinner: boolean;
+  /** `null` means the edition is not known yet — behaves as an open ballot, like the detail */
+  ballotOpen: boolean | null;
+  pending: boolean;
+  votedThis: boolean;
+  votedElsewhere: boolean;
+}): BallotVoteState {
+  if (isWinner) return 'winner';
+  return detailVoteState(rest);
 }

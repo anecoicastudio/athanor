@@ -13,11 +13,12 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useLocale } from '@/hooks/use-locale';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useToast } from '@/components/ToastHost';
 import { ListState } from '@/components/ListState';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
@@ -25,6 +26,7 @@ import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -44,6 +46,7 @@ export default function CircleScreen() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const locale = useLocale();
+  const { showToast } = useToast();
   const profileId = profile?.id ?? '';
 
   // ── Local UI state ──────────────────────────────────────────────────────────
@@ -294,15 +297,15 @@ export default function CircleScreen() {
         ) : (
           <Button
             label={
-              checkoutPhase === 'opening'
-                ? '…'
-                : plan === 'annual'
-                  ? t('circle.cta.annual', locale)
-                  : t('circle.cta.monthly', locale)
+              plan === 'annual' ? t('circle.cta.annual', locale) : t('circle.cta.monthly', locale)
             }
             onPress={() => void onJoin()}
             variant="light"
             disabled={checkoutPhase !== 'idle'}
+            // `loading` instead of the old '…' label swap: the spinner + busy state are
+            // what Button implements for exactly this, and «…» was unpronounceable to
+            // VoiceOver while hiding the price mid-tap (#632 review finding).
+            loading={checkoutPhase === 'opening'}
           />
         )}
         {checkoutError ? (
@@ -310,6 +313,38 @@ export default function CircleScreen() {
             {t('circle.error.title', locale)}
           </Text>
         ) : null}
+
+        {/* 4b. Subscription disclosures (#632): renewal + exit, then the Terms/Privacy
+            links. App Store 3.1.2 and EU consumer law both want these before the order
+            button's screen ends — and a screen that leads with «la visibilità non si
+            compra» owes the reader the way out in the same breath. The renewal sentence
+            renders only where subscribing is possible (non-iOS); the links always. */}
+        {Platform.OS !== 'ios' ? (
+          <Text className="text-[13px] leading-5 text-muted-foreground">
+            {t('circle.legal.renewal', locale)}
+          </Text>
+        ) : null}
+        <View className="flex-row items-center gap-6">
+          {(
+            [
+              ['settings.legal.terms', LEGAL_TERMS_URL],
+              ['settings.legal.privacy', LEGAL_PRIVACY_URL],
+            ] as const
+          ).map(([key, url]) => (
+            <Pressable
+              key={key}
+              className="min-h-[44px] justify-center"
+              accessibilityRole="link"
+              onPress={() => {
+                WebBrowser.openBrowserAsync(url).catch(() =>
+                  showToast(t('settings.legal.error', locale)),
+                );
+              }}
+            >
+              <Text className="text-[13px] text-muted-foreground underline">{t(key, locale)}</Text>
+            </Pressable>
+          ))}
+        </View>
 
         {/* 5. Zero-Aura assurance footnote — REQUIRED on non-member state (rule #1) */}
         {zeroAuraNote}

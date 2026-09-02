@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { favorKeys, getOrCreateConversation, passFavor } from '@athanor/api';
@@ -64,6 +64,21 @@ export default function FavorScreen() {
   const query = useOpenNeeds();
 
   const needs = query.data?.pages.flatMap((p) => p.needs) ?? [];
+
+  // #633: the write is irreversible — no revoke API exists, and a declined offer is
+  // terminal on the unique index. The confirm states that BEFORE the row lands, in
+  // words, the way plan-publish and progress-withdraw already do. The Alert is the
+  // ballot's precedent for a list surface with no per-row slot for a sentence.
+  const confirmHelp = (need: FavorNeed) => {
+    Alert.alert(
+      t('favor.confirm.title', locale, { name: need.target_handle ?? '—' }),
+      t('favor.confirm.body', locale),
+      [
+        { text: t('common.cancel', locale), style: 'cancel' },
+        { text: t('favor.help', locale), onPress: () => void help(need) },
+      ],
+    );
+  };
 
   const help = async (need: FavorNeed) => {
     if (!session || helpingId) return;
@@ -146,9 +161,16 @@ export default function FavorScreen() {
             <ModalHeader
               leading="none"
               title={t('favor.sheet.title', locale)}
-              subtitle={t('favor.sheet.sub', locale)}
               right={<HeaderClose label={t('common.back', locale)} onPress={leave} />}
             />
+            {/* #633: this sentence — the ONLY place the favor's terms are stated — used to
+                ride ModalHeader's subtitle, whose one-line contract truncated it mid-word
+                («…Nessun…») on every device: 61% of the disclosure was unreachable at any
+                scroll position. A header is the one place a disclosure can never live.
+                Body paragraph instead, wrapping freely, above the first row. */}
+            <Text className="px-5 pb-3 text-[13px] leading-5 text-muted-foreground">
+              {t('favor.sheet.sub', locale)}
+            </Text>
             {helpError ? (
               <Text className="px-5 pb-2 text-[13px] text-error">
                 {t('favor.help.error', locale)}
@@ -161,7 +183,7 @@ export default function FavorScreen() {
             <FavorRow
               need={item}
               locale={locale}
-              onHelp={() => void help(item)}
+              onHelp={() => confirmHelp(item)}
               busy={helpingId === item.need_milestone_id}
             />
           </View>
