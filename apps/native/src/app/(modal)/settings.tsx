@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Share } from 'react-native';
+import { Alert, Linking, Share } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -80,6 +80,16 @@ export default function SettingsScreen() {
 
   const signOut = () => {
     if (signingOut) return;
+    // #633: sign-out ends the session in one tap — every other session-grade act here
+    // (unblock, delete) confirms first. Alert with a destructive style, then the
+    // existing farewell.
+    Alert.alert(t('settings.logout.confirm', locale), undefined, [
+      { text: t('common.cancel', locale), style: 'cancel' },
+      { text: t('settings.logout.cta', locale), style: 'destructive', onPress: doSignOut },
+    ]);
+  };
+
+  const doSignOut = () => {
     setSigningOut(true);
     showToast(t('settings.logout.toast', locale), 'moment');
     // Brief farewell, then end the session — AuthGuard routes to (auth)/welcome.

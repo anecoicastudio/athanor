@@ -140,17 +140,18 @@ export default function CandidacyDetailScreen() {
   const myVote = myVoteQuery.data ?? null;
   const tally = tallyQuery.data ?? [];
 
+  // #633: same asymmetry annual.tsx had — the FIRST vote was the unguarded one, so the
+  // one-vote rule reached the member only at the moment it was being violated. One confirm
+  // for both branches now: title is the rule («Un voto per edizione.»), the button carries
+  // the action («Sposta il voto» when a vote is held elsewhere, «Vota» otherwise), and no
+  // body, because this screen already says «Ogni voce pesa uguale» inline above the CTA.
   const onVote = useCallback(() => {
     if (!card) return;
     const move = !!myVote && myVote.candidacy_id !== card.candidacy_id;
-    if (move) {
-      Alert.alert(t('fund.vote.oneOnly', locale), undefined, [
-        { text: t('common.cancel', locale), style: 'cancel' },
-        { text: t('fund.vote.cta', locale), onPress: () => vote.mutate() },
-      ]);
-    } else {
-      vote.mutate();
-    }
+    Alert.alert(t('fund.vote.oneOnly', locale), undefined, [
+      { text: t('common.cancel', locale), style: 'cancel' },
+      { text: t(move ? 'fund.vote.move' : 'fund.vote.cta', locale), onPress: () => vote.mutate() },
+    ]);
   }, [card, myVote, locale, vote]);
 
   // ── Loading / error / not-found ───────────────────────────────────────────
@@ -194,6 +195,7 @@ export default function CandidacyDetailScreen() {
     }),
     pending: vote.isPending,
     votedThis: myVote?.candidacy_id === card.candidacy_id,
+    votedElsewhere: !!myVote && myVote.candidacy_id !== card.candidacy_id,
   });
   const title = card.title ?? card.category ?? '';
   const author = authorParts({
@@ -315,6 +317,17 @@ export default function CandidacyDetailScreen() {
               <View className="rounded-full border border-hair px-5 py-3">
                 <Text className="text-[14px] text-foreground">{t('fund.vote.done', locale)}</Text>
               </View>
+            ) : voteState === 'voteElsewhere' ? (
+              // #633: the one vote sits on another candidacy — the action here is a move, and
+              // a cyan «Vota» would promise a second vote. Quiet outline, same as the card.
+              <Pressable
+                className="rounded-full border border-hair px-5 py-3"
+                onPress={onVote}
+                accessibilityRole="button"
+                accessibilityLabel={t('fund.vote.move', locale)}
+              >
+                <Text className="text-[14px] text-foreground">{t('fund.vote.move', locale)}</Text>
+              </Pressable>
             ) : (
               <Pressable
                 className="rounded-full bg-aura px-6 py-3"

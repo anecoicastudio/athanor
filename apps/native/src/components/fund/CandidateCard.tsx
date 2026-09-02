@@ -10,7 +10,13 @@ import { auraGlow } from '@/lib/glow';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { VoteBar } from './VoteBar';
 
-export type VoteState = 'notVoted' | 'voting' | 'voted' | 'votingClosed' | 'winner';
+export type VoteState =
+  | 'notVoted'
+  | 'voteElsewhere'
+  | 'voting'
+  | 'voted'
+  | 'votingClosed'
+  | 'winner';
 
 /**
  * One candidate in the «Sogni candidati» list (M7 §3.2). A calm dark card:
@@ -21,7 +27,8 @@ export type VoteState = 'notVoted' | 'voting' | 'voted' | 'votingClosed' | 'winn
  *
  * Glow discipline (rule #4): the ONLY glow here is the `winner` ribbon «Sogno
  * scelto ✦» — a moment happened. «Vota» is FLAT aura cyan; «Votato ✦» /
- * «Voto chiuso» are quiet. No vanity counts beyond the sanctioned consensus %
+ * «Voto chiuso» / «Sposta il voto» are quiet — moving a held vote is a
+ * correction, not a moment. No vanity counts beyond the sanctioned consensus %
  * (rule #3) — tapping the body opens the detail with the real player.
  *
  * #227 adds the two things the vote is actually about: BOTH money figures (a
@@ -176,6 +183,18 @@ export function CandidateCard({
           <View className="h-[36px] items-center justify-center px-4">
             <ActivityIndicator color={semantic.aura} />
           </View>
+        ) : voteState === 'voteElsewhere' ? (
+          // #633: the member's one vote sits on ANOTHER candidacy. «Vota» here would promise
+          // an additional vote the server refuses; this quiet outline pill names the real
+          // action — moving the one they have — before the confirm dialog restates the rule.
+          <Pressable
+            className="rounded-full border border-hair px-4 py-2"
+            onPress={onVote}
+            accessibilityRole="button"
+            accessibilityLabel={t('fund.vote.move', locale)}
+          >
+            <Text className="text-[13px] text-foreground">{t('fund.vote.move', locale)}</Text>
+          </Pressable>
         ) : (
           <Pressable
             className="rounded-full bg-aura px-5 py-2"

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
@@ -101,7 +102,19 @@ export default function ReportScreen() {
             </Text>
             {targetType === 'person' && targetId ? (
               <Pressable
-                onPress={() => blockAlso.mutate()}
+                // #633: the same block from user/[id] confirms with `block.confirm`; this screen
+                // has no display name in its params, so its twin key drops the {name}. One
+                // block, one confirm, everywhere.
+                onPress={() =>
+                  Alert.alert(t('report.block.confirm', locale), undefined, [
+                    { text: t('common.cancel', locale), style: 'cancel' },
+                    {
+                      text: t('report.alsoBlock', locale),
+                      style: 'destructive',
+                      onPress: () => blockAlso.mutate(),
+                    },
+                  ])
+                }
                 disabled={blockAlso.isPending}
                 accessibilityRole="button"
                 hitSlop={8}
