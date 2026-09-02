@@ -1422,3 +1422,53 @@ are untouched».
 Asserted by: `supabase/tests/0130_event_reminder_sweep.test.sql` §A, which pins the marker
 table's RLS, its zero client privileges and the cron schedule, and the `bag_eq` in §C, which pins
 `org_t1` as a claimable slot alongside the other two.
+
+---
+
+## `20260902153057_conversation_read_state.sql` — the UPDATE policy did not check what its comment said it checked
+
+Beside `conversation_reads_update_own`, the header says:
+
+> Membership is checked on INSERT and not on UPDATE: the row can only have been created by a
+> participant, and `profile_id` is pinned by both clauses, so an update cannot move a cursor onto
+> a conversation the caller was never in.
+
+The conclusion does not follow from the premise. `profile_id` was pinned by both clauses;
+`conversation_id` was pinned by neither, under a table-level UPDATE grant. So
+`update public.conversation_reads set conversation_id = '<a conversation I am not in>' where
+profile_id = <me>` passed `WITH CHECK`, passed the FK and passed the `(profile_id,
+conversation_id)` unique constraint. Membership was checked once, at INSERT, and the row could be
+walked anywhere afterwards — which made the INSERT check decorative.
+
+Nothing leaked either way: `conversation_reads_select_own` keeps the row private to its owner, so
+the only reachable outcome was self-inflicted (lose your own cursor, re-light your own thread).
+
+Read the clause as «membership is checked on INSERT only, and that is a gap, not a design».
+Corrected by `20260902161500_conversation_reads_update_membership.sql`, which `alter policy`s the
+same `exists` predicate into the UPDATE `WITH CHECK`.
+
+Asserted by: `supabase/tests/0142_conversation_reads_rls.test.sql` — «cannot MOVE an existing
+cursor onto a conversation you are not in», beside the INSERT-half assertion that was there
+before. Under the pre-correction policy that file fails 4 of 21.
+
+---
+
+## `20260902153060_conversation_read_stamp_invoker.sql` — 0121 does not pin the function this migration re-revokes
+
+The header justifies re-asserting the revoke with:
+
+> …a bare create-or-replace elsewhere in this repo has silently restored PUBLIC execute before,
+> and 0121 pins anon's and PUBLIC's executable surface by name.
+
+The first half stands; the second does not cover this function. `0121_grant_catalog_sweep.test.sql`
+builds `actual_function_acl` with `n.nspname = 'public'`, so it never sees
+`athanor.stamp_conversation_read` — nothing in 0121 would have caught a restored PUBLIC execute
+here.
+
+The revoke is still correct and still required; only the reason given for it is wrong. Read the
+clause as «…and a trigger function must not carry EXECUTE for the client roles (rules/supabase-db.md),
+which for an `athanor`-schema function no catalog sweep asserts — so the revoke is the only guard».
+
+Asserted by: `supabase/tests/0142_conversation_reads_rls.test.sql` pins the function's
+`prosecdef = false`; the EXECUTE surface of `athanor` functions remains unswept, which is the
+condition this entry exists to record.

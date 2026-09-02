@@ -8,7 +8,7 @@
 -- Privileges are asserted with has_table_privilege, never with a write that RLS could swallow for
 -- the wrong reason (rules/supabase-db.md, the #404 class).
 begin;
-select plan(20);
+select plan(22);
 
 -- fixtures: alice + bob are the pair; cara is the outsider
 insert into auth.users (id, email) values
@@ -46,6 +46,18 @@ select is(
   (select p.prosecdef from pg_proc p
      where p.proname = 'stamp_conversation_read' and p.pronamespace = 'athanor'::regnamespace),
   false, 'stamp_conversation_read is SECURITY INVOKER — it only assigns NEW');
+
+-- …and its EXECUTE revoke is asserted HERE because nothing else asserts it anywhere. 0121 is the
+-- catalog sweep for function EXECUTE, but its `actual_function_acl` filters `nspname = 'public'`,
+-- so no `athanor` function is in its surface at all (MIGRATIONS-ERRATA, 20260902153060). A trigger
+-- function is invoked by the trigger and never called by a role, and PostgreSQL grants EXECUTE to
+-- PUBLIC on every new function — so without this the revoke is a line in a migration that no test
+-- would miss if it vanished.
+select ok(
+  not has_function_privilege('anon', 'athanor.stamp_conversation_read()', 'execute')
+    and not has_function_privilege('authenticated', 'athanor.stamp_conversation_read()', 'execute')
+    and not has_function_privilege('public', 'athanor.stamp_conversation_read()', 'execute'),
+  'no client role holds EXECUTE on the stamp trigger function');
 
 -- ── privileges, asserted directly ────────────────────────────────────────────────────────────
 select ok(has_table_privilege('authenticated', 'public.conversation_reads', 'SELECT')
@@ -89,6 +101,16 @@ select throws_ok(
   $$ delete from public.conversation_reads
       where conversation_id = current_setting('test.conv')::uuid $$,
   '42501', null, 'client cannot delete a cursor (no grant)');
+
+-- The half 20260902153057's comment claimed and its policy did not have (20260902161500). Pinning
+-- only the INSERT above made the suite agree with the comment: `profile_id` was constrained by
+-- both UPDATE clauses and `conversation_id` by neither, so an existing row could be walked onto
+-- any conversation afterwards and the INSERT check became decorative.
+select throws_ok(
+  $$ update public.conversation_reads
+        set conversation_id = current_setting('test.other')::uuid
+      where profile_id = '11111111-1111-1111-1111-111111111111' $$,
+  '42501', null, 'cannot MOVE an existing cursor onto a conversation you are not in');
 
 -- ── the stamp discards the caller's clock ────────────────────────────────────────────────────
 select lives_ok(

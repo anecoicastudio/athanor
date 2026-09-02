@@ -13,14 +13,16 @@ import {
 
 /**
  * One notification row (M9 §4). Composed of:
- *  - ndot: accent circle (cyan for `moment`, neutral for all others — rule #4) + Unicode glyph
+ *  - ndot: accent circle (cyan for `moment` and for the `helpConfirmed` template, neutral for
+ *    everything else — rule #4) + Unicode glyph
  *  - body: bolded lead (`notif.type.*`, or a per-template override) + tail (interpolated
  *    `notif.tpl.*` template)
  *  - relative time stamp
  *  - optional «Apri Momento» action chip (moment type only)
  *  - unread presence dot (`read_at == null`) — never a number (rule #3)
  *
- * No glow on this surface (rule #4). The `moment` accent is a flat `aura-soft` fill — not a glow.
+ * No glow on this surface (rule #4). Both celebratory accents are a flat `aura-soft` fill —
+ * not a glow.
  */
 export default function NotificationRow({
   item,

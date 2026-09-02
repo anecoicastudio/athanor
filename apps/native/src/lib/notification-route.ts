@@ -2,7 +2,8 @@
  * Where a tapped notification goes.
  *
  * Two callers, and the second one is why the input is structural rather than a `Notification`:
- * the in-app centre passes a parsed row, while the OS-banner observer (`use-notification-router`)
+ * the in-app centre passes a parsed row, while the OS-banner observer
+ * (`components/boot/NotificationRouter`)
  * passes a push payload. A push carries `{type, route, entity_ref}` and nothing else — no
  * template_key, no schema-validated enum — so a router keyed on anything richer than this would
  * work in the notification centre and nowhere from the banner, which is the surface members
