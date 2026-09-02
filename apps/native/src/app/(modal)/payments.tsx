@@ -103,7 +103,7 @@ export default function PaymentsScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
           ListHeaderComponent={
             <View className="pb-2 pt-1">
-              <SectionLabel>{t('payments.contributions.label', locale)}</SectionLabel>
+              <SectionLabel heading>{t('payments.contributions.label', locale)}</SectionLabel>
             </View>
           }
           renderItem={({ item }) => <ReceiptRow row={item} locale={locale} />}

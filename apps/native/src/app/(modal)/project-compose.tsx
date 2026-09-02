@@ -5,9 +5,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -122,22 +123,18 @@ export default function ProjectComposeScreen() {
           <View className="gap-2">
             <SectionLabel>{t('project.compose.catLabel', locale)}</SectionLabel>
             <View className="flex-row flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
-                const isActive = c === category;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setCategory(c)}
-                    className={`rounded-full border px-4 py-2 ${
-                      isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-                    }`}
-                  >
-                    <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-                      {t(`costellazioni.filter.${c}` as MessageKey, locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {/* The same hand-rolled pill `post-compose` had, over the same six keys the board
+                  filter renders — folded onto `Chip` with it so the two composers and the board
+                  cannot drift (#635). */}
+              {CATEGORIES.map((c) => (
+                <Chip
+                  key={c}
+                  small
+                  label={t(`costellazioni.filter.${c}` as MessageKey, locale)}
+                  selected={c === category}
+                  onPress={() => setCategory(c)}
+                />
+              ))}
             </View>
           </View>
 

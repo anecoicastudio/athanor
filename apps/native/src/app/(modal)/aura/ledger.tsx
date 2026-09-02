@@ -5,9 +5,10 @@ import { type LedgerCursor, type LedgerFilter, getAuraLedgerPage, ledgerKeys } f
 import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEvent, Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
 import { LedgerRow } from '@/components/aura/LedgerRow';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -60,22 +61,17 @@ function FilterPills({
   // line anyway.
   return (
     <View className="flex-row flex-wrap gap-2 px-5 py-3">
-      {FILTERS.map((f) => {
-        const isActive = f === active;
-        return (
-          <Pressable
-            key={f}
-            onPress={() => onChange(f)}
-            className={`rounded-full border px-4 py-2 ${
-              isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-            }`}
-          >
-            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-              {t(`ledger.filter.${f}` as MessageKey, locale)}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {/* `Chip small` (#635): these were bare Pressables, so the active filter reached a screen
+          reader as cyan and nothing else — and at py-2 they sat under DESIGN §10's 44pt. */}
+      {FILTERS.map((f) => (
+        <Chip
+          key={f}
+          small
+          label={t(`ledger.filter.${f}` as MessageKey, locale)}
+          selected={f === active}
+          onPress={() => onChange(f)}
+        />
+      ))}
     </View>
   );
 }
@@ -188,7 +184,7 @@ export default function LedgerScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
           renderSectionHeader={({ section }) => (
             <View className="bg-background py-2">
-              <SectionLabel>{section.title}</SectionLabel>
+              <SectionLabel heading>{section.title}</SectionLabel>
             </View>
           )}
           renderItem={({ item }) => (

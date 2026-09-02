@@ -16,6 +16,7 @@ import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
+import { useAnnounceOnMount } from '@/lib/a11y';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -53,6 +54,11 @@ export default function CheckinScreen() {
     const off = subscribeAttendance(supabase, id, () => setCount((c) => c + 1));
     return off;
   }, [id]);
+
+  // The verdict is a transient sentence with no other surface: it appears in a pill for 2s and is
+  // gone (#635). Announce it — on iOS nothing else would, and the scanner's whole output is this
+  // one line. `last` goes verdict → null → verdict between scans, so a repeat re-announces.
+  useAnnounceOnMount(last ? verdictText(last.v, last.name, locale) : undefined);
 
   const onScan = useCallback(
     async (token: string) => {

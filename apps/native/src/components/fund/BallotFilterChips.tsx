@@ -32,6 +32,14 @@ export function BallotFilterChips({
   if (filters.length === 0) return null;
   return (
     <View
+      // `radiogroup`, matching the `role="radio"` the chips below now declare — the container is
+      // what makes «1 di 5» possible, and it is what the label belongs to (#635).
+      //
+      // Deliberately NOT `accessible`, unlike `AffinityRow`. That flag makes a view an atomic
+      // accessibility ELEMENT, and an atomic ancestor swallows every control under it (#518) —
+      // it is right for a leaf row of two `Text`s and wrong for a group of chips. The cost is
+      // that iOS may not voice the group's own label; losing the five controls would be worse.
+      accessibilityRole="radiogroup"
       className="flex-row flex-wrap gap-2"
       accessibilityLabel={t('fund.candidates.filter.a11y', locale)}
     >
@@ -39,6 +47,7 @@ export function BallotFilterChips({
         <Chip
           key={f}
           small
+          role="radio"
           // Same keys the candidacy wizard and Costellazioni use — one vocabulary, one
           // label set, so a chip here and a chip there can never drift apart.
           label={t(`costellazioni.filter.${f}` as MessageKey, locale)}

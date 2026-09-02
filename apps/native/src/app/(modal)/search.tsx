@@ -235,7 +235,7 @@ export default function SearchScreen() {
           renderItem={({ item: section }) => (
             <View className="mb-4">
               <View className="px-5 pb-2 pt-3">
-                <SectionLabel>{t(section.labelKey, locale)}</SectionLabel>
+                <SectionLabel heading>{t(section.labelKey, locale)}</SectionLabel>
               </View>
               {section.rows.map((result) => (
                 <ResultRow

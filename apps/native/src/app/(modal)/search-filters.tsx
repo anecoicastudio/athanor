@@ -177,8 +177,12 @@ export default function SearchFiltersScreen() {
               <View
                 key={slot}
                 className="rounded-full border border-hair bg-raise-2 px-5 py-3"
-                // Not a Pressable — intentionally non-interactive until backend ships
+                // Not a Pressable — intentionally non-interactive until backend ships.
+                // Both flags: `accessibilityElementsHidden` is iOS-only, so without the Android
+                // sibling these three were hidden on one platform and announced on the other —
+                // the lone unpaired site in the tree (#635).
                 accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               >
                 <Text className="text-foreground">
                   {t(`search.filter.availability.${slot}`, locale)}

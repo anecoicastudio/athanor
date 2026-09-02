@@ -170,11 +170,24 @@ export function SwipeDeck({
 
   return (
     <View className="flex-1">
+      {/*
+        The peek card is HIDDEN from the accessibility tree, not merely untouchable (#635).
+        `pointerEvents="none"` settles touch and says nothing about VoiceOver, so this fully
+        occluded card was still an element — and it is rendered FIRST, so the a11y tree listed
+        the next person's whole card ahead of the top one while «Connetti» and «Passa» below
+        still act on the current one. Read one person, act on another, on a control that cannot
+        be undone.
+
+        Both flags because they are different platforms' spelling of the same thing:
+        `accessibilityElementsHidden` is iOS, `importantForAccessibility` is Android.
+      */}
       {next ? (
         <View
           className="absolute inset-0 opacity-70"
           style={{ transform: [{ scale: 0.95 }] }}
           pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
         >
           <MomentoCard card={next} locale={locale} />
         </View>

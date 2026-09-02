@@ -1,6 +1,7 @@
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
-import { Pressable, ScrollView, Text } from '@/tw';
+import { ScrollView } from '@/tw';
+import { Chip } from '@/components/Chip';
 
 export type ProjectFilter = ProjectCategory | 'all';
 const FILTERS: ProjectFilter[] = [
@@ -13,8 +14,14 @@ const FILTERS: ProjectFilter[] = [
 ];
 
 /**
- * Horizontal board filter row. Active chip = aura-soft fill + aura-line border
- * (the Chip vocabulary, DESIGN.md), idle = hairline-bordered raised surface.
+ * Horizontal board filter row, built from `Chip` (#635).
+ *
+ * It hand-rolled the Chip vocabulary — the same `border-aura-line bg-aura-soft` fill, the same
+ * six keys `BallotFilterChips` already renders through `Chip` — but none of the contract behind
+ * it: six bare `Pressable`s with no role and no `selected`, so which filter was active reached a
+ * screen reader as cyan and nothing else. `small` is deliberate: it is the compact variant AND
+ * the only one carrying the 44pt floor these pills already had, so routing through the default
+ * variant would have regressed a target #638 records as correct.
  */
 export function ProjectFilterTabs({
   active,
@@ -31,22 +38,15 @@ export function ProjectFilterTabs({
       showsHorizontalScrollIndicator={false}
       contentContainerClassName="gap-2 px-5"
     >
-      {FILTERS.map((f) => {
-        const isActive = f === active;
-        return (
-          <Pressable
-            key={f}
-            onPress={() => onChange(f)}
-            className={`rounded-ctl border px-4 py-2 min-h-[44px] justify-center ${
-              isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-            }`}
-          >
-            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-              {t(`costellazioni.filter.${f}` as MessageKey, locale)}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {FILTERS.map((f) => (
+        <Chip
+          key={f}
+          small
+          label={t(`costellazioni.filter.${f}` as MessageKey, locale)}
+          selected={f === active}
+          onPress={() => onChange(f)}
+        />
+      ))}
     </ScrollView>
   );
 }

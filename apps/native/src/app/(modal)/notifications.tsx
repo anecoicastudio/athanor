@@ -134,7 +134,7 @@ export default function NotificationsScreen() {
           if (section.kind === 'header') {
             return (
               <View className="px-5 pb-1 pt-4">
-                <SectionLabel>{section.label}</SectionLabel>
+                <SectionLabel heading>{section.label}</SectionLabel>
               </View>
             );
           }

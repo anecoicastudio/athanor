@@ -221,6 +221,7 @@ export default function HelpScreen() {
           {HELP_TYPES.map((option) => (
             <Chip
               key={option}
+              role="radio"
               label={t(`help.type.${option}`, locale)}
               selected={type === option}
               onPress={() => {

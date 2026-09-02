@@ -163,8 +163,14 @@ export default function StoryComposeScreen() {
           />
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
+          {/* The same toggle as `post-compose.tsx`, and it had the same defect — role, state and
+              name all missing (#635). Fixed here too so the two composers cannot drift. */}
           <Pressable
             className="flex-row items-center justify-between rounded-card border border-hair bg-raise p-5"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isStep }}
+            accessibilityLabel={t('story.add.stepTitle', locale)}
+            accessibilityHint={t('story.add.stepDesc', locale)}
             onPress={() => setIsStep((v) => !v)}
           >
             <View className="flex-1 pr-4">

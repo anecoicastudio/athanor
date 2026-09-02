@@ -60,9 +60,23 @@ export function DreamCard({
         {t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}
       </SectionLabel>
       {dream ? (
+        /*
+          Label = the dream, hint = the action (#356, #635). This Pressable masks `DreamQuote`, so
+          a label of «Modifica il tuo sogno» announced the BUTTON and never the quote — the one
+          piece of content on the card. Worse on `read`: the label is not gated on `isRead`, so a
+          screen-reader user on someone else's profile heard "edit YOUR dream" over their dream.
+          Two keys, own and their, mirroring the `dream.ownLabel` / `dream.theirLabel` pair the
+          eyebrow above already uses.
+
+          The hint rides only on the editable arm. On `read` the Pressable is `disabled` and does
+          nothing, so promising an action there would be the same lie in a quieter register.
+        */
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t('dream.a11y.editQuote', locale)}
+          accessibilityLabel={t(isRead ? 'dream.a11y.theirQuote' : 'dream.a11y.ownQuote', locale, {
+            dream,
+          })}
+          accessibilityHint={isRead || !onEdit ? undefined : t('dream.a11y.editQuote', locale)}
           disabled={isRead || !onEdit}
           onPress={isRead ? undefined : onEdit}
         >

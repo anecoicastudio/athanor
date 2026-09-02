@@ -83,7 +83,7 @@ export function CalendarPanel({
       }
       renderItem={({ item: [month, items] }) => (
         <View className="gap-3 px-5 pb-4">
-          <SectionLabel>{month}</SectionLabel>
+          <SectionLabel heading>{month}</SectionLabel>
           {items.map((e) => (
             <EventRow
               key={e.id}

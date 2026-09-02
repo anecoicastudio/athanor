@@ -138,6 +138,7 @@ export default function ReportScreen() {
               {REPORT_CATEGORIES.map((option) => (
                 <Chip
                   key={option}
+                  role="radio"
                   label={t(`report.reason.${option}`, locale)}
                   selected={category === option}
                   onPress={() => setCategory(option)}

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { fundKeys, getFundAggregate } from '@athanor/api';
 import { formatFundTotal, timeRemaining } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { t, tn } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Card } from '@/components/Card';
@@ -73,9 +73,30 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
   const fundTotal = formatFundTotal(raisedCents, locale);
 
   return (
+    /*
+      The label CARRIES the card's three numbers (#635). This Pressable is an accessibility
+      element, so on iOS it is atomic: VoiceOver reads its label and never descends, and a label
+      of «Dai Vita al Tuo Sogno» alone left the countdown, the total and the contributor count
+      unreachable — the whole payload of the card.
+
+      That is a deliberate DEPARTURE from the one-static-node shape `MomentiCard` and
+      `FavorNudgeCard` document, and the departure has a rule: a static label is enough when it
+      already says what the card says («Hai un Momento in attesa»), and is not enough when the
+      card's content is DATA. Nothing here is nullable — `days`, `fundTotal` and `contributors`
+      all resolve to a rendered number before this branch — so the «—»-read-aloud argument that
+      keeps `MomentiCard`'s handle out of its label does not apply.
+    */
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t('home.dream.title', locale)}
+      accessibilityLabel={t('home.dream.a11y', locale, {
+        // `tn`, not `t`: a countdown reaches 1 on the last day of every cycle by construction,
+        // and «mancano 1 giorni» is the bug `t.ts`'s plural pattern (#634) exists to prevent.
+        // Two countables and `tn` takes one `n`, so each clause is its own key rather than a
+        // branch at this call site — which is the half of that pattern that matters.
+        days: tn('home.dream.a11y.days', days, locale),
+        total: fundTotal,
+        people: tn('home.dream.a11y.people', contributors, locale),
+      })}
       onPress={() => router.push('/annual')}
       className="gap-3 min-h-[56px]"
     >
@@ -84,7 +105,9 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
         {/* Days remaining — big number */}
         <View className="flex-row items-baseline gap-2">
           <Text className="text-4xl font-bold text-aura">{days}</Text>
-          <Text className="text-sm text-muted-foreground">{t('fund.countdown.days', locale)}</Text>
+          <Text className="text-sm text-muted-foreground">
+            {tn('fund.countdown.days', days, locale)}
+          </Text>
         </View>
 
         {/* Fund total + contributor count */}

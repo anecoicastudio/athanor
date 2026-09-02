@@ -178,7 +178,15 @@ export default function PostDetailScreen() {
   if (postQuery.isLoading) {
     return (
       <Screen className="items-center justify-center">
-        <Text className="text-2xl text-faint">✦</Text>
+        {/* Decorative spinner-glyph — hidden, like `(tabs)/profile.tsx:41-47`. Unhidden it is a
+            focusable element whose whole name is «✦» (#635). */}
+        <Text
+          className="text-2xl text-faint"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          ✦
+        </Text>
       </Screen>
     );
   }
@@ -316,8 +324,15 @@ export default function PostDetailScreen() {
             multiline
           />
           {/* P2.5 hint-truth: no comment-hint — the engine never rewards commenting (anti-gaming). */}
+          {/* Role, name and state (#635). With none of the three this announced as a bare
+              `generic` — and when the draft is empty, as `generic disabled`: a control a
+              screen-reader user could neither identify nor tell was refusing them. The ✦ is
+              decorative here; the label is the sentence. */}
           <Pressable
             disabled={draft.trim().length === 0 || sendComment.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('comment.a11y.send', locale)}
+            accessibilityState={{ disabled: draft.trim().length === 0 || sendComment.isPending }}
             onPress={() => sendComment.mutate({ id: Crypto.randomUUID(), body: draft.trim() })}
             className="min-h-[44px] items-center justify-center rounded-ctl bg-aura px-4"
           >

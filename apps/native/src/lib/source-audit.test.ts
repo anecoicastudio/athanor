@@ -2215,3 +2215,159 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 28 — a toggle names itself, and a decorative mark is never spoken (#635)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Two halves of the VoiceOver wave that a walk can actually see. The rest of #635 — a composed
+ * label, a `checked` state, the peek card leaving the a11y tree — is per-site judgement no regex
+ * can hold. These two are mechanical, and both regressed silently before.
+ *
+ * ## A bare `Switch` is an unnamed control
+ *
+ * React Native gives `Switch` its role and its checked state from `value`, and NOTHING else. The
+ * label `Text` beside it in the row is a sibling, not an association — there is no `htmlFor`
+ * here — so a `Switch` with no `accessibilityLabel` announces as «attivato, interruttore» with
+ * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which is
+ * every switch the app has.
+ *
+ * The check is per-JSX-site, not per-runtime-control: `notif-prefs.tsx` renders six switches
+ * from one tag inside `PREF_ROWS.map`, so a count here would be a number that rots. The property
+ * is "every `<Switch` opening tag carries the attribute", which stays true however many rows the
+ * list grows.
+ *
+ * ## A ✦ in an imperative announcement is spoken
+ *
+ * A RENDERED glyph can be marked decorative (`accessibilityElementsHidden` + the Android
+ * sibling), and roughly twenty-five sites do exactly that. `AccessibilityInfo.announceForAccessibility`
+ * has no element to mark: whatever is in the string is what VoiceOver says, and dozens of
+ * catalog values carry a ✦ or ✧ as pure ornament. `ToastHost` is the only caller that announces a
+ * member-facing catalog string, so `spoken()` (`lib/star.ts`) is the one seam and this pins it
+ * there. What `spoken()` actually does is asserted in `star.test.ts`, beside the vocabulary it
+ * removes; this section only checks that nothing announces around it.
+ */
+describe('a11y: toggles name themselves and ornaments stay silent (#635)', () => {
+  const SWITCH_FILES = ['app/(modal)/trust.tsx', 'app/(modal)/notif-prefs.tsx'];
+  const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
+
+  /** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
+  const openingTags = (src: string, tag: string): { line: number; attrs: string }[] => {
+    const found: { line: number; attrs: string }[] = [];
+    const re = new RegExp(`<${tag}(?=[\\s/>])`, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src))) {
+      let j = m.index + m[0].length;
+      let depth = 0;
+      let quote = '';
+      while (j < src.length) {
+        const c = src[j] as string;
+        if (quote) {
+          if (c === quote) quote = '';
+        } else if (c === '"' || c === "'" || c === '`') quote = c;
+        else if (c === '{') depth += 1;
+        else if (c === '}') depth -= 1;
+        else if (c === '>' && depth === 0) break;
+        j += 1;
+      }
+      found.push({
+        line: src.slice(0, m.index).split('\n').length,
+        attrs: src.slice(m.index + m[0].length, j),
+      });
+    }
+    return found;
+  };
+
+  it('finds the Switch sites it is walking', () => {
+    const total = FILES.filter((p) => !isTest(p)).reduce(
+      (n, p) => n + openingTags(stripComments(read(p)), 'Switch').length,
+      0,
+    );
+    // A scanner that finds nothing passes every assertion below. Two files, six tags today.
+    expect(total, 'no <Switch> found at all — the walk is broken, not the tree').toBeGreaterThan(0);
+  });
+
+  it('every Switch carries an accessibilityLabel', () => {
+    const unnamed = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      openingTags(stripComments(read(p)), 'Switch')
+        .filter(({ attrs }) => !/\baccessibilityLabel=/.test(attrs))
+        .map(({ line }) => `${rel(p)}:${line}`),
+    );
+    expect(
+      unnamed,
+      `an unnamed <Switch>:\n` +
+        `RN derives the role and the checked state from \`value\`, and nothing else — the label ` +
+        `Text beside it is an unassociated sibling, so this toggle announces with no subject. ` +
+        `Pass accessibilityLabel with the SAME key the visible label renders, so the two ` +
+        `cannot drift (#635).`,
+    ).toEqual([]);
+  });
+
+  it('the Switch sites are exactly the two screens this section names', () => {
+    const owners = FILES.filter((p) => !isTest(p))
+      .filter((p) => openingTags(stripComments(read(p)), 'Switch').length > 0)
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    // Not decoration: a NEW screen with a Switch is exactly the case that would ship unnamed,
+    // and this fails when one appears so the assertion above is read rather than trusted.
+    expect(owners).toEqual([...SWITCH_FILES].sort());
+  });
+
+  it('the hook and the toast host each still announce', () => {
+    /*
+      A scanner that finds nothing passes the invariant below without checking anything, so this
+      is the find-something half. It names the two files that MUST announce rather than counting
+      the calls: a count is a fact about how the code is spelled, and this one already went red
+      once for a refactor that folded two identical calls into a shared helper — the same
+      failure mode the invariant test below was rewritten to avoid. `lib/a11y.ts` is the hook
+      every transient message goes through and `ToastHost.tsx` is the global host; either one
+      losing its announcement is a real regression, and neither is about arithmetic.
+    */
+    const owners = codeLines()
+      .filter(([, text]) => ANNOUNCE.test(text))
+      .map(([where]) => where.split(':')[0] as string);
+    expect(
+      owners.some((f) => f.endsWith('lib/a11y.ts')),
+      `lib/a11y.ts no longer announces:\n` +
+        `useAnnounceOnMount is the only iOS path a transient message has — ` +
+        `accessibilityLiveRegion is Android-only, so a check-in verdict or a deck toast that ` +
+        `stops going through this hook is silent on the platform testers hold (#635).`,
+    ).toBe(true);
+    expect(
+      owners.some((f) => f.endsWith('components/ToastHost.tsx')),
+      `components/ToastHost.tsx no longer announces:\n` +
+        `The global host is what speaks every toast on iOS. If this call is gone, every ` +
+        `showToast in the app became silent there and the walk below has nothing to check (#635).`,
+    ).toBe(true);
+  });
+
+  it('every announcement is wrapped in spoken()', () => {
+    /*
+      Prettier decides where the argument goes, so the invariant cannot be "on this line": a
+      call whose argument does not fit wraps, and an earlier version of this guard pinned the
+      NUMBER of wrapped calls — which then failed the moment an unrelated edit lengthened one.
+      The property is `spoken(` opening the argument, whether that lands on the call line or the
+      one below it. Nothing else may appear between them: `announceForAccessibility(` followed
+      by anything that is not `spoken(` is a hit.
+    */
+    const raw = CODE_LINES.flatMap(([p, ls]) =>
+      ls
+        .map((text, i) => [text, ls[i + 1] ?? '', i + 1] as const)
+        .filter(([text]) => ANNOUNCE.test(text))
+        .filter(([text, next]) =>
+          /announceForAccessibility\($/.test(text.trim())
+            ? !/^spoken\(/.test(next.trim())
+            : !/announceForAccessibility\(\s*spoken\(/.test(text),
+        )
+        .map(([text, , line]) => `${rel(p)}:${line}  ${text.trim().slice(0, 100)}`),
+    );
+    expect(
+      raw,
+      `an announcement that does not strip its ornament:\n` +
+        `An imperative announcement has no element to mark decorative, so every ✦/✧ in the ` +
+        `string is SPOKEN. Wrap the argument in spoken() (lib/star.ts), the way every other ` +
+        `call site does (#635).`,
+    ).toEqual([]);
+  });
+});

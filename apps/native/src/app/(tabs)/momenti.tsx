@@ -12,6 +12,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
 import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
+import { useAnnounceOnMount } from '@/lib/a11y';
 import { momentiDeckView } from '@/lib/momenti-deck-state';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/hooks/use-locale';
@@ -48,6 +49,11 @@ export default function MomentiScreen() {
     },
     [],
   );
+  // The iOS half of the pill below (#635). It carries `accessibilityLiveRegion`, which is
+  // Android-only, and it deliberately bypasses `ToastHost` — which is where the imperative
+  // announcement lives — so on the platform testers actually hold, accepting a Momento produced
+  // no announcement at all.
+  useAnnounceOnMount(deckToast ?? undefined);
   const [done, setDone] = useState(false);
 
   const deck = useMomentiDeck();
@@ -233,6 +239,9 @@ export default function MomentiScreen() {
           <View
             pointerEvents="none"
             className="absolute inset-x-5 bottom-6 items-center"
+            // Android reads this; iOS reads nothing from it — `accessibilityLiveRegion` is
+            // Android-only, and this pill bypasses ToastHost (which announces imperatively). The
+            // `useAnnounceOnMount` above is the iOS half (#635).
             accessibilityRole="alert"
             accessibilityLiveRegion="polite"
           >
