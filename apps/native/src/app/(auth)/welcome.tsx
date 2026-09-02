@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { t, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
@@ -8,6 +9,7 @@ import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
@@ -459,6 +461,40 @@ export default function WelcomeScreen() {
                   <Text className="text-center text-[13px] text-muted-foreground">
                     {inFlightLabel}
                   </Text>
+                ) : null}
+                {/* #632: the point of collection is the point of consent — GDPR-scoped
+                  product collecting a name, an email and a dream. Signup only; sign-in
+                  agreed at signup. The two links reuse settings' labels and URLs so the
+                  words match the screen that also carries them. */}
+                {!login ? (
+                  <View className="gap-1">
+                    <Text className="text-center text-xs leading-4 text-muted-foreground">
+                      {t('auth.legal.notice', locale)}
+                    </Text>
+                    <View className="flex-row items-center justify-center gap-6">
+                      {(
+                        [
+                          ['settings.legal.terms', LEGAL_TERMS_URL],
+                          ['settings.legal.privacy', LEGAL_PRIVACY_URL],
+                        ] as const
+                      ).map(([key, url]) => (
+                        <Pressable
+                          key={key}
+                          className="min-h-[44px] justify-center"
+                          accessibilityRole="link"
+                          onPress={() => {
+                            WebBrowser.openBrowserAsync(url).catch(() =>
+                              setError(t('settings.legal.error', locale)),
+                            );
+                          }}
+                        >
+                          <Text className="text-xs text-muted-foreground underline">
+                            {t(key, locale)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
                 ) : null}
               </View>
 
