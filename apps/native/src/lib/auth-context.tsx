@@ -33,6 +33,16 @@ type AuthState = {
    *  #561) and remember it so signOut can unregister it. PushPrimer calls this right
    *  after its grant; the auth-event branch reuses it on boot/refresh. */
   registerPush: () => Promise<void>;
+  /** A recovery link was just exchanged (PASSWORD_RECOVERY): the session is real but the
+   *  member still has to choose a new password. Held HERE, not read off the exchange's
+   *  return value, because auth-js notifies subscribers before exchangeCodeForSession
+   *  resolves — AuthGuard can route to (tabs) and unmount auth-callback before that
+   *  screen's .then ever runs. The guard reads this latch instead and routes to
+   *  (modal)/new-password until it clears (#631). */
+  recoveryPending: boolean;
+  /** Clear the latch: after updateUser succeeds, or when the member skips — their old
+   *  password still works, so skipping is a legitimate exit, not a trap. */
+  clearRecovery: () => void;
 };
 
 const AuthContext = createContext<AuthState>({
@@ -44,6 +54,8 @@ const AuthContext = createContext<AuthState>({
   refreshProfile: async () => {},
   signOut: async () => {},
   registerPush: async () => {},
+  recoveryPending: false,
+  clearRecovery: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -52,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [flushing, setFlushing] = useState(false);
   const [profileError, setProfileError] = useState(false);
+  const [recoveryPending, setRecoveryPending] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const pushTokenRef = useRef<string | null>(null);
 
@@ -71,6 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = await registerForPush();
     if (token) pushTokenRef.current = token;
   }, []);
+
+  const clearRecovery = useCallback(() => setRecoveryPending(false), []);
 
   const refreshProfile = useCallback(async () => {
     const userId = sessionRef.current?.user.id ?? null;
@@ -113,11 +128,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // branch can't remove is pruned server-side on a DeviceNotRegistered
         // receipt (push-dispatch) or by the profiles cascade.
         pushTokenRef.current = null;
+        setRecoveryPending(false); // a sign-out mid-recovery abandons the flow
         // The persisted TanStack cache holds the signed-out account's profile
         // and feed; drop both the live cache and the AsyncStorage copy so
         // nothing rehydrates into the next session.
         queryClient.clear();
         void asyncStoragePersister.removeClient();
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Recovery-link exchange (auth-callback). The session is live, but AuthGuard
+        // must park the member on the new-password sheet instead of routing home.
+        setRecoveryPending(true);
       } else if (
         event === 'SIGNED_IN' ||
         event === 'INITIAL_SESSION' ||
@@ -205,6 +225,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshProfile,
         signOut,
         registerPush,
+        recoveryPending,
+        clearRecovery,
       }}
     >
       {children}

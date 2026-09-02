@@ -417,6 +417,27 @@ export default function WelcomeScreen() {
                       })}
                     </View>
                   ) : null}
+                  {/* #631: the one recovery path an email member has. Login mode only —
+                    a signup has no password to forget. Real 44pt box (min-h + centering,
+                    not hitSlop arithmetic on 13px text — the tap-target sweep's lesson),
+                    left-aligned under the field it rescues. Carries the typed email so
+                    the next screen starts filled. */}
+                  {login ? (
+                    <Pressable
+                      className="min-h-[44px] justify-center px-5"
+                      accessibilityRole="button"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(auth)/forgot-password',
+                          params: email.trim() ? { email: email.trim() } : {},
+                        })
+                      }
+                    >
+                      <Text className="text-[13px] text-muted-foreground">
+                        {t('auth.forgot.link', locale)}
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
 
                 {error ? <Text className="text-sm text-error">{error}</Text> : null}

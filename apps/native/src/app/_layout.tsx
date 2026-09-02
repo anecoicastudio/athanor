@@ -41,7 +41,16 @@ WebBrowser.maybeCompleteAuthSession();
 // nothing until init runs.
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading, flushing, profileError, refreshProfile, signOut } = useAuth();
+  const {
+    session,
+    profile,
+    loading,
+    flushing,
+    profileError,
+    refreshProfile,
+    signOut,
+    recoveryPending,
+  } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -62,6 +71,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!inAuth && !inOnboarding) router.replace('/(onboarding)');
       return;
     }
+    // Recovery-link session (#631): park the member on the new-password sheet before
+    // any profile-based routing — the sheet needs no profile, and a slow hydrate must
+    // not hold it hostage. Checked before the profile gate for exactly that reason.
+    // The latch clears on save or skip (auth-context.clearRecovery); until then a
+    // dismissed sheet is simply re-presented, which is what makes the auth-callback
+    // race (guard routes before that screen's .then runs) harmless.
+    if (recoveryPending) {
+      if (segments[0] !== '(modal)' || segments[1] !== 'new-password') {
+        router.replace('/(modal)/new-password');
+      }
+      return;
+    }
     if (!profile) return; // profile still hydrating
 
     if (isProfileComplete(profile)) {
@@ -73,7 +94,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // Authed but incomplete with no draft to flush (e.g. login on a new device).
       router.replace('/(onboarding)');
     }
-  }, [loading, flushing, session, profile, segments, router]);
+  }, [loading, flushing, session, profile, segments, router, recoveryPending]);
 
   if (loading) {
     return null;
