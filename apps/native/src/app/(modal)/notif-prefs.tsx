@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { Switch } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, Linking, Switch } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -12,15 +12,26 @@ import {
 } from '@athanor/api';
 import type { NotifPrefInput, NotificationPreference } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { devWarn } from '@/lib/log';
+import type { PermStatus } from '@/lib/media/permission-status';
+import { ensurePushPermission, peekPushPermission } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 
 /**
  * Notification preferences (M9 §3.7). 6 per-type push toggles + master push toggle.
+ *
+ * The master toggle reads TWO facts, not one (#637). `profiles.push_enabled` is a server
+ * preference and says nothing about whether the OS will deliver anything: a member who revoked
+ * the permission in Settings — or never granted it — saw this switch sitting ON while nothing
+ * could arrive, and every per-type row below it promising delivery that was impossible. A
+ * preferences screen that lies about the one thing it exists to control is worse than no screen.
+ * So the switch shows the CONJUNCTION, and the notice says which half is missing.
  * `connection` type has no opt-out toggle (always delivered, master-only gated — Decision #4).
  * Neutral chrome throughout — no glow (rule #4). Optimistic + silent (no toast host).
  * Absent pref row = enabled by default (Decision #1 master rule, 09 §2.5).
@@ -57,6 +68,44 @@ export default function NotifPrefsScreen() {
     queryKey: pushKey,
     queryFn: () => getPushEnabled(supabase),
   });
+
+  /**
+   * The OS half. `null` means "not known yet, or not knowable here" — deliberately distinct from
+   * a negative: on a surface where the permission cannot be read at all (expo-web, a peek that
+   * throws) the screen must fall back to its old behaviour rather than accuse the member's phone
+   * of something. Only a POSITIVE 'blocked'/'undetermined' lights the notice.
+   *
+   * Re-peeked when the app comes back to the foreground, because the fix for `blocked` happens in
+   * Settings — outside this process. Without that the member returns from granting the permission
+   * to a screen still insisting it is off.
+   */
+  const [osStatus, setOsStatus] = useState<PermStatus | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const peek = () => {
+      void (async () => {
+        try {
+          const next = await peekPushPermission();
+          if (!cancelled) setOsStatus(next);
+        } catch (e) {
+          devWarn('[notif-prefs] permission peek', e); // stays null — no notice, no false claim
+        }
+      })();
+    };
+    peek();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') peek();
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
+  // `peekPushPermission` never surfaces 'denied' — a never-asked and an askable-but-declined
+  // permission both read as 'undetermined', because from a peek they are the same offer.
+  const osOff = osStatus === 'blocked' || osStatus === 'undetermined';
+  const masterOn = (pushQuery.data ?? true) && !osOff;
 
   // Absent pref row = ON (rule §2.5 — default-on)
   const enabledFor = useCallback(
@@ -116,6 +165,32 @@ export default function NotifPrefsScreen() {
     onSettled: () => void qc.invalidateQueries({ queryKey: pushKey }),
   });
 
+  /**
+   * Turning the master on while the OS says no asks the OS first, and only writes the preference
+   * if the ask succeeds. The alternative — write the row, leave the switch on — is the lie this
+   * whole block exists to remove.
+   */
+  const onMasterChange = useCallback(
+    (next: boolean) => {
+      if (!next || !osOff) {
+        setMaster.mutate(next);
+        return;
+      }
+      void (async () => {
+        try {
+          const resolved = await ensurePushPermission();
+          setOsStatus(resolved);
+          // 'blocked' cannot be resolved from here at all — the notice below keeps its Settings
+          // link, which is the only thing that can.
+          if (resolved === 'granted') setMaster.mutate(true);
+        } catch (e) {
+          devWarn('[notif-prefs] permission request', e);
+        }
+      })();
+    },
+    [osOff, setMaster],
+  );
+
   return (
     <Screen {...MODAL_A11Y}>
       {/* Header — outside the ScrollView so it can't scroll away (#161). */}
@@ -163,12 +238,28 @@ export default function NotifPrefsScreen() {
             </View>
             <Switch
               accessibilityLabel={t('notif.prefs.push', locale)}
-              value={pushQuery.data ?? true}
-              onValueChange={(v) => setMaster.mutate(v)}
+              value={masterOn}
+              onValueChange={onMasterChange}
               trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
               thumbColor={semantic.foreground}
             />
           </View>
+          {/* The OS half, stated only when it is positively off. Neutral chrome — this is a fact
+              about the phone, not a moment (rule #4). */}
+          {osOff ? (
+            <View className="gap-3 border-t border-hair px-5 py-4">
+              <Text className="text-[13px] leading-relaxed text-faint">
+                {t('notif.prefs.osOff', locale)}
+              </Text>
+              {osStatus === 'blocked' ? (
+                <Button
+                  label={t('permission.openSettings', locale)}
+                  variant="ghost"
+                  onPress={() => void Linking.openSettings()}
+                />
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </Screen>

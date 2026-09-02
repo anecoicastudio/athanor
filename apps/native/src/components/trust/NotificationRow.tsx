@@ -4,7 +4,12 @@ import type { Locale, Notification } from '@athanor/schemas';
 import { displayParams } from '@/lib/notif-params';
 import { timeAgo } from '@/lib/time';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
-import { NOTIF_VISUAL, NOTIF_LEAD, NOTIF_LEAD_BY_TEMPLATE } from './notifTypes';
+import {
+  NOTIF_VISUAL,
+  NOTIF_VISUAL_BY_TEMPLATE,
+  NOTIF_LEAD,
+  NOTIF_LEAD_BY_TEMPLATE,
+} from './notifTypes';
 
 /**
  * One notification row (M9 §4). Composed of:
@@ -26,7 +31,9 @@ export default function NotificationRow({
   locale: Locale;
   onPress: (n: Notification) => void;
 }) {
-  const v = NOTIF_VISUAL[item.type];
+  // Template first, then type — the same precedence the lead uses, and for the same reason:
+  // a template can mean something its type does not (#637).
+  const v = NOTIF_VISUAL_BY_TEMPLATE[item.template_key] ?? NOTIF_VISUAL[item.type];
   const unread = item.read_at == null;
   const lead = t(NOTIF_LEAD_BY_TEMPLATE[item.template_key] ?? NOTIF_LEAD[item.type], locale);
   // Template tail: interpolate `{name}`, `{count}`, `{title}`, `{amount}` etc. from params.

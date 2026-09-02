@@ -2505,13 +2505,13 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:433':
+    'app/(modal)/chat.tsx:457':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:488':
+    'app/(modal)/chat.tsx:512':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:433',
-    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:433',
+    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:457',
+    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:457',
     'app/(onboarding)/index.tsx:266':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -2519,7 +2519,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:488',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:512',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
