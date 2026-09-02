@@ -2504,13 +2504,13 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:435':
+    'app/(modal)/chat.tsx:433':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:490':
+    'app/(modal)/chat.tsx:488':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:381': 'same measured 20pt remove-badge as chat.tsx:435',
-    'app/(modal)/story-compose.tsx:154': 'same measured 20pt remove-badge as chat.tsx:435',
+    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:433',
+    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:433',
     'app/(onboarding)/index.tsx:266':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -2518,7 +2518,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:490',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:488',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
@@ -2746,6 +2746,20 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
       'the dirty-guard roster no longer resolves to files on disk — have these screens been ' +
         'renamed? This section is vacuous until the paths match again.',
     ).toBeGreaterThanOrEqual(12);
+  });
+
+  it('both lists name files that exist', () => {
+    // A register entry whose file was renamed or deleted stops exempting anything and starts
+    // rotting in silence — and a roster entry that no longer resolves would be skipped by the
+    // assertion below rather than failing it.
+    const missing = [...DIRTY_GUARD_ROSTER, ...Object.keys(NO_DRAFT_TO_GUARD)].filter(
+      (suffix) => !FILES.some((f) => rel(f).endsWith(suffix)),
+    );
+    expect(
+      missing,
+      'a dirty-guard roster or NO_DRAFT_TO_GUARD entry names a file that is not on disk — ' +
+        'drop it, or fix the path (#636).',
+    ).toEqual([]);
   });
 
   it('every screen on the roster calls the guard', () => {

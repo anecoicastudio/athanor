@@ -76,8 +76,9 @@ export default function ReportScreen() {
   // #636. `isSuccess` matters here beyond the usual: on a person report the sheet stays up
   // after the write so «Blocca anche questa persona» remains tappable, and the note is by
   // then submitted rather than unsaved.
+  const [baseline] = useState(() => ({ category, note }));
   useDirtyGuard({
-    dirty: isDraftDirty({ category: null, note: '' }, { category, note }),
+    dirty: isDraftDirty(baseline, { category, note }),
     saving: report.isPending,
     submitted: report.isSuccess,
   });

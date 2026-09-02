@@ -95,11 +95,9 @@ export default function ProjectComposeScreen() {
     },
   });
 
+  const [baseline] = useState(() => ({ title, category, description }));
   useDirtyGuard({
-    dirty: isDraftDirty(
-      { title: '', category: 'startup', description: '' },
-      { title, category, description },
-    ),
+    dirty: isDraftDirty(baseline, { title, category, description }),
     saving: mutation.isPending,
     submitted: mutation.isSuccess,
   });

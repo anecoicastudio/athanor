@@ -49,8 +49,9 @@ export default function StoryComposeScreen() {
   const { addSegment, isUploading } = useStoryUpload(uid);
   const { showToast } = useToast();
 
+  const [baseline] = useState(() => ({ media, caption, isStep }));
   useDirtyGuard({
-    dirty: isDraftDirty({ media: null, caption: '', isStep: false }, { media, caption, isStep }),
+    dirty: isDraftDirty(baseline, { media, caption, isStep }),
     saving: isUploading,
     submitted: published,
   });

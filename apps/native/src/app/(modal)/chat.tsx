@@ -204,11 +204,9 @@ export default function ChatScreen() {
 
   // #636. An unsent message and its staged image are the draft here; the conversation
   // itself is already persisted, so nothing else on this screen is at risk.
+  const [baseline] = useState(() => ({ draft, attachment: attachment?.mediaId ?? null }));
   useDirtyGuard({
-    dirty: isDraftDirty(
-      { draft: '', attachment: null },
-      { draft, attachment: attachment?.mediaId ?? null },
-    ),
+    dirty: isDraftDirty(baseline, { draft, attachment: attachment?.mediaId ?? null }),
     saving: send.isPending,
   });
 

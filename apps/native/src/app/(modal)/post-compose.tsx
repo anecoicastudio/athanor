@@ -236,11 +236,9 @@ export default function PostComposeScreen() {
 
   // #636: a swipe-down used to take the body and every staged medium with it. `isSuccess`
   // rides alongside `isPending` because `onSuccess` above pops the screen itself.
+  const [baseline] = useState(() => ({ body, category, isStep, items }));
   useDirtyGuard({
-    dirty: isDraftDirty(
-      { body: '', category: 'human', isStep: false, items: [] },
-      { body, category, isStep, items },
-    ),
+    dirty: isDraftDirty(baseline, { body, category, isStep, items }),
     saving: mutation.isPending,
     submitted: mutation.isSuccess,
   });

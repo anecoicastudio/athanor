@@ -137,8 +137,9 @@ export default function HelpScreen() {
 
   // #636. `picked` is a navigation step inside the screen, not typed work, but `type` and
   // `message` are: the offer a member composed for someone else is what a swipe used to drop.
+  const [baseline] = useState(() => ({ type, message }));
   useDirtyGuard({
-    dirty: isDraftDirty({ type: null, message: '' }, { type, message }),
+    dirty: isDraftDirty(baseline, { type, message }),
     saving: offer.isPending,
     submitted: offer.isSuccess,
   });
