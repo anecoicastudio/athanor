@@ -63,6 +63,11 @@ export default function ModalLayout() {
       <Stack.Screen name="delete-account" options={{ presentation: 'modal' }} />
       {/* M9 identity verify */}
       <Stack.Screen name="verify" options={{ presentation: 'modal' }} />
+      {/* Password recovery, choose half (#631). Full-screen push, not a sheet: the
+        AuthGuard force-presents it and re-presents it on dismiss, so a swipeable
+        sheet would only teach that swiping does nothing. The screen's own skip
+        ghost is the exit. */}
+      <Stack.Screen name="new-password" />
     </Stack>
   );
 }
