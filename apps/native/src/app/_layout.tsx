@@ -78,7 +78,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // dismissed sheet is simply re-presented, which is what makes the auth-callback
     // race (guard routes before that screen's .then runs) harmless.
     if (recoveryPending) {
-      if (segments[0] !== '(modal)' || segments[1] !== 'new-password') {
+      // `.at(1)`, not `[1]`: typed routes make `segments` a union of tuples, and the
+      // one-element members reject a literal index 1 (TS2493) while `.at` stays legal
+      // on every member and just returns undefined there.
+      if (segments[0] !== '(modal)' || segments.at(1) !== 'new-password') {
         router.replace('/(modal)/new-password');
       }
       return;
