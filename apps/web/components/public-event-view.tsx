@@ -93,13 +93,13 @@ export function PublicEventView({
         </p>
       ) : null}
 
+      {/* #634: the organizer's own description, or nothing — the old descFallback claimed the
+          same fabricated evening for every event. */}
       {isPast ? (
         <p className="text-sm text-muted-foreground">{t('event.past', locale)}</p>
-      ) : (
-        <p className="text-base leading-relaxed text-muted-foreground">
-          {t('event.descFallback', locale)}
-        </p>
-      )}
+      ) : event.description ? (
+        <p className="text-base leading-relaxed text-muted-foreground">{event.description}</p>
+      ) : null}
 
       <section className="flex flex-col gap-3 border-t border-border pt-8">
         <h2 className="font-display text-2xl text-foreground">

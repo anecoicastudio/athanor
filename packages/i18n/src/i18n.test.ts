@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { NOTIFICATION_TEMPLATE_KEYS } from '@athanor/schemas';
 import en from './catalogs/en.json';
 import it from './catalogs/it.json';
-import { t, tagLabel, type MessageKey } from './t';
+import { t, tagLabel, tn, type MessageKey } from './t';
 
 describe('catalog parity', () => {
   test('EN mirrors every IT key (IT is canonical)', () => {
@@ -73,6 +73,32 @@ describe('t', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+// #634: «1 eventi» / «1 persone». The pattern, decided once: grammatical number is a key
+// choice — a countable key declares a `.one` sibling in both catalogs, tn picks it at n === 1.
+describe('tn', () => {
+  test('picks the .one sibling at exactly n === 1', () => {
+    expect(tn('profile.stat.events', 1, 'it')).toBe('evento');
+    expect(tn('profile.stat.events', 1, 'en')).toBe('event');
+  });
+
+  test('keeps the base (plural) key at 0 and at 2', () => {
+    expect(tn('profile.stat.events', 0, 'it')).toBe('eventi');
+    expect(tn('profile.stat.events', 2, 'it')).toBe('eventi');
+  });
+
+  test('falls back to the base key when no .one sibling exists', () => {
+    // comment.count has no singular variant yet — adopting the pattern is per-key.
+    expect(tn('comment.count', 1, 'it')).toBe(it['comment.count'].replace('{n}', '1'));
+  });
+
+  test('always exposes {n}, and merges extra vars over it', () => {
+    expect(tn('story.own.stat', 3, 'it')).toBe(it['story.own.stat'].replace('{n}', '3'));
+    expect(tn('story.own.stat', 1, 'it')).toBe(it['story.own.stat.one']);
+    // vars win over the injected n only if the caller passes n explicitly
+    expect(tn('comment.count', 2, 'it', { n: 5 })).toBe(it['comment.count'].replace('{n}', '5'));
   });
 });
 
@@ -375,7 +401,7 @@ describe('translation completeness', () => {
     'feed.filter.human',
     'fund.countdown.minutes',
     'fund.countdown.seconds',
-    'home.today.seeLive',
+    'home.upcoming.seeLive',
     'lang.en',
     'lang.it',
     'landing.aura.eyebrow',

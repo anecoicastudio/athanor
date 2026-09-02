@@ -48,7 +48,7 @@ export async function getPublicEventById(
   const { data: event, error: eErr } = await client
     .from('events')
     .select(
-      'id, title, category, is_online, venue, city, starts_at, ends_at, price_cents, currency, is_athanor_day, organizer_id',
+      'id, title, category, is_online, venue, city, description, starts_at, ends_at, price_cents, currency, is_athanor_day, organizer_id',
     )
     .eq('id', id)
     // RLS already hides deleted rows from anon; repeated here so the query is correct

@@ -17,6 +17,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
+import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { toStatus } from '@/lib/media/permission-status';
 import { supabase } from '@/lib/supabase';
@@ -39,8 +40,10 @@ export default function EventCreateScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const locale = useLocale();
+  const { profile } = useAuth();
 
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [category, setCategory] = useState<EventCategory>('networking');
   const [isOnline, setIsOnline] = useState(false);
   const [venue, setVenue] = useState('');
@@ -108,6 +111,9 @@ export default function EventCreateScreen() {
         // Trimmed: the calendar filter matches `city` whole, so a stored «Milano » would
         // never match a member filtering for «Milano» (#151).
         city: isOnline ? null : city.trim() || null,
+        // The schema trims and turns blank into null — a null renders as NOTHING on the
+        // detail, which is the whole point of #634: no more fabricated fallback paragraph.
+        description,
         lat: isOnline ? null : (coords?.lat ?? null),
         long: isOnline ? null : (coords?.lng ?? null),
         stream_url: isOnline ? streamUrl || null : null,
@@ -133,15 +139,15 @@ export default function EventCreateScreen() {
 
   const onSubmit = () => {
     setError(null);
-    // Paid events require verified identity (PRD §4.13) — gated to M9; block here.
-    if (paid) {
+    // Paid events require verified identity (PRD §4.13). The gate used to block EVERY paid
+    // event «pending M9» — but verification has shipped (#416 closed), so a verified organizer
+    // was being refused with copy promising verification «presto» (#634 item 4). The client
+    // check mirrors create_event's own is_identity_verified refusal; the server one is the
+    // load-bearing gate.
+    if (paid && !profile?.identity_verified) {
       setError(t('event.create.verifyGate', locale));
       return;
     }
-    // Unreachable while the gate above returns for every paid event, and deliberately written
-    // anyway: it is correct the moment #416/M9 lifts that gate, and it is not what makes the
-    // disclosure real in the meantime — create_event refuses a paid event with no acknowledgement
-    // regardless of what this file says (#437).
     if (paid && !settlementAck) {
       setError(t('event.create.settlement.required', locale));
       return;
@@ -165,6 +171,21 @@ export default function EventCreateScreen() {
               value={title}
               onChangeText={setTitle}
               maxLength={140}
+            />
+          </View>
+
+          {/* #634: the detail used to render one fabricated sentence for every event under the
+              organizer's name. These are the organizer's own words instead; optional, because
+              an absent paragraph asserts nothing. */}
+          <View className="gap-2">
+            {label('event.create.desc')}
+            <Input
+              placeholder={t('event.create.descPlaceholder', locale)}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              maxLength={2000}
+              className="min-h-[120px]"
             />
           </View>
 
@@ -359,9 +380,14 @@ export default function EventCreateScreen() {
                     {t('event.create.settlement.manual', locale)}
                   </Text>
                 </View>
-                <Text className="text-[12px] text-aura">
-                  {t('event.create.verifySoon', locale)}
-                </Text>
+                {/* #634: «la verifica arriva presto» was a falsehood once #416 shipped it. An
+                    unverified organizer is told the actual requirement before submit; a
+                    verified one is told nothing. */}
+                {!profile?.identity_verified ? (
+                  <Text className="text-[12px] leading-4 text-muted-foreground">
+                    {t('event.create.verifyGate', locale)}
+                  </Text>
+                ) : null}
               </View>
             ) : null}
           </View>

@@ -12,6 +12,7 @@ const eventRow = {
   is_online: false,
   venue: 'Casa delle Idee',
   city: 'Milano',
+  description: null,
   starts_at: '2026-09-01T18:00:00.000Z',
   ends_at: '2026-09-01T21:00:00.000Z',
   price_cents: 1500,

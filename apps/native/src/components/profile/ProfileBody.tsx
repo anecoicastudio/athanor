@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { pickNextStar } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { t, tn } from '@athanor/i18n';
 import type { Locale, Star, StarKey } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { MomentiGallery } from '@/components/media/MomentiGallery';
@@ -48,15 +48,19 @@ export function ProfileBody({
       <ProfileHero {...hero} />
       {afterHero}
 
-      {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3 */}
+      {/* Stat line: collabs / events live (P3.1); reviews stays 0 until Fase 3.
+          tn: «1 eventi» is a grammar bug — each label declares a `.one` sibling (#634). */}
       <StatLine
         items={[
           {
             value: String(statCounts?.collabsCount ?? 0),
-            label: t('profile.stat.collabs', locale),
+            label: tn('profile.stat.collabs', statCounts?.collabsCount ?? 0, locale),
           },
-          { value: String(statCounts?.eventsCount ?? 0), label: t('profile.stat.events', locale) },
-          { value: '0', label: t('profile.stat.reviews', locale) },
+          {
+            value: String(statCounts?.eventsCount ?? 0),
+            label: tn('profile.stat.events', statCounts?.eventsCount ?? 0, locale),
+          },
+          { value: '0', label: tn('profile.stat.reviews', 0, locale) },
         ]}
       />
       {afterStats}

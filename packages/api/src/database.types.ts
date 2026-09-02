@@ -1014,6 +1014,7 @@ export type Database = {
           created_at: string
           currency: string
           deleted_at: string | null
+          description: string | null
           ends_at: string | null
           fee_pct: number
           geo: unknown
@@ -1039,6 +1040,7 @@ export type Database = {
           created_at?: string
           currency?: string
           deleted_at?: string | null
+          description?: string | null
           ends_at?: string | null
           fee_pct?: number
           geo?: unknown
@@ -1064,6 +1066,7 @@ export type Database = {
           created_at?: string
           currency?: string
           deleted_at?: string | null
+          description?: string | null
           ends_at?: string | null
           fee_pct?: number
           geo?: unknown
@@ -3268,6 +3271,7 @@ export type Database = {
           p_category: Database["public"]["Enums"]["event_category"]
           p_city?: string
           p_currency?: string
+          p_description?: string
           p_ends_at?: string
           p_is_online: boolean
           p_lat?: number

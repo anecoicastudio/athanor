@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Keyboard, PanResponder, StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { t } from '@athanor/i18n';
+import { t, tn } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
 import { Pressable, SafeAreaView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
@@ -302,9 +302,7 @@ export function StoriesViewer({
 
           {isOwn ? (
             <View className="gap-3">
-              <Text className="text-[13px] text-faint">
-                {t('story.own.stat', locale, { n: count })}
-              </Text>
+              <Text className="text-[13px] text-faint">{tn('story.own.stat', count, locale)}</Text>
               <View className="flex-row gap-3">
                 <Pressable
                   accessibilityRole="button"

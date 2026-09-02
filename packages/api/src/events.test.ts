@@ -112,6 +112,7 @@ function evt(over: Record<string, unknown> = {}) {
     is_online: false,
     venue: 'Cascina Cuccagna',
     city: 'Milano',
+    description: null,
     stream_url: null,
     starts_at: '2026-09-01T18:00:00Z',
     ends_at: null,
@@ -813,6 +814,7 @@ describe('createEvent', () => {
     is_online: false,
     venue: 'Cascina Cuccagna',
     city: 'Milano',
+    description: null,
     lat: 45.45,
     long: 9.2,
     stream_url: null,
@@ -1157,6 +1159,7 @@ describe('events — createEvent forwards only the fields that were set', () => 
     is_online: true,
     venue: null,
     city: null,
+    description: null,
     lat: null,
     long: null,
     stream_url: 'https://meet.example/abc',
@@ -1177,9 +1180,28 @@ describe('events — createEvent forwards only the fields that were set', () => 
     const args = fake.calls[0]!.values as Record<string, unknown>;
     expect(args).toMatchObject({ p_stream_url: 'https://meet.example/abc' });
     // Unset optionals must be absent, not sent as undefined: the RPC has its own defaults.
-    for (const k of ['p_venue', 'p_city', 'p_lat', 'p_long', 'p_ends_at', 'p_capacity']) {
+    for (const k of [
+      'p_venue',
+      'p_city',
+      'p_lat',
+      'p_long',
+      'p_ends_at',
+      'p_capacity',
+      'p_description',
+    ]) {
       expect(args).not.toHaveProperty(k);
     }
+  });
+
+  it('forwards a description when the organizer wrote one (#634)', async () => {
+    const fake = makeFakeClient({
+      'rpc.create_event': [{ data: E }],
+      'events.select': [{ data: evt() }],
+    });
+    await createEvent(asClient(fake), { ...base, description: 'Argilla, tornio e tramonto.' });
+    expect(fake.calls[0]!.values).toMatchObject({
+      p_description: 'Argilla, tornio e tramonto.',
+    });
   });
 
   it('a free event omits p_price_cents entirely', async () => {

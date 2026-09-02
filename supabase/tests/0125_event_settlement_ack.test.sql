@@ -48,11 +48,11 @@ select ok(
 -- ACL. If the migration forgot to re-issue the pair, EXECUTE falls back to the pg_default_acl 'f'
 -- row and lands on PUBLIC + anon. 0121 catches it catalog-wide; this is the local statement.
 select ok(
-  not has_function_privilege('anon', 'public.create_event(text, public.event_category, boolean, timestamptz, text, text, double precision, double precision, text, timestamptz, integer, bigint, text, boolean)', 'EXECUTE'),
+  not has_function_privilege('anon', 'public.create_event(text, public.event_category, boolean, timestamptz, text, text, double precision, double precision, text, timestamptz, integer, bigint, text, boolean, text)', 'EXECUTE'),
   'anon cannot execute create_event'
 );
 select ok(
-  has_function_privilege('authenticated', 'public.create_event(text, public.event_category, boolean, timestamptz, text, text, double precision, double precision, text, timestamptz, integer, bigint, text, boolean)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.create_event(text, public.event_category, boolean, timestamptz, text, text, double precision, double precision, text, timestamptz, integer, bigint, text, boolean, text)', 'EXECUTE'),
   'authenticated executes create_event'
 );
 -- And exactly one create_event: an overload pair is what CREATE OR REPLACE would have produced,
@@ -61,7 +61,7 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'create_event'),
   1,
-  'create_event has exactly one signature — the 13-arg overload was dropped, not shadowed'
+  'create_event has exactly one signature — each widening drops its predecessor, never shadows it'
 );
 
 set local role authenticated;

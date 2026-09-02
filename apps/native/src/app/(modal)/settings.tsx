@@ -32,8 +32,9 @@ import { useAuraScore } from '@/hooks/use-aura-score';
  * Settings (PRD §4, M1 §3.4) — account hub. M1 ships full chrome; most rows
  * navigate to later-milestone screens, stubbed here as calm toasts. Functional
  * in M1: Lingua (persists profiles.locale), Esci (sign-out), version footer.
- * Aura value is read-only (rule #1); identity_verified not shipped yet → the
- * account subtitle is always the unverified variant.
+ * Aura value is read-only (rule #1). The account subtitle swaps on
+ * profiles.identity_verified (#634) — the flag is real since Stripe Identity's
+ * webhook shipped, and verify.tsx refreshes the context profile on the flip.
  */
 export default function SettingsScreen() {
   const router = useRouter();
@@ -117,7 +118,13 @@ export default function SettingsScreen() {
               {memberLabel(profile?.display_name, profile?.handle) ?? '—'}
             </Text>
             <Text className="text-[13px] text-faint">
-              {t('settings.account.subUnverified', locale, { email })}
+              {t(
+                profile?.identity_verified
+                  ? 'settings.account.sub'
+                  : 'settings.account.subUnverified',
+                locale,
+                { email },
+              )}
             </Text>
           </View>
         </View>

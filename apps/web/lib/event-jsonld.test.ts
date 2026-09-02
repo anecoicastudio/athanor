@@ -9,6 +9,7 @@ const event: PublicEvent = {
   is_online: false,
   venue: 'Casa delle Idee',
   city: 'Milano',
+  description: null,
   starts_at: '2026-09-01T16:00:00.000Z',
   ends_at: '2026-09-01T19:00:00.000Z',
   price_cents: 1500,

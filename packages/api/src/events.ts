@@ -47,7 +47,7 @@ export const eventKeys = {
 
 /** Columns the client reads (everything except the geography `geo` column). */
 const EVENT_COLS =
-  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_athanor_day,cover_url,live_started_at,live_ended_at,settlement_ack_at,created_at,updated_at,deleted_at';
+  'id,organizer_id,title,category,is_online,venue,city,description,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_athanor_day,cover_url,live_started_at,live_ended_at,settlement_ack_at,created_at,updated_at,deleted_at';
 
 const PAGE_SIZE = 20;
 
@@ -285,6 +285,7 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
     p_price_cents?: number;
     p_currency?: string;
     p_settlement_ack?: boolean;
+    p_description?: string;
   } = {
     p_title: v.title,
     p_category: v.category,
@@ -298,6 +299,7 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
   if (v.stream_url != null) rpcArgs.p_stream_url = v.stream_url;
   if (v.ends_at != null) rpcArgs.p_ends_at = v.ends_at;
   if (v.capacity != null) rpcArgs.p_capacity = v.capacity;
+  if (v.description != null) rpcArgs.p_description = v.description;
   if (v.price_cents !== 0) rpcArgs.p_price_cents = v.price_cents;
   if (v.currency !== 'eur') rpcArgs.p_currency = v.currency;
   // Sent only for a paid event that carries it, matching the RPC's `default false` and its own

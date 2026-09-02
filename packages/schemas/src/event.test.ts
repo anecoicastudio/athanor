@@ -23,6 +23,7 @@ const baseRow = {
   is_online: false,
   venue: 'Spazio X',
   city: 'Berlino',
+  description: null,
   stream_url: null,
   starts_at: '2026-07-14T17:00:00.000Z',
   ends_at: null,
@@ -46,6 +47,13 @@ describe('eventSchema (read)', () => {
   });
   it('rejects an unknown category', () => {
     expect(() => eventSchema.parse({ ...baseRow, category: 'sport' })).toThrow();
+  });
+  it('reads a description up to 2000 characters, and null (#634)', () => {
+    expect(eventSchema.parse(baseRow).description).toBeNull();
+    expect(
+      eventSchema.parse({ ...baseRow, description: 'a'.repeat(2000) }).description,
+    ).toHaveLength(2000);
+    expect(() => eventSchema.parse({ ...baseRow, description: 'a'.repeat(2001) })).toThrow();
   });
   // baseRow prices the event at 0, which satisfies a floor and a ceiling alike — so the bound
   // could have been inverted and every test here would still pass. A paid event is the case.
@@ -93,6 +101,7 @@ describe('eventCreateSchema', () => {
     is_online: false,
     venue: 'Spazio Y',
     city: 'Berlino',
+    description: null,
     lat: 52.5,
     long: 13.4,
     stream_url: null,
@@ -105,6 +114,24 @@ describe('eventCreateSchema', () => {
 
   it('accepts a valid physical event', () => {
     expect(eventCreateSchema.parse(physical).city).toBe('Berlino');
+  });
+  // #634: null renders as NOTHING on both detail surfaces, '' as an empty paragraph — so a
+  // blank or whitespace-only description must land as null, and 2000 is the DB CHECK's bound
+  // (events_description_len): the schema must refuse at exactly the length the server would.
+  it('trims the description and turns a blank one into null', () => {
+    expect(
+      eventCreateSchema.parse({ ...physical, description: '  Una sera vera.  ' }).description,
+    ).toBe('Una sera vera.');
+    expect(eventCreateSchema.parse({ ...physical, description: '   ' }).description).toBeNull();
+    expect(eventCreateSchema.parse({ ...physical, description: '' }).description).toBeNull();
+  });
+  it('defaults an omitted description to null and caps it at 2000 characters', () => {
+    const { description: _d, ...rest } = physical;
+    expect(eventCreateSchema.parse(rest).description).toBeNull();
+    expect(
+      eventCreateSchema.parse({ ...physical, description: 'a'.repeat(2000) }).description,
+    ).toHaveLength(2000);
+    expect(() => eventCreateSchema.parse({ ...physical, description: 'a'.repeat(2001) })).toThrow();
   });
   it('applies defaults for omitted optional fields', () => {
     const parsed = eventCreateSchema.parse({

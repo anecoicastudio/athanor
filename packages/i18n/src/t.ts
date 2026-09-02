@@ -34,6 +34,26 @@ export function t(key: MessageKey, locale: Locale, vars?: Record<string, string 
 }
 
 /**
+ * Count-aware translate (#634). The catalogs carry no plural machinery, so grammatical
+ * number is a KEY choice, decided once as this pattern: a countable key that can render
+ * with n === 1 declares a sibling `<key>.one` in BOTH catalogs (the base key stays the
+ * plural), and `tn` picks the sibling at n === 1. A key without a `.one` sibling falls
+ * back to its base string, so adoption is per-key — «1 eventi» is a bug you fix by
+ * adding the sibling, never by branching at the call site. `{n}` is always available
+ * to the string without the caller repeating it in `vars`.
+ */
+export function tn(
+  key: MessageKey,
+  n: number,
+  locale: Locale,
+  vars?: Record<string, string | number>,
+): string {
+  const singular = `${key}.one`;
+  const chosen = n === 1 && singular in catalogs[locale] ? (singular as MessageKey) : key;
+  return t(chosen, locale, { n, ...vars });
+}
+
+/**
  * Label for a curated tag key (`tag.identity.*` / `tag.seeking.*` / `tag.skill.*`).
  *
  * Separate from `t` because the key is DATA here, not a literal: the Momenti deck receives
