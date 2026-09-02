@@ -102,7 +102,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Signed in but the profile read broke. The routing effect above returns on a
   // null profile, so without this the user is stranded on the auth screen with
   // no error and no retry.
-  if (session && profileError && !profile) {
+  // `!recoveryPending`: a recovery session needs no profile to set its password, so a
+  // failed hydrate must not swap the new-password sheet for the profile-error screen —
+  // the same reason the routing effect checks the latch before its profile gate (#631).
+  if (session && profileError && !profile && !recoveryPending) {
     return (
       <ProfileErrorScreen onRetry={() => void refreshProfile()} onSignOut={() => void signOut()} />
     );

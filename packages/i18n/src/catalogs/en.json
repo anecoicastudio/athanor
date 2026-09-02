@@ -262,7 +262,7 @@
   "auth.forgot.sending": "Your gate is on its way…",
   "auth.forgot.sent.eyebrow": "Check your inbox",
   "auth.forgot.sent.title": "The gate is on its way",
-  "auth.forgot.sent.body": "If {email} is one of us, it will receive the link to come in. Open it and choose your new password.",
+  "auth.forgot.sent.body": "If {email} has an account here, the link is on its way. Open it and choose your new password.",
   "auth.forgot.sent.hint": "Open it on this phone: the gate only works here, where you asked for it.",
   "auth.forgot.sent.changeEmail": "Not your email? Go back",
   "auth.newPassword.eyebrow": "The gate is open",
