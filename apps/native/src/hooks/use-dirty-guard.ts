@@ -8,7 +8,7 @@ import { shouldGuardExit } from '@/lib/dirty-guard';
 
 /**
  * The one discard confirm, so every composer asks the same question in the same words —
- * DESIGN.md §8's «one block, one confirm, everywhere», applied to leaving a draft.
+ * DESIGN.md §8.13's «one block, one confirm, everywhere», applied to leaving a draft.
  */
 function askToDiscard(locale: Locale, onDiscard: () => void): void {
   Alert.alert(t('draft.discard.title', locale), t('draft.discard.body', locale), [
@@ -28,10 +28,12 @@ function askToDiscard(locale: Locale, onDiscard: () => void): void {
  * `usePreventRemove` populates that context. A `navigation.addListener('beforeRemove', …)`
  * leaves `preventNativeDismiss` false, so on iOS the sheet is dismissed NATIVELY and the JS
  * listener runs with the screen already gone — react-navigation's own docs say `preventDefault`
- * "may not work correctly" on native-stack for exactly this reason. Since every composer on the
- * roster is `presentation: 'modal'` (`src/app/(modal)/_layout.tsx`), the swipe-down IS the
- * gesture this guard exists to catch, so the listener form would have guarded nothing that
- * matters and looked correct doing it.
+ * "may not work correctly" on native-stack for exactly this reason. Most of the roster is
+ * `presentation: 'modal'` (`src/app/(modal)/_layout.tsx`), so the swipe-down IS the gesture
+ * this guard exists to catch and the listener form would have guarded nothing that matters
+ * while looking correct. `progress.tsx` is the exception — it declares no `<Stack.Screen>`, so
+ * it presents as a push card whose gesture is the iOS left-edge back-swipe, and
+ * `ProfileEditForm` is not a route at all (see `useDiscardConfirm` below).
  *
  * `@react-navigation/native` is a direct dependency for this reason: `expo-router@6` does not
  * re-export the hook (`build/exports.d.ts`), and the transitive copy under `node_modules/.pnpm`

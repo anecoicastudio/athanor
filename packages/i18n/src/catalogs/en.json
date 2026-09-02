@@ -1628,5 +1628,5 @@
   "draft.discard.body": "What you wrote here won't be saved.",
   "draft.discard.keep": "Keep writing",
   "draft.discard.leave": "Leave",
-  "profile.skills.max": "You can choose up to {count} skills."
+  "skills.max": "You can choose up to {count} skills."
 }

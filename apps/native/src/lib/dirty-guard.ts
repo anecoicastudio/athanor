@@ -34,6 +34,16 @@ export type DraftValue =
   | { readonly [key: string]: DraftValue };
 
 /**
+ * A nested draft object — anything that is not an array, a `Date` or a primitive. A guard
+ * rather than a cast, so the narrowing below is checked rather than asserted.
+ */
+function isRecord(value: DraftValue): value is { readonly [key: string]: DraftValue } {
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
+  );
+}
+
+/**
  * Nothing-was-typed, in every spelling a composer produces.
  *
  * `''`, `null`, `undefined` and `[]` all mean the same thing to a member, and they mix freely
@@ -45,16 +55,6 @@ export type DraftValue =
  * `false` and `0` are NOT empty — they are values a member chose (an event toggled to free, a
  * capacity typed as zero).
  */
-/**
- * A nested draft object — anything that is not an array, a `Date` or a primitive. A guard
- * rather than a cast, so the narrowing below is checked rather than asserted.
- */
-function isRecord(value: DraftValue): value is { readonly [key: string]: DraftValue } {
-  return (
-    typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
-  );
-}
-
 function isEmpty(value: DraftValue): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim().length === 0;

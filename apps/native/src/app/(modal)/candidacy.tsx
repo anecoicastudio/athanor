@@ -259,7 +259,7 @@ function WizardForm({
       if (prev.skills.length >= MAX_SKILLS) {
         // The same silent refusal the profile editor had (#636). Fixing it in one place only
         // would have left the identical dead chip in the wizard.
-        showToast(t('profile.skills.max', locale, { count: String(MAX_SKILLS) }));
+        showToast(t('skills.max', locale, { count: String(MAX_SKILLS) }));
         return prev;
       }
       return { ...prev, skills: [...prev.skills, key] };

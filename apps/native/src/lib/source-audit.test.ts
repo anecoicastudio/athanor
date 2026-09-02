@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -2690,7 +2691,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
  * "Holds a draft" is a claim about meaning, not about syntax — `search-filters` binds text to
  * state too and loses nothing worth confirming. So the roster is written down, and the
  * discovery assertion below is what stops the list going stale: any `(modal)` screen that binds
- * a `Field`/`TextInput` to state and appears in neither the roster nor the register fails,
+ * a `Field`, `Input` or `TextInput` to state and appears in neither the roster nor the register
+ * fails,
  * which turns a new composer into a decision someone has to make rather than an omission.
  *
  * ## What it cannot see
@@ -2698,10 +2700,18 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
  * That the `dirty` argument is CORRECT — a screen passing `dirty={false}` satisfies every
  * assertion here and guards nothing. The comparison itself is unit-tested
  * (`src/lib/dirty-guard.test.ts`); this pins the wiring.
+ *
+ * The other thing a grep cannot see is DUPLICATION. `usePreventRemoveContext` is a React
+ * context object, so the hook and the navigator must resolve the same physical copy of
+ * `@react-navigation/native`; under two copies the hook fills a context the navigator never
+ * reads and every guard below goes dead with this section still green. The last assertion
+ * pins that, because the declared `^7.1.8` makes the dedup incidental rather than guaranteed.
  */
 const DIRTY_GUARD_ROSTER = [
   'app/(modal)/dream-editor.tsx',
   'app/(modal)/post-compose.tsx',
+  // The comment composer at the foot of a post — an `Input`, not a `Field`.
+  'app/(modal)/post/[id].tsx',
   'app/(modal)/story-compose.tsx',
   'app/(modal)/project-compose.tsx',
   'app/(modal)/milestone.tsx',
@@ -2723,6 +2733,7 @@ const DIRTY_GUARD_ROSTER = [
  */
 const NO_DRAFT_TO_GUARD: Record<string, string> = {
   'app/(modal)/search.tsx': 'a query, re-typed in a second; the screen IS the search',
+  'app/(modal)/connections.tsx': 'a filter field over a list, not authored content',
   'app/(modal)/search-filters.tsx': 'filter choices, not authored content',
   'app/(modal)/event-filters.tsx': 'filter choices, not authored content',
   'app/(modal)/new-message.tsx': 'a recipient picker; the message itself is composed in chat',
@@ -2776,10 +2787,17 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
   });
 
   it('a new (modal) composer is a decision, not an omission', () => {
-    const bound = /<(?:Field|TextInput)\b[^>]*\bvalue=\{/;
+    // `Input` as well as `Field`/`TextInput` — the tree has three text wrappers, and a scan
+    // that knew only two left `post/[id].tsx`'s comment composer unguarded AND unregistered
+    // while this section read green (caught in review of #636).
+    const bound = /<(?:Field|Input|TextInput)\b[^>]*\bvalue=\{/;
     const undeclared = FILES.filter((p) => !isTest(p) && p.includes('/app/(modal)/')).flatMap(
       (p) => {
-        const key = rel(p).replace('apps/native/', '');
+        // `rel()` yields `apps/native/src/app/(modal)/x.tsx`; both lists are keyed from
+        // `app/` down, so the prefix to strip includes `src/`. Stripping only `apps/native/`
+        // left every register lookup missing its key — latent until the scan widened to
+        // `Input` and started matching files that are on the lists.
+        const key = rel(p).replace('apps/native/src/', '');
         if (DIRTY_GUARD_ROSTER.includes(key) || key in NO_DRAFT_TO_GUARD) return [];
         const code = stripComments(read(p));
         if (!bound.test(code) || GUARD_CALL.test(code)) return [];
@@ -2792,6 +2810,30 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
         'Either give it `useDirtyGuard` or add it to NO_DRAFT_TO_GUARD with the reason it ' +
         'loses nothing worth confirming (#636).',
     ).toEqual([]);
+  });
+
+  it('the hook and the navigator share one @react-navigation/native', () => {
+    // `usePreventRemoveContext` is a React context OBJECT. Two physical copies of the package
+    // means `usePreventRemove` populates a context `native-stack` never reads: no
+    // `preventNativeDismiss`, no interception, every guard above dead — and every other
+    // assertion in this section still green, because they only grep for the call.
+    // Resolved along the path the APP actually takes — apps/native -> expo-router ->
+    // native-stack -> native. Resolving native-stack from apps/native instead would walk
+    // pnpm's hidden hoist directory and can land on an orphaned peer variant left behind by
+    // an earlier install, which says nothing about what Metro bundles.
+    const req = createRequire(`${SRC}package.json`);
+    const fromApp = req.resolve('@react-navigation/native');
+    const stack = createRequire(req.resolve('expo-router')).resolve(
+      '@react-navigation/native-stack',
+    );
+    const fromStack = createRequire(stack).resolve('@react-navigation/native');
+    expect(
+      fromApp,
+      'apps/native and @react-navigation/native-stack resolve DIFFERENT copies of ' +
+        '@react-navigation/native, so the prevent-remove context the hook fills is not the ' +
+        'one the navigator reads. Dedupe them (the declared range is a caret, so this is not ' +
+        'guaranteed by the manifest) (#636).',
+    ).toBe(fromStack);
   });
 
   it('the primitive still branches, so the roster cannot go vacuous', () => {

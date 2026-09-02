@@ -177,7 +177,7 @@ export function ProfileEditForm({
       if (prev.length >= MAX_SKILLS) {
         // #636: the 11th tap used to return `prev` and say nothing, which reads as a broken
         // chip. The «Fino a 10.» hint below discloses the rule; this answers the tap.
-        showToast(t('profile.skills.max', locale, { count: String(MAX_SKILLS) }));
+        showToast(t('skills.max', locale, { count: String(MAX_SKILLS) }));
         return prev;
       }
       return [...prev, key];
