@@ -249,7 +249,7 @@ export default function ProgressScreen() {
           }}
           accessibilityRole="button"
           disabled={busy}
-          className="min-h-[44px] justify-center"
+          className="min-h-[44px] min-w-[44px] items-center justify-center"
         >
           <Text className="text-[12px] text-muted-foreground">
             {t('fund.progress.edit', locale)}
@@ -259,7 +259,7 @@ export default function ProgressScreen() {
           onPress={() => onWithdraw(update.id)}
           accessibilityRole="button"
           disabled={busy}
-          className="min-h-[44px] justify-center"
+          className="min-h-[44px] min-w-[44px] items-center justify-center"
         >
           <Text className="text-[12px] text-muted-foreground">
             {t('fund.progress.withdraw', locale)}
@@ -364,7 +364,7 @@ export default function ProgressScreen() {
                           }
                           accessibilityRole="button"
                           disabled={busy || editingBody.trim().length === 0}
-                          className="min-h-[44px] justify-center"
+                          className="min-h-[44px] min-w-[44px] items-center justify-center"
                         >
                           <Text className="text-[12px] text-aura">
                             {t('fund.progress.edit.save', locale)}
@@ -374,7 +374,7 @@ export default function ProgressScreen() {
                           onPress={() => setEditingId(null)}
                           accessibilityRole="button"
                           disabled={busy}
-                          className="min-h-[44px] justify-center"
+                          className="min-h-[44px] min-w-[44px] items-center justify-center"
                         >
                           <Text className="text-[12px] text-muted-foreground">
                             {t('fund.progress.edit.cancel', locale)}

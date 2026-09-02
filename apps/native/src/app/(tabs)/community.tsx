@@ -14,7 +14,6 @@ import {
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
-import { HIT_SLOP } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 import { CategoryTabs } from '@/components/feed/CategoryTabs';
 import { EventsFeedList } from '@/components/feed/EventsFeedList';
@@ -135,8 +134,10 @@ export default function CommunityScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('community.compose.prompt', locale)}
-          hitSlop={HIT_SLOP}
           onPress={() => router.push(COMPOSE_HREF)}
+          // Bare glyph + HIT_SLOP was ~28pt wide — the same shape `(modal)/grid.tsx` and
+          // `ModalHeader` carried. `-mr-3` keeps the ✛ optically on the px-5 gutter.
+          className="-mr-3 h-[44px] w-[44px] items-center justify-center"
         >
           <Text className="text-2xl text-faint">+</Text>
         </Pressable>

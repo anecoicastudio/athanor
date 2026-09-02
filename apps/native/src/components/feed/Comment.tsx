@@ -33,7 +33,7 @@ export function Comment({
         carried no accessibilityRole, so VoiceOver announced it as plain text. */}
         {onReply ? (
           <Pressable
-            className="min-h-[44px] justify-center self-start"
+            className="min-h-[44px] min-w-[44px] items-center justify-center self-start"
             onPress={() => onReply(null)}
             accessibilityRole="button"
           >
@@ -42,7 +42,7 @@ export function Comment({
         ) : null}
         {onDelete ? (
           <Pressable
-            className="min-h-[44px] justify-center self-start"
+            className="min-h-[44px] min-w-[44px] items-center justify-center self-start"
             onPress={onDelete}
             accessibilityRole="button"
           >

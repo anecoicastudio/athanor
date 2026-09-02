@@ -53,7 +53,7 @@ export function PlanPhaseCard({
             onPress={onRemove}
             accessibilityRole="button"
             // 12px label, no padding, no slop — a ~15pt target that DELETES a phase (§10).
-            className="min-h-[44px] justify-center"
+            className="min-h-[44px] min-w-[44px] items-center justify-center"
           >
             <Text className="text-[12px] text-muted-foreground">
               {t('fund.plan.phase.remove', locale)}

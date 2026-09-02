@@ -2405,17 +2405,40 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * small. So the shape itself is the assertion, and a target that genuinely inherits its size
  * from a large child is named here rather than left to be inferred.
  *
- * Neither half can be checked by the expo-web walk (`/mobile-qa`): every fix below measures
+ * ## What this section deliberately does NOT pin
+ *
+ * There is a third shape in the same family — a small label or a bare glyph leaning on the
+ * shared `HIT_SLOP` — and it is NOT asserted here, so do not read a green §29 as «§10 is
+ * covered». `HIT_SLOP` is 11 each side and its docstring sizes it for a 22pt icon, which
+ * reaches exactly 44; it is CORRECT at that size and short only when the visual is smaller.
+ * Deciding that statically means knowing what the child renders to, and a scan for «a small
+ * `text-[Npx]` somewhere in the body» flags ~26 sites of which several are plainly fine
+ * (`StoryRing.tsx:65` wraps a 60pt avatar, `DreamCard.tsx:128` a whole row) — a guard whose
+ * allowlist would be longer than its findings is a pin on today's tree, not an invariant.
+ * §28 makes the same call in as many words for the rest of #635.
+ *
+ * The two instances #638's sweep did fix by hand — `home/TodaySection.tsx` and
+ * `(tabs)/costellazioni.tsx`, plus the `(tabs)/community.tsx` glyph — were found by reading,
+ * not by this file. The remaining sites need a per-site measurement on a device and are named
+ * in the PR rather than silently claimed.
+ *
+ * Neither half below can be checked by the expo-web walk (`/mobile-qa`): every fix measures
  * IDENTICALLY in the browser before and after, which is the whole reason the trap survived.
  */
 describe('a11y: a tap target clears 44pt on the device (#638)', () => {
-  /** A bare Pressable whose size legitimately comes from a large child. */
+  /**
+   * A bare Pressable whose size legitimately comes from a large child. Keyed by `file:line`,
+   * not by file: a file-wide key would silently exempt the NEXT bare Pressable added there,
+   * which is the one nobody looked at. The line moving is the point — it forces a re-read.
+   */
   const BARE_PRESSABLE_OK: Record<string, string> = {
-    'components/profile/DreamCard.tsx':
+    'components/profile/DreamCard.tsx:74':
       'wraps <DreamQuote>, a multi-line quote block that is far taller than the floor',
   };
 
-  const REM_44 = /\b(?:min-)?[hw]-11\b/;
+  // `size-*` is Tailwind v4's both-axes shorthand and would be the other way to spell the
+  // trap. Unused in this app today, banned anyway so it cannot arrive as the workaround.
+  const REM_44 = /\b(?:min-)?(?:[hw]|size)-11\b/;
 
   const pressables = (p: string) =>
     jsxOpeningTags(stripComments(read(p))).filter((t) => t.base === 'Pressable');
@@ -2450,9 +2473,7 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
         )
         .map(({ line }) => `${rel(p).replace('apps/native/src/', '')}:${line}`),
     );
-    const unexplained = bare.filter(
-      (hit) => BARE_PRESSABLE_OK[hit.slice(0, hit.lastIndexOf(':'))] === undefined,
-    );
+    const unexplained = bare.filter((hit) => BARE_PRESSABLE_OK[hit] === undefined);
     expect(
       unexplained,
       `a Pressable with no geometry of its own:\n` +

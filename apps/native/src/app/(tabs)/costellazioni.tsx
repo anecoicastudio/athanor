@@ -7,7 +7,6 @@ import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
-import { HIT_SLOP } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 import { ProjectCard } from '@/components/costellazioni/ProjectCard';
 import {
@@ -99,8 +98,9 @@ export default function CostellazioniScreen() {
               <Pressable
                 onPress={() => router.push(COMPOSE_HREF)}
                 accessibilityRole="button"
-                hitSlop={HIT_SLOP}
-                className="shrink-0"
+                // 13px label + HIT_SLOP reached ~38pt — HIT_SLOP is sized for a 22pt icon,
+                // not for bare small text. Same shape as `home/TodaySection.tsx`.
+                className="min-h-[44px] shrink-0 justify-center"
               >
                 <Text className="text-[13px] text-aura">{t('costellazioni.publish', locale)}</Text>
               </Pressable>
