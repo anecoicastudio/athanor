@@ -91,8 +91,8 @@ select is(
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  61,
-  'PRD.md:417 tripwire: 61 tables, each with its own pgTAP file (bump only WITH a new test)'
+  62,
+  'PRD.md:417 tripwire: 62 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────

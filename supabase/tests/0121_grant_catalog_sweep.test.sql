@@ -68,6 +68,9 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   ('momento_suggestions',         '',       ''),                            -- service-role only
   ('conversations',               '',       'SELECT'),                      -- created by get_or_create_conversation
   ('messages',                    '',       'SELECT,INSERT'),
+  -- #637: the read cursor behind the unread pip. No DELETE — a cursor is never withdrawn by
+  -- hand; erasure reaches it through the profile FK cascade.
+  ('conversation_reads',          '',       'SELECT,INSERT,UPDATE'),
   ('notifications',               '',       'SELECT'),                      -- + column UPDATE(read_at)
   ('notification_preferences',    '',       'SELECT,INSERT,UPDATE'),
   ('push_tokens',                 '',       'SELECT,INSERT,UPDATE,DELETE'),

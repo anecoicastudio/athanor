@@ -21,6 +21,14 @@ export const conversationPeerRow = z.object({
   participant_b: z.string().uuid(),
   last_message_at: z.string(),
   last_message_preview: z.string().nullable(),
+  // #637: who wrote the message that set last_message_at. Nullable for a conversation whose only
+  // rows are the ice-breakers (kind 'system'/'prompt' never bump), and for one whose last sender
+  // has since been erased — the FK is ON DELETE SET NULL.
+  last_message_sender_id: z.string().uuid().nullable(),
+  // The caller's OWN read cursor, embedded. It is an array because the FK is one-to-many, but RLS
+  // (`conversation_reads_select_own`) makes it hold at most the caller's row — the filtering is
+  // the policy's, not a query clause anyone can forget. `.nullish()` for the M6 nullish trap.
+  conversation_reads: z.array(z.object({ last_read_at: z.string() })).nullish(),
   a: peerEmbed.nullable(),
   b: peerEmbed.nullable(),
 });
@@ -33,5 +41,9 @@ export const conversationListItem = z.object({
   ...peerIdentityFields,
   lastMessageAt: z.string(),
   lastMessagePreview: z.string().nullable(),
+  // DERIVED, never stored (#637): the last message is newer than my cursor AND somebody else
+  // wrote it. Computed in the query rather than carried on a row, so a refetch is all it takes to
+  // settle — which is what lets the realtime subscription stay payload-free.
+  unread: z.boolean(),
 });
 export type ConversationListItem = z.infer<typeof conversationListItem>;

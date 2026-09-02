@@ -11,8 +11,10 @@ describe('conversationListItem', () => {
       peerAvatarPath: 'b/b.jpg',
       lastMessageAt: '2026-06-16T10:00:00Z',
       lastMessagePreview: 'Ciao!',
+      unread: true,
     });
     expect(item.peerHandle).toBe('bob');
+    expect(item.unread).toBe(true);
   });
 });
 
@@ -26,6 +28,8 @@ describe('conversationPeerRow', () => {
     participant_b: '33333333-3333-3333-3333-333333333333',
     last_message_at: '2026-06-16T10:00:00Z',
     last_message_preview: 'Ciao!',
+    last_message_sender_id: '33333333-3333-3333-3333-333333333333',
+    conversation_reads: [{ last_read_at: '2026-06-16T09:00:00Z' }],
     a: embed,
     b: null,
   };
@@ -41,6 +45,8 @@ describe('conversationPeerRow', () => {
       'participant_b',
       'last_message_at',
       'last_message_preview',
+      'last_message_sender_id',
+      'conversation_reads',
       'a',
       'b',
     ]);
@@ -51,6 +57,22 @@ describe('conversationPeerRow', () => {
         'avatar_path',
       ]);
     }
+  });
+
+  test('an absent read cursor is legal — the member has never opened the thread', () => {
+    // Both shapes PostgREST can hand back for "no cursor row": the empty embed array, and the
+    // null the M6 nullish trap warns about. Neither may fail the page parse, because "never
+    // opened" is the commonest state a conversation is in.
+    expect(conversationPeerRow.safeParse({ ...row, conversation_reads: [] }).success).toBe(true);
+    expect(conversationPeerRow.safeParse({ ...row, conversation_reads: null }).success).toBe(true);
+    const { conversation_reads: _omitted, ...without } = row;
+    expect(conversationPeerRow.safeParse(without).success).toBe(true);
+  });
+
+  test('an ice-breaker-only conversation has no last sender', () => {
+    expect(conversationPeerRow.safeParse({ ...row, last_message_sender_id: null }).success).toBe(
+      true,
+    );
   });
 
   test('rejects an embed missing its handle — a/b share one shape and cannot drift', () => {

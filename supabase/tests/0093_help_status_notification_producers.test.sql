@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(7);
+select plan(10);
 
 -- fixture: a = dream owner, b = helper (auto-created profiles via handle_new_user)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -33,6 +33,32 @@ select is(
   (select p.prosecdef from pg_proc p
      where p.proname = 'notify_milestone_help_completed' and p.pronamespace = 'athanor'::regnamespace),
   true, 'notify_milestone_help_completed is SECURITY DEFINER');
+
+-- (B2) #637: the two HELPER-directed producers carry a routable ref — the owner's profile id —
+-- while the OWNER-directed offer keeps the milestone_help ref it always had.
+--
+-- Asserted on prosrc rather than on a written row, and that is forced rather than lazy: the whole
+-- point of (D) below is that the fan-out is an unresolved no-op here, so no notification row ever
+-- lands to read an entity_ref off. The producers' own text is the only thing this file can see.
+-- (strpos, not LIKE: backslash is LIKE's escape character and these patterns are quote-dense.)
+select ok(
+  strpos((select prosrc from pg_proc
+           where proname = 'notify_milestone_help_accepted'
+             and pronamespace = 'athanor'::regnamespace), $x$'kind', 'profile'$x$) > 0,
+  'helpAccepted routes the helper to the dream OWNER''s profile, not to their own (#637)');
+select ok(
+  strpos((select prosrc from pg_proc
+           where proname = 'notify_milestone_help_completed'
+             and pronamespace = 'athanor'::regnamespace), $x$'kind', 'profile'$x$) > 0,
+  'helpConfirmed routes the helper to the dream OWNER''s profile, not to their own (#637)');
+-- The asymmetry is the interesting half: the OFFER notifies the owner, and (tabs)/profile — their
+-- own dream, its tappe and the offers they accept from — is already the right place. If someone
+-- later "makes the three consistent", this is the assertion that should stop them.
+select ok(
+  strpos((select prosrc from pg_proc
+           where proname = 'notify_milestone_help_offer'
+             and pronamespace = 'athanor'::regnamespace), $x$'kind', 'milestone_help'$x$) > 0,
+  'the owner-directed offer deliberately keeps the milestone_help ref');
 
 -- (C) no-op-clean through the real paths
 set local role authenticated;
