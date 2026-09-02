@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing } from 'react-native';
 import { Text } from '@/tw';
+import { t } from '@athanor/i18n';
+import { useLocale } from '@/hooks/use-locale';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { spoken } from '@/lib/star';
 
@@ -24,6 +26,10 @@ export function AuraValue({
   const anim = useRef(new Animated.Value(value)).current;
   const [display, setDisplay] = useState(value);
   const reduce = useReducedMotion();
+  // The announced sentence is user-facing copy, so it comes from the catalog like any other
+  // (rule 5). It used to be a `Aura ${value}` template — invisible to `i18n:check`, which reads
+  // rendered JSX, and to a reader, because nothing renders it (#635).
+  const locale = useLocale();
 
   useEffect(() => {
     const id = anim.addListener(({ value: v }) => setDisplay(Math.round(v)));
@@ -34,7 +40,7 @@ export function AuraValue({
     if (reduce) {
       anim.setValue(value);
       setDisplay(value);
-      AccessibilityInfo.announceForAccessibility(spoken(`Aura ${value}`));
+      AccessibilityInfo.announceForAccessibility(spoken(t('aura.a11y.value', locale, { value })));
     } else {
       Animated.timing(anim, {
         toValue: value,
@@ -42,10 +48,13 @@ export function AuraValue({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start(({ finished }) => {
-        if (finished) AccessibilityInfo.announceForAccessibility(spoken(`Aura ${value}`));
+        if (finished)
+          AccessibilityInfo.announceForAccessibility(
+            spoken(t('aura.a11y.value', locale, { value })),
+          );
       });
     }
-  }, [value, reduce, anim]);
+  }, [value, reduce, anim, locale]);
 
   return (
     <Text

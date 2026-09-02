@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { fundKeys, getFundAggregate } from '@athanor/api';
 import { formatFundTotal, timeRemaining } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { t, tn } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Card } from '@/components/Card';
@@ -89,9 +89,13 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('home.dream.a11y', locale, {
-        days,
+        // `tn`, not `t`: a countdown reaches 1 on the last day of every cycle by construction,
+        // and «mancano 1 giorni» is the bug `t.ts`'s plural pattern (#634) exists to prevent.
+        // Two countables and `tn` takes one `n`, so each clause is its own key rather than a
+        // branch at this call site — which is the half of that pattern that matters.
+        days: tn('home.dream.a11y.days', days, locale),
         total: fundTotal,
-        people: contributors,
+        people: tn('home.dream.a11y.people', contributors, locale),
       })}
       onPress={() => router.push('/annual')}
       className="gap-3 min-h-[56px]"
@@ -101,7 +105,9 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
         {/* Days remaining — big number */}
         <View className="flex-row items-baseline gap-2">
           <Text className="text-4xl font-bold text-aura">{days}</Text>
-          <Text className="text-sm text-muted-foreground">{t('fund.countdown.days', locale)}</Text>
+          <Text className="text-sm text-muted-foreground">
+            {tn('fund.countdown.days', days, locale)}
+          </Text>
         </View>
 
         {/* Fund total + contributor count */}

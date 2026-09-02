@@ -12,6 +12,11 @@ import { momentoReasonText } from '@/lib/momenti-reason';
  * plain `View` is not an accessibility element, so the label sat on a node VoiceOver never
  * focused: the row announced its two `Text` children separately and the «Motivo di affinità»
  * framing was announced by nothing at all.
+ *
+ * Load-bearing under `MomentoCard`, which wraps nothing accessible around it. NOT under
+ * `home/MomentiCard.tsx`, whose whole card is one atomic `Pressable` carrying a static label
+ * that replaces every descendant on iOS — the framing still reaches nobody there, and that is
+ * the deliberate one-node trade that card's own docblock argues for.
  */
 export function AffinityRow({ reason, locale }: { reason: MomentoReason; locale: Locale }) {
   const text = momentoReasonText(reason, locale);

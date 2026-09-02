@@ -2217,7 +2217,7 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
 });
 
 // ---------------------------------------------------------------------------------------
-// 27 — a toggle names itself, and a decorative mark is never spoken (#635)
+// 28 — a toggle names itself, and a decorative mark is never spoken (#635)
 // ---------------------------------------------------------------------------------------
 
 /**
@@ -2316,35 +2316,41 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
 
   it('finds the announcement call sites at all', () => {
     const callers = codeLines().filter(([, text]) => ANNOUNCE.test(text));
-    // Six today: the hook, the toast host, AuraValue twice, and two screens. A scanner that
-    // finds none would pass the invariant below without checking anything.
-    expect(callers.length, 'no announceForAccessibility call found — the walk is broken').toBe(6);
+    // A scanner that finds none would pass the invariant below without checking anything. A
+    // floor, not a pin: the count is free to grow, and this is here so growth is REVIEWED
+    // against the invariant rather than counted.
+    expect(
+      callers.length,
+      'no announceForAccessibility call found — the walk is broken',
+    ).toBeGreaterThanOrEqual(6);
   });
 
   it('every announcement is wrapped in spoken()', () => {
-    const raw = codeLines()
-      .filter(([, text]) => ANNOUNCE.test(text))
-      .filter(([, text]) => !/announceForAccessibility\(\s*spoken\(/.test(text))
-      // The call whose argument wraps to the next line — the wrapper is on the line below.
-      .filter(([, text]) => !/announceForAccessibility\($/.test(text.trim()));
+    /*
+      Prettier decides where the argument goes, so the invariant cannot be "on this line": a
+      call whose argument does not fit wraps, and an earlier version of this guard pinned the
+      NUMBER of wrapped calls — which then failed the moment an unrelated edit lengthened one.
+      The property is `spoken(` opening the argument, whether that lands on the call line or the
+      one below it. Nothing else may appear between them: `announceForAccessibility(` followed
+      by anything that is not `spoken(` is a hit.
+    */
+    const raw = CODE_LINES.flatMap(([p, ls]) =>
+      ls
+        .map((text, i) => [text, ls[i + 1] ?? '', i + 1] as const)
+        .filter(([text]) => ANNOUNCE.test(text))
+        .filter(([text, next]) =>
+          /announceForAccessibility\($/.test(text.trim())
+            ? !/^spoken\(/.test(next.trim())
+            : !/announceForAccessibility\(\s*spoken\(/.test(text),
+        )
+        .map(([text, , line]) => `${rel(p)}:${line}  ${text.trim().slice(0, 100)}`),
+    );
     expect(
-      raw.map(([where, text]) => `${where}  ${text.trim().slice(0, 110)}`),
+      raw,
       `an announcement that does not strip its ornament:\n` +
         `An imperative announcement has no element to mark decorative, so every ✦/✧ in the ` +
-        `string is SPOKEN. Wrap the argument in spoken() ` +
-        `(lib/star.ts), the way every other call site does (#635).`,
+        `string is SPOKEN. Wrap the argument in spoken() (lib/star.ts), the way every other ` +
+        `call site does (#635).`,
     ).toEqual([]);
-  });
-
-  it('the one multi-line call wraps on the line below', () => {
-    // The filter above forgives a call that breaks its argument onto the next line, so that
-    // forgiveness is what this pins: exactly one such call, and it does wrap.
-    const split = CODE_LINES.flatMap(([p, ls]) =>
-      ls
-        .map((text, i) => [p, text, ls[i + 1] ?? ''] as const)
-        .filter(([, text]) => /announceForAccessibility\($/.test(text.trim())),
-    );
-    expect(split).toHaveLength(1);
-    expect(split[0]?.[2]?.trim(), 'the wrapped argument is not spoken()').toMatch(/^spoken\(/);
   });
 });

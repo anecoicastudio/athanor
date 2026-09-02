@@ -379,6 +379,7 @@ describe('translation completeness', () => {
     'admin.target.post',
     'admin.waitlist.colEmail',
     'app.name',
+    'aura.a11y.value',
     'aura.unit',
     'auth.codePlaceholder',
     'auth.password.label',

@@ -100,7 +100,7 @@ describe('starsBlockMode — the rule #3 asymmetry', () => {
 describe('spoken() — the ornament never reaches an imperative announcement (#635)', () => {
   /**
    * `AccessibilityInfo.announceForAccessibility` speaks the string it is handed; there is no
-   * element to mark decorative, so a ✦ that is pure ornament in ~58 catalog values is read out
+   * element to mark decorative, so a ✦ that is pure ornament in dozens of catalog values is read
    * as a glyph name or silently dropped. Both are the sentence arriving wrong.
    */
   it('removes the spark and the gap it leaves', () => {
