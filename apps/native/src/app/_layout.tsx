@@ -41,7 +41,16 @@ WebBrowser.maybeCompleteAuthSession();
 // nothing until init runs.
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading, flushing, profileError, refreshProfile, signOut } = useAuth();
+  const {
+    session,
+    profile,
+    loading,
+    flushing,
+    profileError,
+    refreshProfile,
+    signOut,
+    recoveryPending,
+  } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -62,6 +71,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!inAuth && !inOnboarding) router.replace('/(onboarding)');
       return;
     }
+    // Recovery-link session (#631): park the member on the new-password sheet before
+    // any profile-based routing — the sheet needs no profile, and a slow hydrate must
+    // not hold it hostage. Checked before the profile gate for exactly that reason.
+    // The latch clears on save or skip (auth-context.clearRecovery); until then a
+    // dismissed sheet is simply re-presented, which is what makes the auth-callback
+    // race (guard routes before that screen's .then runs) harmless.
+    if (recoveryPending) {
+      // `.at(1)`, not `[1]`: typed routes make `segments` a union of tuples, and the
+      // one-element members reject a literal index 1 (TS2493) while `.at` stays legal
+      // on every member and just returns undefined there.
+      if (segments[0] !== '(modal)' || segments.at(1) !== 'new-password') {
+        router.replace('/(modal)/new-password');
+      }
+      return;
+    }
     if (!profile) return; // profile still hydrating
 
     if (isProfileComplete(profile)) {
@@ -73,7 +97,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // Authed but incomplete with no draft to flush (e.g. login on a new device).
       router.replace('/(onboarding)');
     }
-  }, [loading, flushing, session, profile, segments, router]);
+  }, [loading, flushing, session, profile, segments, router, recoveryPending]);
 
   if (loading) {
     return null;
@@ -81,7 +105,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Signed in but the profile read broke. The routing effect above returns on a
   // null profile, so without this the user is stranded on the auth screen with
   // no error and no retry.
-  if (session && profileError && !profile) {
+  // `!recoveryPending`: a recovery session needs no profile to set its password, so a
+  // failed hydrate must not swap the new-password sheet for the profile-error screen —
+  // the same reason the routing effect checks the latch before its profile gate (#631).
+  if (session && profileError && !profile && !recoveryPending) {
     return (
       <ProfileErrorScreen onRetry={() => void refreshProfile()} onSignOut={() => void signOut()} />
     );
