@@ -46,18 +46,22 @@ import {
   filterCandidates,
   resolveFilter,
 } from '@/lib/ballot-card';
-import { annualFundBody, fundCycleState } from '@/lib/fund-cycle';
+import { annualFundBody, ballotVoteState, fundCycleState } from '@/lib/fund-cycle';
 import { castVoteError } from '@/lib/vote-error';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 import { useLocale } from '@/hooks/use-locale';
+import { useToast } from '@/components/ToastHost';
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
   const router = useRouter();
   const locale = useLocale();
+  const { showToast } = useToast();
+  // True only for the move branch's confirmed re-vote; read once in onSuccess.
+  const movedRef = useRef(false);
   // ── Edition query ────────────────────────────────────────────────────────────
   const editionQuery = useActiveEdition();
 
@@ -161,6 +165,9 @@ export default function AnnualFundScreen() {
       return { previous };
     },
     onError: (err, _candidacyId, context) => {
+      // A failed move must not leave the flag armed, or the NEXT successful vote would
+      // toast «Voto spostato ✦» about a move that never happened.
+      movedRef.current = false;
       qc.setQueryData(voteKeys.mine(editionId), context?.previous ?? null);
       // #382: the rollback used to be the WHOLE error path, so a server refusal was
       // indistinguishable from a tap that never landed — the card flipped back and said
@@ -171,6 +178,14 @@ export default function AnnualFundScreen() {
       // 'voting closed' means the cached edition is wrong (the window moved, or was never
       // published). Re-read it so the ballot flips to its real state instead of arguing.
       if (editionStale) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
+    },
+    onSuccess: (_data, candidacyId) => {
+      // #633: fund.vote.toast / fund.vote.moved sat in both catalogs with zero render
+      // sites — a cast vote produced no confirmation at all. `movedRef` is set in onVote's
+      // move branch; optimistic state has already flipped by the time this runs.
+      showToast(t(movedRef.current ? 'fund.vote.moved' : 'fund.vote.toast', locale), 'moment');
+      movedRef.current = false;
+      void candidacyId;
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: voteKeys.mine(editionId) });
@@ -186,15 +201,32 @@ export default function AnnualFundScreen() {
     (card: CandidateCardModel) => {
       const move = !!myVote && myVote.candidacy_id !== card.candidacy_id;
       if (move) {
+        // Title is the rule; the BUTTON carries the move («Sposta il voto») — «Vota» here
+        // would read as a second vote, and a «Vuoi spostarlo?» title would be a falsehood
+        // on the first-vote branch that shares the key.
         Alert.alert(t('fund.vote.oneOnly', locale), undefined, [
+          { text: t('common.cancel', locale), style: 'cancel' },
+          {
+            text: t('fund.vote.move', locale),
+            onPress: () => {
+              movedRef.current = true;
+              voteMutation.mutate(card.candidacy_id);
+            },
+          },
+        ]);
+      } else {
+        // #633: the FIRST vote used to be the unguarded one — «Un voto per edizione» was
+        // disclosed only on the move branch, i.e. at the moment the rule was already being
+        // violated, while plan-publish and progress-withdraw both confirm. Title carries
+        // the one-vote rule, body the equal-weight rule (FUND-SPEC D6/D11); the ballot
+        // list itself has no per-card slot for either sentence.
+        Alert.alert(t('fund.vote.oneOnly', locale), t('fund.vote.equal', locale), [
           { text: t('common.cancel', locale), style: 'cancel' },
           {
             text: t('fund.vote.cta', locale),
             onPress: () => voteMutation.mutate(card.candidacy_id),
           },
         ]);
-      } else {
-        voteMutation.mutate(card.candidacy_id);
       }
     },
     [myVote, locale, voteMutation],
@@ -278,13 +310,18 @@ export default function AnnualFundScreen() {
    * `nowMs` is pinned per render pass (above), so a window that closes while the screen sits
    * open is not caught here — that residual race is what the mutation's error copy is for.
    */
-  const voteStateFor = (card: CandidateCardModel): VoteState => {
-    if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
-    if (edition && !isBallotOpen(edition, nowMs)) return 'votingClosed';
-    if (pendingCandidacyId === card.candidacy_id) return 'voting';
-    if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
-    return 'notVoted';
-  };
+  const voteStateFor = (card: CandidateCardModel): VoteState =>
+    // #633: a held vote makes every OTHER card's action a move, and the pill says so
+    // («Sposta il voto») instead of offering a second «Vota» the server would refuse.
+    // The ordering itself lives in `ballotVoteState` (lib/fund-cycle.ts), where it is
+    // test-covered beside its detail twin.
+    ballotVoteState({
+      isWinner: edition?.winner_candidacy_id === card.candidacy_id,
+      ballotOpen: edition ? isBallotOpen(edition, nowMs) : null,
+      pending: pendingCandidacyId === card.candidacy_id,
+      votedThis: myVote?.candidacy_id === card.candidacy_id,
+      votedElsewhere: !!myVote && myVote.candidacy_id !== card.candidacy_id,
+    });
 
   // ── Contribution amount (payment itself lives behind the disclosure, #235) ──
   // Defaults to the floor: the smallest chip is the one selected on open.

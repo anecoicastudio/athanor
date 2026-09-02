@@ -30,7 +30,24 @@ export default function MomentiScreen() {
   const qc = useQueryClient();
   const deckRef = useRef<SwipeDeckHandle | null>(null);
   // The accept toast carries the candidate handle so it reads «Momento inviato ✦ … {name}».
-  const [acceptToast, setAcceptToast] = useState<string | null>(null);
+  // One transient pill for both swipe outcomes (#633): accept carries the reciprocity
+  // model, pass finally says what happened at all — «Momento passato» existed in both
+  // catalogs since the deck shipped and was rendered nowhere, so a member who spent one
+  // of three daily proposals got absolute silence. The timer lives in a ref so unmount
+  // clears it (it used to leak).
+  const [deckToast, setDeckToast] = useState<string | null>(null);
+  const deckToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashDeckToast = (msg: string) => {
+    setDeckToast(msg);
+    if (deckToastTimer.current) clearTimeout(deckToastTimer.current);
+    deckToastTimer.current = setTimeout(() => setDeckToast(null), 1900);
+  };
+  useEffect(
+    () => () => {
+      if (deckToastTimer.current) clearTimeout(deckToastTimer.current);
+    },
+    [],
+  );
   const [done, setDone] = useState(false);
 
   const deck = useMomentiDeck();
@@ -82,8 +99,7 @@ export default function MomentiScreen() {
           },
         });
       } else {
-        setAcceptToast(card.handle ?? '');
-        setTimeout(() => setAcceptToast(null), 1900);
+        flashDeckToast(t('momenti.toast.sentAccept', locale, { name: card.handle ?? '' }));
       }
       void invalidateMomenti();
     },
@@ -91,7 +107,12 @@ export default function MomentiScreen() {
 
   const pass = useMutation({
     mutationFn: (card: MomentoDeckCard) => passMoment(supabase, card.id),
-    onSuccess: () => void invalidateMomenti(),
+    onSuccess: () => {
+      // The silent branch (#633): a pass spends one of three daily proposals and parks a
+      // person for 90 days — it deserves at least the sentence someone already wrote.
+      flashDeckToast(t('momenti.toast.passed', locale));
+      void invalidateMomenti();
+    },
   });
 
   // Every claim this screen makes about the deck comes from one derivation, tested in
@@ -172,6 +193,22 @@ export default function MomentiScreen() {
           </View>
         ) : null}
 
+        {/* #633: the consequences, BEFORE the gesture. The deck's pattern promises
+            cheap-and-infinite; the database says one-sided send and a 90-day park
+            (momento_proposals.passed_until) — until these two lines, that number
+            existed only in SQL and the reciprocity model only in a 1.9s toast on
+            one of the two branches. Caption register, muted: information, not alarm. */}
+        {hasMomento ? (
+          <View className="mt-3 gap-0.5">
+            <Text className="text-center text-[12px] leading-4 text-faint">
+              {t('momenti.hint.accept', locale, { name: topHandle })}
+            </Text>
+            <Text className="text-center text-[12px] leading-4 text-faint">
+              {t('momenti.hint.pass', locale)}
+            </Text>
+          </View>
+        ) : null}
+
         {/* «una piccola lista curata, aggiornata ogni giorno» (PRD §4.7) — at most three, the
             server's rank order kept as it arrived. No glow: a suggestion is not a moment (#4). */}
         {suggestions.data && suggestions.data.length > 0 ? (
@@ -192,7 +229,7 @@ export default function MomentiScreen() {
         ) : null}
 
         {/* One-sided-accept toast: «Momento inviato ✦ …» — NOT the MomentFlash help string. */}
-        {acceptToast !== null ? (
+        {deckToast !== null ? (
           <View
             pointerEvents="none"
             className="absolute inset-x-5 bottom-6 items-center"
@@ -201,7 +238,7 @@ export default function MomentiScreen() {
           >
             <View className="rounded-full border border-hair bg-raise-2 px-5 py-2.5">
               <Text className="text-center text-[14px] font-semibold text-foreground">
-                {t('momenti.toast.sentAccept', locale, { name: acceptToast })}
+                {deckToast}
               </Text>
             </View>
           </View>
