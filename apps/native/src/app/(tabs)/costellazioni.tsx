@@ -74,6 +74,24 @@ export default function CostellazioniScreen() {
               <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
+            {/* Passa il Favore — was the ListFooter of an INFINITE list (#640): every fetched
+                page pushed it further away, on a darker-than-page surface. A header row is
+                always reachable; flat card chrome, no glow (rule #4: navigation, not a moment). */}
+            <View className="px-5">
+              <Pressable
+                onPress={() => router.push(FAVOR_HREF)}
+                accessibilityRole="button"
+                accessibilityLabel={t('costellazioni.favor.title', locale)}
+                className="gap-1 rounded-card border border-hair bg-raise px-5 py-4"
+              >
+                <Text className="text-[15px] text-foreground">
+                  {t('costellazioni.favor.title', locale)}
+                </Text>
+                <Text className="text-[13px] text-faint">
+                  {t('costellazioni.favor.desc', locale)}
+                </Text>
+              </Pressable>
+            </View>
             <View className="flex-row items-center justify-between gap-3 px-5">
               <SectionLabel numberOfLines={1} className="shrink">
                 {t('costellazioni.board.label', locale)}
@@ -108,24 +126,6 @@ export default function CostellazioniScreen() {
               </EmptyState>
             </View>
           )
-        }
-        ListFooterComponent={
-          // Flat surface — navigation into the Passa il Favore sheet, NOT a moment (rule #4): no glow.
-          <View className="px-5 pb-2 pt-2">
-            <Pressable
-              onPress={() => router.push(FAVOR_HREF)}
-              accessibilityRole="button"
-              accessibilityLabel={t('costellazioni.favor.title', locale)}
-              className="gap-1 rounded-card bg-surface-muted px-5 py-4"
-            >
-              <Text className="text-[15px] text-foreground">
-                {t('costellazioni.favor.title', locale)}
-              </Text>
-              <Text className="text-[13px] text-faint">
-                {t('costellazioni.favor.desc', locale)}
-              </Text>
-            </Pressable>
-          </View>
         }
         refreshControl={
           <RefreshControl

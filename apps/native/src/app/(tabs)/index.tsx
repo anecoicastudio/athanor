@@ -1,5 +1,10 @@
+import { useCallback, useState } from 'react';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { auraKeys, eventKeys, favorKeys, fundKeys, momentiKeys } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
+import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
 import { ScrollView } from '@/tw';
@@ -64,6 +69,27 @@ export default function HomeScreen() {
   const auraQuery = useAuraScore(userId);
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
+  // Pull-to-refresh (#640): Home was the only tab root without one, while three of its six
+  // blocks render failure as ABSENCE over a 24h-persisted cache — a collapsed block gives the
+  // member nothing to tap, so the pull is the only recovery gesture there is. Invalidation by
+  // family: fund covers the hero's edition AND aggregate, aura covers score AND recap.
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: fundKeys.all }),
+        qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
+        qc.invalidateQueries({ queryKey: auraKeys.all }),
+        qc.invalidateQueries({ queryKey: favorKeys.openNeeds }),
+        qc.invalidateQueries({ queryKey: eventKeys.today() }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [qc]);
+
   if (!profile) {
     return <LoadingScreen />;
   }
@@ -87,7 +113,13 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-7 px-5 pb-12 pt-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={semantic.aura} />
+        }
+      >
         <HomeHeader
           greeting={greeting}
           handle={profile.handle}
@@ -99,16 +131,17 @@ export default function HomeScreen() {
         <DreamHeroCard locale={locale} />
         {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
         <MomentiCard locale={locale} />
-        {/* Block 3: Esplora slot — Prime Stelle launch card while the flag is on (P4.2);
-          honest placeholder otherwise. */}
+        {/* Block 3: «La tua settimana» — the card owns the recap query and says which of its four
+          states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
+          week alike, over a feature that shipped in M6. */}
+        <WeekSlot locale={locale} />
+        {/* Block 4: Esplora slot — Prime Stelle launch card while the flag is on (P4.2); honest
+          placeholder otherwise. BELOW the week recap (#640): a marketing card must not sit in
+          fold 1 outranking «Hai un Momento», and its CTA is ghost for the same reason. */}
         <PrimeStelleCard
           locale={locale}
           fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
         />
-        {/* Block 4: «La tua settimana» — the card owns the recap query and says which of its four
-          states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
-          week alike, over a feature that shipped in M6. */}
-        <WeekSlot locale={locale} />
         {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
           nothing when no need is open, like block 2b and for the same reason (#99). */}
         <FavorNudgeCard locale={locale} />

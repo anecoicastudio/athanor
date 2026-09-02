@@ -115,6 +115,7 @@ export function ProfileView({
             </Text>
           ) : null
         }
+        dream={dreamSlot}
         afterStats={
           /* Connessioni — hub for established connections + the Richieste inbox (M5). */
           <View className="-mx-5 border-y border-hair">
@@ -148,10 +149,8 @@ export function ProfileView({
         }}
       />
 
-      {/* Il Sogno — editable quote (dream editor) + tappe CRUD (M2) */}
-      {dreamSlot}
-
-      {/* La mia missione — §4.2 order: bio (hero) → mission → skills → city (#149) */}
+      {/* La mia missione — §4.2 order: bio (hero) → mission → skills → city (#149).
+          Il Sogno moved into ProfileBody's dream slot, directly under the hero (#640). */}
       {profile.mission ? (
         <View className="gap-3">
           <SectionLabel>{t('profile.mission.label', locale)}</SectionLabel>

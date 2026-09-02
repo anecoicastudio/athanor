@@ -5,7 +5,7 @@ import { type LedgerCursor, type LedgerFilter, getAuraLedgerPage, ledgerKeys } f
 import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEvent, Locale } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
 import { LedgerRow } from '@/components/aura/LedgerRow';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
@@ -54,12 +54,12 @@ function FilterPills({
   onChange: (f: LedgerFilter) => void;
   locale: Locale;
 }) {
+  // WRAPS rather than scrolls (#640): a horizontal ScrollView in this flex column grew to
+  // fill the leftover height (325px of pill row). Same reasoning as BallotFilterChips —
+  // DESIGN §6 reserves horizontal carousels for Home's event cards, and three pills fit one
+  // line anyway.
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerClassName="gap-2 px-5 py-3"
-    >
+    <View className="flex-row flex-wrap gap-2 px-5 py-3">
       {FILTERS.map((f) => {
         const isActive = f === active;
         return (
@@ -76,7 +76,7 @@ function FilterPills({
           </Pressable>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 

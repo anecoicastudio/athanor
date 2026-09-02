@@ -11,9 +11,9 @@ export { toRowData };
 export type { EventRowData };
 
 /**
- * A single tappable event row. Sub line: «{city} · dal vivo · {km} km» (physical) or
- * «Online». Tap → event detail. One accessible button (frontend 04 §13). No vanity
- * counts (rule #3).
+ * A single tappable event row. Sub line: «{city} · dal vivo · {km} km · {categoria}»
+ * (physical) or «Online · {categoria}», plus «Athanor Day» when it is one. Tap → event
+ * detail. One accessible button (frontend 04 §13). No vanity counts (rule #3).
  */
 export function EventRow({
   data,
@@ -25,8 +25,14 @@ export function EventRow({
   onPress: () => void;
 }) {
   const parts: string[] = [];
-  if (data.live && data.listeningCount != null) {
-    parts.push(t('live.online.liveNow', locale, { n: data.listeningCount }));
+  if (data.live) {
+    // With a listener count when we have one; the bare «LIVE ora» otherwise — the state
+    // used to live only in the right-side chip, which #640 folded into this line.
+    parts.push(
+      data.listeningCount != null
+        ? t('live.online.liveNow', locale, { n: data.listeningCount })
+        : t('live.chip.liveNow', locale),
+    );
   } else if (data.is_online) {
     parts.push(t('live.online', locale));
   } else {
@@ -34,15 +40,17 @@ export function EventRow({
     parts.push(t('live.live', locale));
     if (data.distanceKm) parts.push(t('live.distance', locale, { km: data.distanceKm }));
   }
-  const sub = parts.join(' · ');
   const catLabel = t(`event.cat.${data.category}` as MessageKey, locale);
+  if (data.is_athanor_day) parts.push(t('live.chip.athanorDay', locale));
+  parts.push(catLabel);
+  const sub = parts.join(' · ');
 
   return (
     <Pressable
       className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${data.title}, ${sub}, ${catLabel}`}
+      accessibilityLabel={`${data.title}, ${sub}`}
     >
       <DateBadge
         iso={data.starts_at}
@@ -51,7 +59,10 @@ export function EventRow({
         live={data.live}
       />
       <View className="flex-1 gap-1">
-        <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+        {/* Two lines (#640): the trailing category chip cost every row its title — 6/6
+            truncated in the review's measurement. The title is what the row is FOR; the
+            category rides the sub-line and the live/Athanor-day state lives on DateBadge. */}
+        <Text className="text-[15px] font-semibold text-foreground" numberOfLines={2}>
           {data.title}
         </Text>
         <Text className="text-[13px] text-faint" numberOfLines={1}>
@@ -70,23 +81,6 @@ export function EventRow({
             </Text>
           </View>
         ) : null}
-      </View>
-      <View
-        className={`rounded-ctl border px-3 py-1 ${
-          data.is_athanor_day || data.live
-            ? 'border-aura-line bg-aura-soft'
-            : 'border-hair bg-background'
-        }`}
-      >
-        <Text
-          className={`text-[12px] ${data.is_athanor_day || data.live ? 'text-aura' : 'text-faint'}`}
-        >
-          {data.live
-            ? t('live.chip.liveNow', locale)
-            : data.is_athanor_day
-              ? t('live.chip.athanorDay', locale)
-              : catLabel}
-        </Text>
       </View>
     </Pressable>
   );
