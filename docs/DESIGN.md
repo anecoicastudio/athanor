@@ -190,14 +190,15 @@ No icon pack. The official icon vocabulary is the **20-glyph esoteric set** tran
 
 > **Third-party brand marks are attribution, not iconography.** The 20-glyph rule governs Athanor's own icons. A provider's brand mark — the Google "G", the Apple logo — is a vendor attribution requirement and is exempt from it: it ships in the vendor's mandated form (full colour, unmodified, correct clear space) and appears **only** on that provider's OAuth CTA. It is never recoloured to `currentColor`, never treated as part of the glyph vocabulary, and never used anywhere else in the app. _(Ruling 2026-08-24, ratified 2026-08-30 — issue #539.)_
 
-| Glyph                                 | Construction                           | Use                                                                |
-| ------------------------------------- | -------------------------------------- | ------------------------------------------------------------------ |
-| Circumpunct ◉ (circle + center point) | r16 circle, r2.5 filled center         | Tab: Home — il centro, the self in the circle                      |
-| Triad (three circles)                 | Three r6 circles in triangle formation | Tab: Community — le persone                                        |
-| Ripples (three concentric circles)    | r6 / r12 / r18                         | Tab: Live — the moment expanding                                   |
-| ✦ spark (4-point)                     | Concave diamond star                   | Tab: Momenti — l'istante. Single `aura` ✦ dot when a Momento waits |
-| Meridian sphere                       | r16 circle + inner ellipses            | Tab: Profilo — the self that evolves                               |
-| Vesica/varco (almond + point)         | Mandorla outline + center point        | Invitations, match, onboarding                                     |
+| Glyph                                 | Construction                                        | Use                                                                                  |
+| ------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Circumpunct ◉ (circle + center point) | r16 circle, r2.5 filled center                      | Tab: Home — il centro, the self in the circle                                        |
+| Triad (three circles)                 | Three r6 circles in triangle formation              | Tab: Community — le persone                                                          |
+| Constellation (four linked stars)     | Four r1.5 filled points joined by a 1px closed path | Tab: Costellazioni — stars joined into work (2026-09-02, with the roster correction) |
+| Ripples (three concentric circles)    | r6 / r12 / r18                                      | The moment expanding — Live surfaces, empty states (no longer a tab glyph)           |
+| ✦ spark (4-point)                     | Concave diamond star                                | Tab: Momenti — l'istante. Single `aura` ✦ dot when a Momento waits                   |
+| Meridian sphere                       | r16 circle + inner ellipses                         | Tab: Profilo — the self that evolves                                                 |
+| Vesica/varco (almond + point)         | Mandorla outline + center point                     | Invitations, match, onboarding                                                       |
 
 New icons must be designed in this same system (compass-and-ruler geometry), never imported from icon libraries.
 
