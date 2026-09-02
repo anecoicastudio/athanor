@@ -2691,8 +2691,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
  * "Holds a draft" is a claim about meaning, not about syntax — `search-filters` binds text to
  * state too and loses nothing worth confirming. So the roster is written down, and the
  * discovery assertion below is what stops the list going stale: any `(modal)` screen that binds
- * a `Field`, `Input` or `TextInput` to state and appears in neither the roster nor the register
- * fails,
+ * a `Field`, `Input` or `TextInput` to state and appears in neither the roster nor the
+ * register fails,
  * which turns a new composer into a decision someone has to make rather than an omission.
  *
  * ## What it cannot see
@@ -2749,14 +2749,16 @@ const GUARD_CALL = /\buse(?:DirtyGuard|DiscardConfirm)\s*\(/;
 
 describe('a composer confirms before it throws a draft away (#636)', () => {
   it('finds the screens it is walking', () => {
-    // A FLOOR, not the count. Without it a renamed route group leaves every assertion below
-    // reading identically on a clean tree and on a walk that resolved nothing.
+    // Tracks the roster rather than carrying a number of its own. The usual shape here is a
+    // slack FLOOR, because the set being walked is DISCOVERED and its size moves on its own;
+    // this roster is an explicit list, so its length is known exactly and a hand-written floor
+    // could only drift below it — as it did, sitting at 12 while the roster grew to 14.
     const present = DIRTY_GUARD_ROSTER.filter((p) => FILES.some((f) => rel(f).endsWith(p)));
     expect(
       present.length,
       'the dirty-guard roster no longer resolves to files on disk — have these screens been ' +
         'renamed? This section is vacuous until the paths match again.',
-    ).toBeGreaterThanOrEqual(12);
+    ).toBe(DIRTY_GUARD_ROSTER.length);
   });
 
   it('both lists name files that exist', () => {
@@ -2820,7 +2822,9 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
     // Resolved along the path the APP actually takes — apps/native -> expo-router ->
     // native-stack -> native. Resolving native-stack from apps/native instead would walk
     // pnpm's hidden hoist directory and can land on an orphaned peer variant left behind by
-    // an earlier install, which says nothing about what Metro bundles.
+    // an earlier install, which says nothing about what Metro bundles. Node's resolver is a
+    // PROXY for Metro's here: the two agree on plain node_modules directory walking, which is
+    // all this edge depends on.
     const req = createRequire(`${SRC}package.json`);
     const fromApp = req.resolve('@react-navigation/native');
     const stack = createRequire(req.resolve('expo-router')).resolve(
