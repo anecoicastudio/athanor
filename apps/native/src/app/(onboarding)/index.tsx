@@ -141,16 +141,19 @@ export default function OnboardingScreen() {
               {/* The back slot is reserved unconditionally (#164): a conditionally rendered
               arrow moved the eyebrow's x-origin ~25pt between step 0 and 1. The slot is a
               real 44pt tap target (DESIGN §10 — the old bare glyph + hitSlop measured
-              ~38pt wide); -ml-3 keeps the glyph optically near the gutter. Step 0 renders
+              ~38pt wide). Literal `h-[44px] w-[44px]`, not `h-11`: a spacing step is 3.5px
+              on device, so `h-11` is 38.5pt there while measuring a passing 44px on web —
+              the same trap `Input.tsx` documents. -ml-3 keeps the glyph optically near the
+              gutter. Step 0 renders
               the empty slot, not a disabled button, so screen readers gain no phantom
               control. */}
-              <View className="-ml-3 h-11 w-11">
+              <View className="-ml-3 h-[44px] w-[44px]">
                 {step > 0 ? (
                   <Pressable
                     onPress={() => setStep((s) => s - 1)}
                     accessibilityRole="button"
                     accessibilityLabel={t('onboarding.back', locale)}
-                    className="h-11 w-11 items-center justify-center"
+                    className="h-[44px] w-[44px] items-center justify-center"
                   >
                     <Text className="text-2xl text-foreground">‹</Text>
                   </Pressable>
@@ -163,8 +166,9 @@ export default function OnboardingScreen() {
             <Pressable
               onPress={goLogin}
               accessibilityRole="button"
-              hitSlop={8}
-              className="shrink-0"
+              // A 13px label + `hitSlop={8}` reached 33pt tall — under §10. The row is
+              // already 44 tall (the reserved back slot), so a real box costs no layout.
+              className="min-h-[44px] shrink-0 justify-center"
             >
               <Text className="text-[13px] font-semibold text-aura">
                 {t('auth.haveAccount', locale)}
@@ -277,7 +281,13 @@ export default function OnboardingScreen() {
                         </Text>
                       )}
                     </View>
-                    <Pressable accessibilityRole="button" onPress={() => setSheetOpen(true)}>
+                    {/* The only control that performs step 4 — the 116pt avatar above is a
+                    View, not a target. Bare, it was a 15px line box ≈19.5pt tall (§10). */}
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setSheetOpen(true)}
+                      className="min-h-[44px] justify-center px-4"
+                    >
                       <Text className="text-[15px] font-semibold text-aura">
                         {avatarUri
                           ? t('onboarding.face.change', locale)
@@ -291,6 +301,7 @@ export default function OnboardingScreen() {
                           setAvatarUri(null);
                           void persist({ locale, identity, seeking, dream, avatarUri: null });
                         }}
+                        className="min-h-[44px] justify-center px-4"
                       >
                         <Text className="text-[13px] text-muted-foreground">
                           {t('onboarding.face.remove', locale)}

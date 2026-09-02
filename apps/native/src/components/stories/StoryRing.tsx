@@ -90,9 +90,21 @@ export function StoryRing({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('story.add.title', locale)}
-          hitSlop={HIT_SLOP}
+          // The badge's PAINTED size is fixed by the measurement above, so the 44pt floor
+          // (§10) has to come from slop rather than from the box. `h-[20px] w-[20px]`, not
+          // `h-5`: a spacing step is 3.5px on device, so `h-5` painted 17.5 there against
+          // 20 on web — and 17.5 + 2×11 is 39.5, which is why the shared HIT_SLOP did not
+          // clear the floor here. 20 + 2×12 = 44.
+          //
+          // NOT a two-platform guarantee, and this is the honest limit: the badge sits at
+          // `right-[6px]` in a 76pt wrapper, so 6 of the 12pt right slop falls outside the
+          // parent — the region `Input.tsx:157-159` records Android as declining to
+          // deliver. Android is therefore ~38 wide, iOS 44. The previous HIT_SLOP overran
+          // the same edge, so this is not a regression; closing it needs the wrapper to
+          // widen, which moves a position the docblock above measured against a build.
+          hitSlop={12}
           onPress={onAddPress}
-          className="absolute right-[6px] top-[46px] h-5 w-5 items-center justify-center rounded-full border border-hair bg-raise"
+          className="absolute right-[6px] top-[46px] h-[20px] w-[20px] items-center justify-center rounded-full border border-hair bg-raise"
         >
           <Text className="text-[13px] leading-[15px] text-faint">+</Text>
         </Pressable>

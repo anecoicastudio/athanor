@@ -307,7 +307,7 @@ export function StoriesViewer({
                 <Pressable
                   accessibilityRole="button"
                   onPress={onAddMoment}
-                  className="flex-1 items-center rounded-ctl border border-aura-line bg-aura-soft py-3"
+                  className="min-h-[44px] flex-1 items-center justify-center rounded-ctl border border-aura-line bg-aura-soft py-3"
                 >
                   <Text className="text-[14px] text-aura">{t('story.own.add', locale)}</Text>
                 </Pressable>
@@ -315,7 +315,7 @@ export function StoriesViewer({
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => onPin(current)}
-                    className="items-center justify-center rounded-ctl border border-hair px-4"
+                    className="min-h-[44px] items-center justify-center rounded-ctl border border-hair px-4"
                   >
                     <Text className="text-[14px] text-foreground">
                       {t('story.own.pin', locale)}
@@ -325,7 +325,7 @@ export function StoriesViewer({
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onDelete(current)}
-                  className="items-center justify-center rounded-ctl border border-hair px-4"
+                  className="min-h-[44px] items-center justify-center rounded-ctl border border-hair px-4"
                 >
                   <Text className="text-[14px] text-muted-foreground">
                     {t('story.own.delete', locale)}
@@ -355,7 +355,7 @@ export function StoriesViewer({
                   accessibilityLabel={t('story.reply.send.a11y', locale, { name })}
                   disabled={!canSend}
                   onPress={sendReply}
-                  className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
+                  className={`h-[44px] w-[44px] items-center justify-center rounded-full bg-aura ${
                     canSend ? '' : 'opacity-40'
                   }`}
                 >

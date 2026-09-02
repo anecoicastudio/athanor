@@ -78,13 +78,13 @@ export default function ForgotPasswordScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Reserved back slot, same recipe and same reason as welcome.tsx (#164). */}
-          <View className="-ml-3 h-11 w-11">
+          <View className="-ml-3 h-[44px] w-[44px]">
             {router.canGoBack() ? (
               <Pressable
                 onPress={() => router.back()}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.back', locale)}
-                className="h-11 w-11 items-center justify-center"
+                className="h-[44px] w-[44px] items-center justify-center"
               >
                 <Text className="text-2xl text-foreground">‹</Text>
               </Pressable>

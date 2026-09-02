@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from '@/tw';
-import { HIT_SLOP } from '@/lib/a11y';
 import { useGuardedBack, type ExitHref } from '@/lib/modal-exit';
 
 /**
@@ -114,9 +113,17 @@ export function ModalHeader({
       {showLeading ? (
         <Pressable
           onPress={onBack ?? guardedBack}
-          hitSlop={HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel={backLabel}
+          // A real box, not a bare glyph + hitSlop: the glyph measured ~6pt wide, so
+          // HIT_SLOP's 11 each side reached 28 — under §10's 44 floor on the axis that
+          // matters. Literal `[44px]`, not `h-11`, because a spacing step is 3.5px on
+          // device (`h-11` = 38.5pt there while measuring a passing 44px on web). `-ml-3`
+          // keeps the glyph optically on the gutter — the same recipe as the reserved back
+          // slot in (onboarding)/index.tsx, welcome.tsx and forgot-password.tsx. No
+          // hitSlop now: the rect already clears 44, and slop would reach into the
+          // identity target 12pt to its right.
+          className="-ml-3 h-[44px] w-[44px] items-center justify-center"
         >
           <Text className="text-2xl text-foreground">{leading === 'close' ? '✕' : '‹'}</Text>
         </Pressable>
@@ -150,9 +157,11 @@ export function HeaderClose({ label, onPress }: { label: string; onPress: () => 
   return (
     <Pressable
       onPress={onPress}
-      hitSlop={HIT_SLOP}
       accessibilityRole="button"
       accessibilityLabel={label}
+      // Same box-not-slop fix as the leading chevron above; `-mr-3` mirrors its `-ml-3`
+      // so the ✕ stays optically on the right gutter.
+      className="-mr-3 h-[44px] w-[44px] items-center justify-center"
     >
       <Text className="text-2xl text-foreground">✕</Text>
     </Pressable>

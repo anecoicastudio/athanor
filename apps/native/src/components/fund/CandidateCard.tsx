@@ -122,7 +122,7 @@ export function CandidateCard({
       </Pressable>
 
       {/* Title + author */}
-      <Pressable onPress={onOpen} accessibilityRole="button">
+      <Pressable onPress={onOpen} accessibilityRole="button" className="min-h-[44px]">
         <Text className="text-[15px] leading-5 text-foreground" numberOfLines={2}>
           {title}
         </Text>
@@ -188,7 +188,7 @@ export function CandidateCard({
           // an additional vote the server refuses; this quiet outline pill names the real
           // action — moving the one they have — before the confirm dialog restates the rule.
           <Pressable
-            className="rounded-full border border-hair px-4 py-2"
+            className="min-h-[44px] justify-center rounded-full border border-hair px-4 py-2"
             onPress={onVote}
             accessibilityRole="button"
             accessibilityLabel={t('fund.vote.move', locale)}
@@ -197,7 +197,7 @@ export function CandidateCard({
           </Pressable>
         ) : (
           <Pressable
-            className="rounded-full bg-aura px-5 py-2"
+            className="min-h-[44px] justify-center rounded-full bg-aura px-5 py-2"
             onPress={onVote}
             accessibilityRole="button"
             accessibilityLabel={t('fund.vote.cta', locale)}
