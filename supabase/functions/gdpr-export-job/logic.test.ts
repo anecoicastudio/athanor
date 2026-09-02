@@ -67,6 +67,10 @@ const EXPECTED_SECTIONS: Record<string, { table: string; filter: ExpectedFilter;
     filter: { kind: 'in', column: 'ticket_id', parentKey: 'event_tickets' },
   },
   messages: { table: 'messages', filter: { kind: 'eq', column: 'sender_id' } },
+  conversation_reads: {
+    table: 'conversation_reads',
+    filter: { kind: 'eq', column: 'profile_id' },
+  },
   connection_requests: {
     table: 'connection_requests',
     filter: { kind: 'or', columns: ['requester_id', 'addressee_id'] },

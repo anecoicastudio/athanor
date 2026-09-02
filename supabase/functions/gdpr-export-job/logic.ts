@@ -98,6 +98,18 @@ export const EXPORT_SPEC: readonly OwnDataSpec[] = [
     column: 'ticket_id',
   },
   { key: 'messages', table: 'messages', mode: 'many', column: 'sender_id' },
+  // #637: the member's own read cursors. Not authored content — a timestamp per thread —
+  // but it is behavioural data ABOUT them (when they read what, and which threads they
+  // never opened), which is squarely what access and portability cover. Exported rather
+  // than excluded for that reason: `conversations` is excluded in 0096 because the row is
+  // mostly the counterpart's identity, and this row is the opposite — it is only ever the
+  // member's own behaviour, and it exists on no one else's copy.
+  {
+    key: 'conversation_reads',
+    table: 'conversation_reads',
+    mode: 'many',
+    column: 'profile_id',
+  },
   {
     key: 'connection_requests',
     table: 'connection_requests',
