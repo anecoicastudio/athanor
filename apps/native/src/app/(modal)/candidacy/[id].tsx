@@ -310,7 +310,7 @@ export default function CandidacyDetailScreen() {
                 </Text>
               </View>
             ) : voteState === 'voting' ? (
-              <View className="h-[44px] items-center justify-center px-5">
+              <View className="min-h-[44px] items-center justify-center px-5">
                 <ActivityIndicator color={semantic.aura} />
               </View>
             ) : voteState === 'voted' ? (

@@ -55,7 +55,9 @@ export function SearchBar({
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
-        style={{ height: 44 }}
+        // `minHeight`, not `height` (#639): a fixed 44 clips the field's own text at AX
+        // sizes. The floor stays 44 because this input is also its own tap target (§10).
+        style={{ minHeight: 44 }}
         accessibilityRole="search"
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}

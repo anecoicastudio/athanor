@@ -2487,3 +2487,184 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 30 — Dynamic Type
+// ---------------------------------------------------------------------------------------
+
+describe('a11y: text scales, and the box holding it grows (#639)', () => {
+  /**
+   * Every fixed PIXEL height left in the tree, each with the reason its box cannot simply
+   * grow. Keyed by `file:line` for the same reason §29's roster is: a file-wide key would
+   * exempt the next fixed height added there, which is the one nobody looked at.
+   *
+   * The rule this encodes: a height a member's text size cannot move is a clip waiting to
+   * happen, so it is allowed only where nothing inside it is prose — a media thumbnail, a
+   * 2-3px rule, a spinner well — or where the box is a MEASURED constant and the glyph
+   * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
+   */
+  const FIXED_HEIGHT_OK: Record<string, string> = {
+    'app/(modal)/chat.tsx:423':
+      'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
+    'app/(modal)/chat.tsx:478':
+      'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
+      'chevron is capped to `ornament`',
+    'app/(modal)/post-compose.tsx:368': 'same measured 20pt remove-badge as chat.tsx:423',
+    'app/(modal)/story-compose.tsx:141': 'same measured 20pt remove-badge as chat.tsx:423',
+    'app/(onboarding)/index.tsx:266':
+      'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
+      'to `ornament` and hidden from assistive tech',
+    'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
+    'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
+    'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
+    'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:478',
+    'components/stories/StoryRing.tsx:111':
+      'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
+      'to `ornament`',
+  };
+
+  const TW = `${SRC}tw/index.tsx`;
+
+  it('both text primitives carry the policy, and it comes from the one module', () => {
+    // Whitespace-collapsed: prettier wraps the ternary across four lines.
+    const tw = stripComments(read(TW)).replace(/\s+/g, ' ');
+    // `=== undefined`, never `??`: an explicit `maxFontSizeMultiplier={undefined}` must
+    // still land on the cap, while `null` — RN's "inherit from the parent Text" — must
+    // reach RN intact, or a nested run under a tighter cap silently jumps back to 2x.
+    expect(
+      /maxFontSizeMultiplier: props\.maxFontSizeMultiplier === undefined \? FONT_SCALE_CAP\.text : props\.maxFontSizeMultiplier/.test(
+        tw,
+      ),
+      'src/tw no longer defaults maxFontSizeMultiplier from FONT_SCALE_CAP.text in the exact ' +
+        'shape #639 requires — `=== undefined ? FONT_SCALE_CAP.text : props…`. Losing the ' +
+        'default returns the whole app to unbounded scaling into fixed geometry; writing it ' +
+        'as `??` instead swallows an explicit null, which RN reads as "inherit from the ' +
+        'parent Text".',
+    ).toBe(true);
+    for (const primitive of ['RNText', 'RNTextInput']) {
+      expect(
+        new RegExp(`useCssElement\\(${primitive}, withTextDefaults\\(props\\)`).test(tw),
+        `src/tw's ${primitive} wrapper stopped going through withTextDefaults — it now ships ` +
+          `without the Dynamic Type cap AND without the app font (#639)`,
+      ).toBe(true);
+    }
+  });
+
+  it('no call site invents its own cap', () => {
+    const hits = codeLines()
+      .filter(([where]) => !where.startsWith('apps/native/src/tw/'))
+      .filter(([, text]) => /maxFontSizeMultiplier=\{(?!FONT_SCALE_CAP\.)/.test(text))
+      .map(([where, text]) => `${where}  ${text.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      "a maxFontSizeMultiplier that is not one of FONT_SCALE_CAP's three values:\n" +
+        'The policy is only a policy while it lives in `lib/type-scale.ts` — a bare number ' +
+        'here is a per-screen opinion nobody can audit, and a number below 2 silently puts ' +
+        'that screen under the WCAG 200% floor (#639).',
+    ).toEqual([]);
+  });
+
+  it('a header never truncates to a single line', () => {
+    const hits = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        // `base === 'Text'`, because `raw` is the UNBLANKED window (§21's note): a
+        // `<FlatList ListHeaderComponent={<Text …>}>` would otherwise answer for the tag
+        // nested inside it, which jsxOpeningTags already emits on its own.
+        .filter(
+          ({ base, raw }) =>
+            base === 'Text' &&
+            /accessibilityRole=["']header["']/.test(raw) &&
+            /numberOfLines=\{1\}/.test(raw),
+        )
+        .map(({ line }) => `${rel(p).replace('apps/native/src/', '')}:${line}`),
+    );
+    expect(
+      hits,
+      'a screen title pinned to one line:\n' +
+        "A header IS the screen's name, and one line at AX sizes leaves «Impostazion…» " +
+        'where the orientation should be. Headers sit in bands with no fixed height, so a ' +
+        'second line costs nothing at the default size (#639).',
+    ).toEqual([]);
+  });
+
+  it('finds the fixed heights it is walking', () => {
+    const total = codeLines().filter(([, t]) => /(?<![\w-])h-\[\d+px\]/.test(t)).length;
+    // A scanner that finds nothing passes the assertion below. 11 today.
+    expect(
+      total,
+      'no fixed pixel height found at all — the walk is broken, not the tree',
+    ).toBeGreaterThan(5);
+  });
+
+  it('every fixed pixel height says why it cannot grow', () => {
+    const unexplained = codeLines()
+      .filter(([, text]) => /(?<![\w-])h-\[\d+px\]/.test(text))
+      .map(([where]) => where.replace('apps/native/src/', ''))
+      .filter((hit) => FIXED_HEIGHT_OK[hit] === undefined);
+    expect(
+      unexplained,
+      'a fixed pixel height with no reason on record:\n' +
+        "A height the member's text size cannot move clips instead of growing — the whole " +
+        'of #639. Write `min-h-[Npx]` so the floor stays and the box grows, or add the site ' +
+        'to FIXED_HEIGHT_OK saying what stops it (no prose inside, or a measured box whose ' +
+        'glyph is capped to FONT_SCALE_CAP.ornament). The registry is keyed by `file:line`, ' +
+        'so an ALREADY-listed site reappearing here has usually just moved — bump its key ' +
+        'and re-read it while you are there, which is why the key carries the line.',
+    ).toEqual([]);
+  });
+
+  it('finds the header tags it is walking', () => {
+    const total = FILES.filter((p) => !isTest(p)).reduce(
+      (n, p) =>
+        n +
+        jsxOpeningTags(stripComments(read(p))).filter(
+          ({ base, raw }) => base === 'Text' && /accessibilityRole=["']header["']/.test(raw),
+        ).length,
+      0,
+    );
+    // A scanner that finds nothing passes the header assertion above. 18 today.
+    expect(total, 'no header Text found at all — the walk is broken, not the tree').toBeGreaterThan(
+      10,
+    );
+  });
+
+  it('no text primitive is imported from react-native outside the wrappers', () => {
+    // This is what makes `src/tw`'s claim true. §6 only flags an RN-imported tag that ALSO
+    // carries a className, so `<Text style={…}>` straight from react-native slipped past it
+    // and would ship with no cap, no app font, and nothing to notice it.
+    const hits = FILES.filter((p) => !isTest(p) && !p.startsWith(`${SRC}tw/`)).flatMap((p) => {
+      const src = stripComments(read(p));
+      return [...src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]react-native['"]/g)]
+        .flatMap((m) => (m[1] as string).split(','))
+        .map((spec) =>
+          spec
+            .trim()
+            .split(/\s+as\s+/)[0]
+            ?.trim(),
+        )
+        .filter((name) => name === 'Text' || name === 'TextInput')
+        .map((name) => `${rel(p)}  imports ${name}`);
+    });
+    expect(
+      hits,
+      'a text primitive imported straight from react-native:\n' +
+        'It arrives without the Dynamic Type cap AND without the app font, and neither ' +
+        'absence is visible in review. Import from `@/tw` (#639).',
+    ).toEqual([]);
+  });
+
+  it('no call site switches font scaling off outright', () => {
+    // The other way to opt out, and the one `maxFontSizeMultiplier` guards cannot see.
+    const hits = codeLines()
+      .filter(([, text]) => /allowFontScaling=\{false\}/.test(text))
+      .map(([where, text]) => `${where}  ${text.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      'allowFontScaling={false}:\n' +
+        "That is not a cap, it is an opt-out — the text stops responding to the member's " +
+        'setting entirely. If a glyph genuinely cannot grow, cap it to ' +
+        'FONT_SCALE_CAP.ornament and say why at the call site (#639).',
+    ).toEqual([]);
+  });
+});

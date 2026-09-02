@@ -11,6 +11,7 @@ import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { star } from '@/lib/star';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 const PHOTO_MS = 5000;
 const DEFAULT_VIDEO_MS = 15000;
@@ -359,7 +360,13 @@ export function StoriesViewer({
                     canSend ? '' : 'opacity-40'
                   }`}
                 >
-                  <Text className="text-[20px] text-on-aura">›</Text>
+                  {/* Same disc-stays-a-disc reason as chat's send (#639). */}
+                  <Text
+                    className="text-[20px] text-on-aura"
+                    maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                  >
+                    ›
+                  </Text>
                 </Pressable>
               </View>
               <View className="flex-row items-center gap-4">

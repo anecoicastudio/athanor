@@ -49,7 +49,7 @@ export function DateBadge({
   if (live) {
     return (
       <View
-        className="h-12 w-12 items-center justify-center rounded-ctl border border-aura-line bg-aura-soft"
+        className="min-h-12 min-w-12 items-center justify-center rounded-ctl border border-aura-line bg-aura-soft p-1"
         accessibilityLabel={t('live.chip.liveNow', locale)}
       >
         <Text className="text-[18px] text-aura">●</Text>
@@ -60,7 +60,10 @@ export function DateBadge({
   const months = locale === 'it' ? MONTHS_IT : MONTHS_EN;
   return (
     <View
-      className={`h-12 w-12 items-center justify-center rounded-ctl border ${
+      // `min-h`/`min-w` (#639): two lines of text — day number over month — in a hard
+      // square is the shape that clips first. Same painted size at the default text size,
+      // so every EventRow reads exactly as it does today.
+      className={`min-h-12 min-w-12 items-center justify-center rounded-ctl border p-1 ${
         highlight ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
       }`}
     >

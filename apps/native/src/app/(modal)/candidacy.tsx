@@ -360,7 +360,7 @@ function WizardForm({
             wide. -ml-3 keeps the glyph optically near the gutter. */}
             <Pressable
               onPress={() => (step > 0 ? setStep((s) => s - 1) : leave())}
-              className="-ml-3 h-[44px] w-[44px] items-center justify-center"
+              className="-ml-3 min-h-[44px] min-w-[44px] items-center justify-center"
               accessibilityRole="button"
               accessibilityLabel={t('common.back', locale)}
             >

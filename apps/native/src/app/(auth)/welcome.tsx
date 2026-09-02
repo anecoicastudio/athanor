@@ -223,13 +223,17 @@ export default function WelcomeScreen() {
             conditional chevron sat the hero ~29pt higher when this screen is the root than
             when it is pushed from the funnel. Real 44pt tap target (DESIGN §10); the empty
             slot, not a disabled button, so screen readers gain no phantom control. */}
-          <View className="-ml-3 h-[44px] w-[44px]">
+          {/* `min-h` but a pinned `w` (#639): this slot is a COLUMN child of the ScrollView
+            content container, where `align-items: stretch` would take a `min-w` box to the
+            full width and centre the chevron mid-screen. The glyph never needed to grow
+            sideways — only down. The `flex-row` slots elsewhere can use both. */}
+          <View className="-ml-3 min-h-[44px] w-[44px]">
             {router.canGoBack() ? (
               <Pressable
                 onPress={() => router.back()}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.back', locale)}
-                className="h-[44px] w-[44px] items-center justify-center"
+                className="min-h-[44px] w-[44px] items-center justify-center"
               >
                 <Text className="text-2xl text-foreground">‹</Text>
               </Pressable>

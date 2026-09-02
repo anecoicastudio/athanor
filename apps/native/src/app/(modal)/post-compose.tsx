@@ -31,6 +31,7 @@ import {
 } from '@/lib/media/upload';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
@@ -307,6 +308,10 @@ export default function PostComposeScreen() {
                     >
                       <Text
                         className="text-2xl text-faint"
+                        // `ornament` (#639): a hidden glyph centred in a hard 70pt tile —
+                        // the tile is the thumbnail's size, and scaling the mark only
+                        // pushes it out of it. The wrapper above carries the label.
+                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
@@ -333,6 +338,10 @@ export default function PostComposeScreen() {
                     >
                       <Text
                         className="text-2xl text-faint"
+                        // `ornament` (#639): a hidden glyph centred in a hard 70pt tile —
+                        // the tile is the thumbnail's size, and scaling the mark only
+                        // pushes it out of it. The wrapper above carries the label.
+                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
@@ -361,7 +370,15 @@ export default function PostComposeScreen() {
                       accessibilityRole="button"
                       hitSlop={12}
                     >
-                      <Text className="text-[11px] text-faint">✕</Text>
+                      {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
+                        sits on, so the ✕ cannot grow without leaving it. The control is named by
+                        its own accessibilityLabel, so the glyph carries nothing. */}
+                      <Text
+                        className="text-[11px] text-faint"
+                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                      >
+                        ✕
+                      </Text>
                     </Pressable>
                   ) : null}
                 </View>

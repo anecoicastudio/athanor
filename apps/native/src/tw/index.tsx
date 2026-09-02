@@ -10,6 +10,7 @@ import {
   type FlatListProps as RNFlatListProps,
 } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 /** Join conditional NativeWind classes — falsy parts drop out, so call sites avoid
  *  empty-string ternaries (`cond ? 'x' : ''`) inside template literals. */
@@ -30,14 +31,33 @@ View.displayName = 'CSS(View)';
 // SOURCE ORDER in global.css — `.font-app` is defined before the font-weight
 // remaps and `.font-dream`, so explicit font-* utilities on the call site win.
 // Don't reorder those rules.
-const withAppFont = <P extends { className?: string }>(props: P): P => ({
+//
+// The second default is the Dynamic Type policy (#639, DESIGN §10). RN leaves
+// `maxFontSizeMultiplier` unset, which is unbounded growth — right for a box that
+// can grow, a silent clip for one that cannot. Setting it HERE is what makes it a
+// policy rather than 500 forgotten call sites: every Text and TextInput in the app
+// arrives through these two wrappers, and `source-audit.test.ts` §30 keeps it that way
+// by banning the import outright — §6 only catches an RN-imported tag that ALSO carries
+// a className, so `<Text style={…}>` from `react-native` used to pass it uncapped.
+//
+// `=== undefined`, not `??`: a call site passing `maxFontSizeMultiplier={undefined}`
+// still gets the cap, so the policy cannot be switched off by accident — but `null`
+// has a MEANING in RN ("inherit from the parent Text"), and `??` would swallow it.
+// That is not academic: a nested run inside a `display`-capped countdown numeral
+// would have jumped back to 2x instead of inheriting its parent's 1.35. Passing an
+// explicit number — one of `FONT_SCALE_CAP`'s — is how a call site opts down.
+const withTextDefaults = <P extends { className?: string; maxFontSizeMultiplier?: number | null }>(
+  props: P,
+): P => ({
   ...props,
   className: props.className ? `font-app ${props.className}` : 'font-app',
+  maxFontSizeMultiplier:
+    props.maxFontSizeMultiplier === undefined ? FONT_SCALE_CAP.text : props.maxFontSizeMultiplier,
 });
 
 export type TextProps = React.ComponentProps<typeof RNText> & { className?: string };
 export const Text = (props: TextProps) =>
-  useCssElement(RNText, withAppFont(props), { className: 'style' });
+  useCssElement(RNText, withTextDefaults(props), { className: 'style' });
 Text.displayName = 'CSS(Text)';
 
 export type PressableProps = React.ComponentProps<typeof RNPressable> & { className?: string };
@@ -76,7 +96,7 @@ FlatList.displayName = 'CSS(FlatList)';
 
 export type TextInputProps = React.ComponentProps<typeof RNTextInput> & { className?: string };
 export const TextInput = (props: TextInputProps) =>
-  useCssElement(RNTextInput, withAppFont(props), { className: 'style' });
+  useCssElement(RNTextInput, withTextDefaults(props), { className: 'style' });
 TextInput.displayName = 'CSS(TextInput)';
 
 // For chrome bands that own ONE safe-area edge on an overlay surface (story viewer). Whole-screen

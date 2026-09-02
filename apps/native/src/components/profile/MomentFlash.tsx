@@ -4,6 +4,7 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
@@ -75,8 +76,13 @@ export function MomentFlash({ visible, locale }: { visible: boolean; locale: Loc
             style={auraGlow(1)}
             className="h-20 w-20 items-center justify-center rounded-full border border-aura-line bg-raise"
           >
+            {/* `ornament` (#639): the moment mark, hidden from assistive tech, inside a
+                hard 70pt disc that a scale animation drives. It does not clip at 2x today —
+                ~63pt in 70 — but it is the last box of the shape §10 names, and leaving one
+                uncapped is how the rule turns back into a suggestion. */}
             <Text
               className="text-3xl text-aura"
+              maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >

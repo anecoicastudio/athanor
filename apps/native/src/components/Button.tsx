@@ -64,7 +64,11 @@ export function Button({
   return (
     <Pressable
       className={cn(
-        'h-[52px] items-center justify-center rounded-full px-6',
+        // `min-h`, not `h` (#639): a label that wraps at AX sizes — «Entra nel Circle ·
+        // €12/mese» is the long one — grows the pill instead of clipping inside it. `py`
+        // is what a wrapped label breathes on; at the default size the 52pt floor still wins,
+        // so nothing moves. DESIGN §9 measures the pill, and a floor still measures it.
+        'min-h-[52px] items-center justify-center rounded-full px-6 py-3',
         container,
         inert && 'opacity-40',
       )}
@@ -78,7 +82,9 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={ink} />
       ) : (
-        <Text className={cn('text-[13px] font-semibold tracking-[0.14em]', text)}>{label}</Text>
+        <Text className={cn('text-center text-[13px] font-semibold tracking-[0.14em]', text)}>
+          {label}
+        </Text>
       )}
     </Pressable>
   );

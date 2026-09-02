@@ -86,7 +86,7 @@ export function MessageActionsSheet({
 function Row({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable
-      className="h-[52px] flex-row items-center rounded-ctl px-4"
+      className="min-h-[52px] flex-row items-center rounded-ctl px-4 py-3"
       accessibilityRole="button"
       onPress={onPress}
     >

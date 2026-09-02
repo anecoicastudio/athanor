@@ -180,7 +180,7 @@ export function CandidateCard({
             <Text className="text-[13px] text-foreground">{t('fund.vote.done', locale)}</Text>
           </View>
         ) : voteState === 'voting' ? (
-          <View className="h-[36px] items-center justify-center px-4">
+          <View className="min-h-[36px] items-center justify-center px-4">
             <ActivityIndicator color={semantic.aura} />
           </View>
         ) : voteState === 'voteElsewhere' ? (

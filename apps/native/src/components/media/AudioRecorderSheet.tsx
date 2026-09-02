@@ -338,7 +338,7 @@ export function AudioRecorderSheet({
              * likely to want out.
              */}
             <Pressable
-              className="h-[52px] items-center justify-center"
+              className="min-h-[52px] items-center justify-center py-3"
               accessibilityRole="button"
               onPress={cancel}
             >
