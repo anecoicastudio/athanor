@@ -26,6 +26,14 @@ export function AuraValue({
   const anim = useRef(new Animated.Value(value)).current;
   const [display, setDisplay] = useState(value);
   const reduce = useReducedMotion();
+  /*
+    What was last SAID, so a re-run of the effect cannot say it again. The effect announces on
+    settle and depends on more than the number — `locale` since the sentence is keyed, and
+    `reduce` already — so flipping the language from the settings modal re-ran the tween and
+    re-announced «Aura 120» from the Home screen still mounted underneath. A screen reader
+    repeating a number nothing changed is a claim that something happened (#635 review).
+  */
+  const announced = useRef<number | null>(null);
   // The announced sentence is user-facing copy, so it comes from the catalog like any other
   // (rule 5). It used to be a `Aura ${value}` template — invisible to `i18n:check`, which reads
   // rendered JSX, and to a reader, because nothing renders it (#635).
@@ -37,10 +45,15 @@ export function AuraValue({
   }, [anim]);
 
   useEffect(() => {
+    const announce = () => {
+      if (announced.current === value) return;
+      announced.current = value;
+      AccessibilityInfo.announceForAccessibility(spoken(t('aura.a11y.value', locale, { value })));
+    };
     if (reduce) {
       anim.setValue(value);
       setDisplay(value);
-      AccessibilityInfo.announceForAccessibility(spoken(t('aura.a11y.value', locale, { value })));
+      announce();
     } else {
       Animated.timing(anim, {
         toValue: value,
@@ -48,10 +61,7 @@ export function AuraValue({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start(({ finished }) => {
-        if (finished)
-          AccessibilityInfo.announceForAccessibility(
-            spoken(t('aura.a11y.value', locale, { value })),
-          );
+        if (finished) announce();
       });
     }
   }, [value, reduce, anim, locale]);

@@ -2314,15 +2314,32 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     expect(owners).toEqual([...SWITCH_FILES].sort());
   });
 
-  it('finds the announcement call sites at all', () => {
-    const callers = codeLines().filter(([, text]) => ANNOUNCE.test(text));
-    // A scanner that finds none would pass the invariant below without checking anything. A
-    // floor, not a pin: the count is free to grow, and this is here so growth is REVIEWED
-    // against the invariant rather than counted.
+  it('the hook and the toast host each still announce', () => {
+    /*
+      A scanner that finds nothing passes the invariant below without checking anything, so this
+      is the find-something half. It names the two files that MUST announce rather than counting
+      the calls: a count is a fact about how the code is spelled, and this one already went red
+      once for a refactor that folded two identical calls into a shared helper — the same
+      failure mode the invariant test below was rewritten to avoid. `lib/a11y.ts` is the hook
+      every transient message goes through and `ToastHost.tsx` is the global host; either one
+      losing its announcement is a real regression, and neither is about arithmetic.
+    */
+    const owners = codeLines()
+      .filter(([, text]) => ANNOUNCE.test(text))
+      .map(([where]) => where.split(':')[0] as string);
     expect(
-      callers.length,
-      'no announceForAccessibility call found — the walk is broken',
-    ).toBeGreaterThanOrEqual(6);
+      owners.some((f) => f.endsWith('lib/a11y.ts')),
+      `lib/a11y.ts no longer announces:\n` +
+        `useAnnounceOnMount is the only iOS path a transient message has — ` +
+        `accessibilityLiveRegion is Android-only, so a check-in verdict or a deck toast that ` +
+        `stops going through this hook is silent on the platform testers hold (#635).`,
+    ).toBe(true);
+    expect(
+      owners.some((f) => f.endsWith('components/ToastHost.tsx')),
+      `components/ToastHost.tsx no longer announces:\n` +
+        `The global host is what speaks every toast on iOS. If this call is gone, every ` +
+        `showToast in the app became silent there and the walk below has nothing to check (#635).`,
+    ).toBe(true);
   });
 
   it('every announcement is wrapped in spoken()', () => {
