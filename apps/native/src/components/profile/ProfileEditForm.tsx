@@ -131,13 +131,18 @@ export function ProfileEditForm({
               accessibilityLabel={t('profile.photo.a11y', locale)}
               disabled={avatar.status === 'uploading'}
               onPress={() => setSheetOpen(true)}
+              className="min-h-[44px] justify-center"
             >
               <Text className="text-[14px] font-semibold text-aura">
                 {avatarPath ? t('profile.photo.change', locale) : t('profile.photo.add', locale)}
               </Text>
             </Pressable>
             {avatarPath ? (
-              <Pressable accessibilityRole="button" onPress={() => setAvatarPath(null)}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setAvatarPath(null)}
+                className="min-h-[44px] justify-center"
+              >
                 <Text className="text-[13px] text-muted-foreground">
                   {t('profile.photo.remove', locale)}
                 </Text>

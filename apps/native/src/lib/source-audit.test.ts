@@ -2371,3 +2371,95 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 29 — a tap target is 44pt on the DEVICE, not just in the browser (#638)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §10 is one unqualified clause — «Tap targets ≥ 44pt» — and G2/A-1 gates the release
+ * on it. Both halves below exist because the obvious way to satisfy that clause measures
+ * PASSING on the only harness this repo can run and FAILING on the device it ships to.
+ *
+ * ## `h-11` is 44 on web and 38.5 on device
+ *
+ * `react-native-css` inlines `rem` at **14** unless the stylesheet declares a `:root`
+ * font-size or metro passes `inlineRem`, and `apps/native` does neither (DESIGN §11,
+ * 2026-08-30). So a spacing step is 3.5px, not 4, and the eleven-step utilities that read as
+ * «44» are 38.5pt where it counts. Eleven sites shipped that way — one of them under a comment
+ * that claimed «a real 44pt tap target» — because `getBoundingClientRect` in the expo-web walk
+ * returns 44 for every one of them. The arbitrary form `h-[44px]` is a literal on both
+ * platforms, which is why `Input.tsx:153-161` reaches for `style={{ width: 44 }}` and says so.
+ *
+ * The ban is on the CLASS, not on a measurement: eleven steps is only ever an attempt at the
+ * floor, so there is no legitimate `h-11` to carve out. A genuine 38.5pt box would be written
+ * as one.
+ *
+ * ## A bare `Pressable` is whatever its text happens to measure
+ *
+ * A `Pressable` with no `className`, no `style` and no `hitSlop` is exactly its child's line
+ * box. Around a 12px label that is ~15pt, and eight of them shipped — «Rispondi» beside a
+ * «Elimina» that had the same defect, the winner's edit/withdraw/save/cancel on published
+ * progress, both photo controls on the edit form, and the pair the issue did list in
+ * onboarding. None is visible as a defect in review: the control looks right, it is only
+ * small. So the shape itself is the assertion, and a target that genuinely inherits its size
+ * from a large child is named here rather than left to be inferred.
+ *
+ * Neither half can be checked by the expo-web walk (`/mobile-qa`): every fix below measures
+ * IDENTICALLY in the browser before and after, which is the whole reason the trap survived.
+ */
+describe('a11y: a tap target clears 44pt on the device (#638)', () => {
+  /** A bare Pressable whose size legitimately comes from a large child. */
+  const BARE_PRESSABLE_OK: Record<string, string> = {
+    'components/profile/DreamCard.tsx':
+      'wraps <DreamQuote>, a multi-line quote block that is far taller than the floor',
+  };
+
+  const REM_44 = /\b(?:min-)?[hw]-11\b/;
+
+  const pressables = (p: string) =>
+    jsxOpeningTags(stripComments(read(p))).filter((t) => t.base === 'Pressable');
+
+  it('finds the Pressable sites it is walking', () => {
+    const total = FILES.filter((p) => !isTest(p)).reduce((n, p) => n + pressables(p).length, 0);
+    // A scanner that finds nothing passes both assertions below. ~177 tags today.
+    expect(total, 'no <Pressable> found at all — the walk is broken, not the tree').toBeGreaterThan(
+      100,
+    );
+  });
+
+  it('no eleven-step height or width stands in for the 44pt floor', () => {
+    const hits = codeLines()
+      .filter(([, text]) => REM_44.test(text))
+      .map(([where, text]) => `${where}  ${text.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      `an \`h-11\`/\`w-11\` used as the 44pt floor:\n` +
+        `A spacing step is 3.5px on device (rem inlines at 14 — DESIGN §11, 2026-08-30), so ` +
+        `this measures 38.5pt there while returning a passing 44px to the web walk. Write the ` +
+        `literal \`h-[44px]\`/\`w-[44px]\`, or \`min-h-[44px]\` where the box grows (#638).`,
+    ).toEqual([]);
+  });
+
+  it('every Pressable declares its own geometry, or is named as inheriting it', () => {
+    const bare = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      pressables(p)
+        .filter(
+          ({ attrs }) =>
+            !/\bclassName=/.test(attrs) && !/\bstyle=/.test(attrs) && !/\bhitSlop=/.test(attrs),
+        )
+        .map(({ line }) => `${rel(p).replace('apps/native/src/', '')}:${line}`),
+    );
+    const unexplained = bare.filter(
+      (hit) => BARE_PRESSABLE_OK[hit.slice(0, hit.lastIndexOf(':'))] === undefined,
+    );
+    expect(
+      unexplained,
+      `a Pressable with no geometry of its own:\n` +
+        `With no className, style or hitSlop this target is exactly its child's line box — ` +
+        `~15pt around a 12px label, under §10's 44pt floor and invisible in review because ` +
+        `the control still LOOKS right. Give it \`min-h-[44px] justify-center\`, or add it to ` +
+        `BARE_PRESSABLE_OK with the large child it inherits its size from (#638).`,
+    ).toEqual([]);
+  });
+});

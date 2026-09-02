@@ -149,7 +149,7 @@ export default function CommunityScreen() {
           was fold-chrome; on the events tab it is context. */}
       {!showsPosts ? (
         <Pressable
-          className="mx-5 flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
+          className="mx-5 min-h-[44px] flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
           onPress={() => router.push(LIVE_HREF)}
           accessibilityRole="link"
         >

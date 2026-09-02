@@ -416,11 +416,11 @@ export default function ChatScreen() {
                   />
                 ) : (
                   <Pressable
-                    className="absolute right-[-6px] top-[-6px] h-5 w-5 items-center justify-center rounded-full bg-raise"
+                    className="absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full bg-raise"
                     onPress={() => setAttachment(null)}
                     accessibilityRole="button"
                     accessibilityLabel={t('chat.a11y.removeAttachment', locale)}
-                    hitSlop={8}
+                    hitSlop={12}
                   >
                     <Text className="text-[11px] text-faint">✕</Text>
                   </Pressable>
@@ -442,7 +442,7 @@ export default function ChatScreen() {
               hitSlop={HIT_SLOP}
               disabled={send.isPending || attachment !== null}
               onPress={() => setSheetOpen(true)}
-              className={`h-11 w-11 items-center justify-center ${
+              className={`h-[44px] w-[44px] items-center justify-center ${
                 send.isPending || attachment !== null ? 'opacity-40' : ''
               }`}
             >
@@ -463,7 +463,7 @@ export default function ChatScreen() {
               onPress={() =>
                 send.mutate({ body: trimmed.length > 0 ? trimmed : undefined, staged: attachment })
               }
-              className={`h-11 w-11 items-center justify-center rounded-full bg-aura ${
+              className={`h-[44px] w-[44px] items-center justify-center rounded-full bg-aura ${
                 canSend ? '' : 'opacity-40'
               }`}
             >

@@ -236,6 +236,9 @@ export default function ProgressScreen() {
     />
   );
 
+  // The four own-update controls (edit/withdraw here, save/cancel in the editor below) were
+  // 12px labels with no padding and no hitSlop — ~15pt targets. They edit and withdraw
+  // PUBLISHED progress, so §10's floor is not optional on them.
   const ownControls = (update: RealizationUpdateRow) =>
     update.deleted_at ? null : (
       <View className="flex-row gap-4 pt-1">
@@ -246,12 +249,18 @@ export default function ProgressScreen() {
           }}
           accessibilityRole="button"
           disabled={busy}
+          className="min-h-[44px] justify-center"
         >
           <Text className="text-[12px] text-muted-foreground">
             {t('fund.progress.edit', locale)}
           </Text>
         </Pressable>
-        <Pressable onPress={() => onWithdraw(update.id)} accessibilityRole="button" disabled={busy}>
+        <Pressable
+          onPress={() => onWithdraw(update.id)}
+          accessibilityRole="button"
+          disabled={busy}
+          className="min-h-[44px] justify-center"
+        >
           <Text className="text-[12px] text-muted-foreground">
             {t('fund.progress.withdraw', locale)}
           </Text>
@@ -355,6 +364,7 @@ export default function ProgressScreen() {
                           }
                           accessibilityRole="button"
                           disabled={busy || editingBody.trim().length === 0}
+                          className="min-h-[44px] justify-center"
                         >
                           <Text className="text-[12px] text-aura">
                             {t('fund.progress.edit.save', locale)}
@@ -364,6 +374,7 @@ export default function ProgressScreen() {
                           onPress={() => setEditingId(null)}
                           accessibilityRole="button"
                           disabled={busy}
+                          className="min-h-[44px] justify-center"
                         >
                           <Text className="text-[12px] text-muted-foreground">
                             {t('fund.progress.edit.cancel', locale)}

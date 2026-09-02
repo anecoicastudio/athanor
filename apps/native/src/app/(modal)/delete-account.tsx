@@ -75,6 +75,7 @@ export default function DeleteAccountScreen() {
         <Pressable
           onPress={() => router.replace('/(modal)/data-export')}
           accessibilityRole="button"
+          className="min-h-[44px] justify-center"
         >
           <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
         </Pressable>

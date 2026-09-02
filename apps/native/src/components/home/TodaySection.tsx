@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsCalendar } from '@athanor/api';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { HIT_SLOP } from '@/lib/a11y';
 import { EventRow, toRowData } from '@/components/live/EventRow';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -71,8 +70,10 @@ export function TodaySection({ locale }: { locale: Locale }) {
         <SectionLabel>{t('home.upcoming.title', locale)}</SectionLabel>
         <Pressable
           onPress={() => router.push(LIVE_HREF)}
-          hitSlop={HIT_SLOP}
           accessibilityRole="link"
+          // A 13px label's line box (~16pt) plus HIT_SLOP's 11 each side reached ~38 —
+          // under §10. HIT_SLOP is sized for a 22pt icon, not for bare small text.
+          className="min-h-[44px] justify-center"
         >
           <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
         </Pressable>

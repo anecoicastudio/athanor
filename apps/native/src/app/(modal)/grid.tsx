@@ -100,8 +100,10 @@ export default function GridScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('moment.add', locale)}
-              hitSlop={8}
               onPress={() => setSheetOpen(true)}
+              // Bare glyph + `hitSlop={8}` measured ~13pt wide. Same box recipe as
+              // `HeaderClose`, which sits in this same right slot.
+              className="-mr-3 h-[44px] w-[44px] items-center justify-center"
             >
               <Text className="text-2xl text-faint">+</Text>
             </Pressable>

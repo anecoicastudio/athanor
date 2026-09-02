@@ -49,7 +49,12 @@ export function PlanPhaseCard({
       <View className="flex-row items-center justify-between">
         <SectionLabel>{t('fund.plan.phase.n', locale, { n: index + 1 })}</SectionLabel>
         {!readOnly ? (
-          <Pressable onPress={onRemove} accessibilityRole="button">
+          <Pressable
+            onPress={onRemove}
+            accessibilityRole="button"
+            // 12px label, no padding, no slop — a ~15pt target that DELETES a phase (§10).
+            className="min-h-[44px] justify-center"
+          >
             <Text className="text-[12px] text-muted-foreground">
               {t('fund.plan.phase.remove', locale)}
             </Text>

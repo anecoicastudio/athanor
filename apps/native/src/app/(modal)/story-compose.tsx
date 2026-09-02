@@ -137,10 +137,10 @@ export default function StoryComposeScreen() {
                 />
               ) : (
                 <Pressable
-                  className="absolute right-[-6px] top-[-6px] h-5 w-5 items-center justify-center rounded-full bg-raise"
+                  className="absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full bg-raise"
                   onPress={() => setMedia(null)}
                   accessibilityRole="button"
-                  hitSlop={8}
+                  hitSlop={12}
                 >
                   <Text className="text-[11px] text-faint">✕</Text>
                 </Pressable>

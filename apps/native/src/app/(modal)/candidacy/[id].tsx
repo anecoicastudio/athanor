@@ -321,7 +321,7 @@ export default function CandidacyDetailScreen() {
               // #633: the one vote sits on another candidacy — the action here is a move, and
               // a cyan «Vota» would promise a second vote. Quiet outline, same as the card.
               <Pressable
-                className="rounded-full border border-hair px-5 py-3"
+                className="min-h-[44px] justify-center rounded-full border border-hair px-5 py-3"
                 onPress={onVote}
                 accessibilityRole="button"
                 accessibilityLabel={t('fund.vote.move', locale)}
@@ -330,7 +330,7 @@ export default function CandidacyDetailScreen() {
               </Pressable>
             ) : (
               <Pressable
-                className="rounded-full bg-aura px-6 py-3"
+                className="min-h-[44px] justify-center rounded-full bg-aura px-6 py-3"
                 onPress={onVote}
                 accessibilityRole="button"
                 accessibilityLabel={t('fund.vote.cta', locale)}

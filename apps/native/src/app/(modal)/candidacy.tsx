@@ -360,7 +360,7 @@ function WizardForm({
             wide. -ml-3 keeps the glyph optically near the gutter. */}
             <Pressable
               onPress={() => (step > 0 ? setStep((s) => s - 1) : leave())}
-              className="-ml-3 h-11 w-11 items-center justify-center"
+              className="-ml-3 h-[44px] w-[44px] items-center justify-center"
               accessibilityRole="button"
               accessibilityLabel={t('common.back', locale)}
             >
@@ -417,6 +417,7 @@ function WizardForm({
                       <Pressable
                         onPress={() => router.push('/(modal)/verify')}
                         accessibilityRole="button"
+                        className="min-h-[44px] justify-center"
                       >
                         <Text className="text-[13px] font-semibold text-aura">
                           {t('candidacy.idGate.cta', locale)}
