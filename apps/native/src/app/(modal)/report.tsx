@@ -10,7 +10,9 @@ import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -69,6 +71,15 @@ export default function ReportScreen() {
       void qc.invalidateQueries({ queryKey: blockKeys.all });
       leave();
     },
+  });
+
+  // #636. `isSuccess` matters here beyond the usual: on a person report the sheet stays up
+  // after the write so «Blocca anche questa persona» remains tappable, and the note is by
+  // then submitted rather than unsaved.
+  useDirtyGuard({
+    dirty: isDraftDirty({ category: null, note: '' }, { category, note }),
+    saving: report.isPending,
+    submitted: report.isSuccess,
   });
 
   return (

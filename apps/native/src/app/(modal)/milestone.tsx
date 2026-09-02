@@ -8,7 +8,9 @@ import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -29,6 +31,9 @@ export default function MilestoneScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const { showToast } = useToast();
+
+  // `saving` stays true across the 700ms farewell below, so the success path never confirms.
+  useDirtyGuard({ dirty: isDraftDirty('', body), saving });
 
   const add = async () => {
     if (saving) return;

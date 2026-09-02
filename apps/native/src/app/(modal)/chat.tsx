@@ -19,6 +19,7 @@ import { localeTag, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
 import { Bubble } from '@/components/chat/Bubble';
@@ -35,6 +36,7 @@ import { chatMediaPath, newMediaId, processAndUpload } from '@/lib/media/upload'
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraScore } from '@/hooks/use-aura-score';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
@@ -198,6 +200,16 @@ export default function ChatScreen() {
     // the copy offers is the composer still sitting there — a modal over the thread would only
     // hide it (#102). A retry re-uploads to the same key (see `attachment`), never a new orphan.
     onError: () => showToast(t('chat.failed', locale)),
+  });
+
+  // #636. An unsent message and its staged image are the draft here; the conversation
+  // itself is already persisted, so nothing else on this screen is at risk.
+  useDirtyGuard({
+    dirty: isDraftDirty(
+      { draft: '', attachment: null },
+      { draft, attachment: attachment?.mediaId ?? null },
+    ),
+    saving: send.isPending,
   });
 
   const trimmed = draft.trim();

@@ -17,7 +17,9 @@ import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { toStatus } from '@/lib/media/permission-status';
@@ -69,6 +71,28 @@ export default function EventCreateScreen() {
    * grows the Settings route instead.
    */
   const [locationRefusal, setLocationRefusal] = useState<'denied' | 'blocked' | null>(null);
+  /**
+   * #636. Seventeen `useState`s, one of them a `Date` seeded from the clock — so the baseline
+   * is captured by a state INITIALISER rather than rebuilt inline. Re-running
+   * `new Date(Date.now() + …)` for the comparison would produce an instant a few milliseconds
+   * from `startsAt` and report an untouched form as edited on its first render.
+   */
+  const [baseline] = useState(() => ({
+    title: '',
+    description: '',
+    category: 'networking',
+    isOnline: false,
+    venue: '',
+    city: '',
+    coords: null,
+    streamUrl: '',
+    startsAt,
+    capacity: '',
+    paid: false,
+    price: '',
+    settlementAck: false,
+  }));
+
   const { showToast } = useToast();
 
   const requestMyLocation = async () => {
@@ -159,6 +183,26 @@ export default function EventCreateScreen() {
   };
 
   const label = (key: MessageKey) => <SectionLabel>{t(key, locale)}</SectionLabel>;
+
+  useDirtyGuard({
+    dirty: isDraftDirty(baseline, {
+      title,
+      description,
+      category,
+      isOnline,
+      venue,
+      city,
+      coords,
+      streamUrl,
+      startsAt,
+      capacity,
+      paid,
+      price,
+      settlementAck,
+    }),
+    saving: mutation.isPending,
+    submitted: mutation.isSuccess,
+  });
 
   return (
     <KeyboardAvoiding>

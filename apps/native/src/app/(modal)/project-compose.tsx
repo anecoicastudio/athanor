@@ -12,7 +12,9 @@ import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
@@ -38,6 +40,9 @@ export default function ProjectComposeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const authorId = session?.user.id;
+
+  // #636: title + category + description went with one swipe-down. This composer is missing
+  // from the issue's roster entirely; it loses work exactly like the ones that are on it.
   const { showToast } = useToast();
 
   /**
@@ -88,6 +93,15 @@ export default function ProjectComposeScreen() {
       if (mounted.current) setError(message);
       else showToast(message);
     },
+  });
+
+  useDirtyGuard({
+    dirty: isDraftDirty(
+      { title: '', category: 'startup', description: '' },
+      { title, category, description },
+    ),
+    saving: mutation.isPending,
+    submitted: mutation.isSuccess,
   });
 
   const onPublish = () => {

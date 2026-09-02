@@ -22,6 +22,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { StepDots } from '@/components/StepDots';
 import { VideoUploadTile } from '@/components/candidacy/VideoUploadTile';
 import { useToast } from '@/components/ToastHost';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useCandidacyUpload } from '@/lib/media/use-candidacy-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import {
@@ -44,6 +45,7 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
 import { useActiveDream } from '@/hooks/use-active-dream';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -195,6 +197,14 @@ function WizardForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // #636. Seven steps of prose behind one swipe-down. Same initialiser as `values`, so the
+  // baseline is the prefill on an edit or a resubmit and the empty wizard on a first run —
+  // never a not-yet-arrived row, which would read as dirty from the first keystroke.
+  const [baseline] = useState<WizardValues>(() => prefillValues(initial));
+  // `submitting` is deliberately never cleared on the success paths below (both the edit's
+  // `leave()` and the submit's `router.replace`), so it doubles as the submitted flag.
+  useDirtyGuard({ dirty: isDraftDirty(baseline, values), saving: submitting });
+
   // Typing anywhere clears the error caption; tapping a chip on the optional steps does not,
   // because those steps never raise one.
   const setText = (field: WizardTextField, value: string) => {
@@ -242,13 +252,18 @@ function WizardForm({
   const draft: WizardDraft = { ...values, hasVideo };
 
   const toggleSkill = (key: string) =>
-    setValues((prev) =>
-      prev.skills.includes(key)
-        ? { ...prev, skills: prev.skills.filter((x) => x !== key) }
-        : prev.skills.length >= MAX_SKILLS
-          ? prev
-          : { ...prev, skills: [...prev.skills, key] },
-    );
+    setValues((prev) => {
+      if (prev.skills.includes(key)) {
+        return { ...prev, skills: prev.skills.filter((x) => x !== key) };
+      }
+      if (prev.skills.length >= MAX_SKILLS) {
+        // The same silent refusal the profile editor had (#636). Fixing it in one place only
+        // would have left the identical dead chip in the wizard.
+        showToast(t('profile.skills.max', locale, { count: String(MAX_SKILLS) }));
+        return prev;
+      }
+      return { ...prev, skills: [...prev.skills, key] };
+    });
 
   const advance = () => {
     const blocker = stepBlocker(draft, step);

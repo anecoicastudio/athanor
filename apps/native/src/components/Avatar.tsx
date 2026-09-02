@@ -24,6 +24,7 @@ export function Avatar({
   size = 72,
   displayName = null,
   avatarPath = null,
+  previewUri = null,
 }: {
   handle: string | null;
   size?: number;
@@ -34,8 +35,17 @@ export function Avatar({
    * and then fails to load (deleted object, expired TTL) falls back to the initial (#287).
    */
   avatarPath?: string | null;
+  /**
+   * A local `file://` URI to draw INSTEAD of the signed key (#636). The profile editor stages a
+   * picked photo without uploading it, so between the pick and Save there is no storage key to
+   * sign — and the old behaviour, uploading on pick to get one, overwrote the member's live
+   * avatar before they had agreed to the change.
+   */
+  previewUri?: string | null;
 }) {
-  const url = useAvatarUrl(avatarPath);
+  const signed = useAvatarUrl(avatarPath);
+  // The staged pick wins: it is what the member just chose, and it is not stored yet.
+  const url = previewUri ?? signed;
   const reduce = useReducedMotion();
   const initial = (displayName?.trim() || handle || '?').charAt(0).toUpperCase();
   const [failed, setFailed] = useState(false);

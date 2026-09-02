@@ -27,10 +27,12 @@ import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
 import { useToast } from '@/components/ToastHost';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -187,6 +189,16 @@ export default function ProgressScreen() {
     />
   );
 
+  const busy = postMutation.isPending || editMutation.isPending || withdrawMutation.isPending;
+  // #636. The only roster screen that is NOT a sheet — `progress` has no <Stack.Screen> entry
+  // in (modal)/_layout.tsx, so it presents as a push card and its gesture is the iOS left-edge
+  // back-swipe rather than a swipe-down. `usePreventRemove` covers both. Two drafts live here:
+  // the new note being composed, and a posted note reopened for correction.
+  useDirtyGuard({
+    dirty: isDraftDirty({ body: '', editingBody: '' }, { body, editingBody }),
+    saving: busy,
+  });
+
   if (editionQuery.isLoading || myCandidacyQuery.isLoading) {
     return (
       <Screen>
@@ -221,8 +233,6 @@ export default function ProgressScreen() {
       </Screen>
     );
   }
-
-  const busy = postMutation.isPending || editMutation.isPending || withdrawMutation.isPending;
 
   // `Chip small` (#635). The role was already here; the SELECTED state was not, so which phase
   // an update belongs to was conveyed by cyan alone — and at py-2 the pill missed 44pt.

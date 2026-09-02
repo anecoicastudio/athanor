@@ -8,7 +8,9 @@ import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { type PickedMedia } from '@/lib/media/pick';
@@ -39,9 +41,19 @@ export default function StoryComposeScreen() {
   const [isStep, setIsStep] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set before the exit below, not derived from `isUploading`: the upload has already
+  // finished by the time this screen pops itself, so the flag is what stops the guard
+  // asking a member to confirm discarding a segment that is already published (#636).
+  const [published, setPublished] = useState(false);
 
   const { addSegment, isUploading } = useStoryUpload(uid);
   const { showToast } = useToast();
+
+  useDirtyGuard({
+    dirty: isDraftDirty({ media: null, caption: '', isStep: false }, { media, caption, isStep }),
+    saving: isUploading,
+    submitted: published,
+  });
 
   /**
    * The publish runs in a floating async IIFE, so it settles whether or not this screen is
@@ -76,6 +88,7 @@ export default function StoryComposeScreen() {
         // even when the publish settled after they left. `'success'`, not `'moment'`: the ✦
         // belongs to the ring this segment lights, not to the act of posting it (rule 4).
         showToast(t('story.toast.published', locale), 'success');
+        setPublished(true);
         if (mounted.current) leave();
       } catch (err) {
         const key = uploadErrorKey(err);
