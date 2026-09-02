@@ -98,7 +98,7 @@ export function StoryRing({
           //
           // NOT a two-platform guarantee, and this is the honest limit: the badge sits at
           // `right-[6px]` in a 76pt wrapper, so 6 of the 12pt right slop falls outside the
-          // parent — the region `Input.tsx:159-161` records Android as declining to
+          // parent — the region `Input.tsx:157-159` records Android as declining to
           // deliver. Android is therefore ~38 wide, iOS 44. The previous HIT_SLOP overran
           // the same edge, so this is not a regression; closing it needs the wrapper to
           // widen, which moves a position the docblock above measured against a build.

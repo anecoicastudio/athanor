@@ -2479,8 +2479,11 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
       `a Pressable with no geometry of its own:\n` +
         `With no className, style or hitSlop this target is exactly its child's line box — ` +
         `~15pt around a 12px label, under §10's 44pt floor and invisible in review because ` +
-        `the control still LOOKS right. Give it \`min-h-[44px] justify-center\`, or add it to ` +
-        `BARE_PRESSABLE_OK with the large child it inherits its size from (#638).`,
+        `the control still LOOKS right. Give it \`min-h-[44px] min-w-[44px] items-center ` +
+        `justify-center\`, or add it to BARE_PRESSABLE_OK with the large child it inherits ` +
+        `its size from. BARE_PRESSABLE_OK is keyed by \`file:line\`, so an ALREADY-listed ` +
+        `site reappearing here usually just moved — bump its key rather than re-solving it, ` +
+        `and re-read it while you are there, which is why the key carries the line (#638).`,
     ).toEqual([]);
   });
 });
