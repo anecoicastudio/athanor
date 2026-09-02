@@ -17,3 +17,6 @@ apps/native/assets/expo.icon/icon.json
 .wrangler
 apps/web/cloudflare-env.d.ts
 PROJECT_INDEX.json
+# Local review artifacts (gitignored via .git/info/exclude; written by tooling, not hand-formatted)
+.impeccable
+.scratch
