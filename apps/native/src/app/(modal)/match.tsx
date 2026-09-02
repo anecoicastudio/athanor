@@ -80,7 +80,7 @@ export default function MatchOverlay() {
             accessibilityRole="button"
             accessibilityLabel={t('common.close', locale)}
             onPress={dismiss}
-            className="h-[44px] w-[44px] items-center justify-center"
+            className="min-h-[44px] min-w-[44px] items-center justify-center"
           >
             <Text className="text-2xl text-faint">×</Text>
           </Pressable>

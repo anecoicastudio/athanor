@@ -102,8 +102,10 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
     >
       <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
       <Card>
-        {/* Days remaining — big number */}
-        <View className="flex-row items-baseline gap-2">
+        {/* Days remaining — big number. `flex-wrap` (#639): the numeral and its word sit on
+            one baseline row with no shrink, so at AX sizes the word left the card; wrapping
+            drops it to a second line instead. Nothing wraps at the default size. */}
+        <View className="flex-row flex-wrap items-baseline gap-2">
           <Text className="text-4xl font-bold text-aura">{days}</Text>
           <Text className="text-sm text-muted-foreground">
             {tn('fund.countdown.days', days, locale)}
@@ -111,9 +113,9 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
         </View>
 
         {/* Fund total + contributor count */}
-        <View className="flex-row items-center justify-between">
+        <View className="flex-row flex-wrap items-center justify-between gap-y-1">
           <Text className="text-base font-semibold text-foreground">{fundTotal}</Text>
-          <View className="flex-row items-baseline gap-1">
+          <View className="flex-row flex-wrap items-baseline gap-1">
             <Text className="text-sm font-medium text-foreground">{contributors}</Text>
             <Text className="text-xs text-muted-foreground">{t('fund.people.label', locale)}</Text>
           </View>

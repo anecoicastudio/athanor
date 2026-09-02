@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { memberLabel } from '@athanor/core';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/tw';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { useAvatarUrl } from '@/lib/media/avatar-url';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
@@ -67,8 +68,13 @@ export function Avatar({
           onError={() => setFailed(true)}
         />
       ) : (
+        // `ornament` (#639): the disc is sized by the `size` prop — a layout constant every
+        // row and rail measures against — so the initial cannot grow without leaving it. It
+        // loses nothing: the View above is `accessible` and labelled with the member's name,
+        // so a screen reader never reads this letter in the first place.
         <Text
           className="font-semibold text-foreground"
+          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
           style={{ fontSize: Math.round(size * 0.4) }}
         >
           {initial}

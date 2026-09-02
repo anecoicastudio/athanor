@@ -85,12 +85,15 @@ export function ModalHeader({
         <View className="flex-1">{titleSlot}</View>
       ) : subtitle != null || compact ? (
         <View className="flex-1">
-          <Text accessibilityRole="header" numberOfLines={1} className={titleClass}>
+          {/* Two lines (#639): a header IS the screen's name — truncating it at AX sizes
+              leaves «Impostazion…» where the whole point of the band is orientation. The
+              band has no fixed height, so the second line costs nothing at default size. */}
+          <Text accessibilityRole="header" numberOfLines={2} className={titleClass}>
             {title}
           </Text>
           {subtitle == null ? null : typeof subtitle === 'string' ? (
             <Text
-              numberOfLines={1}
+              numberOfLines={2}
               className={compact ? 'text-[11px] text-faint' : 'text-[14px] text-faint'}
             >
               {subtitle}
@@ -100,7 +103,7 @@ export function ModalHeader({
           )}
         </View>
       ) : (
-        <Text accessibilityRole="header" numberOfLines={1} className={`flex-1 ${titleClass}`}>
+        <Text accessibilityRole="header" numberOfLines={2} className={`flex-1 ${titleClass}`}>
           {title}
         </Text>
       )}
@@ -123,7 +126,7 @@ export function ModalHeader({
           // slot in (onboarding)/index.tsx, welcome.tsx and forgot-password.tsx. No
           // hitSlop now: the rect already clears 44, and slop would reach into the
           // identity target 12pt to its right.
-          className="-ml-3 h-[44px] w-[44px] items-center justify-center"
+          className="-ml-3 min-h-[44px] min-w-[44px] items-center justify-center"
         >
           <Text className="text-2xl text-foreground">{leading === 'close' ? '✕' : '‹'}</Text>
         </Pressable>
@@ -161,7 +164,7 @@ export function HeaderClose({ label, onPress }: { label: string; onPress: () => 
       accessibilityLabel={label}
       // Same box-not-slop fix as the leading chevron above; `-mr-3` mirrors its `-ml-3`
       // so the ✕ stays optically on the right gutter.
-      className="-mr-3 h-[44px] w-[44px] items-center justify-center"
+      className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
     >
       <Text className="text-2xl text-foreground">✕</Text>
     </Pressable>

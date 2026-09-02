@@ -3,6 +3,7 @@ import { t } from '@athanor/i18n';
 import type { Locale, Notification } from '@athanor/schemas';
 import { displayParams } from '@/lib/notif-params';
 import { timeAgo } from '@/lib/time';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { NOTIF_VISUAL, NOTIF_LEAD, NOTIF_LEAD_BY_TEMPLATE } from './notifTypes';
 
 /**
@@ -43,7 +44,15 @@ export default function NotificationRow({
     >
       {/* ndot: accent circle + glyph */}
       <View className={`mt-0.5 h-9 w-9 items-center justify-center rounded-full ${v.accentClass}`}>
-        <Text className={`text-base ${v.celebratory ? 'text-aura' : 'text-faint'}`}>{v.glyph}</Text>
+        {/* `ornament` (#639): the disc stays a disc — height and width would grow by the
+            glyph's line box and its advance, which are different numbers. The row's own
+            accessibilityLabel above carries the meaning, so the glyph reads nothing. */}
+        <Text
+          className={`text-base ${v.celebratory ? 'text-aura' : 'text-faint'}`}
+          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+        >
+          {v.glyph}
+        </Text>
       </View>
 
       {/* Body */}

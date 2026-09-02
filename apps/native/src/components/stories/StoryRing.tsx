@@ -4,6 +4,7 @@ import type { Locale } from '@athanor/schemas';
 import { Avatar } from '@/components/Avatar';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 /** Avatar diameter. The ring box around it is this plus `border-2` and `p-0.5` — 68. */
 const AVATAR = 60;
@@ -72,8 +73,11 @@ export function StoryRing({
         <View className={`rounded-full border-2 p-0.5 ${ring}`}>
           <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={AVATAR} />
         </View>
+        {/* Two lines, not one (#639): 11px in a 76pt rail entry truncates most names at the
+            default size already, and every step of Dynamic Type takes another character. The
+            rail is a row of top-aligned entries, so a second line costs height, not layout. */}
         <Text
-          numberOfLines={1}
+          numberOfLines={2}
           className={`text-[11px] ${seen ? 'text-faint' : 'text-foreground'}`}
         >
           {name}
@@ -106,7 +110,14 @@ export function StoryRing({
           onPress={onAddPress}
           className="absolute right-[6px] top-[46px] h-[20px] w-[20px] items-center justify-center rounded-full border border-hair bg-raise"
         >
-          <Text className="text-[13px] leading-[15px] text-faint">+</Text>
+          {/* `ornament` (#639): the docblock above measures this badge to the pixel; a scaled
+              + would break exactly that measurement. Its accessibilityLabel names it. */}
+          <Text
+            className="text-[13px] leading-[15px] text-faint"
+            maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+          >
+            +
+          </Text>
         </Pressable>
       ) : null}
     </View>

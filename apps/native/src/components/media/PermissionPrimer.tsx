@@ -115,7 +115,7 @@ export function PermissionPrimer({
               <Button label={t(allowKey, locale)} variant="light" onPress={onAllow} />
             )}
             <Pressable
-              className="h-[52px] items-center justify-center"
+              className="min-h-[52px] items-center justify-center py-3"
               accessibilityRole="button"
               onPress={onDismiss}
             >

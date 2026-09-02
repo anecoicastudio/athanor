@@ -13,7 +13,10 @@ export function EventCover({ event, locale }: { event: Event; locale: Locale }) 
     ? t('live.chip.athanorDay', locale)
     : t(`event.cat.${event.category}` as MessageKey, locale);
   return (
-    <View className="h-[180px] justify-end overflow-hidden rounded-hero border border-hair bg-surface">
+    <View // `min-h` (#639): the chip and the display title inside scale with the member's text
+      // size, and a hard 180 would clip the title rather than let the hero grow.
+      className="min-h-[180px] justify-end overflow-hidden rounded-hero border border-hair bg-surface"
+    >
       <View className="absolute inset-0 bg-aura-soft opacity-40" />
       <View className="gap-2 p-5">
         <View

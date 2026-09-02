@@ -14,6 +14,7 @@ import { useGuardedBack } from '@/lib/modal-exit';
 import { type PickedMedia } from '@/lib/media/pick';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useStoryUpload } from '@/lib/media/use-story-upload';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
@@ -142,7 +143,15 @@ export default function StoryComposeScreen() {
                   accessibilityRole="button"
                   hitSlop={12}
                 >
-                  <Text className="text-[11px] text-faint">✕</Text>
+                  {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
+                        sits on, so the ✕ cannot grow without leaving it. The control is named by
+                        its own accessibilityLabel, so the glyph carries nothing. */}
+                  <Text
+                    className="text-[11px] text-faint"
+                    maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                  >
+                    ✕
+                  </Text>
                 </Pressable>
               )}
             </View>

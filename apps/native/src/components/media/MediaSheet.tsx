@@ -356,7 +356,7 @@ function Row({
 }) {
   return (
     <Pressable
-      className={`h-[52px] flex-row items-center rounded-ctl px-4 ${disabled ? 'opacity-40' : ''}`}
+      className={`min-h-[52px] flex-row items-center rounded-ctl px-4 py-3 ${disabled ? 'opacity-40' : ''}`}
       disabled={disabled}
       accessibilityRole="button"
       onPress={onPress}

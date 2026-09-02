@@ -16,6 +16,7 @@ import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
 import { spoken } from '@/lib/star';
 import { toggleTag } from '@/lib/tags';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
@@ -141,19 +142,19 @@ export default function OnboardingScreen() {
               {/* The back slot is reserved unconditionally (#164): a conditionally rendered
               arrow moved the eyebrow's x-origin ~25pt between step 0 and 1. The slot is a
               real 44pt tap target (DESIGN §10 — the old bare glyph + hitSlop measured
-              ~38pt wide). Literal `h-[44px] w-[44px]`, not `h-11`: a spacing step is 3.5px
+              ~38pt wide). Literal `min-h-[44px] min-w-[44px]`, not `h-11`: a spacing step is 3.5px
               on device, so `h-11` is 38.5pt there while measuring a passing 44px on web —
               the same trap `Input.tsx` documents. -ml-3 keeps the glyph optically near the
               gutter. Step 0 renders
               the empty slot, not a disabled button, so screen readers gain no phantom
               control. */}
-              <View className="-ml-3 h-[44px] w-[44px]">
+              <View className="-ml-3 min-h-[44px] min-w-[44px]">
                 {step > 0 ? (
                   <Pressable
                     onPress={() => setStep((s) => s - 1)}
                     accessibilityRole="button"
                     accessibilityLabel={t('onboarding.back', locale)}
-                    className="h-[44px] w-[44px] items-center justify-center"
+                    className="min-h-[44px] min-w-[44px] items-center justify-center"
                   >
                     <Text className="text-2xl text-foreground">‹</Text>
                   </Pressable>
@@ -274,6 +275,9 @@ export default function OnboardingScreen() {
                         // foto» control below is what names this (#635).
                         <Text
                           className="text-[40px] text-faint"
+                          // `ornament` (#639): a 40px mark inside a hard 116pt disc, already
+                          // hidden from assistive tech — scaling it only pushes it out.
+                          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
                           accessibilityElementsHidden
                           importantForAccessibility="no-hide-descendants"
                         >

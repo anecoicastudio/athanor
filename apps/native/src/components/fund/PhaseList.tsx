@@ -2,6 +2,7 @@ import type { FundPhase } from '@athanor/schemas';
 import { OPEN_CYCLE_PHASES } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 /** One numbered phase row. Highlighted when `active`. */
 function PhaseRow({
@@ -30,8 +31,13 @@ function PhaseRow({
           active ? 'bg-aura' : 'bg-raise'
         }`}
       >
+        {/* `ornament` (#639): a step counter in a hard 21pt disc. Growing it would take the
+            circle to an ellipse — height by the line box, width by the advance — and the
+            number only restates the row's own position; the phase title and description
+            beside it carry the meaning, and the row reads all three as one string. */}
         <Text
           className={`text-xs font-bold ${active ? 'text-background' : 'text-muted-foreground'}`}
+          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
         >
           {index}
         </Text>

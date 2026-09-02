@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
@@ -14,10 +15,14 @@ import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { momentiDeckView } from '@/lib/momenti-deck-state';
+import { scaledWellHeight } from '@/lib/type-scale';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/hooks/use-locale';
 import { useMomentiAnswered } from '@/hooks/use-momenti-answered';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
+
+/** Deck-well height at the default text size (DESIGN §8.4). Scales with `fontScale`. */
+const DECK_WELL = 438;
 
 /**
  * The Momenti tab (frontend §1/§2): few, curated proposals on a swipe deck.
@@ -133,6 +138,12 @@ export default function MomentiScreen() {
     everAnswered: answered.data,
   });
   const topHandle = cards[0]?.handle ?? '';
+  // The deck well is the one height in the app its own children cannot grow: `SwipeDeck`
+  // stacks `absolute inset-0` cards, which contribute no intrinsic height, so a hard
+  // `h-[438px]` clipped the card's dream quote at AX sizes with nothing to scroll (#639).
+  // The well scales with the member's text size instead, bounded by the same 2x the text
+  // cap uses — this screen is inside a ScrollView, so a taller well simply scrolls.
+  const { fontScale } = useWindowDimensions();
 
   return (
     <Screen>
@@ -146,7 +157,7 @@ export default function MomentiScreen() {
         </Text>
         <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
 
-        <View className="mt-5 h-[438px]">
+        <View className="mt-5" style={{ height: scaledWellHeight(DECK_WELL, fontScale) }}>
           {deck.isLoading ? (
             <View className="flex-1 rounded-card border border-hair bg-raise opacity-60" />
           ) : deck.isError ? (

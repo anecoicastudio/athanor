@@ -127,7 +127,7 @@ export default function CommunityScreen() {
         <Text
           accessibilityRole="header"
           className="flex-1 text-2xl font-semibold text-foreground"
-          numberOfLines={1}
+          numberOfLines={2}
         >
           {t('community.title', locale)}
         </Text>
@@ -137,7 +137,7 @@ export default function CommunityScreen() {
           onPress={() => router.push(COMPOSE_HREF)}
           // Bare glyph + HIT_SLOP was ~28pt wide — the same shape `(modal)/grid.tsx` and
           // `ModalHeader` carried. `-mr-3` keeps the ✛ optically on the px-5 gutter.
-          className="-mr-3 h-[44px] w-[44px] items-center justify-center"
+          className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
         >
           <Text className="text-2xl text-faint">+</Text>
         </Pressable>

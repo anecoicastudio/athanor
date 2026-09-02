@@ -37,6 +37,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useAuraScore } from '@/hooks/use-aura-score';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
@@ -396,6 +397,9 @@ export default function ChatScreen() {
                   >
                     <Text
                       className="text-2xl text-faint"
+                      // `ornament` (#639): same hidden mark in a hard 56pt tile as
+                      // post-compose's — the wrapper above is what announces it.
+                      maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
                     >
@@ -422,7 +426,15 @@ export default function ChatScreen() {
                     accessibilityLabel={t('chat.a11y.removeAttachment', locale)}
                     hitSlop={12}
                   >
-                    <Text className="text-[11px] text-faint">✕</Text>
+                    {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
+                        sits on, so the ✕ cannot grow without leaving it. The control is named by
+                        its own accessibilityLabel, so the glyph carries nothing. */}
+                    <Text
+                      className="text-[11px] text-faint"
+                      maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                    >
+                      ✕
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -442,7 +454,7 @@ export default function ChatScreen() {
               hitSlop={HIT_SLOP}
               disabled={send.isPending || attachment !== null}
               onPress={() => setSheetOpen(true)}
-              className={`h-[44px] w-[44px] items-center justify-center ${
+              className={`min-h-[44px] min-w-[44px] items-center justify-center ${
                 send.isPending || attachment !== null ? 'opacity-40' : ''
               }`}
             >
@@ -467,7 +479,14 @@ export default function ChatScreen() {
                 canSend ? '' : 'opacity-40'
               }`}
             >
-              <Text className="text-[20px] text-on-aura">›</Text>
+              {/* The disc stays a disc (#639): `rounded-full` on a box that grew in one axis is an
+                ellipse. The chevron is decoration on a control the label already names. */}
+              <Text
+                className="text-[20px] text-on-aura"
+                maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+              >
+                ›
+              </Text>
             </Pressable>
           </View>
         </View>
