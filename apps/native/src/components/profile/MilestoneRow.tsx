@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale, MilestoneStatus } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
-import type { HelpState } from '@/lib/help-picker';
+import { isHelpableStatus, type HelpState } from '@/lib/help-picker';
 
 const STATE_KEY = {
   open: 'milestone.state.open',
@@ -27,6 +27,26 @@ const HELP_LABEL_KEY = {
  * Helper mode (someone else's dream): pass `helpState` for the trailing «Aiuta» /
  * help-state affordance (frontend `02` §3.4C). Helper rows aren't editable — the kebab
  * is never shown when `helpState` is set.
+ *
+ * In helper mode with an offer still to make, THE WHOLE ROW IS THE BUTTON (#660). It used to
+ * be the trailing «Aiuta» alone, next to a `○` that is the row's largest glyph (`text-base`
+ * inlines at 14 on device against the label's literal 13px) and reads exactly like a
+ * selection control — a tester kept pressing the left side, which did nothing. Two changes,
+ * both from DESIGN.md: the row becomes one accessible button, `SettingsRow`'s shape and
+ * §8.13's «rows are single accessible buttons» (so the `○` honestly participates instead of
+ * lying), and «Aiuta» takes the framed chip geometry `FavorRow` already ships for the same
+ * word, so the CTA stops reading as a link to an explainer.
+ *
+ * Only the SHAPE is borrowed from §8.13, not its floor: that section's ≥56pt is the settings
+ * list's own geometry, which `SettingsRow` implements. A tappa row is not a settings row, so
+ * it takes §10's ≥44pt instead.
+ *
+ * The chip is a `View`, never a nested `Pressable`: source-audit §21 forbids one inside
+ * another (an accessible ancestor is atomic to VoiceOver) and its register is empty by
+ * design. Its `aura-soft` frame is the accent-chip treatment, not the glow — picking a tappa
+ * is a navigation step, and even the offer it leads to is ruled not moment-grade
+ * (`(modal)/help.tsx`'s CTA comment). The row's own label carries the name and the state,
+ * because an accessible ancestor masks the children that render them.
  */
 export function MilestoneRow({
   name,
@@ -51,6 +71,12 @@ export function MilestoneRow({
   const done = status === 'done';
   // Helper rows aren't editable: never show the owner kebab when in help mode.
   const isOwner = Boolean(onMarkDone || onDelete) && !helpState;
+  // `isHelpableStatus` and not a bare `!done`: Person Detail derives `helpState` from the
+  // viewer's prior offers alone and defaults to 'available', so a FINISHED tappa arrived here
+  // carrying «Aiuta» — beside its own ✓, and absent from the picker the CTA opens, which
+  // filters on the very same rule (#660, *Beyond the issue*).
+  const offerable = helpState === 'available' && isHelpableStatus(status) && Boolean(onHelp);
+  const stateLabel = t(STATE_KEY[status], locale);
 
   const confirmDelete = () => {
     setMenuOpen(false);
@@ -61,46 +87,71 @@ export function MilestoneRow({
     ]);
   };
 
+  // The cells every arm shares. It holds NO Pressable, deliberately: source-audit §21 walks tag
+  // depth over the file text and cannot see through a const, so a control hoisted in here would
+  // nest under the wrapper below at runtime with nothing going red. The owner kebab therefore
+  // sits in the arm that renders it — which is also honest, since `isOwner` requires no
+  // `helpState` and can never coexist with `offerable`.
+  const rowContent = (
+    <>
+      {/* leading glyph: ✓ done (aura), ○ open (faint) */}
+      <Text
+        className={done ? 'text-base text-aura' : 'text-base text-faint'}
+        // Silent on the offerable arm: the row is the button there and its own label already
+        // says which tappa and in what state (#635). A labelled ancestor is reported to
+        // override its children rather than concatenate them, which would make this belt and
+        // braces — but no device is reachable here to confirm that, so the glyph does not
+        // rely on it. `SettingsRow`'s children carry no labels either.
+        accessibilityLabel={
+          offerable ? undefined : t(done ? 'milestone.a11y.done' : 'milestone.a11y.open', locale)
+        }
+      >
+        {done ? '✓' : '○'}
+      </Text>
+      <Text
+        className={`flex-1 text-[15px] ${done ? 'text-faint line-through' : 'text-foreground'}`}
+      >
+        {name}
+      </Text>
+      <Text className="text-[12px] text-faint">{stateLabel}</Text>
+      {offerable ? (
+        <View className="rounded-ctl border border-aura-line bg-aura-soft px-4 py-1.5">
+          <Text className="text-[13px] text-aura">{t('help.cta', locale)}</Text>
+        </View>
+      ) : helpState && helpState !== 'available' ? (
+        <Text className="text-[12px] text-faint">{t(HELP_LABEL_KEY[helpState], locale)}</Text>
+      ) : null}
+    </>
+  );
+
   return (
     <View className={`gap-2 ${mutating ? 'opacity-50' : ''}`}>
-      <View className="flex-row items-center gap-3">
-        {/* leading glyph: ✓ done (aura), ○ open (faint) */}
-        <Text
-          className={done ? 'text-base text-aura' : 'text-base text-faint'}
-          accessibilityLabel={t(done ? 'milestone.a11y.done' : 'milestone.a11y.open', locale)}
+      {offerable ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('help.a11y.offerRow', locale, { need: name, state: stateLabel })}
+          // Literal 44px, never `h-11`: a spacing step is 3.5px on device, so the class form
+          // is 38.5pt there while measuring a passing 44 on the web walk (§29, #638).
+          className="min-h-[44px] flex-row items-center gap-3"
+          onPress={onHelp}
         >
-          {done ? '✓' : '○'}
-        </Text>
-        <Text
-          className={`flex-1 text-[15px] ${done ? 'text-faint line-through' : 'text-foreground'}`}
-        >
-          {name}
-        </Text>
-        <Text className="text-[12px] text-faint">{t(STATE_KEY[status], locale)}</Text>
-        {helpState === 'available' && onHelp ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('help.cta', locale)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            className="min-h-[44px] justify-center"
-            onPress={onHelp}
-          >
-            <Text className="text-[13px] font-semibold text-aura">{t('help.cta', locale)}</Text>
-          </Pressable>
-        ) : helpState && helpState !== 'available' ? (
-          <Text className="text-[12px] text-faint">{t(HELP_LABEL_KEY[helpState], locale)}</Text>
-        ) : null}
-        {isOwner ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('milestone.a11y.kebab', locale)}
-            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            onPress={() => setMenuOpen((v) => !v)}
-          >
-            <Text className="px-1 text-lg text-faint">⋯</Text>
-          </Pressable>
-        ) : null}
-      </View>
+          {rowContent}
+        </Pressable>
+      ) : (
+        <View className="flex-row items-center gap-3">
+          {rowContent}
+          {isOwner ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('milestone.a11y.kebab', locale)}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              onPress={() => setMenuOpen((v) => !v)}
+            >
+              <Text className="px-1 text-lg text-faint">⋯</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      )}
 
       {/* `bg-surface` on the menu below is OPAQUE, and that is load-bearing, not cosmetic. As
           translucent `bg-raise-2` this popover inherited DreamCard's `bg-raise` beneath it,

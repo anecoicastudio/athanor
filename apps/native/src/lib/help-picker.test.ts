@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Help, HelpStatus, Milestone, MilestoneStatus } from '@athanor/schemas';
-import { helpableMilestones } from './help-picker';
+import { helpableMilestones, isHelpableStatus } from './help-picker';
 
 const milestone = (id: string, status: MilestoneStatus = 'open'): Milestone => ({
   id,
@@ -67,5 +67,30 @@ describe('helpableMilestones', () => {
   it('preserves the incoming order of the tappe it keeps', () => {
     const ms = [milestone('a'), milestone('b', 'done'), milestone('c'), milestone('d')];
     expect(ids(helpableMilestones(ms, [help('c', 'declined')]))).toEqual(['a', 'd']);
+  });
+});
+
+describe('isHelpableStatus', () => {
+  // A Record over the union, not an array literal: TypeScript checks a Record for a MISSING
+  // member, so a status added to `milestoneStatusSchema` fails to compile right here rather
+  // than shipping an «Aiuta» on a state nobody meant to open (#660). An `it.each` over a tuple
+  // array would not have that property — an array literal is never checked for exhaustiveness.
+  const EXPECTED: Record<MilestoneStatus, boolean> = {
+    open: true,
+    in_progress: true,
+    done: false,
+  };
+
+  it.each(Object.entries(EXPECTED))('reads %s as helpable=%s', (status, expected) => {
+    expect(isHelpableStatus(status as MilestoneStatus)).toBe(expected);
+  });
+
+  // The expectation is spelled out rather than derived from the predicate: computing it with
+  // `isHelpableStatus` would assert f(x) === f(x) and hold no matter what either side did.
+  it('agrees with the list filter on which statuses survive', () => {
+    const ms = (Object.keys(EXPECTED) as MilestoneStatus[]).map((status) =>
+      milestone(status, status),
+    );
+    expect(ids(helpableMilestones(ms, []))).toEqual(['open', 'in_progress']);
   });
 });

@@ -440,6 +440,7 @@
   "help.toast.accepted": "You accepted help",
   "help.toast.completed": "You brought a dream closer",
   "help.a11y.lit": "lit",
+  "help.a11y.offerRow": "Help: {need}, {state}",
   "milestone.sectionLabel": "Dream Milestones",
   "milestone.addRow": "Add a milestone",
   "milestone.empty.hint": "Break the dream into steps: someone will know they can help.",

@@ -3023,3 +3023,127 @@ describe('the profile editor exits from the top, through the guard (#659)', () =
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 34 — the «Aiuta» CTA reads the same rule the picker it opens filters on (#660)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #660, *Beyond the issue*. Person Detail derives a tappa's `helpState` from the viewer's prior
+ * offers alone (`app/(modal)/user/[id].tsx`) and defaults to `'available'`, so a FINISHED tappa
+ * arrived at the row carrying «Aiuta» — beside its own ✓, and absent from the picker that CTA
+ * opens, which filters on `helpableMilestones`. A dead-end CTA, on the one surface a `HelpState`
+ * cannot describe: the union has no "not helpable" member, and `DreamCard`'s `?? 'available'`
+ * would re-manufacture the wrong value even if the derivation withheld it.
+ *
+ * `MilestoneRow` is the only place holding both the status and the decision, so the fix lives
+ * there — which puts it in JSX, where `apps/native` has no render harness and the unit tests on
+ * `isHelpableStatus` can only prove the predicate, never that the row consults it. Hence a static
+ * guard, the repo's answer for an untestable JSX invariant (§21, §28, §29 are the same shape).
+ *
+ * It pins the two halves separately: that the gate is spelled with the SHARED predicate rather
+ * than a hand-rolled `!done` that would drift from the picker, and that no «Aiuta» renders
+ * outside it, IN THIS FILE.
+ *
+ * ## What it cannot see
+ *
+ * Scoped to `MilestoneRow.tsx`, so a SECOND «Aiuta» renderer somewhere else is invisible to it.
+ * That is safe only because `t('help.cta')` has exactly one call site today — a fact this
+ * section does not itself assert, and the thing to re-check before trusting it after a screen
+ * grows its own copy of the row.
+ *
+ * The third assertion bounds the CTA branch by its two ANCHOR TOKENS — `{offerable ? (` and the
+ * `) : helpState` that opens its alternative — rather than by balanced delimiters or by a
+ * fixed-width lookback. Delimiters are out, because `{t('help.cta', locale)}` carries braces of
+ * its own and no brace-counting regex can span the branch it sits in. A fixed window was the
+ * first attempt and is worse than it looks: the margin is a distance between two offsets that
+ * both move, it shrank rather than grew with the code (deleting the wrapper's
+ * `accessibilityLabel` line alone would have eaten 98 of the 99 characters of slack), and a
+ * comment stating it had already got the DIRECTION backwards once. Anchors have no margin to
+ * erode.
+ *
+ * What that costs instead: the anchors are spellings. Restructure the branch — a different
+ * ternary shape, an extracted variable, a rename of `offerable` — and the span is not found.
+ * That fails loudly rather than quietly, which is the trade taken: the find-something test
+ * below asserts both anchors resolve, so this section goes red asking to be re-read rather
+ * than passing an ungated «Aiuta».
+ *
+ * "Loudly" is a claim about the search too, not only about the anchors, which is why the span
+ * is walked BACKWARDS from the close — see {@link ctaBranch}. Anchored forwards, the one
+ * restructure that failed SILENTLY was a further `{offerable ? (` inserted ahead of the chip
+ * branch: the span widened past the render it was supposed to bound and the suite stayed
+ * green. A false negative sitting quiet is the failure direction §21's own paragraph calls the
+ * unacceptable one, so it is closed by construction here rather than described.
+ */
+describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => {
+  const ROW = `${SRC}components/profile/MilestoneRow.tsx`;
+  const src = () => stripComments(read(ROW));
+
+  /**
+   * The CTA branch, bounded by its opening gate and the token that opens its alternative.
+   *
+   * The CLOSE is found first and the open is walked BACK from it, because only the close is
+   * unique: `{offerable ? (` occurs twice in the row today (the chip branch and the wrapper
+   * around it) and a forward `indexOf` would take whichever came first in the file. That is
+   * not a hypothetical — a THIRD `{offerable ? (` inserted ahead of the chip branch, with an
+   * ungated «Aiuta» in its alternative arm, would widen a forward-anchored span until it
+   * swallowed the very render this section exists to catch, and pass. Walking back from the
+   * unique close always lands on the gate that actually opens the branch the close belongs to.
+   */
+  const ctaBranch = (s: string): [number, number] => {
+    const close = s.indexOf(') : helpState');
+    return [close < 0 ? -1 : s.lastIndexOf('{offerable ? (', close), close];
+  };
+
+  it('finds the row, its CTA and the branch it is bounding', () => {
+    // A scanner that finds nothing passes both assertions below without checking anything.
+    // The path first, §33's shape: a renamed row would otherwise surface as an ENOENT crash
+    // out of `read` rather than as this section saying what went wrong.
+    expect(
+      FILES.includes(ROW),
+      'MilestoneRow.tsx has moved — this section is vacuous until the path is fixed (#660).',
+    ).toBe(true);
+    const s = src();
+    expect(
+      /t\('help\.cta'/.test(s),
+      'no «Aiuta» render in MilestoneRow.tsx — this walk is broken, not the tree',
+    ).toBe(true);
+    const [open, close] = ctaBranch(s);
+    expect(
+      open >= 0 && close > open,
+      'the CTA branch no longer reads `{offerable ? (` … `) : helpState`, so the span below ' +
+        'bounds nothing. The assertion is anchored on those two spellings — restructuring the ' +
+        'ternary is fine, but re-anchor it here in the same change (#660).',
+    ).toBe(true);
+  });
+
+  it('the gate consults help-picker, not a hand-rolled !done', () => {
+    // Whitespace-collapsed: prettier wraps both the import and the initializer.
+    const s = src().replace(/\s+/g, ' ');
+    expect(
+      /import \{[^}]*\bisHelpableStatus\b[^}]*\} from '@\/lib\/help-picker'/.test(s),
+      'MilestoneRow no longer imports isHelpableStatus. The row and `helpableMilestones` have ' +
+        'to answer "is this tappa still helpable?" the same way — two spellings of that rule ' +
+        'drift, and the drift renders «Aiuta» on a tappa the picker then refuses to list (#660).',
+    ).toBe(true);
+    expect(
+      /const offerable =[^;]*isHelpableStatus\(status\)/.test(s),
+      'the `offerable` gate no longer calls isHelpableStatus(status). Whatever replaced it is ' +
+        'a second copy of the picker’s rule.',
+    ).toBe(true);
+  });
+
+  it('every «Aiuta» render sits inside that branch', () => {
+    const s = src();
+    const [open, close] = ctaBranch(s);
+    const ungated = [...s.matchAll(/t\('help\.cta'/g)]
+      .filter(({ index = -1 }) => !(open >= 0 && close > open && index > open && index < close))
+      .map((m) => `${rel(ROW)}:${s.slice(0, m.index).split('\n').length}`);
+    expect(
+      ungated,
+      `an «Aiuta» render outside the offerable gate:\n  ${ungated.join('\n  ')}\n` +
+        'Every one of them has to sit inside the `{offerable ? (` branch, or the CTA comes back ' +
+        'on a done tappa and leads to a picker that will not list it (#660).',
+    ).toEqual([]);
+  });
+});
