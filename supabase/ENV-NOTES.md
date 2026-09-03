@@ -24,13 +24,13 @@ pair. Keep those local values in `supabase/.env.local` (separately gitignored).
 
 Public identifiers, not secrets:
 
-| What                              | Id                                                                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Account                           | `acct_1U23HsQ27ZDmslJ8`                                                                                                                          |
-| Webhook destination (live config) | `we_1U257CQ27ZDmslJ8unxgUdUC` — API version `2026-05-27.dahlia`, 10 events                                                                       |
-| Old webhook destination           | `we_1U23QwQ27ZDmslJ8EqF5ZvjO` — 2020-08-27, 3 PaymentIntent events the code never handled; disable once the new one is live                      |
-| Payment-method configuration      | `pmc_1U23I2Q27ZDmslJ8WsNgBSei`                                                                                                                   |
-| Circle product                    | `prod_V29QBE8aw9OdcL` (prices in `supabase/.env.example`; €12/€99 copy lives in `packages/i18n` keys `circle.cta.monthly` / `circle.cta.annual`) |
+| What                              | Id                                                                                                                                                                                                                                                                                 |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Account                           | `acct_1U23HsQ27ZDmslJ8`                                                                                                                                                                                                                                                            |
+| Webhook destination (live config) | `we_1U257CQ27ZDmslJ8unxgUdUC` — API version `2026-05-27.dahlia`, 10 events                                                                                                                                                                                                         |
+| Old webhook destination           | `we_1U23QwQ27ZDmslJ8EqF5ZvjO` — 2020-08-27, 3 PaymentIntent events the code never handled; disable once the new one is live                                                                                                                                                        |
+| Payment-method configuration      | `pmc_1U23I2Q27ZDmslJ8WsNgBSei`                                                                                                                                                                                                                                                     |
+| Circle product                    | `prod_V29QBE8aw9OdcL` (prices in `supabase/.env.example`; the app reads their `unit_amount` live through `get-circle-prices` and the `packages/i18n` keys `circle.cta.*` / `circle.plan.annualNote` carry only the template — no amount is written down anywhere but Stripe, #644) |
 
 **The delayed-settlement trap.** No code pins `payment_method_types`, so the
 payment-method configuration is the _sole_ control over which rails reach Checkout. The

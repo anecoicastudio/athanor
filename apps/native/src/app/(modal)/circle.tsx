@@ -7,11 +7,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   circleKeys,
   entitlementKeys,
+  getCirclePrices,
   getMyMembership,
   openCustomerPortal,
   startCheckout,
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
+import { circleAnnualSavings, formatPrice } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
@@ -20,6 +22,7 @@ import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { ListState } from '@/components/ListState';
+import { listState } from '@/lib/list-state';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
 import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
@@ -63,6 +66,46 @@ export default function CircleScreen() {
   const entQuery = useEntitlement();
 
   const isMember = entQuery.data?.isMember ?? false;
+
+  // ── Live Stripe amounts (#644) ──────────────────────────────────────────────
+  // The catalog used to carry «€12/mese» and «€99/anno» as literals while the charge came
+  // from Stripe Price ids, so a Dashboard edit shipped an app that quoted one number and
+  // charged another. The amounts now arrive from get-circle-prices and the keys carry only
+  // the template. There is deliberately NO fallback literal: until they arrive the CTA slot
+  // shows a spinner, and if the read fails it shows a retry — a quoted price that is not the
+  // charged one is the defect this closes.
+  // `enabled` skips the surfaces that render no price: iOS hides the whole purchase block
+  // (Apple 3.1.1 / S-IAP-1), and a member sees their plan instead of the toggle. `isMember`
+  // is false until entitlements land, so a member's first render can still fire one read —
+  // deliberately, rather than serialising two round trips for the people who came to see a
+  // price.
+  // `persist: false` is the load-bearing option here, not a tuning knob: the shared client
+  // dehydrates every query to AsyncStorage with a 24h gcTime (`lib/query-client.ts`), so
+  // without it a launch would hydrate yesterday's amount and paint it as the price — a
+  // catalog literal again, just with extra steps. Opting out means a cold start always asks
+  // Stripe; `staleTime` then governs re-reads inside one session, and five minutes is
+  // generous for a number that changes about never.
+  const pricesQuery = useQuery({
+    queryKey: circleKeys.plans(),
+    queryFn: () => getCirclePrices(supabase),
+    enabled: !isMember && Platform.OS !== 'ios',
+    staleTime: 5 * 60_000,
+    meta: { persist: false },
+  });
+  const prices = pricesQuery.data ?? null;
+  const savings = prices ? circleAnnualSavings(prices.monthly, prices.annual) : null;
+  // `staleWins: false` for the same reason the Aura surfaces use it: a stale number presented
+  // as today's is the false confidence this issue exists to remove, and a price is a promise
+  // about money. `paused` therefore stays a spinner (#111's rule: offline-with-intent has
+  // neither failed nor answered) — and resolves on its own when the connection returns,
+  // because nothing about this query is cached to fall back on. `empty` is unreachable: the
+  // queryFn parses or throws, so a settled success always carries both plans.
+  const priceState = listState({
+    status: pricesQuery.status,
+    fetchStatus: pricesQuery.fetchStatus,
+    isEmpty: prices == null,
+    staleWins: false,
+  });
 
   // ── Membership detail query (renewal date, founding flag) ───────────────────
   const memberQuery = useQuery({
@@ -275,9 +318,11 @@ export default function CircleScreen() {
         {Platform.OS !== 'ios' ? (
           <View className="gap-2">
             <PriceToggle value={plan} onChange={setPlan} locale={locale} />
-            {plan === 'annual' ? (
+            {plan === 'annual' && priceState === 'ready' && savings ? (
               <Text className="text-center text-[13px] text-muted-foreground">
-                {t('circle.plan.annualNote', locale)}
+                {t('circle.plan.annualNote', locale, {
+                  amount: formatPrice(savings.cents, savings.currency, locale),
+                })}
               </Text>
             ) : null}
           </View>
@@ -294,11 +339,11 @@ export default function CircleScreen() {
           <Text className="text-[13px] leading-5 text-muted-foreground">
             {t('circle.iosUnavailable', locale)}
           </Text>
-        ) : (
+        ) : priceState === 'ready' && prices ? (
           <Button
-            label={
-              plan === 'annual' ? t('circle.cta.annual', locale) : t('circle.cta.monthly', locale)
-            }
+            label={t(plan === 'annual' ? 'circle.cta.annual' : 'circle.cta.monthly', locale, {
+              price: formatPrice(prices[plan].unitAmount, prices[plan].currency, locale),
+            })}
             onPress={() => void onJoin()}
             variant="light"
             disabled={checkoutPhase !== 'idle'}
@@ -306,6 +351,18 @@ export default function CircleScreen() {
             // what Button implements for exactly this, and «…» was unpronounceable to
             // VoiceOver while hiding the price mid-tap (#632 review finding).
             loading={checkoutPhase === 'opening'}
+          />
+        ) : (
+          // No amounts, no order button: quoting a price is what makes this control an offer,
+          // and an unpriced «Entra nel Circle» is the EU price-indication hole #644 names.
+          // `ListState` is this repo's error arm (#111) — spinner while it loads, named
+          // failure plus a retry when the read fails.
+          <ListState
+            state={priceState}
+            locale={locale}
+            errorLabel={t('circle.price.error', locale)}
+            onRetry={() => void pricesQuery.refetch()}
+            className="items-center gap-4 py-2"
           />
         )}
         {checkoutError ? (

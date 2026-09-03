@@ -254,12 +254,12 @@ written. The other three still carry **test-mode** values — inert for webhooks
 function invoked on production would mint test-mode sessions against live members. The swap is
 therefore all four together, or none.
 
-| Variable                      | Read at                                                 | Live value                                    |
-| ----------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`               | the live-mode secret key, or a restricted key |
-| `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`          | the new live endpoint's signing secret        |
-| `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/create-circle-checkout/index.ts:40` | the live-mode price id                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/create-circle-checkout/index.ts:41` | the live-mode price id                        |
+| Variable                      | Read at                                                                                                     | Live value                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`                                                                   | the live-mode secret key, or a restricted key |
+| `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`                                                              | the new live endpoint's signing secret        |
+| `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/create-circle-checkout/index.ts:40`, `supabase/functions/get-circle-prices/index.ts:31` | the live-mode price id                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/create-circle-checkout/index.ts:41`, `supabase/functions/get-circle-prices/index.ts:32` | the live-mode price id                        |
 
 Those four are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
@@ -516,7 +516,7 @@ Run once as `service_role` on the hosted project before the first EAS submission
 
 ### 6.4 Server-side version backstop (edge functions)
 
-The client gate is skippable by definition (a modified or offline client renders anyway), so the six client-invoked edge functions — `check-in`, `create-circle-checkout`, `create-circle-portal`, `create-contribution-session`, `create-ticket-checkout`, `create-verification-session` — also enforce `min_app_version` server-side (`supabase/functions/_shared/version-gate.ts`):
+The client gate is skippable by definition (a modified or offline client renders anyway), so the eight client-invoked edge functions — `check-in`, `create-circle-checkout`, `create-circle-portal`, `create-contribution-session`, `create-payout-onboarding`, `create-ticket-checkout`, `create-verification-session`, `get-circle-prices` — also enforce `min_app_version` server-side (`supabase/functions/_shared/version-gate.ts`):
 
 - Every app request carries `x-app-version` + `x-app-platform` headers (set globally in `apps/native/src/lib/supabase.ts`).
 - A build below the platform's `min_app_version` gets **HTTP 426** with body `{ "error": "outdated_client", "minVersion": "<semver>" }`. The app intercepts any 426 from `/functions/v1/` and pins the force-update screen for the process lifetime.

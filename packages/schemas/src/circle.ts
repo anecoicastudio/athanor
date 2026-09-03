@@ -27,6 +27,26 @@ export type CircleMembership = z.infer<typeof circleMembershipSchema>;
 export const circleCheckoutInputSchema = z.object({ plan: circlePlanSchema });
 export type CircleCheckoutInput = z.infer<typeof circleCheckoutInputSchema>;
 
+/**
+ * One plan's live Stripe amount, as `get-circle-prices` serves it (#644).
+ *
+ * `unitAmount` is Stripe's `unit_amount`: a whole number of minor units. Parsed, never cast —
+ * a string that slipped through renders as a plausible price through `formatPrice` and as
+ * `NaN` through the savings arithmetic, so the screen would be wrong in one place only.
+ */
+export const circlePriceSchema = z.object({
+  unitAmount: z.number().int().nonnegative(),
+  currency: z.string().length(3),
+});
+export type CirclePrice = z.infer<typeof circlePriceSchema>;
+
+/** Both Circle plans' live amounts. Both or neither: one plan alone cannot price the screen. */
+export const circlePricesSchema = z.object({
+  monthly: circlePriceSchema,
+  annual: circlePriceSchema,
+});
+export type CirclePrices = z.infer<typeof circlePricesSchema>;
+
 /** iOS IAP indirection (S-IAP-1): M8 returns 'url'; the 'iap' branch is reserved for M10. */
 export const circleCheckoutResultSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('url'), url: z.string().url() }),

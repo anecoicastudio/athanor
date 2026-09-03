@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import {
   circleCheckoutInputSchema,
   circleCheckoutResultSchema,
+  circlePriceSchema,
+  circlePricesSchema,
   circleMembershipSchema,
   circlePlanSchema,
   circleStatusSchema,
@@ -71,6 +73,49 @@ describe('circle schemas', () => {
   test('accepts both checkout-result kinds (iOS IAP indirection)', () => {
     expect(circleCheckoutResultSchema.parse({ kind: 'url', url: 'https://x' }).kind).toBe('url');
     expect(circleCheckoutResultSchema.parse({ kind: 'iap', productId: 'p' }).kind).toBe('iap');
+  });
+});
+
+// #644 — the live-amount boundary. The CTA and the savings line are rendered from these two
+// numbers, so a shape that parses loosely is a wrong price on a purchase screen.
+describe('circlePricesSchema', () => {
+  const eur = { unitAmount: 1200, currency: 'eur' };
+
+  test('accepts the shape get-circle-prices serves', () => {
+    const parsed = circlePricesSchema.parse({
+      monthly: eur,
+      annual: { unitAmount: 9900, currency: 'eur' },
+    });
+    expect(parsed.monthly.unitAmount).toBe(1200);
+    expect(parsed.annual.currency).toBe('eur');
+  });
+
+  test('accepts a free plan, because zero is a price', () => {
+    expect(circlePriceSchema.parse({ unitAmount: 0, currency: 'eur' }).unitAmount).toBe(0);
+  });
+
+  test('rejects a negative or fractional amount — Stripe unit_amount is a whole minor unit', () => {
+    for (const unitAmount of [-1, 12.5]) {
+      expect(circlePriceSchema.safeParse({ unitAmount, currency: 'eur' }).success).toBe(false);
+    }
+  });
+
+  test('rejects an amount that arrived as a string', () => {
+    // The failure this catches: `'1200'` renders as «€12,00» through a cast and as NaN through
+    // arithmetic, so the CTA would be right and the savings line silently wrong.
+    expect(circlePriceSchema.safeParse({ unitAmount: '1200', currency: 'eur' }).success).toBe(
+      false,
+    );
+  });
+
+  test('rejects a currency that is not a three-letter ISO code', () => {
+    for (const currency of ['', 'e', 'euro']) {
+      expect(circlePriceSchema.safeParse({ unitAmount: 1200, currency }).success).toBe(false);
+    }
+  });
+
+  test('rejects a half-served pair — one plan missing is not a usable price screen', () => {
+    expect(circlePricesSchema.safeParse({ monthly: eur }).success).toBe(false);
   });
 });
 
