@@ -1,5 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { blockKeys, dreamKeys, momentKeys, profileKeys } from '@athanor/api';
+import {
+  blockKeys,
+  connectionKeys,
+  dreamKeys,
+  momentKeys,
+  profileKeys,
+  storyKeys,
+} from '@athanor/api';
 
 /**
  * The per-person queries whose answer is gated by `athanor.not_blocked(peerId)`, plus the block
@@ -13,7 +20,13 @@ import { blockKeys, dreamKeys, momentKeys, profileKeys } from '@athanor/api';
  * report sheet and the chat kebab: a member you just blocked rendered normally for five minutes.
  *
  * `profileKeys.detail(peerId)` is a prefix of `profileKeys.statCounts(peerId)`, and
- * `blockKeys.all` of `blockKeys.status(peerId)`, so both ride along.
+ * `blockKeys.all` of `blockKeys.status(peerId)`, so both ride along. The connection status
+ * (`ConnectButton` sits on the profile screen that stays mounted) and the person's stories
+ * (`story_segments` select is `not_blocked(author_id)`-gated) are keyed per person too.
+ *
+ * Not here, on purpose: `conversationKeys.list()` and `storyKeys.rail()` are gated by the same
+ * predicate but keyed per viewer, not per person, and hold the default 30s `staleTime` — the
+ * screens that read them refetch on their next mount, which is the only way they are reached.
  */
 export function blockDependentKeys(peerId: string) {
   return [
@@ -21,6 +34,8 @@ export function blockDependentKeys(peerId: string) {
     profileKeys.detail(peerId),
     dreamKeys.byProfile(peerId),
     momentKeys.list(peerId),
+    connectionKeys.status(peerId),
+    storyKeys.person(peerId),
   ] as const;
 }
 

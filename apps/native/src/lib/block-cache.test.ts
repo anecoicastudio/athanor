@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import { blockKeys, dreamKeys, momentKeys, profileKeys } from '@athanor/api';
+import {
+  blockKeys,
+  connectionKeys,
+  dreamKeys,
+  momentKeys,
+  profileKeys,
+  storyKeys,
+} from '@athanor/api';
 import { blockDependentKeys, invalidateBlockDependents } from './block-cache';
 
 const peer = '11111111-1111-1111-1111-111111111111';
@@ -8,7 +15,7 @@ const other = '22222222-2222-2222-2222-222222222222';
 
 describe('blockDependentKeys', () => {
   // A key drifting by one character still type-checks and simply stops being reached by the
-  // invalidation — the silent failure `query-hooks.test.ts` pins against. So the four are
+  // invalidation — the silent failure `query-hooks.test.ts` pins against. So the six are
   // spelled out, not derived.
   it('names every per-person query athanor.not_blocked gates, and nothing else', () => {
     expect(blockDependentKeys(peer)).toEqual([
@@ -16,6 +23,8 @@ describe('blockDependentKeys', () => {
       ['profiles', peer],
       ['dreams', 'profile', peer],
       ['moments', 'list', peer],
+      ['connections', 'status', peer],
+      ['stories', 'person', peer],
     ]);
   });
 
@@ -25,6 +34,8 @@ describe('blockDependentKeys', () => {
       profileKeys.detail(peer),
       dreamKeys.byProfile(peer),
       momentKeys.list(peer),
+      connectionKeys.status(peer),
+      storyKeys.person(peer),
     ]);
   });
 });
@@ -39,7 +50,10 @@ describe('invalidateBlockDependents', () => {
     qc.setQueryData(dreamKeys.byProfile(peer), null);
     qc.setQueryData(momentKeys.list(peer), { moments: [], nextCursor: null });
     qc.setQueryData(blockKeys.status(peer), true);
+    qc.setQueryData(connectionKeys.status(peer), null);
+    qc.setQueryData(storyKeys.person(peer), { segments: [] });
     qc.setQueryData(profileKeys.detail(other), { id: other });
+    qc.setQueryData(connectionKeys.status(other), null);
     return qc;
   };
 
@@ -48,9 +62,10 @@ describe('invalidateBlockDependents', () => {
     invalidateBlockDependents(qc, peer);
     expect(qc.getQueryState(profileKeys.detail(peer))?.isInvalidated).toBe(true);
     expect(qc.getQueryState(profileKeys.detail(other))?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(connectionKeys.status(other))?.isInvalidated).toBe(false);
   });
 
-  it('reaches the stat counts by prefix, the dream, the momenti and the block status', () => {
+  it('reaches the stat counts by prefix, the dream, the momenti, the block status, the connection and the stories', () => {
     const qc = seeded();
     invalidateBlockDependents(qc, peer);
     for (const key of [
@@ -58,6 +73,8 @@ describe('invalidateBlockDependents', () => {
       dreamKeys.byProfile(peer),
       momentKeys.list(peer),
       blockKeys.status(peer),
+      connectionKeys.status(peer),
+      storyKeys.person(peer),
     ]) {
       expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
     }

@@ -2877,10 +2877,13 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
  * exactly the way the first four did.
  */
 describe('a block or unblock drops the cached profile too', () => {
-  /** Every line that writes a block row. */
+  /** Every line that writes a block row — app code only, a test mocking the writer is not one. */
   const writes = () =>
     codeLines().filter(
-      ([at, text]) => !at.endsWith('lib/block-cache.ts') && /\b(?:un)?blockUser\s*\(/.test(text),
+      ([at, text]) =>
+        !at.endsWith('lib/block-cache.ts') &&
+        !/\.test\.tsx?:\d+$/.test(at) &&
+        /\b(?:un)?blockUser\s*\(/.test(text),
     );
 
   it('finds the block call sites at all', () => {
@@ -2900,14 +2903,19 @@ describe('a block or unblock drops the cached profile too', () => {
     ).toEqual([]);
   });
 
+  // Whole-file, not per line: prettier wraps a longer call onto three lines, and a line-scoped
+  // regex would wave that form through.
   it('no call site invalidates blockKeys by hand any more', () => {
-    const hand = codeLines().filter(
-      ([at, text]) =>
-        !at.endsWith('lib/block-cache.ts') &&
-        /invalidateQueries\(\s*\{\s*queryKey:\s*blockKeys\./.test(text),
-    );
+    const hand: string[] = [];
+    for (const [p, ls] of CODE_LINES) {
+      if (rel(p).endsWith('lib/block-cache.ts')) continue;
+      const src = ls.join('\n');
+      for (const m of src.matchAll(/invalidateQueries\(\s*\{\s*queryKey:\s*blockKeys\./g)) {
+        hand.push(`${rel(p)}:${src.slice(0, m.index).split('\n').length}`);
+      }
+    }
     expect(
-      hand.map(([at]) => at),
+      hand,
       'a hand-rolled blockKeys invalidation is the shape that shipped the bug — route it ' +
         'through invalidateBlockDependents so the profile, dream and momenti keys ride along.',
     ).toEqual([]);
