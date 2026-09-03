@@ -3067,16 +3067,33 @@ describe('the profile editor exits from the top, through the guard (#659)', () =
  * That fails loudly rather than quietly, which is the trade taken: the find-something test
  * below asserts both anchors resolve, so this section goes red asking to be re-read rather
  * than passing an ungated «Aiuta».
+ *
+ * "Loudly" is a claim about the search too, not only about the anchors, which is why the span
+ * is walked BACKWARDS from the close — see {@link ctaBranch}. Anchored forwards, the one
+ * restructure that failed SILENTLY was a further `{offerable ? (` inserted ahead of the chip
+ * branch: the span widened past the render it was supposed to bound and the suite stayed
+ * green. A false negative sitting quiet is the failure direction §21's own paragraph calls the
+ * unacceptable one, so it is closed by construction here rather than described.
  */
 describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => {
   const ROW = `${SRC}components/profile/MilestoneRow.tsx`;
   const src = () => stripComments(read(ROW));
 
-  /** The CTA branch, bounded by its opening gate and the token that opens its alternative. */
-  const ctaBranch = (s: string): [number, number] => [
-    s.indexOf('{offerable ? ('),
-    s.indexOf(') : helpState', s.indexOf('{offerable ? (')),
-  ];
+  /**
+   * The CTA branch, bounded by its opening gate and the token that opens its alternative.
+   *
+   * The CLOSE is found first and the open is walked BACK from it, because only the close is
+   * unique: `{offerable ? (` occurs twice in the row today (the chip branch and the wrapper
+   * around it) and a forward `indexOf` would take whichever came first in the file. That is
+   * not a hypothetical — a THIRD `{offerable ? (` inserted ahead of the chip branch, with an
+   * ungated «Aiuta» in its alternative arm, would widen a forward-anchored span until it
+   * swallowed the very render this section exists to catch, and pass. Walking back from the
+   * unique close always lands on the gate that actually opens the branch the close belongs to.
+   */
+  const ctaBranch = (s: string): [number, number] => {
+    const close = s.indexOf(') : helpState');
+    return [close < 0 ? -1 : s.lastIndexOf('{offerable ? (', close), close];
+  };
 
   it('finds the row, its CTA and the branch it is bounding', () => {
     // A scanner that finds nothing passes both assertions below without checking anything.
