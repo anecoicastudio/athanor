@@ -440,6 +440,7 @@
   "help.toast.accepted": "Hai accettato un aiuto",
   "help.toast.completed": "Hai avvicinato un sogno",
   "help.a11y.lit": "acceso",
+  "help.a11y.offerRow": "Aiuta: {need}, {state}",
   "milestone.sectionLabel": "Le tappe del sogno",
   "milestone.addRow": "Aggiungi una tappa",
   "milestone.empty.hint": "Spezza il sogno in passi: qualcuno saprà di poterti aiutare.",

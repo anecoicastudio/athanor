@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Help, HelpStatus, Milestone, MilestoneStatus } from '@athanor/schemas';
-import { helpableMilestones } from './help-picker';
+import { helpableMilestones, isHelpableStatus } from './help-picker';
 
 const milestone = (id: string, status: MilestoneStatus = 'open'): Milestone => ({
   id,
@@ -67,5 +67,27 @@ describe('helpableMilestones', () => {
   it('preserves the incoming order of the tappe it keeps', () => {
     const ms = [milestone('a'), milestone('b', 'done'), milestone('c'), milestone('d')];
     expect(ids(helpableMilestones(ms, [help('c', 'declined')]))).toEqual(['a', 'd']);
+  });
+});
+
+describe('isHelpableStatus', () => {
+  // MilestoneRow renders one tappa and holds no list, so it reads the rule through this
+  // predicate rather than re-spelling `!== 'done'` a second time. The exhaustive `it.each`
+  // is the point: a MilestoneStatus added to the DB enum lands here as a missing case
+  // rather than as an «Aiuta» that quietly appears on a state nobody meant to open (#660).
+  it.each<[MilestoneStatus, boolean]>([
+    ['open', true],
+    ['in_progress', true],
+    ['done', false],
+  ])('reads %s as helpable=%s', (status, expected) => {
+    expect(isHelpableStatus(status)).toBe(expected);
+  });
+
+  it('agrees with the list filter on every status', () => {
+    const statuses: MilestoneStatus[] = ['open', 'in_progress', 'done'];
+    const ms = statuses.map((s, i) => milestone(`m${i}`, s));
+    expect(ids(helpableMilestones(ms, []))).toEqual(
+      ids(ms.filter((m) => isHelpableStatus(m.status))),
+    );
   });
 });
