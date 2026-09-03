@@ -3023,3 +3023,68 @@ describe('the profile editor exits from the top, through the guard (#659)', () =
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 34 — the «Aiuta» CTA reads the same rule the picker it opens filters on (#660)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #660, *Beyond the issue*. Person Detail derives a tappa's `helpState` from the viewer's prior
+ * offers alone (`app/(modal)/user/[id].tsx`) and defaults to `'available'`, so a FINISHED tappa
+ * arrived at the row carrying «Aiuta» — beside its own ✓, and absent from the picker that CTA
+ * opens, which filters on `helpableMilestones`. A dead-end CTA, on the one surface a `HelpState`
+ * cannot describe: the union has no "not helpable" member, and `DreamCard`'s `?? 'available'`
+ * would re-manufacture the wrong value even if the derivation withheld it.
+ *
+ * `MilestoneRow` is the only place holding both the status and the decision, so the fix lives
+ * there — which puts it in JSX, where `apps/native` has no render harness and the unit tests on
+ * `isHelpableStatus` can only prove the predicate, never that the row consults it. Hence a static
+ * guard, the repo's answer for an untestable JSX invariant (§21, §28, §29 are the same shape).
+ *
+ * It pins the two halves separately: that the gate is spelled with the SHARED predicate rather
+ * than a hand-rolled `!done` that would drift from the picker, and that no «Aiuta» renders
+ * outside it.
+ */
+describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => {
+  const ROW = `${SRC}components/profile/MilestoneRow.tsx`;
+  const src = () => stripComments(read(ROW));
+
+  it('finds the row and its CTA at all', () => {
+    // A scanner that finds nothing passes both assertions below without checking anything.
+    expect(
+      /t\('help\.cta'/.test(src()),
+      'no «Aiuta» render in MilestoneRow.tsx — this walk is broken, not the tree',
+    ).toBe(true);
+  });
+
+  it('the gate consults help-picker, not a hand-rolled !done', () => {
+    // Whitespace-collapsed: prettier wraps both the import and the initializer.
+    const s = src().replace(/\s+/g, ' ');
+    expect(
+      /import \{[^}]*\bisHelpableStatus\b[^}]*\} from '@\/lib\/help-picker'/.test(s),
+      'MilestoneRow no longer imports isHelpableStatus. The row and `helpableMilestones` have ' +
+        'to answer "is this tappa still helpable?" the same way — two spellings of that rule ' +
+        'drift, and the drift renders «Aiuta» on a tappa the picker then refuses to list (#660).',
+    ).toBe(true);
+    expect(
+      /const offerable =[^;]*isHelpableStatus\(status\)/.test(s),
+      'the `offerable` gate no longer calls isHelpableStatus(status). Whatever replaced it is ' +
+        'a second copy of the picker’s rule.',
+    ).toBe(true);
+  });
+
+  it('every «Aiuta» render sits under that gate', () => {
+    const s = src();
+    // A window rather than a brace walk: `{t('help.cta', locale)}` carries braces of its own,
+    // so a balanced-delimiter regex cannot span the branch it sits in.
+    const ungated = [...s.matchAll(/t\('help\.cta'/g)]
+      .filter((m) => !/offerable \? \(/.test(s.slice(Math.max(0, (m.index ?? 0) - 400), m.index)))
+      .map((m) => `${rel(ROW)}:${s.slice(0, m.index).split('\n').length}`);
+    expect(
+      ungated,
+      `an «Aiuta» render outside the offerable gate:\n  ${ungated.join('\n  ')}\n` +
+        'Every one of them has to sit under `{offerable ? (`, or the CTA comes back on a done ' +
+        'tappa and leads to a picker that will not list it (#660).',
+    ).toEqual([]);
+  });
+});

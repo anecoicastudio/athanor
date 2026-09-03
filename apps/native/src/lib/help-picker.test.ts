@@ -71,23 +71,26 @@ describe('helpableMilestones', () => {
 });
 
 describe('isHelpableStatus', () => {
-  // MilestoneRow renders one tappa and holds no list, so it reads the rule through this
-  // predicate rather than re-spelling `!== 'done'` a second time. The exhaustive `it.each`
-  // is the point: a MilestoneStatus added to the DB enum lands here as a missing case
-  // rather than as an «Aiuta» that quietly appears on a state nobody meant to open (#660).
-  it.each<[MilestoneStatus, boolean]>([
-    ['open', true],
-    ['in_progress', true],
-    ['done', false],
-  ])('reads %s as helpable=%s', (status, expected) => {
-    expect(isHelpableStatus(status)).toBe(expected);
+  // A Record over the union, not an array literal: TypeScript checks a Record for a MISSING
+  // member, so a status added to `milestoneStatusSchema` fails to compile right here rather
+  // than shipping an «Aiuta» on a state nobody meant to open (#660). An `it.each` over a tuple
+  // array would not have that property — an array literal is never checked for exhaustiveness.
+  const EXPECTED: Record<MilestoneStatus, boolean> = {
+    open: true,
+    in_progress: true,
+    done: false,
+  };
+
+  it.each(Object.entries(EXPECTED))('reads %s as helpable=%s', (status, expected) => {
+    expect(isHelpableStatus(status as MilestoneStatus)).toBe(expected);
   });
 
-  it('agrees with the list filter on every status', () => {
-    const statuses: MilestoneStatus[] = ['open', 'in_progress', 'done'];
-    const ms = statuses.map((s, i) => milestone(`m${i}`, s));
-    expect(ids(helpableMilestones(ms, []))).toEqual(
-      ids(ms.filter((m) => isHelpableStatus(m.status))),
+  // The expectation is spelled out rather than derived from the predicate: computing it with
+  // `isHelpableStatus` would assert f(x) === f(x) and hold no matter what either side did.
+  it('agrees with the list filter on which statuses survive', () => {
+    const ms = (Object.keys(EXPECTED) as MilestoneStatus[]).map((status) =>
+      milestone(status, status),
     );
+    expect(ids(helpableMilestones(ms, []))).toEqual(['open', 'in_progress']);
   });
 });

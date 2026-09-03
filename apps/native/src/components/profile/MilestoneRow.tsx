@@ -37,6 +37,10 @@ const HELP_LABEL_KEY = {
  * lying), and «Aiuta» takes the framed chip geometry `FavorRow` already ships for the same
  * word, so the CTA stops reading as a link to an explainer.
  *
+ * Only the SHAPE is borrowed from §8.13, not its floor: that section's ≥56pt is the settings
+ * list's own geometry, which `SettingsRow` implements. A tappa row is not a settings row, so
+ * it takes §10's ≥44pt instead.
+ *
  * The chip is a `View`, never a nested `Pressable`: source-audit §21 forbids one inside
  * another (an accessible ancestor is atomic to VoiceOver) and its register is empty by
  * design. Its `aura-soft` frame is the accent-chip treatment, not the glow — picking a tappa
@@ -83,20 +87,21 @@ export function MilestoneRow({
     ]);
   };
 
-  // Held in a const so the wrapper below can be a Pressable without the owner kebab ending up
-  // INSIDE it — source-audit §21 walks tag depth over the file, and the two arms are mutually
-  // exclusive at runtime but not in the source text. The kebab only ever renders when
-  // `isOwner`, which requires no `helpState` at all, so the two can never nest at runtime
-  // either. Read the trade before adding to this const: §21 cannot see through it, so a
-  // Pressable put in here would nest under the wrapper at runtime with nothing going red.
+  // The cells every arm shares. It holds NO Pressable, deliberately: source-audit §21 walks tag
+  // depth over the file text and cannot see through a const, so a control hoisted in here would
+  // nest under the wrapper below at runtime with nothing going red. The owner kebab therefore
+  // sits in the arm that renders it — which is also honest, since `isOwner` requires no
+  // `helpState` and can never coexist with `offerable`.
   const rowContent = (
     <>
       {/* leading glyph: ✓ done (aura), ○ open (faint) */}
       <Text
         className={done ? 'text-base text-aura' : 'text-base text-faint'}
-        // Silent on the offerable arm: the row is the button there and its label already says
-        // which tappa and in what state, so a second announcement is the same fact twice
-        // (#635). `SettingsRow`'s children carry no labels for the same reason.
+        // Silent on the offerable arm: the row is the button there and its own label already
+        // says which tappa and in what state (#635). A labelled ancestor is reported to
+        // override its children rather than concatenate them, which would make this belt and
+        // braces — but no device is reachable here to confirm that, so the glyph does not
+        // rely on it. `SettingsRow`'s children carry no labels either.
         accessibilityLabel={
           offerable ? undefined : t(done ? 'milestone.a11y.done' : 'milestone.a11y.open', locale)
         }
@@ -116,16 +121,6 @@ export function MilestoneRow({
       ) : helpState && helpState !== 'available' ? (
         <Text className="text-[12px] text-faint">{t(HELP_LABEL_KEY[helpState], locale)}</Text>
       ) : null}
-      {isOwner ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('milestone.a11y.kebab', locale)}
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-          onPress={() => setMenuOpen((v) => !v)}
-        >
-          <Text className="px-1 text-lg text-faint">⋯</Text>
-        </Pressable>
-      ) : null}
     </>
   );
 
@@ -143,7 +138,19 @@ export function MilestoneRow({
           {rowContent}
         </Pressable>
       ) : (
-        <View className="flex-row items-center gap-3">{rowContent}</View>
+        <View className="flex-row items-center gap-3">
+          {rowContent}
+          {isOwner ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('milestone.a11y.kebab', locale)}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              onPress={() => setMenuOpen((v) => !v)}
+            >
+              <Text className="px-1 text-lg text-faint">⋯</Text>
+            </Pressable>
+          ) : null}
+        </View>
       )}
 
       {/* `bg-surface` on the menu below is OPAQUE, and that is load-bearing, not cosmetic. As
