@@ -87,9 +87,10 @@ export function useDirtyGuard({
  * The same confirm, for an exit that is not a navigation event (#636).
  *
  * `usePreventRemove` can only see a screen being REMOVED. The profile editor is not a screen:
- * it is an `editing` flag inside the persistent Profilo tab, and its only way out is its own
- * «Annulla» button — nothing is popped, so nothing fires. Without this it would be the one
- * surface on the roster the guard could not reach, and it holds the largest form in the app.
+ * it is an `editing` flag inside the persistent Profilo tab, and its only ways out are its own
+ * «Annulla» controls — the one at its foot, and since #659 a second at its head — so nothing
+ * is popped and nothing fires. Without this it would be the one surface on the roster the guard
+ * could not reach, and it holds the largest form in the app.
  *
  * Returns a caller that runs `onDiscard` immediately when there is nothing to protect, so the
  * call site stays a single unconditional line and cannot forget the clean-draft branch. The
