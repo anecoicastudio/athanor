@@ -9,6 +9,7 @@ import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
+import { invalidateBlockDependents } from '@/lib/block-cache';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -48,8 +49,10 @@ export default function BlockedScreen() {
     mutationFn: (peerId: string) => unblockUser(supabase, peerId),
     onMutate: (peerId) => setMutatingId(peerId),
     onSettled: () => setMutatingId(null),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
+    // Not only the list: the person's cached `null` profile has to go too, or they stay
+    // «non disponibile» for the rest of `useProfile`'s window (see block-cache.ts).
+    onSuccess: (_, peerId) => {
+      invalidateBlockDependents(qc, peerId);
       showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
