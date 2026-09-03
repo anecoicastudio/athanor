@@ -3043,7 +3043,22 @@ describe('the profile editor exits from the top, through the guard (#659)', () =
  *
  * It pins the two halves separately: that the gate is spelled with the SHARED predicate rather
  * than a hand-rolled `!done` that would drift from the picker, and that no «Aiuta» renders
- * outside it.
+ * outside it, IN THIS FILE.
+ *
+ * ## What it cannot see
+ *
+ * Scoped to `MilestoneRow.tsx`, so a SECOND «Aiuta» renderer somewhere else is invisible to it.
+ * That is safe only because `t('help.cta')` has exactly one call site today — a fact this
+ * section does not itself assert, and the thing to re-check before trusting it after a screen
+ * grows its own copy of the row.
+ *
+ * The third assertion is a fixed 400-char lookback rather than a scope walk, because
+ * `{t('help.cta', locale)}` carries braces of its own and a balanced-delimiter regex cannot
+ * span the branch it sits in. That window is what makes it work AND what bounds it: it holds
+ * while the wrapper's own `offerable ? (` shadow ends inside the wrapper's opening tag, well
+ * short of the else-arm, so an ungated «Aiuta» dropped into that arm is still caught. Grow the
+ * wrapper's attribute list past ~250 further characters and the shadow reaches the else-arm,
+ * at which point this assertion starts passing things it should not.
  */
 describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => {
   const ROW = `${SRC}components/profile/MilestoneRow.tsx`;
@@ -3051,6 +3066,12 @@ describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => 
 
   it('finds the row and its CTA at all', () => {
     // A scanner that finds nothing passes both assertions below without checking anything.
+    // The path first, §33's shape: a renamed row would otherwise surface as an ENOENT crash
+    // out of `read` rather than as this section saying what went wrong.
+    expect(
+      FILES.includes(ROW),
+      'MilestoneRow.tsx has moved — this section is vacuous until the path is fixed (#660).',
+    ).toBe(true);
     expect(
       /t\('help\.cta'/.test(src()),
       'no «Aiuta» render in MilestoneRow.tsx — this walk is broken, not the tree',
