@@ -2723,7 +2723,8 @@ const DIRTY_GUARD_ROSTER = [
   'app/(modal)/progress.tsx',
   'app/(modal)/report.tsx',
   // Not a route: an `editing` flag inside the persistent Profilo tab, so nothing is ever
-  // removed and `usePreventRemove` cannot fire. It takes `useDiscardConfirm` on its «Annulla».
+  // removed and `usePreventRemove` cannot fire. It takes `useDiscardConfirm` on BOTH its
+  // «Annulla» controls — §33 pins the one at the head of the form (#659).
   'components/profile/ProfileEditForm.tsx',
 ];
 
@@ -2918,6 +2919,107 @@ describe('a block or unblock drops the cached profile too', () => {
       hand,
       'a hand-rolled blockKeys invalidation is the shape that shipped the bug — route it ' +
         'through invalidateBlockDependents so the profile, dream and momenti keys ride along.',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 33 — the profile editor's way out sits above its fields
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #659. The profile editor is a MODE, not a route: entering it unmounts the Profilo tab's own
+ * share/settings/edit row, and until #659 nothing replaced it — the only exit was the «Annulla»
+ * beneath eleven sections of form, so an accidental tap on «Modifica» cost a full scroll each
+ * way.
+ *
+ * §31 cannot see that. It asks only whether the file calls the guard AT ALL, and the foot
+ * «Annulla» answers for the file on its own: the head control could be deleted with every
+ * assertion there still green. What this pins is POSITION — a way out before the first field —
+ * and that it is the GUARDED way out, because a bare `onCancel` at the head would throw a dirty
+ * draft away in silence, which is the failure #636 exists to stop.
+ *
+ * Position rather than a count, and no `file:line` key: the form above the exit is edited often,
+ * so a line key would rot on changes that cannot affect this, and a count of the controls says
+ * nothing about where any of them is.
+ *
+ * The honest limit: this pins the position of a CALL and of a PRESSABLE, not that they are the
+ * same control. A `<Pressable>` above the fields wired to something else, plus a hoisted
+ * `const cancel = () => confirmDiscard(…)` in the component body, would satisfy both indices
+ * with nothing on screen to tap. Proving the wiring needs a render, which this harness has no
+ * environment for (`vitest.config.ts` runs `environment: 'node'`).
+ */
+describe('the profile editor exits from the top, through the guard (#659)', () => {
+  const EDITOR = `${SRC}components/profile/ProfileEditForm.tsx`;
+  /** The first thing a member would have to scroll past. `Section` and `SectionLabel` are
+      distinct tags — `<Section\b` does not match `<SectionLabel`, so both are named. */
+  const FIELD = /<(?:Section|SectionLabel|Field)\b/;
+
+  it('finds the editor and the fields it is walking', () => {
+    expect(
+      FILES.includes(EDITOR),
+      'ProfileEditForm.tsx has moved — this section is vacuous until the path is fixed (#659).',
+    ).toBe(true);
+    expect(
+      FIELD.test(stripComments(read(EDITOR))),
+      'no <Section>/<SectionLabel>/<Field> found in the profile editor — the walk is broken, ' +
+        'not the tree.',
+    ).toBe(true);
+  });
+
+  it('the way out comes before the first field', () => {
+    const code = stripComments(read(EDITOR));
+    const exit = code.search(/\bconfirmDiscard\s*\(/);
+    const field = code.search(FIELD);
+    expect(
+      exit,
+      'ProfileEditForm no longer calls confirmDiscard anywhere — see §31 (#636).',
+    ).toBeGreaterThan(-1);
+    // The two halves are asserted separately, so a regression says WHICH one broke rather than
+    // `false !== true`: a missing control and an unguarded one are different repairs.
+    const WHY =
+      'Entering edit mode unmounts the tab header, so a member who taps «Modifica» by ' +
+      'accident is left with an exit under eleven sections of form and a full scroll each ' +
+      'way. Keep a control at the head of the form, routed through the same ' +
+      '`confirmDiscard({ dirty, saving }, onCancel)` as the one at the foot (#659).';
+    // The control as well as the call: a `confirmDiscard` reached from an effect rather than a
+    // press would satisfy the second index while leaving nothing on screen to tap.
+    expect(
+      code.search(/<Pressable\b/),
+      `the profile editor has no PRESSABLE above its fields:\n${WHY}`,
+    ).toBeLessThan(field);
+    expect(exit, `the profile editor's way out is not above its fields:\n${WHY}`).toBeLessThan(
+      field,
+    );
+  });
+
+  it('no guarded composer hands onCancel straight to a press', () => {
+    // Only the files that already hold the guard. `onCancel` elsewhere means something else
+    // entirely — `VideoUploadTile`'s aborts an in-flight upload, and there is no draft there to
+    // lose. Comment-stripped, because `use-dirty-guard.ts` quotes this rule in prose.
+    const guarded = FILES.filter((p) => !isTest(p) && GUARD_CALL.test(stripComments(read(p))));
+    expect(
+      guarded.length,
+      'no file calls the dirty guard at all — this walk is broken, not the tree (#636).',
+    ).toBeGreaterThan(5);
+    // Whole-file, not per line: prettier wraps a longer prop across lines and `\s*` cannot span
+    // a split — the same reason §32 scans the joined source. Both spellings of the bare handoff;
+    // an ALIAS (`onPress={handleCancel}` where that is `onCancel`) is out of a regex's reach and
+    // is left to review rather than pretended at.
+    const BARE = /onPress=\{\s*(?:onCancel|\(\s*\)\s*=>\s*onCancel\s*\(\s*\))\s*\}/g;
+    const bare: string[] = [];
+    for (const p of guarded) {
+      const src = stripComments(read(p));
+      for (const m of src.matchAll(BARE)) {
+        bare.push(`${rel(p)}:${src.slice(0, m.index).split('\n').length}`);
+      }
+    }
+    expect(
+      bare,
+      'a composer that owns a draft wires onCancel directly to onPress, so the draft goes ' +
+        'without a word. Route it through `confirmDiscard({ dirty, saving }, onCancel)` — the ' +
+        'clean-draft branch runs it immediately anyway, so the guarded call is never the ' +
+        'longer path (#636, #659).',
     ).toEqual([]);
   });
 });
