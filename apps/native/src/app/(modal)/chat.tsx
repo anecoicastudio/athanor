@@ -4,7 +4,6 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  blockKeys,
   blockUser,
   conversationKeys,
   getConversation,
@@ -20,6 +19,7 @@ import { localeTag, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
+import { invalidateBlockDependents } from '@/lib/block-cache';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { devWarn } from '@/lib/log';
 import { HIT_SLOP } from '@/lib/a11y';
@@ -281,8 +281,9 @@ export default function ChatScreen() {
               style: 'destructive',
               onPress: () => {
                 if (!peer?.peerId) return;
-                return blockUser(supabase, peer.peerId).then(() => {
-                  void queryClient.invalidateQueries({ queryKey: blockKeys.all });
+                const peerId = peer.peerId;
+                return blockUser(supabase, peerId).then(() => {
+                  invalidateBlockDependents(queryClient, peerId);
                   leave();
                 });
               },

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
+import { blockUser, reportKeys, submitReport } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { REPORT_CATEGORIES, type ReportCategory, type ReportTargetType } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -12,6 +12,7 @@ import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { invalidateBlockDependents } from '@/lib/block-cache';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -68,7 +69,7 @@ export default function ReportScreen() {
   const blockAlso = useMutation({
     mutationFn: () => blockUser(supabase, targetId as string),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
+      invalidateBlockDependents(qc, targetId as string);
       leave();
     },
   });

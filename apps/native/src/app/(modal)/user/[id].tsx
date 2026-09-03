@@ -26,6 +26,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
+import { invalidateBlockDependents } from '@/lib/block-cache';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -81,17 +82,13 @@ export default function PersonDetailScreen() {
       enabled: Boolean(personId),
     }).data ?? false;
 
-  // Both also drop the cached profile. `getProfileById` resolves to NULL for a blocked pair,
-  // so blocking changes this screen's answer — but `useProfile` holds its row for 5 minutes,
-  // and the imperative loader it replaced refetched on every mount. Without this, re-opening a
-  // member you just blocked renders them normally for the rest of that window; unblocking
-  // strands the `null` the «non disponibile» branch is drawn from, and that branch carries the
-  // kebab the unblock was reached through.
+  // Both also drop the cached profile — this screen's answer changes with the block, and
+  // `useProfile` would otherwise hold the old one for five minutes (block-cache.ts has the
+  // full story; the «non disponibile» branch carries the kebab the unblock is reached through).
   const blockMutation = useMutation({
     mutationFn: () => blockUser(supabase, id as string),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
-      void qc.invalidateQueries({ queryKey: profileKeys.detail(id as string) });
+      invalidateBlockDependents(qc, id as string);
       showToast(t('block.toast.blocked', locale), 'success');
       leave();
     },
@@ -100,8 +97,7 @@ export default function PersonDetailScreen() {
   const unblockMutation = useMutation({
     mutationFn: () => unblockUser(supabase, id as string),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
-      void qc.invalidateQueries({ queryKey: profileKeys.detail(id as string) });
+      invalidateBlockDependents(qc, id as string);
       showToast(t('block.toast.unblocked', locale), 'success');
     },
   });

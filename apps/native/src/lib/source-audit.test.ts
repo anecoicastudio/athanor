@@ -2505,13 +2505,13 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:457':
+    'app/(modal)/chat.tsx:458':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:512':
+    'app/(modal)/chat.tsx:513':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:457',
-    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:457',
+    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:458',
+    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:458',
     'app/(onboarding)/index.tsx:266':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -2519,7 +2519,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:512',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:513',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
@@ -2860,5 +2860,64 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
         'the fields still full, and a guard without them fires hardest on the one path where ' +
         'nothing is at stake.',
     ).toEqual([true, true, true]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 32 — a block or unblock drops the person's cached profile, not just the block rows
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `getProfileById` resolves to `null` for a blocked pair, and `useProfile` caches that null as
+ * a success for five minutes (persisted 24h). Unblocking from «Profili bloccati» invalidated
+ * only `blockKeys`, so the row vanished and the person stayed «non disponibile»; blocking from
+ * the report sheet or the chat kebab had the mirror bug. `lib/block-cache.ts` is now the one
+ * door, and this walks every `blockUser` / `unblockUser` call site to make sure it goes through
+ * it — a fifth entry point written against `blockKeys.all` alone would compile, run, and fail
+ * exactly the way the first four did.
+ */
+describe('a block or unblock drops the cached profile too', () => {
+  /** Every line that writes a block row — app code only, a test mocking the writer is not one. */
+  const writes = () =>
+    codeLines().filter(
+      ([at, text]) =>
+        !at.endsWith('lib/block-cache.ts') &&
+        !/\.test\.tsx?:\d+$/.test(at) &&
+        /\b(?:un)?blockUser\s*\(/.test(text),
+    );
+
+  it('finds the block call sites at all', () => {
+    expect(writes().length, 'no blockUser/unblockUser call found — has the api moved?').toBe(5);
+  });
+
+  it('every file that writes a block invalidates through invalidateBlockDependents', () => {
+    const writers = [...new Set(writes().map(([at]) => at.replace(/:\d+$/, '')))].sort();
+    const bare = writers.filter((w) => {
+      const file = FILES.find((p) => rel(p) === w) as string;
+      return !/\binvalidateBlockDependents\s*\(/.test(stripComments(read(file)));
+    });
+    expect(
+      bare,
+      'a screen writes a block without invalidateBlockDependents — the person keeps their ' +
+        "cached profile (or cached null) for the rest of useProfile's window.",
+    ).toEqual([]);
+  });
+
+  // Whole-file, not per line: prettier wraps a longer call onto three lines, and a line-scoped
+  // regex would wave that form through.
+  it('no call site invalidates blockKeys by hand any more', () => {
+    const hand: string[] = [];
+    for (const [p, ls] of CODE_LINES) {
+      if (rel(p).endsWith('lib/block-cache.ts')) continue;
+      const src = ls.join('\n');
+      for (const m of src.matchAll(/invalidateQueries\(\s*\{\s*queryKey:\s*blockKeys\./g)) {
+        hand.push(`${rel(p)}:${src.slice(0, m.index).split('\n').length}`);
+      }
+    }
+    expect(
+      hand,
+      'a hand-rolled blockKeys invalidation is the shape that shipped the bug — route it ' +
+        'through invalidateBlockDependents so the profile, dream and momenti keys ride along.',
+    ).toEqual([]);
   });
 });
