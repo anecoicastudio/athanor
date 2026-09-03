@@ -3538,6 +3538,22 @@ export type Database = {
         Args: { c: Database["public"]["Tables"]["dream_candidacies"]["Row"] }
         Returns: boolean
       }
+      list_blocked: {
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          avatar_path: string
+          blocked_id: string
+          created_at: string
+          display_name: string
+          handle: string
+          id: string
+          removed: boolean
+        }[]
+      }
       live_window_sweep: { Args: never; Returns: undefined }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockSchema, blockInput, blockedListItem } from './block.ts';
+import { blockSchema, blockInput, blockedListItem, listBlockedRow } from './block.ts';
 
 describe('block schemas', () => {
   it('parses a valid raw block row', () => {
@@ -23,8 +23,35 @@ describe('block schemas', () => {
       peerHandle: null,
       peerDisplayName: null,
       peerAvatarPath: null,
+      removed: false,
       createdAt: '2026-06-19T00:00:00Z',
     };
     expect(blockedListItem.parse(item)).toEqual(item);
+  });
+
+  it('parses a list_blocked tombstone row (#314 via #663): identity null, removed true', () => {
+    const row = {
+      id: '11111111-1111-1111-1111-111111111111',
+      blocked_id: '33333333-3333-3333-3333-333333333333',
+      created_at: '2026-06-19T00:00:00Z',
+      handle: null,
+      display_name: null,
+      avatar_path: null,
+      removed: true,
+    };
+    expect(listBlockedRow.parse(row)).toEqual(row);
+  });
+
+  it('rejects a list_blocked row without the removed flag', () => {
+    expect(() =>
+      listBlockedRow.parse({
+        id: '11111111-1111-1111-1111-111111111111',
+        blocked_id: '33333333-3333-3333-3333-333333333333',
+        created_at: '2026-06-19T00:00:00Z',
+        handle: 'peer',
+        display_name: null,
+        avatar_path: null,
+      }),
+    ).toThrow();
   });
 });

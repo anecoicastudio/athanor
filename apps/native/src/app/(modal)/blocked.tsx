@@ -34,12 +34,14 @@ export default function BlockedScreen() {
     queryKey: blockKeys.list(),
     queryFn: ({ pageParam }) => listBlocked(supabase, pageParam ?? undefined),
     initialPageParam: undefined as { createdAt: string; id: string } | undefined,
-    getNextPageParam: (last) =>
-      last.length === 0
-        ? undefined
-        : { createdAt: last[last.length - 1]!.createdAt, id: last[last.length - 1]!.id },
+    getNextPageParam: (last) => {
+      const tail = last.items.at(-1);
+      return tail ? { createdAt: tail.createdAt, id: tail.id } : undefined;
+    },
   });
-  const rows = query.data?.pages.flat() ?? [];
+  // `excluded` (a row the schema no longer recognises) has no surface on this screen; the list
+  // stays up with the rows that parsed, which is the api.md trade the reader makes for lists.
+  const rows = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   // ── Unblock mutation ──────────────────────────────────────────────────────
   const unblock = useMutation({
@@ -79,8 +81,15 @@ export default function BlockedScreen() {
           <BlockedRow
             item={item}
             unblockLabel={t('block.unblock', locale)}
+            removedLabel={t('profile.removed.name', locale)}
             mutating={mutatingId === item.peerId}
-            onUnblock={() => confirmUnblock(item.peerId, item.peerHandle)}
+            onUnblock={() =>
+              confirmUnblock(
+                item.peerId,
+                // The dialog names what the row names: a tombstone's handle is NULL by design.
+                item.removed ? t('profile.removed.name', locale) : item.peerHandle,
+              )
+            }
           />
         )}
         onEndReachedThreshold={0.5}
