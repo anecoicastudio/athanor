@@ -4,15 +4,10 @@ import {
   blockSchema,
   type BlockedListItem,
   blockedListItem,
+  listBlockedRow,
 } from '@athanor/schemas';
 import type { AthanorClient } from './client';
-import { keysetFilter } from './pagination';
-
-/**
- * What the aliased `profiles` embed returns. supabase-js cannot infer a row through an alias,
- * which is why this select has always needed a cast; the cast is now three fields wide.
- */
-type PeerEmbed = { handle: string | null; display_name: string | null; avatar_path: string | null };
+import { parseOrWithhold } from './parse-or-withhold';
 
 export const blockKeys = {
   all: ['blocks'] as const,
@@ -59,35 +54,40 @@ export async function getBlockedCount(client: AthanorClient): Promise<number> {
   return count ?? 0;
 }
 
-/** The caller's blocked people, keyset-paginated (created_at desc, id desc) — never offset (rule #9). */
+/**
+ * The caller's blocked people, keyset-paginated (created_at desc, id desc) — never offset (rule #9).
+ *
+ * Through the `list_blocked` DEFINER RPC rather than a `blocks → profiles` embed (#663): the
+ * profiles SELECT policy composes the SYMMETRIC `athanor.not_blocked`, which hides the blocked
+ * person's row from the blocker too, so the embed came back NULL and every row rendered «—».
+ * The RPC is scoped server-side to `blocker_id = auth.uid()`; nothing here names the caller.
+ *
+ * A blocked person who has since been banned arrives as the #314 tombstone (identity NULL,
+ * `removed` true). Rows the schema no longer recognises are withheld and counted, not thrown
+ * on — a list stays up over one bad row (api.md, #421).
+ */
 export async function listBlocked(
   client: AthanorClient,
   cursor?: { createdAt: string; id: string },
-): Promise<BlockedListItem[]> {
-  let q = client
-    .from('blocks')
-    .select(
-      'id, blocked_id, created_at, blocked:profiles!blocks_blocked_id_fkey(handle, display_name, avatar_path)',
-    )
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(PAGE);
-  if (cursor) {
-    q = q.or(keysetFilter('created_at', 'id', cursor.createdAt, cursor.id, 'lt'));
-  }
-  const { data, error } = await q;
+): Promise<{ items: BlockedListItem[]; excluded: number }> {
+  const { data, error } = await client.rpc('list_blocked', {
+    p_limit: PAGE,
+    ...(cursor ? { p_before_created_at: cursor.createdAt, p_before_id: cursor.id } : {}),
+  });
   if (error) throw error;
-  return (data ?? []).map((r) => {
-    const blocked = r.blocked as PeerEmbed | null;
-    return blockedListItem.parse({
+  const { parsed, excluded } = parseOrWithhold(data, listBlockedRow, 'blocks', 'the blocked list');
+  const items = parsed.map((r) =>
+    blockedListItem.parse({
       id: r.id,
       peerId: r.blocked_id,
-      peerHandle: blocked?.handle ?? null,
-      peerDisplayName: blocked?.display_name ?? null,
-      peerAvatarPath: blocked?.avatar_path ?? null,
+      peerHandle: r.handle,
+      peerDisplayName: r.display_name,
+      peerAvatarPath: r.avatar_path,
+      removed: r.removed,
       createdAt: r.created_at,
-    });
-  });
+    }),
+  );
+  return { items, excluded };
 }
 
 export type { Block, BlockedListItem };

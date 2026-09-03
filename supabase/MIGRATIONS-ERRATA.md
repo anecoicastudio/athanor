@@ -1472,3 +1472,17 @@ which for an `athanor`-schema function no catalog sweep asserts — so the revok
 Asserted by: `supabase/tests/0142_conversation_reads_rls.test.sql` pins the function's
 `prosecdef = false`; the EXECUTE surface of `athanor` functions remains unswept, which is the
 condition this entry exists to record.
+
+## `20260903083235_list_blocked_rpc.sql` — "Comments are re-issuable" re-issued the wrong text
+
+The `comment on table public.blocks` statement in §1 says it re-issues the table comment with one
+added sentence. It does — but from the comment's _original_ text in `20260619222420:16-17`, not
+from the comment as it stood. `20260821164731:86-89` had since appended the
+`CONVENTION EXEMPTION (#180)` sentence that `0128_updated_at_convention.test.sql` asserts on every
+table without `updated_at`, so the re-issue dropped it. Every staging smoke stayed green because
+0128 was not in the adjacent-sweep list; CI's from-zero replay went red on the first push.
+
+Corrected by `20260903085640_blocks_comment_keeps_exemption.sql`, which re-issues the comment from
+the live `obj_description()` text with the #663 sentence kept. The rule that falls out: a comment
+is re-issuable, but only from `obj_description()` on the linked project — a migration file is a
+snapshot of one contributor, never the current text.
