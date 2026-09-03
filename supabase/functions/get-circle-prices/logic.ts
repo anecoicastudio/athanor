@@ -34,12 +34,18 @@ const EXPECTED_INTERVAL: Record<CirclePlan, Stripe.Price.Recurring.Interval> = {
 };
 
 /**
- * The servable amount of a Price, or null when it cannot price this plan: a one-off Price, a
- * Price on the wrong or a multi-period recurrence, or a tiered Price (which carries no
- * `unit_amount` at all). Null is deliberate — a wrong price on a purchase screen is the defect,
+ * The servable amount of a Price, or null when it cannot price this plan. Four ways it cannot,
+ * and this list is the whole gate: an archived Price, a one-off Price, a Price on the wrong or
+ * a multi-period recurrence, or a tiered Price (which carries no `unit_amount` at all).
+ *
+ * `active` is in there for the same reason as the rest: an inactive Price still RETRIEVES, so
+ * its amount would render on the CTA — and then `create-circle-checkout` cannot build a session
+ * from it. Quoting a number nobody can be charged is «quotes one number, charges another» in a
+ * new shape. Null is deliberate throughout: a wrong price on a purchase screen is the defect,
  * an absent one is an outage the screen already knows how to say.
  */
 export function servableAmount(plan: CirclePlan, price: Stripe.Price): CirclePriceAmount | null {
+  if (!price.active) return null;
   const recurring = price.recurring;
   if (!recurring) return null;
   if (recurring.interval !== EXPECTED_INTERVAL[plan]) return null;

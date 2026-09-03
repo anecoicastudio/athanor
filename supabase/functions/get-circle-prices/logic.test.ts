@@ -139,6 +139,23 @@ Deno.test('a tiered price carries no unit_amount → 500', async () => {
   assertEquals(body, { error: 'price not configured' });
 });
 
+Deno.test('an archived price → 500, never quoted then refused at Checkout', async () => {
+  // An inactive Price still retrieves, so its amount would render on the CTA — and then
+  // `create-circle-checkout` cannot build a session from it. That is «quotes one number,
+  // charges another» in a new shape, which is the shape #644 exists to close.
+  const c = ctx({
+    [MONTHLY]: price({ active: false }),
+    [ANNUAL]: price({
+      id: ANNUAL,
+      unit_amount: 9900,
+      recurring: { interval: 'year', interval_count: 1 } as Stripe.Price['recurring'],
+    }),
+  });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 500);
+  assertEquals(body, { error: 'price not configured' });
+});
+
 Deno.test('a free plan is served, because zero is a price', async () => {
   const c = ctx({
     [MONTHLY]: price({ unit_amount: 0 }),

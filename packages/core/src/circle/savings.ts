@@ -1,10 +1,4 @@
-/** One plan's live Stripe amount: minor units plus the currency it is charged in. */
-export type CirclePriceAmount = {
-  /** Stripe `Price.unit_amount` — minor units (cents), never a formatted string. */
-  unitAmount: number;
-  /** Stripe `Price.currency` — lowercase ISO code, as Stripe returns it. */
-  currency: string;
-};
+import type { CirclePrice } from '@athanor/schemas';
 
 /** How many monthly charges a year of the monthly plan costs. */
 export const MONTHS_PER_YEAR = 12;
@@ -22,8 +16,8 @@ export const MONTHS_PER_YEAR = 12;
  * subtraction has no meaning). A missing line is honest; a wrong one is the defect.
  */
 export function circleAnnualSavings(
-  monthly: CirclePriceAmount,
-  annual: CirclePriceAmount,
+  monthly: CirclePrice,
+  annual: CirclePrice,
 ): { cents: number; currency: string } | null {
   if (monthly.currency !== annual.currency) return null;
   const cents = monthly.unitAmount * MONTHS_PER_YEAR - annual.unitAmount;

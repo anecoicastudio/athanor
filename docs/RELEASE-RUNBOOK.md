@@ -254,6 +254,14 @@ written. The other three still carry **test-mode** values — inert for webhooks
 function invoked on production would mint test-mode sessions against live members. The swap is
 therefore all four together, or none.
 
+A **half** swap is now visible to members rather than merely wrong (#644). Since the Circle join
+CTA renders only once `get-circle-prices` has returned a live amount, a production holding a
+live `STRIPE_SECRET_KEY` beside test-mode price ids fails `prices.retrieve` cross-mode, and the
+screen shows «Non siamo riusciti a leggere i prezzi.» with no way to subscribe — for everyone,
+silently, until the ids are swapped too. That is a feature of the fix, not a regression: the
+alternative was quoting a price nobody could be charged. It does mean the price ids are no
+longer the low-stakes member of this table.
+
 | Variable                      | Read at                                                                                                     | Live value                                    |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`                                                                   | the live-mode secret key, or a restricted key |
