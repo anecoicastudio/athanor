@@ -3052,19 +3052,33 @@ describe('the profile editor exits from the top, through the guard (#659)', () =
  * section does not itself assert, and the thing to re-check before trusting it after a screen
  * grows its own copy of the row.
  *
- * The third assertion is a fixed 400-char lookback rather than a scope walk, because
- * `{t('help.cta', locale)}` carries braces of its own and a balanced-delimiter regex cannot
- * span the branch it sits in. That window is what makes it work AND what bounds it: it holds
- * while the wrapper's own `offerable ? (` shadow ends inside the wrapper's opening tag, well
- * short of the else-arm, so an ungated «Aiuta» dropped into that arm is still caught. Grow the
- * wrapper's attribute list past ~250 further characters and the shadow reaches the else-arm,
- * at which point this assertion starts passing things it should not.
+ * The third assertion bounds the CTA branch by its two ANCHOR TOKENS — `{offerable ? (` and the
+ * `) : helpState` that opens its alternative — rather than by balanced delimiters or by a
+ * fixed-width lookback. Delimiters are out, because `{t('help.cta', locale)}` carries braces of
+ * its own and no brace-counting regex can span the branch it sits in. A fixed window was the
+ * first attempt and is worse than it looks: the margin is a distance between two offsets that
+ * both move, it shrank rather than grew with the code (deleting the wrapper's
+ * `accessibilityLabel` line alone would have eaten 98 of the 99 characters of slack), and a
+ * comment stating it had already got the DIRECTION backwards once. Anchors have no margin to
+ * erode.
+ *
+ * What that costs instead: the anchors are spellings. Restructure the branch — a different
+ * ternary shape, an extracted variable, a rename of `offerable` — and the span is not found.
+ * That fails loudly rather than quietly, which is the trade taken: the find-something test
+ * below asserts both anchors resolve, so this section goes red asking to be re-read rather
+ * than passing an ungated «Aiuta».
  */
 describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => {
   const ROW = `${SRC}components/profile/MilestoneRow.tsx`;
   const src = () => stripComments(read(ROW));
 
-  it('finds the row and its CTA at all', () => {
+  /** The CTA branch, bounded by its opening gate and the token that opens its alternative. */
+  const ctaBranch = (s: string): [number, number] => [
+    s.indexOf('{offerable ? ('),
+    s.indexOf(') : helpState', s.indexOf('{offerable ? (')),
+  ];
+
+  it('finds the row, its CTA and the branch it is bounding', () => {
     // A scanner that finds nothing passes both assertions below without checking anything.
     // The path first, §33's shape: a renamed row would otherwise surface as an ENOENT crash
     // out of `read` rather than as this section saying what went wrong.
@@ -3072,9 +3086,17 @@ describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => 
       FILES.includes(ROW),
       'MilestoneRow.tsx has moved — this section is vacuous until the path is fixed (#660).',
     ).toBe(true);
+    const s = src();
     expect(
-      /t\('help\.cta'/.test(src()),
+      /t\('help\.cta'/.test(s),
       'no «Aiuta» render in MilestoneRow.tsx — this walk is broken, not the tree',
+    ).toBe(true);
+    const [open, close] = ctaBranch(s);
+    expect(
+      open >= 0 && close > open,
+      'the CTA branch no longer reads `{offerable ? (` … `) : helpState`, so the span below ' +
+        'bounds nothing. The assertion is anchored on those two spellings — restructuring the ' +
+        'ternary is fine, but re-anchor it here in the same change (#660).',
     ).toBe(true);
   });
 
@@ -3094,18 +3116,17 @@ describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => 
     ).toBe(true);
   });
 
-  it('every «Aiuta» render sits under that gate', () => {
+  it('every «Aiuta» render sits inside that branch', () => {
     const s = src();
-    // A window rather than a brace walk: `{t('help.cta', locale)}` carries braces of its own,
-    // so a balanced-delimiter regex cannot span the branch it sits in.
+    const [open, close] = ctaBranch(s);
     const ungated = [...s.matchAll(/t\('help\.cta'/g)]
-      .filter((m) => !/offerable \? \(/.test(s.slice(Math.max(0, (m.index ?? 0) - 400), m.index)))
+      .filter(({ index = -1 }) => !(open >= 0 && close > open && index > open && index < close))
       .map((m) => `${rel(ROW)}:${s.slice(0, m.index).split('\n').length}`);
     expect(
       ungated,
       `an «Aiuta» render outside the offerable gate:\n  ${ungated.join('\n  ')}\n` +
-        'Every one of them has to sit under `{offerable ? (`, or the CTA comes back on a done ' +
-        'tappa and leads to a picker that will not list it (#660).',
+        'Every one of them has to sit inside the `{offerable ? (` branch, or the CTA comes back ' +
+        'on a done tappa and leads to a picker that will not list it (#660).',
     ).toEqual([]);
   });
 });
