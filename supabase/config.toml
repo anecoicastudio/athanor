@@ -563,3 +563,6 @@ verify_jwt = true
 
 [functions.create-payout-onboarding]
 verify_jwt = true
+
+[functions.get-circle-prices]
+verify_jwt = true

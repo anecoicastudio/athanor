@@ -35,6 +35,7 @@ export const POSTURE: Record<string, Posture> = {
   'declare-winner': 'internal',
   'erasure-job': 'internal',
   'gdpr-export-job': 'internal',
+  'get-circle-prices': 'user',
   'media-process': 'internal',
   'moderation-enforce': 'internal',
   'notification-fan-out': 'internal',

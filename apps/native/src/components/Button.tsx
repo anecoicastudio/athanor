@@ -65,9 +65,11 @@ export function Button({
     <Pressable
       className={cn(
         // `min-h`, not `h` (#639): a label that wraps at AX sizes — «Entra nel Circle ·
-        // €12/mese» is the long one — grows the pill instead of clipping inside it. `py`
-        // is what a wrapped label breathes on; at the default size the 52pt floor still wins,
-        // so nothing moves. DESIGN §9 measures the pill, and a floor still measures it.
+        // 12,00 €/mese» is the long one, and grew by four characters when #644 started
+        // rendering the live amount through `formatPrice` — grows the pill instead of
+        // clipping inside it. `py` is what a wrapped label breathes on; at the default size
+        // the 52pt floor still wins, so nothing moves. DESIGN §9 measures the pill, and a
+        // floor still measures it.
         'min-h-[52px] items-center justify-center rounded-full px-6 py-3',
         container,
         inert && 'opacity-40',

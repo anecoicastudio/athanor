@@ -4,6 +4,8 @@ import {
   type CircleCheckoutInput,
   type CircleCheckoutResult,
   circleCheckoutResultSchema,
+  type CirclePrices,
+  circlePricesSchema,
   type Entitlements,
   entitlementsSchema,
 } from '@athanor/schemas';
@@ -59,6 +61,23 @@ export async function startCheckout(
   return circleCheckoutResultSchema.parse(res.data);
 }
 
+/**
+ * The two Circle plans' LIVE Stripe amounts, via get-circle-prices (#644).
+ *
+ * Rule #6 both ways: the server owns the price on the way in (`startCheckout` sends only the
+ * plan) and owns it on the way out too. Nothing here may fall back to a literal — a stale
+ * number rendered next to a different charge is exactly the drift this endpoint closes, so a
+ * failure throws and the caller shows its error arm.
+ * Query key: `circleKeys.plans()`.
+ */
+export async function getCirclePrices(client: AthanorClient): Promise<CirclePrices> {
+  const res = await client.functions.invoke<unknown>('get-circle-prices', { body: {} });
+  // supabase-js types FunctionsResponse.error as `any`; every concrete case
+  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+  if (res.error) throw res.error as Error;
+  return circlePricesSchema.parse(res.data);
+}
+
 /** Open the Stripe Billing Customer Portal (plan change / card / cancel happen only there). */
 export async function openCustomerPortal(client: AthanorClient): Promise<{ url: string }> {
   const res = await client.functions.invoke<unknown>('create-circle-portal', { body: {} });
@@ -70,4 +89,4 @@ export async function openCustomerPortal(client: AthanorClient): Promise<{ url: 
   return { url };
 }
 
-export type { CircleMembership, Entitlements };
+export type { CircleMembership, CirclePrices, Entitlements };
