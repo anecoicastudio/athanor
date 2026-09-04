@@ -383,6 +383,19 @@ describe('admin read shapes', () => {
     ]);
   });
 
+  // A withheld count is a whole number of rows, never negative (#664 — and the same holds for
+  // auditExcluded beside it, asserted here so the .int()/.nonnegative() arms have a killer).
+  it('withheld counts are non-negative integers', () => {
+    for (const field of ['handlesExcluded', 'auditExcluded'] as const) {
+      const s = adminReportDetail.shape[field];
+      expect(s.safeParse(0).success).toBe(true);
+      expect(s.safeParse(3).success).toBe(true);
+      expect(s.safeParse(-1).success).toBe(false);
+      expect(s.safeParse(1.5).success).toBe(false);
+      expect(s.safeParse('1').success).toBe(false);
+    }
+  });
+
   // The four ways a null can happen, named. A single null would present an RLS regression on
   // the evidence policy as an erasure — the one dressing in which nobody investigates it.
   it('names why the reported message is absent rather than collapsing four facts into null', () => {
