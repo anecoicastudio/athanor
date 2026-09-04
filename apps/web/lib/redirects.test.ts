@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { compile, match } from 'path-to-regexp';
 import { describe, expect, it, vi } from 'vitest';
 import nextConfig from '../next.config';
@@ -20,6 +21,19 @@ async function redirect() {
 const CANONICAL = 'www.athanor.world';
 
 describe('host redirect', () => {
+  it('tests against the path-to-regexp build OpenNext actually runs', () => {
+    // The devDependency mirrors @opennextjs/aws's pin. If that moves to 7/8 — where both
+    // `compile` semantics and the `(.*)` syntax changed — this goes red instead of the mirror
+    // staying green while production diverges. Resolved from the very file that runs the
+    // unanchored host match, since neither package exports its package.json.
+    const here = createRequire(import.meta.url);
+    const cloudflare = createRequire(here.resolve('@opennextjs/cloudflare'));
+    const matcher = cloudflare.resolve('@opennextjs/aws/core/routing/matcher.js');
+    const theirs = createRequire(matcher)('path-to-regexp/package.json').version as string;
+    const ours = here('path-to-regexp/package.json').version as string;
+    expect(ours).toBe(theirs);
+  });
+
   it('matches every foreign host and never the canonical one, under BOTH matchers', async () => {
     const [has] = (await redirect()).has!;
     const opennext = new RegExp(has.value!); // unanchored, as OpenNext runs it
@@ -48,7 +62,9 @@ describe('host redirect', () => {
     const { source, destination, permanent } = await redirect();
     expect(permanent).toBe(true);
     const m = match(source, { decode: decodeURIComponent });
-    const toPath = compile(destination.replace(`https://${CANONICAL}`, ''));
+    // Strip whichever origin is there: replacing the expected one would silently no-op and
+    // compile a whole URL if CANONICAL_HOST ever changed.
+    const toPath = compile(destination.replace(/^https:\/\/[^/]+/, ''));
     for (const [p, want] of [
       ['/', '/'],
       ['/terms', '/terms'],
