@@ -793,8 +793,28 @@ jobs:
             echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL/BUILD_ID unreachable"
             exit 1
           }
-          if [ "$deployed" != "$expected" ]; then
-            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL serves BUILD_ID $deployed, this job built $expected"
+          # Reachable. A mismatch on the first read is not yet a verdict: Cloudflare's
+          # deploy is eventually consistent, and a read at T+0.1 s can still serve the
+          # previous build's id (#681 — a green deploy reported red). Poll up to 12 reads,
+          # 5 s apart; a read that fails mid-loop is the same propagation lag one status
+          # class over, so it counts as "not yet", not as unreachable. These reads carry no
+          # `--retry` of their own so the loop owns its budget (≤ ~4 min, under the job's
+          # 15-minute ceiling) rather than stacking curl's 6 × 10 s on every iteration.
+          reads=1
+          last_seen=$deployed
+          while [ "$deployed" != "$expected" ] && [ "$reads" -lt 12 ]; do
+            reads=$((reads + 1))
+            sleep 5
+            deployed=$(curl -fsS --max-time 15 "$NEXT_PUBLIC_SITE_URL/BUILD_ID" || echo "<unreadable>")
+            [ "$deployed" = "<unreadable>" ] || last_seen=$deployed
+          done
+          if [ "$deployed" = "<unreadable>" ]; then
+            # Reachability failure, not a mismatch: keep the two distinguishable in the log.
+            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL/BUILD_ID stopped answering mid-poll (last id served $last_seen, this job built $expected)"
             exit 1
           fi
-          echo "deployed $expected at $NEXT_PUBLIC_SITE_URL"
+          if [ "$deployed" != "$expected" ]; then
+            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL serves BUILD_ID $deployed after $reads reads, this job built $expected"
+            exit 1
+          fi
+          echo "deployed $expected at $NEXT_PUBLIC_SITE_URL (matched on read $reads)"
