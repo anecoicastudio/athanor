@@ -110,6 +110,12 @@ describe('tn', () => {
     expect(tn('landing.countdown.minutes', 1, 'en')).toBe('minute');
     expect(tn('landing.countdown.seconds', 1, 'en')).toBe('second');
     expect(tn('landing.countdown.seconds', 0, 'en')).toBe('seconds');
+    // Pinned so a later sweep cannot «complete» #652 with dead keys: the read sites use `t()`,
+    // a `.one` sibling here would never be read, and «min»/«sec» are already the singular.
+    expect(tn('fund.countdown.minutes', 1, 'it')).toBe('min');
+    expect(tn('fund.countdown.seconds', 1, 'en')).toBe('sec');
+    expect('fund.countdown.minutes.one' in it).toBe(false);
+    expect('fund.countdown.seconds.one' in en).toBe(false);
   });
 
   test('always exposes {n}, and merges extra vars over it', () => {
