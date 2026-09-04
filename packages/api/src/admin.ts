@@ -60,31 +60,41 @@ const PAGE = 25;
  *
  * Keyed by report id. A report the channel did not answer for — none exist today, the join is
  * on `reporter_id`'s FK — simply has no entry, and the callers' `?? null` arms render «—».
- * Throws on an RPC error like the other admin RPC readers here: a channel that is missing
- * (production lagging the migration) is a release-ordering fault worth a loud page, not a
- * queue that quietly loses every name — the failure #664 exists to end.
+ * Rows the schema rejects are withheld and COUNTED (`excluded`), the `auditExcluded` shape:
+ * a withheld handle and an absent one render the same «—», so the count is the only thing
+ * that keeps the two apart on a moderation surface. Throws on an RPC error like the other
+ * admin RPC readers here: a channel that is missing (production lagging the migration) is a
+ * release-ordering fault worth a loud page, not a queue that quietly loses every name — the
+ * failure #664 exists to end.
  */
 async function readReportHandles(
   client: AthanorClient,
   reportIds: string[],
-): Promise<Map<string, AdminReportHandlesRow>> {
-  if (reportIds.length === 0) return new Map();
+): Promise<{ handles: Map<string, AdminReportHandlesRow>; excluded: number }> {
+  if (reportIds.length === 0) return { handles: new Map(), excluded: 0 };
   const { data, error } = await client.rpc('admin_report_handles', { p_report_ids: reportIds });
   if (error) throw error;
-  const { parsed } = parseOrWithhold(
+  const { parsed, excluded } = parseOrWithhold(
     data,
     adminReportHandlesRow,
     'admin_report_handles',
     'the report handles',
+    'report_id',
   );
-  return new Map(parsed.map((r) => [r.report_id, r]));
+  return { handles: new Map(parsed.map((r) => [r.report_id, r])), excluded };
 }
 
-/** Cursor = `${created_at}|${id}`. Keyset, never offset (rule #9). */
+/**
+ * Cursor = `${created_at}|${id}`. Keyset, never offset (rule #9).
+ *
+ * `handlesExcluded` counts the channel rows withheld at the boundary (#664): non-zero means a
+ * «—» on this page is a schema disagreement, not an unnamed report. Additive to the shape the
+ * panel already reads; a caller that ignores it sees exactly what it saw before.
+ */
 export async function getReportQueue(
   client: AthanorClient,
   opts: { status: 'open' | 'reviewing' | 'resolved'; cursor?: string | null; limit?: number },
-): Promise<{ rows: AdminReportRow[]; nextCursor: string | null }> {
+): Promise<{ rows: AdminReportRow[]; nextCursor: string | null; handlesExcluded: number }> {
   const limit = opts.limit ?? PAGE;
   let q = client
     .from('reports')
@@ -104,7 +114,7 @@ export async function getReportQueue(
   if (error) throw error;
   const { page, hasMore } = probePage(data ?? [], limit);
   // The page's ids only — the probe row is never rendered, so it is never named.
-  const handles = await readReportHandles(
+  const { handles, excluded: handlesExcluded } = await readReportHandles(
     client,
     page.map((r) => r.id),
   );
@@ -119,7 +129,7 @@ export async function getReportQueue(
     created_at: r.created_at,
     reporter_handle: handles.get(r.id)?.reporter_handle ?? null,
   }));
-  return { rows, nextCursor: tailCursor(page, hasMore) };
+  return { rows, nextCursor: tailCursor(page, hasMore), handlesExcluded };
 }
 
 /**
@@ -150,7 +160,10 @@ export async function getReportDetail(
   // resolves for a person target or a message sender — the same person `resolve_report` v5
   // lands the verdict on — and null for a post or behaviour report, so the header names the
   // person the verdict will hit and nobody else.
-  const handles = (await readReportHandles(client, [data.id])).get(data.id);
+  const { handles: handleRows, excluded: handlesExcluded } = await readReportHandles(client, [
+    data.id,
+  ]);
+  const handles = handleRows.get(data.id);
   const reporter_handle = handles?.reporter_handle ?? null;
   let target_handle: string | null = null;
   let reportedMessage: AdminReportedMessage | null = null;
@@ -191,6 +204,7 @@ export async function getReportDetail(
     target_handle,
     audit: parsedAudit,
     auditExcluded,
+    handlesExcluded,
     reportedMessage,
     reportedMessageState,
   };

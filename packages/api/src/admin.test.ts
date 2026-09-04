@@ -333,7 +333,7 @@ describe('getReportQueue', () => {
     });
   });
 
-  it('withholds a channel row the schema rejects and leaves that handle empty', async () => {
+  it('withholds a channel row the schema rejects, COUNTS it, and names the report in the log', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const fake = makeFakeClient({
       'reports.select': [{ data: [reportRow({ id: R1 }), reportRow({ id: R2 })] }],
@@ -350,9 +350,23 @@ describe('getReportQueue', () => {
     });
     const page = await getReportQueue(asClient(fake), { status: 'open' });
     expect(page.rows.map((r) => r.reporter_handle)).toEqual(['elena', null]);
+    // A withheld handle and an absent one both render «—»; the count is what tells them apart
+    // (rules/api.md, the auditExcluded shape). The log names the report — the row is keyed on
+    // report_id, and a helper that only knew `id` would have logged `row undefined`.
+    expect(page.handlesExcluded).toBe(1);
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain(R2);
     expect(warn.mock.calls[0]![0]).toContain('reporter_handle');
     warn.mockRestore();
+  });
+
+  it('reports zero withheld handles on a healthy page', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.handlesExcluded).toBe(0);
   });
 
   it('throws when the database errors', async () => {
@@ -409,6 +423,27 @@ describe('getReportDetail success path', () => {
     expect(detail.audit).toHaveLength(1);
     expect(detail.audit[0]!).toMatchObject({ action: 'penalty', penalty_points: -100 });
     expect(detail.auditExcluded).toBe(0);
+    expect(detail.handlesExcluded).toBe(0);
+  });
+
+  it('counts a withheld handles row on the detail, so blank names are not mistaken for nobody', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [
+        { data: [reportRow({ target_type: 'person', note: null, resolution: null })] },
+      ],
+      'audit_log.select': [{ data: [] }],
+      'rpc.admin_report_handles': [
+        { data: [{ report_id: R1, reporter_handle: 'elena', subject_handle: 7 }] },
+      ],
+    });
+    const detail = await getReportDetail(asClient(fake), R1);
+    expect(detail.reporter_handle).toBeNull();
+    expect(detail.target_handle).toBeNull();
+    expect(detail.handlesExcluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain(R1);
+    warn.mockRestore();
   });
 
   it('withholds a row the schema rejects instead of typing it as valid', async () => {
@@ -704,6 +739,7 @@ describe('getReportQueue — the resolved bucket and the page probe', () => {
     await expect(getReportQueue(asClient(fake), { status: 'open' })).resolves.toEqual({
       rows: [],
       nextCursor: null,
+      handlesExcluded: 0,
     });
   });
 

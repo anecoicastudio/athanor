@@ -236,6 +236,13 @@ export const adminReportDetail = adminReportRow.extend({
   audit: z.array(auditLogRow),
   auditExcluded: z.number().int().nonnegative(),
   /**
+   * The same discipline for the two handles (#664): they come through `admin_report_handles`
+   * and are parsed at the boundary, so a row the schema rejects is withheld and counted here
+   * rather than rendered as «—». Zero on every healthy read; one means both handles on this
+   * page are blank because the channel and the schema disagree, not because nobody is named.
+   */
+  handlesExcluded: z.number().int().nonnegative(),
+  /**
    * The reported message, on a `'message'` report only (#574) — null everywhere else, and null
    * on a message report whose target no longer resolves: `reports.target_id` has no FK, so an
    * erased or soft-deleted message leaves the report pointing at nothing. Read it together with

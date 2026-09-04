@@ -377,6 +377,7 @@ describe('admin read shapes', () => {
       'target_handle',
       'audit',
       'auditExcluded',
+      'handlesExcluded',
       'reportedMessage',
       'reportedMessageState',
     ]);
