@@ -691,7 +691,23 @@ jobs:
     # express this, which is why the deploy lives here: it would fire on push while
     # pgTAP and the types gate were still running, or already red.
     needs: [node, e2e, edge, db, bundle-leak, native-prebuild, web-build]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Status function REQUIRED here, and every gate named by hand. Without one GitHub ANDs an
+    # implicit success() over the whole transitive `needs` tree, and `changes` — an ancestor
+    # via `e2e`, skipped on every push — made that false: release #677's main push ran all
+    # seven gates green and still skipped this job, so production kept the previous build.
+    # The `!cancelled()` on `e2e` protected e2e from the skip and not this job. Each gate is
+    # checked for `success` explicitly (never `!= 'failure'`, which would let a skipped gate
+    # through), so a red or skipped gate still holds the deploy.
+    if: >-
+      ${{ !cancelled()
+          && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+          && needs.node.result == 'success'
+          && needs.e2e.result == 'success'
+          && needs.edge.result == 'success'
+          && needs.db.result == 'success'
+          && needs['bundle-leak'].result == 'success'
+          && needs['native-prebuild'].result == 'success'
+          && needs['web-build'].result == 'success' }}
     runs-on: ubuntu-latest
     # Ceiling, not a target. Deliberately generous: this job runs only on a main push, so it
     # never appeared in the sample the other caps were sized from. No job in this file had one
