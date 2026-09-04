@@ -35,7 +35,10 @@ const FN = 'get-circle-prices';
  * freshness the app already lives with. Only a success is memoized: a failed read is retried
  * on the next request, so a refusal never sticks for a minute after the operator fixes it.
  * Per isolate, not per deployment — a Dashboard edit reaches the app within 60s plus
- * `staleTime`, the same window the version gate documents.
+ * `staleTime`, the same window the version gate documents. `create-circle-checkout` reads
+ * its Price live on every call, so for up to 60s after a Price is archived the toggle can
+ * quote an amount whose tap Checkout refuses — the «price not configured» arm the screen
+ * already renders, and the window accepted in exchange for the reads (#674 item 5).
  */
 const CACHE_TTL_MS = 60_000;
 let memo: { prices: CirclePrices; at: number } | null = null;
@@ -93,7 +96,7 @@ export async function getCirclePrices(ctx: CirclePricesCtx): Promise<Response> {
   } catch (e) {
     // Bound, not bare (#416): the response stays exactly as generic as it was, but the Stripe
     // reason now reaches the function logs instead of vanishing.
-    logStripeFailure('get-circle-prices: prices.retrieve', e);
+    logStripeFailure(`${FN}: prices.retrieve`, e);
     return error('could not load prices', 500);
   }
 }

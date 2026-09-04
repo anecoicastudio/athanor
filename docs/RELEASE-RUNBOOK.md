@@ -318,9 +318,11 @@ signing secret above.
    ```bash
    REF=kwzeiqvrnnaagccyoose
    PUB=<production publishable key>   # sb_publishable_… — never a secret key
-   TOKEN=$(curl -s "https://$REF.supabase.co/auth/v1/token?grant_type=password" \
-     -H "apikey: $PUB" -H "Content-Type: application/json" \
-     -d '{"email":"<your account>","password":"<your password>"}' | jq -r .access_token)
+   read -rs -p 'password: ' PASS       # prompted, so it never lands in shell history
+   TOKEN=$(jq -n --arg e '<your account>' --arg p "$PASS" '{email:$e,password:$p}' |
+     curl -s "https://$REF.supabase.co/auth/v1/token?grant_type=password" \
+       -H "apikey: $PUB" -H "Content-Type: application/json" -d @- | jq -r .access_token)
+   unset PASS
    curl -s -X POST "https://$REF.supabase.co/functions/v1/get-circle-prices" \
      -H "apikey: $PUB" -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" -d '{}'

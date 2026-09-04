@@ -122,7 +122,7 @@ export async function createCircleCheckout(
   try {
     price = await retrievePrice(priceId);
   } catch (e) {
-    logStripeFailure('create-circle-checkout: prices.retrieve', e);
+    logStripeFailure(`${FN}: prices.retrieve`, e);
     return error('could not start checkout', 500);
   }
   const servable = servableAmount(plan, price);
