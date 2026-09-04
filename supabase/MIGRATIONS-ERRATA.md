@@ -3,9 +3,23 @@
 Migrations are append-only once applied (project rule #7): a comment that turns out to be
 wrong can never be fixed in place, and the file keeps asserting it to everyone who reads it.
 
-Corrections land here. One section per migration, newest first. Each entry names the lines it
-supersedes and points at the test that holds the verified behaviour — the test is the source
-of truth, this file is the signpost.
+Corrections land here. The unit is a `##` section headed by the migration's file name. A
+migration gets one `##` where a single correction covers it; corrections that surface later
+land as `###` subsections under that heading, or as a further `##` when they were filed on
+their own — both shapes exist and neither is wrong. A heading may name several files when
+one comment was wrong in each of them, and a few sections are keyed on a claim rather than a
+file («no-op until the GUCs are set», the `TODO(M9)` markers) and list the migrations that
+made it in an inner table.
+
+There is no ordering guarantee. The first block was kept newest-first; everything after it
+was added at the end as it was found. Find a migration by searching for its timestamp, never
+by position.
+
+The target for every entry is to name the lines it supersedes, in the heading or the first
+sentence, and to point at the test that holds the verified behaviour (`Asserted by:`). Most
+recent entries meet it; not all of the older ones do. The test is the source of truth, this
+file is the signpost — when an entry names no line, grep the migration for the comment it
+quotes.
 
 It lives one level up from the migrations it annotates: the Supabase CLI treats every file in
 `supabase/migrations/` as a candidate migration and prints a "Skipping …" line for anything
