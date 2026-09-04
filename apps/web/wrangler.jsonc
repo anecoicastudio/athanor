@@ -18,8 +18,11 @@
   },
   // The custom domain (#471). `custom_domain: true` makes `wrangler deploy` create the DNS
   // record and certificate in the zone, so the binding is declared here and not only in the
-  // dashboard. The `*.workers.dev` route stays on (default) and 308s to the canonical host
-  // via `next.config.ts` — old links and the Android preview APK keep resolving.
+  // dashboard. Declaring `routes` flips wrangler's default for the `*.workers.dev` route to
+  // OFF (`getSubdomainValues`: `workers_dev ?? routes.length === 0`), so it is pinned on
+  // here: that host 308s to the canonical one via `next.config.ts`, which is what keeps old
+  // links and the Android preview APK resolving.
+  "workers_dev": true,
   "routes": [
     { "pattern": "www.athanor.world", "custom_domain": true },
     { "pattern": "athanor.world", "custom_domain": true },

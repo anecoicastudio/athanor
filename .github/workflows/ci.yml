@@ -742,7 +742,14 @@ jobs:
           # mid-deploy (the 2026-09 account move). Assert every committed id exists in the
           # account this token deploys to.
           kv_list=$(pnpm exec wrangler kv namespace list)
-          for id in $(grep -oE '"(id|preview_id)": *"[0-9a-f]{32}"' wrangler.jsonc | grep -oE '[0-9a-f]{32}'); do
+          kv_ids=$(grep -oE '"(id|preview_id)": *"[0-9a-f]{32}"' wrangler.jsonc | grep -oE '[0-9a-f]{32}' || true)
+          # An empty for-list is a silent pass under `bash -e`; a reflow or a renamed key
+          # would disarm the guard. Both ids must be extracted before anything is asserted.
+          if [ "$(printf '%s\n' "$kv_ids" | grep -c .)" -lt 2 ]; then
+            echo "::error::could not extract both KV namespace ids (id + preview_id) from wrangler.jsonc — the guard's grep no longer matches the file"
+            exit 1
+          fi
+          for id in $kv_ids; do
             if ! printf '%s' "$kv_list" | grep -q "$id"; then
               echo "::error::KV namespace $id in wrangler.jsonc does not exist in account $CLOUDFLARE_ACCOUNT_ID — recreate it there and commit the new id"
               exit 1
@@ -761,6 +768,10 @@ jobs:
           # A deploy into a half-provisioned account (wrong subdomain, custom domain not
           # attached, stale secret) used to go green with no signal. The built BUILD_ID is
           # public at /BUILD_ID on the canonical host; it must match what this job built.
+          if [ -z "$NEXT_PUBLIC_SITE_URL" ]; then
+            echo "::error::post-deploy probe: NEXT_PUBLIC_SITE_URL repo secret is empty"
+            exit 1
+          fi
           expected=$(cat .next/BUILD_ID)
           deployed=$(curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "$NEXT_PUBLIC_SITE_URL/BUILD_ID") || {
             echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL/BUILD_ID unreachable"

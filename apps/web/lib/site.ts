@@ -3,7 +3,9 @@
  * The fallback matches the deployed origin that AASA/assetlinks and the native
  * app.json associate with (deep links only work on this host). `www.athanor.world`
  * is the custom domain (#471); the Worker's `*.workers.dev` host 308s here via
- * `next.config.ts`. Change the host in all four places together, never one.
+ * `next.config.ts`. The host lives here, in the three `.env.example`s, in
+ * `apps/native/app.json` and `apps/native/src/lib/links.ts`, and in the EAS
+ * `EXPO_PUBLIC_SITE_ORIGIN` variables — change all of them together, never one.
  */
 // `||`, not `??`: a missing or cleared GitHub Actions secret interpolates as the
 // empty string rather than staying unset, so `??` would keep it and `new URL('')`

@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
   // unanchored `athanor\.world` would match inside `www.athanor.world` and loop in
   // production while passing every local check. Guarded so a build whose SITE_URL is
   // still a `workers.dev` host (a validation deploy before the domain is attached)
-  // cannot loop either.
+  // cannot loop either. `lib/redirects.test.ts` pins all three properties.
   // AASA/assetlinks are exempt on purpose: Apple and Google refuse them over a redirect,
   // and a store build that still claims the old host must keep verifying until it is gone.
   async redirects() {
@@ -41,8 +41,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path((?!\\.well-known/).*)',
-        has: [{ type: 'host', value: '^(?<host>.+\\.workers\\.dev|athanor\\.world)$' }],
-        destination: `https://${CANONICAL_HOST}/:path`,
+        has: [{ type: 'host', value: '^(.+\\.workers\\.dev|athanor\\.world)$' }],
+        // `:path(.*)`, not `:path`: Next compiles destinations with path-to-regexp
+        // validation OFF, OpenNext compiles them ON, so a bare `:path` throws (500) for
+        // `/` and for any multi-segment path on the redirected host. `lib/redirects.test.ts`
+        // drives both compilers.
+        destination: `https://${CANONICAL_HOST}/:path(.*)`,
         permanent: true,
       },
     ];
