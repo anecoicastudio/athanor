@@ -94,6 +94,24 @@ describe('tn', () => {
     expect(tn('comment.count', 1, 'it')).toBe(it['comment.count'].replace('{n}', '1'));
   });
 
+  test('countdown units inflect at n === 1 in both catalogs (#652)', () => {
+    // #652: the fund grid said «1 ore» and the landing countdown «1 minuti». Pinned by name
+    // because nothing else asserts a countdown key — `fund.countdown.minutes` / `.seconds`
+    // are deliberately absent: «min» / «sec» are invariant abbreviations (IDENTICAL_BY_DESIGN).
+    expect(tn('fund.countdown.hours', 1, 'it')).toBe('ora');
+    expect(tn('fund.countdown.hours', 1, 'en')).toBe('hour');
+    expect(tn('fund.countdown.hours', 2, 'it')).toBe('ore');
+    expect(tn('landing.countdown.days', 1, 'it')).toBe('giorno');
+    expect(tn('landing.countdown.hours', 1, 'it')).toBe('ora');
+    expect(tn('landing.countdown.minutes', 1, 'it')).toBe('minuto');
+    expect(tn('landing.countdown.seconds', 1, 'it')).toBe('secondo');
+    expect(tn('landing.countdown.days', 1, 'en')).toBe('day');
+    expect(tn('landing.countdown.hours', 1, 'en')).toBe('hour');
+    expect(tn('landing.countdown.minutes', 1, 'en')).toBe('minute');
+    expect(tn('landing.countdown.seconds', 1, 'en')).toBe('second');
+    expect(tn('landing.countdown.seconds', 0, 'en')).toBe('seconds');
+  });
+
   test('always exposes {n}, and merges extra vars over it', () => {
     expect(tn('story.own.stat', 3, 'it')).toBe(it['story.own.stat'].replace('{n}', '3'));
     expect(tn('story.own.stat', 1, 'it')).toBe(it['story.own.stat.one']);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { timeRemaining } from '@athanor/core';
-import { localeTag, t, type Locale } from '@athanor/i18n';
+import { localeTag, t, tn, type Locale } from '@athanor/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -50,11 +50,24 @@ export function LaunchCountdown({ locale, className }: { locale: Locale; classNa
     timeZone: 'Europe/Rome',
   }).format(LAUNCH_AT);
 
+  // `tn`, not `t` (#652): every unit passes n === 1 in the last week, and «01 minuto» is the
+  // correct Italian even zero-padded — the padding is a numeral style, the noun still agrees.
+  // Pre-mount `remaining` is null; `?? 0` keeps the placeholder on the plural, same as `00`.
+  // Keyed by unit, not by label: the label now changes with the number, and a key that flips
+  // singular↔plural would remount the cell on every 1→0 tick.
   const cells = [
-    [remaining?.days, t('landing.countdown.days', locale)],
-    [remaining?.hours, t('landing.countdown.hours', locale)],
-    [remaining?.minutes, t('landing.countdown.minutes', locale)],
-    [remaining?.seconds, t('landing.countdown.seconds', locale)],
+    ['days', remaining?.days, tn('landing.countdown.days', remaining?.days ?? 0, locale)],
+    ['hours', remaining?.hours, tn('landing.countdown.hours', remaining?.hours ?? 0, locale)],
+    [
+      'minutes',
+      remaining?.minutes,
+      tn('landing.countdown.minutes', remaining?.minutes ?? 0, locale),
+    ],
+    [
+      'seconds',
+      remaining?.seconds,
+      tn('landing.countdown.seconds', remaining?.seconds ?? 0, locale),
+    ],
   ] as const;
 
   return (
@@ -63,8 +76,8 @@ export function LaunchCountdown({ locale, className }: { locale: Locale; classNa
         {t('landing.countdown.label', locale, { date })}
       </span>
       <div className="flex gap-5 md:gap-7">
-        {cells.map(([value, label]) => (
-          <div key={label} className="flex flex-col items-center gap-1">
+        {cells.map(([unit, value, label]) => (
+          <div key={unit} className="flex flex-col items-center gap-1">
             <span
               className={cn(
                 'font-sans text-4xl font-extrabold tabular-nums text-aura md:text-5xl',
