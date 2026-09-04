@@ -40,13 +40,27 @@ export const reportSchema = z.object({
 export type Report = z.infer<typeof reportSchema>;
 
 // Insert input (camelCase from the report sheet). reporter_id + status default server-side;
-// RLS WITH CHECK pins reporter_id=auth.uid() and status='open'. targetId is null for 'behavior';
-// for 'message' it is a `public.messages` id (no FK, so an erased message leaves the report
-// pointing at nothing and the admin read path resolves that to "no longer available").
-export const reportInput = z.object({
-  targetType: reportTargetType,
-  targetId: z.string().uuid().nullish(),
-  category: reportCategory,
-  note: z.string().trim().max(2000).optional(),
-});
+// RLS WITH CHECK pins reporter_id=auth.uid() and status='open'.
+//
+// targetId (#611): required for 'person' | 'post' | 'message', optional for 'behavior' — the
+// column was declared nullable "for 'behavior' (no specific subject)" (20260620011307:11) and
+// for no other reason, and reports_target_required_unless_behavior (20260904152300) now holds
+// that line in the database. The rule is one-directional: a 'behavior' report MAY still carry a
+// target (the staging seed files one), the other three MUST. For 'message' it is a
+// `public.messages` id with no FK, so an erased message leaves the report pointing at nothing
+// and the admin read path resolves that to "no longer available" — a target that is later
+// erased, not a report filed without one. The refine keeps the column's `.nullish()` shape so
+// the inferred type is unchanged for every caller; `submitReport` (packages/api) parses through
+// this before the insert, so a targetless 'person' report is a Zod issue and never a 23514.
+export const reportInput = z
+  .object({
+    targetType: reportTargetType,
+    targetId: z.string().uuid().nullish(),
+    category: reportCategory,
+    note: z.string().trim().max(2000).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.targetType !== 'behavior' && v.targetId == null)
+      ctx.addIssue({ code: 'custom', path: ['targetId'], message: 'target_required' });
+  });
 export type ReportInput = z.infer<typeof reportInput>;

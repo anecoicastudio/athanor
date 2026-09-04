@@ -29,7 +29,9 @@ insert into public.reports (id, reporter_id, target_type, target_id, category) v
   ('dddddddd-0000-0000-0000-000000000001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
   ('dddddddd-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
   ('dddddddd-0000-0000-0000-000000000003','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
-  ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','post', null,'spam'),
+  -- a report that names no subject: 'behavior' is the one type that may (#611 —
+  -- reports_target_required_unless_behavior; this row was 'post', null before that)
+  ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','behavior', null,'spam'),
   -- a post report whose target survives — the warn producer resolves the AUTHOR (#313)
   ('dddddddd-0000-0000-0000-000000000005','cccccccc-cccc-cccc-cccc-cccccccccccc','post','aaaaaaaa-0000-0000-0000-000000000001','spam');
 
