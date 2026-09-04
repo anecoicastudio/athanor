@@ -240,8 +240,8 @@ const plan = [
   },
 ];
 
-// Missing files are reported ALL AT ONCE and then fatal. A run that uploads eleven of nineteen
-// and then dies leaves a world that looks seeded and is not.
+// Missing files are reported ALL AT ONCE and then fatal. A run that uploads half the plan and
+// then dies leaves a world that looks seeded and is not.
 const missing = [];
 for (const step of plan) {
   for (const w of step.want) {

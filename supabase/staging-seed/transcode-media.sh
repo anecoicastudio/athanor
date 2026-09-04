@@ -33,8 +33,9 @@ STORY_VF="scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
 # the other would render a correctly-sized image inside a wrongly-shaped reserved box.
 CARD_VF="scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350"
 AVATAR_VF="scale=512:512:force_original_aspect_ratio=increase,crop=512:512"
-# A chat image keeps its own aspect — the bubble sizes to the photo — so no crop here: the long
-# edge is capped the way processImage caps a picked photo before it is sent.
+# A chat image keeps its own aspect — the bubble sizes to the photo — so no crop here, only a
+# long-edge cap. 1600 sits under processImage's 2048 (MEDIA_LIMITS.IMAGE_MAX_LONG_EDGE): a
+# fixture that is smaller than what the app would send, never larger.
 CHAT_VF="scale=1600:1600:force_original_aspect_ratio=decrease"
 
 img() { # img <src-relative> <out-name> <filter>

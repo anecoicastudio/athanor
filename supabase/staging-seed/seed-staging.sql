@@ -387,17 +387,19 @@ on conflict do nothing;
 -- rsvps). Before PR #622 that organiser claimed t24 AND org_t1 on one tick — two pushes
 -- about one event, seconds apart. Now they get org_t1 alone («Il tuo evento comincia tra
 -- un'ora», no head-count) while the ordinary attendee, whose t24 floor is still zero on a
--- room, gets «è tra poco. 2 partecipano». Sign in as dario_legno within the hour after a
--- refresh and the notification centre must hold exactly ONE reminder for it.
+-- room, gets «è tra poco. 2 partecipano». The criterion is the SHAPE, not a count: sign in
+-- as dario_legno and every reminder for this event in the centre must be the organiser
+-- copy — one per re-arm — and never the attendee copy («è tra poco. N partecipano»)
+-- alongside it. Two organiser rows an hour apart are the re-arm, not the bug.
 -- refresh-staging.sql §10b re-stamps all three hourly and clears their markers, so each
 -- reminder fires again. Noise, chosen on purpose: the hourly re-arm costs one org_t1 row
 -- for dario_legno and one t24 row for tino_chef per hour — in-app rows only, because no
 -- persona holds a push token unless a tester registered one on a device while signed in
 -- as them — and §13 of the refresh prunes eventReminder rows older than 2h, so a centre
--- never holds more than two of them. That is the same budget diretta-tra-poco already
--- spends on gio_musica, luna_dev and rocco_film; nothing is muted, because the thing the
--- walk observes is the count of rows, and a muted preference would suppress the push
--- without touching the row anyway.
+-- never holds more than two of them. Two rows an hour against the three diretta-tra-poco
+-- already spends on gio_musica, luna_dev and rocco_film; nothing is muted, because the
+-- thing the walk observes is the row and its copy, and a muted preference would suppress
+-- the push without touching the row anyway.
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
                            starts_at, ends_at, capacity, price_cents, currency, is_athanor_day)
 select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
