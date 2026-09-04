@@ -108,9 +108,18 @@ describe('circlePricesSchema', () => {
     );
   });
 
-  test('rejects a currency that is not a three-letter ISO code', () => {
-    for (const currency of ['', 'e', 'euro']) {
+  test('rejects a currency that is not a lowercase three-letter ISO code', () => {
+    // `EU1` is the one that bites: it is three characters, so `.length(3)` accepted it, and
+    // `Intl.NumberFormat` then throws at render — one bad code took the screen to the error
+    // boundary (#674). `EUR` is Stripe's shape up-cased; the boundary takes Stripe's own.
+    for (const currency of ['', 'e', 'euro', 'EU1', 'EUR', 'eu1', 'Eur', 'eu€']) {
       expect(circlePriceSchema.safeParse({ unitAmount: 1200, currency }).success).toBe(false);
+    }
+  });
+
+  test('accepts any lowercase three-letter code, not only eur', () => {
+    for (const currency of ['eur', 'usd', 'gbp']) {
+      expect(circlePriceSchema.safeParse({ unitAmount: 1200, currency }).success).toBe(true);
     }
   });
 

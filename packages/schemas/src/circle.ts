@@ -36,7 +36,10 @@ export type CircleCheckoutInput = z.infer<typeof circleCheckoutInputSchema>;
  */
 export const circlePriceSchema = z.object({
   unitAmount: z.number().int().nonnegative(),
-  currency: z.string().length(3),
+  // Lowercase ISO 4217, as Stripe serves it and as the sibling money shapes (`event.ts`,
+  // `public-event.ts`) already require. `.length(3)` let `EU1` through, and `Intl.NumberFormat`
+  // throws on it at render — the whole screen to the error boundary for one bad code (#674).
+  currency: z.string().regex(/^[a-z]{3}$/),
 });
 export type CirclePrice = z.infer<typeof circlePriceSchema>;
 

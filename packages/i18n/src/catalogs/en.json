@@ -1410,6 +1410,8 @@
   "common.unlocked": "Unlocked",
   "circle.plan.monthly": "Monthly",
   "circle.plan.annual": "Annual",
+  "circle.plan.monthly.price": "{price}/mo",
+  "circle.plan.annual.price": "{price}/yr",
   "circle.toast.joinedMonthly": "You're in the Circle ✦ monthly plan",
   "circle.toast.joinedAnnual": "You're in the Circle ✦ annual plan",
   "circle.benefit.soon": "coming soon",

@@ -17,7 +17,7 @@
 // say nothing about which secrets the machine happens to hold.
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
 import type { EnvPort } from './keys.ts';
-import { cryptoProvider, STRIPE_API_VERSION, stripeClient } from './stripe.ts';
+import { circlePriceIds, cryptoProvider, STRIPE_API_VERSION, stripeClient } from './stripe.ts';
 
 // Not key-shaped on purpose: secret-exposure.test.ts fails on any /\b(sk|rk)_(live|test)_/
 // literal in source, and it is right to. The SDK only requires a non-empty string.
@@ -92,4 +92,30 @@ Deno.test('cryptoProvider is built once', () => {
   // Reads no env, so it was never a rule-8 problem — it is lazy so that "this module does no
   // work at import time" holds with no exception to remember.
   assert(cryptoProvider() === cryptoProvider());
+});
+
+// ── circlePriceIds (#674 item 9) ─────────────────────────────────────────────
+
+Deno.test('circlePriceIds reads the two STRIPE_PRICE_CIRCLE_* names, and nothing else', () => {
+  // The names are the contract: RELEASE-RUNBOOK §4.2 sets exactly these two at cutover, and
+  // both functions now resolve them here, so a rename is one edit and one test.
+  const seen: string[] = [];
+  const port: EnvPort = {
+    get: (n) => {
+      seen.push(n);
+      return { STRIPE_PRICE_CIRCLE_MONTHLY: 'price_m', STRIPE_PRICE_CIRCLE_ANNUAL: 'price_a' }[n];
+    },
+  };
+  assertEquals(circlePriceIds(port), { monthly: 'price_m', annual: 'price_a' });
+  assertEquals(seen.sort(), ['STRIPE_PRICE_CIRCLE_ANNUAL', 'STRIPE_PRICE_CIRCLE_MONTHLY']);
+});
+
+Deno.test('circlePriceIds treats a blank value as unset', () => {
+  // A declared-but-empty secret must read as «not configured», never as an empty id that
+  // reaches `prices.retrieve` and fails as a Stripe error the operator reads the wrong way.
+  assertEquals(circlePriceIds(env({ STRIPE_PRICE_CIRCLE_MONTHLY: '   ' })), {
+    monthly: undefined,
+    annual: undefined,
+  });
+  assertEquals(circlePriceIds(env({})), { monthly: undefined, annual: undefined });
 });
