@@ -279,7 +279,10 @@ begin
   on conflict do nothing;
 
   -- §7 RSVPs back to the seeded spread (no guard trigger; at seeded counts the
-  -- capacity trigger is trivially satisfied).
+  -- capacity trigger is trivially satisfied). The #126/#624 reminder-fixture rows are in
+  -- this list too: §10b re-arms those events every hour, but a reminder is only ever sent
+  -- to a GOING row, so a fixture whose attendee un-RSVP'd while testing would re-arm into
+  -- silence — and dario_legno's own row on bottega-tra-poco IS the #617 shape.
   update public.rsvps rv
      set status = s.status
     from (values
@@ -291,7 +294,14 @@ begin
       ('luna_dev',       'ascolto-disco',  'going'),
       ('rocco_film',     'ascolto-disco',  'going'),
       ('sara_startup',   'athanor-ottobre', 'going'),
-      ('tino_chef',      'bottega-aperta', 'going')
+      ('tino_chef',      'bottega-aperta', 'going'),
+      ('sole_designer',  'promemoria-oggi',  'going'),
+      ('bea_foto',       'promemoria-oggi',  'going'),
+      ('nina_poeta',     'promemoria-oggi',  'cancelled'),
+      ('luna_dev',       'diretta-tra-poco', 'going'),
+      ('rocco_film',     'diretta-tra-poco', 'going'),
+      ('dario_legno',    'bottega-tra-poco', 'going'),
+      ('tino_chef',      'bottega-tra-poco', 'going')
     ) as s(handle, slug, status)
    where rv.id = md5('rsvp:' || s.handle || ':' || s.slug)::uuid
      and rv.status <> s.status;
@@ -349,16 +359,20 @@ begin
      and (e.starts_at < now() - interval '14 days' or e.deleted_at is not null);
   get diagnostics r = row_count; v_events := v_events + r;
 
-  -- §10b #126 reminder fixtures. Both offsets are sub-daily, so unlike §10's day-scale
-  -- events these decay out of their windows within one refresh interval. Re-stamped
-  -- whenever they have drifted below their seeded offset at all (time only moves one way,
-  -- so in practice every run after the first), and never pushed further out than seeded.
-  -- Same CTE shape as §10, for the same reason: diretta-tra-poco is online and goes live
-  -- 30 minutes after every re-stamp, so by the next refresh it carries live_started_at and
-  -- an event_live_stats.is_live = true row. Nulling the window columns alone would strand
-  -- that row at true forever — live_window_sweep's close branch keys on live_started_at,
-  -- which would be null — and the Live panel would show an event 30 minutes in the future
-  -- as live. The stats row has to go with the window.
+  -- §10b #126 / #624 reminder fixtures. All three offsets are sub-daily, so unlike §10's
+  -- day-scale events these decay out of their windows within one refresh interval.
+  -- Re-stamped whenever they have drifted below their seeded offset at all (time only
+  -- moves one way, so in practice every run after the first), and never pushed further
+  -- out than seeded. Same CTE shape as §10, for the same reason: diretta-tra-poco is
+  -- online and goes live 30 minutes after every re-stamp, so by the next refresh it
+  -- carries live_started_at and an event_live_stats.is_live = true row. Nulling the
+  -- window columns alone would strand that row at true forever — live_window_sweep's
+  -- close branch keys on live_started_at, which would be null — and the Live panel would
+  -- show an event 30 minutes in the future as live. The stats row has to go with the
+  -- window. bottega-tra-poco (#624) is a room, so live_window_sweep never touches it;
+  -- it rides the same CTE because its window is the one that matters: parked 40 minutes
+  -- out, inside org_t1, with its organiser self-RSVP'd — the #617 shape, re-armed hourly
+  -- so the walk can watch ONE reminder land where two used to.
   with restamped_reminders as (
     update public.events e
        set starts_at = now() + x.offset_in,
@@ -366,7 +380,8 @@ begin
            live_started_at = null, live_ended_at = null, deleted_at = null
       from (values
         ('promemoria-oggi',  interval '5 hours'),
-        ('diretta-tra-poco', interval '30 minutes')
+        ('diretta-tra-poco', interval '30 minutes'),
+        ('bottega-tra-poco', interval '40 minutes')
       ) as x(slug, offset_in)
      where e.id = md5('event:' || x.slug)::uuid
        and (e.starts_at < now() + x.offset_in or e.deleted_at is not null)
@@ -379,11 +394,12 @@ begin
   v_events := v_events + r;
 
   -- …and drop their send markers, so the next minute's sweep enqueues the reminder again.
-  -- Scoped to these two ids: a marker on any other event is a real send and stays, which is
-  -- also what keeps this from masking a producer that fires more than once.
+  -- Scoped to these three ids: a marker on any other event is a real send and stays, which
+  -- is also what keeps this from masking a producer that fires more than once.
   delete from athanor.event_reminder_sends
    where event_id in (md5('event:promemoria-oggi')::uuid,
-                      md5('event:diretta-tra-poco')::uuid);
+                      md5('event:diretta-tra-poco')::uuid,
+                      md5('event:bottega-tra-poco')::uuid);
   get diagnostics v_reminders = row_count;
 
   -- §11 Fund ballot window: the same re-stamp, for the one time-relative column a

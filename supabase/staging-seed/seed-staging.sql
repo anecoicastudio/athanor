@@ -374,14 +374,30 @@ from (values
 ) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_athanor)
 on conflict do nothing;
 
--- #126 fixture: two events sitting INSIDE the reminder windows. Every offset above is
--- measured in days, and both reminder windows are sub-daily — 24h for any event, 1h for an
--- online one — so without these the every-minute event_reminder_sweep has nothing to find
--- and the reminder stays invisible on staging no matter how correct the producer is.
+-- #126 fixture: events sitting INSIDE the reminder windows. Every offset above is
+-- measured in days, and every reminder window is sub-daily — 24h for any event, 1h for an
+-- online one and 1h for every organiser (#522) — so without these the every-minute
+-- event_reminder_sweep has nothing to find and the reminder stays invisible on staging no
+-- matter how correct the producer is.
 -- 'promemoria-oggi' is physical and 5h out, so it claims t24 and (correctly) never a t1;
 -- 'diretta-tra-poco' is online and 30m out, so it claims t1 ONLY — the t24 floor is what
--- stops one person getting two identical reminders on the same tick. refresh-staging.sql
--- §10b re-stamps both hourly and clears their markers, so the reminder fires again.
+-- stops one person getting two identical reminders on the same tick.
+-- 'bottega-tra-poco' (#624) is the #617 collision shape, mirrored from pgTAP 0130's E7:
+-- physical, 40 minutes out, and its organiser holds a going RSVP of their own (see §4's
+-- rsvps). Before PR #622 that organiser claimed t24 AND org_t1 on one tick — two pushes
+-- about one event, seconds apart. Now they get org_t1 alone («Il tuo evento comincia tra
+-- un'ora», no head-count) while the ordinary attendee, whose t24 floor is still zero on a
+-- room, gets «è tra poco. 2 partecipano». Sign in as dario_legno within the hour after a
+-- refresh and the notification centre must hold exactly ONE reminder for it.
+-- refresh-staging.sql §10b re-stamps all three hourly and clears their markers, so each
+-- reminder fires again. Noise, chosen on purpose: the hourly re-arm costs one org_t1 row
+-- for dario_legno and one t24 row for tino_chef per hour — in-app rows only, because no
+-- persona holds a push token unless a tester registered one on a device while signed in
+-- as them — and §13 of the refresh prunes eventReminder rows older than 2h, so a centre
+-- never holds more than two of them. That is the same budget diretta-tra-poco already
+-- spends on gio_musica, luna_dev and rocco_film; nothing is muted, because the thing the
+-- walk observes is the count of rows, and a muted preference would suppress the push
+-- without touching the row anyway.
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
                            starts_at, ends_at, capacity, price_cents, currency, is_athanor_day)
 select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
@@ -395,7 +411,9 @@ from (values
   ('promemoria-oggi',  'ele_yoga',   'Promemoria: il cerchio di stasera', 'benessere', false,
    'Sala Grande', 'Milano', 9.19, 45.46, null,                                     interval '5 hours',   30),
   ('diretta-tra-poco', 'gio_musica', 'Diretta: si comincia tra poco',     'musica',    true,
-   null,          null,     null, null,  'https://example.invalid/live/tra-poco',  interval '30 minutes', 60)
+   null,          null,     null, null,  'https://example.invalid/live/tra-poco',  interval '30 minutes', 60),
+  ('bottega-tra-poco', 'dario_legno', 'Apertura bottega: si comincia tra poco', 'formazione', false,
+   'Falegnameria Fontana', 'Bergamo', 9.67, 45.70, null,                          interval '40 minutes', 10)
 ) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in, capacity)
 on conflict do nothing;
 
@@ -419,7 +437,13 @@ from (values
   ('bea_foto',       'promemoria-oggi',  'going'),
   ('nina_poeta',     'promemoria-oggi',  'cancelled'),
   ('luna_dev',       'diretta-tra-poco', 'going'),
-  ('rocco_film',     'diretta-tra-poco', 'going')
+  ('rocco_film',     'diretta-tra-poco', 'going'),
+  -- #624: the organiser's OWN going row on their physical event — the half of the #617
+  -- shape that no other seeded event has. RsvpBar renders with no isOrganizer gate, so this
+  -- is one tap in the app; here it is the row that makes the t24 arm see the organiser.
+  -- tino_chef is the contrast case: an ordinary attendee of a room keeps the zero floor.
+  ('dario_legno',    'bottega-tra-poco', 'going'),
+  ('tino_chef',      'bottega-tra-poco', 'going')
 ) as r(handle, slug, status)
 on conflict do nothing;
 
@@ -610,24 +634,42 @@ from (values
 ) as c(a, b, source)
 on conflict do nothing;
 
-insert into public.messages (id, conversation_id, sender_id, kind, body, created_at)
+-- One image message per conversation (#613), sent by the persona you are NOT told to start
+-- on, so whoever walks as sole_designer / marta_ceramica / rocco_film finds a PEER image
+-- bubble — the only kind that carries the long-press report affordance (own bubbles do
+-- not, PR #610). Two shapes on purpose: image-only (body null, the preview falls back to
+-- '📷') and image + caption. The key is exactly what messages_insert_own_user pins since
+-- #575 — `{sender_uid}/{conversation_id}/{media_id}.jpg`, lowercase-hex uuids — with the
+-- message's own id standing in as media_id, so `pnpm staging:media` can derive it the same
+-- way it derives every other row. The upload run puts the bytes at that key (chat-media,
+-- image/jpeg only since 20260831064705); until it runs the bubble is a blank rectangle.
+-- Idempotent beside any hand-inserted pair a walker left: those carry random ids.
+insert into public.messages (id, conversation_id, sender_id, kind, body, media_url, created_at)
 select md5('msg:' || m.a || ':' || m.b || ':' || m.n)::uuid,
        md5('conv:' || least(m.a, m.b) || ':' || greatest(m.a, m.b))::uuid,
        md5('user:' || m.sender)::uuid, 'user'::public.message_kind, m.body,
+       case when m.image
+            then md5('user:' || m.sender)::uuid::text || '/'
+                 || md5('conv:' || least(m.a, m.b) || ':' || greatest(m.a, m.b))::uuid::text || '/'
+                 || md5('msg:' || m.a || ':' || m.b || ':' || m.n)::uuid::text || '.jpg'
+            end,
        now() - ((10 - m.n) || ' hours')::interval
 from (values
-  ('sole_designer',  'luna_dev',   1, 'sole_designer',  'Ho visto il tuo dream. Il sito te lo faccio io, davvero.'),
-  ('sole_designer',  'luna_dev',   2, 'luna_dev',       'Deal. What do you want in return?'),
-  ('sole_designer',  'luna_dev',   3, 'sole_designer',  'Che mi dici la verità sul mio portfolio.'),
-  ('sole_designer',  'luna_dev',   4, 'luna_dev',       'That is a worse deal for you. Thursday?'),
-  ('sole_designer',  'luna_dev',   5, 'sole_designer',  'Allora ci vediamo giovedì.'),
-  ('marta_ceramica', 'bea_foto',   1, 'bea_foto',       'Quando accendi il forno? Vorrei esserci.'),
-  ('marta_ceramica', 'bea_foto',   2, 'marta_ceramica', 'Giovedì alle sei. È ancora buio, portati il cavalletto.'),
-  ('marta_ceramica', 'bea_foto',   3, 'bea_foto',       'Porto la macchina grande.'),
-  ('rocco_film',     'gio_musica', 1, 'gio_musica',     'Per il documentario: la cantina è insonorizzata adesso.'),
-  ('rocco_film',     'gio_musica', 2, 'rocco_film',     'Quando posso venire a sentire?'),
-  ('rocco_film',     'gio_musica', 3, 'gio_musica',     'La stanza è libera martedì.')
-) as m(a, b, n, sender, body)
+  ('sole_designer',  'luna_dev',   1, 'sole_designer',  'Ho visto il tuo dream. Il sito te lo faccio io, davvero.', false),
+  ('sole_designer',  'luna_dev',   2, 'luna_dev',       'Deal. What do you want in return?', false),
+  ('sole_designer',  'luna_dev',   3, 'sole_designer',  'Che mi dici la verità sul mio portfolio.', false),
+  ('sole_designer',  'luna_dev',   4, 'luna_dev',       'That is a worse deal for you. Thursday?', false),
+  ('sole_designer',  'luna_dev',   5, 'sole_designer',  'Allora ci vediamo giovedì.', false),
+  ('sole_designer',  'luna_dev',   6, 'luna_dev',       null, true),
+  ('marta_ceramica', 'bea_foto',   1, 'bea_foto',       'Quando accendi il forno? Vorrei esserci.', false),
+  ('marta_ceramica', 'bea_foto',   2, 'marta_ceramica', 'Giovedì alle sei. È ancora buio, portati il cavalletto.', false),
+  ('marta_ceramica', 'bea_foto',   3, 'bea_foto',       'Porto la macchina grande.', false),
+  ('marta_ceramica', 'bea_foto',   4, 'bea_foto',       'La merceria, ieri. Così la vedi prima del forno.', true),
+  ('rocco_film',     'gio_musica', 1, 'gio_musica',     'Per il documentario: la cantina è insonorizzata adesso.', false),
+  ('rocco_film',     'gio_musica', 2, 'rocco_film',     'Quando posso venire a sentire?', false),
+  ('rocco_film',     'gio_musica', 3, 'gio_musica',     'La stanza è libera martedì.', false),
+  ('rocco_film',     'gio_musica', 4, 'gio_musica',     null, true)
+) as m(a, b, n, sender, body, image)
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------------------
@@ -949,6 +991,7 @@ union all select 'avatars set (needs the upload run)', count(*) from public.prof
 union all select 'connections', count(*) from public.connections
 union all select 'conversations', count(*) from public.conversations
 union all select 'messages', count(*) from public.messages
+union all select 'chat images (needs the upload run)', count(*) from public.messages where media_url is not null
 union all select 'momento_proposals', count(*) from public.momento_proposals
 union all select 'moments', count(*) from public.moments
 union all select 'invites', count(*) from public.invites
