@@ -8,7 +8,8 @@
 --      with 23514 (check_violation) — not 42501, so the refusal is the constraint and not RLS.
 --   3. 'behavior' still inserts with a null target AND with a target (the staging seed files the
 --      latter), and a targeted 'person' report still inserts (positive control).
---   4. The reporter-side RLS shape is unchanged: the same three policies 0053 pins, no more.
+--   4. The pairing is enforced by the constraint and by nothing else: no policy on reports
+--      mentions target_type or target_id (0053 keeps the one exhaustive policies_are list).
 
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -40,10 +41,12 @@ select is(
       and conname in ('reports_target_type_check', 'reports_target_required_unless_behavior')),
   2, 'the type CHECK is still there — this constraint sits beside it, not in its place');
 
--- ── 4. RLS shape unchanged (no policy edit in #611) ──
-select policies_are('public', 'reports',
-  array['reports_select_own','reports_insert_own','reports_select_admin'],
-  'reporter-own policies + admin read, exactly as 0053 pins them');
+-- ── 4. no policy carries the rule (no policy edit in #611; 0053 pins the exhaustive list) ──
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public' and tablename = 'reports'
+      and (coalesce(qual, '') || coalesce(with_check, '')) ~ 'target_(type|id)'),
+  0, 'no reports policy mentions target_type or target_id — the pairing lives in the CHECK alone');
 
 -- ── 2. a reporter cannot file a subject-bearing report that names no subject ──
 set local role authenticated;
