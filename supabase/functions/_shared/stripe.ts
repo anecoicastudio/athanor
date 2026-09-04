@@ -73,6 +73,30 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
   return built;
 }
 
+/** The two Circle Price ids, by plan. `undefined` where the variable is unset or blank. */
+export type CirclePriceIds = { monthly?: string; annual?: string };
+
+/**
+ * The Circle Price ids the app quotes AND charges — one resolver for both (#674 item 9).
+ *
+ * `get-circle-prices` and `create-circle-checkout` used to read `STRIPE_PRICE_CIRCLE_MONTHLY`
+ * / `_ANNUAL` each with its own pair of `Deno.env.get` calls, so a name typo in one function
+ * would have the app quote one Price and Checkout charge another, both functions individually
+ * green. The names live here once; a blank value reads as unset so an empty secret is the
+ * same «price not configured» as a missing one, never an empty-string id sent to Stripe.
+ * RELEASE-RUNBOOK §4.2's cutover table cites this as the single read site.
+ */
+export function circlePriceIds(env: EnvPort = denoEnv): CirclePriceIds {
+  const read = (name: string): string | undefined => {
+    const v = env.get(name);
+    return typeof v === 'string' && v.trim() !== '' ? v : undefined;
+  };
+  return {
+    monthly: read('STRIPE_PRICE_CIRCLE_MONTHLY'),
+    annual: read('STRIPE_PRICE_CIRCLE_ANNUAL'),
+  };
+}
+
 type SubtleCryptoProvider = ReturnType<typeof Stripe.createSubtleCryptoProvider>;
 
 let subtleCrypto: SubtleCryptoProvider | undefined;

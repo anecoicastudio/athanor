@@ -262,12 +262,12 @@ silently, until the ids are swapped too. That is a feature of the fix, not a reg
 alternative was quoting a price nobody could be charged. It does mean the price ids are no
 longer the low-stakes member of this table.
 
-| Variable                      | Read at                                                                                                     | Live value                                    |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`                                                                   | the live-mode secret key, or a restricted key |
-| `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`                                                              | the new live endpoint's signing secret        |
-| `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/create-circle-checkout/index.ts:40`, `supabase/functions/get-circle-prices/index.ts:31` | the live-mode price id                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/create-circle-checkout/index.ts:41`, `supabase/functions/get-circle-prices/index.ts:32` | the live-mode price id                        |
+| Variable                      | Read at                                                                                                                                         | Live value                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`                                                                                                       | the live-mode secret key, or a restricted key |
+| `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`                                                                                                  | the new live endpoint's signing secret        |
+| `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/_shared/stripe.ts:95` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/_shared/stripe.ts:96` (same resolver)                                                                                       | the live-mode price id                        |
 
 Those four are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
@@ -309,6 +309,32 @@ signing secret above.
 5. **Verify with §4.1's query**, never by assertion. After the first live payment `total` rises and
    `never_claimed` returns to 0. A live delivery that lands and never processes is the failure this
    whole ordering exists to prevent.
+6. **Smoke the price read as a real member** (#674). This is the one probe that sees the half
+   swap described above, and it costs nothing: `get-circle-prices` reads two Prices and writes
+   nothing. It is user-callable (`requireUser`), so an anon-key call gets 401 — mint an access
+   token for a real production account first. The version gate (§6.4) fails open without the
+   `x-app-version` headers, so a bare curl passes it.
+
+   ```bash
+   REF=kwzeiqvrnnaagccyoose
+   PUB=<production publishable key>   # sb_publishable_… — never a secret key
+   TOKEN=$(curl -s "https://$REF.supabase.co/auth/v1/token?grant_type=password" \
+     -H "apikey: $PUB" -H "Content-Type: application/json" \
+     -d '{"email":"<your account>","password":"<your password>"}' | jq -r .access_token)
+   curl -s -X POST "https://$REF.supabase.co/functions/v1/get-circle-prices" \
+     -H "apikey: $PUB" -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" -d '{}'
+   ```
+
+   Expected: `200` with `{"monthly":{"unitAmount":…,"currency":"eur"},"annual":{…}}`, and the
+   two amounts are the live Dashboard's — eyeball them there, because nothing else in the system
+   carries them (#644). `500 {"error":"could not load prices"}` is the cross-mode half swap (a
+   live secret key resolving test-mode Price ids, or the reverse; Stripe answers
+   `resource_missing`) and the function logs carry the Stripe reason. `500 {"error":"price not
+configured"}` means an id is unset or its Price failed a gate (archived, one-off, wrong or
+   multi-period interval, tiered); the same logs name the plan and the gate (#674). The read is
+   memoized for 60s per isolate, so a fix can take up to a minute to show. Run it again after
+   step 4 if the ids were swapped last.
 
 ### 4.3 Deploy parity — `pnpm deploy:check` (#472)
 
@@ -524,7 +550,7 @@ Run once as `service_role` on the hosted project before the first EAS submission
 
 ### 6.4 Server-side version backstop (edge functions)
 
-The client gate is skippable by definition (a modified or offline client renders anyway), so the eight client-invoked edge functions — `check-in`, `create-circle-checkout`, `create-circle-portal`, `create-contribution-session`, `create-payout-onboarding`, `create-ticket-checkout`, `create-verification-session`, `get-circle-prices` — also enforce `min_app_version` server-side (`supabase/functions/_shared/version-gate.ts`):
+The client gate is skippable by definition (a modified or offline client renders anyway), so every client-invoked edge function — the `'user'` posture rows of `supabase/functions/_shared/config-invariants.test.ts`: `check-in`, `create-circle-checkout`, `create-circle-portal`, `create-contribution-session`, `create-payout-onboarding`, `create-ticket-checkout`, `create-verification-session`, `get-circle-prices` at the time of writing; the test is the count — also enforces `min_app_version` server-side (`supabase/functions/_shared/version-gate.ts`):
 
 - Every app request carries `x-app-version` + `x-app-platform` headers (set globally in `apps/native/src/lib/supabase.ts`).
 - A build below the platform's `min_app_version` gets **HTTP 426** with body `{ "error": "outdated_client", "minVersion": "<semver>" }`. The app intercepts any 426 from `/functions/v1/` and pins the force-update screen for the process lifetime.
@@ -532,7 +558,7 @@ The client gate is skippable by definition (a modified or offline client renders
 - **Fail-open on every doubt** (missing headers, DB error, malformed row): this is a courtesy check against honest-but-outdated clients — headers are client-supplied and trivially forged. Real invariants stay behind RLS and the service-role gates, never behind this.
 - **If a bad `min_app_version` write locks users out:** fix the row (§6.2); edge caches expire within 60s, but affected clients keep the force-update screen until app restart.
 
-Service-role-only functions (`score-engine`, `push-dispatch`, `notification-fan-out`, `gdpr-export-job`, `erasure-job`, `media-process`) and `stripe-webhook` are deliberately not gated.
+The internal (service-role) functions and `stripe-webhook` are deliberately not gated. That set is not listed here: it is every `'internal'` and `'webhook'` row of the same posture table, and the six names this line used to carry had fallen to fewer than half of them without anyone noticing (#674).
 
 ### 6.5 One-time key rename at the next release (issue #223, D48)
 

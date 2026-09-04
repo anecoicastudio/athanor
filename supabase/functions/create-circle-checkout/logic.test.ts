@@ -17,12 +17,36 @@ type Ctx = CircleCheckoutCtx & {
   db: FakeDb;
   customersCreated: Stripe.CustomerCreateParams[];
   sessionsCreated: Stripe.Checkout.SessionCreateParams[];
+  pricesRetrieved: string[];
+  refusals: string[];
+};
+
+/** A Stripe Price as the two Circle ids actually resolve today (sandbox, 2026-09-03). */
+const price = (over: Partial<Stripe.Price> = {}): Stripe.Price =>
+  ({
+    id: PRICES.monthly,
+    object: 'price',
+    active: true,
+    currency: 'eur',
+    unit_amount: 1200,
+    type: 'recurring',
+    recurring: { interval: 'month', interval_count: 1 },
+    ...over,
+  }) as unknown as Stripe.Price;
+
+const yearly = { interval: 'year', interval_count: 1 } as Stripe.Price['recurring'];
+
+/** The Price each id resolves to by default — the live pair, on their own intervals. */
+const LIVE_PRICES: Record<string, Stripe.Price | Error> = {
+  [PRICES.monthly]: price(),
+  [PRICES.annual]: price({ id: PRICES.annual, unit_amount: 9900, recurring: yearly }),
 };
 
 const ctx = (
   script: Record<string, FakeResult[]> = {},
   opts: {
     priceIds?: CircleCheckoutCtx['priceIds'];
+    prices?: Record<string, Stripe.Price | Error>;
     sessionUrl?: string | null;
     throwOnCustomer?: boolean;
   } = {},
@@ -30,8 +54,19 @@ const ctx = (
   const db = makeFakeDb(script);
   const customersCreated: Stripe.CustomerCreateParams[] = [];
   const sessionsCreated: Stripe.Checkout.SessionCreateParams[] = [];
+  const pricesRetrieved: string[] = [];
+  const refusals: string[] = [];
+  const prices = opts.prices ?? LIVE_PRICES;
   return {
     userClient: db as unknown as CircleCheckoutCtx['userClient'],
+    retrievePrice: (id) => {
+      pricesRetrieved.push(id);
+      const found = prices[id];
+      if (found instanceof Error) return Promise.reject(found);
+      if (!found) return Promise.reject(new Error(`no such price ${id}`));
+      return Promise.resolve(found);
+    },
+    refusalSink: (line) => refusals.push(line),
     createCustomer: (params) => {
       customersCreated.push(params);
       if (opts.throwOnCustomer) return Promise.reject(new Error('stripe down'));
@@ -48,6 +83,8 @@ const ctx = (
     db,
     customersCreated,
     sessionsCreated,
+    pricesRetrieved,
+    refusals,
   };
 };
 
@@ -77,17 +114,106 @@ Deno.test('invalid plan → 400, nothing touched', async () => {
   assertEquals(c.sessionsCreated.length, 0);
 });
 
-Deno.test('missing price env → 500 "price not configured", db never queried', async () => {
-  const noMonthly = ctx({}, { priceIds: { annual: PRICES.annual } });
-  const m = await run(noMonthly, 'monthly');
-  assertEquals(m.res.status, 500);
-  assertEquals(m.body, { error: 'price not configured' });
-  assertEquals(noMonthly.db.calls.length, 0);
+Deno.test(
+  'missing price env → 500 "price not configured", logged, Stripe + db never touched',
+  async () => {
+    const noMonthly = ctx({}, { priceIds: { annual: PRICES.annual } });
+    const m = await run(noMonthly, 'monthly');
+    assertEquals(m.res.status, 500);
+    assertEquals(m.body, { error: 'price not configured' });
+    assertEquals(noMonthly.db.calls.length, 0);
+    assertEquals(noMonthly.pricesRetrieved, []);
+    // The unset arm used to be the one refusal nothing logged (#674 item 8).
+    assertEquals(noMonthly.refusals.length, 1);
+    assert(noMonthly.refusals[0].includes('unset'));
+    assert(noMonthly.refusals[0].includes('monthly'));
 
-  const noAnnual = ctx({}, { priceIds: { monthly: PRICES.monthly } });
-  const a = await run(noAnnual, 'annual');
-  assertEquals(a.res.status, 500);
-  assertEquals(a.body, { error: 'price not configured' });
+    const noAnnual = ctx({}, { priceIds: { monthly: PRICES.monthly } });
+    const a = await run(noAnnual, 'annual');
+    assertEquals(a.res.status, 500);
+    assertEquals(a.body, { error: 'price not configured' });
+  },
+);
+
+// ── the Price gate, shared with get-circle-prices (#674 item 7) ──────────────
+
+Deno.test('the plan’s Price is read before anything else, and only that one', async () => {
+  const c = ctx({ 'circle_memberships.select': [{ data: { stripe_customer_id: 'cus_1' } }] });
+  await run(c, 'annual');
+  assertEquals(c.pricesRetrieved, [PRICES.annual]);
+});
+
+Deno.test(
+  'a Price the quote path would refuse is refused here too — before any Customer or session',
+  async () => {
+    // Checkout used to charge whatever the env id resolved to, so a misconfigured Price made new
+    // builds refuse to quote while Checkout would still charge it. Same five gates, same answer.
+    const refused: Array<[Partial<Stripe.Price>, string]> = [
+      [{ active: false }, 'inactive'],
+      [{ recurring: null }, 'one_off'],
+      [{ recurring: yearly }, 'wrong_interval'],
+      [
+        { recurring: { interval: 'month', interval_count: 3 } as Stripe.Price['recurring'] },
+        'multi_period',
+      ],
+      [{ unit_amount: null }, 'no_unit_amount'],
+    ];
+    for (const [over, reason] of refused) {
+      const c = ctx(
+        { 'circle_memberships.select': [{ data: null }] },
+        { prices: { ...LIVE_PRICES, [PRICES.monthly]: price(over) } },
+      );
+      const { res, body } = await run(c, 'monthly');
+      assertEquals(res.status, 500, reason);
+      assertEquals(body, { error: 'price not configured' }, reason);
+      // Refused before the membership read, the Customer, and the session.
+      assertEquals(c.db.calls.length, 0, reason);
+      assertEquals(c.customersCreated.length, 0, reason);
+      assertEquals(c.sessionsCreated.length, 0, reason);
+      // …and the operator can read which gate, for which plan, on which Price.
+      assertEquals(c.refusals.length, 1, reason);
+      for (const needle of ['create-circle-checkout', 'monthly', reason, PRICES.monthly]) {
+        assert(c.refusals[0].includes(needle), `${reason}: line should name ${needle}`);
+      }
+    }
+  },
+);
+
+Deno.test('the annual id pointed at a monthly Price is refused as the wrong interval', async () => {
+  const c = ctx(
+    { 'circle_memberships.select': [{ data: null }] },
+    { prices: { ...LIVE_PRICES, [PRICES.annual]: price({ id: PRICES.annual }) } },
+  );
+  const { res } = await run(c, 'annual');
+  assertEquals(res.status, 500);
+  assert(c.refusals[0].includes('wrong_interval'));
+  assertEquals(c.sessionsCreated.length, 0);
+});
+
+Deno.test(
+  'prices.retrieve throwing → clean 500, nothing built, nothing refused-logged',
+  async () => {
+    // A Stripe outage on the read blocks the checkout on purpose: what cannot be verified is
+    // not charged. It is logged as a Stripe failure (logStripeFailure), not as a gate refusal.
+    const c = ctx(
+      { 'circle_memberships.select': [{ data: null }] },
+      { prices: { ...LIVE_PRICES, [PRICES.monthly]: new Error('stripe down') } },
+    );
+    const { res, body } = await run(c, 'monthly');
+    assertEquals(res.status, 500);
+    assertEquals(body, { error: 'could not start checkout' });
+    assertEquals(c.db.calls.length, 0);
+    assertEquals(c.sessionsCreated.length, 0);
+    assertEquals(c.refusals, []);
+  },
+);
+
+Deno.test('a live Price passes the gate and nothing about the session params changes', async () => {
+  const c = ctx({ 'circle_memberships.select': [{ data: { stripe_customer_id: 'cus_1' } }] });
+  const { res } = await run(c, 'monthly');
+  assertEquals(res.status, 200);
+  assertEquals(c.refusals, []);
+  assertEquals(c.sessionsCreated[0].line_items, [{ price: PRICES.monthly, quantity: 1 }]);
 });
 
 // ── customer reuse vs create ─────────────────────────────────────────────────

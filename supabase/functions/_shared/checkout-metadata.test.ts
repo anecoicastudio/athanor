@@ -138,6 +138,14 @@ Deno.test(
           url: 'https://checkout.stripe.test/cs_1',
         } as Stripe.Checkout.Session);
       },
+      // A live monthly Price: the gate (#674 item 7) runs before the session is built.
+      retrievePrice: () =>
+        Promise.resolve({
+          active: true,
+          currency: 'eur',
+          unit_amount: 1200,
+          recurring: { interval: 'month', interval_count: 1 },
+        } as unknown as Stripe.Price),
       priceIds: { monthly: 'price_month_1', annual: 'price_year_1' },
       appBase: APP,
     };
