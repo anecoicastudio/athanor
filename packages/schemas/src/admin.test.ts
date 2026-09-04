@@ -4,6 +4,7 @@ import {
   adminFundEditionRow,
   adminReportDetail,
   adminReportedMessage,
+  adminReportHandlesRow,
   adminReportRow,
   auditLogRow,
   resolveReportInput,
@@ -298,6 +299,55 @@ describe('admin read shapes', () => {
       'created_at',
       'reporter_handle',
     ]);
+  });
+
+  // #664: the channel that replaces the panel's profiles reads projects two handles and nothing
+  // else about either party — no id, no avatar, no display name. The key list IS the privacy
+  // claim, so it is pinned exactly, and every field's nullability is pinned beside it.
+  it('a report-handles row is two handles keyed by report id, and nothing else', () => {
+    expect(Object.keys(adminReportHandlesRow.shape)).toEqual([
+      'report_id',
+      'reporter_handle',
+      'subject_handle',
+    ]);
+    const rid = crypto.randomUUID();
+    expect(
+      adminReportHandlesRow.parse({
+        report_id: rid,
+        reporter_handle: 'elena',
+        subject_handle: null,
+      }),
+    ).toEqual({ report_id: rid, reporter_handle: 'elena', subject_handle: null });
+    expect(
+      adminReportHandlesRow.safeParse({
+        report_id: rid,
+        reporter_handle: null,
+        subject_handle: 'marco',
+      }).success,
+    ).toBe(true);
+    // A key the projection does not carry is refused as a wider shape would be typed as valid.
+    expect(
+      adminReportHandlesRow.strict().safeParse({
+        report_id: rid,
+        reporter_handle: 'elena',
+        subject_handle: null,
+        reporter_id: rid,
+      }).success,
+    ).toBe(false);
+    expect(
+      adminReportHandlesRow.safeParse({
+        report_id: 'r1',
+        reporter_handle: 'elena',
+        subject_handle: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      adminReportHandlesRow.safeParse({ report_id: rid, reporter_handle: 'elena' }).success,
+    ).toBe(false);
+    expect(
+      adminReportHandlesRow.safeParse({ report_id: rid, reporter_handle: 7, subject_handle: null })
+        .success,
+    ).toBe(false);
   });
 
   // Not a hand-written list any more (#574): the queue's enum IS `reportTargetType`, so this
