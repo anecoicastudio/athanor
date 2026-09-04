@@ -17,7 +17,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.athanor.app",
-      "associatedDomains": ["applinks:www.athanor.workers.dev"],
+      "associatedDomains": ["applinks:www.athanor.world"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -32,32 +32,32 @@
           "data": [
             {
               "scheme": "https",
-              "host": "www.athanor.workers.dev",
+              "host": "www.athanor.world",
               "pathPrefix": "/momento"
             },
             {
               "scheme": "https",
-              "host": "www.athanor.workers.dev",
+              "host": "www.athanor.world",
               "pathPrefix": "/event"
             },
             {
               "scheme": "https",
-              "host": "www.athanor.workers.dev",
+              "host": "www.athanor.world",
               "pathPrefix": "/post"
             },
             {
               "scheme": "https",
-              "host": "www.athanor.workers.dev",
+              "host": "www.athanor.world",
               "pathPrefix": "/dream"
             },
             {
               "scheme": "https",
-              "host": "www.athanor.workers.dev",
+              "host": "www.athanor.world",
               "pathPrefix": "/invite"
             },
             {
               "scheme": "https",
-              "host": "www.athanor.workers.dev",
+              "host": "www.athanor.world",
               "pathPrefix": "/@"
             }
           ]

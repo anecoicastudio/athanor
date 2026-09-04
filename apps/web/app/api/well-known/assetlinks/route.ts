@@ -2,7 +2,7 @@ export const dynamic = 'force-static';
 
 /**
  * Android Digital Asset Links — served at `/.well-known/assetlinks.json` via the rewrite
- * in `next.config.ts`. Google fetches this to verify Athanor owns `www.athanor.workers.dev`,
+ * in `next.config.ts`. Google fetches this to verify Athanor owns `www.athanor.world`,
  * so `autoVerify` App Links (see `apps/native/app.json` android.intentFilters) open the app
  * directly. Must return 200 + `application/json` with no redirect.
  *

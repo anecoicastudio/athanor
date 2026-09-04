@@ -15,8 +15,8 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * already declares, which is why `apps/web/lib/site.test.ts` and `apps/web/turbo.json`'s
  * `$TURBO_ROOT$/apps/native/app.json` cache input keep working untouched.
  *
- * Unset is a fallback, never a throw. No staging web host exists yet (#471), so every EAS
- * profile resolves to the production origin today and this file changes no shipped bytes.
+ * Unset is a fallback, never a throw. No staging web host exists, so every EAS profile
+ * resolves to the production origin today and this file changes no shipped bytes.
  * A *malformed* value is a throw, because config time is the last place a wrong host is still
  * visible — past it the binary ships claiming a domain nobody serves.
  *

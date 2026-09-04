@@ -92,7 +92,7 @@ Deno.test(
     // base, so the built URL is the real `/app/verify` route, which forwards to
     // `athanor://verify`. The trailing `?status=complete` is ignored by that page — it is a
     // static route — and is kept only because dropping it would be a change for its own sake.
-    for (const appBase of ['https://www.athanor.workers.dev/app/', 'http://localhost:3000/app/']) {
+    for (const appBase of ['https://www.athanor.world/app/', 'http://localhost:3000/app/']) {
       const c = { ...ctx(), appBase };
       await run(c);
       assertEquals(c.created[0].return_url, `${appBase}verify?status=complete`);

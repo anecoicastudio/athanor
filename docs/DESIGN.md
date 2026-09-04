@@ -204,7 +204,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 
 ## 7. Web mockups (ASCII)
 
-### 7.1 Public landing — `www.athanor.workers.dev` (logged out)
+### 7.1 Public landing — `www.athanor.world` (logged out)
 
 > **Superseded.** This mockup draws the original banded landing. The 2026-06-13 redesign (§11)
 > replaced it with the single-canvas split-screen + chapter-spine layout that `apps/web` actually
@@ -271,7 +271,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### 7.2 Public profile — `www.athanor.workers.dev/@handle` (SSR, SEO)
+### 7.2 Public profile — `www.athanor.world/@handle` (SSR, SEO)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐

@@ -731,15 +731,54 @@ jobs:
             echo "::error::deploy cannot run — set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets"
             exit 1
           fi
-          # The KV id is account-specific and cannot be committed ahead of time. Catch the
+          # The KV ids are account-specific and cannot be committed ahead of time. Catch the
           # placeholder here, where the message is actionable, rather than as an opaque
           # wrangler API error three minutes into a deploy.
           if grep -q REPLACE_WITH_KV_NAMESPACE_ID wrangler.jsonc; then
             echo "::error::wrangler.jsonc still holds the placeholder KV namespace id — run 'pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV' and commit the id"
             exit 1
           fi
+          # A well-formed id from ANOTHER account passes the placeholder check and fails
+          # mid-deploy (the 2026-09 account move). Assert every committed id exists in the
+          # account this token deploys to.
+          kv_list=$(pnpm exec wrangler kv namespace list)
+          kv_ids=$(grep -oE '"(id|preview_id)": *"[0-9a-f]{32}"' wrangler.jsonc | grep -oE '[0-9a-f]{32}' || true)
+          # An empty for-list is a silent pass under `bash -e`; a reflow or a renamed key
+          # would disarm the guard. Both ids must be extracted before anything is asserted.
+          if [ "$(printf '%s\n' "$kv_ids" | grep -c .)" -lt 2 ]; then
+            echo "::error::could not extract both KV namespace ids (id + preview_id) from wrangler.jsonc — the guard's grep no longer matches the file"
+            exit 1
+          fi
+          for id in $kv_ids; do
+            if ! printf '%s' "$kv_list" | grep -q "$id"; then
+              echo "::error::KV namespace $id in wrangler.jsonc does not exist in account $CLOUDFLARE_ACCOUNT_ID — recreate it there and commit the new id"
+              exit 1
+            fi
+          done
           # No turbo build first: the @athanor/* packages ship raw TS and are compiled
           # by Next via transpilePackages, so `opennextjs-cloudflare build` (which runs
           # `next build` itself) is the only build there is.
           pnpm exec opennextjs-cloudflare build
           pnpm exec opennextjs-cloudflare deploy
+      - name: post-deploy probe
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        run: |
+          # A deploy into a half-provisioned account (wrong subdomain, custom domain not
+          # attached, stale secret) used to go green with no signal. The built BUILD_ID is
+          # public at /BUILD_ID on the canonical host; it must match what this job built.
+          if [ -z "$NEXT_PUBLIC_SITE_URL" ]; then
+            echo "::error::post-deploy probe: NEXT_PUBLIC_SITE_URL repo secret is empty"
+            exit 1
+          fi
+          expected=$(cat .next/BUILD_ID)
+          deployed=$(curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "$NEXT_PUBLIC_SITE_URL/BUILD_ID") || {
+            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL/BUILD_ID unreachable"
+            exit 1
+          }
+          if [ "$deployed" != "$expected" ]; then
+            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL serves BUILD_ID $deployed, this job built $expected"
+            exit 1
+          fi
+          echo "deployed $expected at $NEXT_PUBLIC_SITE_URL"
