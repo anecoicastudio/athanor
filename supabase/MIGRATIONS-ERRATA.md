@@ -1500,3 +1500,28 @@ Corrected by `20260903085640_blocks_comment_keeps_exemption.sql`, which re-issue
 the live `obj_description()` text with the #663 sentence kept. The rule that falls out: a comment
 is re-issuable, but only from `obj_description()` on the linked project — a migration file is a
 snapshot of one contributor, never the current text.
+
+## `20260818114947_banned_read_side_hiding.sql` — the admin clause's stated reason no longer describes a read that exists
+
+The header at `:103-107` explains `or athanor.is_admin()` by pointing at «packages/api/src/admin.ts:158
+resolves a person report's target_handle with a direct `from('profiles')` read», and reasons that
+without the clause «the moderation panel would lose the handle of every member it bans». Two things
+have moved.
+
+The line ref drifted first (`:117` by 2026-09-03). Then #664 removed the read altogether: the same
+policy composes the SYMMETRIC `athanor.not_blocked` OUTSIDE the parenthesis the admin clause sits in,
+so that direct read — and the queue's reporter embed, and the message-sender read — returned NULL
+whenever the admin and the member were a blocked pair, which is the half of the story the header
+did not see. `20260904142701_admin_report_handles.sql` moves all three behind one DEFINER channel,
+`public.admin_report_handles(uuid[])`, and `packages/api/src/admin.ts` no longer reads `profiles`
+at all.
+
+The clause itself stands and is still needed: `search_all`'s person arm and every other
+`profiles` embed an admin reaches keep showing banned members to an admin through it, and the
+channel deliberately mirrors that (a banned party still names). Read the header's rationale as
+«an admin keeps every profiles read they had before the ban gate», not as a description of any one
+call site.
+
+Asserted by: `supabase/tests/0144_admin_report_handles.test.sql` — S7 pins the policy text
+unchanged, A1–A3 that it still hides a blocked pair from the admin, A5–A7 / U1–U2 that the channel
+names them anyway, E1 that a banned reporter still names.

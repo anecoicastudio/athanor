@@ -141,8 +141,13 @@ const reportRow = (over: Record<string, unknown> = {}) => ({
   category: 'aggressive_selling',
   status: 'open',
   created_at: '2026-08-01T10:00:00Z',
-  reporter: { handle: 'elena' },
   ...over,
+});
+
+// What `admin_report_handles` answers for R1 (#664): the reporter and the subject, by handle.
+// Every handle the panel renders comes through this channel now — nothing reads `profiles`.
+const handlesFor = (over: Record<string, unknown> = {}) => ({
+  data: [{ report_id: R1, reporter_handle: 'elena', subject_handle: 'marco', ...over }],
 });
 
 describe('resolveReport penalties', () => {
@@ -263,16 +268,105 @@ describe('getReportQueue', () => {
     expect(page.nextCursor).toBeNull();
   });
 
-  it('flattens the reporter handle for the queue row', async () => {
-    const fake = makeFakeClient({ 'reports.select': [{ data: [reportRow()] }] });
+  it('names the reporter through the handles channel, keyed by report id (#664)', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
     const page = await getReportQueue(asClient(fake), { status: 'open' });
     expect(page.rows[0]!).toMatchObject({ id: R1, reporter_handle: 'elena' });
+    const rpc = fake.calls.find((c) => c.op === 'rpc');
+    expect(rpc).toMatchObject({ columns: 'admin_report_handles', values: { p_report_ids: [R1] } });
   });
 
   it('reads the queue without writing anything', async () => {
-    const fake = makeFakeClient({ 'reports.select': [{ data: [reportRow()] }] });
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
     await getReportQueue(asClient(fake), { status: 'resolved' });
-    expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
+    // The one rpc is the read-only DEFINER channel; nothing else is allowed to be anything
+    // but a select.
+    expect(
+      fake.calls.every(
+        (c) => c.op === 'select' || (c.op === 'rpc' && c.columns === 'admin_report_handles'),
+      ),
+    ).toBe(true);
+  });
+
+  // The invariant #664 leaves behind: the panel never reads `profiles` directly again. A
+  // direct read runs under the symmetric block policy and loses the handle of every member the
+  // admin is a blocked pair with — the channel is the only way a handle reaches this surface.
+  it('never reads profiles directly — every handle comes through the channel', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
+    await getReportQueue(asClient(fake), { status: 'open' });
+    expect(fake.calls.some((c) => c.table === 'profiles')).toBe(false);
+    expect(fake.calls[0]!.columns).not.toContain('profiles');
+  });
+
+  it('asks the channel for the page only — never the probe row', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ id: R1 }), reportRow({ id: R2 })] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
+    await getReportQueue(asClient(fake), { status: 'open', limit: 1 });
+    const rpc = fake.calls.find((c) => c.op === 'rpc');
+    expect(rpc!.values).toEqual({ p_report_ids: [R1] });
+  });
+
+  it('asks the channel nothing for an empty page', async () => {
+    const fake = makeFakeClient({ 'reports.select': [{ data: [] }] });
+    await getReportQueue(asClient(fake), { status: 'open' });
+    expect(fake.calls.some((c) => c.op === 'rpc')).toBe(false);
+  });
+
+  it('throws when the channel fails — a missing RPC is a release fault, not a nameless queue', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [{ error: { code: 'PGRST202', message: 'not found' } }],
+    });
+    await expect(getReportQueue(asClient(fake), { status: 'open' })).rejects.toMatchObject({
+      code: 'PGRST202',
+    });
+  });
+
+  it('withholds a channel row the schema rejects, COUNTS it, and names the report in the log', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ id: R1 }), reportRow({ id: R2 })] }],
+      'rpc.admin_report_handles': [
+        {
+          data: [
+            { report_id: R1, reporter_handle: 'elena', subject_handle: null },
+            // `reporter_handle` as a number: the channel and the schema disagree, so the row
+            // is withheld rather than typed as valid — and only that row.
+            { report_id: R2, reporter_handle: 7, subject_handle: null },
+          ],
+        },
+      ],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.rows.map((r) => r.reporter_handle)).toEqual(['elena', null]);
+    // A withheld handle and an absent one both render «—»; the count is what tells them apart
+    // (rules/api.md, the auditExcluded shape). The log names the report — the row is keyed on
+    // report_id, and a helper that only knew `id` would have logged `row undefined`.
+    expect(page.handlesExcluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain(R2);
+    expect(warn.mock.calls[0]![0]).toContain('reporter_handle');
+    warn.mockRestore();
+  });
+
+  it('reports zero withheld handles on a healthy page', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.handlesExcluded).toBe(0);
   });
 
   it('throws when the database errors', async () => {
@@ -314,7 +408,7 @@ describe('getReportDetail success path', () => {
         { data: [reportRow({ note: 'vende corsi in DM', resolution: null, status: 'reviewing' })] },
       ],
       'audit_log.select': [{ data: [auditRow] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'posts.select': [{ data: [{ id: T1 }] }],
     });
 
@@ -329,6 +423,27 @@ describe('getReportDetail success path', () => {
     expect(detail.audit).toHaveLength(1);
     expect(detail.audit[0]!).toMatchObject({ action: 'penalty', penalty_points: -100 });
     expect(detail.auditExcluded).toBe(0);
+    expect(detail.handlesExcluded).toBe(0);
+  });
+
+  it('counts a withheld handles row on the detail, so blank names are not mistaken for nobody', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = makeFakeClient({
+      'reports.select': [
+        { data: [reportRow({ target_type: 'person', note: null, resolution: null })] },
+      ],
+      'audit_log.select': [{ data: [] }],
+      'rpc.admin_report_handles': [
+        { data: [{ report_id: R1, reporter_handle: 'elena', subject_handle: 7 }] },
+      ],
+    });
+    const detail = await getReportDetail(asClient(fake), R1);
+    expect(detail.reporter_handle).toBeNull();
+    expect(detail.target_handle).toBeNull();
+    expect(detail.handlesExcluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain(R1);
+    warn.mockRestore();
   });
 
   it('withholds a row the schema rejects instead of typing it as valid', async () => {
@@ -345,7 +460,7 @@ describe('getReportDetail success path', () => {
           ],
         },
       ],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'posts.select': [{ data: [{ id: T1 }] }],
     });
 
@@ -377,7 +492,7 @@ describe('getReportDetail success path', () => {
           ],
         },
       ],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'posts.select': [{ data: [{ id: T1 }] }],
     });
 
@@ -394,7 +509,7 @@ describe('getReportDetail success path', () => {
     const fake = makeFakeClient({
       'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
       'audit_log.select': [{ data: [] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'posts.select': [{ data: [{ id: T1 }] }],
     });
 
@@ -410,11 +525,15 @@ describe('getReportDetail success path', () => {
     const fake = makeFakeClient({
       'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
       'audit_log.select': [{ data: [] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'posts.select': [{ data: [{ id: T1 }] }],
     });
     await getReportDetail(asClient(fake), R1);
-    expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
+    expect(
+      fake.calls.every(
+        (c) => c.op === 'select' || (c.op === 'rpc' && c.columns === 'admin_report_handles'),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -434,7 +553,7 @@ describe('getReportDetail target resolution', () => {
         },
       ],
       'audit_log.select': [{ data: [] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
     });
 
     const detail = await getReportDetail(asClient(fake), R1);
@@ -452,7 +571,7 @@ describe('getReportDetail target resolution', () => {
         },
       ],
       'audit_log.select': [{ data: [] }],
-      'profiles.select': [{ data: [] }],
+      'rpc.admin_report_handles': [handlesFor({ subject_handle: null })],
     });
 
     const detail = await getReportDetail(asClient(fake), R1);
@@ -477,7 +596,7 @@ describe('getReportDetail — the reported message', () => {
     const fake = makeFakeClient({
       'reports.select': [{ data: [messageReport()] }],
       'messages.select': [{ data: [messageRow({ media_url: `${T1}/${C1}/${MEDIA}.jpg` })] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'audit_log.select': [{ data: [] }],
     });
 
@@ -501,7 +620,7 @@ describe('getReportDetail — the reported message', () => {
     const fake = makeFakeClient({
       'reports.select': [{ data: [messageReport()] }],
       'messages.select': [{ data: [messageRow()] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'audit_log.select': [{ data: [] }],
     });
 
@@ -519,7 +638,7 @@ describe('getReportDetail — the reported message', () => {
     const fake = makeFakeClient({
       'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
       'audit_log.select': [{ data: [] }],
-      'profiles.select': [{ data: [] }],
+      'rpc.admin_report_handles': [handlesFor({ subject_handle: null })],
     });
 
     const detail = await getReportDetail(asClient(fake), R1);
@@ -571,7 +690,7 @@ describe('getReportDetail — the reported message', () => {
       // `created_at` null: the column is NOT NULL in the database, so this can only mean the
       // read and the schema disagree — #392's failure mode, one table over.
       'messages.select': [{ data: [messageRow({ created_at: null })] }],
-      'profiles.select': [{ data: [{ handle: 'marco' }] }],
+      'rpc.admin_report_handles': [handlesFor()],
       'audit_log.select': [{ data: [] }],
     });
 
@@ -620,6 +739,7 @@ describe('getReportQueue — the resolved bucket and the page probe', () => {
     await expect(getReportQueue(asClient(fake), { status: 'open' })).resolves.toEqual({
       rows: [],
       nextCursor: null,
+      handlesExcluded: 0,
     });
   });
 
@@ -639,10 +759,15 @@ describe('getReportQueue — the resolved bucket and the page probe', () => {
     expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${R1}`);
   });
 
-  it('a report whose reporter is not joinable shows no handle rather than throwing', async () => {
-    // The reporter join comes back null when that profile is blocked or deleted.
+  it('a report the channel did not answer for shows no handle rather than throwing', async () => {
+    // Before #664 this was the blocked-pair case: the reporter embed came back null under the
+    // symmetric block policy, and the test called that expected. The channel now names a
+    // blocked reporter (0144 proves it in SQL); what is left for this arm is a report id the
+    // channel returned no row for — a reporter whose profile is gone with the report cascaded
+    // moments later, or a withheld row — and that still renders «—», never a crash.
     const fake = makeFakeClient({
-      'reports.select': [{ data: [reportRow({ reporter: null })] }],
+      'reports.select': [{ data: [reportRow()] }],
+      'rpc.admin_report_handles': [{ data: [] }],
     });
     const page = await getReportQueue(asClient(fake), { status: 'open' });
     expect(page.rows[0]!.reporter_handle).toBeNull();
@@ -678,7 +803,7 @@ describe('getReportDetail — when the target lookup is skipped', () => {
   it('a vanished target profile leaves the handle null rather than throwing', async () => {
     const fake = makeFakeClient({
       'reports.select': [{ data: [detailRow({ target_type: 'person' })] }],
-      'profiles.select': [{ data: [] }],
+      'rpc.admin_report_handles': [handlesFor({ subject_handle: null })],
       'audit_log.select': [{ data: [] }],
     });
     expect((await getReportDetail(asClient(fake), R1)).target_handle).toBeNull();

@@ -25,13 +25,17 @@ export type BoundaryParser<T> = {
  * down over one unrecognised row. Withholding keeps the surface up; returning `excluded`
  * keeps the omission honest, because silently dropping evidence is the other way to be wrong.
  *
- * `table` and `surface` only shape the warning; the caller says which reader spoke.
+ * `table` and `surface` only shape the warning; the caller says which reader spoke. `idField`
+ * names the column the warning quotes to make the row findable — `id` on every table row, but
+ * an RPC projection keyed on something else (`admin_report_handles` → `report_id`, #664) would
+ * otherwise log `row undefined`, which names nothing.
  */
 export function parseOrWithhold<T>(
   rows: readonly unknown[] | null | undefined,
   parser: BoundaryParser<T>,
   table: string,
   surface: string,
+  idField = 'id',
 ): { parsed: T[]; excluded: number } {
   const parsed: T[] = [];
   let excluded = 0;
@@ -45,8 +49,12 @@ export function parseOrWithhold<T>(
     // No logger exists in this package; a warning is the only channel that reaches
     // `wrangler tail` (and a build log), and the row id plus the failing path is what makes
     // the row findable. Never the row itself: the waitlist one carries an email.
+    const rowId =
+      row !== null && typeof row === 'object'
+        ? (row as Record<string, unknown>)[idField]
+        : undefined;
     console.warn(
-      `[api] ${table} row ${String((row as { id?: unknown }).id)} withheld from ${surface}: ${result.error.issues
+      `[api] ${table} row ${String(rowId)} withheld from ${surface}: ${result.error.issues
         .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
         .join('; ')}`,
     );

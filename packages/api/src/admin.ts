@@ -9,11 +9,13 @@ import {
   auditLogRow,
   adminFundEditionRow,
   adminReportedMessage,
+  adminReportHandlesRow,
   waitlistAdminRowSchema,
   abandonedDispatchRowSchema,
   type ResolveReportInput,
   type AuditLogRow,
   type AdminReportRow,
+  type AdminReportHandlesRow,
   type AdminReportDetail,
   type AdminReportedMessage,
   type ReportedMessageState,
@@ -44,17 +46,59 @@ const EDITION_COLUMNS = 'id, phase, target_at, created_at, closure_reason, winne
 
 const PAGE = 25;
 
-/** Cursor = `${created_at}|${id}`. Keyset, never offset (rule #9). */
+/**
+ * The two handles the panel renders for each report — reporter and subject — through the
+ * `admin_report_handles` DEFINER channel (migration 20260904142701, #664).
+ *
+ * Nothing here reads `profiles` directly any more, and that is the fix: every profiles read
+ * runs under `profiles_select_authenticated`, whose `athanor.not_blocked` is symmetric, so an
+ * admin who blocked a member — or was blocked by one — lost that member's handle in the
+ * queue's reporter embed, in the person-target lookup and in the message-sender lookup alike.
+ * The policy was NOT widened (#97's ruling: the admin read path reaches reported content
+ * only); the channel reads through it for exactly this projection and re-checks
+ * `athanor.is_admin()` inside, so a non-admin caller gets 42501 from the same code.
+ *
+ * Keyed by report id. A report the channel did not answer for — none exist today, the join is
+ * on `reporter_id`'s FK — simply has no entry, and the callers' `?? null` arms render «—».
+ * Rows the schema rejects are withheld and COUNTED (`excluded`), the `auditExcluded` shape:
+ * a withheld handle and an absent one render the same «—», so the count is the only thing
+ * that keeps the two apart on a moderation surface. Throws on an RPC error like the other
+ * admin RPC readers here: a channel that is missing (production lagging the migration) is a
+ * release-ordering fault worth a loud page, not a queue that quietly loses every name — the
+ * failure #664 exists to end.
+ */
+async function readReportHandles(
+  client: AthanorClient,
+  reportIds: string[],
+): Promise<{ handles: Map<string, AdminReportHandlesRow>; excluded: number }> {
+  if (reportIds.length === 0) return { handles: new Map(), excluded: 0 };
+  const { data, error } = await client.rpc('admin_report_handles', { p_report_ids: reportIds });
+  if (error) throw error;
+  const { parsed, excluded } = parseOrWithhold(
+    data,
+    adminReportHandlesRow,
+    'admin_report_handles',
+    'the report handles',
+    'report_id',
+  );
+  return { handles: new Map(parsed.map((r) => [r.report_id, r])), excluded };
+}
+
+/**
+ * Cursor = `${created_at}|${id}`. Keyset, never offset (rule #9).
+ *
+ * `handlesExcluded` counts the channel rows withheld at the boundary (#664): non-zero means a
+ * «—» on this page is a schema disagreement, not an unnamed report. Additive to the shape the
+ * panel already reads; a caller that ignores it sees exactly what it saw before.
+ */
 export async function getReportQueue(
   client: AthanorClient,
   opts: { status: 'open' | 'reviewing' | 'resolved'; cursor?: string | null; limit?: number },
-): Promise<{ rows: AdminReportRow[]; nextCursor: string | null }> {
+): Promise<{ rows: AdminReportRow[]; nextCursor: string | null; handlesExcluded: number }> {
   const limit = opts.limit ?? PAGE;
   let q = client
     .from('reports')
-    .select(
-      'id, target_type, target_id, category, status, created_at, reporter:profiles!reports_reporter_id_fkey(handle)',
-    )
+    .select('id, target_type, target_id, category, status, created_at')
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(limit + 1);
@@ -69,6 +113,11 @@ export async function getReportQueue(
   const { data, error } = await q;
   if (error) throw error;
   const { page, hasMore } = probePage(data ?? [], limit);
+  // The page's ids only — the probe row is never rendered, so it is never named.
+  const { handles, excluded: handlesExcluded } = await readReportHandles(
+    client,
+    page.map((r) => r.id),
+  );
   const rows: AdminReportRow[] = page.map((r) => ({
     id: r.id,
     // `reports.target_type` is a text column; the union lives in the schema. Same narrowing
@@ -78,9 +127,9 @@ export async function getReportQueue(
     category: r.category,
     status: r.status,
     created_at: r.created_at,
-    reporter_handle: r.reporter?.handle ?? null,
+    reporter_handle: handles.get(r.id)?.reporter_handle ?? null,
   }));
-  return { rows, nextCursor: tailCursor(page, hasMore) };
+  return { rows, nextCursor: tailCursor(page, hasMore), handlesExcluded };
 }
 
 /**
@@ -103,27 +152,30 @@ export async function getReportDetail(
 ): Promise<AdminReportDetail> {
   const { data, error } = await client
     .from('reports')
-    .select(
-      'id, target_type, target_id, category, status, created_at, note, resolution, reporter:profiles!reports_reporter_id_fkey(handle)',
-    )
+    .select('id, target_type, target_id, category, status, created_at, note, resolution')
     .eq('id', id)
     .single();
   if (error) throw error;
+  // Both parties by handle, through the channel (#664). `subject_handle` is what the migration
+  // resolves for a person target or a message sender — the same person `resolve_report` v5
+  // lands the verdict on — and null for a post or behaviour report, so the header names the
+  // person the verdict will hit and nobody else.
+  const { handles: handleRows, excluded: handlesExcluded } = await readReportHandles(client, [
+    data.id,
+  ]);
+  const handles = handleRows.get(data.id);
+  const reporter_handle = handles?.reporter_handle ?? null;
   let target_handle: string | null = null;
   let reportedMessage: AdminReportedMessage | null = null;
   let reportedMessageState: ReportedMessageState = 'notApplicable';
   if (data.target_type === 'person' && data.target_id) {
-    const { data: t } = await client
-      .from('profiles')
-      .select('handle')
-      .eq('id', data.target_id)
-      .maybeSingle();
-    target_handle = t?.handle ?? null;
+    target_handle = handles?.subject_handle ?? null;
   } else if (data.target_type === 'message' && data.target_id) {
-    // A message report's subject is the SENDER, which is also what `resolve_report` v5 resolves
-    // the verdict onto — so the header names the same person the verdict will hit. Reading it
-    // here rather than letting the panel derive it keeps the two in one place.
-    const evidence = await readReportedMessage(client, data.target_id);
+    const evidence = await readReportedMessage(
+      client,
+      data.target_id,
+      handles?.subject_handle ?? null,
+    );
     reportedMessage = evidence.message;
     reportedMessageState = evidence.state;
     target_handle = reportedMessage?.sender_handle ?? null;
@@ -148,10 +200,11 @@ export async function getReportDetail(
     created_at: data.created_at,
     note: data.note,
     resolution: data.resolution,
-    reporter_handle: data.reporter?.handle ?? null,
+    reporter_handle,
     target_handle,
     audit: parsedAudit,
     auditExcluded,
+    handlesExcluded,
     reportedMessage,
     reportedMessageState,
   };
@@ -189,6 +242,10 @@ export async function getReportDetail(
 async function readReportedMessage(
   client: AthanorClient,
   messageId: string,
+  // Resolved by the caller through `admin_report_handles` (#664) rather than read from
+  // `profiles` here, which the symmetric block policy nulled. Null when the sender was erased
+  // (`sender_id` ON DELETE SET NULL) — the channel joins nothing for that row either.
+  senderHandle: string | null,
 ): Promise<{ message: AdminReportedMessage | null; state: ReportedMessageState }> {
   const { data, error } = await client
     .from('messages')
@@ -200,21 +257,12 @@ async function readReportedMessage(
     return { message: null, state: 'unreadable' };
   }
   if (!data) return { message: null, state: 'absent' };
-  let sender_handle: string | null = null;
-  if (data.sender_id) {
-    const { data: sender } = await client
-      .from('profiles')
-      .select('handle')
-      .eq('id', data.sender_id)
-      .maybeSingle();
-    sender_handle = sender?.handle ?? null;
-  }
   const parsed = adminReportedMessage.safeParse({
     id: data.id,
     body: data.body,
     media_url: data.media_url,
     created_at: data.created_at,
-    sender_handle,
+    sender_handle: data.sender_id ? senderHandle : null,
   });
   if (!parsed.success) {
     // Same shape as parseOrWithhold's line: the path and the message, so the row can be found.

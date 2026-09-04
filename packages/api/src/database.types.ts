@@ -3277,6 +3277,14 @@ export type Database = {
           source: string
         }[]
       }
+      admin_report_handles: {
+        Args: { p_report_ids: string[] }
+        Returns: {
+          report_id: string
+          reporter_handle: string
+          subject_handle: string
+        }[]
+      }
       admin_waitlist_count: { Args: never; Returns: number }
       broadcast_aura_celebration: {
         Args: {

@@ -155,6 +155,23 @@ export const adminReportRow = z.object({
 export type AdminReportRow = z.infer<typeof adminReportRow>;
 
 /**
+ * One row of `admin_report_handles` (#664): a report's two parties, by handle and nothing else.
+ *
+ * The panel used to resolve these through `profiles` reads that run under
+ * `profiles_select_authenticated`, whose symmetric `athanor.not_blocked` nulls every one of
+ * them when the admin and the party are a blocked pair. They now come through a DEFINER
+ * channel scoped to exactly this projection — `subject_handle` is the person a verdict lands
+ * on (a person target, a message's sender), null for a post or behaviour report.
+ * `reporter_handle` is nullable because `profiles.handle` is, not because the join can miss.
+ */
+export const adminReportHandlesRow = z.object({
+  report_id: z.string().uuid(),
+  reporter_handle: z.string().nullable(),
+  subject_handle: z.string().nullable(),
+});
+export type AdminReportHandlesRow = z.infer<typeof adminReportHandlesRow>;
+
+/**
  * The reported message itself — the evidence a `target_type = 'message'` report points at (#574).
  *
  * Derived from `messageSchema` rather than re-declared (rules/schemas.md), then narrowed to the
@@ -218,6 +235,13 @@ export const adminReportDetail = adminReportRow.extend({
   target_handle: z.string().nullable(),
   audit: z.array(auditLogRow),
   auditExcluded: z.number().int().nonnegative(),
+  /**
+   * The same discipline for the two handles (#664): they come through `admin_report_handles`
+   * and are parsed at the boundary, so a row the schema rejects is withheld and counted here
+   * rather than rendered as «—». Zero on every healthy read; one means both handles on this
+   * page are blank because the channel and the schema disagree, not because nobody is named.
+   */
+  handlesExcluded: z.number().int().nonnegative(),
   /**
    * The reported message, on a `'message'` report only (#574) — null everywhere else, and null
    * on a message report whose target no longer resolves: `reports.target_id` has no FK, so an

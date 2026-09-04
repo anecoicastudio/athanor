@@ -4,6 +4,7 @@ import {
   adminFundEditionRow,
   adminReportDetail,
   adminReportedMessage,
+  adminReportHandlesRow,
   adminReportRow,
   auditLogRow,
   resolveReportInput,
@@ -300,6 +301,55 @@ describe('admin read shapes', () => {
     ]);
   });
 
+  // #664: the channel that replaces the panel's profiles reads projects two handles and nothing
+  // else about either party — no id, no avatar, no display name. The key list IS the privacy
+  // claim, so it is pinned exactly, and every field's nullability is pinned beside it.
+  it('a report-handles row is two handles keyed by report id, and nothing else', () => {
+    expect(Object.keys(adminReportHandlesRow.shape)).toEqual([
+      'report_id',
+      'reporter_handle',
+      'subject_handle',
+    ]);
+    const rid = crypto.randomUUID();
+    expect(
+      adminReportHandlesRow.parse({
+        report_id: rid,
+        reporter_handle: 'elena',
+        subject_handle: null,
+      }),
+    ).toEqual({ report_id: rid, reporter_handle: 'elena', subject_handle: null });
+    expect(
+      adminReportHandlesRow.safeParse({
+        report_id: rid,
+        reporter_handle: null,
+        subject_handle: 'marco',
+      }).success,
+    ).toBe(true);
+    // A key the projection does not carry is refused as a wider shape would be typed as valid.
+    expect(
+      adminReportHandlesRow.strict().safeParse({
+        report_id: rid,
+        reporter_handle: 'elena',
+        subject_handle: null,
+        reporter_id: rid,
+      }).success,
+    ).toBe(false);
+    expect(
+      adminReportHandlesRow.safeParse({
+        report_id: 'r1',
+        reporter_handle: 'elena',
+        subject_handle: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      adminReportHandlesRow.safeParse({ report_id: rid, reporter_handle: 'elena' }).success,
+    ).toBe(false);
+    expect(
+      adminReportHandlesRow.safeParse({ report_id: rid, reporter_handle: 7, subject_handle: null })
+        .success,
+    ).toBe(false);
+  });
+
   // Not a hand-written list any more (#574): the queue's enum IS `reportTargetType`, so this
   // asserts the DERIVATION rather than a second copy that has to be remembered. Comparing
   // against REPORT_TARGET_TYPES is what makes it fail if the two ever come apart again — a
@@ -327,9 +377,23 @@ describe('admin read shapes', () => {
       'target_handle',
       'audit',
       'auditExcluded',
+      'handlesExcluded',
       'reportedMessage',
       'reportedMessageState',
     ]);
+  });
+
+  // A withheld count is a whole number of rows, never negative (#664 — and the same holds for
+  // auditExcluded beside it, asserted here so the .int()/.nonnegative() arms have a killer).
+  it('withheld counts are non-negative integers', () => {
+    for (const field of ['handlesExcluded', 'auditExcluded'] as const) {
+      const s = adminReportDetail.shape[field];
+      expect(s.safeParse(0).success).toBe(true);
+      expect(s.safeParse(3).success).toBe(true);
+      expect(s.safeParse(-1).success).toBe(false);
+      expect(s.safeParse(1.5).success).toBe(false);
+      expect(s.safeParse('1').success).toBe(false);
+    }
   });
 
   // The four ways a null can happen, named. A single null would present an RLS regression on
