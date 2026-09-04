@@ -33,6 +33,10 @@ STORY_VF="scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
 # the other would render a correctly-sized image inside a wrongly-shaped reserved box.
 CARD_VF="scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350"
 AVATAR_VF="scale=512:512:force_original_aspect_ratio=increase,crop=512:512"
+# A chat image keeps its own aspect — the bubble sizes to the photo — so no crop here, only a
+# long-edge cap. 1600 sits under processImage's 2048 (MEDIA_LIMITS.IMAGE_MAX_LONG_EDGE): a
+# fixture that is smaller than what the app would send, never larger.
+CHAT_VF="scale=1600:1600:force_original_aspect_ratio=decrease"
 
 img() { # img <src-relative> <out-name> <filter>
   local in="$SRC/$1" out="$OUT/$2"
@@ -128,15 +132,28 @@ img test-profile/pexels-marcos-felipe-177641462-13331367.jpg             avatar_
 img test-profile/pexels-pexels-user-25433892-6748783.jpg                 avatar__vera_erbe.jpg      "$AVATAR_VF"
 img test-profile/pexels-rohanmuzafar-10837349.jpg                        avatar__rocco_film.jpg     "$AVATAR_VF"
 
+# ── Chat images — one peer-sent photo per seeded conversation (#613) ─────────────────────
+# luna_dev sends sole_designer the landscape (the one photograph in the set with nothing to
+# do with anybody's craft — a "look where I am" message); bea_foto sends marta_ceramica the
+# tailor she photographed for her own post (the caption on that message says so); gio_musica
+# sends rocco_film a re-crop of tino_chef's field, standing in for «la cantina» because the
+# set has no interior. Sources reused, so no new file is needed under docs/test-stories/.
+echo "chat images"
+img test-images/pexels-jenny-uhling-2262740-4017166.jpg          chat__luna_dev__6.jpg        "$CHAT_VF"
+img test-images/pexels-i-sra-nilgun-ozkan-1937384707-28885977.jpg chat__bea_foto__4.jpg        "$CHAT_VF"
+img test-images/pexels-gio-spigo-276311867-28102054.jpg          chat__gio_musica__4.jpg      "$CHAT_VF"
+
 # ── Bucket caps, asserted rather than assumed ─────────────────────────────────────────────
-# 50 MiB on post-media / moments / story-segments; 5 MiB on avatars. Fail here, loudly, rather
-# than let the operator discover it as a 413 partway through an upload run.
+# 50 MiB on post-media / moments / story-segments; 10 MiB on chat-media; 5 MiB on avatars.
+# Fail here, loudly, rather than let the operator discover it as a 413 partway through an
+# upload run.
 echo
 fail=0
 while IFS= read -r f; do
   bytes=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f")
   case "$(basename "$f")" in
     avatar__*) cap=5242880 ;;
+    chat__*)   cap=10485760 ;;
     *)         cap=52428800 ;;
   esac
   if [ "$bytes" -gt "$cap" ]; then

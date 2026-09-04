@@ -75,6 +75,16 @@ const AVATARS = [
   'vera_erbe',
   'rocco_film',
 ];
+// Chat images (#613): [a, b, n, sender, peer] — the seed's `msg:${a}:${b}:${n}` key, who
+// sent it (the owner who uploads) and the other participant (who verifies the read). A chat
+// image is the one object in this file that sole_designer cannot read on behalf of everyone:
+// chat-media's SELECT is scoped to the conversation's two participants, so the non-owner
+// reader has to be the peer, and the row itself is only visible to those two as well.
+const CHAT_IMAGES = [
+  ['sole_designer', 'luna_dev', 6, 'luna_dev', 'sole_designer'],
+  ['marta_ceramica', 'bea_foto', 4, 'bea_foto', 'marta_ceramica'],
+  ['rocco_film', 'gio_musica', 4, 'gio_musica', 'rocco_film'],
+];
 
 /** `md5(text)::uuid` in Postgres — the same 32 hex digits, dashed. */
 const rowId = (semanticKey) => {
@@ -179,12 +189,18 @@ const plan = [
       file: `post__${h}__0.jpg`,
     })),
   },
+  // Read as the owner: dream_candidacies_select_visible shows a non-author only what
+  // is_on_ballot() admits, so a candidacy that has slipped back to 'submitted' (a walked
+  // screening flow, a refresh that does not restore candidacy status) is invisible to
+  // sole_designer and this step would report the row as missing. The author always sees
+  // their own row; the storage key is the same string either way.
   {
     table: 'dream_candidacies',
     bucket: 'candidacy-videos',
     col: 'video_url',
     want: CANDIDACIES.map((h) => ({
       owner: h,
+      readAs: h,
       id: rowId(`candidacy:${h}`),
       file: `candidacy__${h}.mp4`,
     })),
@@ -197,6 +213,7 @@ const plan = [
     col: 'thumb_path',
     want: CANDIDACIES.map((h) => ({
       owner: h,
+      readAs: h,
       id: rowId(`candidacy:${h}`),
       file: `candidacy__${h}__thumb.jpg`,
     })),
@@ -207,10 +224,24 @@ const plan = [
     col: 'avatar_path',
     want: AVATARS.map((h) => ({ owner: h, id: rowId(`user:${h}`), file: `avatar__${h}.jpg` })),
   },
+  // The peer-sent chat image (#613). `readAs` / `verifyAs` override the sole_designer default
+  // because a conversation's rows and objects are visible to its two participants only.
+  {
+    table: 'messages',
+    bucket: 'chat-media',
+    col: 'media_url',
+    want: CHAT_IMAGES.map(([a, b, n, sender, peer]) => ({
+      owner: sender,
+      readAs: sender,
+      verifyAs: peer,
+      id: rowId(`msg:${a}:${b}:${n}`),
+      file: `chat__${sender}__${n}.jpg`,
+    })),
+  },
 ];
 
-// Missing files are reported ALL AT ONCE and then fatal. A run that uploads eleven of nineteen
-// and then dies leaves a world that looks seeded and is not.
+// Missing files are reported ALL AT ONCE and then fatal. A run that uploads half the plan and
+// then dies leaves a world that looks seeded and is not.
 const missing = [];
 for (const step of plan) {
   for (const w of step.want) {
@@ -234,9 +265,22 @@ const reader = await tokenFor('sole_designer');
 const uploaded = [];
 
 for (const step of plan) {
-  const ids = step.want.map((w) => w.id);
-  const rows = await rest(reader, `${step.table}?id=in.(${ids.join(',')})&select=id,${step.col}`);
-  const byId = new Map(rows.map((r) => [r.id, r[step.col]]));
+  // One lookup per reading member: sole_designer for everything a member can see of everyone
+  // (the default), the sender for a chat row. Grouped so the common case stays one query.
+  const byId = new Map();
+  const groups = new Map();
+  for (const w of step.want) {
+    const readAs = w.readAs ?? 'sole_designer';
+    groups.set(readAs, [...(groups.get(readAs) ?? []), w]);
+  }
+  for (const [readAs, wants] of groups) {
+    const ids = wants.map((w) => w.id);
+    const rows = await rest(
+      await tokenFor(readAs),
+      `${step.table}?id=in.(${ids.join(',')})&select=id,${step.col}`,
+    );
+    for (const r of rows) byId.set(r.id, r[step.col]);
+  }
 
   for (const w of step.want) {
     const key = byId.get(w.id);
@@ -263,7 +307,7 @@ for (const step of plan) {
           `do not reach for a service key.`,
       );
     }
-    uploaded.push({ bucket: step.bucket, key, file: w.file, owner: w.owner });
+    uploaded.push({ bucket: step.bucket, key, file: w.file, owner: w.owner, verifyAs: w.verifyAs });
     console.log(`  ↑ ${step.bucket}/${key}  ← ${w.file}  (as ${w.owner})`);
   }
 }
@@ -271,14 +315,18 @@ console.log(`\nuploaded ${uploaded.length} objects\n`);
 
 // ── 3. verify as a DIFFERENT member ───────────────────────────────────────────────────────
 // Owners can always read their own objects, so an owner-read proves nothing about the read
-// policy. sole_designer reads all nineteen, which is what the app actually does. There is no
-// visibility special case: the storage policies gate on blocks alone, so vera_erbe's private
-// *profile* does not make her *objects* unreadable.
+// policy. sole_designer reads everything a member can see of everyone, which is what the app
+// actually does. There is no visibility special case: the storage policies gate on blocks
+// alone, so vera_erbe's private *profile* does not make her *objects* unreadable. The one
+// bucket with a narrower reader is chat-media, whose SELECT is scoped to the conversation's
+// participants — there the non-owner is the peer (`verifyAs`), which is still a non-owner read
+// and still the read the app performs.
 const failures = [];
 for (const o of uploaded) {
+  const verifier = o.verifyAs ? await tokenFor(o.verifyAs) : reader;
   const signRes = await fetch(`${url}/storage/v1/object/sign/${o.bucket}/${o.key}`, {
     method: 'POST',
-    headers: { ...auth(reader), 'Content-Type': 'application/json' },
+    headers: { ...auth(verifier), 'Content-Type': 'application/json' },
     body: JSON.stringify({ expiresIn: 60 }),
   });
   if (!signRes.ok) {
@@ -304,4 +352,6 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`✓ all ${uploaded.length} objects sign and fetch as sole_designer (a non-owner)`);
+console.log(
+  `✓ all ${uploaded.length} objects sign and fetch as a non-owner (sole_designer, or the chat peer)`,
+);
