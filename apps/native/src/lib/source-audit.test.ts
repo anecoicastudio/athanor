@@ -1672,7 +1672,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * `(modal)` screens and shared components both. A component does not know which screen mounts
  * it, so a `back()` inside `ModalHeader` is exactly as dead as one written in the screen —
  * that is where #577's bug lived. `(tabs)` and `(auth)` are out: a tab root has no back
- * affordance at all, and `(auth)/welcome.tsx:185` already renders its own conditionally.
+ * affordance at all, and `(auth)/welcome.tsx:231` already renders its own conditionally.
  *
  * ## What it cannot see
  *
