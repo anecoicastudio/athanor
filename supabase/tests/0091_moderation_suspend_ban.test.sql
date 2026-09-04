@@ -29,7 +29,11 @@ insert into public.reports (id, reporter_id, target_type, target_id, category) v
   ('dddddddd-0000-0000-0000-000000000001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
   ('dddddddd-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
   ('dddddddd-0000-0000-0000-000000000003','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','person','cccccccc-cccc-cccc-cccc-cccccccccccc','harassment'),
-  ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','post', null,'spam'),
+  -- a post report whose target does not resolve (no FK; the id names no row) — the warn
+  -- producer finds no author, so it still "names no subject". Was 'post', null before #611
+  -- made a targetless post report unrepresentable; still a POST target, which is what
+  -- 20260831153524:23 cites for the ban → 22023 assertion below.
+  ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','post','aaaaaaaa-0000-0000-0000-0000000000ff','spam'),
   -- a post report whose target survives — the warn producer resolves the AUTHOR (#313)
   ('dddddddd-0000-0000-0000-000000000005','cccccccc-cccc-cccc-cccc-cccccccccccc','post','aaaaaaaa-0000-0000-0000-000000000001','spam');
 
@@ -121,7 +125,7 @@ select lives_ok(
   'admin warns a post report');
 select lives_ok(
   $$ select public.resolve_report('dddddddd-0000-0000-0000-000000000004','upheld','richiamo','warn') $$,
-  'admin warns a report that names no subject');
+  'admin warns a post report whose target no longer resolves (names no subject)');
 reset role;
 select is(
   (select convert_from(q.body, 'utf8')::jsonb ->> 'recipient_id'
@@ -133,7 +137,7 @@ select is(
 select is(
   (select count(*)::int from net.http_request_queue q
     where convert_from(q.body, 'utf8')::jsonb ->> 'template_key' = 'notif.tpl.warn'),
-  2, 'a warn with no subject enqueues nothing — audit-only');
+  2, 'a warn whose target resolves to nobody enqueues nothing — audit-only');
 
 -- ── (D) suspend writes state + audit + enqueues the auth half ────────────────────────────
 set local role authenticated;

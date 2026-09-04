@@ -86,9 +86,9 @@ select lives_ok(
 
 select throws_ok(
   $$ insert into public.reports (reporter_id, target_type, target_id, category)
-     values ('a1410000-0000-0000-0000-000000000003','thread',null,'spam') $$,
+     values ('a1410000-0000-0000-0000-000000000003','thread','bb410000-0000-0000-0000-000000000001','spam') $$,
   '23514', null,
-  'widening the set did not open it — an unknown target type is still refused');
+  'widening the set did not open it — an unknown target type is still refused (a target is named, so the 23514 is the type CHECK and not #611''s)');
 
 -- Four members and no more. Counted rather than string-compared: the rendered CHECK text is
 -- Postgres's to format, but how many values it admits is ours.
@@ -112,8 +112,10 @@ insert into public.reports (id, reporter_id, target_type, target_id, category, n
    'message','bb410000-0000-0000-0000-000000000007','harassment','esclusione'),
   ('dd410000-0000-0000-0000-000000000008','a1410000-0000-0000-0000-000000000003',
    'message','bb410000-0000-0000-0000-000000000008','spam','mittente cancellato'),
+  -- a post target is named (#611: a 'post' report cannot be filed without one); no FK, so it
+  -- need not resolve — v5 refuses the penalty on the TYPE, not on whether the id resolves
   ('dd410000-0000-0000-0000-00000000000f','a1410000-0000-0000-0000-000000000003',
-   'post',null,'spam','un post');
+   'post','cc410000-0000-0000-0000-00000000000f','spam','un post');
 reset role;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
