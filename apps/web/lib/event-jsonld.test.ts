@@ -18,7 +18,7 @@ const event: PublicEvent = {
   organizer_handle: 'sole',
 };
 
-const URL_ = 'https://www.athanor.workers.dev/event/00000000-0000-0000-0000-0000000000e1';
+const URL_ = 'https://www.athanor.world/event/00000000-0000-0000-0000-0000000000e1';
 
 describe('eventJsonLd', () => {
   it('describes a physical event with its place and offer', () => {
@@ -59,7 +59,7 @@ describe('eventJsonLd', () => {
   it('links the organizer to their public profile, and omits them when private', () => {
     expect(eventJsonLd(event, URL_).organizer).toMatchObject({
       '@type': 'Person',
-      url: 'https://www.athanor.workers.dev/@sole',
+      url: 'https://www.athanor.world/@sole',
     });
     expect(eventJsonLd({ ...event, organizer_handle: null }, URL_).organizer).toBeUndefined();
   });

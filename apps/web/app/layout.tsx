@@ -101,7 +101,7 @@ export default function RootLayout({
         {/*
           Cloudflare Web Analytics — cookieless and aggregate, as the privacy page
           says. Cloudflare only auto-injects this beacon for a zone it proxies, and
-          a *.workers.dev host is not one, so it has to be mounted by hand.
+          a Worker on a custom domain or *.workers.dev is not one, so it has to be mounted by hand.
 
           The env read must be a literal member expression: the bundler substitutes
           NEXT_PUBLIC_* by matching the source text, so a computed lookup silently

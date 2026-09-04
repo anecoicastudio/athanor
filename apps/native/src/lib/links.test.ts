@@ -135,11 +135,11 @@ describe('the dynamic config only moves the host', () => {
     // claimed domain is still `host`.
     for (const bad of [
       'not-a-url',
-      'http://www.athanor.workers.dev',
-      'https://www.athanor.workers.dev/',
-      'https://www.athanor.workers.dev/base',
-      'https://www.athanor.workers.dev?a=1',
-      'https://x:y@www.athanor.workers.dev',
+      'http://www.athanor.world',
+      'https://www.athanor.world/',
+      'https://www.athanor.world/base',
+      'https://www.athanor.world?a=1',
+      'https://x:y@www.athanor.world',
     ]) {
       process.env.EXPO_PUBLIC_SITE_ORIGIN = bad;
       expect(() => resolveAppConfig({ config: staticConfig() }), bad).toThrow(

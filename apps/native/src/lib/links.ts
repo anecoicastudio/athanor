@@ -31,10 +31,9 @@
  * `||`, not `??`: a cleared EAS environment variable interpolates as the empty
  * string rather than staying unset, and `??` would keep it (same reasoning as
  * `apps/web/lib/site.ts`). Unset falls back to production rather than throwing —
- * there is no staging web host to point at yet (#471), so every build profile
- * resolves here today.
+ * there is no staging web host, so every build profile resolves here today.
  */
-export const SITE_ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || 'https://www.athanor.workers.dev';
+export const SITE_ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || 'https://www.athanor.world';
 
 export const LEGAL_TERMS_URL = `${SITE_ORIGIN}/terms`;
 export const LEGAL_PRIVACY_URL = `${SITE_ORIGIN}/privacy`;

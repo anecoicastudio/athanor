@@ -54,7 +54,7 @@ Original spec (superseded): `apps/native/eas.json` was absent; `app.json` had no
 
 ### P1.3 — Universal links `[agent + manual-you]` — ✅ DONE 2026-07-08 (agent part)
 
-Shipped: `associatedDomains: applinks:www.athanor.workers.dev` + Android intent-filters in `app.json`; AASA + `assetlinks.json` served from `apps/web` via `next.config.ts` rewrites. Remaining manual: real TEAMID / SHA256 cert fingerprint at P1.5, entitlement check on first store build. Original spec kept below.
+Shipped: `associatedDomains: applinks:www.athanor.world` + Android intent-filters in `app.json`; AASA + `assetlinks.json` served from `apps/web` via `next.config.ts` rewrites. Remaining manual: real TEAMID / SHA256 cert fingerprint at P1.5, entitlement check on first store build. Original spec kept below.
 Add iOS `associatedDomains` + Android intent-filters/`assetlinks` to `app.json`; publish `.well-known/apple-app-site-association` + `assetlinks.json` on the web domain (`apps/web`). Templates in **Appendix C**. Verify cold-start deep-link routing through the auth gate for Momento / event / post / `@handle` / invite (RUNBOOK S-9).
 
 ### P1.4 — Sentry `[agent, ⚠ edits app.json]` — ✅ DONE 2026-07-08
@@ -78,7 +78,7 @@ Two auth gaps are **deliberately shipped**, not outstanding work. Both were deci
 
 - **Signup email confirmation stays off (#70, closed).** `mailer_autoconfirm = true` on production, verified against the Management API on 2026-08-20. Nothing verifies that a person controls the address they sign up with, and **that address is what password recovery later trusts** — this is the sharper of the two risks. The 2026-08-10 redirect allow-list continues to protect password recovery, magic links and OAuth; it does not protect signup, which never redirects anywhere.
 
-  It was not a switch we declined to flip. There is **no SMTP provider on either project** (`[auth.email.smtp]` commented out in `supabase/config.toml`, `smtp_host` null on both hosted projects), so every confirmation mail would go through Supabase's built-in mailer at **2 per hour**, documented as not for production. Free SMTP tiers are ample but require DKIM/SPF records on a domain you control, and `www.athanor.workers.dev` cannot host DNS records.
+  It was not a switch we declined to flip. There is **no SMTP provider on either project** (`[auth.email.smtp]` commented out in `supabase/config.toml`, `smtp_host` null on both hosted projects), so every confirmation mail would go through Supabase's built-in mailer at **2 per hour**, documented as not for production. Free SMTP tiers are ample but require DKIM/SPF records on a domain you control — possible since `athanor.world` (#471, 2026-09-03), a Cloudflare zone that can carry them; not yet done.
 
   Note the asymmetry between environments: **staging has confirmations ON** (`mailer_autoconfirm = false`), so the flow stays exercisable there without changing production.
 

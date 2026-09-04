@@ -42,7 +42,7 @@ describe('inviteShareMessage', () => {
    */
   it('reproduces the inline message the three existing call sites built', () => {
     expect(inviteShareMessage({ lead: 'Lead', appName: 'Athanor', code: 'ABC123' })).toBe(
-      'Lead — Athanor https://www.athanor.workers.dev/invite/ABC123',
+      'Lead — Athanor https://www.athanor.world/invite/ABC123',
     );
   });
 

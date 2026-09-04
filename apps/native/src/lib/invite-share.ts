@@ -18,7 +18,7 @@ import { INVITE_URL_BASE } from './links';
  * unattributed share beats a blocked one.
  */
 
-/** `https://www.athanor.workers.dev/invite/<CODE>` — the URL `app/invite/[code].tsx` catches. */
+/** `https://www.athanor.world/invite/<CODE>` — the URL `app/invite/[code].tsx` catches. */
 export function inviteUrl(code: string): string {
   return `${INVITE_URL_BASE}/${code}`;
 }

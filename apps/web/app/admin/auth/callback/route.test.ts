@@ -14,7 +14,7 @@ vi.mock('next/server', () => ({
 const { GET } = await import('./route');
 const { POST } = await import('../signout/route');
 
-const ORIGIN = 'https://www.athanor.workers.dev';
+const ORIGIN = 'https://www.athanor.world';
 const request = (path: string) =>
   ({ nextUrl: new URL(`${ORIGIN}${path}`) }) as unknown as NextRequest;
 
