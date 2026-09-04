@@ -9,15 +9,21 @@ import type { BlockedListItem } from '@athanor/schemas';
  * (rule #4); the "Sblocca" control is a quiet secondary action, not a primary CTA.
  * Dims to 50 % opacity while the mutation is in flight so the user can see
  * processing without losing context.
+ *
+ * A row whose person has since been banned arrives as the #314 tombstone (identity NULL,
+ * `removed` true) and reads `removedLabel` («Account rimosso») rather than the «—» a missing
+ * profile renders — the ledger still names what it holds, and the row stays unblockable (#663).
  */
 export function BlockedRow({
   item,
   unblockLabel,
+  removedLabel,
   mutating,
   onUnblock,
 }: {
   item: BlockedListItem;
   unblockLabel: string;
+  removedLabel: string;
   mutating: boolean;
   onUnblock: () => void;
 }) {
@@ -30,7 +36,7 @@ export function BlockedRow({
         size={40}
       />
       <Text className="flex-1 text-foreground">
-        {memberLabel(item.peerDisplayName, item.peerHandle) ?? '—'}
+        {item.removed ? removedLabel : (memberLabel(item.peerDisplayName, item.peerHandle) ?? '—')}
       </Text>
       <Pressable
         onPress={onUnblock}

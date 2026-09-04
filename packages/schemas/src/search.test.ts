@@ -4,7 +4,7 @@ import {
   searchFiltersSchema,
   searchScopeSchema,
   searchEntitySchema,
-} from './search';
+} from './search.ts';
 
 describe('search schemas', () => {
   test('parses a valid search result row', () => {
@@ -73,5 +73,41 @@ describe('search schemas', () => {
     expect(searchEntitySchema.parse('project')).toBe('project');
     expect(searchEntitySchema.parse('event')).toBe('event');
     expect(searchEntitySchema.safeParse('listing').success).toBe(false);
+  });
+});
+
+// The literal list, never a loop over the constant.
+describe('search vocabularies', () => {
+  test('scope is all | people | projects | events | marketplace', () => {
+    expect(searchScopeSchema.options).toEqual([
+      'all',
+      'people',
+      'projects',
+      'events',
+      'marketplace',
+    ]);
+    for (const bad of ['listings', 'posts', '']) {
+      expect(searchScopeSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  test('entity is person | project | event', () => {
+    expect(searchEntitySchema.options).toEqual(['person', 'project', 'event']);
+  });
+
+  // The star filter IS the Six Stars (aura.ts STAR_KEYS), derived rather than re-declared —
+  // each of the six has to pass here, or the filter has quietly lost a star.
+  test('star filter accepts each of the six stars and nothing else', () => {
+    for (const star of [
+      'visionario',
+      'mentor',
+      'collaboratore',
+      'creatore',
+      'innovatore',
+      'ambasciatore',
+    ]) {
+      expect(searchFiltersSchema.parse({ star }).star).toBe(star);
+    }
+    expect(searchFiltersSchema.safeParse({ star: 'stella' }).success).toBe(false);
   });
 });

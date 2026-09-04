@@ -1,30 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Share } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   blockKeys,
   blockUser,
-  getActiveDream,
-  getAuraScore,
   getBlockStatus,
-  getMomentsPage,
   getOrCreateConversation,
-  getProfileById,
   getProfileStatCounts,
-  getStars,
-  listMilestones,
-  listMyHelpsForMilestones,
-  momentKeys,
   profileKeys,
   unblockUser,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { AuraSnapshot, Help, Locale, Milestone, PersonProfile, Star } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/profile/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -34,10 +26,22 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
+import { invalidateBlockDependents } from '@/lib/block-cache';
 import { helpableMilestones, type HelpState } from '@/lib/help-picker';
 import { listState } from '@/lib/list-state';
+import { useGuardedBack } from '@/lib/modal-exit';
+import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { profileShareMessage } from '@/lib/profile-share';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
+import { useActiveDream } from '@/hooks/use-active-dream';
+import { useAuraScore } from '@/hooks/use-aura-score';
+import { useLocale } from '@/hooks/use-locale';
+import { useMilestones } from '@/hooks/use-milestones';
+import { useMomentsPage } from '@/hooks/use-moments-page';
+import { useMyHelpsForDream } from '@/hooks/use-my-helps-for-dream';
+import { useProfile } from '@/hooks/use-profile';
+import { useStars } from '@/hooks/use-stars';
 
 /**
  * Person Detail — read-only third-person profile (M2, frontend `02` §3.5). Mirrors the own
@@ -50,60 +54,53 @@ import { supabase } from '@/lib/supabase';
 export default function PersonDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
 
-  const [person, setPerson] = useState<PersonProfile | null | 'missing'>(null);
-  const [dreamText, setDreamText] = useState<string | null>(null);
-  const [tappe, setTappe] = useState<Milestone[]>([]);
-  // `null` until the read lands — a placeholder zero here would claim ANOTHER member has earned
-  // nothing, on the strength of the viewer's own connection (issue #10).
-  const [aura, setAura] = useState<AuraSnapshot | null>(null);
-  // Same contract for the stars, and here it matters most: `[]` would claim ANOTHER member has
-  // earned none of the six, on the strength of the viewer's own connection (issue #16).
-  const [stars, setStars] = useState<Star[] | null>(null);
-  const [myHelps, setMyHelps] = useState<Help[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 1500);
-  };
+  const { showToast } = useToast();
+  /**
+   * `/@handle` reaches this screen through a `replace` (`src/app/[handle].tsx:52`), so on every
+   * deep link to a member this screen IS the stack — warm or cold, not only on a cold start.
+   * A bare `back()` after blocking would leave the blocker staring at the person they just
+   * blocked (#578).
+   */
+  const leave = useGuardedBack();
 
   // Self guard — never double-render the own profile; bounce to the owner tab.
   const isSelf = id != null && id === session?.user?.id;
+  // One subject for every read on this screen. `null` while the deep link has no id yet, and
+  // on the own profile — which is redirecting, and must not spend a request on the way out.
+  const personId = isSelf ? null : id;
 
   const qc = useQueryClient();
 
   const isBlocked =
     useQuery({
-      queryKey: blockKeys.status(id ?? ''),
-      queryFn: () => getBlockStatus(supabase, id as string),
-      enabled: Boolean(id) && !isSelf,
+      queryKey: blockKeys.status(personId ?? ''),
+      queryFn: () => getBlockStatus(supabase, personId as string),
+      enabled: Boolean(personId),
     }).data ?? false;
 
+  // Both also drop the cached profile — this screen's answer changes with the block, and
+  // `useProfile` would otherwise hold the old one for five minutes (block-cache.ts has the
+  // full story; the «non disponibile» branch carries the kebab the unblock is reached through).
   const blockMutation = useMutation({
     mutationFn: () => blockUser(supabase, id as string),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
-      showToast(t('block.toast.blocked', locale));
-      router.back();
+      invalidateBlockDependents(qc, id as string);
+      showToast(t('block.toast.blocked', locale), 'success');
+      leave();
     },
   });
 
   const unblockMutation = useMutation({
     mutationFn: () => unblockUser(supabase, id as string),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
-      showToast(t('block.toast.unblocked', locale));
+      invalidateBlockDependents(qc, id as string);
+      showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
-
-  // Derived once: the `missing` branch renders the header too, so every consumer of the
-  // handle needs the same guard. Two copies of this expression drift the moment
-  // PersonProfile grows another sentinel alongside 'missing'.
-  const personHandle = person != null && person !== 'missing' ? person.handle : null;
 
   const openMenu = () => {
     const handle = personHandle ?? '';
@@ -136,18 +133,14 @@ export default function PersonDetailScreen() {
   };
 
   // Read-only: the viewed person's live momenti (members-read RLS). No add/delete here.
-  const momentsQuery = useQuery({
-    queryKey: momentKeys.list(id ?? ''),
-    queryFn: () => getMomentsPage(supabase, id as string),
-    enabled: Boolean(id) && !isSelf,
-  });
+  const momentsQuery = useMomentsPage(personId);
   const moments = momentsQuery.data?.moments ?? [];
 
   // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).
   const statCounts = useQuery({
-    queryKey: profileKeys.statCounts(id ?? ''),
-    queryFn: () => getProfileStatCounts(supabase, id as string),
-    enabled: Boolean(id) && !isSelf,
+    queryKey: profileKeys.statCounts(personId ?? ''),
+    queryFn: () => getProfileStatCounts(supabase, personId as string),
+    enabled: Boolean(personId),
     staleTime: 60_000,
   }).data;
   // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
@@ -157,87 +150,63 @@ export default function PersonDetailScreen() {
     if (isSelf) router.replace('/(tabs)/profile');
   }, [isSelf, router]);
 
-  // Imperative load on mount (mirrors profile.tsx; cancelled-guard).
-  useEffect(() => {
-    if (isSelf || !id || !session) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const p = await getProfileById(supabase, id);
-        if (cancelled) return;
-        if (!p) {
-          setPerson('missing');
-          return;
-        }
-        setPerson(p);
-        const d = await getActiveDream(supabase, id);
-        if (cancelled) return;
-        setDreamText(d?.text ?? null);
-        let milestoneIds: string[] = [];
-        if (d?.id) {
-          const ms = await listMilestones(supabase, d.id);
-          if (cancelled) return;
-          setTappe(ms);
-          milestoneIds = ms.map((m) => m.id);
-        }
-        // Aura + stars fail on their own terms. Folded into the outer catch, a timeout on
-        // either one marked the whole PERSON «non disponibile» — and before this branch even
-        // reached that catch it had already rendered a zero Aura with six dark stars. Their
-        // absence is a `null` snapshot («—»), not a verdict about the profile (issue #10).
-        try {
-          const a = await getAuraScore(supabase, id);
-          if (cancelled) return;
-          setAura(a);
-          // Earned-only via RLS for others' profiles (rule #3).
-          const earnedStars = await getStars(supabase, id);
-          if (cancelled) return;
-          setStars(earnedStars);
-        } catch {
-          // aura and stars both stay null — the hero renders «—» rather than a false zero, and
-          // the stars block a single «—» rather than a grid asserting nothing was earned.
-        }
-        // A rejection AFTER unmount lands in that catch rather than a `cancelled` return,
-        // so re-check before spending another request.
-        if (cancelled) return;
-        // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an
-        // older one on this dream and render an already-helped tappa as un-helped.
-        const { rows: helps } = await listMyHelpsForMilestones(
-          supabase,
-          session.user.id,
-          milestoneIds,
-        );
-        if (cancelled) return;
-        setMyHelps(helps);
-      } catch {
-        if (!cancelled) setPerson('missing');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isSelf, session]);
+  // The person, their dream and its tappe — the same three reads the offer-help sheet makes
+  // about the same person, so whichever of the two opens second finds them cached. They
+  // replace one imperative `useEffect` chain whose `cancelled` flag was hand-rolled cache
+  // invalidation; TanStack's own is what the flag was standing in for.
+  const personQuery = useProfile(personId);
+  const person = personQuery.data ?? null;
+  const dreamQuery = useActiveDream(personId);
+  const dreamText = dreamQuery.data?.text ?? null;
+  const milestonesQuery = useMilestones(dreamQuery.data?.id);
+  const tappe = milestonesQuery.data ?? [];
 
-  // Refetch my helps on focus so a fresh offer flips the tappa to «In attesa» after the sheet closes.
-  useFocusEffect(
-    useCallback(() => {
-      if (isSelf || !session || tappe.length === 0) return;
-      let cancelled = false;
-      listMyHelpsForMilestones(
-        supabase,
-        session.user.id,
-        tappe.map((m) => m.id),
-      )
-        .then(({ rows }) => {
-          if (!cancelled) setMyHelps(rows);
-        })
-        .catch(() => {
-          // keep the prior helps; the next focus reconciles
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [isSelf, session, tappe]),
+  // Scoped to this dream's tappe: an unscoped page of my newest offers would miss an older one
+  // on this dream and render an already-helped tappa as un-helped. The offer sheet invalidates
+  // `helpKeys.mine(uid)` when a write lands, so MY OWN new offer settles behind it — which is
+  // what the `useFocusEffect` that used to sit here was doing by hand.
+  //
+  // What that does NOT cover is the dream owner accepting or declining while this screen sits
+  // mounted: no invalidation can, since the write happens on their device. RN fires neither
+  // `refetchOnWindowFocus` nor `refetchOnReconnect` (nothing wires `focusManager`), and
+  // returning from a pushed route does not remount, so a tappa can hold «In attesa» until the
+  // screen is popped and re-entered. Realtime on `milestone_helps` is the fix, not a refetch.
+  const myHelpsQuery = useMyHelpsForDream(
+    session?.user.id,
+    dreamQuery.data?.id,
+    tappe.map((m) => m.id),
   );
+  const myHelps = myHelpsQuery.data?.rows ?? [];
+
+  // The four legs compose into ONE verdict, exactly as the loader's single catch did: any of
+  // them failing to LOAD makes the screen «non disponibile». Splitting them would let a failed
+  // tappe read render «non ha ancora scritto il suo sogno» — a claim about another member made
+  // from the viewer's own broken connection (#111).
+  //
+  // `isLoadingError`, never `isError`: the latter is also true when a BACKGROUND REFETCH fails
+  // over data already in hand, and the helps entry refetches behind the offer sheet on every
+  // successful write. A dropped connection at that moment would replace a fully rendered
+  // profile with «non disponibile» — something the imperative loader, which ran once at mount,
+  // could not do. Stale wins, the same doctrine `lib/list-state.ts` encodes for the lists.
+  const personFailed =
+    personQuery.isLoadingError ||
+    dreamQuery.isLoadingError ||
+    milestonesQuery.isLoadingError ||
+    myHelpsQuery.isLoadingError;
+
+  // Aura and stars fail on their OWN terms, and did before this too: folded in above, a timeout
+  // on either marked the whole person «non disponibile». Their absence is a `null` snapshot
+  // («—»), never a verdict about the profile (issues #10, #16). Two queries and not one for the
+  // same reason — a live score beside six stars claiming nothing was earned is issue #16.
+  const auraQuery = useAuraScore(personId);
+  const aura = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
+  // Earned-only via RLS for others' profiles (rule #3).
+  const starsQuery = useStars(personId);
+  const stars = starsOrNull(starsQuery.data, starsQuery.isError);
+
+  // Derived once: the «non disponibile» branch renders the header too, so every consumer of
+  // the handle needs the same guard, and a banned member resolves with `handle` NULL (#314).
+  const personHandle = person?.handle ?? null;
 
   // Native share sheet, via the one builder both profile surfaces use. Built at render so
   // the control can be withheld when there is nothing to share — the `missing` branch
@@ -247,7 +216,10 @@ export default function PersonDetailScreen() {
   const shareProfile = async () => {
     if (!shareMessage) return;
     try {
-      await Share.share({ message: shareMessage });
+      const { action } = await Share.share({ message: shareMessage });
+      if (action === Share.sharedAction) {
+        showToast(t('profile.share.done', locale), 'success');
+      }
     } catch {
       // user dismissed or share unavailable — no-op
     }
@@ -260,7 +232,7 @@ export default function PersonDetailScreen() {
         <Pressable
           onPress={() => void shareProfile()}
           accessibilityRole="button"
-          accessibilityLabel={t('profile.share.toast', locale)}
+          accessibilityLabel={t('profile.share.label', locale)}
           hitSlop={8}
         >
           <Text className="text-xl text-aura">✦</Text>
@@ -280,25 +252,47 @@ export default function PersonDetailScreen() {
   // Self → already redirecting; render nothing.
   if (isSelf) return null;
 
-  // Loading.
-  if (person === null) {
-    return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <Text className="text-2xl text-muted-foreground">✦</Text>
-      </View>
-    );
+  // Loading — nothing is known about the person yet. A leg that threw is the branch below,
+  // so this asks whether the read has settled, not whether there is data.
+  if (!personFailed && personQuery.isPending) {
+    return <LoadingScreen />;
   }
 
   // Unavailable / not found.
-  if (person === 'missing') {
+  if (personFailed || person === null) {
     return (
-      <View className="flex-1 bg-background">
-        <ModalHeader title="" backLabel={t('common.back', locale)} right={headerRight} />
+      <Screen>
+        <ModalHeader
+          title={t('profile.unavailable.title', locale)}
+          backLabel={t('common.back', locale)}
+          right={headerRight}
+        />
         <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
           <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
         </ScrollView>
-        {toast ? <Toast label={toast} /> : null}
-      </View>
+      </Screen>
+    );
+  }
+
+  // Removed — a banned member (#314). Distinct from `missing` above ON PURPOSE: the RPC still
+  // RESOLVES a banned member, with every identity column NULL and `removed` true, because zero
+  // rows already means «no such person, or blocked». Only one of those answers explains why
+  // this person's replies are still sitting in other members' threads, and «non disponibile»
+  // is not it. Nothing to share (there is no handle, so the header's share slot withholds
+  // itself), no action bar, no dream, no stars — a tombstone offers nothing to do. GDPR erasure
+  // (#107) is a different mechanism and never lands here: it deletes the row, so it renders
+  // `missing`.
+  if (person.removed) {
+    return (
+      <Screen>
+        <ModalHeader
+          title={t('profile.removed.title', locale)}
+          backLabel={t('common.back', locale)}
+        />
+        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
+          <EmptyState>{t('profile.removed.body', locale)}</EmptyState>
+        </ScrollView>
+      </Screen>
     );
   }
 
@@ -319,7 +313,44 @@ export default function PersonDetailScreen() {
   const hasHelpableTappa = helpableMilestones(tappe, myHelps).length > 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen
+      footer={
+        /* Action bar — pinned footer (#117), not scroll content: the two things the screen
+          exists for stay tappable at any scroll position, and the toast band clears them by
+          construction. «Scrivi» opens-or-creates the conversation; «Connetti» drives the
+          full connection-requests state machine (M5). */
+        <View className="flex-row items-center gap-4 border-t border-hair px-5 pb-3 pt-3">
+          <View className="flex-1">
+            <Button
+              label={t('profile.write.cta', locale)}
+              variant="ghost"
+              onPress={async () => {
+                try {
+                  const conversationId = await getOrCreateConversation(supabase, id);
+                  router.push(`/chat?conversationId=${conversationId}`);
+                } catch {
+                  showToast(t('chat.openFailed', locale));
+                }
+              }}
+            />
+          </View>
+          {/* #640 item 1: when a helpable tappa exists, the pinned action is the product's
+              claim — «Fai accadere questo sogno» — not the generic «Connetti» (which stays
+              the footer everywhere else; the connect state machine is still reachable from
+              a profile with nothing to help). */}
+          {dreamText != null && hasHelpableTappa ? (
+            <View className="flex-1">
+              <Button
+                label={t('dream.makeHappenCta', locale)}
+                onPress={() => router.push({ pathname: '/(modal)/help', params: { userId: id } })}
+              />
+            </View>
+          ) : (
+            <ConnectButton peerId={id} locale={locale} />
+          )}
+        </View>
+      }
+    >
       <ModalHeader
         title={person.handle ?? ''}
         backLabel={t('common.back', locale)}
@@ -342,8 +373,30 @@ export default function PersonDetailScreen() {
             locale,
             auraLabel: t('profile.aura.theirLabel', locale),
             founding: person.founding_member,
+            // #634: the column is selected and granted; only this prop was missing, so a
+            // verified member's badge never rendered on their public profile.
+            verified: person.identity_verified,
           }}
           statCounts={statCounts}
+          dream={
+            /* Il suo sogno — read-only, per-tappa «Aiuta»; directly under the hero (#640). */
+            <DreamCard
+              variant="read"
+              dream={dreamText}
+              locale={locale}
+              milestones={tappe}
+              helpStateById={helpStateById}
+              onHelpMilestone={(milestoneId) => {
+                const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
+                router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
+              }}
+              onMakeHappen={
+                dreamText != null && hasHelpableTappa
+                  ? () => router.push({ pathname: '/(modal)/help', params: { userId: id } })
+                  : undefined
+              }
+            />
+          }
           stars={stars}
           viewerIsOwner={false}
           gallery={{
@@ -367,48 +420,11 @@ export default function PersonDetailScreen() {
           }}
         />
 
-        {/* Il suo sogno — read-only, per-tappa «Aiuta». */}
-        <DreamCard
-          variant="read"
-          dream={dreamText}
-          locale={locale}
-          milestones={tappe}
-          helpStateById={helpStateById}
-          onHelpMilestone={(milestoneId) => {
-            const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
-            router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
-          }}
-          onMakeHappen={
-            dreamText != null && hasHelpableTappa
-              ? () => router.push({ pathname: '/(modal)/help', params: { userId: id } })
-              : undefined
-          }
-        />
-
-        {/* Recensioni umane — Fase 3, no backend. Label only, no vanity count. */}
+        {/* Recensioni umane — Fase 3, no backend. A real empty line, no vanity count (#119
+          replaced the bare untranslatable «—» that stood here). */}
         <View className="gap-3">
           <SectionLabel>{t('profile.reviews.label', locale)}</SectionLabel>
-          <Text className="text-faint">—</Text>
-        </View>
-
-        {/* Action bar — «Scrivi» opens-or-creates the conversation; «Connetti» drives the
-          full connection-requests state machine (M5). */}
-        <View className="flex-row items-center gap-4">
-          <View className="flex-1">
-            <Button
-              label={t('profile.write.cta', locale)}
-              variant="ghost"
-              onPress={async () => {
-                try {
-                  const conversationId = await getOrCreateConversation(supabase, id);
-                  router.push(`/chat?conversationId=${conversationId}`);
-                } catch {
-                  showToast(t('chat.openFailed', locale));
-                }
-              }}
-            />
-          </View>
-          <ConnectButton peerId={id} locale={locale} />
+          <EmptyState>{t('profile.reviews.empty', locale)}</EmptyState>
         </View>
 
         <Lightbox
@@ -421,7 +437,6 @@ export default function PersonDetailScreen() {
           onIndexChange={setLightboxIndex}
         />
       </ScrollView>
-      {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -78,30 +78,36 @@ export type Database = {
       audit_log: {
         Row: {
           action: string
-          actor_id: string
+          actor_id: string | null
+          candidacy_id: string | null
           created_at: string
+          edition_id: string | null
           id: string
           penalty_points: number | null
           reason: string | null
-          report_id: string
+          report_id: string | null
         }
         Insert: {
           action: string
-          actor_id: string
+          actor_id?: string | null
+          candidacy_id?: string | null
           created_at?: string
+          edition_id?: string | null
           id?: string
           penalty_points?: number | null
           reason?: string | null
-          report_id: string
+          report_id?: string | null
         }
         Update: {
           action?: string
-          actor_id?: string
+          actor_id?: string | null
+          candidacy_id?: string | null
           created_at?: string
+          edition_id?: string | null
           id?: string
           penalty_points?: number | null
           reason?: string | null
-          report_id?: string
+          report_id?: string | null
         }
         Relationships: [
           {
@@ -116,6 +122,27 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "dream_candidacies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "fund_candidate_cards"
+            referencedColumns: ["candidacy_id"]
+          },
+          {
+            foreignKeyName: "audit_log_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
             referencedColumns: ["id"]
           },
           {
@@ -346,6 +373,7 @@ export type Database = {
       }
       circle_memberships: {
         Row: {
+          cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
           founding_member: boolean
@@ -358,6 +386,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
           founding_member?: boolean
@@ -370,6 +399,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
           founding_member?: boolean
@@ -565,6 +595,55 @@ export type Database = {
           },
         ]
       }
+      conversation_reads: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          last_read_at: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_read_at?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_read_at?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_reads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_reads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "conversation_reads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -572,6 +651,7 @@ export type Database = {
           id: string
           last_message_at: string
           last_message_preview: string | null
+          last_message_sender_id: string | null
           participant_a: string
           participant_b: string
           updated_at: string
@@ -582,6 +662,7 @@ export type Database = {
           id?: string
           last_message_at?: string
           last_message_preview?: string | null
+          last_message_sender_id?: string | null
           participant_a: string
           participant_b: string
           updated_at?: string
@@ -592,11 +673,26 @@ export type Database = {
           id?: string
           last_message_at?: string
           last_message_preview?: string | null
+          last_message_sender_id?: string | null
           participant_a?: string
           participant_b?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_last_message_sender_id_fkey"
+            columns: ["last_message_sender_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "conversations_last_message_sender_id_fkey"
+            columns: ["last_message_sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversations_participant_a_fkey"
             columns: ["participant_a"]
@@ -629,16 +725,21 @@ export type Database = {
       }
       dream_candidacies: {
         Row: {
+          budget_cents: number
           category: string | null
           city: string | null
           created_at: string
           deleted_at: string | null
+          dream_id: string | null
           edition_id: string
           goal: string
           id: string
           impact: string
+          min_viable_cents: number
           plan: string
           profile_id: string
+          rejection_reasons: string[] | null
+          skills_needed: string[]
           status: string
           story: string
           thumb_path: string | null
@@ -646,16 +747,21 @@ export type Database = {
           video_url: string
         }
         Insert: {
+          budget_cents: number
           category?: string | null
           city?: string | null
           created_at?: string
           deleted_at?: string | null
+          dream_id?: string | null
           edition_id: string
           goal: string
           id?: string
           impact: string
+          min_viable_cents: number
           plan: string
           profile_id: string
+          rejection_reasons?: string[] | null
+          skills_needed?: string[]
           status?: string
           story: string
           thumb_path?: string | null
@@ -663,16 +769,21 @@ export type Database = {
           video_url: string
         }
         Update: {
+          budget_cents?: number
           category?: string | null
           city?: string | null
           created_at?: string
           deleted_at?: string | null
+          dream_id?: string | null
           edition_id?: string
           goal?: string
           id?: string
           impact?: string
+          min_viable_cents?: number
           plan?: string
           profile_id?: string
+          rejection_reasons?: string[] | null
+          skills_needed?: string[]
           status?: string
           story?: string
           thumb_path?: string | null
@@ -680,6 +791,13 @@ export type Database = {
           video_url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "dream_candidacies_dream_id_fkey"
+            columns: ["dream_id"]
+            isOneToOne: false
+            referencedRelation: "dreams"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dream_candidacies_edition_id_fkey"
             columns: ["edition_id"]
@@ -873,19 +991,16 @@ export type Database = {
         Row: {
           event_id: string
           is_live: boolean
-          listener_count: number
           updated_at: string
         }
         Insert: {
           event_id: string
           is_live?: boolean
-          listener_count?: number
           updated_at?: string
         }
         Update: {
           event_id?: string
           is_live?: boolean
-          listener_count?: number
           updated_at?: string
         }
         Relationships: [
@@ -902,6 +1017,7 @@ export type Database = {
         Row: {
           created_at: string
           event_id: string
+          expires_at: string | null
           id: string
           qr_token: string | null
           status: string
@@ -912,6 +1028,7 @@ export type Database = {
         Insert: {
           created_at?: string
           event_id: string
+          expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
@@ -922,6 +1039,7 @@ export type Database = {
         Update: {
           created_at?: string
           event_id?: string
+          expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
@@ -962,17 +1080,18 @@ export type Database = {
           created_at: string
           currency: string
           deleted_at: string | null
+          description: string | null
           ends_at: string | null
           fee_pct: number
           geo: unknown
           id: string
           is_athanor_day: boolean
-          is_kairos_day: boolean
           is_online: boolean
           live_ended_at: string | null
           live_started_at: string | null
           organizer_id: string
           price_cents: number
+          settlement_ack_at: string | null
           starts_at: string
           stream_url: string | null
           title: string
@@ -987,17 +1106,18 @@ export type Database = {
           created_at?: string
           currency?: string
           deleted_at?: string | null
+          description?: string | null
           ends_at?: string | null
           fee_pct?: number
           geo?: unknown
           id?: string
           is_athanor_day?: boolean
-          is_kairos_day?: boolean
           is_online?: boolean
           live_ended_at?: string | null
           live_started_at?: string | null
           organizer_id: string
           price_cents?: number
+          settlement_ack_at?: string | null
           starts_at: string
           stream_url?: string | null
           title: string
@@ -1012,17 +1132,18 @@ export type Database = {
           created_at?: string
           currency?: string
           deleted_at?: string | null
+          description?: string | null
           ends_at?: string | null
           fee_pct?: number
           geo?: unknown
           id?: string
           is_athanor_day?: boolean
-          is_kairos_day?: boolean
           is_online?: boolean
           live_ended_at?: string | null
           live_started_at?: string | null
           organizer_id?: string
           price_cents?: number
+          settlement_ack_at?: string | null
           starts_at?: string
           stream_url?: string | null
           title?: string
@@ -1154,11 +1275,13 @@ export type Database = {
       fund_contributions: {
         Row: {
           amount_cents: number
+          charged_cents: number | null
+          coverage_cents: number
           created_at: string
           currency: string
           edition_id: string
           id: string
-          profile_id: string | null
+          profile_id: string
           status: string
           stripe_checkout_session_id: string
           stripe_payment_intent_id: string | null
@@ -1166,11 +1289,13 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          charged_cents?: number | null
+          coverage_cents?: number
           created_at?: string
           currency?: string
           edition_id: string
           id?: string
-          profile_id?: string | null
+          profile_id: string
           status?: string
           stripe_checkout_session_id: string
           stripe_payment_intent_id?: string | null
@@ -1178,11 +1303,13 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          charged_cents?: number | null
+          coverage_cents?: number
           created_at?: string
           currency?: string
           edition_id?: string
           id?: string
-          profile_id?: string | null
+          profile_id?: string
           status?: string
           stripe_checkout_session_id?: string
           stripe_payment_intent_id?: string | null
@@ -1212,44 +1339,128 @@ export type Database = {
           },
         ]
       }
+      fund_cycle_expenses: {
+        Row: {
+          amount_cents: number
+          category: string
+          created_at: string
+          description: string
+          edition_id: string
+          id: string
+          incurred_on: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          category: string
+          created_at?: string
+          description: string
+          edition_id: string
+          id?: string
+          incurred_on?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          category?: string
+          created_at?: string
+          description?: string
+          edition_id?: string
+          id?: string
+          incurred_on?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_cycle_expenses_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fund_editions: {
         Row: {
           candidacy_window_open: boolean
+          carried_from_edition_id: string | null
+          carried_in_cents: number
+          closure_reason: string | null
+          confirmed_pool_cents: number | null
           contributions_enabled: boolean
+          cost_fee_statement: string
           created_at: string
+          equity_declared: string
           goal_cents: number
           id: string
+          min_candidacies: number
+          min_funding_cents: number
+          min_voters: number
           phase: string
+          split_pct: number
           target_at: string
           updated_at: string
+          voting_ends_at: string | null
+          voting_starts_at: string | null
           winner_candidacy_id: string | null
-          year: number
+          winner_confirmed_at: string | null
         }
         Insert: {
           candidacy_window_open?: boolean
+          carried_from_edition_id?: string | null
+          carried_in_cents?: number
+          closure_reason?: string | null
+          confirmed_pool_cents?: number | null
           contributions_enabled?: boolean
+          cost_fee_statement: string
           created_at?: string
+          equity_declared: string
           goal_cents: number
           id?: string
+          min_candidacies: number
+          min_funding_cents: number
+          min_voters: number
           phase?: string
+          split_pct: number
           target_at: string
           updated_at?: string
+          voting_ends_at?: string | null
+          voting_starts_at?: string | null
           winner_candidacy_id?: string | null
-          year: number
+          winner_confirmed_at?: string | null
         }
         Update: {
           candidacy_window_open?: boolean
+          carried_from_edition_id?: string | null
+          carried_in_cents?: number
+          closure_reason?: string | null
+          confirmed_pool_cents?: number | null
           contributions_enabled?: boolean
+          cost_fee_statement?: string
           created_at?: string
+          equity_declared?: string
           goal_cents?: number
           id?: string
+          min_candidacies?: number
+          min_funding_cents?: number
+          min_voters?: number
           phase?: string
+          split_pct?: number
           target_at?: string
           updated_at?: string
+          voting_ends_at?: string | null
+          voting_starts_at?: string | null
           winner_candidacy_id?: string | null
-          year?: number
+          winner_confirmed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fund_editions_carried_from_edition_id_fkey"
+            columns: ["carried_from_edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fund_editions_winner_candidacy_fk"
             columns: ["winner_candidacy_id"]
@@ -1263,6 +1474,72 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fund_candidate_cards"
             referencedColumns: ["candidacy_id"]
+          },
+        ]
+      }
+      fund_payout_ledger: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          destination_account_id: string
+          edition_id: string
+          id: string
+          payable_cents: number
+          plan_phase_id: string | null
+          pool_cents: number
+          reversed_cents: number
+          split_pct: number
+          status: string
+          stripe_transfer_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          destination_account_id: string
+          edition_id: string
+          id?: string
+          payable_cents: number
+          plan_phase_id?: string | null
+          pool_cents: number
+          reversed_cents?: number
+          split_pct: number
+          status?: string
+          stripe_transfer_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          destination_account_id?: string
+          edition_id?: string
+          id?: string
+          payable_cents?: number
+          plan_phase_id?: string | null
+          pool_cents?: number
+          reversed_cents?: number
+          split_pct?: number
+          status?: string
+          stripe_transfer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_payout_ledger_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fund_payout_ledger_plan_phase_id_fkey"
+            columns: ["plan_phase_id"]
+            isOneToOne: false
+            referencedRelation: "realization_plan_phases"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1613,6 +1890,68 @@ export type Database = {
           },
         ]
       }
+      momento_suggestions: {
+        Row: {
+          affinity: number
+          candidate_id: string
+          computed_on: string
+          created_at: string
+          id: string
+          rank: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affinity: number
+          candidate_id: string
+          computed_on: string
+          created_at?: string
+          id?: string
+          rank: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affinity?: number
+          candidate_id?: string
+          computed_on?: string
+          created_at?: string
+          id?: string
+          rank?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "momento_suggestions_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "momento_suggestions_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "momento_suggestions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "momento_suggestions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moments: {
         Row: {
           caption: string | null
@@ -1721,6 +2060,7 @@ export type Database = {
       notifications: {
         Row: {
           created_at: string
+          dedupe_key: string | null
           entity_ref: Json | null
           id: string
           params: Json
@@ -1728,9 +2068,11 @@ export type Database = {
           recipient_id: string
           template_key: string
           type: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
+          dedupe_key?: string | null
           entity_ref?: Json | null
           id?: string
           params?: Json
@@ -1738,9 +2080,11 @@ export type Database = {
           recipient_id: string
           template_key: string
           type: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
+          dedupe_key?: string | null
           entity_ref?: Json | null
           id?: string
           params?: Json
@@ -1748,6 +2092,7 @@ export type Database = {
           recipient_id?: string
           template_key?: string
           type?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1761,6 +2106,54 @@ export type Database = {
             foreignKeyName: "notifications_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_accounts: {
+        Row: {
+          charges_enabled: boolean
+          created_at: string
+          id: string
+          onboarded_at: string | null
+          payouts_enabled: boolean
+          profile_id: string
+          stripe_account_id: string
+          updated_at: string
+        }
+        Insert: {
+          charges_enabled?: boolean
+          created_at?: string
+          id?: string
+          onboarded_at?: string | null
+          payouts_enabled?: boolean
+          profile_id: string
+          stripe_account_id: string
+          updated_at?: string
+        }
+        Update: {
+          charges_enabled?: boolean
+          created_at?: string
+          id?: string
+          onboarded_at?: string | null
+          payouts_enabled?: boolean
+          profile_id?: string
+          stripe_account_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_accounts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payout_accounts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1838,6 +2231,7 @@ export type Database = {
           position: number
           post_id: string
           storage_path: string
+          thumb_path: string | null
           updated_at: string
           width: number | null
         }
@@ -1850,6 +2244,7 @@ export type Database = {
           position?: number
           post_id: string
           storage_path: string
+          thumb_path?: string | null
           updated_at?: string
           width?: number | null
         }
@@ -1862,6 +2257,7 @@ export type Database = {
           position?: number
           post_id?: string
           storage_path?: string
+          thumb_path?: string | null
           updated_at?: string
           width?: number | null
         }
@@ -1975,7 +2371,10 @@ export type Database = {
       profiles: {
         Row: {
           avatar_path: string | null
+          banned_at: string | null
           bio: string | null
+          city: string | null
+          city_geohash: string | null
           created_at: string
           display_name: string | null
           founding_member: boolean
@@ -1984,15 +2383,22 @@ export type Database = {
           identity_tags: string[]
           identity_verified: boolean
           locale: string
+          mission: string | null
+          profession: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
+          skills: string[] | null
+          suspended_until: string | null
           updated_at: string
           visibility: Json
         }
         Insert: {
           avatar_path?: string | null
+          banned_at?: string | null
           bio?: string | null
+          city?: string | null
+          city_geohash?: string | null
           created_at?: string
           display_name?: string | null
           founding_member?: boolean
@@ -2001,15 +2407,22 @@ export type Database = {
           identity_tags?: string[]
           identity_verified?: boolean
           locale?: string
+          mission?: string | null
+          profession?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
+          skills?: string[] | null
+          suspended_until?: string | null
           updated_at?: string
           visibility?: Json
         }
         Update: {
           avatar_path?: string | null
+          banned_at?: string | null
           bio?: string | null
+          city?: string | null
+          city_geohash?: string | null
           created_at?: string
           display_name?: string | null
           founding_member?: boolean
@@ -2018,9 +2431,13 @@ export type Database = {
           identity_tags?: string[]
           identity_verified?: boolean
           locale?: string
+          mission?: string | null
+          profession?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
+          skills?: string[] | null
+          suspended_until?: string | null
           updated_at?: string
           visibility?: Json
         }
@@ -2167,6 +2584,176 @@ export type Database = {
           },
         ]
       }
+      realization_plan_phases: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          plan_id: string
+          scheduled_for: string
+          sort: number
+          title: string
+          updated_at: string
+          verification_criteria: string
+          verified_at: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          plan_id: string
+          scheduled_for: string
+          sort: number
+          title: string
+          updated_at?: string
+          verification_criteria: string
+          verified_at?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          plan_id?: string
+          scheduled_for?: string
+          sort?: number
+          title?: string
+          updated_at?: string
+          verification_criteria?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realization_plan_phases_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "realization_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realization_plans: {
+        Row: {
+          candidacy_id: string
+          created_at: string
+          edition_id: string
+          expected_result: string
+          id: string
+          objective: string
+          professionals: string
+          published_at: string | null
+          suppliers: string
+          updated_at: string
+        }
+        Insert: {
+          candidacy_id: string
+          created_at?: string
+          edition_id: string
+          expected_result: string
+          id?: string
+          objective: string
+          professionals?: string
+          published_at?: string | null
+          suppliers?: string
+          updated_at?: string
+        }
+        Update: {
+          candidacy_id?: string
+          created_at?: string
+          edition_id?: string
+          expected_result?: string
+          id?: string
+          objective?: string
+          professionals?: string
+          published_at?: string | null
+          suppliers?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realization_plans_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "dream_candidacies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realization_plans_candidacy_id_fkey"
+            columns: ["candidacy_id"]
+            isOneToOne: false
+            referencedRelation: "fund_candidate_cards"
+            referencedColumns: ["candidacy_id"]
+          },
+          {
+            foreignKeyName: "realization_plans_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: true
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realization_updates: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          edition_id: string
+          id: string
+          plan_phase_id: string | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          edition_id: string
+          id?: string
+          plan_phase_id?: string | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          edition_id?: string
+          id?: string
+          plan_phase_id?: string | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realization_updates_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realization_updates_plan_phase_id_fkey"
+            columns: ["plan_phase_id"]
+            isOneToOne: false
+            referencedRelation: "realization_plan_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realization_updates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "entitlements"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "realization_updates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remote_config: {
         Row: {
           key: string
@@ -2304,6 +2891,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      screening_criteria: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          sort: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          sort: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          sort?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       stars: {
         Row: {
@@ -2567,19 +3178,32 @@ export type Database = {
       }
       fund_candidate_cards: {
         Row: {
+          budget_cents: number | null
           candidacy_id: string | null
           category: string | null
           city: string | null
           created_at: string | null
+          dream_helps_confirmed: number | null
+          dream_id: string | null
+          dream_milestones_done: number | null
           edition_id: string | null
           handle: string | null
+          min_viable_cents: number | null
           profile_id: string | null
+          skills_needed: string[] | null
           status: string | null
           thumb_path: string | null
           title: string | null
           video_url: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "dream_candidacies_dream_id_fkey"
+            columns: ["dream_id"]
+            isOneToOne: false
+            referencedRelation: "dreams"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dream_candidacies_edition_id_fkey"
             columns: ["edition_id"]
@@ -2603,14 +3227,52 @@ export type Database = {
           },
         ]
       }
+      fund_edition_expense_totals: {
+        Row: {
+          category: string | null
+          edition_id: string | null
+          entry_count: number | null
+          total_cents: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_cycle_expenses_edition_id_fkey"
+            columns: ["edition_id"]
+            isOneToOne: false
+            referencedRelation: "fund_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_momento: { Args: { p_proposal_id: string }; Returns: Json }
+      admin_list_abandoned_dispatches: {
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          abandoned_at: string
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string
+          last_status: number
+          request_id: number
+        }[]
+      }
       admin_list_waitlist: {
-        Args: { p_limit?: number }
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_limit?: number
+        }
         Returns: {
           created_at: string
           email: string
+          id: string
           locale: string
           source: string
         }[]
@@ -2636,6 +3298,27 @@ export type Database = {
         Args: { p_candidacy_id: string; p_edition_id: string }
         Returns: undefined
       }
+      claim_event_seat: { Args: { p_event_id: string }; Returns: string }
+      close_cycle: {
+        Args: {
+          p_cost_fee_statement: string
+          p_edition_id: string
+          p_equity_declared: string
+          p_evidence: string
+          p_goal_cents: number
+          p_min_candidacies: number
+          p_min_funding_cents: number
+          p_min_voters: number
+          p_outcome: string
+          p_split_pct: number
+          p_target_at: string
+        }
+        Returns: {
+          carried_in_cents: number
+          closure_reason: string
+          successor_id: string
+        }[]
+      }
       confirm_milestone_help: {
         Args: { p_help_id: string }
         Returns: undefined
@@ -2654,17 +3337,28 @@ export type Database = {
           p_category: Database["public"]["Enums"]["event_category"]
           p_city?: string
           p_currency?: string
+          p_description?: string
           p_ends_at?: string
           p_is_online: boolean
           p_lat?: number
           p_long?: number
           p_price_cents?: number
+          p_settlement_ack?: boolean
           p_starts_at: string
           p_stream_url?: string
           p_title: string
           p_venue?: string
         }
         Returns: string
+      }
+      declare_winner: {
+        Args: { p_edition_id: string }
+        Returns: {
+          candidacy_id: string
+          is_winner: boolean
+          vote_count: number
+          weighted_total: number
+        }[]
       }
       enqueue_push: {
         Args: {
@@ -2677,6 +3371,16 @@ export type Database = {
         Returns: undefined
       }
       ensure_referral_code: { Args: never; Returns: string }
+      enter_announcement: {
+        Args: { p_edition_id: string }
+        Returns: {
+          outcome: string
+          pool_cents: number
+          voters: number
+        }[]
+      }
+      event_reminder_sweep: { Args: never; Returns: undefined }
+      event_seats_taken: { Args: { p_event_id: string }; Returns: number }
       events_nearby: {
         Args: {
           cursor_dist?: number
@@ -2696,6 +3400,7 @@ export type Database = {
           venue: string
         }[]
       }
+      expire_momento_proposals: { Args: never; Returns: number }
       f_profile_search: {
         Args: {
           p_bio: string
@@ -2706,7 +3411,58 @@ export type Database = {
         Returns: string
       }
       f_unaccent: { Args: { "": string }; Returns: string }
+      fund_countdown_sweep: { Args: never; Returns: undefined }
       fund_edition_open: { Args: never; Returns: boolean }
+      fund_rollover_successor: {
+        Args: {
+          p_carried_in_cents: number
+          p_cost_fee_statement: string
+          p_equity_declared: string
+          p_goal_cents: number
+          p_min_candidacies: number
+          p_min_funding_cents: number
+          p_min_voters: number
+          p_predecessor_id: string
+          p_split_pct: number
+          p_target_at: string
+        }
+        Returns: string
+      }
+      gdpr_erase_fund_footprint: {
+        Args: { p_profile_id: string }
+        Returns: {
+          bucket_id: string
+          name: string
+        }[]
+      }
+      gdpr_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
+      gdpr_storage_footprint: {
+        Args: { p_limit?: number; p_profile_id: string }
+        Returns: {
+          bucket_id: string
+          name: string
+        }[]
+      }
+      gdpr_tombstone_profile_id: { Args: never; Returns: string }
+      get_momenti_deck: {
+        Args: never
+        Returns: {
+          avatar_path: string
+          candidate_id: string
+          city_near: string[]
+          display_name: string
+          dream_text: string
+          handle: string
+          mutual_activity: string[]
+          offer_hit: string[]
+          profession_pair: string[]
+          proposal_id: string
+          reason_kind: string
+          seek_hit: string[]
+          shared: string[]
+          skills_shared: string[]
+        }[]
+      }
       get_momenti_suggestion: {
         Args: { p_exclude?: string[] }
         Returns: {
@@ -2715,6 +3471,7 @@ export type Database = {
           display_name: string
           dream_text: string
           handle: string
+          reasons: string[]
         }[]
       }
       get_or_create_conversation: { Args: { peer_id: string }; Returns: string }
@@ -2722,7 +3479,10 @@ export type Database = {
         Args: never
         Returns: {
           avatar_path: string | null
+          banned_at: string | null
           bio: string | null
+          city: string | null
+          city_geohash: string | null
           created_at: string
           display_name: string | null
           founding_member: boolean
@@ -2731,9 +3491,13 @@ export type Database = {
           identity_tags: string[]
           identity_verified: boolean
           locale: string
+          mission: string | null
+          profession: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
+          skills: string[] | null
+          suspended_until: string | null
           updated_at: string
           visibility: Json
         }[]
@@ -2749,32 +3513,58 @@ export type Database = {
         Returns: {
           avatar_path: string
           bio: string
+          city: string
           display_name: string
           founding_member: boolean
           handle: string
           id: string
           identity_tags: string[]
           identity_verified: boolean
+          mission: string
+          profession: string
+          removed: boolean
           seeking: string[]
+          skills: string[]
         }[]
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_fund_settle_sweep: { Args: never; Returns: undefined }
+      invoke_post_media_reaper: { Args: never; Returns: undefined }
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
       invoke_score_engine_decay: { Args: never; Returns: undefined }
+      invoke_story_segment_reaper: { Args: never; Returns: undefined }
       is_identity_verified: { Args: { uid: string }; Returns: boolean }
-      momento_reasons: {
-        Args: {
-          p_locale: string
-          p_offer_hit: string[]
-          p_seek_hit: string[]
-          p_shared: string[]
-        }
-        Returns: string[]
+      is_on_ballot: {
+        Args: { c: Database["public"]["Tables"]["dream_candidacies"]["Row"] }
+        Returns: boolean
       }
+      list_blocked: {
+        Args: {
+          p_before_created_at?: string
+          p_before_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          avatar_path: string
+          blocked_id: string
+          created_at: string
+          display_name: string
+          handle: string
+          id: string
+          removed: boolean
+        }[]
+      }
+      live_window_sweep: { Args: never; Returns: undefined }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
         Args: { p_milestone_id: string }
         Returns: boolean
+      }
+      post_media_reap_candidates: {
+        Args: { p_grace?: string; p_limit?: number }
+        Returns: {
+          name: string
+        }[]
       }
       post_reaction_count: { Args: { p_post_id: string }; Returns: number }
       profile_stat_counts: {
@@ -2784,10 +3574,31 @@ export type Database = {
           events_count: number
         }[]
       }
+      prune_expired_story_segments: { Args: never; Returns: undefined }
+      publish_post: {
+        Args: {
+          p_body: string
+          p_category: Database["public"]["Enums"]["post_category"]
+          p_id?: string
+          p_is_step?: boolean
+          p_media?: Json
+          p_tags?: string[]
+          p_type?: Database["public"]["Enums"]["post_type"]
+        }
+        Returns: Json
+      }
+      publish_realization_plan: { Args: { p_plan_id: string }; Returns: string }
       recompute_fund_aggregate: {
         Args: { p_edition_id: string }
         Returns: undefined
       }
+      record_winner_decision: {
+        Args: { p_decision: string; p_edition_id: string }
+        Returns: string
+      }
+      redeem_pending_referral: { Args: { p_code: string }; Returns: undefined }
+      release_event_seat: { Args: { p_event_id: string }; Returns: undefined }
+      report_queue_alert_sweep: { Args: never; Returns: undefined }
       resolve_report: {
         Args: {
           p_action: string
@@ -2796,6 +3607,7 @@ export type Database = {
           p_resolution: string
           p_severity?: string
           p_status: string
+          p_suspend_until?: string
         }
         Returns: undefined
       }
@@ -2803,7 +3615,32 @@ export type Database = {
         Args: { p_accept: boolean; p_request_id: string }
         Returns: undefined
       }
+      rollover_voided: {
+        Args: {
+          p_cost_fee_statement: string
+          p_edition_id: string
+          p_equity_declared: string
+          p_goal_cents: number
+          p_min_candidacies: number
+          p_min_funding_cents: number
+          p_min_voters: number
+          p_split_pct: number
+          p_target_at: string
+        }
+        Returns: {
+          carried_in_cents: number
+          successor_id: string
+        }[]
+      }
       run_momenti_matcher: { Args: never; Returns: number }
+      screen_candidacy: {
+        Args: {
+          p_candidacy_id: string
+          p_decision: string
+          p_reasons?: string[]
+        }
+        Returns: string
+      }
       search_all: {
         Args: {
           cursor_id?: string
@@ -2841,7 +3678,18 @@ export type Database = {
           peer_id: string
         }[]
       }
+      staging_refresh_world: { Args: never; Returns: Json }
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number }
+      story_segment_reap_candidates: {
+        Args: { p_grace?: string; p_limit?: number }
+        Returns: {
+          name: string
+        }[]
+      }
+      verify_plan_phase: {
+        Args: { p_evidence: string; p_phase_id: string }
+        Returns: string
+      }
     }
     Enums: {
       connection_status: "pending" | "accepted" | "declined"
@@ -2888,12 +3736,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2917,11 +3765,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2942,11 +3790,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2967,11 +3815,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2984,11 +3832,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

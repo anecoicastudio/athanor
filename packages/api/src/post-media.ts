@@ -1,9 +1,4 @@
-import {
-  type PostMedia,
-  type PostMediaInsert,
-  postMediaInsertSchema,
-  postMediaSchema,
-} from '@athanor/schemas';
+import { type PostMedia, postMediaSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 export const postMediaKeys = {
@@ -22,17 +17,13 @@ export async function getPostMedia(client: AthanorClient, postId: string): Promi
   return (data ?? []).map((row) => postMediaSchema.parse(row));
 }
 
-/**
- * Insert media rows for an already-created post (author-only via RLS). Bytes must be
- * uploaded to the post-media bucket first. Adding media does not write Aura (rule #1);
- * the +6 post event is emitted at post creation (TODO(M6)).
- */
-export async function addPostMedia(
-  client: AthanorClient,
-  rows: PostMediaInsert[],
-): Promise<PostMedia[]> {
-  const payload = rows.map((r) => postMediaInsertSchema.parse(r));
-  const { data, error } = await client.from('post_media').insert(payload).select('*');
-  if (error) throw error;
-  return (data ?? []).map((row) => postMediaSchema.parse(row));
-}
+/*
+  Writing a media set lives in `publishPost` (`posts.ts`), not here, and that is #588's whole
+  point rather than a filing decision. `replacePostMedia` wrote the set in a SECOND request,
+  after the post row had already been committed by `createPost`, so a failure between them left
+  a post whose `type` claimed media with nothing behind it — the silently text-only card. The
+  two writes are one `publish_post` transaction now, and the set-replacing rationale that used
+  to live here — upsert on `(post_id, position)` and not the PK, sweep every position the new
+  set does not fill, an empty set being the case the sweep exists for (#586) — moved with it,
+  into that docblock and into the migration.
+*/

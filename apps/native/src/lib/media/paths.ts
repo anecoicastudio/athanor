@@ -1,13 +1,30 @@
-import type { PickedMedia } from './pick';
+import type { MediaBucketName } from '@athanor/api';
+import type { PickedMedia, VisualMediaKind } from './pick';
 
-export type MediaBucket =
-  | 'post-media'
-  | 'moments'
-  | 'story-segments'
-  | 'avatars'
-  | 'candidacy-videos';
+// Alias, not a second list: `@athanor/api` owns the bucket union, so a bucket added there
+// reaches every native call site without a hand-edit here staying in step.
+export type MediaBucket = MediaBucketName;
 
 export type UploadTarget = { bucket: MediaBucket; path: string };
+
+/**
+ * The file extension each picked kind is written under.
+ *
+ * A total map rather than the `kind === 'video' ? 'mp4' : 'jpg'` ternary this replaced (#154).
+ * That ternary was correct for exactly as long as the union had two members: widening it to
+ * include audio made `'jpg'` the silent default for a recording, so every voice note would
+ * have landed at `${index}.jpg` while declaring `audio/mp4` on the wire. A `Record` over the
+ * union cannot acquire a member without acquiring an extension for it — the next kind will
+ * not compile until somebody chooses.
+ *
+ * `.m4a` and not `.mp4`: the recording is MPEG-4/AAC with no video track, and `.m4a` is the
+ * extension that says so. Both map to `audio/mp4` on the wire, which is what the bucket lists.
+ */
+const EXTENSION: Record<PickedMedia['kind'], string> = {
+  image: 'jpg',
+  video: 'mp4',
+  audio: 'm4a',
+};
 
 /** Storage key for a post-media item: `${uid}/${postId}/${index}.{ext}`. */
 export function postMediaPath(
@@ -16,12 +33,25 @@ export function postMediaPath(
   index: number,
   kind: PickedMedia['kind'],
 ): string {
-  return `${uid}/${postId}/${index}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+  return `${uid}/${postId}/${index}.${EXTENSION[kind]}`;
 }
 
-/** Storage key for a moment: `${uid}/${momentId}.{ext}`. */
-export function momentPath(uid: string, momentId: string, kind: PickedMedia['kind']): string {
-  return `${uid}/${momentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+/**
+ * Storage key for a post video's poster: `${uid}/${postId}/${index}-thumb.jpg`.
+ *
+ * Same `{uid}/…` folder as the mp4 it posters, because the post-media storage policies key on
+ * the first path segment (owner-write), and `media_process_enqueue` strips whatever lands in the
+ * bucket. The `-thumb` suffix keeps it clear of an image row's own `${index}.jpg` — position is
+ * unique per post, but the suffix says what the object is (same convention as `momentThumbPath`
+ * and `candidacyThumbPath`).
+ */
+export function postMediaThumbPath(uid: string, postId: string, index: number): string {
+  return `${uid}/${postId}/${index}-thumb.jpg`;
+}
+
+/** Storage key for a moment: `${uid}/${momentId}.{ext}`. The `moments` bucket takes no audio. */
+export function momentPath(uid: string, momentId: string, kind: VisualMediaKind): string {
+  return `${uid}/${momentId}.${EXTENSION[kind]}`;
 }
 
 /**
@@ -55,7 +85,26 @@ export function avatarPath(uid: string): string {
   return `${uid}/${uid}.jpg`;
 }
 
-/** Storage key for a story segment: `${uid}/${segmentId}.{ext}`. */
-export function storyPath(uid: string, segmentId: string, kind: PickedMedia['kind']): string {
-  return `${uid}/${segmentId}.${kind === 'video' ? 'mp4' : 'jpg'}`;
+/** Storage key for a story segment. `story-segments` takes no audio either. */
+export function storyPath(uid: string, segmentId: string, kind: VisualMediaKind): string {
+  return `${uid}/${segmentId}.${EXTENSION[kind]}`;
+}
+
+/**
+ * Storage key for a chat image: `${uid}/${conversationId}/${mediaId}.jpg` (#155).
+ *
+ * Two uuid segments, and BOTH are load-bearing: the first is the owner uid (what the
+ * chat-media owner-write policies and the not_blocked/not_banned read predicates key on), the
+ * second the conversation (what the participant-read policy and the messages insert policy's
+ * prefix pin key on). Always `.jpg` — chat attaches images only, and `processImage` re-encodes
+ * every pick to JPEG for the client-side EXIF strip, so no other extension survives to here.
+ *
+ * Since #575 the third segment and the extension are load-bearing too: the messages insert
+ * policy and both chat-media owner-write policies pin the WHOLE key to
+ * `^{uuid}/{uuid}/{uuid}\.jpg$`, lowercase-hex, so a caller passing anything else to this
+ * builder earns a 42501 rather than an oddly-named object. `newMediaId()` is
+ * `Crypto.randomUUID()`, which satisfies it.
+ */
+export function chatMediaPath(uid: string, conversationId: string, mediaId: string): string {
+  return `${uid}/${conversationId}/${mediaId}.jpg`;
 }

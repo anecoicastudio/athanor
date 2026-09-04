@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQuery } from '@tanstack/react-query';
@@ -15,16 +15,18 @@ import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
+import { useAnnounceOnMount } from '@/lib/a11y';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { type Verdict, verdictText } from '@/lib/ticket-verdict';
+import { Screen } from '@/components/Screen';
 
 export default function CheckinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile } = useAuth();
-  const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const leave = useGuardedBack();
+  const locale = useLocale();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [count, setCount] = useState(0);
@@ -53,6 +55,11 @@ export default function CheckinScreen() {
     return off;
   }, [id]);
 
+  // The verdict is a transient sentence with no other surface: it appears in a pill for 2s and is
+  // gone (#635). Announce it — on iOS nothing else would, and the scanner's whole output is this
+  // one line. `last` goes verdict → null → verdict between scans, so a repeat re-announces.
+  useAnnounceOnMount(last ? verdictText(last.v, last.name, locale) : undefined);
+
   const onScan = useCallback(
     async (token: string) => {
       if (busy.current || !id) return;
@@ -77,15 +84,15 @@ export default function CheckinScreen() {
 
   if (!permission) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <ActivityIndicator color={semantic.aura} />
-      </View>
+      </Screen>
     );
   }
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 items-center justify-center gap-5 bg-background px-8">
+      <Screen className="items-center justify-center gap-5 px-8">
         <EmptyState>{t('ticket.scan.permission', locale)}</EmptyState>
         <Pressable
           className="rounded-full bg-aura px-6 py-3"
@@ -94,10 +101,10 @@ export default function CheckinScreen() {
         >
           <Text className="text-[14px] text-on-aura">{t('ticket.scan.allow', locale)}</Text>
         </Pressable>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={leave} hitSlop={8}>
           <Text className="text-[13px] text-faint">{t('common.back', locale)}</Text>
         </Pressable>
-      </View>
+      </Screen>
     );
   }
 
@@ -109,7 +116,7 @@ export default function CheckinScreen() {
         : 'border-aura-line';
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <CameraView
         style={{ flex: 1 }}
         facing="back"
@@ -146,6 +153,6 @@ export default function CheckinScreen() {
           </Text>
         </View>
       ) : null}
-    </View>
+    </Screen>
   );
 }

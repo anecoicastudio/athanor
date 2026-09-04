@@ -21,6 +21,16 @@ import { BUCKETS } from './buckets.ts';
 const MIGRATIONS = new URL('../../migrations/', import.meta.url);
 
 /**
+ * Prose naming the trigger must not count as touching it — 20260813082300 mentions
+ * `media_process_enqueue` only in a `--` comment, and 20260709114718 only in a filename inside
+ * one. Not quote-aware: a `--` inside a string literal truncates the rest of that line, which
+ * can only hide a mention, never invent one, and DDL on its own line always survives.
+ */
+function stripSqlComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
+}
+
+/**
  * The bucket list from the LAST `create trigger media_process_enqueue` in migration order.
  * Last, not first: migrations are append-only, so a later file dropping and recreating the
  * trigger is how the clause is legitimately changed (20260811072211 does exactly that).
@@ -34,9 +44,9 @@ async function bucketsFromLatestTrigger(): Promise<Set<string>> {
 
   let latest: Set<string> | null = null;
   let source = '';
-  let lastMentioned = ''; // any file that names the trigger at all, parsed or not
+  let lastMentioned = ''; // any file whose SQL (comments stripped) names the trigger, parsed or not
   for (const name of files) {
-    const sql = await Deno.readTextFile(new URL(name, MIGRATIONS));
+    const sql = stripSqlComments(await Deno.readTextFile(new URL(name, MIGRATIONS)));
     if (/media_process_enqueue/i.test(sql)) lastMentioned = name;
     // `create trigger media_process_enqueue … when (new.bucket_id in ('a', 'b', …))`
     const re =

@@ -22,6 +22,12 @@ type Props = {
   emptyLabel?: string;
   /** Optional second line under `emptyLabel` — the `*.emptyBody` keys several screens have. */
   emptyBody?: string;
+  /**
+   * Optional way out of the empty case (DESIGN §9's ghost action) — same shape as the error
+   * arm's retry, same `Button variant="ghost"`, so an empty feed offers an escape hatch
+   * without the caller hand-rolling a control (#119).
+   */
+  emptyAction?: { label: string; onPress: () => void };
   /** `query.refetch()`. Required: an error state the member cannot leave is half a fix. */
   onRetry: () => void;
   /** Replaces the default spinner — a shimmer, a ghost card, or `null` for a silent load. */
@@ -83,6 +89,7 @@ export function ListState({
   errorLabel,
   emptyLabel,
   emptyBody,
+  emptyAction,
   onRetry,
   loading,
   className,
@@ -112,9 +119,13 @@ export function ListState({
 
   return (
     <View className={cn('items-center', padding)}>
-      {emptyLabel != null ? <EmptyState>{emptyLabel}</EmptyState> : null}
-      {emptyBody != null ? (
-        <Text className="mt-1 text-center text-[13px] text-faint">{emptyBody}</Text>
+      {emptyLabel != null ? (
+        <EmptyState body={emptyBody} action={emptyAction}>
+          {emptyLabel}
+        </EmptyState>
+      ) : emptyAction ? (
+        // No label → the caller draws the empty copy elsewhere; an action alone still renders.
+        <Button label={emptyAction.label} variant="ghost" onPress={emptyAction.onPress} />
       ) : null}
     </View>
   );

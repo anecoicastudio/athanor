@@ -22,7 +22,8 @@ select ok(
 );
 select policies_are(
   'public', 'post_comments',
-  array['post_comments_select_authenticated', 'post_comments_insert_own', 'post_comments_update_own'],
+  array['post_comments_select_authenticated', 'post_comments_insert_own', 'post_comments_update_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on post_comments'
 );
 

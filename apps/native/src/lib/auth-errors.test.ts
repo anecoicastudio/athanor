@@ -33,6 +33,17 @@ describe('authErrorKey', () => {
     expect(authErrorKey({ status: 500 })).toBe('auth.error.generic');
   });
 
+  it('user_banned names the suspension — sign-in during a sanction is not a generic failure', () => {
+    // Same code for a timed suspension and a permanent ban (moderation-enforce
+    // sets ban_duration for both); the date renders in-session, not here.
+    expect(authErrorKey({ code: 'user_banned' })).toBe('auth.error.suspended');
+  });
+
+  it('a transport failure (AuthRetryableFetchError, status 0) names the network', () => {
+    // fetch threw before GoTrue answered: auth-js returns status 0 and no code.
+    expect(authErrorKey({ status: 0 })).toBe('auth.error.network');
+  });
+
   it('a recognised code wins over a 429 status', () => {
     expect(authErrorKey({ code: 'weak_password', status: 429 })).toBe('auth.error.weakPassword');
   });
@@ -43,7 +54,9 @@ describe('authErrorKey', () => {
       { code: 'email_exists' },
       { code: 'weak_password' },
       { code: 'email_address_invalid' },
+      { code: 'user_banned' },
       { status: 429 },
+      { status: 0 },
       {},
     ];
     for (const err of errors) {

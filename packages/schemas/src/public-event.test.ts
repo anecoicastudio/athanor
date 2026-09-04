@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { publicEventSchema } from './public-event';
+import { publicEventSchema, upcomingEventEntrySchema } from './public-event.ts';
 
 const row = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -8,11 +8,11 @@ const row = {
   is_online: false,
   venue: 'Casa delle Idee',
   city: 'Milano',
+  description: null,
   starts_at: '2026-09-01T18:00:00.000Z',
   ends_at: '2026-09-01T21:00:00.000Z',
   price_cents: 1500,
   currency: 'eur',
-  is_kairos_day: false,
   is_athanor_day: false,
   organizer_handle: 'sole',
 };
@@ -22,6 +22,14 @@ describe('publicEventSchema', () => {
     const parsed = publicEventSchema.parse(row);
     expect(parsed.city).toBe('Milano');
     expect(parsed.organizer_handle).toBe('sole');
+  });
+
+  it('carries the organizer-written description, capped where the DB CHECK caps it (#634)', () => {
+    expect(publicEventSchema.parse(row).description).toBeNull();
+    expect(
+      publicEventSchema.parse({ ...row, description: 'a'.repeat(2000) }).description,
+    ).toHaveLength(2000);
+    expect(() => publicEventSchema.parse({ ...row, description: 'a'.repeat(2001) })).toThrow();
   });
 
   it('parses an online event with no venue, no city, no end, and a private organizer', () => {
@@ -59,5 +67,32 @@ describe('publicEventSchema', () => {
 
   it('rejects an organizer handle that is not a valid handle', () => {
     expect(publicEventSchema.safeParse({ ...row, organizer_handle: 'Sole' }).success).toBe(false);
+  });
+});
+
+describe('upcomingEventEntrySchema', () => {
+  const entry = { id: '00000000-0000-0000-0000-0000000000e1', updated_at: '2026-08-01T10:00:00Z' };
+
+  it('accepts an id + updated_at pair', () => {
+    expect(upcomingEventEntrySchema.parse(entry)).toEqual(entry);
+  });
+
+  it('rejects a non-uuid id', () => {
+    expect(upcomingEventEntrySchema.safeParse({ ...entry, id: 'nope' }).success).toBe(false);
+  });
+
+  it('stays strict: a widened select fails loudly instead of carrying an unasked column', () => {
+    expect(upcomingEventEntrySchema.safeParse({ ...entry, stream_url: 'x' }).success).toBe(false);
+  });
+});
+
+describe('publicEventSchema currency', () => {
+  // Both anchors matter: without `^` 'xeur' passes, without `$` 'eurx' does — and either would
+  // render a currency Stripe does not recognise on a public page.
+  it('anchors currency to exactly three lowercase letters', () => {
+    for (const bad of ['xeur', 'eurx', 'EUR', 'eu']) {
+      expect(publicEventSchema.safeParse({ ...row, currency: bad }).success).toBe(false);
+    }
+    expect(publicEventSchema.parse({ ...row, currency: 'chf' }).currency).toBe('chf');
   });
 });

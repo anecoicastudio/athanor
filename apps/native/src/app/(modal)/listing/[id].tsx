@@ -3,20 +3,22 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getOrCreateConversation, getProject, projectKeys } from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session, profile } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const [opening, setOpening] = useState(false);
   const [openFailed, setOpenFailed] = useState(false);
 
@@ -57,7 +59,7 @@ export default function ProjectDetailScreen() {
   });
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('project.detail.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
         {/* One branch used to cover a failed read AND a project that no longer exists, with no
@@ -88,16 +90,10 @@ export default function ProjectDetailScreen() {
               <Text className="text-[15px] leading-6 text-foreground">{project.description}</Text>
             ) : null}
 
+            {/* The identity row IS the profile link (#356) — the old «Vedi il profilo» text
+                link under it duplicated the same target, twice for VoiceOver. */}
             <View className="gap-3 rounded-card border border-hair bg-raise p-5">
               <PostAuthorRow authorId={project.author_id} />
-              <Pressable
-                onPress={() => router.push(`/(modal)/user/${project.author_id}`)}
-                hitSlop={8}
-              >
-                <Text className="text-[13px] text-aura">
-                  {t('project.detail.viewProfile', locale)}
-                </Text>
-              </Pressable>
             </View>
 
             {isOwn ? null : (
@@ -116,6 +112,6 @@ export default function ProjectDetailScreen() {
           </>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

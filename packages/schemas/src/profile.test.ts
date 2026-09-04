@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { personProfileSchema, profileSchema, profileUpdateSchema } from './profile';
+import {
+  cityGeohashSchema,
+  localeSchema,
+  personProfileSchema,
+  profileSchema,
+  profileUpdateSchema,
+} from './profile.ts';
 
 const validRow = {
   id: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11',
@@ -7,6 +13,11 @@ const validRow = {
   display_name: 'Stella Prima',
   avatar_path: '3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11/3f2f0e5e-6f0a-4b7e-9a4b-0d9d2c1a8e11.jpg',
   bio: null,
+  mission: null,
+  skills: [],
+  profession: null,
+  city: null,
+  city_geohash: null,
   locale: 'it',
   visibility: { bio: 'public' },
   identity_tags: [],
@@ -84,10 +95,15 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     display_name: 'Stella Prima',
     avatar_path: validRow.avatar_path,
     bio: null,
+    mission: null,
     identity_tags: null,
     seeking: null,
+    skills: null,
+    profession: null,
+    city: null,
     identity_verified: false,
     founding_member: true,
+    removed: false,
   };
 
   it('carries the name and the avatar another member may render', () => {
@@ -109,5 +125,174 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     const parsed = personProfileSchema.parse({ ...personRow, locale: 'it', visibility: {} });
     expect(parsed).not.toHaveProperty('locale');
     expect(parsed).not.toHaveProperty('visibility');
+  });
+
+  it('parses the tombstone a banned member projects (#314)', () => {
+    // Exactly what get_person_profile returns once banned_at is set: the row RESOLVES, and
+    // carries nothing. The flag is what separates it from a row that never came back at all.
+    const parsed = personProfileSchema.parse({
+      ...personRow,
+      handle: null,
+      display_name: null,
+      avatar_path: null,
+      identity_verified: false,
+      founding_member: false,
+      removed: true,
+    });
+    expect(parsed.removed).toBe(true);
+    expect(parsed.display_name).toBeNull();
+    expect(parsed.avatar_path).toBeNull();
+    expect(parsed.handle).toBeNull();
+  });
+
+  it('rejects a projection with no removed flag — the client must never have to guess', () => {
+    const { removed: _omitted, ...withoutFlag } = personRow;
+    expect(() => personProfileSchema.parse(withoutFlag)).toThrow();
+  });
+
+  it('strips city_geohash — another member’s cell is never client-visible (#149)', () => {
+    const parsed = personProfileSchema.parse({ ...personRow, city_geohash: 'u0nd9' });
+    expect(parsed).not.toHaveProperty('city_geohash');
+  });
+});
+
+describe('profileSchema — mission, skills, profession, city (#149)', () => {
+  it('parses a full new-field row', () => {
+    const parsed = profileSchema.parse({
+      ...validRow,
+      mission: 'Portare arte nelle scuole',
+      skills: ['illustrazione', 'storytelling'],
+      profession: 'arte',
+      city: 'Milano',
+      city_geohash: 'u0nd9',
+    });
+    expect(parsed.skills).toEqual(['illustrazione', 'storytelling']);
+    expect(parsed.city_geohash).toBe('u0nd9');
+  });
+
+  it('rejects a malformed geohash — shape mirrors the column CHECK', () => {
+    expect(() => profileSchema.parse({ ...validRow, city_geohash: 'u0ndA' })).toThrow();
+    expect(() => profileSchema.parse({ ...validRow, city_geohash: 'toolong7' })).toThrow();
+  });
+
+  it('rejects more than 10 skills, mirroring the column CHECK', () => {
+    expect(() =>
+      profileSchema.parse({ ...validRow, skills: Array.from({ length: 11 }, (_, i) => `s${i}`) }),
+    ).toThrow();
+  });
+
+  it('all five are client-writable through the update schema', () => {
+    const parsed = profileUpdateSchema.parse({
+      mission: 'm',
+      skills: ['seo'],
+      profession: 'marketing',
+      city: 'Roma',
+      city_geohash: 'sr2yk',
+    });
+    expect(parsed.city_geohash).toBe('sr2yk');
+  });
+
+  it('accepts clearing city and geohash back to null (free-text path)', () => {
+    const parsed = profileUpdateSchema.parse({ city: 'Atlantide', city_geohash: null });
+    expect(parsed.city).toBe('Atlantide');
+    expect(parsed.city_geohash).toBeNull();
+  });
+});
+
+describe('profileUpdateSchema handle reservation (#430)', () => {
+  // `handle` carries UPDATE for `authenticated`, so the edit path is a claim path too — a
+  // reserved handle refused only at onboarding would be one PATCH away from being claimed.
+  it('rejects a reserved handle', () => {
+    expect(profileUpdateSchema.safeParse({ handle: 'moderatore' }).success).toBe(false);
+  });
+
+  it('rejects a brand-prefixed handle', () => {
+    expect(profileUpdateSchema.safeParse({ handle: 'athanorofficial' }).success).toBe(false);
+  });
+
+  it('accepts an ordinary handle', () => {
+    expect(profileUpdateSchema.safeParse({ handle: 'stella_prima' }).success).toBe(true);
+  });
+
+  it('still accepts a null handle', () => {
+    // The column is nullable and the read shape stays nullable; the refinement must not turn
+    // "no handle yet" into a validation error.
+    expect(profileUpdateSchema.safeParse({ handle: null }).success).toBe(true);
+  });
+});
+
+describe('profile vocabularies (mirror the column enums)', () => {
+  it('locale is it | en — IT canonical, EN the mirror', () => {
+    expect(localeSchema.options).toEqual(['it', 'en']);
+    for (const bad of ['de', 'IT', '']) {
+      expect(localeSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('a visibility facet is public | members | private', () => {
+    expect(profileSchema.shape.visibility.valueSchema.options).toEqual([
+      'public',
+      'members',
+      'private',
+    ]);
+    const parsed = profileSchema.parse({
+      ...validRow,
+      visibility: { bio: 'members', dream: 'private' },
+    });
+    expect(parsed.visibility).toEqual({ bio: 'members', dream: 'private' });
+    expect(profileSchema.safeParse({ ...validRow, visibility: { bio: 'friends' } }).success).toBe(
+      false,
+    );
+  });
+
+  // Both anchors matter: without `^` a six-character string matches on its last five cells,
+  // without `$` on its first five — and either would store a cell the column CHECK refuses.
+  it('anchors the geohash to exactly five cells', () => {
+    expect(cityGeohashSchema.safeParse('u0nd9').success).toBe(true);
+    expect(cityGeohashSchema.safeParse('u0nd9x').success).toBe(false);
+    expect(cityGeohashSchema.safeParse('xu0nd9').success).toBe(false);
+  });
+});
+
+// The write and projection shapes are DERIVED from profileSchema (rules/schemas.md). Asserted
+// as the literal key list rather than one property at a time: a flipped pick flag drops a
+// column from the surface, and every "accepts X" test above still passes for the columns it
+// kept.
+describe('profile derived shapes', () => {
+  it('profileUpdateSchema edits exactly the thirteen member-owned columns', () => {
+    expect(Object.keys(profileUpdateSchema.shape).sort()).toEqual([
+      'avatar_path',
+      'bio',
+      'city',
+      'city_geohash',
+      'display_name',
+      'handle',
+      'identity_tags',
+      'locale',
+      'mission',
+      'profession',
+      'seeking',
+      'skills',
+      'visibility',
+    ]);
+  });
+
+  it('personProfileSchema projects exactly the third-person columns plus the removed flag', () => {
+    expect(Object.keys(personProfileSchema.shape).sort()).toEqual([
+      'avatar_path',
+      'bio',
+      'city',
+      'display_name',
+      'founding_member',
+      'handle',
+      'id',
+      'identity_tags',
+      'identity_verified',
+      'mission',
+      'profession',
+      'removed',
+      'seeking',
+      'skills',
+    ]);
   });
 });

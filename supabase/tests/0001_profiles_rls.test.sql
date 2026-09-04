@@ -21,7 +21,8 @@ select ok(
 select policies_are(
   'public',
   'profiles',
-  array['profiles_select_authenticated', 'profiles_insert_own', 'profiles_update_own', 'profiles_select_anon_public'],
+  array['profiles_select_authenticated', 'profiles_insert_own', 'profiles_update_own', 'profiles_select_anon_public',
+        'active_write_update'],
   'exactly the expected policies exist'
 );
 
@@ -38,13 +39,16 @@ select is(
   'locale propagated from signup metadata'
 );
 
--- anon: grant now exists but fixtures are members-only → 0 public rows; inserts still denied
+-- anon: since 20260814151601 (#251) the visibility DEFAULT carries identity:'public', so a
+-- plain handle_new_user signup is anon-reachable — the default public shell. Both fixtures
+-- inherit it. Inserts still denied. The full shell matrix (explicit opt-out, column reach,
+-- storage) lives in 0101_public_handle_shell.
 set local role anon;
 set local request.jwt.claims = '';
 select results_eq(
   $$ select count(*)::int from public.profiles $$,
-  $$ values (0) $$,
-  'anon reads only profiles with a public section (fixtures are members → 0)'
+  $$ values (2) $$,
+  'anon reads default-signup profiles (identity facet defaults to public — #251 shell)'
 );
 select throws_ok(
   $$ insert into public.profiles (id) values (gen_random_uuid()) $$,

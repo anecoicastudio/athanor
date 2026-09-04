@@ -12,10 +12,12 @@ export default function ModalLayout() {
       <Stack.Screen name="settings" />
       <Stack.Screen name="grid" />
       <Stack.Screen name="dream-editor" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="dream/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="milestone" options={{ presentation: 'modal' }} />
       <Stack.Screen name="help" options={{ presentation: 'modal' }} />
       <Stack.Screen name="user/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="post-compose" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="story-compose" options={{ presentation: 'modal' }} />
       <Stack.Screen name="project-compose" options={{ presentation: 'modal' }} />
       <Stack.Screen name="favor" options={{ presentation: 'modal' }} />
       <Stack.Screen name="listing/[id]" options={{ presentation: 'modal' }} />
@@ -31,10 +33,13 @@ export default function ModalLayout() {
       <Stack.Screen name="event/[id]/checkin" options={{ presentation: 'modal' }} />
       <Stack.Screen name="ticket/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="event-create" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="event-filters" options={{ presentation: 'modal' }} />
       <Stack.Screen name="my-events" options={{ presentation: 'modal' }} />
       <Stack.Screen name="annual" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="fund-disclosure" options={{ presentation: 'modal' }} />
       <Stack.Screen name="candidacy" options={{ presentation: 'modal' }} />
       <Stack.Screen name="candidacy/[id]" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="plan" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura" options={{ presentation: 'modal' }} />
       <Stack.Screen name="aura/ledger" options={{ presentation: 'modal' }} />
       <Stack.Screen name="star" options={{ presentation: 'modal' }} />
@@ -58,6 +63,11 @@ export default function ModalLayout() {
       <Stack.Screen name="delete-account" options={{ presentation: 'modal' }} />
       {/* M9 identity verify */}
       <Stack.Screen name="verify" options={{ presentation: 'modal' }} />
+      {/* Password recovery, choose half (#631). Full-screen push, not a sheet: the
+        AuthGuard force-presents it and re-presents it on dismiss, so a swipeable
+        sheet would only teach that swiping does nothing. The screen's own skip
+        ghost is the exit. */}
+      <Stack.Screen name="new-password" />
     </Stack>
   );
 }

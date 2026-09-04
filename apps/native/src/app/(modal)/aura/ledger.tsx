@@ -5,16 +5,19 @@ import { type LedgerCursor, type LedgerFilter, getAuraLedgerPage, ledgerKeys } f
 import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEvent, Locale } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
 import { LedgerRow } from '@/components/aura/LedgerRow';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,29 +55,24 @@ function FilterPills({
   onChange: (f: LedgerFilter) => void;
   locale: Locale;
 }) {
+  // WRAPS rather than scrolls (#640): a horizontal ScrollView in this flex column grew to
+  // fill the leftover height (325px of pill row). Same reasoning as BallotFilterChips —
+  // DESIGN §6 reserves horizontal carousels for Home's event cards, and three pills fit one
+  // line anyway.
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerClassName="gap-2 px-5 py-3"
-    >
-      {FILTERS.map((f) => {
-        const isActive = f === active;
-        return (
-          <Pressable
-            key={f}
-            onPress={() => onChange(f)}
-            className={`rounded-full border px-4 py-2 ${
-              isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-            }`}
-          >
-            <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-              {t(`ledger.filter.${f}` as MessageKey, locale)}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+    <View className="flex-row flex-wrap gap-2 px-5 py-3">
+      {/* `Chip small` (#635): these were bare Pressables, so the active filter reached a screen
+          reader as cyan and nothing else — and at py-2 they sat under DESIGN §10's 44pt. */}
+      {FILTERS.map((f) => (
+        <Chip
+          key={f}
+          small
+          label={t(`ledger.filter.${f}` as MessageKey, locale)}
+          selected={f === active}
+          onPress={() => onChange(f)}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -88,8 +86,8 @@ function FilterPills({
  * Read-only — no Aura writes (rule #1). Engine is dormant; empty is the normal state.
  */
 export default function LedgerScreen() {
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   const [filter, setFilter] = useState<LedgerFilter>('all');
@@ -142,9 +140,13 @@ export default function LedgerScreen() {
   const isEmpty = !query.isLoading && !query.isError && rows.length === 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header */}
-      <ModalHeader title={t('ledger.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('ledger.title', locale)}
+        backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/aura"
+      />
       <Text className="px-5 text-[12px] text-faint">{t('ledger.sub', locale)}</Text>
 
       {/* Filter pills */}
@@ -182,7 +184,7 @@ export default function LedgerScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
           renderSectionHeader={({ section }) => (
             <View className="bg-background py-2">
-              <SectionLabel>{section.title}</SectionLabel>
+              <SectionLabel heading>{section.title}</SectionLabel>
             </View>
           )}
           renderItem={({ item }) => (
@@ -205,6 +207,6 @@ export default function LedgerScreen() {
           }
         />
       ) : null}
-    </View>
+    </Screen>
   );
 }

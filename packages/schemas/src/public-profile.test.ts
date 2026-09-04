@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { handleSchema, publicProfileSchema } from './public-profile';
+import {
+  handleSchema,
+  publicHandleEntrySchema,
+  publicMilestoneSchema,
+  publicProfileSchema,
+} from './public-profile.ts';
 
 describe('handleSchema', () => {
   it('accepts a valid handle', () => {
@@ -17,6 +22,8 @@ describe('publicProfileSchema', () => {
   it('parses a fully public shaped row', () => {
     const parsed = publicProfileSchema.parse({
       handle: 'sole',
+      displayName: 'Sole Marini',
+      avatarUrl: 'https://x.supabase.co/storage/v1/object/sign/avatars/u/u.jpg?token=t',
       bio: 'Designer',
       dream: {
         text: 'Aprire uno studio',
@@ -24,9 +31,18 @@ describe('publicProfileSchema', () => {
       },
     });
     expect(parsed.dream?.milestones[0]?.status).toBe('done');
+    expect(parsed.displayName).toBe('Sole Marini');
   });
-  it('parses a row with bio blanked and no dream (nullable)', () => {
-    const parsed = publicProfileSchema.parse({ handle: 'sole', bio: null, dream: null });
+  it('parses the bare shell: name/avatar/bio/dream all null (a member who set nothing)', () => {
+    const parsed = publicProfileSchema.parse({
+      handle: 'sole',
+      displayName: null,
+      avatarUrl: null,
+      bio: null,
+      dream: null,
+    });
+    expect(parsed.displayName).toBeNull();
+    expect(parsed.avatarUrl).toBeNull();
     expect(parsed.bio).toBeNull();
     expect(parsed.dream).toBeNull();
   });
@@ -34,9 +50,71 @@ describe('publicProfileSchema', () => {
     expect(
       publicProfileSchema.safeParse({
         handle: 'sole',
+        displayName: null,
+        avatarUrl: null,
         bio: null,
         dream: { text: 'x', milestones: [{ id: 'm1', body: 'y', status: 'bogus' }] },
       }).success,
     ).toBe(false);
+  });
+  // avatarUrl is a SIGNED url, never a storage key — a bare key here means someone skipped
+  // the signing step and the page would render a broken image against a private bucket.
+  it('rejects a storage key where the signed avatar URL belongs', () => {
+    expect(
+      publicProfileSchema.safeParse({
+        handle: 'sole',
+        displayName: null,
+        avatarUrl: 'u/u.jpg',
+        bio: null,
+        dream: null,
+      }).success,
+    ).toBe(false);
+  });
+  it('rejects a blank display name (column CHECK mirrors nonBlankString)', () => {
+    expect(
+      publicProfileSchema.safeParse({
+        handle: 'sole',
+        displayName: '   ',
+        avatarUrl: null,
+        bio: null,
+        dream: null,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('publicHandleEntrySchema', () => {
+  it('accepts a handle + updated_at pair and strips the id the reader selects for its warning', () => {
+    const parsed = publicHandleEntrySchema.parse({
+      id: 'p1',
+      handle: 'sole',
+      updated_at: '2026-08-01T10:00:00Z',
+    });
+    expect(parsed).toEqual({ handle: 'sole', updated_at: '2026-08-01T10:00:00Z' });
+  });
+
+  it('withholds a handle the route could never resolve rather than prerendering a 404', () => {
+    expect(
+      publicHandleEntrySchema.safeParse({ handle: 'Not A Handle', updated_at: 'x' }).success,
+    ).toBe(false);
+    expect(publicHandleEntrySchema.safeParse({ handle: null, updated_at: 'x' }).success).toBe(
+      false,
+    );
+  });
+
+  it('requires updated_at — the sitemap lastModified', () => {
+    expect(publicHandleEntrySchema.safeParse({ handle: 'sole' }).success).toBe(false);
+  });
+});
+
+describe('publicMilestoneSchema', () => {
+  it('status is open | in_progress | done — the tappa vocabulary, derived from milestone.ts', () => {
+    expect(publicMilestoneSchema.shape.status.options).toEqual(['open', 'in_progress', 'done']);
+    for (const status of ['open', 'in_progress', 'done']) {
+      expect(publicMilestoneSchema.parse({ id: 'm1', body: 'x', status }).status).toBe(status);
+    }
+    expect(publicMilestoneSchema.safeParse({ id: 'm1', body: 'x', status: 'paused' }).success).toBe(
+      false,
+    );
   });
 });

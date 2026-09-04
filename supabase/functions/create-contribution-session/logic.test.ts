@@ -7,8 +7,13 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 import type Stripe from 'npm:stripe@22';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import {
+  CONTRIBUTION_OPEN_PHASES,
   createContributionSession,
+  feeCoverage,
   isValidContributionAmount,
+  MIN_CONTRIBUTION_CENTS,
+  STRIPE_FEE_BPS,
+  STRIPE_FEE_FIXED_CENTS,
   type ContributionSessionCtx,
 } from './logic.ts';
 
@@ -18,7 +23,9 @@ const EDITION = 'ed-1';
 const editionRow = (over: Record<string, unknown> = {}) => ({
   id: EDITION,
   contributions_enabled: true,
-  phase: 'contributions',
+  // A real open phase from the #372 six-value CHECK — the old 'contributions'
+  // placeholder was never a valid value and now trips the D34 window gate.
+  phase: 'voting',
   ...over,
 });
 
@@ -48,16 +55,28 @@ const ctx = (
   };
 };
 
-const run = async (c: Ctx, amountCents: number) => {
+const run = async (c: Ctx, amountCents: number, coverFees?: unknown) => {
   const res = await createContributionSession(c, {
     profileId: PROFILE,
     editionId: EDITION,
     amountCents,
+    coverFees: coverFees as boolean | undefined,
   });
   return { res, body: await res.json() };
 };
 
 // ── amount floor ─────────────────────────────────────────────────────────────
+//
+// MIN_CONTRIBUTION_CENTS is DUPLICATED here, deliberately: `packages/schemas/src/fund.ts`
+// declares it for every TypeScript caller, but `supabase/functions` lives outside the pnpm
+// workspace and cannot import a workspace package. The two are kept honest the same way the
+// Stripe rate constants below are — by pinning the identical value on both sides, each with a
+// named test. The DB CHECK in 20260618153032_m7_contributions.sql is the third copy, pinned by
+// pgTAP 0118. Change one, change all three (#387).
+
+Deno.test('the contribution floor matches packages/schemas and the DB CHECK', () => {
+  assertEquals(MIN_CONTRIBUTION_CENTS, 100); // €1 — PRD §4.11
+});
 
 Deno.test('isValidContributionAmount: boundary cases', () => {
   assertEquals(isValidContributionAmount(99), false); // below €1
@@ -104,6 +123,76 @@ Deno.test('contributions_enabled false → 403, Stripe never called', async () =
   assertEquals(c.created.length, 0);
 });
 
+// ── contribution window (#222 / D34) ─────────────────────────────────────────
+
+Deno.test('no open cycle (stale edition id) → 404, Stripe never called', async () => {
+  const c = ctx({ 'fund_editions.select': [{ data: null }] });
+  const { res, body } = await run(c, 100);
+  assertEquals(res.status, 404);
+  assertEquals(body, { error: 'edition not found' });
+  assertEquals(c.created.length, 0);
+});
+
+Deno.test("closed phase → 403 'the cycle is closed', Stripe never called", async () => {
+  // 'closed' is the six-value CHECK's terminal phase; 'contributions' pins the
+  // fail-closed branch — an unknown phase refuses too, it never reaches Stripe.
+  for (const phase of ['closed', 'contributions']) {
+    const c = ctx({ 'fund_editions.select': [{ data: editionRow({ phase }) }] });
+    const { res, body } = await run(c, 100);
+    assertEquals(res.status, 403);
+    assertEquals(body, { error: 'the cycle is closed' });
+    assertEquals(c.created.length, 0);
+  }
+});
+
+// ── the phase vocabulary, across the workspace boundary ─────────────────────────────────────
+//
+// `CONTRIBUTION_OPEN_PHASES` is the FOURTH enumeration of the cycle's phases (#382): the CHECK
+// constraint, the zod enum, `@athanor/core`'s `CONTRIBUTION_PHASES`, and this literal. Three of
+// them are now derived from one another; this one cannot be, because `supabase/functions` lives
+// outside the pnpm workspace and has no import path to a workspace package.
+//
+// So it is pinned the way `_shared/config-invariants.test.ts` pins the posture table: read the
+// other side's source off disk and assert agreement. A phase added to the enum and not here
+// silently refuses contributions in that phase with «the cycle is closed» — a 403 on a screen
+// that looks correct, which is the same class of failure as a missing grant.
+const SCHEMA_SOURCE = new URL('../../../packages/schemas/src/fund.ts', import.meta.url);
+
+Deno.test(
+  'CONTRIBUTION_OPEN_PHASES mirrors the zod phase enum, minus the terminal phase',
+  async () => {
+    const source = await Deno.readTextFile(SCHEMA_SOURCE);
+    const block = source.match(/export const fundPhaseSchema = z\.enum\(\[([^\]]*)\]\)/);
+    assert(block, 'fundPhaseSchema = z.enum([...]) not found — this mirror lost its subject');
+    const phases = [...block[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    // Guard the parse itself: an empty or one-element match would make the assertion below pass
+    // for the wrong reason, which is exactly the defect a mirror test exists to prevent.
+    assert(phases.length > 1, `parsed ${phases.length} phases out of the enum`);
+    assert(phases.includes('closed'), 'the enum must still carry the terminal phase');
+    assertEquals(
+      CONTRIBUTION_OPEN_PHASES,
+      phases.filter((p) => p !== 'closed'),
+    );
+  },
+);
+
+Deno.test('every open phase accepts — candidacy through realization (D34)', async () => {
+  assertEquals(CONTRIBUTION_OPEN_PHASES, [
+    'candidacy',
+    'screening',
+    'voting',
+    'announcement',
+    'realization',
+  ]);
+  for (const phase of CONTRIBUTION_OPEN_PHASES) {
+    const c = ctx({ 'fund_editions.select': [{ data: editionRow({ phase }) }] });
+    const { res, body } = await run(c, 100);
+    assertEquals(res.status, 200, `phase ${phase} must accept`);
+    assertEquals(body, { url: 'https://checkout.stripe.test/cs_1' });
+    assertEquals(c.created.length, 1);
+  }
+});
+
 // ── session params + happy path ──────────────────────────────────────────────
 
 Deno.test('happy path → { url }; eur, server-validated amount, kind contribution', async () => {
@@ -131,9 +220,140 @@ Deno.test('happy path → { url }; eur, server-validated amount, kind contributi
       },
     },
   ]);
-  assertEquals(params.metadata, { kind: 'contribution', edition_id: EDITION, profile_id: PROFILE });
+  // gift_cents/coverage_cents joined the metadata with #236 — the webhook reconciles the
+  // split against Stripe's amount_total, so both figures travel even on an uncovered charge.
+  assertEquals(params.metadata, {
+    kind: 'contribution',
+    edition_id: EDITION,
+    profile_id: PROFILE,
+    gift_cents: '2500',
+    coverage_cents: '0',
+  });
   assertEquals(params.success_url, 'athanor://annual?contrib=success');
   assertEquals(params.cancel_url, 'athanor://annual?contrib=cancel');
+});
+
+// ── the optional fee coverage (#236 / FUND-51) ───────────────────────────────
+//
+// This copy of the formula is the AUTHORITY: the client's figure is display only. The same
+// three fixtures are asserted in packages/core/src/fund/fees.test.ts — `supabase/functions`
+// is outside the pnpm workspace and cannot import @athanor/core, so the two implementations
+// are kept honest by pinning identical values on both sides. Change one, change both.
+
+Deno.test('the Stripe rate constants match the disclosure, and core', () => {
+  assertEquals(STRIPE_FEE_BPS, 150); // 1.5%
+  assertEquals(STRIPE_FEE_FIXED_CENTS, 25); // €0,25
+});
+
+Deno.test('feeCoverage: the recursive gross-up, same fixtures as packages/core', () => {
+  // €1,00 → €1,27 charged, €0,27 coverage — the figure #236 quotes.
+  assertEquals(feeCoverage(100), { giftCents: 100, coverageCents: 27, chargedCents: 127 });
+  // exact division: 985 / 0.985 = 1000, nothing rounded
+  assertEquals(feeCoverage(960), { giftCents: 960, coverageCents: 40, chargedCents: 1000 });
+  // rounds UP, never to nearest: (238 + 25) / 0.985 = 267.005… → 268
+  assertEquals(feeCoverage(238), { giftCents: 238, coverageCents: 30, chargedCents: 268 });
+});
+
+Deno.test('feeCoverage never leaves the fund short of the gift', () => {
+  // Models Stripe's own deduction. A naive `gift + fee(gift)` charge fails this — the cut is
+  // a percentage of the CHARGE, so covering it enlarges the thing being cut.
+  const stripeFeeOn = (charged: number) =>
+    Math.round((charged * STRIPE_FEE_BPS) / 10_000) + STRIPE_FEE_FIXED_CENTS;
+  for (let gift = 100; gift <= 100_000; gift += 37) {
+    const { chargedCents } = feeCoverage(gift);
+    const net = chargedCents - stripeFeeOn(chargedCents);
+    assert(net >= gift, `gift ${gift}: net ${net} is short`);
+    assert(
+      net <= gift + 1,
+      `gift ${gift}: net ${net} overshoots — coverage is a cost, not a margin`,
+    );
+  }
+});
+
+Deno.test(
+  'coverage taken → the CHARGE is grossed up, the gift is itemised separately',
+  async () => {
+    const c = ctx({ 'fund_editions.select': [{ data: editionRow() }] });
+    const { res, body } = await run(c, 100, true);
+    assertEquals(res.status, 200);
+    assertEquals(body, { url: 'https://checkout.stripe.test/cs_1' });
+
+    const params = c.created[0];
+    // Two line items, so the payer's own Stripe receipt shows what the coverage was — the
+    // whole point of #236 is that the deduction is disclosed rather than absorbed silently.
+    assertEquals(params.line_items, [
+      {
+        quantity: 1,
+        price_data: {
+          currency: 'eur',
+          unit_amount: 100,
+          product_data: { name: 'Dai Vita al Tuo Sogno — contributo' },
+        },
+      },
+      {
+        quantity: 1,
+        price_data: {
+          currency: 'eur',
+          unit_amount: 27,
+          product_data: { name: 'Dai Vita al Tuo Sogno — copertura costi di pagamento' },
+        },
+      },
+    ]);
+    // The webhook reads BOTH figures and reconciles them against amount_total (127).
+    assertEquals(params.metadata, {
+      kind: 'contribution',
+      edition_id: EDITION,
+      profile_id: PROFILE,
+      gift_cents: '100',
+      coverage_cents: '27',
+    });
+  },
+);
+
+Deno.test(
+  'coverage declined → byte-identical to the uncovered flow, coverage_cents 0',
+  async () => {
+    for (const declined of [undefined, false]) {
+      const c = ctx({ 'fund_editions.select': [{ data: editionRow() }] });
+      const { res } = await run(c, 2500, declined);
+      assertEquals(res.status, 200);
+      const params = c.created[0];
+      assertEquals(params.line_items?.length, 1);
+      assertEquals(params.line_items?.[0].price_data?.unit_amount, 2500);
+      assertEquals(params.metadata, {
+        kind: 'contribution',
+        edition_id: EDITION,
+        profile_id: PROFILE,
+        gift_cents: '2500',
+        coverage_cents: '0',
+      });
+    }
+  },
+);
+
+Deno.test('a non-boolean coverage flag is DECLINED, never truthy-coerced', async () => {
+  // The flag arrives from `await req.json()` — untyped at runtime. Money code fails closed:
+  // only literal `true` charges a payer more than the amount they chose, because CRD Art. 22
+  // wants express consent and 'yes'/1/{} are not it.
+  for (const junk of ['true', 'yes', 1, {}, [], 'false']) {
+    const c = ctx({ 'fund_editions.select': [{ data: editionRow() }] });
+    const { res } = await run(c, 100, junk);
+    assertEquals(res.status, 200);
+    assertEquals(c.created[0].line_items?.length, 1);
+    assertEquals(c.created[0].line_items?.[0].price_data?.unit_amount, 100);
+    assertEquals((c.created[0].metadata as Record<string, string>).coverage_cents, '0');
+  }
+});
+
+Deno.test('the €1 floor is on the GIFT — coverage cannot lift a sub-€1 contribution', async () => {
+  // €0,99 + €0,30 clears €1 as a charge and must still be refused: the fund would receive
+  // less than the declared minimum, and the floor is a promise about the fund's side.
+  const c = ctx();
+  const { res, body } = await run(c, 99, true);
+  assertEquals(res.status, 400);
+  assertEquals(body, { error: 'amount must be at least €1' });
+  assertEquals(c.db.calls.length, 0);
+  assertEquals(c.created.length, 0);
 });
 
 Deno.test('session without url / Stripe throw → clean 500, never Stripe internals', async () => {

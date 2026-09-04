@@ -26,10 +26,11 @@ const eventRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/** Event loaded + organizer verified — the state the three added guards run in. */
+/** Event loaded + organizer verified + seat claimable — the state the later guards run in. */
 const sellable = (over: Record<string, unknown> = {}): Record<string, FakeResult[]> => ({
   'events.select': [{ data: eventRow(over) }],
   'rpc.is_identity_verified': [{ data: true }],
+  'rpc.claim_event_seat': [{ data: 'claimed' }],
 });
 
 type Ctx = TicketCheckoutCtx & {
@@ -219,10 +220,7 @@ Deno.test('ticket lookup is scoped to the verified caller and this event', async
 Deno.test(
   'happy path → { url }; price from the DB row, profile_id from the verified arg',
   async () => {
-    const c = ctx({
-      'events.select': [{ data: eventRow() }],
-      'rpc.is_identity_verified': [{ data: true }],
-    });
+    const c = ctx(sellable());
     const { res, body } = await run(c);
     assertEquals(res.status, 200);
     assertEquals(body, { url: 'https://checkout.stripe.test/cs_1' });
@@ -252,6 +250,7 @@ Deno.test('buildTicketSessionParams is pure: metadata.kind ticket, ids from args
     { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur' },
     'prof-9',
     'https://app.example/',
+    NOW.getTime(),
   );
   assertEquals(params.metadata, { kind: 'ticket', event_id: 'evt-9', profile_id: 'prof-9' });
   assertEquals(params.line_items?.[0].price_data?.unit_amount, 700);
@@ -259,16 +258,90 @@ Deno.test('buildTicketSessionParams is pure: metadata.kind ticket, ids from args
   assertEquals(params.cancel_url, 'https://app.example/event/evt-9?checkout=cancel');
 });
 
+Deno.test(
+  'the Session expires 30 minutes out (Stripe minimum) — inside the 35-minute claim',
+  async () => {
+    const c = ctx(sellable());
+    await run(c);
+    assertEquals(c.created[0].expires_at, Math.floor(NOW.getTime() / 1000) + 30 * 60);
+  },
+);
+
 Deno.test('session without url / Stripe throw → clean 500, never Stripe internals', async () => {
-  const script = () => ({
-    'events.select': [{ data: eventRow() }],
-    'rpc.is_identity_verified': [{ data: true }],
-  });
-  const noUrl = await run(ctx(script(), { sessionUrl: null }));
+  const noUrl = await run(ctx(sellable(), { sessionUrl: null }));
   assertEquals(noUrl.res.status, 500);
   assertEquals(noUrl.body, { error: 'could not start checkout' });
 
-  const thrown = await run(ctx(script(), { throwOnCreate: true }));
+  const thrown = await run(ctx(sellable(), { throwOnCreate: true }));
   assertEquals(thrown.res.status, 500);
   assertEquals(thrown.body, { error: 'could not start checkout' });
+});
+
+// ── capacity claim (#105) ────────────────────────────────────────────────────
+
+Deno.test('sold out → 409, Stripe never called', async () => {
+  const c = ctx({ ...sellable(), 'rpc.claim_event_seat': [{ data: 'sold_out' }] });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 409);
+  assertEquals(body, { error: 'sold out' });
+  assertEquals(c.created.length, 0);
+});
+
+Deno.test('claim rpc error or unknown verdict → 500 fail-closed, Stripe never called', async () => {
+  for (const scripted of [{ error: { message: 'boom' } }, { data: null }, { data: 'weird' }]) {
+    const c = ctx({ ...sellable(), 'rpc.claim_event_seat': [scripted as FakeResult] });
+    const { res, body } = await run(c);
+    assertEquals(res.status, 500);
+    assertEquals(body, { error: 'seat claim failed' });
+    assertEquals(c.created.length, 0);
+  }
+});
+
+Deno.test('a live claim → 409 checkout already open, Stripe never called (#258)', async () => {
+  // The concurrent double checkout: the other invocation's claim is live, so this one
+  // must refuse BEFORE minting — a second payable Session is the double charge itself.
+  const c = ctx({ ...sellable(), 'rpc.claim_event_seat': [{ data: 'claim_pending' }] });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 409);
+  assertEquals(body, { error: 'checkout already open' });
+  assertEquals(c.created.length, 0);
+});
+
+Deno.test('claim belt: already_owned → 409, not_found → 404', async () => {
+  const owned = await run(
+    ctx({ ...sellable(), 'rpc.claim_event_seat': [{ data: 'already_owned' }] }),
+  );
+  assertEquals(owned.res.status, 409);
+  assertEquals(owned.body, { error: 'ticket already owned' });
+
+  const gone = await run(ctx({ ...sellable(), 'rpc.claim_event_seat': [{ data: 'not_found' }] }));
+  assertEquals(gone.res.status, 404);
+  assertEquals(gone.body, { error: 'event not found' });
+});
+
+Deno.test('the claim is for THIS event and runs before the Stripe call', async () => {
+  const c = ctx(sellable());
+  await run(c);
+  const claim = c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'claim_event_seat');
+  assert(claim);
+  assertEquals(claim.values, { p_event_id: EVENT });
+  assertEquals(c.created.length, 1); // claim verdict gated the call, so order held
+});
+
+Deno.test('a Stripe failure releases the claimed seat (best-effort)', async () => {
+  for (const opts of [{ sessionUrl: null }, { throwOnCreate: true }] as const) {
+    const c = ctx(sellable(), opts);
+    await run(c);
+    const release = c.db.calls.find(
+      (call) => call.op === 'rpc' && call.columns === 'release_event_seat',
+    );
+    assert(release, 'release_event_seat called');
+    assertEquals(release.values, { p_event_id: EVENT });
+  }
+});
+
+Deno.test('a successful checkout releases nothing — the webhook pays the claim', async () => {
+  const c = ctx(sellable());
+  await run(c);
+  assert(!c.db.calls.some((call) => call.columns === 'release_event_seat'));
 });

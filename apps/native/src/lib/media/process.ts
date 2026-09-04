@@ -53,9 +53,10 @@ export async function processImage(
  * Video passthrough — returns the input uri unchanged.
  *
  * CLIENT-SIDE video metadata strip is NOT available without transcode on SDK 54.
- * We rely on iOS limited-PHPicker (exported assets carry no GPS). Server-side
- * strip (Storage transform / edge fn) is the required defense-in-depth — TODO
- * before launch (resilience §7.2 / backend 10 §4.1a).
+ * We rely on iOS limited-PHPicker (exported assets carry no GPS). The server-side
+ * backstop is live: the `media-process` edge function strips every MP4's `udta`/`meta`
+ * boxes on upload (resilience §7.2 / backend 10 §4.1a), so this passthrough is by
+ * design, not a gap.
  */
 export async function processVideo(uri: string): Promise<{ uri: string }> {
   return { uri };

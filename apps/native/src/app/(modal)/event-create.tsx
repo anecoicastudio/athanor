@@ -1,23 +1,31 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createEvent, eventKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
+import { parseEuroToCents } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { EVENT_HREF } from '@/components/live/EventRow';
+import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useToast } from '@/components/ToastHost';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
+import { toStatus } from '@/lib/media/permission-status';
 import { supabase } from '@/lib/supabase';
 import { dateTimeWithYear } from '@/lib/time';
-import { parsePriceCents } from '@/lib/price';
+import { Screen } from '@/components/Screen';
 
 const CATEGORIES: EventCategory[] = [
   'networking',
@@ -32,12 +40,13 @@ const CATEGORIES: EventCategory[] = [
 ];
 
 export default function EventCreateScreen() {
-  const { profile } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
+  const { profile } = useAuth();
 
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [category, setCategory] = useState<EventCategory>('networking');
   const [isOnline, setIsOnline] = useState(false);
   const [venue, setVenue] = useState('');
@@ -49,12 +58,64 @@ export default function EventCreateScreen() {
   const [capacity, setCapacity] = useState('');
   const [paid, setPaid] = useState(false);
   const [price, setPrice] = useState('');
+  // #437 — the settlement acknowledgement. UNTICKED, always, and never remembered: CRD 2011/83/EU
+  // Art. 22 excludes pre-ticked boxes, and a remembered tick is a pre-ticked box wearing a
+  // different name (the same reasoning as fund-disclosure.tsx's coverage box). Per event, because
+  // the 14-day promise attaches to an event rather than to the organiser.
+  const [settlementAck, setSettlementAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Why «Usa la mia posizione» did nothing (#549). Outcome stored, sentence derived at render
+   * (the [id] screen's #531 reasoning: no timer, must survive a locale flip). `denied` keeps
+   * the pill as the retry — the OS will ask again; `blocked` never re-prompts, so the notice
+   * grows the Settings route instead.
+   */
+  const [locationRefusal, setLocationRefusal] = useState<'denied' | 'blocked' | null>(null);
+  /**
+   * #636. Seventeen `useState`s, one of them a `Date` seeded from the clock — so the baseline
+   * is captured by a state INITIALISER rather than rebuilt inline. Re-running
+   * `new Date(Date.now() + …)` for the comparison would produce an instant a few milliseconds
+   * from `startsAt` and report an untouched form as edited on its first render.
+   */
+  const [baseline] = useState(() => ({
+    title: '',
+    description: '',
+    category: 'networking',
+    isOnline: false,
+    venue: '',
+    city: '',
+    coords: null,
+    streamUrl: '',
+    startsAt,
+    capacity: '',
+    paid: false,
+    price: '',
+    settlementAck: false,
+  }));
+
+  const { showToast } = useToast();
 
   const requestMyLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+    setLocationRefusal(null);
+    let pos: Location.LocationObject;
+    try {
+      const res = await Location.requestForegroundPermissionsAsync();
+      if (!res.granted) {
+        // Was `if (status !== 'granted') return;` — silent, and iOS prompts once per app, so
+        // every tap after the first resolved denied with no dialog: a pill that did nothing,
+        // forever, while onSubmit kept demanding the position it could never get (#549).
+        setLocationRefusal(toStatus(res) === 'blocked' ? 'blocked' : 'denied');
+        return;
+      }
+      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+    } catch (e) {
+      // Services off / a fix that timed out: this rejection escaped `void requestMyLocation()`
+      // unhandled — the second silent path. Same recovery as VicinoPanel's #179: say so with a
+      // toast; the pill itself is the retry.
+      devWarn('[event-create] requestMyLocation', e);
+      showToast(t('live.map.locationError', locale));
+      return;
+    }
     setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     try {
       const [place] = await Location.reverseGeocodeAsync(pos.coords);
@@ -72,15 +133,25 @@ export default function EventCreateScreen() {
         category,
         is_online: isOnline,
         venue: isOnline ? null : venue || null,
-        city: isOnline ? null : city || null,
+        // Trimmed: the calendar filter matches `city` whole, so a stored «Milano » would
+        // never match a member filtering for «Milano» (#151).
+        city: isOnline ? null : city.trim() || null,
+        // The schema trims and turns blank into null — a null renders as NOTHING on the
+        // detail, which is the whole point of #634: no more fabricated fallback paragraph.
+        description,
         lat: isOnline ? null : (coords?.lat ?? null),
         long: isOnline ? null : (coords?.lng ?? null),
         stream_url: isOnline ? streamUrl || null : null,
         starts_at: startsAt.toISOString(),
         ends_at: null,
         capacity: capacity ? Number(capacity) : null,
-        price_cents: paid && price ? parsePriceCents(price) : 0,
+        // Floor 0, named: a ticket may be free (`events.price_cents >= 0`), unlike a fund
+        // contribution, whose €1 minimum is the parser's default (#387).
+        price_cents: paid && price ? parseEuroToCents(price, 0) : 0,
         currency: 'eur',
+        // The boolean is all the client gets to say. `settlement_ack_at` is stamped by
+        // create_event from now() — a client-supplied timestamp would be evidence of nothing.
+        settlement_ack: paid && settlementAck,
       });
       return createEvent(supabase, parsed);
     },
@@ -93,9 +164,17 @@ export default function EventCreateScreen() {
 
   const onSubmit = () => {
     setError(null);
-    // Paid events require verified identity (PRD §4.13) — gated to M9; block here.
-    if (paid) {
+    // Paid events require verified identity (PRD §4.13). The gate used to block EVERY paid
+    // event «pending M9» — but verification has shipped (#416 closed), so a verified organizer
+    // was being refused with copy promising verification «presto» (#634 item 4). The client
+    // check mirrors create_event's own is_identity_verified refusal; the server one is the
+    // load-bearing gate.
+    if (paid && !profile?.identity_verified) {
       setError(t('event.create.verifyGate', locale));
+      return;
+    }
+    if (paid && !settlementAck) {
+      setError(t('event.create.settlement.required', locale));
       return;
     }
     if (title.trim().length === 0) return setError(t('event.create.error', locale));
@@ -105,73 +184,91 @@ export default function EventCreateScreen() {
 
   const label = (key: MessageKey) => <SectionLabel>{t(key, locale)}</SectionLabel>;
 
+  useDirtyGuard({
+    dirty: isDraftDirty(baseline, {
+      title,
+      description,
+      category,
+      isOnline,
+      venue,
+      city,
+      coords,
+      streamUrl,
+      startsAt,
+      capacity,
+      paid,
+      price,
+      settlementAck,
+    }),
+    saving: mutation.isPending,
+    submitted: mutation.isSuccess,
+  });
+
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View className="flex-1 bg-background">
+    <KeyboardAvoiding>
+      <Screen>
         <ModalHeader title={t('event.create.title', locale)} backLabel={t('common.back', locale)} />
         <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
           <View className="gap-2">
             {label('event.create.name')}
-            <TextInput
-              className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+            <Input
               placeholder={t('event.create.namePlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={title}
               onChangeText={setTitle}
               maxLength={140}
             />
           </View>
 
+          {/* #634: the detail used to render one fabricated sentence for every event under the
+              organizer's name. These are the organizer's own words instead; optional, because
+              an absent paragraph asserts nothing. */}
+          <View className="gap-2">
+            {label('event.create.desc')}
+            <Input
+              placeholder={t('event.create.descPlaceholder', locale)}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              maxLength={2000}
+              className="min-h-[120px]"
+            />
+          </View>
+
           <View className="gap-2">
             {label('event.create.category')}
             <View className="flex-row flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
-                const on = c === category;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setCategory(c)}
-                    className={`rounded-full border px-4 py-2 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                  >
-                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                      {t(`event.cat.${c}` as MessageKey, locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {CATEGORIES.map((c) => (
+                <Chip
+                  key={c}
+                  small
+                  label={t(`event.cat.${c}` as MessageKey, locale)}
+                  selected={c === category}
+                  onPress={() => setCategory(c)}
+                />
+              ))}
             </View>
           </View>
 
           <View className="gap-2">
             {label('event.create.type')}
             <View className="flex-row gap-2">
-              {[false, true].map((online) => {
-                const on = online === isOnline;
-                return (
-                  <Pressable
-                    key={String(online)}
-                    onPress={() => setIsOnline(online)}
-                    className={`flex-1 items-center rounded-full border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                  >
-                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                      {t(online ? 'event.create.online' : 'event.create.inPerson', locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {[false, true].map((online) => (
+                <Chip
+                  key={String(online)}
+                  className="flex-1 items-center"
+                  label={t(online ? 'event.create.online' : 'event.create.inPerson', locale)}
+                  selected={online === isOnline}
+                  onPress={() => setIsOnline(online)}
+                />
+              ))}
             </View>
           </View>
 
           {isOnline ? (
             <View className="gap-2">
               {label('event.create.streamUrl')}
-              <TextInput
-                className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+              <Input
                 placeholder={t('event.create.streamUrlPlaceholder', locale)}
-                placeholderTextColor={semantic.foregroundMuted}
                 value={streamUrl}
                 onChangeText={setStreamUrl}
                 autoCapitalize="none"
@@ -182,10 +279,8 @@ export default function EventCreateScreen() {
             <>
               <View className="gap-2">
                 {label('event.create.venue')}
-                <TextInput
-                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                <Input
                   placeholder={t('event.create.venuePlaceholder', locale)}
-                  placeholderTextColor={semantic.foregroundMuted}
                   value={venue}
                   onChangeText={setVenue}
                   maxLength={240}
@@ -193,10 +288,8 @@ export default function EventCreateScreen() {
               </View>
               <View className="gap-2">
                 {label('event.create.city')}
-                <TextInput
-                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                <Input
                   placeholder={t('event.create.cityPlaceholder', locale)}
-                  placeholderTextColor={semantic.foregroundMuted}
                   value={city}
                   onChangeText={setCity}
                   maxLength={120}
@@ -213,6 +306,27 @@ export default function EventCreateScreen() {
                     : t('event.create.useLocation', locale)}
                 </Text>
               </Pressable>
+              {locationRefusal ? (
+                <View className="gap-2">
+                  {/* Literal keys on both arms (i18n checker + orphan-grep property). Blocked
+                      takes the shared body per the candidacy precedent, which already tolerates
+                      the Expo Go shared-grant route; the calendar's bespoke key is the recorded
+                      exception (#552) — its «Add Events Only» axis has no location analog, and
+                      the retry trigger (this pill) stays visible beside the notice. */}
+                  <Text className="text-[13px] text-faint">
+                    {locationRefusal === 'blocked'
+                      ? t('permission.blocked.body', locale)
+                      : t('event.create.locationDenied', locale)}
+                  </Text>
+                  {locationRefusal === 'blocked' ? (
+                    <Button
+                      label={t('permission.openSettings', locale)}
+                      variant="ghost"
+                      onPress={() => void Linking.openSettings()}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
             </>
           )}
 
@@ -240,10 +354,8 @@ export default function EventCreateScreen() {
 
           <View className="gap-2">
             {label('event.create.capacity')}
-            <TextInput
-              className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+            <Input
               placeholder={t('event.create.capacityHint', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={capacity}
               onChangeText={(text) => setCapacity(text.replace(/[^0-9]/g, ''))}
               keyboardType="number-pad"
@@ -253,35 +365,59 @@ export default function EventCreateScreen() {
           <View className="gap-2">
             {label('event.create.ticket')}
             <View className="flex-row gap-2">
-              {[false, true].map((p) => {
-                const on = p === paid;
-                return (
-                  <Pressable
-                    key={String(p)}
-                    onPress={() => setPaid(p)}
-                    className={`flex-1 items-center rounded-full border py-3 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-                  >
-                    <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                      {t(p ? 'event.create.paid' : 'event.create.free', locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {[false, true].map((p) => (
+                <Chip
+                  key={String(p)}
+                  className="flex-1 items-center"
+                  label={t(p ? 'event.create.paid' : 'event.create.free', locale)}
+                  selected={p === paid}
+                  onPress={() => setPaid(p)}
+                />
+              ))}
             </View>
             {paid ? (
               <View className="gap-2">
-                <TextInput
-                  className="rounded-full border border-hair bg-raise p-5 text-[15px] text-foreground"
+                <Input
                   placeholder={t('event.create.pricePlaceholder', locale)}
-                  placeholderTextColor={semantic.foregroundMuted}
                   value={price}
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"
                 />
-                <Text className="text-[12px] text-faint">{t('event.create.feeNote', locale)}</Text>
-                <Text className="text-[12px] text-aura">
-                  {t('event.create.verifySoon', locale)}
-                </Text>
+                {/* #437 — how the organiser gets paid, at the point the price is decided rather
+                    than buried in terms. Neutral chrome on purpose: a settlement notice is not a
+                    moment-grade event, so no cyan glow (rule #4), same argument as PriceToggle. */}
+                <View className="gap-3 rounded-card border border-hair bg-raise p-5">
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: settlementAck }}
+                    accessibilityLabel={t('event.create.settlement.ack', locale)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    className="min-h-[44px] flex-row items-center gap-3"
+                    onPress={() => setSettlementAck((v) => !v)}
+                  >
+                    {/* ✓/○ — SHAPE carries the state, so the tick stays legible without relying
+                        on colour (the MilestoneRow/BenefitRow vocabulary). */}
+                    <Text
+                      className={settlementAck ? 'text-base text-aura' : 'text-base text-faint'}
+                    >
+                      {settlementAck ? '✓' : '○'}
+                    </Text>
+                    <Text className="flex-1 text-[14px] leading-5 text-foreground">
+                      {t('event.create.settlement.ack', locale)}
+                    </Text>
+                  </Pressable>
+                  <Text className="text-[12px] leading-4 text-muted-foreground">
+                    {t('event.create.settlement.manual', locale)}
+                  </Text>
+                </View>
+                {/* #634: «la verifica arriva presto» was a falsehood once #416 shipped it. An
+                    unverified organizer is told the actual requirement before submit; a
+                    verified one is told nothing. */}
+                {!profile?.identity_verified ? (
+                  <Text className="text-[12px] leading-4 text-muted-foreground">
+                    {t('event.create.verifyGate', locale)}
+                  </Text>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -295,7 +431,7 @@ export default function EventCreateScreen() {
             variant="light"
           />
         </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }

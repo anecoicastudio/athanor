@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(15);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -57,6 +57,42 @@ set local role service_role;
 select is(
   (select count(*)::int from public.aura_events),
   0, 'erasure path writes zero Aura (rule #1)');
+
+-- ── #515: 'partial' — a processed request that stopped at the legal gate ────────────────────
+-- The job runs irreversible work (session revoke, fund footprint erasure) and then stops,
+-- because deleting the account is gated on #184. It used to record that as 'failed', which is
+-- the one thing it is not: nothing failed. These assert the value exists, that the service role
+-- can write it, and — the half that actually protects anyone — that a client still cannot.
+select lives_ok(
+  $$ update public.gdpr_erasure_requests set status = 'partial'
+     where profile_id = current_setting('test.a')::uuid $$,
+  'service role records a stop-short as partial');
+select is(
+  (select status from public.gdpr_erasure_requests
+   where profile_id = current_setting('test.a')::uuid),
+  'partial', 'the partial status is what the row now holds');
+select throws_ok(
+  $$ update public.gdpr_erasure_requests set status = 'nonsense'
+     where profile_id = current_setting('test.a')::uuid $$,
+  '23514', null, 'the status set stays closed — an unknown value is still rejected');
+select ok(
+  (select count(*) = 1 from pg_constraint
+   where conrelid = 'public.gdpr_erasure_requests'::regclass
+     and conname = 'gdpr_erasure_requests_status_check'
+     and pg_get_constraintdef(oid) like '%''done''%'
+     and pg_get_constraintdef(oid) like '%''partial''%'
+     and pg_get_constraintdef(oid) like '%''failed''%'),
+  'done, partial and failed are all in the closed status set');
+
+-- widening the CHECK must NOT have widened the client write surface: a member may enqueue a
+-- 'requested' row and nothing else, so 'partial' stays reachable only by the job.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', current_setting('test.a'), true);
+select throws_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id, status)
+     values (current_setting('test.a')::uuid, 'partial') $$,
+  '42501', null, 'a client cannot declare its own erasure partial');
+reset role;
 
 select * from finish();
 rollback;

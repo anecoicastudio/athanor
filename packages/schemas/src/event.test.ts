@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   attendanceSchema,
   checkInResultSchema,
+  eventCalendarFiltersSchema,
+  eventCategorySchema,
   eventCreateSchema,
   eventLiveStatsSchema,
   eventNearbySchema,
   eventSchema,
+  isEmptyEventCalendarFilters,
   rsvpSchema,
   rsvpStatusSchema,
   ticketSchema,
-} from './event';
+  ticketStatusSchema,
+} from './event.ts';
 
 const baseRow = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -19,6 +23,7 @@ const baseRow = {
   is_online: false,
   venue: 'Spazio X',
   city: 'Berlino',
+  description: null,
   stream_url: null,
   starts_at: '2026-07-14T17:00:00.000Z',
   ends_at: null,
@@ -26,11 +31,11 @@ const baseRow = {
   price_cents: 0,
   currency: 'eur',
   fee_pct: 10,
-  is_kairos_day: false,
   is_athanor_day: false,
   cover_url: null,
   live_started_at: null,
   live_ended_at: null,
+  settlement_ack_at: null,
   created_at: '2026-06-15T10:00:00.000Z',
   updated_at: '2026-06-15T10:00:00.000Z',
   deleted_at: null,
@@ -43,8 +48,24 @@ describe('eventSchema (read)', () => {
   it('rejects an unknown category', () => {
     expect(() => eventSchema.parse({ ...baseRow, category: 'sport' })).toThrow();
   });
+  it('reads a description up to 2000 characters, and null (#634)', () => {
+    expect(eventSchema.parse(baseRow).description).toBeNull();
+    expect(
+      eventSchema.parse({ ...baseRow, description: 'a'.repeat(2000) }).description,
+    ).toHaveLength(2000);
+    expect(() => eventSchema.parse({ ...baseRow, description: 'a'.repeat(2001) })).toThrow();
+  });
   // baseRow prices the event at 0, which satisfies a floor and a ceiling alike — so the bound
   // could have been inverted and every test here would still pass. A paid event is the case.
+  it('carries the settlement acknowledgement timestamp, null on a free event (#437)', () => {
+    expect(eventSchema.parse(baseRow).settlement_ack_at).toBeNull();
+    const acked = { ...baseRow, price_cents: 2500, settlement_ack_at: '2026-08-18T19:00:00.000Z' };
+    expect(eventSchema.parse(acked).settlement_ack_at).toBe('2026-08-18T19:00:00.000Z');
+    // Absent, not merely null, is a row that predates the column or a projection that forgot it —
+    // EVENT_COLS is an explicit list, so a missing column is a real failure mode here.
+    const { settlement_ack_at: _omitted, ...without } = baseRow;
+    expect(() => eventSchema.parse(without)).toThrow();
+  });
   it('accepts a paid price and rejects a negative one', () => {
     expect(eventSchema.parse({ ...baseRow, price_cents: 2500 }).price_cents).toBe(2500);
     expect(() => eventSchema.parse({ ...baseRow, price_cents: -1 })).toThrow();
@@ -80,6 +101,7 @@ describe('eventCreateSchema', () => {
     is_online: false,
     venue: 'Spazio Y',
     city: 'Berlino',
+    description: null,
     lat: 52.5,
     long: 13.4,
     stream_url: null,
@@ -92,6 +114,24 @@ describe('eventCreateSchema', () => {
 
   it('accepts a valid physical event', () => {
     expect(eventCreateSchema.parse(physical).city).toBe('Berlino');
+  });
+  // #634: null renders as NOTHING on both detail surfaces, '' as an empty paragraph — so a
+  // blank or whitespace-only description must land as null, and 2000 is the DB CHECK's bound
+  // (events_description_len): the schema must refuse at exactly the length the server would.
+  it('trims the description and turns a blank one into null', () => {
+    expect(
+      eventCreateSchema.parse({ ...physical, description: '  Una sera vera.  ' }).description,
+    ).toBe('Una sera vera.');
+    expect(eventCreateSchema.parse({ ...physical, description: '   ' }).description).toBeNull();
+    expect(eventCreateSchema.parse({ ...physical, description: '' }).description).toBeNull();
+  });
+  it('defaults an omitted description to null and caps it at 2000 characters', () => {
+    const { description: _d, ...rest } = physical;
+    expect(eventCreateSchema.parse(rest).description).toBeNull();
+    expect(
+      eventCreateSchema.parse({ ...physical, description: 'a'.repeat(2000) }).description,
+    ).toHaveLength(2000);
+    expect(() => eventCreateSchema.parse({ ...physical, description: 'a'.repeat(2001) })).toThrow();
   });
   it('applies defaults for omitted optional fields', () => {
     const parsed = eventCreateSchema.parse({
@@ -113,8 +153,25 @@ describe('eventCreateSchema', () => {
   // The create input re-declares price_cents and currency rather than picking them, so the read
   // schema's bounds above say nothing about these — they are separate constraints.
   it('accepts a paid price and rejects a negative one', () => {
-    expect(eventCreateSchema.parse({ ...physical, price_cents: 2500 }).price_cents).toBe(2500);
-    expect(() => eventCreateSchema.parse({ ...physical, price_cents: -1 })).toThrow();
+    const paid = { ...physical, price_cents: 2500, settlement_ack: true };
+    expect(eventCreateSchema.parse(paid).price_cents).toBe(2500);
+    expect(() => eventCreateSchema.parse({ ...paid, price_cents: -1 })).toThrow();
+  });
+  it('refuses a paid event with no settlement acknowledgement (#437)', () => {
+    // #104's deferral was granted on the condition that organisers are told, before they list a
+    // paid event, that settlement is manual and on what cadence. This mirrors create_event's own
+    // refusal so the form blocks first; the server check is the load-bearing one, because this
+    // schema runs on a client.
+    const parsed = eventCreateSchema.safeParse({ ...physical, price_cents: 2500 });
+    expect(parsed.success).toBe(false);
+    const issue = parsed.error?.issues.find((i) => i.path[0] === 'settlement_ack');
+    expect(issue?.code).toBe('custom');
+    expect(issue?.message).toBe('settlement_ack_required');
+  });
+  it('leaves a free event alone — nothing to settle, nothing to acknowledge (#437)', () => {
+    const parsed = eventCreateSchema.parse(physical);
+    expect(parsed.price_cents).toBe(0);
+    expect(parsed.settlement_ack).toBe(false);
   });
   it('anchors currency to exactly three lowercase letters', () => {
     for (const bad of ['xeur', 'eurx', 'EUR', 'eu', 'euro']) {
@@ -194,21 +251,21 @@ describe('rsvpSchema', () => {
 describe('eventLiveStatsSchema', () => {
   const valid = {
     event_id: '11111111-1111-1111-1111-111111111111',
-    listener_count: 142,
     is_live: true,
     updated_at: '2026-06-15T10:00:00.000Z',
   };
 
-  it('parses a valid live-stats row', () => {
+  it('parses a valid live-flag row', () => {
     expect(eventLiveStatsSchema.parse(valid)).toEqual(valid);
   });
 
-  it('rejects a negative listener_count', () => {
-    expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: -1 })).toThrow();
+  it('strips a stray listener_count — dropped column; the count is presence, not a row (#120)', () => {
+    expect(eventLiveStatsSchema.parse({ ...valid, listener_count: 3 })).toEqual(valid);
   });
 
-  it('rejects a non-integer listener_count', () => {
-    expect(() => eventLiveStatsSchema.parse({ ...valid, listener_count: 1.5 })).toThrow();
+  it('rejects a missing is_live', () => {
+    const { is_live: _is_live, ...rest } = valid;
+    expect(() => eventLiveStatsSchema.parse(rest)).toThrow();
   });
 });
 
@@ -220,6 +277,7 @@ describe('ticketSchema', () => {
     stripe_payment_id: 'pi_123',
     qr_token: 'signed.token',
     status: 'paid',
+    expires_at: null,
     created_at: '2026-06-16T10:00:00.000Z',
     updated_at: '2026-06-16T10:00:00.000Z',
   };
@@ -228,9 +286,15 @@ describe('ticketSchema', () => {
     expect(ticketSchema.parse(valid)).toEqual(valid);
   });
 
-  it('accepts a pending ticket with null payment id + qr', () => {
+  it('accepts a pending ticket with null payment id + qr and a seat-hold expiry (#105)', () => {
     expect(() =>
-      ticketSchema.parse({ ...valid, status: 'pending', stripe_payment_id: null, qr_token: null }),
+      ticketSchema.parse({
+        ...valid,
+        status: 'pending',
+        stripe_payment_id: null,
+        qr_token: null,
+        expires_at: '2026-06-16T10:35:00.000Z',
+      }),
     ).not.toThrow();
   });
 
@@ -267,5 +331,89 @@ describe('checkInResultSchema', () => {
   });
   it('rejects an unknown verdict', () => {
     expect(() => checkInResultSchema.parse({ result: 'exploded' })).toThrow();
+  });
+});
+
+// Mirrors public.event_category / event_tickets.status — the literal list, never a loop over
+// the constant: a blanked member narrows the boundary and a loop would not notice.
+describe('event vocabularies', () => {
+  it('eventCategorySchema is the nine categories, in enum order', () => {
+    expect(eventCategorySchema.options).toEqual([
+      'business',
+      'networking',
+      'spiritualita',
+      'formazione',
+      'musica',
+      'arte',
+      'benessere',
+      'creativi',
+      'evoluzione',
+    ]);
+  });
+
+  it('rejects a category outside the enum, blank included', () => {
+    for (const bad of ['sport', 'music', 'cultura', '']) {
+      expect(eventCategorySchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('ticketStatusSchema is pending → paid → checked_in, or refunded', () => {
+    expect(ticketStatusSchema.options).toEqual(['pending', 'paid', 'checked_in', 'refunded']);
+    for (const bad of ['cancelled', 'gifted', 'expired', '']) {
+      expect(ticketStatusSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe('eventCalendarFiltersSchema (#151)', () => {
+  it('accepts an empty object — no filter is the default, not an error', () => {
+    expect(eventCalendarFiltersSchema.parse({})).toEqual({});
+  });
+
+  it('accepts every field together', () => {
+    const parsed = eventCalendarFiltersSchema.parse({
+      category: 'musica',
+      city: 'Bologna',
+      dateFrom: '2026-08-23T00:00:00.000Z',
+      dateTo: '2026-08-30T23:59:59.999Z',
+    });
+    expect(parsed.category).toBe('musica');
+    expect(parsed.city).toBe('Bologna');
+    expect(parsed.dateFrom).toBe('2026-08-23T00:00:00.000Z');
+    expect(parsed.dateTo).toBe('2026-08-30T23:59:59.999Z');
+  });
+
+  it('rejects a category outside the event enum', () => {
+    expect(eventCalendarFiltersSchema.safeParse({ category: 'sport' }).success).toBe(false);
+  });
+
+  it('caps city at the events.city column width (120), not profiles.city (80)', () => {
+    expect(eventCalendarFiltersSchema.safeParse({ city: 'a'.repeat(120) }).success).toBe(true);
+    expect(eventCalendarFiltersSchema.safeParse({ city: 'a'.repeat(121) }).success).toBe(false);
+  });
+
+  it('rejects a date bound that is not an ISO datetime', () => {
+    expect(eventCalendarFiltersSchema.safeParse({ dateFrom: '2026-08-23' }).success).toBe(false);
+    expect(eventCalendarFiltersSchema.safeParse({ dateTo: 'domani' }).success).toBe(false);
+  });
+
+  it('isEmptyEventCalendarFilters is true for undefined and for an all-undefined object', () => {
+    expect(isEmptyEventCalendarFilters(undefined)).toBe(true);
+    expect(isEmptyEventCalendarFilters({})).toBe(true);
+    expect(
+      isEmptyEventCalendarFilters({
+        category: undefined,
+        city: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+      }),
+    ).toBe(true);
+  });
+
+  it('isEmptyEventCalendarFilters is false when any single field is set', () => {
+    expect(isEmptyEventCalendarFilters({ category: 'arte' })).toBe(false);
+    expect(isEmptyEventCalendarFilters({ city: 'Torino' })).toBe(false);
+    expect(isEmptyEventCalendarFilters({ dateFrom: '2026-08-23T00:00:00.000Z' })).toBe(false);
+    expect(isEmptyEventCalendarFilters({ dateTo: '2026-08-23T00:00:00.000Z' })).toBe(false);
   });
 });

@@ -23,17 +23,23 @@ set local role service_role;
 -- hiding identity_tags ALONE does not zero affinity (offer_hit still fires).
 -- C doubles as a recipient: she has an active dream too, so the same run scores
 -- her deck and exposes the direction asymmetry (see the C-side assertion below).
-update public.profiles set identity_tags=array['design'], seeking=array['music'], locale='it'
+--
+-- Real onboarding vocabulary since #273: the matcher now expands `seeking` through
+-- athanor.seeking_to_identity() before intersecting, so invented tags ('design',
+-- 'music') would score 0 for every pair and prove nothing. A is a freelance artista
+-- seeking mentorship; B/C/D/E are mentor+coach seeking collaborazioni, i.e. the
+-- complementary side in both directions (seek_hit 2 + offer_hit 2 = affinity 4).
+update public.profiles set identity_tags=array['freelance','artista'], seeking=array['mentorship'], locale='it'
   where id='aaaaaaaa-0000-4000-8000-000000000073';
-update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it',
+update public.profiles set identity_tags=array['mentor','coach'], seeking=array['collaborazioni'], locale='it',
   visibility='{"dream":"private"}'::jsonb
   where id='bbbbbbbb-0000-4000-8000-000000000073';
-update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it',
+update public.profiles set identity_tags=array['mentor','coach'], seeking=array['collaborazioni'], locale='it',
   visibility='{"identity_tags":"private","seeking":"private"}'::jsonb
   where id='cccccccc-0000-4000-8000-000000000073';
-update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it'
+update public.profiles set identity_tags=array['mentor','coach'], seeking=array['collaborazioni'], locale='it'
   where id='dddddddd-0000-4000-8000-000000000073';
-update public.profiles set identity_tags=array['music'], seeking=array['design'], locale='it',
+update public.profiles set identity_tags=array['mentor','coach'], seeking=array['collaborazioni'], locale='it',
   visibility='{"identity_tags":"private"}'::jsonb
   where id='eeee1111-0000-4000-8000-000000000073';
 
@@ -69,10 +75,15 @@ select is(
   'private identity_tags AND seeking ⇒ affinity 0 ⇒ no match (intended privacy trade)'
 );
 -- Hiding identity_tags ALONE is not enough to leave the deck. `offer_hit`
--- (migration L92) intersects the RECIPIENT's identity_tags with the candidate's
--- `seeking`, and `seeking` is masked independently (L97-98) — so E, tags private
--- but seeking at default, still scores 1 against A and is still proposed. Both
--- fields must be private for the affinity-0 trade above to hold.
+-- intersects the RECIPIENT's identity_tags with the candidate's EXPANDED `seeking`,
+-- and `seeking` is masked independently — so E, tags private but seeking at default,
+-- still scores 2 against A (A is both freelance and artista, and both answer
+-- «collaborazioni») and is still proposed. Both fields must be private for the
+-- affinity-0 trade above to hold.
+--
+-- The margin is thinner than it was: before #273 raised the bar to two terms, ONE
+-- surviving offer_hit was enough. A member who hides identity_tags now leaves the
+-- deck of any recipient they answer only once.
 select is(
   (select count(*) from public.momento_proposals
     where user_id='aaaaaaaa-0000-4000-8000-000000000073'
@@ -108,9 +119,10 @@ reset role;
 -- ── DEFINER helper lockdown ─────────────────────────────────────────────────
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname='athanor' and p.proname in ('field_visible','profile_search_text','visible_bio','owns_dream','not_blocked')
+    where n.nspname='athanor' and p.proname in ('field_visible','profile_search_text','visible_bio','owns_dream','not_blocked',
+                                                'tag_intersect','seeking_to_identity','pair_not_blocked')
       and p.proconfig @> array['search_path=""']),
-  5::bigint,
+  8::bigint,
   'every athanor helper pins an empty search_path'
 );
 

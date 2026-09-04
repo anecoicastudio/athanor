@@ -16,9 +16,11 @@
       "url": "https://u.expo.dev/9eb6e3f0-ef63-4467-896e-16136b6fd68f"
     },
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.athanor.app",
-      "associatedDomains": ["applinks:www.athanor.workers.dev"]
+      "associatedDomains": ["applinks:www.athanor.world"],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.athanor.app",
@@ -28,11 +30,36 @@
           "autoVerify": true,
           "category": ["BROWSABLE", "DEFAULT"],
           "data": [
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/momento" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/event" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/post" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/invite" },
-            { "scheme": "https", "host": "www.athanor.workers.dev", "pathPrefix": "/@" }
+            {
+              "scheme": "https",
+              "host": "www.athanor.world",
+              "pathPrefix": "/momento"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.world",
+              "pathPrefix": "/event"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.world",
+              "pathPrefix": "/post"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.world",
+              "pathPrefix": "/dream"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.world",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "www.athanor.world",
+              "pathPrefix": "/@"
+            }
           ]
         }
       ],
@@ -75,13 +102,17 @@
         "expo-image-picker",
         {
           "photosPermission": "Athanor accesses your photos only when you choose one to share — never your whole library.",
-          "cameraPermission": "Athanor uses the camera so you can capture a photo or video for a moment or a post.",
-          "microphonePermission": "Athanor uses the microphone when you record a video for a moment or a post."
+          "cameraPermission": "Athanor uses the camera so you can capture a photo or video for a moment or a post."
         }
       ],
       "expo-video",
       "expo-camera",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Athanor uses the microphone when you record a voice note, or a video for a moment or a post."
+        }
+      ],
       "expo-asset",
       [
         "expo-location",

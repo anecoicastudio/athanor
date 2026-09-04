@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { favorInsertSchema, favorNeedSchema, favorOfferSchema } from './favor';
+import { favorInsertSchema, favorNeedSchema, favorOfferSchema } from './favor.ts';
 
 describe('favorOfferSchema', () => {
   test('parses a valid favor row', () => {
@@ -49,5 +49,27 @@ describe('favorNeedSchema', () => {
       target_avatar_path: null,
     };
     expect(favorNeedSchema.parse(row)).toMatchObject({ need: 'Un mentor', target_handle: null });
+  });
+});
+
+describe('favorInsertSchema shape', () => {
+  test('carries exactly target, need and the milestone it answers — actor_id comes from auth', () => {
+    expect(Object.keys(favorInsertSchema.shape).sort()).toEqual([
+      'need',
+      'need_milestone_id',
+      'target_id',
+    ]);
+  });
+
+  test('requires target_id and need_milestone_id', () => {
+    const base = {
+      target_id: '33333333-3333-3333-3333-333333333333',
+      need: 'Un parere',
+      need_milestone_id: null,
+    };
+    for (const key of ['target_id', 'need_milestone_id'] as const) {
+      const { [key]: _dropped, ...without } = base;
+      expect(favorInsertSchema.safeParse(without).success).toBe(false);
+    }
   });
 });

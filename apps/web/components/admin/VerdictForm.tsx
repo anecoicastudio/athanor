@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { t, type Locale } from '@athanor/i18n';
+import type { ReportTargetType } from '@athanor/schemas';
 import { submitVerdict } from '@/app/admin/(dashboard)/reports/[id]/actions';
 
 /**
@@ -22,10 +23,17 @@ export function VerdictForm({
 }: {
   reportId: string;
   locale: Locale;
-  targetType: 'person' | 'post' | 'behavior';
+  /** The reports vocabulary itself (#574) — never a re-declared union: a fourth target type
+   *  widens `REPORT_TARGET_TYPES` and this prop follows without an edit. */
+  targetType: ReportTargetType;
 }) {
   const [verdict, setVerdict] = useState<'dismiss' | 'uphold'>('dismiss');
-  const canUphold = targetType === 'person';
+  // An uphold needs someone for the verdict to land on. `resolve_report` v5 (#574) resolves
+  // that subject for a person (itself) and for a message (its sender) and raises 22023 for
+  // anything else — so these are exactly the two target types the form may offer it for.
+  // A post stays dismiss-only here because it is dismiss-only in the SQL: whether a single
+  // post can cost Aura is a product decision nobody has taken.
+  const canUphold = targetType === 'person' || targetType === 'message';
   return (
     <form
       action={submitVerdict}

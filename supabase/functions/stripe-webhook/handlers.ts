@@ -71,6 +71,38 @@ function refId(ref: unknown): string | null {
   return (ref as { id?: string } | null | undefined)?.id ?? null;
 }
 
+/**
+ * #522 — mirror a settled ticket as a going RSVP.
+ *
+ * `rsvps` was the free path's table alone, so `event_reminder_sweep()` reminded nobody who paid
+ * and «N partecipano» counted nobody who paid. Marco's ruling (2026-08-30) widens the AUDIENCE
+ * rather than the queries: one row here and both read paths see ticket holders unchanged.
+ *
+ * Never called before `assertSettled` — the seat must exist before the row claiming it does.
+ * The upsert is `do update`, not `ignoreDuplicates`: a re-buy after a refund has to move the
+ * mirror back from 'cancelled' to 'going', and a redelivery that rewrites 'going' over 'going'
+ * costs an updated_at and nothing else.
+ *
+ * A throw here 500s the delivery and Stripe retries, which is right for a transient failure and
+ * would be catastrophic for a permanent one — `handleWebhook`'s lease is released and sustained
+ * 5xx gets the endpoint disabled. The one permanent refusal this write could hit is the free
+ * path's capacity trigger (`P0001 'sold out'`), and 20260831090931 is what makes it unreachable:
+ * a member whose ticket has SETTLED is exempt, because a mirrored RSVP is not a second seat. That
+ * exemption is narrower than the seat-holding predicate on purpose, and this function is why it
+ * can be: every branch that reaches the mirror has already put the ticket row at 'paid'. Do not
+ * add a catch here without reading that migration's header — swallowing the error would hide a
+ * real schema fault instead.
+ */
+async function mirrorRsvp(db: Db, eventId: string, userId: string): Promise<void> {
+  const { error } = await db
+    .from('rsvps')
+    .upsert(
+      { user_id: userId, event_id: eventId, status: 'going' },
+      { onConflict: 'user_id,event_id' },
+    );
+  if (error) throw error;
+}
+
 /** W1 — a ticket Checkout completed. Issue the ticket + sign the QR (service role). Idempotent. */
 export async function handleTicketPaid(
   db: Db,
@@ -91,10 +123,12 @@ export async function handleTicketPaid(
     qrSecret,
   );
 
-  // The client has NO insert/update path — this upsert (service role) is the sole writer.
-  // ignoreDuplicates: a redelivery (or a NEW Stripe event id for the same session, which the
-  // processed_at gate can't catch) must NOT overwrite a later status — e.g. reset a Slice-B
-  // `checked_in` ticket back to `paid`. The first W1 delivery already wrote the row.
+  // The buyer's row normally ALREADY EXISTS as a pending seat claim (claim_event_seat, #105)
+  // written before the Session was minted, so the common path is the flip below, not this
+  // insert. The upsert stays for sessions minted before claims existed and as the fallback
+  // when a claim vanished. ignoreDuplicates: a redelivery (or a NEW Stripe event id for the
+  // same session, which the processed_at gate can't catch) must NOT overwrite a later
+  // status — e.g. reset a Slice-B `checked_in` ticket back to `paid`.
   const paymentIntent = refId(session.payment_intent);
   const { error, count } = await db.from('event_tickets').upsert(
     {
@@ -108,11 +142,24 @@ export async function handleTicketPaid(
   );
   if (error) throw error;
   // count 0 = the unique(user_id,event_id) row already existed and the upsert was swallowed.
-  // One real purchase hides among the redeliveries: a re-buy after a refund (the TicketBar
-  // re-offers purchase on a refunded ticket) arrives with a NEW payment intent and would
-  // otherwise be silently discarded — charged, no QR. Repair exactly that case; a null count
-  // is indeterminate and falls through to "inserted" (worst case: today's swallow, no rewrite).
-  if (count !== 0) return;
+  // Two real purchases hide among the redeliveries: the buyer's own pending seat claim
+  // (#105 — every claimed checkout lands here), and a re-buy after a refund arriving with a
+  // NEW payment intent. Both would otherwise be silently discarded — charged, no QR. Pay
+  // exactly those; a null count is indeterminate and falls through to "inserted" (worst
+  // case: the old swallow, no rewrite).
+  if (count !== 0) {
+    // count > 0: this call inserted the row, as 'paid' — mirror it.
+    //
+    // count === null is indeterminate, and the ticket half above deliberately reads it as
+    // "inserted". The mirror must NOT: a pre-existing `pending` row is possible on that branch,
+    // and 20260831090931's exemption covers settled tickets only, so the RSVP would become a
+    // capacity candidate and could raise P0001 inside the webhook — the one failure mode
+    // 20260831085517's header exists to make unreachable. A later redelivery lands on the
+    // live-row branch below and restates the mirror; a missed reminder for one buyer is the
+    // cheaper side of this trade than a 5xx loop that gets the endpoint disabled.
+    if (count !== null) await mirrorRsvp(db, eventId, profileId);
+    return;
+  }
   // A repair without a PI would write a row revokeTicket can never match again. Unreachable
   // for mode:'payment' Checkout, but the swallow is the safe failure direction.
   if (!paymentIntent) return;
@@ -125,19 +172,37 @@ export async function handleTicketPaid(
     .maybeSingle();
   if (selErr) throw selErr;
   const row = existing as { status?: string; stripe_payment_id?: string | null } | null;
-  // Live (paid/checked_in) rows are untouchable — redelivery must never reset them. And a
-  // replay of the ORIGINAL purchase session after its refund carries the SAME payment intent
-  // as the refunded row: resurrecting it would undo the revocation, so only a different PI
-  // (a genuinely new purchase) re-issues.
-  if (!row || row.status !== 'refunded' || row.stripe_payment_id === paymentIntent) return;
+  // Live (paid/checked_in) rows are untouchable — redelivery must never reset them. A
+  // pending claim (stripe_payment_id null) is paid here; that flip must land even when the
+  // claim's 35-minute TTL has lapsed — the money moved, so the ticket exists (capacity was
+  // enforced at claim time, not here). And a replay of the ORIGINAL purchase session after
+  // its refund carries the SAME payment intent as the refunded row: resurrecting it would
+  // undo the revocation, so only a different PI (a genuinely new purchase) re-issues.
+  if (!row || (row.status !== 'refunded' && row.status !== 'pending')) {
+    // A live (paid/checked_in) row: this delivery is a replay of a ticket already issued. The
+    // mirror is restated anyway — it is idempotent, and it is the only path that ever heals a
+    // ticket sold before #522 shipped whose event Stripe redelivers. (20260831085517 backfills
+    // the ones it does not.) `!row` is nothing at all, so there is nothing to mirror.
+    if (row) await mirrorRsvp(db, eventId, profileId);
+    return;
+  }
+  // A replay of the ORIGINAL session after its refund: same PI, so no ticket is re-issued and
+  // the mirror stays 'cancelled' where revokeTicket left it.
+  if (row.stripe_payment_id === paymentIntent) return;
 
   const { error: updErr } = await db
     .from('event_tickets')
-    .update({ status: 'paid', stripe_payment_id: paymentIntent, qr_token: qrToken })
+    .update({
+      status: 'paid',
+      stripe_payment_id: paymentIntent,
+      qr_token: qrToken,
+      expires_at: null,
+    })
     .eq('user_id', profileId)
     .eq('event_id', eventId)
-    .eq('status', 'refunded'); // guard: a concurrent status change wins over the repair
+    .in('status', ['pending', 'refunded']); // guard: a concurrent status change wins over the flip
   if (updErr) throw updErr;
+  await mirrorRsvp(db, eventId, profileId);
 }
 
 /** Recompute the live-ticker aggregate from source → Supabase Realtime publishes the change. */
@@ -147,10 +212,63 @@ async function recomputeAggregate(db: Db, editionId: string): Promise<void> {
 }
 
 /**
+ * Read one integer-cents figure out of Checkout metadata. Absent → null (the caller decides
+ * what a missing key means); present-but-malformed → throw, because a money row derived from
+ * a value we could not parse is worse than a retry.
+ */
+function metadataCents(session: Stripe.Checkout.Session, key: string): number | null {
+  const raw = session.metadata?.[key];
+  // Only a genuinely absent key means «pre-#236 session». A present-but-empty value is
+  // corruption or tampering, not a default.
+  if (raw === undefined || raw === null) return null;
+  // Digits only, deliberately, rather than Number() + isInteger: `Number(' ')` and
+  // `Number('')` are both 0, so a blank string would silently become a valid zero coverage
+  // and reconcile against amount_total by accident. The regex is the guard the numeric
+  // check cannot be.
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+    throw new Error(`contribution session ${session.id} has a malformed ${key}: ${raw}`);
+  }
+  return Number(raw);
+}
+
+/**
+ * #236 — split a settled contribution into the gift and the optional fee coverage.
+ *
+ * Stripe is the source of truth and `amount_total` is its number; our two columns are the
+ * cache (rule #6). So the split is not merely copied from metadata — it must RECONCILE:
+ * gift + coverage has to equal what Stripe actually charged, or the row is refused. That is
+ * the whole integrity story for a figure create-contribution-session computed minutes
+ * earlier in a different process.
+ *
+ * Absent keys mean a session minted before #236 shipped, and those are still in flight
+ * whenever this deploys: no coverage could be taken then, so the gift IS the total. That
+ * branch must stay, or the first deploy poison-loops every open Checkout.
+ */
+export function contributionSplit(
+  session: Stripe.Checkout.Session,
+  totalCents: number,
+): { giftCents: number; coverageCents: number } {
+  const coverageCents = metadataCents(session, 'coverage_cents') ?? 0;
+  const giftCents = metadataCents(session, 'gift_cents') ?? totalCents - coverageCents;
+  if (giftCents + coverageCents !== totalCents) {
+    throw new Error(
+      `contribution session ${session.id} does not reconcile: gift ${giftCents} + coverage ` +
+        `${coverageCents} != amount_total ${totalCents}`,
+    );
+  }
+  return { giftCents, coverageCents };
+}
+
+/**
  * W3 — a contribution Checkout completed. Write the contribution (service role) and move the
  * live ticker. The ticker is public and realtime, so it must never show money that has not
  * arrived: assertSettled throws rather than writing a row the aggregate would have to
  * un-count later.
+ *
+ * The row stores the GIFT in amount_cents and the optional coverage beside it (#236), because
+ * the pool is the gift: recompute_fund_aggregate and every FUND-42 computation read
+ * amount_cents, and coverage is money that went to Stripe, not to the fund. charged_cents is
+ * generated from the pair and is what reconciles against Stripe's amount_total.
  *
  * Row-level idempotency: stripe_checkout_session_id is UNIQUE → a redelivery inserts nothing,
  * count comes back 0, and the aggregate is left alone because it is already current.
@@ -163,13 +281,20 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
   // Stripe is the source of truth for the amount. Fail loud on a missing total so Stripe retries
   // (rather than relying on the amount_cents >= 100 CHECK to bounce a junk 0-row).
   if (!session.amount_total) throw new Error('contribution session missing amount_total');
-  const profileId = session.metadata?.profile_id ?? null; // nullable: anonymous donors allowed
+  // profile_id NOT NULL since #239 (D24: no anonymous contributions). create-contribution-session
+  // always mints it from the verified caller, so a session without it is malformed — fail loud
+  // here rather than let the insert hit the constraint and poison-loop on redelivery.
+  const profileId = session.metadata?.profile_id;
+  if (!profileId) throw new Error('contribution session missing profile_id');
+
+  const { giftCents, coverageCents } = contributionSplit(session, session.amount_total);
 
   const { error, count } = await db.from('fund_contributions').upsert(
     {
       edition_id: editionId,
       profile_id: profileId,
-      amount_cents: session.amount_total,
+      amount_cents: giftCents,
+      coverage_cents: coverageCents,
       currency: (session.currency ?? 'eur').toLowerCase(),
       stripe_checkout_session_id: session.id,
       stripe_payment_intent_id: refId(session.payment_intent),
@@ -188,6 +313,20 @@ export async function handleContribution(db: Db, session: Stripe.Checkout.Sessio
  * Pull a settled contribution back out of the ticker. Shared by W4 (refund) and W12 (dispute):
  * both mean the money is going away, and both must be idempotent under redelivery.
  * Matches by payment_intent; acks silently when the charge belongs to something else (a ticket).
+ *
+ * A REFUND RETURNS THE CONTRIBUTION, NEVER THE COVERAGE (FUND-51, #236). Stripe does not
+ * return processing on a refund, so returning the coverage would cost the fund money it never
+ * held. There is no refund-initiation code in this repo — every refund is issued by an
+ * operator in the Stripe Dashboard — so that property lives in WHAT THE OPERATOR REFUNDS,
+ * not here. The amount to refund is the row's `amount_cents`, which is already the gift: no
+ * arithmetic, nothing to get wrong at 2am.
+ *
+ * What DOES live here is that the ticker stays exact under either choice. This flip is
+ * whole-row and reads neither `charge.amount_refunded` nor the partial/full distinction, but
+ * it no longer needs to: the aggregate only ever counted `amount_cents`, so un-counting a
+ * reversed contribution removes precisely the gift whether the operator refunded the gift
+ * alone or the entire charge. Before #236 split the column this was the one place a covered
+ * contribution could have over-corrected the public total.
  */
 async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<void> {
   const paymentIntent = refId(paymentIntentRef);
@@ -215,13 +354,30 @@ async function reverseContribution(db: Db, paymentIntentRef: unknown): Promise<v
  * Revoke the event ticket bought by a charge that lost its money. The QR token is stateless
  * HMAC — there is no revocation list, so this status flip IS the revocation: check-in admits
  * only paid/checked_in, and the nulled qr_token stops the viewer rendering a door pass.
- * A single guarded update: no match (the charge was a contribution) or a re-delivered
- * reversal both no-op. Nothing to unwind besides access — paid tickets consume no capacity,
- * and attendance/aura are attendance-based by design.
+ * A guarded update: no match (the charge was a contribution) or a re-delivered reversal both
+ * no-op. The status flip is also the capacity unwind (#105 reversed the old "paid tickets
+ * consume no capacity" design): a refunded row stops counting as a held seat, so the seat frees
+ * itself. Attendance/aura stay attendance-based by design.
+ *
+ * Since #522 it carries a second write: the mirrored RSVP the purchase created is flipped to
+ * 'cancelled' in the same call, because the reminder audience and «N partecipano» are now that
+ * table and a revoked ticket must leave both.
  */
 async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
   const paymentIntent = refId(paymentIntentRef);
   if (!paymentIntent) return; // nothing to match — ack (idempotency ledger already recorded it)
+
+  // Read the (user, event) pairs FIRST, and unfiltered by status. `rsvps` carries no payment
+  // column — id, user_id, event_id, status, timestamps — so the only join key to the mirror is
+  // the ticket row itself (#522). Reading it AFTER the guarded update would return nothing on a
+  // redelivery, and a first delivery that died between the two writes would strand the mirror at
+  // 'going' forever: the sweep would remind a revoked ticket holder and «N partecipano» would
+  // keep counting them. Reading first makes the retry the repair.
+  const { data: ticketRows, error: selErr } = await db
+    .from('event_tickets')
+    .select('user_id,event_id')
+    .eq('stripe_payment_id', paymentIntent);
+  if (selErr) throw selErr;
 
   const { error } = await db
     .from('event_tickets')
@@ -229,6 +385,22 @@ async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
     .eq('stripe_payment_id', paymentIntent)
     .in('status', ['paid', 'checked_in']); // guard: a re-delivered reversal won't re-flip
   if (error) throw error;
+
+  // The seat is gone, so the RSVP that mirrored it goes too. Guarded on 'going', so a
+  // redelivery is a no-op. Matching on the ticket row rather than on (event, user) alone is what
+  // keeps this off the free path: a member who tapped RSVP on a free event has no ticket row
+  // carrying this payment intent, so nothing here can reach them. A re-buy is safe for the same
+  // reason — the row now carries the NEW payment intent, so a late redelivery of the old
+  // refund matches nothing and cannot cancel the ticket that replaced it.
+  for (const t of (ticketRows ?? []) as { user_id: string; event_id: string }[]) {
+    const { error: rsvpErr } = await db
+      .from('rsvps')
+      .update({ status: 'cancelled' })
+      .eq('user_id', t.user_id)
+      .eq('event_id', t.event_id)
+      .eq('status', 'going');
+    if (rsvpErr) throw rsvpErr;
+  }
 }
 
 /**
@@ -294,6 +466,9 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
       plan,
       status: mapSubStatus(sub.status),
       current_period_end: currentPeriodEnd,
+      // #511 — written through verbatim so the app can tell «renews on» from «ends on».
+      // Stripe flips it back to false on an un-cancel via this same event, so no extra branch.
+      cancel_at_period_end: sub.cancel_at_period_end,
     },
     { onConflict: 'profile_id' },
   );
@@ -368,6 +543,132 @@ export async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Prom
   if (error) throw error;
 }
 
+/**
+ * W13 — account.updated: maintain the payout_accounts cache (#245/#246) as Stripe walks the
+ * Express account through KYC. Both directions on purpose: Stripe grants AND revokes
+ * capabilities (new requirements past their deadline flip payouts_enabled back to false), and
+ * #247's transfer gate must fail closed on the revocation, not just open on the grant.
+ * Update-only, matched on stripe_account_id: the row is inserted by create-payout-onboarding,
+ * so an unmatched id means the account is not ours or the profile was erased and the row
+ * cascaded away — recreating it would resurrect a deleted profile's pointer. Ack either way.
+ * Idempotent: a redelivery rewrites the same flags, and onboarded_at is guarded set-once.
+ */
+export async function handleAccountUpdated(db: Db, account: Stripe.Account): Promise<void> {
+  const { error: updErr } = await db
+    .from('payout_accounts')
+    .update({
+      charges_enabled: !!account.charges_enabled,
+      payouts_enabled: !!account.payouts_enabled,
+    })
+    .eq('stripe_account_id', account.id);
+  if (updErr) throw updErr;
+
+  // onboarded_at means "when onboarding completed", not "last account event": stamp it on the
+  // first event with details_submitted and never move it — the is-null guard makes replays
+  // and later capability events no-ops here.
+  if (account.details_submitted) {
+    const { error: onbErr } = await db
+      .from('payout_accounts')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('stripe_account_id', account.id)
+      .is('onboarded_at', null);
+    if (onbErr) throw onbErr;
+  }
+}
+
+/**
+ * W14 — transfer.created: RECORD the fund payout the release path requested (#247, rule #6:
+ * the execution requests, the webhook records — this arm is the ONLY writer of a new
+ * fund_payout_ledger row). Only kind='fund_payout' transfers are ours to record; any other
+ * transfer (#104's ticket payouts later, a Dashboard manual transfer) acks untouched.
+ * The basis rides the transfer's metadata — set by release-fund-payout from the cycle's
+ * frozen #232 columns, plus #231's plan_phase_id naming the phase whose recorded
+ * verification released the tranche — and the within-basis trigger re-derives it against
+ * those columns, so a diverging, over-payable, wrong-cycle or over-phase-amount row
+ * REFUSES (P0001): this throw makes Stripe retry and
+ * leaves the event visible with processed_at NULL, a standing alarm, exactly the
+ * assertSettled failure posture. Idempotent: stripe_transfer_id is UNIQUE and the upsert
+ * ignores duplicates, so a redelivery inserts nothing.
+ */
+export async function handleTransferCreated(db: Db, transfer: Stripe.Transfer): Promise<void> {
+  if (transfer.metadata?.kind !== 'fund_payout') return; // not the fund path — ack
+
+  // Metadata values are strings; a lax Number() would read '' as 0 and cache a zero
+  // basis, so only a plain non-negative digit string parses. Fail loud on anything else
+  // rather than cache a row the reconciliation cannot trust — Stripe retries, the
+  // misconfiguration stays visible.
+  const metaInt = (v: string | undefined): number | null =>
+    typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : null;
+  const editionId = transfer.metadata.edition_id;
+  const poolCents = metaInt(transfer.metadata.pool_cents);
+  const splitPct = metaInt(transfer.metadata.split_pct);
+  const payableCents = metaInt(transfer.metadata.payable_cents);
+  if (!editionId) throw new Error('fund payout transfer missing edition_id');
+  if (poolCents === null || splitPct === null || payableCents === null) {
+    throw new Error('fund payout transfer missing its declared-retention basis');
+  }
+  // #231's attribution. ABSENT IS LEGAL AND MEANS NULL: every transfer released before the
+  // tranche gate existed carries no phase, and a redelivery of one of those events must
+  // still record. Present-but-malformed is not — it would reach Postgres as a bare 22P02
+  // from a column the message never names — so the shape is checked here and throws like
+  // the basis above. release-fund-payout cannot mint a new unattributed fund payout: its
+  // payload requires planPhaseId.
+  const rawPhaseId = transfer.metadata.plan_phase_id;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof rawPhaseId === 'string' && !uuid.test(rawPhaseId)) {
+    throw new Error('fund payout transfer carries a malformed plan_phase_id');
+  }
+  const planPhaseId = typeof rawPhaseId === 'string' ? rawPhaseId : null;
+  const destination = refId(transfer.destination);
+  if (!destination) throw new Error('fund payout transfer missing destination');
+
+  const reversed = transfer.amount_reversed ?? 0;
+  const { error } = await db.from('fund_payout_ledger').upsert(
+    {
+      edition_id: editionId,
+      plan_phase_id: planPhaseId,
+      destination_account_id: destination,
+      amount_cents: transfer.amount,
+      reversed_cents: reversed,
+      currency: (transfer.currency ?? 'eur').toLowerCase(),
+      pool_cents: poolCents,
+      split_pct: splitPct,
+      payable_cents: payableCents,
+      status: reversed === transfer.amount ? 'reversed' : 'released',
+      stripe_transfer_id: transfer.id,
+    },
+    { onConflict: 'stripe_transfer_id', ignoreDuplicates: true },
+  );
+  if (error) throw error;
+}
+
+/**
+ * W15 — transfer.reversed: keep the ledger row true when money comes back (full or
+ * partial; amount_reversed is cumulative and only grows, so a redelivery rewrites the
+ * same values — idempotent). A reversal nets against what remains unreleased (#244), so
+ * close_cycle's disbursed and release-fund-payout's headroom both move with this column.
+ * Out-of-order delivery: Stripe does not guarantee event order, and a reversal arriving
+ * before its transfer.created would update zero rows — silently acking that would LOSE
+ * the reversal when the created arm later inserts the pre-reversal snapshot. So an
+ * unmatched fund-kind reversal throws (Stripe retries until the row exists); an unmatched
+ * transfer without our kind is simply not ours — ack.
+ */
+export async function handleTransferReversed(db: Db, transfer: Stripe.Transfer): Promise<void> {
+  const reversed = transfer.amount_reversed ?? 0;
+  const { data: updated, error } = await db
+    .from('fund_payout_ledger')
+    .update({
+      reversed_cents: reversed,
+      status: reversed === transfer.amount ? 'reversed' : 'released',
+    })
+    .eq('stripe_transfer_id', transfer.id)
+    .select('id');
+  if (error) throw error;
+  if ((!updated || updated.length === 0) && transfer.metadata?.kind === 'fund_payout') {
+    throw new Error(`reversal for ${transfer.id} arrived before its ledger row — retry`);
+  }
+}
+
 export async function processEvent(
   ctx: Pick<WebhookCtx, 'db' | 'qrSecret' | 'retrieveSubscription'>,
   event: Stripe.Event,
@@ -429,6 +730,21 @@ export async function processEvent(
     case 'identity.verification_session.verified': {
       // W9
       await handleIdentityVerified(db, event.data.object as Stripe.Identity.VerificationSession);
+      return;
+    }
+    case 'account.updated': {
+      // W13 — Connect Express account state (payout_accounts cache).
+      await handleAccountUpdated(db, event.data.object as Stripe.Account);
+      return;
+    }
+    case 'transfer.created': {
+      // W14 — the fund payout the release path requested, recorded (#247).
+      await handleTransferCreated(db, event.data.object as Stripe.Transfer);
+      return;
+    }
+    case 'transfer.reversed': {
+      // W15 — money came back; the ledger row nets it (#244/#247).
+      await handleTransferReversed(db, event.data.object as Stripe.Transfer);
       return;
     }
     case 'identity.verification_session.requires_input':

@@ -1,17 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { getStars, starKeys } from '@athanor/api';
-import { t, type MessageKey } from '@athanor/i18n';
-import { starKeySchema, type Locale } from '@athanor/schemas';
+import { localeTag, t, type MessageKey } from '@athanor/i18n';
+import { starKeySchema } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/hooks/use-locale';
+import { useStars } from '@/hooks/use-stars';
 import { MODAL_A11Y } from '@/lib/a11y';
-import { localeTag } from '@/lib/time';
 import { starsOrNull } from '@/lib/aura-display';
 import { starCellState, starGlyph } from '@/lib/star';
+import { Screen } from '@/components/Screen';
 
 /**
  * Star detail sheet (M6 §3.2).
@@ -21,8 +20,8 @@ import { starCellState, starGlyph } from '@/lib/star';
  * Rule #1: read-only, no Aura writes.
  */
 export default function StarScreen() {
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   const { starId: rawStarId } = useLocalSearchParams<{ starId: string }>();
@@ -31,11 +30,7 @@ export default function StarScreen() {
   const parseResult = starKeySchema.safeParse(rawStarId);
   const starId = parseResult.success ? parseResult.data : null;
 
-  const query = useQuery({
-    queryKey: starKeys.list(me),
-    queryFn: () => getStars(supabase, me),
-    enabled: !!me,
-  });
+  const query = useStars(me);
 
   // `null` = the read failed. This screen has its own query, so it can fail on its own terms
   // even when the grid that linked here rendered fine — and `?? []` made every star look
@@ -71,7 +66,7 @@ export default function StarScreen() {
   const progressWidth = total > 0 ? done / total : 0;
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* Header — chevron-only (star name is the in-body header below) */}
       <ModalHeader title="" backLabel={t('common.back', locale)} />
 
@@ -144,6 +139,6 @@ export default function StarScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

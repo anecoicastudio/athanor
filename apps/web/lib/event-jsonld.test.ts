@@ -9,16 +9,16 @@ const event: PublicEvent = {
   is_online: false,
   venue: 'Casa delle Idee',
   city: 'Milano',
+  description: null,
   starts_at: '2026-09-01T16:00:00.000Z',
   ends_at: '2026-09-01T19:00:00.000Z',
   price_cents: 1500,
   currency: 'eur',
-  is_kairos_day: false,
   is_athanor_day: false,
   organizer_handle: 'sole',
 };
 
-const URL_ = 'https://www.athanor.workers.dev/event/00000000-0000-0000-0000-0000000000e1';
+const URL_ = 'https://www.athanor.world/event/00000000-0000-0000-0000-0000000000e1';
 
 describe('eventJsonLd', () => {
   it('describes a physical event with its place and offer', () => {
@@ -59,7 +59,7 @@ describe('eventJsonLd', () => {
   it('links the organizer to their public profile, and omits them when private', () => {
     expect(eventJsonLd(event, URL_).organizer).toMatchObject({
       '@type': 'Person',
-      url: 'https://www.athanor.workers.dev/@sole',
+      url: 'https://www.athanor.world/@sole',
     });
     expect(eventJsonLd({ ...event, organizer_handle: null }, URL_).organizer).toBeUndefined();
   });

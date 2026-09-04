@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl } from 'react-native';
+import { ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { semantic } from '@athanor/config';
@@ -13,16 +13,17 @@ import {
 } from '@athanor/api';
 import type { NotifCursor } from '@athanor/api';
 import type { Notification } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
 import { routeForNotification } from '@/lib/notification-route';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * In-app notification center (M9 §3.6). Grouped into Nuove (unread) + Prima (read).
@@ -33,8 +34,7 @@ import { supabase } from '@/lib/supabase';
  */
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
 
   // ── Notification list (keyset, created_at desc) ───────────────────────────
@@ -87,7 +87,7 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header: back + title + «Segna lette» + gear → prefs */}
       <ModalHeader
         title={t('notif.title', locale)}
@@ -134,7 +134,7 @@ export default function NotificationsScreen() {
           if (section.kind === 'header') {
             return (
               <View className="px-5 pb-1 pt-4">
-                <SectionLabel>{section.label}</SectionLabel>
+                <SectionLabel heading>{section.label}</SectionLabel>
               </View>
             );
           }
@@ -166,6 +166,6 @@ export default function NotificationsScreen() {
           />
         }
       />
-    </View>
+    </Screen>
   );
 }

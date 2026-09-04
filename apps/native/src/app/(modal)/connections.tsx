@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -12,18 +11,19 @@ import {
   respondToConnection,
   subscribeIncomingConnections,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { ConnectionRequestListItem } from '@athanor/schemas';
-import { TextInput, View } from '@/tw';
+import { FlatList, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConnectionRequestRow } from '@/components/connections/ConnectionRequestRow';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
 import { SegmentedToggle } from '@/components/connections/SegmentedToggle';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 type Segment = 'requests' | 'connections';
 
@@ -33,8 +33,7 @@ type Segment = 'requests' | 'connections';
  * cyan accent on the active segment, no glow (rule #4); all copy via i18n (rule #5).
  */
 export default function ConnectionsScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -91,7 +90,7 @@ export default function ConnectionsScreen() {
   const connections = connectionsQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('connection.hub.title', locale)} backLabel={t('common.back', locale)} />
 
       <View className="px-5 pb-4">
@@ -144,10 +143,8 @@ export default function ConnectionsScreen() {
       ) : (
         <View className="flex-1">
           <View className="px-5 pb-3">
-            <TextInput
-              className="rounded-full border border-hair bg-raise px-5 py-3 text-foreground"
+            <Input
               placeholder={t('connection.list.search', locale)}
-              placeholderTextColor={semantic.faint}
               value={search}
               onChangeText={setSearch}
               autoCapitalize="none"
@@ -164,7 +161,7 @@ export default function ConnectionsScreen() {
               <ConnectionRow
                 item={item}
                 locale={locale}
-                onPress={() => router.push(`/user/${item.peerId}`)}
+                onPress={() => router.push(`/(modal)/user/${item.peerId}`)}
               />
             )}
             ListEmptyComponent={
@@ -198,6 +195,6 @@ export default function ConnectionsScreen() {
           />
         </View>
       )}
-    </View>
+    </Screen>
   );
 }

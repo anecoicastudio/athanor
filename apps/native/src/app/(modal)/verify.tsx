@@ -1,21 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
-import { t } from '@athanor/i18n';
+import { t, type MessageKey } from '@athanor/i18n';
 import {
   getVerificationStatus,
   requestVerification,
   subscribeVerifyStatus,
+  VerificationSessionError,
   verifyKeys,
 } from '@athanor/api';
 import { deriveVerifyState } from '@athanor/core';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
+
+// The server's `{error}` strings are the stable contract (#103 idiom) — create-verification-session
+// on one side, this map on the other. A configuration refusal (Identity not activated on the
+// account, a key without the permission, an API-version mismatch) is not something retrying can
+// fix, so it must not read as «Riprova» (#416). An unmapped string degrades to the generic copy.
+const VERIFY_ERROR_COPY: Record<string, MessageKey> = {
+  'verification unavailable': 'trust.verify.unavailable',
+};
 
 /**
  * Identity verify sheet (M9 §3.2). Starts a server-created Stripe Identity session, opens the
@@ -23,16 +34,16 @@ import { supabase } from '@/lib/supabase';
  * never writes identity_verified or any Aura (the +50 is the M6 engine's job, rule #1).
  */
 export default function VerifyScreen() {
-  const router = useRouter();
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const leave = useGuardedBack();
+  const { profile, refreshProfile } = useAuth();
+  const locale = useLocale();
   const me = profile?.id;
   const qc = useQueryClient();
 
   const [sessionPending, setSessionPending] = useState(false);
-  const [error, setError] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // null = no failure. Otherwise the copy key for the failure the server named (#416).
+  const [error, setError] = useState<MessageKey | null>(null);
+  const { showToast } = useToast();
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const status = useQuery({
@@ -57,59 +68,73 @@ export default function VerifyScreen() {
     return cleanup;
   }, [me, qc]);
 
-  // On verified: stop polling, toast, auto-dismiss.
+  // On verified: stop polling, toast (survives the pop via the host, #117), auto-dismiss.
+  // Only on a WITNESSED flip (#634): the effect used to fire on first commit for a member who
+  // arrived already verified (deep link, athanor://verify return on a cold stack), handing them
+  // an unearned success toast and ~1.6s later an eject — to Home, because on those entry paths
+  // there is nothing to pop back to. An already-verified visitor now just sees the verified
+  // state and leaves on their own.
+  const sawUnverified = useRef(false);
   useEffect(() => {
-    if (state !== 'verified') return;
+    if (state !== 'verified') {
+      sawUnverified.current = true;
+      return;
+    }
+    if (!sawUnverified.current) return;
     setSessionPending(false);
-    setToast(t('trust.verify.toast.verified', locale));
-    dismissTimer.current = setTimeout(() => router.back(), 1600);
+    // Re-read the AuthContext profile (#412). This query flipping is NOT enough: the context
+    // hydrates `profile` once per session (auth-context keys that effect on [userId, email],
+    // both stable, and onAuthStateChange re-reads it on nothing), so without this every screen
+    // gating on `profile.identity_verified` stays refused until the app restarts — including
+    // candidacy step 4, whose upload buttons now refuse on exactly that flag.
+    void refreshProfile();
+    showToast(t('trust.verify.toast.verified', locale), 'moment');
+    dismissTimer.current = setTimeout(leave, 1600);
     return () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
     };
-  }, [state, locale, router]);
+  }, [state, locale, leave, showToast, refreshProfile]);
 
   useEffect(
     () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
     },
     [],
   );
 
   const start = useCallback(async () => {
-    setError(false);
+    setError(null);
     try {
       const result = await requestVerification(supabase);
       const url = 'url' in result ? result.url : null;
       if (!url) throw new Error('no url'); // clientSecret/native path not used on SDK54 (web sheet only)
       setSessionPending(true);
-      setToast(t('trust.verify.toast.started', locale));
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(null), 1800);
+      showToast(t('trust.verify.toast.started', locale), 'success');
       await WebBrowser.openAuthSessionAsync(url, 'athanor://verify');
       setSessionPending(false); // browser returned (completed OR cancelled) — re-enable CTA; realtime/poll flips to verified if it actually completed
       // back from the Stripe flow — refetch; realtime/poll carry the rest.
       void qc.invalidateQueries({ queryKey: verifyKeys.status() });
-    } catch {
+    } catch (e) {
       setSessionPending(false);
-      setError(true);
+      const code = e instanceof VerificationSessionError ? e.code : undefined;
+      setError((code ? VERIFY_ERROR_COPY[code] : undefined) ?? 'trust.verify.error');
     }
-  }, [locale, qc]);
+  }, [locale, qc, showToast]);
 
   const verified = state === 'verified';
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-10 pt-6">
         {/* grab handle */}
         <View className="mx-auto h-1 w-10 rounded-full bg-hair" />
         {/* head */}
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-foreground">
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="flex-1 text-xl font-bold text-foreground" numberOfLines={2}>
             {t('trust.verify.title', locale)}
           </Text>
           <Pressable
-            onPress={() => router.back()}
+            onPress={leave}
             accessibilityRole="button"
             accessibilityLabel={t('common.back', locale)}
             hitSlop={8}
@@ -152,9 +177,7 @@ export default function VerifyScreen() {
           )}
         </View>
 
-        {error ? (
-          <Text className="text-center text-sm text-error">{t('trust.verify.error', locale)}</Text>
-        ) : null}
+        {error ? <Text className="text-center text-sm text-error">{t(error, locale)}</Text> : null}
 
         {!verified ? (
           <Button
@@ -171,8 +194,6 @@ export default function VerifyScreen() {
           />
         ) : null}
       </ScrollView>
-
-      {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

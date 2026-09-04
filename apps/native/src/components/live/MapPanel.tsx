@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { type Locale, t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, View } from '@/tw';
+import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useCalendarEvents } from '@/hooks/use-calendar-events';
@@ -37,28 +38,24 @@ export function MapPanel({
   if (query.isError) return <PanelError locale={locale} onRetry={() => void query.refetch()} />;
 
   return (
-    <ScrollView contentContainerClassName="pb-[104px]">
+    <ScrollView contentContainerClassName="pb-12">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerClassName="gap-2 px-5 pb-4"
       >
-        {cityCounts.map(([c, n]) => {
-          const on = c === cityFilter;
-          return (
-            <Pressable
-              key={c}
-              onPress={() => setCityFilter(on ? null : c)}
-              accessibilityRole="button"
-              accessibilityLabel={t('live.map.cityCount', locale, { city: c, n })}
-              className={`rounded-full border px-4 py-2 ${on ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'}`}
-            >
-              <Text className={`text-[13px] ${on ? 'text-aura' : 'text-faint'}`}>
-                {t('live.map.cityCount', locale, { city: c, n })}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {/* `Chip small` (#635). Role and label were already right; `selected` was missing, so
+            the filtered city was cyan and nothing else — and the pill missed 44pt. `Chip` takes
+            the same string for its label and its text, which is what these two lines were. */}
+        {cityCounts.map(([c, n]) => (
+          <Chip
+            key={c}
+            small
+            label={t('live.map.cityCount', locale, { city: c, n })}
+            selected={c === cityFilter}
+            onPress={() => setCityFilter(c === cityFilter ? null : c)}
+          />
+        ))}
       </ScrollView>
       <SectionLabel className="px-5 pb-2">{t('live.map.section', locale)}</SectionLabel>
       <View className="gap-3 px-5">

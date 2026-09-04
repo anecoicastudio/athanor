@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Alert, FlatList } from 'react-native';
+import { Alert } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockKeys, listBlocked, unblockUser } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { View } from '@/tw';
+import { FlatList } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
-import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
+import { invalidateBlockDependents } from '@/lib/block-cache';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Blocked-profiles list screen (M9 §3.1). Keyset pagination (rule #9); neutral
@@ -23,37 +25,35 @@ import { supabase } from '@/lib/supabase';
  * tell it from the truth.
  */
 export default function BlockedScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
   const [mutatingId, setMutatingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
+  const { showToast } = useToast();
 
   // ── Blocked list (keyset, created_at desc) ────────────────────────────────
   const query = useInfiniteQuery({
     queryKey: blockKeys.list(),
     queryFn: ({ pageParam }) => listBlocked(supabase, pageParam ?? undefined),
     initialPageParam: undefined as { createdAt: string; id: string } | undefined,
-    getNextPageParam: (last) =>
-      last.length === 0
-        ? undefined
-        : { createdAt: last[last.length - 1]!.createdAt, id: last[last.length - 1]!.id },
+    getNextPageParam: (last) => {
+      const tail = last.items.at(-1);
+      return tail ? { createdAt: tail.createdAt, id: tail.id } : undefined;
+    },
   });
-  const rows = query.data?.pages.flat() ?? [];
+  // `excluded` (a row the schema no longer recognises) has no surface on this screen; the list
+  // stays up with the rows that parsed, which is the api.md trade the reader makes for lists.
+  const rows = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   // ── Unblock mutation ──────────────────────────────────────────────────────
   const unblock = useMutation({
     mutationFn: (peerId: string) => unblockUser(supabase, peerId),
     onMutate: (peerId) => setMutatingId(peerId),
     onSettled: () => setMutatingId(null),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
-      showToast(t('block.toast.unblocked', locale));
+    // Not only the list: the person's cached `null` profile has to go too, or they stay
+    // «non disponibile» for the rest of `useProfile`'s window (see block-cache.ts).
+    onSuccess: (_, peerId) => {
+      invalidateBlockDependents(qc, peerId);
+      showToast(t('block.toast.unblocked', locale), 'success');
     },
   });
 
@@ -68,9 +68,13 @@ export default function BlockedScreen() {
     ]);
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header */}
-      <ModalHeader title={t('block.list.title', locale)} backLabel={t('common.back', locale)} />
+      <ModalHeader
+        title={t('block.list.title', locale)}
+        backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/settings"
+      />
 
       <FlatList
         data={rows}
@@ -80,8 +84,15 @@ export default function BlockedScreen() {
           <BlockedRow
             item={item}
             unblockLabel={t('block.unblock', locale)}
+            removedLabel={t('profile.removed.name', locale)}
             mutating={mutatingId === item.peerId}
-            onUnblock={() => confirmUnblock(item.peerId, item.peerHandle)}
+            onUnblock={() =>
+              confirmUnblock(
+                item.peerId,
+                // The dialog names what the row names: a tombstone's handle is NULL by design.
+                item.removed ? t('profile.removed.name', locale) : item.peerHandle,
+              )
+            }
           />
         )}
         onEndReachedThreshold={0.5}
@@ -103,9 +114,6 @@ export default function BlockedScreen() {
           />
         }
       />
-
-      {/* Inline toast — no global host (rule: no global Sheet/Overlay/Toast) */}
-      {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

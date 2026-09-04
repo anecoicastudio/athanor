@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMomentsPage, momentKeys, softDeleteMoment } from '@athanor/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { momentKeys, removeFromBucket, softDeleteMoment } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
+import { devWarn } from '@/lib/log';
 import { momentSignPaths } from '@/lib/media/moment-media';
+import { uploadErrorKey } from '@/lib/media/upload';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +19,9 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
+import { Screen } from '@/components/Screen';
+import { useLocale } from '@/hooks/use-locale';
+import { useMomentsPage } from '@/hooks/use-moments-page';
 
 /**
  * Full Momenti gallery — the "Vedi tutti" target (frontend `01` §3.5). Owner mode
@@ -25,20 +30,16 @@ import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
  * back to owner mode.
  */
 export default function GridScreen() {
-  const { profile, session } = useAuth();
+  const { session } = useAuth();
   const { userId } = useLocalSearchParams<{ userId?: string }>();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = session?.user?.id;
   const readOnly = Boolean(userId) && userId !== uid;
   const ownerId = readOnly ? (userId as string) : uid;
   const queryClient = useQueryClient();
 
   // Live momenti (rule #9: keyset). First page (24) only — infinite scroll deferred.
-  const momentsQuery = useQuery({
-    queryKey: momentKeys.list(ownerId ?? ''),
-    queryFn: () => getMomentsPage(supabase, ownerId as string),
-    enabled: Boolean(ownerId),
-  });
+  const momentsQuery = useMomentsPage(ownerId);
   const moments = momentsQuery.data?.moments ?? [];
   // Posters as well as media: the tiles draw a video's poster, the Lightbox plays the video
   // itself, and both read this one map (#131).
@@ -71,9 +72,15 @@ export default function GridScreen() {
               // best-effort byte removal (owner storage-delete policy); M9 GDPR job is the backstop.
               // The poster goes with it — it is a second object in the same bucket, and leaving
               // it behind orphans bytes the row no longer points at (#131).
-              void supabase.storage
-                .from('moments')
-                .remove(m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path]);
+              // Not awaited on purpose — the row is already gone and the grid should not wait
+              // on bytes. `removeFromBucket` throws on both failure shapes (a storage-js
+              // `{ error }` and a network rejection), so one `.catch` dev-logs each rather than
+              // leaving either as an unhandled rejection (#179).
+              removeFromBucket(
+                supabase,
+                'moments',
+                m.thumb_path ? [m.media_path, m.thumb_path] : [m.media_path],
+              ).catch((e: unknown) => devWarn('[moment] remove bytes', e));
               if (uid) return queryClient.invalidateQueries({ queryKey: momentKeys.list(uid) });
             })
             .catch(() => setError(t('media.failed', locale)));
@@ -83,7 +90,7 @@ export default function GridScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* head */}
       <ModalHeader
         title={t(readOnly ? 'profile.moments.theirLabel' : 'moment.gallery.title', locale)}
@@ -93,8 +100,10 @@ export default function GridScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('moment.add', locale)}
-              hitSlop={8}
               onPress={() => setSheetOpen(true)}
+              // Bare glyph + `hitSlop={8}` measured ~13pt wide. Same box recipe as
+              // `HeaderClose`, which sits in this same right slot.
+              className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
             >
               <Text className="text-2xl text-faint">+</Text>
             </Pressable>
@@ -166,11 +175,11 @@ export default function GridScreen() {
             allowVideo
             locale={locale}
             onClose={() => setSheetOpen(false)}
-            onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
-            onError={() => setError(t('media.failed', locale))}
+            onPick={(m) => addMoment(m).catch((err) => setError(t(uploadErrorKey(err), locale)))}
+            onError={(key) => setError(t(key, locale))}
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

@@ -1,18 +1,25 @@
 import { useState } from 'react';
 import { updateProfile } from '@athanor/api';
-import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
+import { IDENTITY_TAGS, MAX_SKILLS, PROFESSIONS, SEEKING_TAGS, SKILLS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
-import { Pressable, Text, TextInput, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
+import { LocaleChips } from '@/components/LocaleChips';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MediaSheet } from '@/components/media/MediaSheet';
+import { CityPicker } from '@/components/profile/CityPicker';
 import { Section, type Visibility } from '@/components/profile/Section';
+import { useToast } from '@/components/ToastHost';
+import { useDiscardConfirm } from '@/hooks/use-dirty-guard';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAvatarUpload } from '@/lib/media/use-avatar-upload';
+import { toggleTag } from '@/lib/tags';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -40,20 +47,79 @@ export function ProfileEditForm({
 }) {
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [avatarPath, setAvatarPath] = useState<string | null>(profile.avatar_path);
+  /**
+   * The picked photo, held LOCALLY until Save (#636).
+   *
+   * It used to upload the moment it was picked. `avatarPath(uid)` is deterministic
+   * (`{uid}/{uid}.jpg`), so that upload did not strand an orphan — it overwrote the member's
+   * live avatar at the canonical key, and `useAvatarUpload` then dropped the cached signed URL
+   * so the new face appeared everywhere immediately. Cancelling could not put the old bytes
+   * back, because there was nowhere left holding them. Staging the pick is what makes «Annulla»
+   * mean what it says.
+   *
+   * A URI rather than the `PickedMedia` it came from, because that is the whole truth of what
+   * this screen keeps: its sheet offers stills only (no `allowVideo`), `onPick` refuses any
+   * other kind, and the avatar is re-encoded to JPEG on upload. Holding the wider type would
+   * claim this form might have to draw a video it can never receive.
+   */
+  const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const avatar = useAvatarUpload(userId);
   const [bio, setBio] = useState(profile.bio ?? '');
+  const [mission, setMission] = useState(profile.mission ?? '');
   const [identity, setIdentity] = useState<string[]>(profile.identity_tags);
   const [seeking, setSeeking] = useState<string[]>(profile.seeking);
+  const [profession, setProfession] = useState<string | null>(profile.profession);
+  const [skills, setSkills] = useState<string[]>(profile.skills ?? []);
+  const [city, setCity] = useState(profile.city ?? '');
+  // NULL whenever the city is free text; only a picked suggestion sets it.
+  const [cityGeohash, setCityGeohash] = useState<string | null>(profile.city_geohash);
   const [locale, setLocale] = useState<Locale>(profile.locale);
   const [visibility, setVisibility] = useState<Record<string, Visibility>>(
     profile.visibility as Record<string, Visibility>,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const confirmDiscard = useDiscardConfirm();
 
-  const toggle = (list: string[], set: (v: string[]) => void, tag: string) =>
-    set(list.includes(tag) ? list.filter((x) => x !== tag) : [...list, tag]);
+  /**
+   * #636. The largest form in the app, and its only exit was a bare `setEditing(false)`.
+   * Compared against the `profile` row it opened with rather than against a snapshot taken on
+   * mount, so a background refetch that changes nothing cannot register as an edit.
+   */
+  const dirty = isDraftDirty(
+    {
+      displayName: profile.display_name,
+      avatarPath: profile.avatar_path,
+      pendingAvatar: null,
+      bio: profile.bio,
+      mission: profile.mission,
+      identity: profile.identity_tags,
+      seeking: profile.seeking,
+      profession: profile.profession,
+      skills: profile.skills,
+      city: profile.city,
+      cityGeohash: profile.city_geohash,
+      locale: profile.locale,
+      visibility: profile.visibility as Record<string, Visibility>,
+    },
+    {
+      displayName,
+      avatarPath,
+      pendingAvatar,
+      bio,
+      mission,
+      identity,
+      seeking,
+      profession,
+      skills,
+      city,
+      cityGeohash,
+      locale,
+      visibility,
+    },
+  );
 
   const setVis = (field: string, value: Visibility) =>
     setVisibility((v) => ({ ...v, [field]: value }));
@@ -62,13 +128,32 @@ export function ProfileEditForm({
     setSaving(true);
     setError(null);
     try {
+      // The staged photo is uploaded here and nowhere else, so the member's live avatar is
+      // only ever overwritten by a save they asked for (#636). A failed upload stops the
+      // whole save: writing the row against the previous key would silently drop the photo.
+      let nextAvatarPath = avatarPath;
+      if (pendingAvatar) {
+        const key = await avatar.upload({ kind: 'image', uri: pendingAvatar });
+        if (!key) {
+          setError(t('profile.photo.error', locale));
+          setSaving(false);
+          return;
+        }
+        nextAvatarPath = key;
+      }
       await updateProfile(supabase, userId, {
         // Empty means «I have no name», which is a legal state — not «leave it as it was».
         display_name: displayName.trim() ? displayName.trim() : null,
-        avatar_path: avatarPath,
+        avatar_path: nextAvatarPath,
         bio: bio.trim() ? bio.trim() : null,
+        mission: mission.trim() ? mission.trim() : null,
         identity_tags: identity,
         seeking,
+        profession,
+        skills,
+        city: city.trim() ? city.trim() : null,
+        // A geohash only ever accompanies a picked, non-empty city.
+        city_geohash: city.trim() ? cityGeohash : null,
         locale,
         visibility,
       });
@@ -81,15 +166,66 @@ export function ProfileEditForm({
     }
   };
 
-  const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
-    t(`${prefix}.${key}` as MessageKey, locale);
+  const tagLabel = (
+    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
+    key: string,
+  ) => t(`${prefix}.${key}` as MessageKey, locale);
+
+  const toggleSkill = (key: string) =>
+    setSkills((prev) => {
+      if (prev.includes(key)) return prev.filter((x) => x !== key);
+      if (prev.length >= MAX_SKILLS) {
+        // #636: the 11th tap used to return `prev` and say nothing, which reads as a broken
+        // chip. The «Fino a 10.» hint below discloses the rule; this answers the tap.
+        showToast(t('skills.max', locale, { count: String(MAX_SKILLS) }));
+        return prev;
+      }
+      return [...prev, key];
+    });
 
   return (
     <>
-      {/* Identità — name + photo (#76). NOT inside a <Section>: Section carries a per-field
-          visibility control, and neither of these has a visibility key. They sit in the direct
-          grant tier alongside @handle (20260811074859), so offering an eye here would promise a
-          privacy setting that does not exist. */}
+      {/* The way out, at the top (#659).
+
+          The parent unmounts its own share/settings/edit row while editing
+          (`(tabs)/profile.tsx`), so before this the only exit was the ghost «Annulla» at the
+          foot of ELEVEN sections — photo, name, bio, mission, identity, seeking, profession,
+          skills, city, dream, language. An accidental tap on «Modifica» cost a full scroll
+          each way, which is the whole of #659.
+
+          Routed through the same `confirmDiscard` as that button, never a bare `onCancel`: a
+          clean draft leaves in one tap with no dialog, a dirty one still gets #636's confirm,
+          and the two exits cannot drift apart. `disabled={saving}` mirrors it too —
+          `shouldGuardExit` stands down while a write is in flight, so an enabled control here
+          would unmount the form mid-save.
+
+          A real box rather than `HIT_SLOP`, and the literal `[44px]` (#638): a spacing step is
+          3.5px on device, so `h-11` would measure 38.5pt there while passing the web walk.
+          Text «Annulla» rather than a `‹`: DESIGN §6 reserves the chevron for pushed screens
+          and sheets via `ModalHeader`, and a tab root has nothing to pop — this leaves a mode,
+          not a screen.
+
+          The row wrapper is load-bearing, not decoration. This fragment's children are the
+          direct children of the parent's `ScrollView` content, which aligns them stretch, so
+          without `flex-row` the Pressable would span the full width and turn the whole strip
+          into a 44pt discard target. */}
+      <View className="flex-row items-center">
+        <Pressable
+          accessibilityRole="button"
+          disabled={saving}
+          onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
+          className="min-h-[44px] min-w-[44px] justify-center"
+        >
+          <Text className="text-base font-semibold text-faint">{t('profile.cancel', locale)}</Text>
+        </Pressable>
+      </View>
+
+      {/* Identità — name + photo (#76). Still not inside a <Section>: the block-level control
+          below writes the ONE identity facet (#251) for both fields together, not a per-field
+          eye. 'public' (the default) keeps the /@handle link resolving for anyone; 'members'
+          kills the public shell — a knowingly dead link. 'private' is deliberately not offered:
+          members always see name and photo (the facet gates anon only, profile.ts docblock),
+          so a «Solo io» chip here would promise a setting that does not exist. */}
       <View className="gap-3">
         <SectionLabel>{t('profile.photo.label', locale)}</SectionLabel>
         <View className="flex-row items-center gap-4">
@@ -97,6 +233,7 @@ export function ProfileEditForm({
             handle={profile.handle}
             displayName={displayName}
             avatarPath={avatarPath}
+            previewUri={pendingAvatar}
             size={72}
           />
           <View className="flex-1 gap-1.5">
@@ -105,13 +242,23 @@ export function ProfileEditForm({
               accessibilityLabel={t('profile.photo.a11y', locale)}
               disabled={avatar.status === 'uploading'}
               onPress={() => setSheetOpen(true)}
+              className="min-h-[44px] justify-center"
             >
               <Text className="text-[14px] font-semibold text-aura">
-                {avatarPath ? t('profile.photo.change', locale) : t('profile.photo.add', locale)}
+                {avatarPath || pendingAvatar
+                  ? t('profile.photo.change', locale)
+                  : t('profile.photo.add', locale)}
               </Text>
             </Pressable>
-            {avatarPath ? (
-              <Pressable accessibilityRole="button" onPress={() => setAvatarPath(null)}>
+            {avatarPath || pendingAvatar ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setPendingAvatar(null);
+                  setAvatarPath(null);
+                }}
+                className="min-h-[44px] justify-center"
+              >
                 <Text className="text-[13px] text-muted-foreground">
                   {t('profile.photo.remove', locale)}
                 </Text>
@@ -127,14 +274,42 @@ export function ProfileEditForm({
         </View>
 
         <SectionLabel>{t('profile.name.label', locale)}</SectionLabel>
-        <TextInput
-          className="rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+        <Field
           maxLength={60}
           placeholder={t('profile.name.empty', locale)}
           value={displayName}
           onChangeText={setDisplayName}
         />
         <Text className="text-[13px] text-muted-foreground">{t('profile.name.hint', locale)}</Text>
+
+        {/* The identity facet (#251): one control for the whole block, same visual grammar as
+            Section's chip row. An absent key means the DEFAULT — public — never 'members'
+            (the row policy coalesces the same way), and a stray 'private' value normalises to
+            the members chip: anon-dark either way. */}
+        <View className="flex-row items-center justify-between gap-3">
+          <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
+          <View
+            className="flex-row gap-1.5"
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('profile.visibility.label', locale)}
+          >
+            {(['public', 'members'] as const).map((opt) => (
+              <Chip
+                key={opt}
+                role="radio"
+                small
+                label={t(`visibility.${opt}`, locale)}
+                selected={
+                  ((visibility.identity ?? 'public') === 'public' ? 'public' : 'members') === opt
+                }
+                onPress={() => setVis('identity', opt)}
+              />
+            ))}
+          </View>
+        </View>
+        <Text className="text-[13px] leading-snug text-muted-foreground">
+          {t('profile.shell.hint', locale)}
+        </Text>
       </View>
 
       {/* Bio */}
@@ -146,13 +321,30 @@ export function ProfileEditForm({
         setVis={setVis}
         locale={locale}
       >
-        <TextInput
-          className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-foreground"
+        <Field
           multiline
           maxLength={500}
           placeholder={t('profile.bio.empty', locale)}
           value={bio}
           onChangeText={setBio}
+        />
+      </Section>
+
+      {/* La mia missione — free text like bio, the member's own words (#149) */}
+      <Section
+        label={t('profile.mission.label', locale)}
+        field="mission"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <Field
+          multiline
+          maxLength={500}
+          placeholder={t('profile.mission.empty', locale)}
+          value={mission}
+          onChangeText={setMission}
         />
       </Section>
 
@@ -171,7 +363,7 @@ export function ProfileEditForm({
               key={tag}
               label={tagLabel('tag.identity', tag)}
               selected={identity.includes(tag)}
-              onPress={() => toggle(identity, setIdentity, tag)}
+              onPress={() => setIdentity(toggleTag(identity, tag))}
             />
           ))}
         </View>
@@ -192,7 +384,7 @@ export function ProfileEditForm({
               key={tag}
               label={tagLabel('tag.seeking', tag)}
               selected={seeking.includes(tag)}
-              onPress={() => toggle(seeking, setSeeking, tag)}
+              onPress={() => setSeeking(toggleTag(seeking, tag))}
             />
           ))}
         </View>
@@ -206,9 +398,11 @@ export function ProfileEditForm({
             second of the two so both chip rows are already on screen.
 
             The copy says "matched", not "you won't appear". Both original
-            reasons have since been closed — pending proposals are purged on the
-            flip (20260807201350) and «Ti potrebbe interessare» gained the
-            predicate (get_momenti_suggestion) — but "matched" is still the
+            reasons have since been closed — the deck recomputes and re-masks its
+            affinity terms on every read (get_momenti_deck, #273 D; the purge
+            trigger that used to DELETE the pending proposals on the flip is
+            retired) and «Ti potrebbe interessare» gained the predicate
+            (get_momenti_suggestion) — but "matched" is still the
             accurate claim: accepted and passed rows deliberately survive, so the
             member does not vanish from every surface. Keep the weaker promise.
             Labels are interpolated from the same keys the chips render, so a
@@ -224,6 +418,70 @@ export function ProfileEditForm({
             })}
           </Text>
         ) : null}
+      </Section>
+
+      {/* Professione — single curated key: tapping the selected chip clears it (#149) */}
+      <Section
+        label={t('profile.profession.label', locale)}
+        field="profession"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <View className="flex-row flex-wrap gap-3">
+          {PROFESSIONS.map((key) => (
+            <Chip
+              key={key}
+              label={tagLabel('tag.profession', key)}
+              selected={profession === key}
+              onPress={() => setProfession(profession === key ? null : key)}
+            />
+          ))}
+        </View>
+      </Section>
+
+      {/* Competenze — curated multi-select, capped at MAX_SKILLS (#149) */}
+      <Section
+        label={t('profile.skills.label', locale)}
+        field="skills"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <View className="flex-row flex-wrap gap-3">
+          {SKILLS.map((key) => (
+            <Chip
+              key={key}
+              label={tagLabel('tag.skill', key)}
+              selected={skills.includes(key)}
+              onPress={() => toggleSkill(key)}
+            />
+          ))}
+        </View>
+        <Text className="text-[13px] text-muted-foreground">
+          {t('profile.skills.hint', locale)}
+        </Text>
+      </Section>
+
+      {/* Città — typed-text search, approximate by design (#149) */}
+      <Section
+        label={t('profile.city.label', locale)}
+        field="city"
+        editing
+        visibility={visibility}
+        setVis={setVis}
+        locale={locale}
+      >
+        <CityPicker
+          city={city}
+          locale={locale}
+          onChange={(nextCity, geohash) => {
+            setCity(nextCity);
+            setCityGeohash(geohash);
+          }}
+        />
       </Section>
 
       {/* Il mio sogno — visibility only; the text lives in the dream editor.
@@ -255,18 +513,7 @@ export function ProfileEditForm({
       {/* Lingua + actions */}
       <View className="gap-3">
         <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
-        <View className="flex-row gap-3">
-          <Chip
-            label={t('lang.it', locale)}
-            selected={locale === 'it'}
-            onPress={() => setLocale('it')}
-          />
-          <Chip
-            label={t('lang.en', locale)}
-            selected={locale === 'en'}
-            onPress={() => setLocale('en')}
-          />
-        </View>
+        <LocaleChips value={locale} onChange={setLocale} />
 
         {error ? <Text className="text-sm text-error">{error}</Text> : null}
 
@@ -281,7 +528,7 @@ export function ProfileEditForm({
             label={t('profile.cancel', locale)}
             variant="ghost"
             disabled={saving}
-            onPress={onCancel}
+            onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
           />
         </View>
       </View>
@@ -292,10 +539,10 @@ export function ProfileEditForm({
         visible={sheetOpen}
         locale={locale}
         onClose={() => setSheetOpen(false)}
+        // Staged, not uploaded — see `pendingAvatar`. The bytes travel on Save.
         onPick={(asset) => {
-          void avatar.upload(asset).then((key) => {
-            if (key) setAvatarPath(key);
-          });
+          if (asset.kind !== 'image') return;
+          setPendingAvatar(asset.uri);
         }}
       />
     </>

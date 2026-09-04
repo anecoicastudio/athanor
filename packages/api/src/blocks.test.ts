@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   blockKeys,
   blockUser,
@@ -15,11 +15,15 @@ const BLOCK_ID = '22222222-2222-4222-8222-222222222222';
 
 const as = (c: FakeClient) => c as unknown as AthanorClient;
 
+/** One row of the `list_blocked` RPC — the DEFINER channel, not a profiles embed (#663). */
 const blockRow = (over: Record<string, unknown> = {}) => ({
   id: BLOCK_ID,
   blocked_id: PEER,
   created_at: '2026-01-02T10:00:00.000Z',
-  blocked: { handle: 'peer', display_name: 'Peer Uno', avatar_path: 'p/p.jpg' },
+  handle: 'peer',
+  display_name: 'Peer Uno',
+  avatar_path: 'p/p.jpg',
+  removed: false,
   ...over,
 });
 
@@ -143,26 +147,46 @@ describe('getBlockedCount', () => {
 });
 
 describe('listBlocked', () => {
-  it('paginates by keyset, never by offset (rule #9)', async () => {
-    const client = makeFakeClient();
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('reads through the list_blocked RPC, never a blocks → profiles embed (#663)', async () => {
+    const client = makeFakeClient({ 'rpc.list_blocked': [{ data: [blockRow()] }] });
+
+    await listBlocked(as(client));
+
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0]?.op).toBe('rpc');
+    expect(client.calls[0]?.columns).toBe('list_blocked');
+    expect(client.calls[0]?.table).toBe('rpc');
+  });
+
+  it('paginates by keyset through the RPC cursor, never by offset (rule #9)', async () => {
+    const client = makeFakeClient({ 'rpc.list_blocked': [{ data: [] }] });
 
     await listBlocked(as(client), { createdAt: '2026-01-02T10:00:00.000Z', id: BLOCK_ID });
 
-    const call = client.calls[0];
-    expect(call?.filters).toContainEqual([
-      'or',
-      `created_at.lt.2026-01-02T10:00:00.000Z,and(created_at.eq.2026-01-02T10:00:00.000Z,id.lt.${BLOCK_ID})`,
-    ]);
-    expect(ops(call?.modifiers ?? [])).not.toContain('range');
-    expect(call?.modifiers).toContainEqual(['order', 'created_at', { ascending: false }]);
-    expect(call?.modifiers).toContainEqual(['order', 'id', { ascending: false }]);
-    expect(ops(call?.modifiers ?? [])).toContain('limit');
+    expect(client.calls[0]?.values).toEqual({
+      p_limit: 30,
+      p_before_created_at: '2026-01-02T10:00:00.000Z',
+      p_before_id: BLOCK_ID,
+    });
+    expect(ops(client.calls[0]?.modifiers ?? [])).not.toContain('range');
   });
 
-  it('lists the people the caller blocked, never the people who blocked the caller', async () => {
-    const client = makeFakeClient({ 'blocks.select': [{ data: [blockRow()] }] });
+  it('sends no cursor halves on the first page', async () => {
+    const client = makeFakeClient({ 'rpc.list_blocked': [{ data: [] }] });
 
-    const items = await listBlocked(as(client));
+    await listBlocked(as(client));
+
+    expect(client.calls[0]?.values).toEqual({ p_limit: 30 });
+  });
+
+  it('lists the people the caller blocked, never naming the caller', async () => {
+    const client = makeFakeClient({ 'rpc.list_blocked': [{ data: [blockRow()] }] });
+
+    const { items, excluded } = await listBlocked(as(client));
 
     expect(items).toEqual([
       {
@@ -171,15 +195,49 @@ describe('listBlocked', () => {
         peerHandle: 'peer',
         peerDisplayName: 'Peer Uno',
         peerAvatarPath: 'p/p.jpg',
+        removed: false,
         createdAt: '2026-01-02T10:00:00.000Z',
       },
     ]);
-    expect(client.calls[0]?.columns).toContain('blocked_id');
-    expect(client.calls[0]?.columns).not.toContain('blocker_id');
+    expect(excluded).toBe(0);
+    // The ownership predicate lives in the DEFINER body; the client never sends a blocker id.
+    expect(JSON.stringify(client.calls[0]?.values)).not.toContain('blocker');
+  });
+
+  it('carries a banned peer through as the #314 tombstone', async () => {
+    const client = makeFakeClient({
+      'rpc.list_blocked': [
+        {
+          data: [blockRow({ handle: null, display_name: null, avatar_path: null, removed: true })],
+        },
+      ],
+    });
+
+    const { items } = await listBlocked(as(client));
+
+    expect(items[0]).toMatchObject({
+      peerHandle: null,
+      peerDisplayName: null,
+      peerAvatarPath: null,
+      removed: true,
+    });
+  });
+
+  it('withholds a row the schema no longer recognises instead of taking the list down', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeFakeClient({
+      'rpc.list_blocked': [{ data: [blockRow(), { id: 'garbage', blocked_id: PEER }] }],
+    });
+
+    const { items, excluded } = await listBlocked(as(client));
+
+    expect(items).toHaveLength(1);
+    expect(excluded).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('surfaces a database error', async () => {
-    const client = makeFakeClient({ 'blocks.select': [{ error: { message: 'boom' } }] });
+    const client = makeFakeClient({ 'rpc.list_blocked': [{ error: { message: 'boom' } }] });
 
     await expect(listBlocked(as(client))).rejects.toThrow(/boom/);
   });

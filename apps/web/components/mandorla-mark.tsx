@@ -3,7 +3,7 @@ import { Mandorla } from '@/components/mandorla';
 /**
  * Mandorla mark — la Mandorla (DESIGN.md §5), the animated hero centerpiece.
  * Renders the shared <Mandorla> so the hero is visually identical to the splash
- * intro mark (two circles + filled lens + glow + dots + the glowing Kairos star
+ * intro mark (two circles + filled lens + glow + dots + the glowing ✦ spark
  * on top), then settles into a calm loop (`loop`): rings breathe, star pulses
  * (the sanctioned "moment flash", slowed). Honors prefers-reduced-motion.
  *

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { candidacyTallyRowSchema, candidacyVoteSchema } from './vote';
+import { candidacyTallyRowSchema, candidacyVoteSchema } from './vote.ts';
 
 describe('candidacyVoteSchema', () => {
   it('parses an own-row vote (weight coerced from numeric string)', () => {

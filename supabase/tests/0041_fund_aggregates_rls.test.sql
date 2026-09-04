@@ -11,8 +11,10 @@ select policies_are('public', 'fund_aggregates', array['fund_aggregates_select_p
 
 -- seed an edition + its aggregate as service_role
 set local role service_role;
-insert into public.fund_editions (id, year, target_at, goal_cents)
-  values ('00000000-0000-0000-0000-0000000000a1', 2028, now() + interval '10 days', 1000000);
+insert into public.fund_editions (id, target_at, goal_cents, min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
+  values ('00000000-0000-0000-0000-0000000000a1', now() + interval '10 days', 1000000, 100000, 5, 3,
+          10, 'fixture costs statement', 'none');
 insert into public.fund_aggregates (edition_id, raised_cents, contributor_count)
   values ('00000000-0000-0000-0000-0000000000a1', 48328100, 13874);
 reset role;

@@ -12,7 +12,6 @@ const base: Event = {
   venue: 'Cascina Cuccagna',
   city: 'Milano',
   is_online: false,
-  is_kairos_day: false,
   is_athanor_day: false,
   live_started_at: null,
   live_ended_at: null,
@@ -58,23 +57,12 @@ describe('toRowData — premium lock (Circle entitlement gate)', () => {
     expect(toRowData(base, true).premiumLocked).toBe(false);
   });
 
-  it('a Kairos-day event locks for a non-member', () => {
-    expect(toRowData(event({ is_kairos_day: true }), false).premiumLocked).toBe(true);
-  });
-
   it('an Athanor-day event locks for a non-member', () => {
     expect(toRowData(event({ is_athanor_day: true }), false).premiumLocked).toBe(true);
   });
 
   it('a member sees premium events unlocked', () => {
-    expect(toRowData(event({ is_kairos_day: true }), true).premiumLocked).toBe(false);
     expect(toRowData(event({ is_athanor_day: true }), true).premiumLocked).toBe(false);
-  });
-
-  it('both premium flags together still unlock for a member', () => {
-    const both = event({ is_kairos_day: true, is_athanor_day: true });
-    expect(toRowData(both, false).premiumLocked).toBe(true);
-    expect(toRowData(both, true).premiumLocked).toBe(false);
   });
 });
 

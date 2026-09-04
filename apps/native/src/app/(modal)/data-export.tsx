@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
@@ -6,34 +5,22 @@ import { gdprKeys, getLatestExportJob, requestExport } from '@athanor/api';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
-import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * GDPR data export (09 §3.5.1). Request → processing → ready. The archive is assembled server-side
- * by the gdpr-export-job and emailed as a time-limited signed link; this screen mirrors the status
- * and surfaces the same link when ready. Neutral chrome, flat cyan CTA — no glow (rule #4).
+ * by the gdpr-export-job; when it flips to ready the member gets a gdprExport notification (#129)
+ * that routes back here, where the time-limited signed link is served. Neutral chrome, flat cyan
+ * CTA — no glow (rule #4).
  */
 export default function DataExportScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const qc = useQueryClient();
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashToast = useCallback((msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  }, []);
-  // Clear a pending toast timer on unmount so it can't setToast on a dead component.
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    [],
-  );
+  const { showToast } = useToast();
 
   const job = useQuery({
     queryKey: gdprKeys.exportStatus(),
@@ -46,16 +33,16 @@ export default function DataExportScreen() {
   const request = useMutation({
     mutationFn: () => requestExport(supabase),
     onSuccess: () => {
-      flashToast(t('gdpr.export.toast', locale));
+      showToast(t('gdpr.export.toast', locale), 'success');
       void qc.invalidateQueries({ queryKey: gdprKeys.exportStatus() });
     },
-    onError: () => flashToast(t('profile.error', locale)),
+    onError: () => showToast(t('profile.error', locale)),
   });
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader title={t('gdpr.export.title', locale)} backLabel={t('common.back', locale)} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
         <Text className="text-[15px] leading-relaxed text-muted-foreground">
           {t('gdpr.export.sub', locale)}
         </Text>
@@ -76,7 +63,9 @@ export default function DataExportScreen() {
               label={t('gdpr.export.download', locale)}
               onPress={() => {
                 const url = job.data?.download_url;
-                if (url) void Linking.openURL(url);
+                if (url) {
+                  Linking.openURL(url).catch(() => showToast(t('gdpr.export.linkError', locale)));
+                }
               }}
             />
           </View>
@@ -91,7 +80,6 @@ export default function DataExportScreen() {
           />
         ) : null}
       </ScrollView>
-      {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

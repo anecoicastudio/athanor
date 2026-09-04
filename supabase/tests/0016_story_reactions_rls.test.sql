@@ -26,7 +26,8 @@ select ok(
 );
 select policies_are(
   'public', 'story_reactions',
-  array['story_reactions_select_own', 'story_reactions_insert_own', 'story_reactions_delete_own'],
+  array['story_reactions_select_own', 'story_reactions_insert_own', 'story_reactions_delete_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on story_reactions'
 );
 

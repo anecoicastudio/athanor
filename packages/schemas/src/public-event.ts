@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { eventCategorySchema } from './event';
-import { handleSchema } from './profile';
+import { eventCategorySchema } from './event.ts';
+import { handleSchema } from './profile.ts';
 
 /**
  * The public event read-model (issue #159) — what a logged-out visitor and a crawler
@@ -27,13 +27,25 @@ export const publicEventSchema = z
     is_online: z.boolean(),
     venue: z.string().max(240).nullable(),
     city: z.string().max(120).nullable(),
+    /** Published deliberately (grant in 20260902084656): the organizer wrote it for the page. */
+    description: z.string().max(2000).nullable(),
     starts_at: z.string(),
     ends_at: z.string().nullable(),
     price_cents: z.number().int().min(0),
     currency: z.string().regex(/^[a-z]{3}$/),
-    is_kairos_day: z.boolean(),
     is_athanor_day: z.boolean(),
     organizer_handle: handleSchema.nullable(),
   })
   .strict();
 export type PublicEvent = z.infer<typeof publicEventSchema>;
+
+/**
+ * One entry of the upcoming-events index — what `/event/[id]` prerenders and what the
+ * sitemap lists (#335). Picked from the public read-model, and therefore still `.strict()`:
+ * a widened select fails here rather than silently carrying a column the index never asked
+ * for.
+ */
+export const upcomingEventEntrySchema = publicEventSchema
+  .pick({ id: true })
+  .extend({ updated_at: z.string() });
+export type UpcomingEventEntry = z.infer<typeof upcomingEventEntrySchema>;

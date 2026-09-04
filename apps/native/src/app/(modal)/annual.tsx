@@ -1,49 +1,69 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type CandidacyVote,
   type CandidateCard as CandidateCardModel,
+  type RealizationUpdateCursor,
   candidacyKeys,
   castVote,
-  createContributionSession,
   fundKeys,
-  getActiveEdition,
   getCandidates,
   getEditionTally,
   getFundAggregate,
+  getMyCandidacy,
+  getMyLatestPriorCandidacy,
   getMyVote,
+  getRealizationPlan,
+  getRealizationPlanPhases,
+  getRealizationUpdates,
+  realizationPlanKeys,
+  realizationUpdateKeys,
   subscribeFundAggregate,
   voteKeys,
 } from '@athanor/api';
-import { consensusForCandidacy } from '@athanor/core';
+import { MIN_CONTRIBUTION_CENTS, consensusForCandidacy, isBallotOpen } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { AmountRow } from '@/components/fund/AmountRow';
+import { BallotFilterChips } from '@/components/fund/BallotFilterChips';
 import { CandidateCard, type VoteState } from '@/components/fund/CandidateCard';
 import { CountdownGrid } from '@/components/fund/CountdownGrid';
 import { FundTicker } from '@/components/fund/FundTicker';
 import { SectionLabel } from '@/components/SectionLabel';
 import { PhaseList } from '@/components/fund/PhaseList';
+import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
+import { ViralCard } from '@/components/fund/ViralCard';
 import { useAuth } from '@/lib/auth-context';
+import {
+  type BallotFilter,
+  ballotFilters,
+  filterCandidates,
+  resolveFilter,
+} from '@/lib/ballot-card';
+import { annualFundBody, ballotVoteState, fundCycleState } from '@/lib/fund-cycle';
+import { castVoteError } from '@/lib/vote-error';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
+import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useLocale } from '@/hooks/use-locale';
+import { useToast } from '@/components/ToastHost';
 
 export default function AnnualFundScreen() {
   const { profile } = useAuth();
   const router = useRouter();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
+  const { showToast } = useToast();
+  // True only for the move branch's confirmed re-vote; read once in onSuccess.
+  const movedRef = useRef(false);
   // ── Edition query ────────────────────────────────────────────────────────────
-  const editionQuery = useQuery({
-    queryKey: fundKeys.activeEdition(),
-    queryFn: () => getActiveEdition(supabase),
-  });
+  const editionQuery = useActiveEdition();
 
   const edition = editionQuery.data ?? null;
 
@@ -97,6 +117,21 @@ export default function AnnualFundScreen() {
     queryFn: () => getMyVote(supabase, editionId, uid!),
     enabled: !!editionId && !!uid,
   });
+  // Own candidacy (one per edition) — drives the explicit edit/resubmit entry (#226).
+  const myCandidacyQuery = useQuery({
+    queryKey: candidacyKeys.mine(editionId),
+    queryFn: () => getMyCandidacy(supabase, editionId, uid!),
+    enabled: !!editionId && !!uid,
+  });
+  const myCandidacy = myCandidacyQuery.data ?? null;
+  // FUND-35's cross-cycle half (#221): a candidacy in a closed prior cycle offers the
+  // explicit prefilled re-submission — fetched only once this cycle is known to have none.
+  const priorCandidacyQuery = useQuery({
+    queryKey: candidacyKeys.priorMine(editionId),
+    queryFn: () => getMyLatestPriorCandidacy(supabase, editionId, uid!),
+    enabled: !!editionId && !!uid && myCandidacyQuery.isSuccess && !myCandidacyQuery.data,
+  });
+  const priorCandidacy = priorCandidacyQuery.data ?? null;
 
   // Refetch the tally on focus — others' votes don't stream (own-row RLS), so
   // there's no realtime subscription here; the % refreshes on focus + on a vote.
@@ -129,8 +164,28 @@ export default function AnnualFundScreen() {
       );
       return { previous };
     },
-    onError: (_err, _candidacyId, context) => {
+    onError: (err, _candidacyId, context) => {
+      // A failed move must not leave the flag armed, or the NEXT successful vote would
+      // toast «Voto spostato ✦» about a move that never happened.
+      movedRef.current = false;
       qc.setQueryData(voteKeys.mine(editionId), context?.previous ?? null);
+      // #382: the rollback used to be the WHOLE error path, so a server refusal was
+      // indistinguishable from a tap that never landed — the card flipped back and said
+      // nothing. The ballot is a list, with no per-card slot for a sentence, so the Alert is
+      // the surface here; the detail screen has room and renders its message inline.
+      const { key, editionStale } = castVoteError(err);
+      Alert.alert(t(key, locale));
+      // 'voting closed' means the cached edition is wrong (the window moved, or was never
+      // published). Re-read it so the ballot flips to its real state instead of arguing.
+      if (editionStale) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
+    },
+    onSuccess: (_data, candidacyId) => {
+      // #633: fund.vote.toast / fund.vote.moved sat in both catalogs with zero render
+      // sites — a cast vote produced no confirmation at all. `movedRef` is set in onVote's
+      // move branch; optimistic state has already flipped by the time this runs.
+      showToast(t(movedRef.current ? 'fund.vote.moved' : 'fund.vote.toast', locale), 'moment');
+      movedRef.current = false;
+      void candidacyId;
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: voteKeys.mine(editionId) });
@@ -146,21 +201,94 @@ export default function AnnualFundScreen() {
     (card: CandidateCardModel) => {
       const move = !!myVote && myVote.candidacy_id !== card.candidacy_id;
       if (move) {
+        // Title is the rule; the BUTTON carries the move («Sposta il voto») — «Vota» here
+        // would read as a second vote, and a «Vuoi spostarlo?» title would be a falsehood
+        // on the first-vote branch that shares the key.
         Alert.alert(t('fund.vote.oneOnly', locale), undefined, [
+          { text: t('common.cancel', locale), style: 'cancel' },
+          {
+            text: t('fund.vote.move', locale),
+            onPress: () => {
+              movedRef.current = true;
+              voteMutation.mutate(card.candidacy_id);
+            },
+          },
+        ]);
+      } else {
+        // #633: the FIRST vote used to be the unguarded one — «Un voto per edizione» was
+        // disclosed only on the move branch, i.e. at the moment the rule was already being
+        // violated, while plan-publish and progress-withdraw both confirm. Title carries
+        // the one-vote rule, body the equal-weight rule (FUND-SPEC D6/D11); the ballot
+        // list itself has no per-card slot for either sentence.
+        Alert.alert(t('fund.vote.oneOnly', locale), t('fund.vote.equal', locale), [
           { text: t('common.cancel', locale), style: 'cancel' },
           {
             text: t('fund.vote.cta', locale),
             onPress: () => voteMutation.mutate(card.candidacy_id),
           },
         ]);
-      } else {
-        voteMutation.mutate(card.candidacy_id);
       }
     },
     [myVote, locale, voteMutation],
   );
 
   const candidates = candidatesQuery.data?.items ?? [];
+
+  // Ballot category filter (#227, FUND-11/D43). Client-side on purpose: the page is already
+  // in hand (one keyset page of ~20), so filtering here costs nothing and — unlike a server
+  // `eq('category', …)` — cannot interact with the cursor. Pushing it into the query would
+  // mean a cursor per filter and a page that shrinks as the member taps.
+  const [ballotFilter, setBallotFilter] = useState<BallotFilter>('all');
+  const filters = useMemo(() => ballotFilters(candidates), [candidates]);
+  const activeFilter = resolveFilter(filters, ballotFilter);
+  const visibleCandidates = useMemo(
+    () => filterCandidates(candidates, activeFilter),
+    [candidates, activeFilter],
+  );
+
+  // #229: the cycle's declared winner, after their viability confirmation (#220).
+  const isPlanAuthor =
+    !!edition?.winner_candidacy_id &&
+    !!myCandidacy &&
+    edition.winner_candidacy_id === myCandidacy.id &&
+    edition.winner_confirmed_at !== null;
+
+  // ── The progress trail (#230, FUND-26) ──────────────────────────────────────
+  // Realization is the phase this exists for: before it there is no published commitment to
+  // report against, and a closed cycle no longer appears on this screen at all. Keyset, not
+  // offset (rule #9) — the winner posts while the community reads.
+  const realizing = edition?.phase === 'realization';
+  const updatesPage = useInfiniteQuery({
+    queryKey: realizationUpdateKeys.feed(editionId),
+    queryFn: ({ pageParam }) =>
+      getRealizationUpdates(supabase, editionId, {
+        cursor: pageParam as RealizationUpdateCursor | null,
+      }),
+    initialPageParam: null as RealizationUpdateCursor | null,
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: !!editionId && realizing,
+  });
+  const updates = useMemo(
+    () => updatesPage.data?.pages.flatMap((p) => p.rows) ?? [],
+    [updatesPage.data],
+  );
+
+  // The published plan's phases, so a note that names one reads as «Fase 2 · allestimento»
+  // rather than as an id. Public: RLS serves these to anon once the plan is published.
+  const publicPlanQuery = useQuery({
+    queryKey: realizationPlanKeys.byEdition(editionId),
+    queryFn: () => getRealizationPlan(supabase, editionId),
+    enabled: !!editionId && realizing,
+  });
+  const publicPlan = publicPlanQuery.data ?? null;
+  const publicPhasesQuery = useQuery({
+    queryKey: realizationPlanKeys.phases(publicPlan?.id ?? ''),
+    queryFn: () => getRealizationPlanPhases(supabase, publicPlan!.id),
+    enabled: !!publicPlan?.id,
+  });
+  const publicPhases = useMemo(() => publicPhasesQuery.data ?? [], [publicPhasesQuery.data]);
+  // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
+  const nowMs = useRef(Date.now()).current;
 
   // One signing call for the whole ballot, not one per card: `useSignedUrls` keys on the sorted
   // path list, so N cards signing themselves would be N requests and N cache entries for one
@@ -171,84 +299,104 @@ export default function AnnualFundScreen() {
     posterPaths,
   );
 
-  const voteStateFor = (card: CandidateCardModel): VoteState => {
-    if (edition?.winner_candidacy_id === card.candidacy_id) return 'winner';
-    if (edition && edition.phase !== 'community') return 'votingClosed';
-    if (pendingCandidacyId === card.candidacy_id) return 'voting';
-    if (myVote?.candidacy_id === card.candidacy_id) return 'voted';
-    return 'notVoted';
-  };
+  /**
+   * The per-card action state. The ballot rule comes from `isBallotOpen` (`@athanor/core`), which
+   * mirrors `cast_vote` — phase AND the window — instead of the phase alone (#382). The window
+   * columns were already in hand: `getActiveEdition` is `select('*')`, so this screen fetched
+   * `voting_starts_at` / `voting_ends_at` and ignored them, and a `voting` cycle outside its
+   * window (or with the window never published, #414) rendered «Vota» over a vote the server
+   * refuses. A NULL window is treated as shut, exactly as the SQL treats it.
+   *
+   * `nowMs` is pinned per render pass (above), so a window that closes while the screen sits
+   * open is not caught here — that residual race is what the mutation's error copy is for.
+   */
+  const voteStateFor = (card: CandidateCardModel): VoteState =>
+    // #633: a held vote makes every OTHER card's action a move, and the pill says so
+    // («Sposta il voto») instead of offering a second «Vota» the server would refuse.
+    // The ordering itself lives in `ballotVoteState` (lib/fund-cycle.ts), where it is
+    // test-covered beside its detail twin.
+    ballotVoteState({
+      isWinner: edition?.winner_candidacy_id === card.candidacy_id,
+      ballotOpen: edition ? isBallotOpen(edition, nowMs) : null,
+      pending: pendingCandidacyId === card.candidacy_id,
+      votedThis: myVote?.candidacy_id === card.candidacy_id,
+      votedElsewhere: !!myVote && myVote.candidacy_id !== card.candidacy_id,
+    });
 
-  // ── Contribution state + handler ─────────────────────────────────────────────
-  const [amountCents, setAmountCents] = useState<number>(100); // default 1€ chip on
-  const [contribPhase, setContribPhase] = useState<
-    'idle' | 'opening' | 'pending' | 'canceled' | 'error'
-  >('idle');
+  // ── Contribution amount (payment itself lives behind the disclosure, #235) ──
+  // Defaults to the floor: the smallest chip is the one selected on open.
+  const [amountCents, setAmountCents] = useState<number>(MIN_CONTRIBUTION_CENTS);
 
-  // Clear a stale canceled/error/pending banner when the screen regains focus
-  // (returning from the thank-you overlay, or navigating away and back). Never
-  // clobber an in-flight `opening`.
-  useFocusEffect(
-    useCallback(() => {
-      setContribPhase((p) => (p === 'opening' ? p : 'idle'));
-    }, []),
+  // FUND-18: the CTA never opens a payment — it pushes the blocking disclosure
+  // screen, which is the app's ONLY call site of createContributionSession
+  // (pinned by fund-disclosure.test.ts). The window-refusal handling from #222
+  // moved there with the payment launch.
+  const onContribute = useCallback(() => {
+    if (amountCents < MIN_CONTRIBUTION_CENTS) return;
+    router.push({
+      pathname: '/(modal)/fund-disclosure',
+      params: { amount: String(amountCents) },
+    });
+  }, [amountCents, router]);
+
+  // ── Pending / error / no-cycle bodies (state selection: lib/fund-cycle.ts, #224) ──
+  const body = annualFundBody(
+    fundCycleState({
+      status: editionQuery.status,
+      fetchStatus: editionQuery.fetchStatus,
+      edition,
+    }),
   );
 
-  const onContribute = useCallback(async () => {
-    if (!amountCents) return;
-    setContribPhase('opening');
-    try {
-      const { url } = await createContributionSession(supabase, {
-        editionId: edition?.id ?? '',
-        amountCents,
-      });
-      const result = await WebBrowser.openAuthSessionAsync(url, `${'athanor://'}annual`);
-      if (result.type === 'success' && result.url) {
-        const { queryParams } = Linking.parse(result.url);
-        if (queryParams?.contrib === 'success') {
-          setContribPhase('pending'); // ticker moves when the webhook lands (money = webhook cache)
-          router.push('/(modal)/contribution-thanks');
-          return;
-        }
-      }
-      setContribPhase('canceled');
-    } catch {
-      setContribPhase('error');
-    }
-  }, [amountCents, edition?.id, router]);
-
-  // ── Loading state ────────────────────────────────────────────────────────────
-  if (editionQuery.isLoading) {
+  if (body === 'loading') {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Skeleton / quiet placeholder */}
         <View className="flex-1 items-center justify-center gap-4 px-5">
           <ActivityIndicator color={semantic.aura} />
           <Text className="text-[13px] text-muted-foreground">— — —</Text>
         </View>
-      </View>
+      </Screen>
     );
   }
 
-  // ── No active edition ────────────────────────────────────────────────────────
-  if (!edition) {
+  // A failed read is NOT «no cycle» — it gets the retry, never the announcement (#224).
+  if (body === 'error') {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
-        {/* Calm empty state */}
-        <View className="flex-1 items-center justify-center px-5">
-          <Text className="text-center text-[15px] text-muted-foreground">
-            {t('fund.empty', locale)}
-          </Text>
+        <View className="flex-1 items-center justify-center gap-2 px-5">
+          <EmptyState>{t('fund.error', locale)}</EmptyState>
+          <Button
+            label={t('common.retry', locale)}
+            variant="ghost"
+            onPress={() => void editionQuery.refetch()}
+          />
         </View>
-      </View>
+      </Screen>
+    );
+  }
+
+  // ── No active cycle — the announcement, not an absence (FUND-47, FUND-SPEC §6) ──
+  if (body === 'announce' || !edition) {
+    return (
+      <Screen>
+        <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
+        <View className="flex-1 items-center justify-center gap-6 px-5">
+          {/* Same brand-voice hero the live screen opens with — flat cyan text, no glow */}
+          <Text className="text-center text-[15px] leading-6 text-aura">
+            {t('fund.hero.quote', locale)}
+          </Text>
+          <FundTicker noCycle locale={locale} />
+        </View>
+      </Screen>
     );
   }
 
   // ── Live screen (full composition) ──────────────────────────────────────────
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* 1. Header — back chevron + fund.title */}
       <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
 
@@ -271,15 +419,130 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard */}
+        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard. One candidacy
+            per edition (dream_candidacies_one_per_edition), so an existing row replaces the
+            CTA; while it is still 'submitted' (the RLS update window) and the window is open,
+            the member can EXPLICITLY reopen the wizard prefilled (#226 — never automatic). */}
         <View className="gap-2">
-          <Button
-            label={t('fund.candidate.cta', locale)}
-            onPress={() => router.push('/(modal)/candidacy')}
-            variant="light"
-            // No glow — flat CTA, rule #4
-          />
+          {!myCandidacy ? (
+            <>
+              <Button
+                label={t('fund.candidate.cta', locale)}
+                onPress={() => router.push('/(modal)/candidacy')}
+                variant="light"
+                // No glow — flat CTA, rule #4
+              />
+              {/* FUND-35 cross-cycle (#221): a prior-cycle candidacy offers the EXPLICIT
+                  prefilled restart — a fresh row in this cycle, never an auto-carry. */}
+              {priorCandidacy ? (
+                <>
+                  <Button
+                    label={t('candidacy.resubmit.cta', locale)}
+                    onPress={() =>
+                      router.push({ pathname: '/(modal)/candidacy', params: { resubmit: '1' } })
+                    }
+                    variant="ghost"
+                  />
+                  <Text className="text-center text-[12px] text-muted-foreground">
+                    {t('candidacy.resubmit.hint', locale)}
+                  </Text>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {myCandidacy.status !== 'rejected' ? (
+                <Text className="text-center text-[13px] text-muted-foreground">
+                  {t('candidacy.success.eyebrow', locale)}
+                </Text>
+              ) : null}
+              {myCandidacy.status === 'submitted' && edition.candidacy_window_open ? (
+                <Button
+                  label={t('candidacy.edit.cta', locale)}
+                  onPress={() =>
+                    router.push({ pathname: '/(modal)/candidacy', params: { edit: '1' } })
+                  }
+                  variant="ghost"
+                />
+              ) : null}
+            </>
+          )}
         </View>
+
+        {/* 4b. The winner's realization plan (#229). Shown only to the member whose
+            candidacy won AND who has confirmed the dream is deliverable at the snapshotted
+            figure (#220) — that confirmation is what #228's trigger requires before a plan
+            can exist. Everyone else's cycle has nothing to author here, so the block is
+            absent rather than disabled. */}
+        {isPlanAuthor ? (
+          <View className="gap-2">
+            <Button
+              label={t('fund.plan.entry.cta', locale)}
+              onPress={() => router.push('/(modal)/plan')}
+              variant="light"
+            />
+            <Text className="text-center text-[12px] text-muted-foreground">
+              {t('fund.plan.entry.hint', locale)}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* 4c. Aggiornamenti dal sogno (#230, FUND-26) — the ongoing trail, public to
+            everyone including the signed-out web page (#237) that reads the same rows.
+            No reaction count and no view count anywhere in it (rule #3): the community
+            follows the project, it does not score it. */}
+        {realizing ? (
+          <View className="gap-3">
+            <SectionLabel>{t('fund.progress.title', locale)}</SectionLabel>
+            <Text className="text-[14px] leading-5 text-foreground">
+              {t('fund.progress.lead', locale)}
+            </Text>
+
+            {/* The winner's way in. Shown above their own trail because writing is why they
+                opened this screen; everyone else sees the section without it. */}
+            {isPlanAuthor ? (
+              <View className="gap-2">
+                <Button
+                  label={t('fund.progress.compose.entry.cta', locale)}
+                  onPress={() => router.push('/(modal)/progress')}
+                  variant="light"
+                  // Flat cyan CTA — no glow (rule #4)
+                />
+                <Text className="text-center text-[12px] text-muted-foreground">
+                  {t('fund.progress.compose.entry.hint', locale)}
+                </Text>
+              </View>
+            ) : null}
+
+            {updatesPage.isLoading ? (
+              <ActivityIndicator color={semantic.aura} />
+            ) : updates.length === 0 ? (
+              <Text className="text-[14px] text-muted-foreground">
+                {t('fund.progress.empty', locale)}
+              </Text>
+            ) : (
+              <View className="gap-4">
+                {updates.map((update) => (
+                  <ProgressUpdateCard
+                    key={update.id}
+                    update={update}
+                    phase={publicPhases.find((p) => p.id === update.plan_phase_id) ?? null}
+                    locale={locale}
+                    now={nowMs}
+                  />
+                ))}
+                {updatesPage.hasNextPage ? (
+                  <Button
+                    label={t('fund.progress.more', locale)}
+                    onPress={() => void updatesPage.fetchNextPage()}
+                    variant="ghost"
+                    disabled={updatesPage.isFetchingNextPage}
+                  />
+                ) : null}
+              </View>
+            )}
+          </View>
+        ) : null}
 
         {/* 5. Partecipa */}
         <View className="gap-3">
@@ -296,31 +559,14 @@ export default function AnnualFundScreen() {
                 locale={locale}
               />
               <Button
-                label={
-                  contribPhase === 'opening'
-                    ? t('fund.contribute.opening', locale)
-                    : t('fund.contribute.cta', locale, {
-                        amt: String(Math.floor(amountCents / 100)),
-                      })
-                }
-                onPress={() => void onContribute()}
+                label={t('fund.contribute.cta', locale, {
+                  amt: String(Math.floor(amountCents / 100)),
+                })}
+                onPress={onContribute}
                 variant="light"
-                disabled={contribPhase === 'opening' || amountCents < 100}
+                disabled={amountCents < MIN_CONTRIBUTION_CENTS}
                 // Flat cyan CTA — no glow (rule #4)
               />
-              {contribPhase === 'pending' ? (
-                <Text className="text-[12px] text-muted-foreground">
-                  {t('fund.contribute.pending', locale)}
-                </Text>
-              ) : null}
-              {contribPhase === 'canceled' ? (
-                <Text className="text-[12px] text-muted-foreground">
-                  {t('fund.contribute.canceled', locale)}
-                </Text>
-              ) : null}
-              {contribPhase === 'error' ? (
-                <Text className="text-[12px] text-error">{t('fund.contribute.error', locale)}</Text>
-              ) : null}
               <Text className="text-[12px] text-muted-foreground">
                 {t('fund.contribute.zeroAura', locale)}
               </Text>
@@ -356,7 +602,15 @@ export default function AnnualFundScreen() {
             </Text>
           ) : (
             <View className="gap-4">
-              {candidates.map((card) => (
+              {/* Category filter (#227). No empty state under it by construction: the chips
+                  offer only categories this ballot carries, so a tap always leaves cards. */}
+              <BallotFilterChips
+                filters={filters}
+                active={activeFilter}
+                onChange={setBallotFilter}
+                locale={locale}
+              />
+              {visibleCandidates.map((card) => (
                 <CandidateCard
                   key={card.candidacy_id}
                   card={card}
@@ -379,20 +633,9 @@ export default function AnnualFundScreen() {
           <PhaseList current={edition.phase} locale={locale} />
         </View>
 
-        {/* 8. Il motore virale — cyan-wash card */}
-        <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
-          <SectionLabel tone="aura">{t('fund.viral.label', locale)}</SectionLabel>
-          <Text className="text-[14px] leading-5 text-foreground">
-            {t('fund.viral.tagline1', locale)}
-          </Text>
-          <Text className="text-[14px] leading-5 text-foreground">
-            {t('fund.viral.tagline2', locale)}
-          </Text>
-          <Text className="text-[14px] leading-5 text-foreground">
-            {t('fund.viral.tagline3', locale)}
-          </Text>
-        </View>
+        {/* 8. Il motore virale — cyan-wash card, now carrying the referral share (#242) */}
+        <ViralCard locale={locale} />
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

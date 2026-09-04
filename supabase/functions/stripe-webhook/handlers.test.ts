@@ -12,6 +12,7 @@ import {
   type Db,
   type WebhookCtx,
   assertSettled,
+  handleAccountUpdated,
   handleChargeRefunded,
   handleContribution,
   handleDisputeCreated,
@@ -20,6 +21,8 @@ import {
   handleInvoiceFailed,
   handleSubscription,
   handleTicketPaid,
+  handleTransferCreated,
+  handleTransferReversed,
   handleWebhook,
   mapSubStatus,
   processEvent,
@@ -65,6 +68,7 @@ const subscription = (over: Record<string, unknown> = {}) =>
     items: {
       data: [{ price: { recurring: { interval: 'month' } }, current_period_end: 1760000000 }],
     },
+    cancel_at_period_end: false,
     ...over,
   }) as unknown as Stripe.Subscription;
 
@@ -134,9 +138,12 @@ Deno.test(
         'event_tickets.select': [{ data: { status, stripe_payment_id: 'pi_1' } }],
       });
       await handleTicketPaid(asDb(db), SECRET, ticketSession());
+      // The trailing upsert is the #522 RSVP mirror, restated on every redelivery of a live
+      // ticket — idempotent, and the only path that heals a ticket sold before the mirror
+      // existed. It is an rsvps write, so it touches nothing this test is guarding.
       assertEquals(
-        db.calls.map((c) => c.op),
-        ['upsert', 'select'],
+        db.calls.map((c) => `${c.table}.${c.op}`),
+        ['event_tickets.upsert', 'event_tickets.select', 'rsvps.upsert'],
         `status ${status}: no repair update expected`,
       );
     }
@@ -161,8 +168,34 @@ Deno.test('handleTicketPaid re-issues a refunded ticket on a genuine re-purchase
     values.qr_token,
     await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
   );
-  // guard: only a refunded row is repairable — a concurrent check-in can't be overwritten
-  assert(upd.filters.some(([f, c, v]) => f === 'eq' && c === 'status' && v === 'refunded'));
+  // guard: only a pending claim or a refunded row is payable — a concurrent check-in
+  // can't be overwritten
+  assert(
+    upd.filters.some(
+      ([f, c, v]) => f === 'in' && c === 'status' && JSON.stringify(v) === '["pending","refunded"]',
+    ),
+  );
+});
+
+Deno.test('handleTicketPaid pays the pending seat claim (#105 — the common path)', async () => {
+  // claim_event_seat wrote the pending row BEFORE the Session was minted, so the upsert is
+  // always swallowed (count 0) and the flip below is what actually issues the ticket. It
+  // must land even for a claim whose TTL lapsed — the money moved.
+  const db = makeFakeDb({
+    'event_tickets.upsert': [{ count: 0 }],
+    'event_tickets.select': [{ data: { status: 'pending', stripe_payment_id: null } }],
+  });
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+  const upd = db.calls.find((c) => c.op === 'update');
+  assert(upd, 'expected the pending claim to be paid');
+  const values = upd.values as Record<string, unknown>;
+  assertEquals(values.status, 'paid');
+  assertEquals(values.stripe_payment_id, 'pi_1');
+  assertEquals(values.expires_at, null); // the seat-hold TTL is over — the seat is owned now
+  assertEquals(
+    values.qr_token,
+    await signQrToken({ eid: 'evt-row-1', uid: 'prof-1', iat: 1751000000 }, SECRET),
+  );
 });
 
 Deno.test('handleTicketPaid never resurrects a refunded ticket from a stale replay', async () => {
@@ -195,18 +228,32 @@ Deno.test('handleTicketPaid refuses an unsettled session and writes nothing', as
 
 // ── W3 handleContribution ────────────────────────────────────────────────────
 
-Deno.test('handleContribution throws on missing edition_id / amount_total', async () => {
-  await assertRejects(
-    () => handleContribution(asDb(makeFakeDb()), contributionSession({ metadata: {} })),
-    Error,
-    'edition_id',
-  );
-  await assertRejects(
-    () => handleContribution(asDb(makeFakeDb()), contributionSession({ amount_total: null })),
-    Error,
-    'amount_total',
-  );
-});
+Deno.test(
+  'handleContribution throws on missing edition_id / amount_total / profile_id',
+  async () => {
+    await assertRejects(
+      () => handleContribution(asDb(makeFakeDb()), contributionSession({ metadata: {} })),
+      Error,
+      'edition_id',
+    );
+    await assertRejects(
+      () => handleContribution(asDb(makeFakeDb()), contributionSession({ amount_total: null })),
+      Error,
+      'amount_total',
+    );
+    // #239: profile_id is NOT NULL — a null insert would 500 → redeliver forever, so the guard
+    // throws before touching the db, exactly like the two above.
+    await assertRejects(
+      () =>
+        handleContribution(
+          asDb(makeFakeDb()),
+          contributionSession({ metadata: { kind: 'contribution', edition_id: 'ed-1' } }),
+        ),
+      Error,
+      'profile_id',
+    );
+  },
+);
 
 Deno.test('handleContribution writes row then recomputes the aggregate', async () => {
   const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
@@ -220,11 +267,105 @@ Deno.test('handleContribution writes row then recomputes the aggregate', async (
     count: 'exact',
   });
   const values = upsert.values as Record<string, unknown>;
+  assertEquals(values.profile_id, 'prof-1'); // never null — NOT NULL column (#239)
   assertEquals(values.amount_cents, 2500);
+  // #236: this fixture carries no split metadata — the shape of a session minted before the
+  // fee coverage shipped, and still in flight the day it deploys. The gift is the total.
+  assertEquals(values.coverage_cents, 0);
   assertEquals(values.currency, 'eur'); // lowercased
   assertEquals(values.status, 'succeeded');
   assertEquals(rpc.columns, 'recompute_fund_aggregate');
   assertEquals(rpc.values, { p_edition_id: 'ed-1' });
+});
+
+// ── W3 × the optional fee coverage (#236 / FUND-51) ──────────────────────────
+
+/** A contribution session with #236's split metadata, as create-contribution-session mints it. */
+const coveredSession = (giftCents: number, coverageCents: number) =>
+  contributionSession({
+    amount_total: giftCents + coverageCents,
+    metadata: {
+      kind: 'contribution',
+      edition_id: 'ed-1',
+      profile_id: 'prof-1',
+      gift_cents: String(giftCents),
+      coverage_cents: String(coverageCents),
+    },
+  });
+
+Deno.test('handleContribution stores the GIFT in amount_cents, coverage beside it', async () => {
+  // €1,00 gift + €0,27 coverage = €1,27 charged. The pool must move by 100, never by 127:
+  // recompute_fund_aggregate and every FUND-42 computation read amount_cents, and the 27
+  // went to Stripe, not to the fund.
+  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+  await handleContribution(asDb(db), coveredSession(100, 27));
+
+  const values = db.calls[0].values as Record<string, unknown>;
+  assertEquals(values.amount_cents, 100);
+  assertEquals(values.coverage_cents, 27);
+  // charged_cents is generated in the DB — the webhook must not try to state it.
+  assertEquals('charged_cents' in values, false);
+});
+
+Deno.test('handleContribution stores an uncovered contribution unchanged', async () => {
+  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+  await handleContribution(asDb(db), coveredSession(2500, 0));
+
+  const values = db.calls[0].values as Record<string, unknown>;
+  assertEquals(values.amount_cents, 2500);
+  assertEquals(values.coverage_cents, 0);
+});
+
+Deno.test('handleContribution refuses a split that does not reconcile with Stripe', async () => {
+  // Stripe is the source of truth and our two columns are its cache (rule #6). A split that
+  // does not add up to amount_total means our figure and the charge disagree — and the one
+  // the payer's card actually saw is Stripe's. Refuse rather than cache a fiction.
+  const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+  await assertRejects(
+    () =>
+      handleContribution(
+        asDb(db),
+        contributionSession({
+          amount_total: 127,
+          metadata: {
+            kind: 'contribution',
+            edition_id: 'ed-1',
+            profile_id: 'prof-1',
+            gift_cents: '100',
+            coverage_cents: '50', // 150 ≠ 127
+          },
+        }),
+      ),
+    Error,
+    'does not reconcile',
+  );
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('handleContribution refuses malformed split metadata', async () => {
+  // ' ' and '' are the interesting ones: Number() maps both to 0, so a blank would have
+  // become a silently valid zero coverage that reconciles against amount_total by accident.
+  for (const coverage of ['abc', '-27', '2.5', ' ', '', '1e3', '0x1f', '99999999999999999999']) {
+    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+    await assertRejects(
+      () =>
+        handleContribution(
+          asDb(db),
+          contributionSession({
+            metadata: {
+              kind: 'contribution',
+              edition_id: 'ed-1',
+              profile_id: 'prof-1',
+              coverage_cents: coverage,
+            },
+          }),
+        ),
+      Error,
+      undefined,
+      `coverage_cents ${JSON.stringify(coverage)} must be refused`,
+    );
+    assertEquals(db.calls.length, 0);
+  }
 });
 
 Deno.test(
@@ -264,6 +405,100 @@ Deno.test('assertSettled passes final statuses and throws on everything else', (
   );
 });
 
+// ── #522 the RSVP mirror ─────────────────────────────────────────────────────
+// `rsvps` was the free path's table alone, so the reminder sweep and «N partecipano» could not
+// see anybody who paid. The mirror is what widens the audience without changing either read.
+
+Deno.test('handleTicketPaid mirrors a settled ticket as a going RSVP', async () => {
+  const db = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+
+  const mirror = db.calls.find((c) => c.table === 'rsvps');
+  assert(mirror, 'expected an rsvps write');
+  assertEquals(mirror.op, 'upsert');
+  assertEquals(mirror.values, {
+    user_id: 'prof-1',
+    event_id: 'evt-row-1',
+    status: 'going',
+  });
+  // do UPDATE, not ignoreDuplicates: a re-buy after a refund has to move 'cancelled' back.
+  assertEquals(mirror.options, { onConflict: 'user_id,event_id' });
+  // Order matters: the seat exists before the row that claims it does.
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['event_tickets.upsert', 'rsvps.upsert'],
+  );
+});
+
+Deno.test('the mirror rides assertSettled — unsettled money writes no RSVP', async () => {
+  // The whole point of riding the existing gate rather than a narrower `=== 'paid'`: a 100%
+  // coupon session reports 'no_payment_required' and IS a ticket, while a delayed-notification
+  // method reports 'unpaid' and is not money yet. Neither may be special-cased here.
+  const paid = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
+  await handleTicketPaid(
+    asDb(paid),
+    SECRET,
+    ticketSession({ payment_status: 'no_payment_required' }),
+  );
+  assert(
+    paid.calls.some((c) => c.table === 'rsvps'),
+    'a free ticket still books a seat',
+  );
+
+  const unpaid = makeFakeDb();
+  await assertRejects(
+    () => handleTicketPaid(asDb(unpaid), SECRET, ticketSession({ payment_status: 'unpaid' })),
+    Error,
+    'unsettled',
+  );
+  assertEquals(unpaid.calls.length, 0, 'nothing at all is written before the money exists');
+});
+
+Deno.test('an indeterminate upsert count writes no RSVP', async () => {
+  // The ticket half reads a null count as "inserted" (worst case: the old swallow). The mirror
+  // cannot afford the same guess: on that branch a pre-existing `pending` row is possible, and
+  // 20260831090931's exemption covers settled tickets only — so an RSVP written here would be a
+  // capacity candidate and could raise P0001 INSIDE the webhook, which releases the lease and
+  // 500s until Stripe disables the endpoint. A redelivery restates the mirror off the live-row
+  // branch; one buyer's missed reminder is the cheaper side of that trade.
+  const db = makeFakeDb(); // no script → count comes back null
+  await handleTicketPaid(asDb(db), SECRET, ticketSession());
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['event_tickets.upsert'],
+  );
+});
+
+Deno.test(
+  'the repair path mirrors, and a refunded replay does not resurrect the mirror',
+  async () => {
+    // A genuine re-purchase (NEW payment intent) flips the refunded ticket back to paid — and the
+    // RSVP with it, or the buyer is silently missing from their own event again.
+    const rebuy = makeFakeDb({
+      'event_tickets.upsert': [{ count: 0 }],
+      'event_tickets.select': [{ data: { status: 'refunded', stripe_payment_id: 'pi_old' } }],
+    });
+    await handleTicketPaid(asDb(rebuy), SECRET, ticketSession({ payment_intent: 'pi_2' }));
+    const mirrored = rebuy.calls.find((c) => c.table === 'rsvps');
+    assert(mirrored, 'a re-purchase re-books the seat');
+    assertEquals((mirrored.values as Record<string, unknown>).status, 'going');
+
+    // …but a redelivery of the ORIGINAL session after its refund carries the SAME payment intent.
+    // Re-issuing there would undo the revocation, and re-mirroring would put a refunded ticket
+    // holder back in «N partecipano».
+    const replay = makeFakeDb({
+      'event_tickets.upsert': [{ count: 0 }],
+      'event_tickets.select': [{ data: { status: 'refunded', stripe_payment_id: 'pi_1' } }],
+    });
+    await handleTicketPaid(asDb(replay), SECRET, ticketSession());
+    assertEquals(
+      replay.calls.filter((c) => c.table === 'rsvps'),
+      [],
+      'a replay of the refunded session writes no RSVP',
+    );
+  },
+);
+
 // ── W4 handleChargeRefunded ──────────────────────────────────────────────────
 
 Deno.test('handleChargeRefunded acks charges without payment_intent or matching row', async () => {
@@ -278,10 +513,11 @@ Deno.test('handleChargeRefunded acks charges without payment_intent or matching 
     payment_intent: 'pi_x',
   } as unknown as Stripe.Charge);
   // Fund rows are never updated on a miss — only the select ran, plus the guarded ticket
-  // revocation (a no-op update when nothing matches).
+  // revocation (a no-op update when nothing matches). The ticket SELECT in front of it is the
+  // #522 mirror lookup; it returns nothing here, so no rsvps write follows.
   assertEquals(
     db2.calls.map((c) => `${c.table}.${c.op}`),
-    ['fund_contributions.select', 'event_tickets.update'],
+    ['fund_contributions.select', 'event_tickets.select', 'event_tickets.update'],
   );
 });
 
@@ -311,7 +547,7 @@ Deno.test('handleChargeRefunded revokes the matching ticket at the door', async 
   await handleChargeRefunded(asDb(db), {
     payment_intent: { id: 'pi_1' },
   } as unknown as Stripe.Charge);
-  const revoke = db.calls.find((c) => c.table === 'event_tickets');
+  const revoke = db.calls.find((c) => c.table === 'event_tickets' && c.op === 'update');
   assert(revoke, 'expected an event_tickets update');
   assertEquals(revoke.op, 'update');
   assertEquals(revoke.values, { status: 'refunded', qr_token: null });
@@ -319,6 +555,65 @@ Deno.test('handleChargeRefunded revokes the matching ticket at the door', async 
     ['eq', 'stripe_payment_id', 'pi_1'],
     ['in', 'status', ['paid', 'checked_in']], // guard: a re-delivered reversal can't re-flip
   ]);
+});
+
+Deno.test('a reversal cancels the mirrored RSVP as well as the ticket', async () => {
+  // The seat is gone, so the reminder and the head-count go with it. Both reversal paths share
+  // revokeTicket, so both are asserted — a chargeback leaves exactly as little behind as a refund.
+  for (const [label, run] of [
+    [
+      'refund',
+      (db: FakeDb) =>
+        handleChargeRefunded(asDb(db), { payment_intent: 'pi_1' } as unknown as Stripe.Charge),
+    ],
+    [
+      'dispute',
+      (db: FakeDb) =>
+        handleDisputeCreated(asDb(db), { payment_intent: 'pi_1' } as unknown as Stripe.Dispute),
+    ],
+  ] as const) {
+    const db = makeFakeDb({
+      'fund_contributions.select': [{ data: [] }],
+      'event_tickets.select': [{ data: [{ user_id: 'prof-1', event_id: 'evt-row-1' }] }],
+    });
+    await run(db);
+
+    // The pair lookup runs BEFORE the guarded ticket flip: rsvps carries no payment column, and
+    // reading after the flip would return nothing on a retry — stranding the mirror at 'going'
+    // if a first delivery died between the two writes.
+    assertEquals(
+      db.calls.map((c) => `${c.table}.${c.op}`),
+      ['fund_contributions.select', 'event_tickets.select', 'event_tickets.update', 'rsvps.update'],
+      label,
+    );
+    const cancel = db.calls[3];
+    assertEquals(cancel.values, { status: 'cancelled' }, label);
+    assertEquals(
+      cancel.filters,
+      [
+        ['eq', 'user_id', 'prof-1'],
+        ['eq', 'event_id', 'evt-row-1'],
+        ['eq', 'status', 'going'], // idempotency guard: a redelivered reversal can't re-flip
+      ],
+      label,
+    );
+  }
+});
+
+Deno.test('a reversal of a charge that bought no ticket leaves rsvps alone', async () => {
+  // A fund contribution's refund reaches revokeTicket too. It must not touch the free path:
+  // the match is the ticket row carrying this payment intent, and there is none.
+  const db = makeFakeDb({
+    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+    'event_tickets.select': [{ data: [] }],
+  });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: 'pi_c1',
+  } as unknown as Stripe.Charge);
+  assertEquals(
+    db.calls.filter((c) => c.table === 'rsvps'),
+    [],
+  );
 });
 
 // ── W5/W6/W7/W11 handleSubscription ──────────────────────────────────────────
@@ -342,6 +637,7 @@ Deno.test('handleSubscription upserts one membership per profile with derived fi
   assertEquals(values.status, 'active');
   assertEquals(values.stripe_customer_id, 'cus_1');
   assertEquals(values.current_period_end, new Date(1760000000 * 1000).toISOString());
+  assertEquals(values.cancel_at_period_end, false);
 });
 
 // The renewal date is read from the subscription ITEM only. Stripe moved current_period_end
@@ -368,6 +664,28 @@ Deno.test(
     assertEquals(values.current_period_end, null);
   },
 );
+
+// #511 — a member who cancelled stays `active` until the period ends, and Stripe marks that
+// pending end ONLY with this flag. Without it cached, «renews on the 14th» and «ends on the
+// 14th» are the same row and the app promises a charge that will never happen.
+Deno.test(
+  'handleSubscription caches a pending cancellation while the status is still active',
+  async () => {
+    const db = makeFakeDb();
+    await handleSubscription(asDb(db), subscription({ cancel_at_period_end: true }));
+    const values = db.calls[0].values as Record<string, unknown>;
+    assertEquals(values.status, 'active'); // still a member for the period already paid for
+    assertEquals(values.cancel_at_period_end, true);
+  },
+);
+
+// Un-cancelling arrives on the same customer.subscription.updated with the flag back to false.
+// Written through verbatim, so no branch is needed — this asserts the value is not sticky.
+Deno.test('handleSubscription writes an un-cancel back through', async () => {
+  const db = makeFakeDb();
+  await handleSubscription(asDb(db), subscription({ cancel_at_period_end: false }));
+  assertEquals((db.calls[0].values as Record<string, unknown>).cancel_at_period_end, false);
+});
 
 // ── W8 handleInvoiceFailed ───────────────────────────────────────────────────
 
@@ -415,10 +733,10 @@ Deno.test('handleDisputeCreated acks disputes with no matching contribution', as
   const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
   await handleDisputeCreated(asDb(db2), { payment_intent: 'pi_x' } as unknown as Stripe.Dispute);
   // A disputed ticket never touches fund rows: no fund update, no aggregate recompute —
-  // just the select miss and the guarded ticket revocation.
+  // just the select miss, the #522 mirror lookup and the guarded ticket revocation.
   assertEquals(
     db2.calls.map((c) => `${c.table}.${c.op}`),
-    ['fund_contributions.select', 'event_tickets.update'],
+    ['fund_contributions.select', 'event_tickets.select', 'event_tickets.update'],
   );
 });
 
@@ -429,7 +747,7 @@ Deno.test('handleDisputeCreated revokes the matching ticket at the door', async 
   await handleDisputeCreated(asDb(db), {
     payment_intent: 'pi_1',
   } as unknown as Stripe.Dispute);
-  const revoke = db.calls.find((c) => c.table === 'event_tickets');
+  const revoke = db.calls.find((c) => c.table === 'event_tickets' && c.op === 'update');
   assert(revoke, 'expected an event_tickets update');
   assertEquals(revoke.values, { status: 'refunded', qr_token: null });
   assertEquals(revoke.filters, [
@@ -485,6 +803,258 @@ Deno.test('handleIdentityFailed caches failed and never touches profiles', async
   assertEquals((db.calls[0].values as Record<string, unknown>).status, 'failed');
 });
 
+// ── W13: account.updated → payout_accounts cache ─────────────────────────────
+
+const connectAccount = (over: Record<string, unknown> = {}) =>
+  ({
+    id: 'acct_1',
+    charges_enabled: false,
+    payouts_enabled: false,
+    details_submitted: false,
+    ...over,
+  }) as unknown as Stripe.Account;
+
+Deno.test(
+  'handleAccountUpdated flips the capability flags on — and stamps onboarded_at once',
+  async () => {
+    const db = makeFakeDb();
+    await handleAccountUpdated(
+      asDb(db),
+      connectAccount({ charges_enabled: true, payouts_enabled: true, details_submitted: true }),
+    );
+    const [flags, onboarded] = db.calls;
+    assertEquals(flags.table, 'payout_accounts');
+    assertEquals(flags.values, { charges_enabled: true, payouts_enabled: true });
+    assertEquals(flags.filters, [['eq', 'stripe_account_id', 'acct_1']]);
+    assertEquals(onboarded.table, 'payout_accounts');
+    assert(
+      typeof (onboarded.values as Record<string, unknown>).onboarded_at === 'string',
+      'onboarded_at must be stamped when details_submitted',
+    );
+    // Set-once: the is-null guard is what keeps a redelivery (or a later capability
+    // event) from moving the completion timestamp.
+    assertEquals(onboarded.filters, [
+      ['eq', 'stripe_account_id', 'acct_1'],
+      ['is', 'onboarded_at', null],
+    ]);
+  },
+);
+
+Deno.test(
+  'handleAccountUpdated flips the capability flags OFF too — the transfer gate must fail closed',
+  async () => {
+    // Stripe revokes as well as grants (new requirements past deadline). A grant-only handler
+    // would leave #247 reading stale true flags after a revocation.
+    const db = makeFakeDb();
+    await handleAccountUpdated(
+      asDb(db),
+      connectAccount({ charges_enabled: false, payouts_enabled: false, details_submitted: true }),
+    );
+    assertEquals(db.calls[0].values, { charges_enabled: false, payouts_enabled: false });
+  },
+);
+
+Deno.test('handleAccountUpdated coerces absent flags to false, never null', async () => {
+  // Stripe types both flags optional; a null would violate the NOT NULL columns and
+  // poison-loop the event.
+  const db = makeFakeDb();
+  await handleAccountUpdated(asDb(db), { id: 'acct_1' } as unknown as Stripe.Account);
+  assertEquals(db.calls[0].values, { charges_enabled: false, payouts_enabled: false });
+  assertEquals(db.calls.length, 1, 'no details_submitted → no onboarded_at write');
+});
+
+Deno.test(
+  'handleAccountUpdated acks an account with no cached row (not ours / erased)',
+  async () => {
+    // Update-only by design: PostgREST reports a 0-row update as success, and recreating the
+    // row would resurrect a hard-deleted profile's pointer. No throw = 200 = Stripe stops.
+    const db = makeFakeDb();
+    await handleAccountUpdated(asDb(db), connectAccount({ id: 'acct_unknown' }));
+    assertEquals(db.calls.length, 1);
+  },
+);
+
+Deno.test('handleAccountUpdated throws on a failed write (Stripe must retry)', async () => {
+  for (const script of [
+    { 'payout_accounts.update': [{ error: { message: 'boom' } }] },
+    { 'payout_accounts.update': [{ error: null }, { error: { message: 'boom' } }] },
+  ]) {
+    const db = makeFakeDb(script);
+    await assertRejects(() =>
+      handleAccountUpdated(asDb(db), connectAccount({ details_submitted: true })),
+    );
+  }
+});
+
+// ── W14/W15: transfer.created / transfer.reversed → fund_payout_ledger (#247) ─
+
+const fundTransfer = (over: Record<string, unknown> = {}) =>
+  ({
+    id: 'tr_1',
+    amount: 4000,
+    amount_reversed: 0,
+    currency: 'eur',
+    destination: 'acct_win',
+    metadata: {
+      kind: 'fund_payout',
+      edition_id: 'ed-1',
+      pool_cents: '10000',
+      split_pct: '10',
+      payable_cents: '9000',
+    },
+    ...over,
+  }) as unknown as Stripe.Transfer;
+
+Deno.test(
+  'handleTransferCreated records the ledger row from the transfer + its basis',
+  async () => {
+    const db = makeFakeDb();
+    await handleTransferCreated(asDb(db), fundTransfer());
+    assertEquals(db.calls.length, 1);
+    const call = db.calls[0];
+    assertEquals(call.table, 'fund_payout_ledger');
+    assertEquals(call.op, 'upsert');
+    assertEquals(call.values, {
+      edition_id: 'ed-1',
+      // #231: no phase on the transfer → no attribution. Legal, and the state every
+      // pre-tranche-gate release is in.
+      plan_phase_id: null,
+      destination_account_id: 'acct_win',
+      amount_cents: 4000,
+      reversed_cents: 0,
+      currency: 'eur',
+      pool_cents: 10000,
+      split_pct: 10,
+      payable_cents: 9000,
+      status: 'released',
+      stripe_transfer_id: 'tr_1',
+    });
+    // Row-level idempotency: a redelivery (or a second event id for the same transfer)
+    // inserts nothing — same posture as fund_contributions.
+    assertEquals(call.options, { onConflict: 'stripe_transfer_id', ignoreDuplicates: true });
+  },
+);
+
+Deno.test('handleTransferCreated attributes the tranche to its plan phase (#231)', async () => {
+  // The one metadata key #228 left for this issue: it is what makes a released tranche
+  // attributable to the phase whose recorded verification released it. The ledger's
+  // within-basis trigger then refuses a foreign cycle or an over-phase-amount row.
+  const db = makeFakeDb();
+  const base = fundTransfer().metadata as Record<string, string>;
+  const phaseId = '22222222-2222-2222-2222-222222222222';
+  await handleTransferCreated(
+    asDb(db),
+    fundTransfer({ metadata: { ...base, plan_phase_id: phaseId } }),
+  );
+  assertEquals(db.calls.length, 1);
+  assertEquals((db.calls[0].values as Record<string, unknown>).plan_phase_id, phaseId);
+});
+
+Deno.test('handleTransferCreated throws on a malformed plan_phase_id (fail loud)', async () => {
+  // Passing it through would surface as a bare 22P02 from a column the message never
+  // names. Absent is legal (above); present-and-wrong is the misconfiguration.
+  const base = fundTransfer().metadata as Record<string, string>;
+  for (const bad of ['', 'not-a-uuid', '22222222-2222-2222-2222-22222222222']) {
+    const db = makeFakeDb();
+    await assertRejects(
+      () =>
+        handleTransferCreated(
+          asDb(db),
+          fundTransfer({ metadata: { ...base, plan_phase_id: bad } }),
+        ),
+      Error,
+      'malformed plan_phase_id',
+    );
+    assertEquals(db.calls.length, 0);
+  }
+});
+
+Deno.test('handleTransferCreated ignores transfers that are not fund payouts', async () => {
+  // #104's ticket payouts and Dashboard manual transfers are not this arm's to record.
+  const db = makeFakeDb();
+  await handleTransferCreated(asDb(db), fundTransfer({ metadata: {} }));
+  await handleTransferCreated(asDb(db), fundTransfer({ metadata: { kind: 'ticket_payout' } }));
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('handleTransferCreated throws on missing basis metadata (fail loud, retry)', async () => {
+  // A row without its declared-retention basis cannot reconcile #234's costs against
+  // #237's figures — never cache it; the unprocessed event is the standing alarm.
+  const base = fundTransfer().metadata as Record<string, string>;
+  for (const patch of [
+    { edition_id: '' },
+    { pool_cents: 'not-a-number' },
+    { split_pct: '' },
+    { payable_cents: '9000.5' },
+  ]) {
+    const db = makeFakeDb();
+    await assertRejects(() =>
+      handleTransferCreated(asDb(db), fundTransfer({ metadata: { ...base, ...patch } })),
+    );
+    assertEquals(db.calls.length, 0);
+  }
+  const db = makeFakeDb();
+  await assertRejects(() => handleTransferCreated(asDb(db), fundTransfer({ destination: null })));
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test(
+  'handleTransferCreated normalises an expanded destination and throws on db error',
+  async () => {
+    const db = makeFakeDb();
+    await handleTransferCreated(asDb(db), fundTransfer({ destination: { id: 'acct_win' } }));
+    assertEquals(
+      (db.calls[0].values as Record<string, unknown>).destination_account_id,
+      'acct_win',
+    );
+
+    const failing = makeFakeDb({ 'fund_payout_ledger.upsert': [{ error: { message: 'boom' } }] });
+    await assertRejects(() => handleTransferCreated(asDb(failing), fundTransfer()));
+  },
+);
+
+Deno.test('handleTransferReversed nets the row — partial stays released, full flips', async () => {
+  for (const [amountReversed, status] of [
+    [1500, 'released'],
+    [4000, 'reversed'],
+  ] as const) {
+    const db = makeFakeDb({ 'fund_payout_ledger.update': [{ data: [{ id: 'row-1' }] }] });
+    await handleTransferReversed(asDb(db), fundTransfer({ amount_reversed: amountReversed }));
+    const call = db.calls[0];
+    assertEquals(call.table, 'fund_payout_ledger');
+    assertEquals(call.op, 'update');
+    assertEquals(call.values, { reversed_cents: amountReversed, status });
+    assertEquals(call.filters, [['eq', 'stripe_transfer_id', 'tr_1']]);
+  }
+});
+
+Deno.test(
+  'handleTransferReversed: unmatched fund reversal throws, foreign reversal acks',
+  async () => {
+    // Stripe does not guarantee order. A fund-kind reversal landing before its
+    // transfer.created must RETRY (acking would lose the reversal when the created arm
+    // later inserts the pre-reversal snapshot); a transfer that is not ours just acks.
+    const fund = makeFakeDb({ 'fund_payout_ledger.update': [{ data: [] }] });
+    await assertRejects(
+      () => handleTransferReversed(asDb(fund), fundTransfer({ amount_reversed: 4000 })),
+      Error,
+      'before its ledger row',
+    );
+
+    const foreign = makeFakeDb({ 'fund_payout_ledger.update': [{ data: [] }] });
+    await handleTransferReversed(
+      asDb(foreign),
+      fundTransfer({ amount_reversed: 4000, metadata: {} }),
+    );
+    assertEquals(foreign.calls.length, 1); // the guarded update ran, matched nothing, acked
+  },
+);
+
+Deno.test('handleTransferReversed throws on a failed write (Stripe must retry)', async () => {
+  const db = makeFakeDb({ 'fund_payout_ledger.update': [{ error: { message: 'boom' } }] });
+  await assertRejects(() => handleTransferReversed(asDb(db), fundTransfer()));
+});
+
 // ── processEvent routing ─────────────────────────────────────────────────────
 
 const routingCtx = (db: FakeDb, retrieved?: Stripe.Subscription) => {
@@ -519,9 +1089,17 @@ Deno.test('processEvent routes each event type to the right table', async () => 
       { id: 'vs_1', metadata: { profile_id: 'p' } },
       'verifications',
     ],
+    ['account.updated', connectAccount(), 'payout_accounts'],
+    ['transfer.created', fundTransfer(), 'fund_payout_ledger'],
+    ['transfer.reversed', fundTransfer({ amount_reversed: 4000 }), 'fund_payout_ledger'],
   ];
   for (const [type, object, table] of cases) {
-    const db = makeFakeDb({ 'fund_contributions.upsert': [{ count: 1 }] });
+    const db = makeFakeDb({
+      'fund_contributions.upsert': [{ count: 1 }],
+      // transfer.reversed throws on a 0-row update for a fund transfer (out-of-order
+      // guard) — script the matched row so routing stays the thing under test here.
+      'fund_payout_ledger.update': [{ data: [{ id: 'row-1' }] }],
+    });
     await processEvent(routingCtx(db), stripeEvent(type, object));
     assertEquals(db.calls[0]?.table, table, `${type} should write ${table}`);
   }
@@ -673,6 +1251,10 @@ Deno.test('handleWebhook 500s when the disambiguating ledger read fails', async 
 
 Deno.test('handleWebhook happy path: lease claim → process → stamp processed_at', async () => {
   const db = makeFakeDb({
+    // count 1 = the ticket row was inserted. Scripted rather than left to the fake's `null`
+    // default, because an indeterminate count deliberately skips the #522 mirror — this test
+    // is about the pipeline around a ticket that really was issued.
+    'event_tickets.upsert': [{ count: 1 }],
     'stripe_webhook_events.update': [
       { data: [{ event_id: 'evt_1' }] }, // lease claim won
       { data: [{ event_id: 'evt_1' }] }, // processed_at stamp
@@ -688,13 +1270,14 @@ Deno.test('handleWebhook happy path: lease claim → process → stamp processed
     'stripe_webhook_events.upsert',
     'stripe_webhook_events.update', // lease claim (claimed_at)
     'event_tickets.upsert',
+    'rsvps.upsert', // #522 — the mirror rides INSIDE the lease, before the completion stamp
     'stripe_webhook_events.update', // completion stamp AFTER successful processing
   ]);
   const ourClaim = (db.calls[1].values as Record<string, unknown>).claimed_at;
   assert(ourClaim);
-  assert((db.calls[3].values as Record<string, unknown>).processed_at);
+  assert((db.calls[4].values as Record<string, unknown>).processed_at);
   // the completion stamp is guarded on OUR lease — never stamps over a re-claim
-  assertEquals(db.calls[3].filters, [
+  assertEquals(db.calls[4].filters, [
     ['eq', 'event_id', 'evt_1'],
     ['eq', 'claimed_at', ourClaim],
   ]);
@@ -772,7 +1355,12 @@ const scoreWrites = (db: FakeDb): FakeCall[] =>
       : c.op !== 'select' && /^aura_(events|scores)$/.test(c.table),
   );
 
-const MONEY_TABLES = ['event_tickets', 'fund_contributions', 'circle_memberships'];
+const MONEY_TABLES = [
+  'event_tickets',
+  'fund_contributions',
+  'circle_memberships',
+  'payout_accounts',
+];
 const moneyWrites = (db: FakeDb) =>
   db.calls.filter((c) => c.op !== 'select' && MONEY_TABLES.includes(c.table));
 
@@ -796,6 +1384,13 @@ Deno.test('paying money writes ZERO score events, on every paying branch', async
     ['circle updated', 'customer.subscription.updated', subscription()],
     ['circle deleted', 'customer.subscription.deleted', subscription({ status: 'canceled' })],
     ['circle invoice failed', 'invoice.payment_failed', { subscription: 'sub_1' }],
+    // Completing payout KYC is the last step before money can reach a member — if any
+    // paying-adjacent branch were going to leak Aura, it is this one (rule #1).
+    [
+      'payout account update',
+      'account.updated',
+      connectAccount({ charges_enabled: true, payouts_enabled: true, details_submitted: true }),
+    ],
   ];
   for (const [label, type, object] of cases) {
     const db = makeFakeDb({
@@ -854,6 +1449,12 @@ Deno.test('each money branch touches its own ledger and no other', async () => {
     ['fund', 'checkout.session.completed', contributionSession(), 'fund_contributions'],
     ['circle checkout', 'checkout.session.completed', subscriptionCheckout(), 'circle_memberships'],
     ['circle sub', 'customer.subscription.updated', subscription(), 'circle_memberships'],
+    [
+      'payout account',
+      'account.updated',
+      connectAccount({ details_submitted: true }),
+      'payout_accounts',
+    ],
   ];
   for (const [label, type, object, own] of cases) {
     const db = makeFakeDb({

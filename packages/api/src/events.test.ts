@@ -10,6 +10,7 @@ import {
   getEventAttendees,
   getEventCheckinCount,
   getEventLiveStats,
+  getEventSeatsTaken,
   getEventsByOrganizer,
   getEventsCalendar,
   getEventsNearby,
@@ -19,6 +20,7 @@ import {
   registerAthanorDaysInterest,
   subscribeAttendance,
   subscribeEventLive,
+  subscribeEventPresence,
   subscribeTicket,
   upsertRsvp,
 } from './events';
@@ -35,6 +37,12 @@ describe('eventKeys', () => {
 describe('eventKeys.liveStats', () => {
   it('namespaces live stats distinctly under the events root', () => {
     expect(eventKeys.liveStats('e1')).toEqual(['events', 'liveStats', 'e1']);
+  });
+});
+
+describe('eventKeys.seats', () => {
+  it('namespaces the seats-taken count distinctly under the events root', () => {
+    expect(eventKeys.seats('e1')).toEqual(['events', 'seats', 'e1']);
   });
 });
 
@@ -104,6 +112,7 @@ function evt(over: Record<string, unknown> = {}) {
     is_online: false,
     venue: 'Cascina Cuccagna',
     city: 'Milano',
+    description: null,
     stream_url: null,
     starts_at: '2026-09-01T18:00:00Z',
     ends_at: null,
@@ -111,11 +120,11 @@ function evt(over: Record<string, unknown> = {}) {
     price_cents: 0,
     currency: 'eur',
     fee_pct: 10,
-    is_kairos_day: false,
     is_athanor_day: false,
     cover_url: null,
     live_started_at: null,
     live_ended_at: null,
+    settlement_ack_at: null,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-01T00:00:00Z',
     deleted_at: null,
@@ -130,6 +139,7 @@ const ticketRow = (over: Record<string, unknown> = {}) => ({
   stripe_payment_id: null,
   qr_token: null,
   status: 'pending',
+  expires_at: null,
   created_at: '2026-08-01T00:00:00Z',
   updated_at: '2026-08-01T00:00:00Z',
   ...over,
@@ -198,6 +208,57 @@ describe('createTicketCheckout', () => {
     const invoke = vi.fn().mockResolvedValue({ data: null, error: new Error('stripe down') });
     const { client } = withFn(invoke);
     await expect(createTicketCheckout(client, E)).rejects.toThrow();
+  });
+
+  // #103 — the server's {error} string is the contract; the screen maps it to copy.
+  it('reads the refusal body off FunctionsHttpError.context into a TicketCheckoutError', async () => {
+    const httpError = Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+      context: { status: 403, json: () => Promise.resolve({ error: 'organizer not verified' }) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const { client } = withFn(invoke);
+
+    await expect(createTicketCheckout(client, E)).rejects.toMatchObject({
+      name: 'TicketCheckoutError',
+      code: 'organizer not verified',
+      status: 403,
+    });
+  });
+
+  it('rethrows the raw error when the refusal body is unreadable', async () => {
+    const httpError = Object.assign(new Error('non-2xx'), {
+      context: { status: 500, json: () => Promise.reject(new Error('not json')) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const { client } = withFn(invoke);
+    await expect(createTicketCheckout(client, E)).rejects.toThrow('non-2xx');
+  });
+
+  it('rethrows the raw error when the body carries no {error} string', async () => {
+    const httpError = Object.assign(new Error('non-2xx'), {
+      context: { status: 500, json: () => Promise.resolve({ unrelated: true }) },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const { client } = withFn(invoke);
+    await expect(createTicketCheckout(client, E)).rejects.toThrow('non-2xx');
+  });
+});
+
+describe('getEventSeatsTaken', () => {
+  it('reads the definer count rpc for this event (#105)', async () => {
+    const fake = makeFakeClient({ 'rpc.event_seats_taken': [{ data: 7 }] });
+    await expect(getEventSeatsTaken(asClient(fake), E)).resolves.toBe(7);
+    const rpc = fake.calls.find((c) => c.op === 'rpc');
+    expect(rpc?.columns).toBe('event_seats_taken');
+    expect(rpc?.values).toEqual({ p_event_id: E });
+  });
+
+  it('treats a null count as zero and surfaces errors', async () => {
+    const empty = makeFakeClient({ 'rpc.event_seats_taken': [{ data: null }] });
+    await expect(getEventSeatsTaken(asClient(empty), E)).resolves.toBe(0);
+
+    const failing = makeFakeClient({ 'rpc.event_seats_taken': [{ error: { message: 'boom' } }] });
+    await expect(getEventSeatsTaken(asClient(failing), E)).rejects.toBeTruthy();
   });
 });
 
@@ -380,15 +441,191 @@ describe('getEventsCalendar', () => {
   it('carries the cursor as a keyset predicate, not an offset', async () => {
     const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
     await getEventsCalendar(asClient(fake), { starts_at: '2026-09-01T18:00:00Z', id: E }, 20);
-    const or = fake.calls[0]!.filters.find((f) => f[0] === 'or');
-    expect(or).toBeDefined();
-    expect(String(or?.[1])).toContain('starts_at.gt.2026-09-01T18:00:00Z');
+    // TWO `or` predicates now: the #530 visibility bound and the keyset. Select the keyset
+    // by content — `find(f => f[0] === 'or')` would return the bound and assert nothing.
+    const ors = fake.calls[0]!.filters.filter((f) => f[0] === 'or').map((f) => String(f[1]));
+    const keyset = ors.find((s) => s.includes('starts_at.gt.'));
+    expect(keyset).toBeDefined();
+    expect(keyset).toContain('starts_at.gt.2026-09-01T18:00:00Z');
+    expect(keyset).toContain(`and(starts_at.eq.2026-09-01T18:00:00Z,id.gt.${E})`);
+    // The keyset stays a SEPARATE top-level predicate: top-level `or`s AND together, so the
+    // bound narrows the page rather than the cursor widening the bound.
+    expect(ors).toHaveLength(2);
+    expect(keyset).not.toContain('live_started_at');
     expect(fake.calls[0]!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+
+  // ── #530 — a live / in-progress event stays on the calendar ───────────────────
+  /** The visibility bound: the `or` that is not the keyset. */
+  const boundOf = (fake: ReturnType<typeof makeFakeClient>): string => {
+    const ors = fake.calls[0]!.filters.filter((f) => f[0] === 'or').map((f) => String(f[1]));
+    const bound = ors.find((s) => s.includes('live_started_at'));
+    expect(bound).toBeDefined();
+    return bound!;
+  };
+
+  it('replaces the bare starts_at cutoff with a four-arm visibility bound', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20);
+
+    // The old `.gte('starts_at', now)` cutoff is GONE — it is what hid every row the moment
+    // it started. The one remaining bare `gte` is the scan floor, thirty days BACK, which is
+    // a different predicate serving a different purpose.
+    const bareGte = fake.calls[0]!.filters.filter((f) => f[0] === 'gte' && f[1] === 'starts_at');
+    expect(bareGte).toHaveLength(1);
+    expect(new Date(String(bareGte[0]![2])).getTime()).toBeLessThan(Date.now() - 29 * 864e5);
+
+    const bound = boundOf(fake);
+    // arm 1 — not started yet
+    expect(bound).toMatch(/(^|,)starts_at\.gte\.\d{4}-\d{2}-\d{2}T[\d:.]+Z(,|$)/);
+    // arm 2 — explicitly live: marker set and not yet ended
+    expect(bound).toContain('and(live_started_at.not.is.null,live_ended_at.is.null)');
+    // arm 3 — in progress by time: has an end, still to come
+    expect(bound).toMatch(/(^|,)ends_at\.gte\.\d{4}-\d{2}-\d{2}T[\d:.]+Z(,|$)/);
+    // arm 4 — no end declared: the assumed four-hour duration
+    expect(bound).toMatch(/and\(ends_at\.is\.null,starts_at\.gte\.[\d\-T:.]+Z\)/);
+  });
+
+  it('resolves both instants from ONE clock read, four hours apart', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
+      const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+      await getEventsCalendar(asClient(fake), null, 20);
+      const bound = boundOf(fake);
+      // `now` — arms 1 and 3
+      expect(bound).toContain('starts_at.gte.2026-09-01T12:00:00.000Z,');
+      expect(bound).toContain('ends_at.gte.2026-09-01T12:00:00.000Z');
+      // `now - ASSUMED_DURATION_MS` — arm 4. PostgREST cannot add an interval in a filter,
+      // so the grace instant is resolved here, from the SAME Date the cutoff came from.
+      expect(bound).toContain('and(ends_at.is.null,starts_at.gte.2026-09-01T08:00:00.000Z)');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ANDs a thirty-day scan floor so the disjunction stays sargable', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
+      const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+      await getEventsCalendar(asClient(fake), null, 20);
+      // Without a range start the planner walks `events_calendar` from the oldest event
+      // forward, discarding every finished row before it can fill a page. This is a
+      // top-level predicate, so it ANDs with the bound rather than widening it.
+      expect(fake.calls[0]!.filters).toEqual(
+        expect.arrayContaining([['gte', 'starts_at', '2026-08-02T12:00:00.000Z']]),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the (starts_at, id) ascending order — the bound is a filter, not an order', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20);
+    const orders = fake.calls[0]!.modifiers.filter((m) => m[0] === 'order');
+    expect(orders).toEqual([
+      ['order', 'starts_at', { ascending: true }],
+      ['order', 'id', { ascending: true }],
+    ]);
   });
 
   it('throws when the database errors', async () => {
     const fake = makeFakeClient({ 'events.select': [{ error: { message: 'boom' } }] });
     await expect(getEventsCalendar(asClient(fake))).rejects.toThrow();
+  });
+
+  // ── #151 discovery filters ────────────────────────────────────────────────────
+  it('issues no filter predicate at all when filters are absent', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20);
+    const cols = fake.calls[0]!.filters.map((f) => f[1]);
+    expect(cols).not.toContain('category');
+    expect(cols).not.toContain('city');
+    // Exactly ONE bare `starts_at` predicate with no filters: the scan floor that keeps the
+    // bound sargable. Any second one would be a #151 date preset leaking in.
+    expect(fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at')).toHaveLength(1);
+    expect(fake.calls[0]!.filters.filter((f) => f[0] === 'or')).toHaveLength(1);
+  });
+
+  it('filters by category as an equality predicate', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, { category: 'musica' });
+    expect(fake.calls[0]!.filters).toEqual(expect.arrayContaining([['eq', 'category', 'musica']]));
+  });
+
+  it('matches city case-insensitively and whole, never as a substring', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, { city: 'Bologna' });
+    const ilike = fake.calls[0]!.filters.find((f) => f[0] === 'ilike');
+    expect(ilike).toEqual(['ilike', 'city', 'Bologna']);
+    expect(String(ilike?.[2])).not.toContain('%');
+  });
+
+  it('neutralises LIKE metacharacters a member types into the city field', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, { city: '%_*a' });
+    const ilike = fake.calls[0]!.filters.find((f) => f[0] === 'ilike');
+    // `*` is PostgREST's own wildcard alias and cannot be backslash-escaped, so it is dropped
+    expect(ilike?.[2]).toBe('\\%\\_a');
+  });
+
+  it('ANDs the date window with the visibility bound rather than replacing it', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), null, 20, {
+      dateFrom: '2020-01-01T00:00:00.000Z',
+      dateTo: '2026-08-30T23:59:59.999Z',
+    });
+    const startsAt = fake.calls[0]!.filters.filter((f) => f[1] === 'starts_at');
+    // Three bare `starts_at` predicates: the scan floor, then the window's own two. The
+    // "in arrivo" cutoff is NOT among them — since #530 it lives in the `or(...)` bound.
+    expect(startsAt).toEqual([
+      ['gte', 'starts_at', expect.any(String)], // the scan floor
+      ['gte', 'starts_at', '2020-01-01T00:00:00.000Z'],
+      ['lte', 'starts_at', '2026-08-30T23:59:59.999Z'],
+    ]);
+    // A past dateFrom is still ANDed, so it cannot widen anything — the later of the two
+    // lower bounds wins in Postgres.
+    expect(startsAt.filter((f) => f[0] === 'gte')).toHaveLength(2);
+    expect(boundOf(fake)).toContain('live_ended_at.is.null');
+    // A past dateFrom still cannot resurrect a FINISHED event: the bound AND-s on top of it.
+    expect(boundOf(fake)).toMatch(/ends_at\.gte\./);
+  });
+
+  it('composes every filter with the keyset cursor and still issues no offset', async () => {
+    const fake = makeFakeClient({ 'events.select': [{ data: [] }] });
+    await getEventsCalendar(asClient(fake), { starts_at: '2026-09-01T18:00:00Z', id: E }, 20, {
+      category: 'arte',
+      city: 'Torino',
+      dateTo: '2026-12-31T23:59:59.999Z',
+    });
+    const call = fake.calls[0]!;
+    expect(call.filters).toEqual(expect.arrayContaining([['eq', 'category', 'arte']]));
+    expect(call.filters.find((f) => f[0] === 'or')).toBeDefined();
+    expect(call.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+});
+
+describe('eventKeys.calendar (#151 — a changed filter set is a fresh cursor)', () => {
+  it('is a distinct cache entry per filter set, so no cursor survives a filter change', () => {
+    const keys = [
+      eventKeys.calendar(),
+      eventKeys.calendar({}),
+      eventKeys.calendar({ category: 'arte' }),
+      eventKeys.calendar({ category: 'musica' }),
+      eventKeys.calendar({ city: 'Torino' }),
+      eventKeys.calendar({ dateFrom: '2026-08-23T00:00:00.000Z' }),
+      eventKeys.calendar({ dateTo: '2026-08-23T00:00:00.000Z' }),
+    ];
+    expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
+    expect(keys.every((k) => k[0] === 'events' && k[1] === 'calendar')).toBe(true);
+  });
+
+  it('is stable for the same filter set, so an unchanged sheet does not refetch', () => {
+    expect(eventKeys.calendar({ category: 'arte', city: 'Torino' })).toEqual(
+      eventKeys.calendar({ category: 'arte', city: 'Torino' }),
+    );
   });
 });
 
@@ -547,15 +784,11 @@ describe('getEventLiveStats', () => {
   it('returns the row when the stream has stats', async () => {
     const fake = makeFakeClient({
       'event_live_stats.select': [
-        {
-          data: [
-            { event_id: E, listener_count: 7, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
-          ],
-        },
+        { data: [{ event_id: E, is_live: true, updated_at: '2026-09-01T18:05:00Z' }] },
       ],
     });
     await expect(getEventLiveStats(asClient(fake), E)).resolves.toMatchObject({
-      listener_count: 7,
+      is_live: true,
     });
   });
 
@@ -581,6 +814,7 @@ describe('createEvent', () => {
     is_online: false,
     venue: 'Cascina Cuccagna',
     city: 'Milano',
+    description: null,
     lat: 45.45,
     long: 9.2,
     stream_url: null,
@@ -589,6 +823,9 @@ describe('createEvent', () => {
     capacity: 40,
     price_cents: 1500,
     currency: 'eur',
+    // A paid event carries the organiser's settlement acknowledgement, or the schema and the RPC
+    // both refuse it (#437).
+    settlement_ack: true,
   };
 
   it('creates through the create_event rpc so the server builds the geo point', async () => {
@@ -612,7 +849,20 @@ describe('createEvent', () => {
       p_ends_at: '2026-09-01T20:00:00Z',
       p_capacity: 40,
       p_price_cents: 1500,
+      p_settlement_ack: true,
     });
+  });
+
+  it('refuses a paid event with no acknowledgement before the rpc is reached (#437)', async () => {
+    // The client half of the gate. It matters that nothing is SENT: an RPC that refuses is the
+    // durable check, but a request that never leaves is the one the organiser experiences.
+    // `false`, not an absent key — an unticked box is what a client actually sends. The absent
+    // case is the schema's own test (packages/schemas/src/event.test.ts).
+    const fake = makeFakeClient({ 'rpc.create_event': [{ data: E }] });
+    await expect(
+      createEvent(asClient(fake), { ...input, settlement_ack: false }),
+    ).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
   });
 
   it('forwards the currency the organizer chose to the rpc', async () => {
@@ -739,16 +989,72 @@ describe('subscribeAttendance', () => {
 });
 
 describe('subscribeEventLive', () => {
-  it('forwards live stats rows to the callback', () => {
+  it('forwards live-flag rows to the callback', () => {
     const fake = makeFakeClient();
     const seen: unknown[] = [];
     subscribeEventLive(asClient(fake), E, (s) => seen.push(s));
     handlerOf(fake)({
-      new: { event_id: E, listener_count: 3, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
+      new: { event_id: E, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
     });
-    expect(seen).toEqual([
-      { event_id: E, listener_count: 3, is_live: true, updated_at: '2026-09-01T18:05:00Z' },
+    expect(seen).toEqual([{ event_id: E, is_live: true, updated_at: '2026-09-01T18:05:00Z' }]);
+  });
+});
+
+describe('subscribeEventPresence', () => {
+  // The presence sync handler is the first (and only) .on() registration of the room's channel.
+  const syncHandlerOf = (fake: ReturnType<typeof makeFakeClient>, index = 0) =>
+    fake.channels[index]!.events[0]![2] as () => void;
+
+  it('shares ONE un-suffixed room per event and reports its size to every observer', () => {
+    const fake = makeFakeClient();
+    const counts: number[] = [];
+    const c1 = subscribeEventPresence(asClient(fake), E, (n) => counts.push(n));
+    const c2 = subscribeEventPresence(asClient(fake), E, (n) => counts.push(n * 10));
+
+    // one shared channel, bare topic — a channelTopic() suffix would put each
+    // subscriber in a private room of one and the count would never move
+    expect(fake.channels).toHaveLength(1);
+    expect(fake.channels[0]!.name).toBe(`event:${E}:presence`);
+
+    fake.channels[0]!.presence = { 'conn-a': [{}], 'conn-b': [{}] };
+    syncHandlerOf(fake)();
+    expect(counts).toEqual([2, 20]);
+
+    c1();
+    expect(fake.channels[0]!.removed).toBe(false); // second observer still in the room
+    c2();
+    expect(fake.channels[0]!.removed).toBe(true);
+  });
+
+  it('tracks once no matter how many trackers, untracks when the last leaves (rule api.md)', () => {
+    const fake = makeFakeClient();
+    const t1 = subscribeEventPresence(asClient(fake), E, () => {}, { track: true });
+    const t2 = subscribeEventPresence(asClient(fake), E, () => {}, { track: true });
+
+    expect(fake.channels[0]!.tracked).toHaveLength(1);
+
+    t1();
+    expect(fake.channels[0]!.untracked).toBe(0);
+    t2();
+    expect(fake.channels[0]!.untracked).toBe(1);
+    expect(fake.channels[0]!.removed).toBe(true);
+  });
+
+  it('separates rooms per event and survives double cleanup', () => {
+    const fake = makeFakeClient();
+    const c1 = subscribeEventPresence(asClient(fake), E, () => {});
+    subscribeEventPresence(asClient(fake), E2, () => {});
+
+    expect(fake.channels).toHaveLength(2);
+    expect(fake.channels.map((c) => c.name)).toEqual([
+      `event:${E}:presence`,
+      `event:${E2}:presence`,
     ]);
+
+    c1();
+    c1(); // idempotent — a second call must not double-remove or throw
+    expect(fake.channels[0]!.removed).toBe(true);
+    expect(fake.channels[1]!.removed).toBe(false);
   });
 });
 
@@ -853,6 +1159,7 @@ describe('events — createEvent forwards only the fields that were set', () => 
     is_online: true,
     venue: null,
     city: null,
+    description: null,
     lat: null,
     long: null,
     stream_url: 'https://meet.example/abc',
@@ -861,6 +1168,7 @@ describe('events — createEvent forwards only the fields that were set', () => 
     capacity: null,
     price_cents: 0,
     currency: 'eur',
+    settlement_ack: false,
   };
 
   it('an online event forwards its stream url and omits the physical-venue fields', async () => {
@@ -872,9 +1180,28 @@ describe('events — createEvent forwards only the fields that were set', () => 
     const args = fake.calls[0]!.values as Record<string, unknown>;
     expect(args).toMatchObject({ p_stream_url: 'https://meet.example/abc' });
     // Unset optionals must be absent, not sent as undefined: the RPC has its own defaults.
-    for (const k of ['p_venue', 'p_city', 'p_lat', 'p_long', 'p_ends_at', 'p_capacity']) {
+    for (const k of [
+      'p_venue',
+      'p_city',
+      'p_lat',
+      'p_long',
+      'p_ends_at',
+      'p_capacity',
+      'p_description',
+    ]) {
       expect(args).not.toHaveProperty(k);
     }
+  });
+
+  it('forwards a description when the organizer wrote one (#634)', async () => {
+    const fake = makeFakeClient({
+      'rpc.create_event': [{ data: E }],
+      'events.select': [{ data: evt() }],
+    });
+    await createEvent(asClient(fake), { ...base, description: 'Argilla, tornio e tramonto.' });
+    expect(fake.calls[0]!.values).toMatchObject({
+      p_description: 'Argilla, tornio e tramonto.',
+    });
   });
 
   it('a free event omits p_price_cents entirely', async () => {
@@ -886,6 +1213,21 @@ describe('events — createEvent forwards only the fields that were set', () => 
     });
     await createEvent(asClient(fake), base);
     expect(fake.calls[0]!.values).not.toHaveProperty('p_price_cents');
+  });
+
+  it('a free event omits p_settlement_ack, ticked or not (#437)', async () => {
+    // The RPC defaults it to false and stamps nothing on a free event. Sending `false` would be
+    // noise; sending `true` would record an acknowledgement of terms that do not apply.
+    for (const settlement_ack of [false, true]) {
+      const fake = makeFakeClient({
+        'rpc.create_event': [{ data: E }],
+        'events.select': [{ data: evt() }],
+      });
+      await createEvent(asClient(fake), { ...base, settlement_ack });
+      expect(fake.calls[0]!.values, `settlement_ack: ${settlement_ack}`).not.toHaveProperty(
+        'p_settlement_ack',
+      );
+    }
   });
 
   it('throws when the RPC reports an id the follow-up read cannot find', async () => {

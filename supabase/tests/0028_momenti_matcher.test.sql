@@ -1,8 +1,16 @@
+-- public.run_momenti_matcher — the nightly Momenti matcher, as replaced by
+-- <ts>_momenti_affinity_and_deck.sql (#273 A/B/C/E) and grown a third pass by
+-- <ts>_momento_suggestions.sql (#124). The suggestion cases at the end assert the pass and
+-- its cross-pass invariant only; the excluded sets and the read RPC are 0132.
+--
+-- The fixtures use the REAL onboarding vocabulary (packages/core/src/onboarding/tags.ts),
+-- unlike the 'design'/'music' placeholders this file used to carry: the two vocabularies are
+-- disjoint by construction, and the whole point of #273 A is the seeking → identity map, which
+-- an invented tag cannot exercise.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(21);
 
--- three users: A & B share a tag (→ should match); C is isolated (no overlap)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','authenticated','authenticated','a@test.athanor','{}'::jsonb, now(), now()),
@@ -10,11 +18,16 @@ values
   ('00000000-0000-0000-0000-000000000000','cccccccc-cccc-cccc-cccc-cccccccccccc','authenticated','authenticated','c@test.athanor','{}'::jsonb, now(), now());
 
 set local role service_role;
-update public.profiles set identity_tags = array['design'], seeking = array['music'], locale='it'
+-- A seeks mentorship and is a freelance; B is exactly that answer (mentor+coach) and seeks
+-- collaborations, which A is. NOTHING is shared between them — this pair scores only on the
+-- two terms that were structurally dead before #273.
+update public.profiles set identity_tags = array['freelance'], seeking = array['mentorship'], locale='it'
   where id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-update public.profiles set identity_tags = array['music'],  seeking = array['design'], locale='it'
+update public.profiles set identity_tags = array['mentor','coach'], seeking = array['collaborazioni'], locale='it'
   where id='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-update public.profiles set identity_tags = array['cooking'],seeking = array['gardening'], locale='it'
+-- C is the rare-tag member: one artista among mentors. Against B she scores exactly ONE term
+-- (B seeks collaborazioni, which artista answers) — below the threshold — and against A, none.
+update public.profiles set identity_tags = array['artista'], seeking = array['eventi'], locale='it'
   where id='cccccccc-cccc-cccc-cccc-cccccccccccc';
 insert into public.dreams (profile_id, text) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Un sogno A'),
@@ -32,27 +45,94 @@ update public.dreams set status = 'archived'
     'cccccccc-cccc-cccc-cccc-cccccccccccc')
     and status = 'active' and deleted_at is null;
 
-select ok(public.run_momenti_matcher() >= 2, 'matcher inserts at least the A↔B pair');
+-- ── the map itself (#273 A) ─────────────────────────────────────────────────
+-- Mirrored in packages/core/src/onboarding/affinity.ts; affinity.mirror.test.ts compares the
+-- two, this asserts the SQL half actually answers.
+--
+-- As the OWNER, not service_role: athanor.seeking_to_identity is an implementation detail of
+-- the matcher, execute is revoked from everyone else, and the matcher reaches it only because
+-- it is DEFINER. Calling it under `set local role service_role` is what made this file fail
+-- with 42501 the first time it ran in CI — hosted auto-grants execute to service_role through
+-- default privileges and a fresh CI Postgres does not (20260616071318, 20260812155833).
+reset role;
+select is(
+  athanor.seeking_to_identity(array['mentorship']),
+  array['coach','mentor'],
+  'seeking «mentorship» expands to the identities that answer it'
+);
+select is(
+  athanor.seeking_to_identity(array['connessioni','eventi']),
+  '{}'::text[],
+  'the two generic intents expand to nothing (they name no profession)'
+);
+-- Both halves of 20260812155833, which exists because a hosted project auto-grants execute on
+-- new functions to service_role and a fresh CI Postgres does not — so "who may call this" has
+-- to be written down, not inherited.
+select ok(
+  not has_function_privilege('service_role', 'athanor.seeking_to_identity(text[])', 'execute'),
+  'service_role cannot execute the matcher''s internal helper');
+select ok(
+  has_function_privilege('service_role', 'public.expire_momento_proposals()', 'execute'),
+  'service_role CAN run the expiry (the ops-callable half, like the matcher itself)');
+set local role service_role;
 
--- A got proposed B (seek_hit: A seeks music, B is music)
+select ok(public.run_momenti_matcher() >= 2, 'matcher inserts at least the A↔B pair and C''s fallback');
+
+-- A is proposed B on COMPLEMENTARITY ALONE — the pair shares no identity tag at all.
 select results_eq(
   $$ select candidate_id from public.momento_proposals where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' $$,
   $$ values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid) $$,
-  'A is proposed B (mutual seeking overlap)');
+  'A is proposed B (seek_hit + offer_hit, zero shared tags)');
+select ok(
+  (select affinity from public.momento_proposals
+    where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') >= 2,
+  'the pair scores at or above the threshold (#273 C)');
 
--- never self-proposed
 select is((select count(*)::int from public.momento_proposals where user_id = candidate_id), 0,
   'no self-proposals');
 
--- C (no overlap with anyone) gets nothing
-select is((select count(*)::int from public.momento_proposals where user_id='cccccccc-cccc-cccc-cccc-cccccccccccc'), 0,
-  'zero-affinity user gets no proposals');
+-- #273 C: C ↔ B has exactly one term (artista answers B''s «collaborazioni»), which used to be
+-- enough under `affinity > 0`. It is not any more…
+select is(
+  (select count(*)::int from public.momento_proposals
+    where user_id='cccccccc-cccc-cccc-cccc-cccccccccccc'
+      and candidate_id='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+      and affinity >= 2),
+  0,
+  'a single-term overlap is below the threshold and is not proposed as affinity');
+-- …and #273 E: C is not left staring at an empty deck either. She gets exactly one card, at
+-- affinity 0 — the dream-recency fallback the deck labels «Sogno nuovo».
+select is(
+  (select count(*)::int from public.momento_proposals
+    where user_id='cccccccc-cccc-cccc-cccc-cccccccccccc' and affinity = 0),
+  1,
+  'a member who scores below the threshold against everyone gets one fallback card');
 
--- reasons authored (≥1 string, IT voice)
-select ok(
-  (select array_length(reasons,1) from public.momento_proposals
-    where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') >= 1,
-  'proposal carries at least one reason string');
+-- #273 D: nothing writes reason prose any more — the deck computes terms at read time.
+select is(
+  (select count(*)::int from public.momento_proposals where reasons <> '{}'),
+  0,
+  'the matcher writes no reason strings');
+
+-- ── expiry (#273 B) ─────────────────────────────────────────────────────────
+-- An unswiped pending row older than a week is deleted, so the matcher's cap stops sitting on
+-- a backlog and the pair returns to the pool. A passed row is untouched: its passed_until must
+-- keep suppressing re-proposal for the full 90 days.
+insert into public.momento_proposals (user_id, candidate_id, affinity, daily_rank, proposed_on, status)
+values
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','cccccccc-cccc-cccc-cccc-cccccccccccc', 3, 1,
+   (now() at time zone 'utc')::date - 9, 'pending'),
+  -- candidate B, not A: C already holds a fallback row for A from the run above, and
+  -- (user_id, candidate_id) is unique.
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 3, 2,
+   (now() at time zone 'utc')::date - 9, 'passed');
+
+select is(public.expire_momento_proposals(), 1, 'expiry deletes exactly the stale PENDING row');
+select is(
+  (select count(*)::int from public.momento_proposals
+    where user_id='cccccccc-cccc-cccc-cccc-cccccccccccc' and status='passed'),
+  1,
+  'a passed row survives expiry (its 90-day window must not be freed early)');
 
 -- Regression (daily_rank offset): a SECOND same-day run with a NEW eligible candidate for a
 -- partially-filled recipient must NOT raise a daily_cap 23505, and must respect the ≤3/day cap.
@@ -61,8 +141,8 @@ insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, c
 values ('00000000-0000-0000-0000-000000000000','dddddddd-dddd-dddd-dddd-dddddddddddd',
         'authenticated','authenticated','d@test.athanor','{}'::jsonb, now(), now());
 set local role service_role;
-update public.profiles set identity_tags = array['music'], seeking = array['design'], locale='it'
-  where id='dddddddd-dddd-dddd-dddd-dddddddddddd';   -- D, like B, matches A (A seeks music)
+update public.profiles set identity_tags = array['mentor','coach'], seeking = array['collaborazioni'], locale='it'
+  where id='dddddddd-dddd-dddd-dddd-dddddddddddd';   -- D, like B, answers what A seeks
 insert into public.dreams (profile_id, text) values ('dddddddd-dddd-dddd-dddd-dddddddddddd','Un sogno D');
 
 select lives_ok($$ select public.run_momenti_matcher() $$,
@@ -72,6 +152,61 @@ select ok(
      where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
        and proposed_on = (now() at time zone 'utc')::date) <= 3,
   'recipient A never exceeds the ≤3/day cap across re-runs');
+
+-- #273 B: the cap is on WAITING cards, not on rows written today. A holds B and D from the two
+-- runs above; top her up to three pending and a further run must add nothing — otherwise a
+-- member who never swipes collects three more every night, each one firing «Hai un Momento».
+insert into public.momento_proposals (user_id, candidate_id, affinity, daily_rank, proposed_on)
+values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','cccccccc-cccc-cccc-cccc-cccccccccccc',
+        2, 3, (now() at time zone 'utc')::date);
+select public.run_momenti_matcher();
+select is(
+  (select count(*)::int from public.momento_proposals
+     where user_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and status='pending'),
+  3,
+  'a member already holding three waiting Momenti gets none added');
+
+-- ── the third pass: momento_suggestions (#124) ──────────────────────────────
+-- The single-term overlap #273 C rejected as a Momento is exactly what «Ti potrebbe
+-- interessare» is for: B and C share one term (C's artista answers B's «collaborazioni»),
+-- which is below the threshold, so it is not a card to answer — and it IS a suggestion.
+-- That is the whole shape of the feature in one assertion.
+select results_eq(
+  $$ select candidate_id, rank, affinity from public.momento_suggestions
+      where user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' order by rank $$,
+  $$ values ('cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 1::smallint, 1::numeric) $$,
+  'a single-term overlap is below the Momento threshold and becomes a SUGGESTION instead');
+
+select is(
+  (select count(*)::int from public.momento_suggestions where user_id = candidate_id),
+  0,
+  'no self-suggestions');
+
+select is_empty(
+  $$ select user_id::text from public.momento_suggestions
+      group by user_id, computed_on having count(*) > 3 $$,
+  'no member gets more than three suggestions in a run');
+
+-- The cross-pass invariant: the suggestions pass runs after both proposal passes and reads
+-- their writes, so a candidate can be in the deck or in the list, never in both.
+select is_empty(
+  $$ select s.user_id::text || ' -> ' || s.candidate_id::text
+       from public.momento_suggestions s
+       join public.momento_proposals p
+         on p.user_id = s.user_id and p.candidate_id = s.candidate_id
+      where p.passed_until is null
+         or p.passed_until > (now() at time zone 'utc')::date $$,
+  'nobody is both a live Momento and a suggestion for the same member');
+
 reset role;
+-- The matcher's own block predicate is deliberately INVOKER: unlike athanor.not_blocked it has
+-- no blocked-member oracle to protect (execute is revoked from authenticated), and its only
+-- callers already run as the table owner. Rule 2 — DEFINER only when genuinely required.
+select is(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='athanor' and p.proname='pair_not_blocked' and p.prosecdef),
+  0::bigint,
+  'athanor.pair_not_blocked is SECURITY INVOKER');
+
 select * from finish();
 rollback;

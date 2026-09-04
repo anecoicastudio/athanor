@@ -1,1 +1,1 @@
-export { KairosStar } from './kairos-star';
+export { SparkStar } from './spark-star';

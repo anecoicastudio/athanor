@@ -22,13 +22,14 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 
 Dependency rule: `apps → packages` only; `core` imports only `schemas`.
 
-### The four documents in `docs/`
+### The five documents in `docs/`
 
-Source comments across this repo cite these by section number (`PRD §4.11`, `RELEASE-RUNBOOK §6`,
-`PRODUCTION-READINESS P5`), so they are tracked and you can open them:
+Source comments across this repo cite four of these by section number (`PRD §4.11`,
+`RELEASE-RUNBOOK §6`, `PRODUCTION-READINESS P5`), so they are tracked and you can open them:
 
 | File                           | Read it when                                                                                                               |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `docs/ARCHITECTURE.md`         | You are new, or you need the shape of the system — how data moves, the privileged surface, the traps                       |
 | `docs/PRD.md`                  | You need the product requirement behind a feature — scope, data model, key flows, milestone order                          |
 | `docs/DESIGN.md`               | **Before any visual or UI decision.** Layout, type scale, components, colour and logo usage. Do not deviate without asking |
 | `docs/RELEASE-RUNBOOK.md`      | You are touching release, deploy, feature flags or store submission                                                        |
@@ -48,13 +49,30 @@ read it before trusting a migration's comments. The pgTAP tests are the source o
 ```bash
 pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
-cd apps/native && pnpm exec expo start      # run the app in Expo Go
+cd apps/native && pnpm exec expo start      # run the app in Expo Go — see the tunnel note below
 pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
 **Point the app at staging**, not at a local database: put the staging Supabase URL +
 publishable key (provided at onboarding) in `apps/native/.env`. `EXPO_PUBLIC_*` variables
 only — a service-role key must never appear in this repo or the app.
+
+**On a physical device, only `--tunnel` can complete a sign-up confirmation.** Plain
+`expo start` serves Metro over your LAN, so the app's redirect is
+`exp://<LAN-IP>:8081/--/auth-callback` — and GoTrue refuses a private-LAN redirect
+target. It does not error: it silently substitutes Site URL, so the confirmation mail
+opens a web page and the app never signs in. The account **is** confirmed; only the
+return trip is broken, and no allow-list entry fixes it (#73).
+
+```bash
+cd apps/native && pnpm exec expo start --tunnel
+```
+
+That gives Metro a public `*.exp.direct` host, which the staging allow-list already
+matches. The first `--tunnel` run asks to install `@expo/ngrok` — say yes; it installs
+**globally**, not into this repo, and nothing is added to any `package.json`.
+Everything else (feed, dreams, hot reload) is fine over plain LAN, and the **iOS
+Simulator** needs no tunnel: its `127.0.0.1` is the Mac, which GoTrue allows.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns
@@ -65,7 +83,7 @@ A **local Postgres is optional** and no longer part of the default loop:
 
 ```bash
 supabase start && supabase db reset         # full schema + seed — needs Docker and ~6 GB
-supabase test db                            # pgTAP suite (81 files, 964 assertions)
+supabase test db                            # pgTAP suite — prints its own file/assertion count
 ```
 
 What you give up by skipping it is mostly speed: the `db` CI job spins up its own stack and
@@ -73,6 +91,39 @@ runs the whole suite there, so a failure surfaces ~3 minutes later instead of im
 ⚠️ One real gap — CI runs on pushes to `dev`/`main` and on pull requests, **not** on a push
 to a `feat/*` branch with no PR open yet. During pre-PR iteration there is no safety net at
 all, which is exactly when RLS gets broken. Open the PR early, or keep a local stack.
+
+### Running the web admin e2e locally
+
+`pnpm --filter web test:e2e` runs the unauthenticated Playwright specs against `pnpm dev` with
+nothing but `apps/web/.env.local`. The authenticated half — the moderation queue, a verdict,
+the fund audit trail, the waitlist and its CSV export — needs a seeded admin session first:
+
+```bash
+cd apps/web
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:seed   # staging's secret key (onboarding)
+pnpm test:e2e                                          # note: NO secret in this command
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:teardown
+```
+
+The seed creates a disposable admin, a reporter, a subject, two reports and a waitlist row on
+**staging** and writes a session to the gitignored `apps/web/e2e/.auth/`. Teardown deletes all
+of it. Run neither against production.
+
+In CI the same three values come from a dedicated **staging** trio of repo secrets —
+`E2E_SUPABASE_URL`, `E2E_SUPABASE_PUBLISHABLE_KEY`, `E2E_SUPABASE_SECRET_KEY` — mapped onto the
+`NEXT_PUBLIC_*` names inside the e2e job only. The `NEXT_PUBLIC_SUPABASE_*` repo secrets are
+**production's** (they build the live site), so nothing in the e2e job may read them. The seed
+refuses outright to run against any project but staging, so a mis-set value fails loudly.
+
+Two rules about that key, and they are the reason the seed is a separate command rather than a
+step inside `playwright test`:
+
+- **Never put it in `.env.local` or any other env file.** Playwright starts the dev server with
+  its own environment, so a secret visible to the test run is a secret visible to Next.
+- **Never `NEXT_PUBLIC_`-prefix it.** That prefix means "inline this into the browser bundle".
+
+Skipping the seed is safe locally — the authenticated specs simply do not run. In CI it is not:
+there the suite fails rather than shrink in silence.
 
 ## Git workflow
 
@@ -101,7 +152,9 @@ which one you are pushing to, so check it before every push.
 
 ## The ten non-negotiable rules
 
-Enforced by CI and review on every PR — not style preferences.
+Enforced by review on every PR, and most also by CI — rules 3 and 4 currently have **no CI
+check**; rule 4's only guard today is local tooling, and a partial one (#61). Not style
+preferences.
 
 1. **Aura is never client-writable.** Only the `score-engine` edge function (service role) writes `aura_events` / `aura_scores`. RLS denies all client writes; pgTAP asserts it. Circle membership and fund contributions yield **zero** points.
 2. **RLS on every table**, deny-by-default, policies in the wrapped form `(select auth.uid())`, always `TO authenticated` / `TO anon` plus an ownership predicate. UPDATE policies need both `USING` and `WITH CHECK`.
@@ -110,9 +163,12 @@ Enforced by CI and review on every PR — not style preferences.
 5. **Zero hardcoded user-facing strings** — everything through `@athanor/i18n`, IT **and** EN (a parity test fails the build otherwise).
 6. **Money state is a cache of Stripe webhooks.** Stripe is the source of truth; keys server-side only; webhooks signature-verified and deduped.
 7. **Migrations are append-only once applied.** Create new ones via `supabase migration new <name>`, then `pnpm gen:types`. Never hand-edit `packages/api/src/database.types.ts`.
-8. **Cursor pagination, never offset.**
-9. **Score weights** are named constants in one `packages/core` module — server-tunable, test-asserted.
-10. **Never commit secrets.** Env files are gitignored; CI greps the built bundle for leaked keys as a release gate.
+8. **Edge functions are the only privileged surface.** Every function declares exactly one of three auth postures — user-callable (`verify_jwt` + `requireUser`), internal service-role (`requireServiceRole` as the first statement), or signature-verified webhook — and API keys resolve only through `_shared/keys.ts`.
+9. **Cursor pagination, never offset.**
+10. **Score weights** are named constants in one `packages/core` module — server-tunable, test-asserted.
+
+Also non-negotiable, if not a rule of its own: **never commit secrets.** Env files are
+gitignored; CI greps the built bundle for leaked keys as a release gate.
 
 ## Working conventions
 

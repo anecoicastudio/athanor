@@ -17,6 +17,13 @@
 --   * `SECURITY DEFINER` => locked `search_path`, execute revoked from public/anon/authenticated
 --
 -- Every assertion is an is_empty() over a violations query, so a failure NAMES the offender.
+--
+-- Scope (issue #271, was #136): the POLICY sweeps cover storage/realtime as well — the
+-- private-media policies on storage.objects and rt_aura_owner_receive on realtime.messages
+-- follow the same conventions and were exempt from every mechanical check while the filter
+-- read ('public','athanor'). The TABLE-level checks (RLS-enabled, count tripwire) and the
+-- SECURITY DEFINER function checks stay on our two schemas: storage/realtime hold
+-- platform-owned tables and functions we neither create nor police.
 
 begin;
 
@@ -41,19 +48,55 @@ select is_empty(
   'rule 2: every table in public/athanor has row level security enabled'
 );
 
--- PRD.md:417 tripwire. 49 tables are created across supabase/migrations/ and each one has a
+-- PRD.md:417 tripwire. Tables are created across supabase/migrations/ and each one has a
 -- dedicated file in supabase/tests/. When this count changes, the new table needs its own
 -- pgTAP file before this number is bumped -- that is the whole point of the assertion.
 -- 47 -> 48: athanor.waitlist_throttle (issue #23), covered by 0083_waitlist_rate_limit.
 -- 48 -> 49: public.push_receipts (issue #128), covered by 0088_push_receipts_sweep.
+-- 49 -> 50: public.screening_criteria (issue #218), covered by 0107_screen_candidacy.
+-- 50 -> 51: public.payout_accounts (issue #245), covered by 0111_payout_accounts_rls.
+-- 51 -> 52: public.fund_payout_ledger (issue #247), covered by 0112_fund_payout_ledger.
+-- 52 -> 53: public.realization_plans (issue #228), covered by 0114_fund_realization_plans.
+-- 53 -> 54: public.realization_plan_phases (issue #228), same file — the two are one unit
+--           (a phase is meaningless without its plan, and 0114 asserts both sides of every
+--           policy, the winner binding, the payable ceiling and the ledger linkage).
+-- 54 -> 55: public.realization_updates (issue #230), covered by 0116_fund_progress_updates.
+-- 55 -> 56: public.fund_cycle_expenses (issue #234), covered by 0120_fund_cycle_expenses.
+--           The view it publishes through, fund_edition_expense_totals, is relkind 'v' and
+--           so is invisible to this count — 0120 asserts its existence and its grants.
+-- 56 -> 57: athanor.event_reminder_sends (issue #126), covered by 0130_event_reminder_sweep.
+--           Second table in `athanor` and second one with no policies: the schema is not
+--           exposed to PostgREST, so RLS-on with zero policies is the deny-all.
+-- 57 -> 58: athanor.fund_broadcast_sends (issue #127), covered by
+--           0131_fund_broadcast_notifications. Same shape as the row above and for the same
+--           reason: one row per fund countdown broadcast, off the client grant surface.
+-- 58 -> 59: public.momento_suggestions (issue #124), covered by 0132_momento_suggestions.
+--           In `public` rather than `athanor` because 0121 declares the client grant surface of
+--           `public` only, and a table this file counts should also be a row someone had to
+--           type there. It holds no client privilege at all: the read goes through the DEFINER
+--           get_momenti_suggestion(), so RLS-on with zero policies is the deny-all.
+-- 59 -> 60: athanor.notification_dispatches (issue #521), covered by
+--           0133_notification_dispatch_outbox. The outbox for every notification-fan-out POST,
+--           read back against net._http_response by a cron reconciler. In `athanor` and not
+--           `public` for the same reason as the two send markers above: no client role has any
+--           business seeing another member's pending notification body, and the schema is not
+--           exposed to PostgREST at all.
+-- 60 -> 61: athanor.report_alert_sends (issue #602), covered by 0140_report_queue_alert. The
+--           third send marker, and in `athanor` for the same reason as the first two — except
+--           that here the alternative was a column on `reports`, which carries a client INSERT
+--           grant: a marker there would ride a row the reporter writes.
+-- 61 -> 62: public.conversation_reads (issue #637), covered by 0142_conversation_reads_rls. The
+--           per-member read cursor the unread pip derives from. In `public` and not `athanor`
+--           because unlike the three send markers above it IS a client-written row — the member
+--           moves their own cursor — so it owes a declared grant surface in 0121.
 select is(
   (select count(*)::int from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'athanor')
       and c.relkind in ('r', 'p')
       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')),
-  49,
-  'PRD.md:417 tripwire: 49 tables, each with its own pgTAP file (bump only WITH a new test)'
+  62,
+  'PRD.md:417 tripwire: 62 tables, each with its own pgTAP file (bump only WITH a new test)'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
@@ -65,7 +108,7 @@ select is(
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname || ' -> ' || roles::text
        from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and 'public' = any(roles) $$,
   'rule 2: no policy targets PUBLIC -- every policy names TO authenticated / TO anon'
 );
@@ -73,7 +116,7 @@ select is_empty(
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname || ' -> ' || roles::text
        from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and not (roles <@ '{authenticated,anon,service_role}'::name[]) $$,
   'rule 2: every policy targets only authenticated / anon / service_role'
 );
@@ -86,7 +129,7 @@ select is_empty(
 -- surviving `auth.uid()` was written bare, which re-evaluates per row (initplan lost).
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and replace(coalesce(qual, '') || ' ' || coalesce(with_check, ''),
                     '( SELECT auth.uid() AS uid)', 'WRAPPED') like '%auth.uid()%' $$,
   'rule 2: auth.uid() in a policy is always the wrapped (select auth.uid()) form'
@@ -100,7 +143,7 @@ select is_empty(
 -- sign-ins too -- the role clause is the correct control.
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and coalesce(qual, '') || ' ' || coalesce(with_check, '') like '%auth.role()%' $$,
   'rules/supabase.md:10: no policy predicate calls auth.role()'
 );
@@ -113,7 +156,7 @@ select is_empty(
 -- someone else.
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and cmd in ('UPDATE', 'ALL')
         and (qual is null or with_check is null) $$,
   'rule 2: every UPDATE/ALL policy carries both USING and WITH CHECK'
@@ -123,7 +166,7 @@ select is_empty(
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname || ' (' || cmd || ')'
        from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and ( (cmd in ('SELECT', 'DELETE') and qual is null)
            or (cmd = 'INSERT' and with_check is null) ) $$,
   'rule 2: SELECT/DELETE policies have a USING, INSERT policies have a WITH CHECK'
@@ -137,7 +180,7 @@ select is_empty(
 -- in a policy lets a member grant themselves whatever the policy checks for.
 select is_empty(
   $$ select schemaname || '.' || tablename || '.' || policyname from pg_policies
-      where schemaname in ('public', 'athanor')
+      where schemaname in ('public', 'athanor', 'storage', 'realtime')
         and ( coalesce(qual, '') || ' ' || coalesce(with_check, '') like '%user_metadata%'
            or coalesce(qual, '') || ' ' || coalesce(with_check, '') like '%raw_user_meta_data%' ) $$,
   'rule 2: no policy authorizes from user_metadata (must be app_metadata)'

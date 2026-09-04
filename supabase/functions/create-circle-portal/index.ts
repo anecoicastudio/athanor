@@ -1,6 +1,6 @@
 import { requireUser } from '../_shared/auth.ts';
 import { requireSupportedVersion } from '../_shared/version-gate.ts';
-import { stripe } from '../_shared/stripe.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
 import { createCirclePortal } from './logic.ts';
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   return createCirclePortal(
     {
       userClient: auth.userClient,
-      createPortalSession: (params) => stripe.billingPortal.sessions.create(params),
+      createPortalSession: (params) => stripeClient().billingPortal.sessions.create(params),
       appBase: Deno.env.get('APP_DEEPLINK_BASE') ?? 'athanor://',
     },
     { profileId: auth.user.id },

@@ -1,12 +1,15 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
+import { logStripeFailure } from '../_shared/stripe-error.ts';
 
 // Circle-checkout construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
 // body parse, env + singleton wiring) and injects everything here (repo convention:
 // DI over mocks). Deliberately does NOT import ../_shared/stripe.ts — only type-level
-// `npm:stripe` — so tests typecheck without STRIPE_SECRET_KEY in the env.
+// `npm:stripe`: the Stripe capabilities arrive injected. #541 made that module lazy, so the
+// import would no longer demand STRIPE_SECRET_KEY in a test env; the boundary stays because
+// DI is the point.
 
 export type CirclePlan = 'monthly' | 'annual';
 
@@ -104,7 +107,10 @@ export async function createCircleCheckout(
     );
     if (!session.url) return error('could not start checkout', 500);
     return json({ kind: 'url', url: session.url });
-  } catch {
+  } catch (e) {
+    // Bound, not bare (#416): the response stays exactly as generic as it was, but the Stripe
+    // reason now reaches the function logs instead of vanishing.
+    logStripeFailure('create-circle-checkout: customers.create|checkout.sessions.create', e);
     return error('could not start checkout', 500);
   }
 }

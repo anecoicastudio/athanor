@@ -212,13 +212,14 @@ select ok(
   'authenticated holds column SELECT on both new columns'
 );
 
--- anon holds (id, handle, visibility, updated_at) for the public @handle pages. A name and a
--- face there would publish every member's photograph to the unauthenticated internet, which
--- needs the visibility gate first — so their absence is the assertion.
+-- 20260811074859 deliberately withheld these two from anon "until the visibility gate".
+-- 20260814151601 (#251) IS that gate: anon row reachability now keys on the identity facet,
+-- so the grant is per-member-revocable rather than a role-wide publish. The shell behaviour
+-- matrix lives in 0101_public_handle_shell; here only the grant flip is pinned.
 select ok(
-  not has_column_privilege('anon', 'public.profiles', 'display_name', 'SELECT')
-  and not has_column_privilege('anon', 'public.profiles', 'avatar_path', 'SELECT'),
-  'anon holds NO select on the name or the avatar (deliberate — see 20260811074859)'
+  has_column_privilege('anon', 'public.profiles', 'display_name', 'SELECT')
+  and has_column_privilege('anon', 'public.profiles', 'avatar_path', 'SELECT'),
+  'anon holds column SELECT on the name and the avatar (the #251 shell — see 20260814151601)'
 );
 
 -- ── 4. bucket metadata ────────────────────────────────────────────────────────────────────
@@ -247,16 +248,20 @@ select set_eq(
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'avatars\_%' $$,
   $$ values ('avatars_insert_own'), ('avatars_update_own'),
-            ('avatars_delete_own'), ('avatars_select_member') $$,
-  'exactly the four avatars policies exist on storage.objects'
+            ('avatars_delete_own'), ('avatars_select_member'),
+            ('avatars_select_anon_shell') $$,
+  'exactly the five avatars policies exist on storage.objects'
 );
 
+-- Owner-writes and the member read stay TO authenticated; the one anon policy is the #251
+-- shell read (20260814151601). Nothing is ever TO public.
 select is_empty(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'avatars\_%'
-        and roles <> '{authenticated}'::name[] $$,
-  'every avatars policy is TO authenticated only (never PUBLIC)'
+        and roles <> case policyname when 'avatars_select_anon_shell'
+                       then '{anon}'::name[] else '{authenticated}'::name[] end $$,
+  'every avatars policy names its single intended role (anon only for the shell read)'
 );
 
 select is_empty(
@@ -316,9 +321,9 @@ select is_empty(
 select is_empty(
   $$ select policyname::text from pg_policies
       where schemaname = 'storage' and tablename = 'objects'
-        and policyname = 'avatars_select_member'
+        and policyname in ('avatars_select_member', 'avatars_select_anon_shell')
         and qual not like '%[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}%' $$,
-  'the avatars read policy uuid-shape-guards the path segment before casting it'
+  'both avatars read policies uuid-shape-guard the path segment before casting it'
 );
 
 -- ── 6. BEHAVIOUR: who can actually read the bytes ─────────────────────────────────────────

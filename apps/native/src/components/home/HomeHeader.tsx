@@ -72,15 +72,28 @@ export function HomeHeader({
 
   return (
     <View className="flex-row items-start justify-between gap-3">
-      <View className="gap-0.5">
-        <Text className="text-[13px] text-faint">{greeting}</Text>
+      {/* flex-1 + numberOfLines: handles run to 30 chars, and Yoga's default
+        flexShrink of 0 would push the icon cluster off-screen instead of
+        truncating. gap-6 keeps the icons' HIT_SLOP rects (11px per side) from
+        overlapping each other.
+        Two lines, not one (#639): flex-1 is what protects the icon cluster, and the line
+        count only decides whether an over-long handle truncates or wraps. 28px is the
+        largest type on this screen, so Dynamic Type reaches it first — at AX sizes one
+        line left «@mar…» where the member's own name should be. */}
+      <View className="flex-1 gap-0.5">
+        <Text className="text-[13px] text-faint" numberOfLines={2}>
+          {greeting}
+        </Text>
         {handle ? (
-          <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+          <Text
+            className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+            numberOfLines={2}
+          >
             @{handle}
           </Text>
         ) : null}
       </View>
-      <View className="flex-row items-center gap-4 pt-1">
+      <View className="shrink-0 flex-row items-center gap-6 pt-1">
         {actions.map(({ key, label, Icon, dot }) => (
           <Pressable
             key={key}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, RefreshControl } from 'react-native';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
@@ -13,38 +13,57 @@ import {
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
-import { CategoryTabs, type FeedFilter } from '@/components/feed/CategoryTabs';
+import { FlatList, Pressable, Text, View } from '@/tw';
+import { Screen } from '@/components/Screen';
+import { CategoryTabs } from '@/components/feed/CategoryTabs';
+import { EventsFeedList } from '@/components/feed/EventsFeedList';
 import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
+import { EVENT_HREF } from '@/components/live/EventRow';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
+import { type FeedTab, postsFilter } from '@/lib/feed-tabs';
+import { useLocale } from '@/hooks/use-locale';
+import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
+import { usePersonStory } from '@/hooks/use-person-story';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
+const STORY_COMPOSE_HREF = '/(modal)/story-compose' as const;
 const LIVE_HREF = '/(modal)/live' as const;
+const EVENT_CREATE_HREF = '/(modal)/event-create' as const;
 
 export default function CommunityScreen() {
   const { profile, session } = useAuth();
   const router = useRouter();
-  const [filter, setFilter] = useState<FeedFilter>('all');
+  const [tab, setTab] = useState<FeedTab>('all');
   const [hasNew, setHasNew] = useState(false);
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
+
+  // `null` on the «Eventi» tab: it has no posts source (#153), so the posts query stands down
+  // and `EventsFeedList` draws instead. The key falls back to `'all'` — a constant, not the tab
+  // the member came from — and is never read under it, because the query is disabled.
+  const postsCategory = postsFilter(tab);
+  const showsPosts = postsCategory !== null;
 
   const query = useInfiniteQuery({
-    queryKey: postKeys.feed(filter),
+    queryKey: postKeys.feed(postsCategory ?? 'all'),
     queryFn: ({ pageParam }) =>
-      getFeedPage(supabase, { category: filter, cursor: pageParam as FeedCursor | null }),
+      getFeedPage(supabase, {
+        category: postsCategory ?? 'all',
+        cursor: pageParam as FeedCursor | null,
+      }),
     initialPageParam: null as FeedCursor | null,
     getNextPageParam: (last) => last.nextCursor,
+    enabled: showsPosts,
   });
 
   const posts = query.data?.pages.flatMap((p) => p.posts) ?? [];
 
-  const filterRef = useRef(filter);
-  filterRef.current = filter;
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
   const myId = session?.user.id;
 
   // Realtime: "Nuovi passi ›" banner — skip your own posts and posts outside the
@@ -52,7 +71,11 @@ export default function CommunityScreen() {
   useEffect(() => {
     const unsubscribe = subscribeNewPosts(supabase, (post) => {
       if (myId && post.author_id === myId) return;
-      const active = filterRef.current;
+      // `?? 'all'`: the events tab does not narrow posts, so it does not filter this either.
+      // The flag keeps recording while the member browses events — the banner is hidden there
+      // (its render is posts-only), and it is waiting for them when they come back. Suppressing
+      // the flag instead would lose every post that arrived while the tab was open.
+      const active = postsFilter(tabRef.current) ?? 'all';
       if (active !== 'all' && post.category !== active) return;
       setHasNew(true);
     });
@@ -63,7 +86,16 @@ export default function CommunityScreen() {
     queryKey: storyKeys.rail(),
     queryFn: () => getStoryRail(supabase),
   });
-  const [seenIds] = useState<Set<string>>(() => new Set());
+  // Persisted, shared with the viewer — a ring dims when a story FINISHES, not on tap (#298).
+  const { seenIds } = useStorySeen();
+
+  // Own live-segment presence drives the «Il tuo passo» ring (#298): with a live segment it
+  // opens the viewer (and the chain), without one it opens the composer. Also warms
+  // storyKeys.person(myId) so the viewer's session can include you without a refetch.
+  const myStoryQuery = usePersonStory(myId);
+  const myHasLive = (myStoryQuery.data?.segments ?? []).some(
+    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > Date.now(),
+  );
 
   // Realtime: a new story segment → refresh the rail (skip your own insert).
   useEffect(() => {
@@ -80,7 +112,6 @@ export default function CommunityScreen() {
       authorId === 'me'
         ? (profile?.handle ?? '')
         : (railQuery.data?.find((p) => p.author_id === authorId)?.handle ?? '');
-    if (authorId !== 'me') seenIds.add(authorId);
     router.push({ pathname: '/(modal)/stories', params: { authorId, handle } });
   };
 
@@ -89,17 +120,100 @@ export default function CommunityScreen() {
     void query.refetch();
   };
 
+  const header = (
+    <View className="gap-4 py-4">
+      {/* h1 + compose, per DESIGN §8.3 — the in-content header (§6 → Screen headers). */}
+      <View className="flex-row items-center justify-between gap-3 px-5">
+        <Text
+          accessibilityRole="header"
+          className="flex-1 text-2xl font-semibold text-foreground"
+          numberOfLines={2}
+        >
+          {t('community.title', locale)}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('community.compose.prompt', locale)}
+          onPress={() => router.push(COMPOSE_HREF)}
+          // Bare glyph + HIT_SLOP was ~28pt wide — the same shape `(modal)/grid.tsx` and
+          // `ModalHeader` carried. `-mr-3` keeps the ✛ optically on the px-5 gutter.
+          className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
+        >
+          <Text className="text-2xl text-faint">+</Text>
+        </Pressable>
+      </View>
+      {/* No compose prompt card (#640): §8.3's recipe is `Community +` — the card pushed
+          the same route with the same a11y label as the «+» above it, and together with the
+          Live row it spent 383pt of an SE fold on chrome before the first author's name. */}
+      <CategoryTabs active={tab} onChange={setTab} locale={locale} />
+      {/* Athanor Live folded into the «Eventi» tab (#640): a standalone row on every tab
+          was fold-chrome; on the events tab it is context. */}
+      {!showsPosts ? (
+        <Pressable
+          className="mx-5 min-h-[44px] flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
+          onPress={() => router.push(LIVE_HREF)}
+          accessibilityRole="link"
+        >
+          <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
+          <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
+        </Pressable>
+      ) : null}
+      {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
+        <StoryRail
+          you={{
+            handle: profile?.handle ?? null,
+            displayName: profile?.display_name ?? null,
+            avatarPath: profile?.avatar_path ?? null,
+            hasStory: myHasLive,
+            seen: myHasLive ? (myId ? seenIds.has(myId) : true) : true,
+          }}
+          people={railQuery.data ?? []}
+          seenIds={seenIds}
+          locale={locale}
+          onOpenPerson={openPerson}
+          onAddYours={() => router.push(STORY_COMPOSE_HREF)}
+        />
+      ) : null}
+      {/* Posts-only: `hasNew` set under a post tab survives a switch to «Eventi», and
+          «Nuovi passi ›» over a list of events would be a banner about the wrong thing.
+          The subscription itself keeps running — it costs nothing and the flag is still
+          true when the member comes back. */}
+      {hasNew && showsPosts ? (
+        <Pressable className="mx-5 items-center rounded-ctl bg-aura-soft py-2" onPress={onRefresh}>
+          <Text className="text-[13px] text-aura">{t('feed.newPosts', locale)}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  if (!showsPosts) {
+    return (
+      <Screen>
+        <EventsFeedList
+          locale={locale}
+          header={header}
+          onOpen={(id) => router.push(EVENT_HREF(id))}
+          onCreate={() => router.push(EVENT_CREATE_HREF)}
+        />
+      </Screen>
+    );
+  }
+
+  // Both arms keep the header, so a cold switch back from «Eventi» does not take the tab row
+  // away with it and strand the member mid-switch.
   if (query.isLoading) {
     return (
-      <View className="flex-1 bg-background pt-12">
+      <Screen>
+        {header}
         <FeedSkeleton />
-      </View>
+      </Screen>
     );
   }
 
   if (query.isError) {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
+        {header}
         <ListState
           state="error"
           locale={locale}
@@ -107,81 +221,39 @@ export default function CommunityScreen() {
           onRetry={onRefresh}
           className="flex-1 justify-center px-5"
         />
-      </View>
+      </Screen>
     );
   }
 
+  // Below the guard `postsCategory` is a FeedFilter: computing this above it would look up
+  // `feed.filter.null` on every render of the events tab, for a string that is thrown away.
   const emptyTitle =
-    filter === 'all'
+    postsCategory === 'all'
       ? t('feed.empty.title', locale)
       : t('feed.empty.cat.title', locale, {
-          cat: t(`feed.filter.${filter}` as MessageKey, locale),
+          cat: t(`feed.filter.${postsCategory}` as MessageKey, locale),
         });
-  const emptyCta = filter === 'all' ? t('feed.empty.cta', locale) : t('feed.empty.cat.cta', locale);
+  const emptyCta =
+    postsCategory === 'all' ? t('feed.empty.cta', locale) : t('feed.empty.cat.cta', locale);
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View className="gap-4 py-4">
-            <Pressable
-              className="mx-5 rounded-card border border-hair bg-raise px-5 py-4"
-              onPress={() => router.push(COMPOSE_HREF)}
-            >
-              <Text className="text-[14px] text-faint">
-                {t('community.compose.prompt', locale)}
-              </Text>
-            </Pressable>
-            <CategoryTabs active={filter} onChange={setFilter} locale={locale} />
-            <Pressable
-              className="mx-5 flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
-              onPress={() => router.push(LIVE_HREF)}
-              accessibilityRole="link"
-            >
-              <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
-              <Text className="text-[13px] text-aura">{t('home.today.seeLive', locale)}</Text>
-            </Pressable>
-            {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
-              <StoryRail
-                you={{
-                  handle: profile?.handle ?? null,
-                  displayName: profile?.display_name ?? null,
-                  avatarPath: profile?.avatar_path ?? null,
-                  hasStory: false,
-                }}
-                people={railQuery.data ?? []}
-                seenIds={seenIds}
-                locale={locale}
-                onOpenPerson={openPerson}
-                onAddYours={() => router.push(COMPOSE_HREF)}
-              />
-            ) : null}
-            {hasNew ? (
-              <Pressable
-                className="mx-5 items-center rounded-ctl bg-aura-soft py-2"
-                onPress={onRefresh}
-              >
-                <Text className="text-[13px] text-aura">{t('feed.newPosts', locale)}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        }
+        ListHeaderComponent={header}
         renderItem={({ item }) => (
           <View className="px-5 pb-4">
             <FeedPost post={item} locale={locale} />
           </View>
         )}
         ListEmptyComponent={
-          <View className="items-center gap-4 px-5 pt-16">
-            <EmptyState>{emptyTitle}</EmptyState>
-            <Pressable
-              className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-              onPress={() => router.push(COMPOSE_HREF)}
-            >
-              <Text className="text-[13px] text-aura">{emptyCta}</Text>
-            </Pressable>
+          <View className="items-center px-5 pt-16">
+            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
+                moment-grade surface (rule #4) on an empty feed (#119). */}
+            <EmptyState action={{ label: emptyCta, onPress: () => router.push(COMPOSE_HREF) }}>
+              {emptyTitle}
+            </EmptyState>
           </View>
         }
         refreshControl={
@@ -195,8 +267,8 @@ export default function CommunityScreen() {
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
-        contentContainerClassName="pb-[104px]"
+        contentContainerClassName="pb-12"
       />
-    </View>
+    </Screen>
   );
 }

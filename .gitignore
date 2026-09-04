@@ -33,20 +33,22 @@ coverage/
 **/reports/mutation/
 
 # internal docs & agent tooling — kept out of this repo.
-# Four exceptions: tracked source files cite these ~100 times by section number
-# (`RELEASE-RUNBOOK §6`, `PRD §4.11`, `DESIGN.md`, `PRODUCTION-READINESS P5`), so
-# leaving them untracked leaves every collaborator with pointers to files they
-# cannot open. Anything added here must be readable by someone outside the repo's
-# owner — the rest of /docs/ is not.
+# Five exceptions: tracked source files cite four of these ~100 times by section
+# number (`RELEASE-RUNBOOK §6`, `PRD §4.11`, `DESIGN.md`, `PRODUCTION-READINESS P5`),
+# so leaving them untracked leaves every collaborator with pointers to files they
+# cannot open; ARCHITECTURE.md is the partner-facing system overview. Anything
+# added here must be readable by someone outside the repo's owner — the rest of
+# /docs/ is not.
 #
 # `/docs/*`, not `/docs/` — git never descends into an ignored *directory*, so a
-# negation inside one is never evaluated. Matching the contents keeps the four
+# negation inside one is never evaluated. Matching the contents keeps the five
 # re-includes live while still ignoring every subdirectory.
 /docs/*
 !/docs/RELEASE-RUNBOOK.md
 !/docs/DESIGN.md
 !/docs/PRD.md
 !/docs/PRODUCTION-READINESS.md
+!/docs/ARCHITECTURE.md
 .claude/
 CLAUDE.md
 *.types.ts.tmp
@@ -71,3 +73,7 @@ deno.lock
 .wrangler/
 .dev.vars*
 apps/web/cloudflare-env.d.ts
+
+# `/index` skill output — a generated map of the tree, regenerated on demand and
+# stale the moment it is not. Never a review artifact.
+/PROJECT_INDEX.json

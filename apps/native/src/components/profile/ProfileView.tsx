@@ -2,16 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import {
-  auraKeys,
-  getAuraScore,
-  getMomentsPage,
-  getProfileStatCounts,
-  getStars,
-  momentKeys,
-  profileKeys,
-  starKeys,
-} from '@athanor/api';
+import { getProfileStatCounts, profileKeys } from '@athanor/api';
 import { profileCompleteness } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot, Locale, Profile, StarKey } from '@athanor/schemas';
@@ -26,8 +17,12 @@ import { auraSnapshotOrNull, starsOrNull } from '@/lib/aura-display';
 import { listState } from '@/lib/list-state';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { momentSignPaths } from '@/lib/media/moment-media';
+import { uploadErrorKey } from '@/lib/media/upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
+import { useMomentsPage } from '@/hooks/use-moments-page';
+import { useAuraScore } from '@/hooks/use-aura-score';
+import { useStars } from '@/hooks/use-stars';
 
 /**
  * Read-mode Profilo stack: hero → stat line → Sei Stelle → Momenti (frontend 02
@@ -52,11 +47,7 @@ export function ProfileView({
 
   // Live own momenti (rule #9: getMomentsPage is keyset). First page (24) is enough
   // for MVP — infinite scroll on the full grid is deferred.
-  const momentsQuery = useQuery({
-    queryKey: momentKeys.list(userId),
-    queryFn: () => getMomentsPage(supabase, userId),
-    enabled: Boolean(userId),
-  });
+  const momentsQuery = useMomentsPage(userId);
   const moments = momentsQuery.data?.moments ?? [];
   // Posters as well as media: the gallery tiles draw a video's poster, the Lightbox plays the
   // video itself, and both read this one map (#131).
@@ -66,21 +57,13 @@ export function ProfileView({
   const { addMoment } = useMomentUpload(userId);
 
   // Read-only Aura snapshot — TanStack. `null` until it lands, never a stand-in zero.
-  const auraQuery = useQuery({
-    queryKey: auraKeys.score(userId),
-    queryFn: () => getAuraScore(supabase, userId),
-    enabled: Boolean(userId),
-  });
+  const auraQuery = useAuraScore(userId);
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
   // Stars for the Six Stars grid — TanStack (engine dormant → [] → all unearned). `null` when
   // the read failed: this query is INDEPENDENT of the Aura one above, so `?? []` let the hero
   // show a real score while the grid below claimed six unearned stars (issue #16).
-  const starsQuery = useQuery({
-    queryKey: starKeys.list(userId),
-    queryFn: () => getStars(supabase, userId),
-    enabled: Boolean(userId),
-  });
+  const starsQuery = useStars(userId);
   const stars = starsOrNull(starsQuery.data, starsQuery.isError);
 
   // Stat-line counts (collabs completed / events attended) — aggregate-only DEFINER RPC (P3.1).
@@ -102,9 +85,12 @@ export function ProfileView({
 
   const identity = profile.identity_tags;
   const seeking = profile.seeking;
+  const skills = profile.skills ?? [];
 
-  const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
-    t(`${prefix}.${key}` as MessageKey, locale);
+  const tagLabel = (
+    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
+    key: string,
+  ) => t(`${prefix}.${key}` as MessageKey, locale);
 
   return (
     <>
@@ -129,6 +115,7 @@ export function ProfileView({
             </Text>
           ) : null
         }
+        dream={dreamSlot}
         afterStats={
           /* Connessioni — hub for established connections + the Richieste inbox (M5). */
           <View className="-mx-5 border-y border-hair">
@@ -162,8 +149,14 @@ export function ProfileView({
         }}
       />
 
-      {/* Il Sogno — editable quote (dream editor) + tappe CRUD (M2) */}
-      {dreamSlot}
+      {/* La mia missione — §4.2 order: bio (hero) → mission → skills → city (#149).
+          Il Sogno moved into ProfileBody's dream slot, directly under the hero (#640). */}
+      {profile.mission ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.mission.label', locale)}</SectionLabel>
+          <Text className="text-[15px] leading-relaxed text-foreground">{profile.mission}</Text>
+        </View>
+      ) : null}
 
       {/* Chi sei — identity tags */}
       {identity.length > 0 ? (
@@ -189,6 +182,35 @@ export function ProfileView({
         </View>
       ) : null}
 
+      {/* Professione + Competenze — curated keys (#149) */}
+      {profile.profession ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.profession.label', locale)}</SectionLabel>
+          <View className="flex-row flex-wrap gap-3">
+            <Tag label={tagLabel('tag.profession', profile.profession)} />
+          </View>
+        </View>
+      ) : null}
+
+      {skills.length > 0 ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.skills.label', locale)}</SectionLabel>
+          <View className="flex-row flex-wrap gap-3">
+            {skills.map((key) => (
+              <Tag key={key} label={tagLabel('tag.skill', key)} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Città — display name only; the geohash never renders anywhere (#149) */}
+      {profile.city ? (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.city.label', locale)}</SectionLabel>
+          <Text className="text-[15px] text-foreground">{profile.city}</Text>
+        </View>
+      ) : null}
+
       {error ? <Text className="text-sm text-error">{error}</Text> : null}
 
       <Lightbox
@@ -207,8 +229,8 @@ export function ProfileView({
         allowVideo
         locale={locale}
         onClose={() => setSheetOpen(false)}
-        onPick={(m) => addMoment(m).catch(() => setError(t('media.failed', locale)))}
-        onError={() => setError(t('media.failed', locale))}
+        onPick={(m) => addMoment(m).catch((err) => setError(t(uploadErrorKey(err), locale)))}
+        onError={(key) => setError(t(key, locale))}
       />
     </>
   );

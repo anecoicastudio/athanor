@@ -7,7 +7,9 @@ import {
   auraEventSchema,
   starSchema,
   auraCelebrationPayload,
-} from './aura';
+  auraEventTypeSchema,
+  breakdownSchema,
+} from './aura.ts';
 
 describe('aura snapshot', () => {
   it('has the six canonical stars (PRD §4.10 order)', () => {
@@ -181,5 +183,85 @@ describe('auraCelebrationPayload', () => {
     const parsed = auraCelebrationPayload.parse({ tier_up: null, new_stars: ['creatore'] });
     expect(parsed.tier_up ?? undefined).toBeUndefined();
     expect(parsed.new_stars).toEqual(['creatore']);
+  });
+});
+
+// Rule #1's surface: the ledger types the score-engine may write. The literal list, never a
+// loop over the constant — a loop asserts only that the array equals itself, so a blanked
+// member stays green. Circle membership and fund contributions are absent BY DESIGN: they are
+// not ledger types at all, so no code path could ever price them.
+describe('auraEventTypeSchema — the nine ledger types', () => {
+  it('admits exactly the eight signed actions plus decay, in ledger order', () => {
+    expect(auraEventTypeSchema.options).toEqual([
+      'identity_verified',
+      'event_attended',
+      'event_organized',
+      'momento_conversation',
+      'milestone_help',
+      'own_milestone',
+      'post_starred',
+      'report_upheld',
+      'decay',
+    ]);
+  });
+
+  it('has no type for Circle membership or a fund contribution — reputation is never bought', () => {
+    for (const bought of [
+      'circle_joined',
+      'circle_renewed',
+      'fund_contribution',
+      'fund_contributed',
+      '',
+    ]) {
+      expect(auraEventTypeSchema.safeParse(bought).success).toBe(false);
+    }
+  });
+});
+
+describe('breakdown and star shapes', () => {
+  it('a breakdown has exactly the six display buckets (backend 07 §2.2)', () => {
+    expect(Object.keys(breakdownSchema.shape)).toEqual([
+      'contributi',
+      'eventi',
+      'collaborazioni',
+      'valore',
+      'recensioni',
+      'affidabilita',
+    ]);
+  });
+
+  it('rejects a breakdown missing a bucket — a score is never partially broken down', () => {
+    const { affidabilita: _dropped, ...fiveBuckets } = {
+      contributi: 10,
+      eventi: 30,
+      collaborazioni: 40,
+      valore: 0,
+      recensioni: 0,
+      affidabilita: 50,
+    };
+    expect(breakdownSchema.safeParse(fiveBuckets).success).toBe(false);
+  });
+
+  it('a star row is id, owner, star, grant time and a three-part progress', () => {
+    expect(Object.keys(starSchema.shape)).toEqual([
+      'id',
+      'profileId',
+      'starId',
+      'grantedAt',
+      'progress',
+    ]);
+    expect(Object.keys(starSchema.shape.progress.shape)).toEqual(['done', 'total', 'unit']);
+  });
+
+  it('rejects a star whose progress has no total — a fraction with no denominator', () => {
+    expect(
+      starSchema.safeParse({
+        id: '33333333-3333-3333-3333-333333333333',
+        profileId: '11111111-1111-1111-1111-111111111111',
+        starId: 'mentor',
+        grantedAt: null,
+        progress: { done: 1, unit: 'aiuti' },
+      }).success,
+    ).toBe(false);
   });
 });

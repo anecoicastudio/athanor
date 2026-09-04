@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { t } from '@athanor/i18n';
-import { getPublicEventById } from '@athanor/api';
+import { getPublicEventById, listUpcomingEventIds } from '@athanor/api';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
 import { SITE_URL } from '@/lib/site';
 import { eventDateTime, eventIsPast } from '@/lib/event-format';
 import { eventJsonLd } from '@/lib/event-jsonld';
+import { PRERENDER_EVENT_LIMIT } from '@/lib/prerender-limits';
 import { createAnonClient } from '@/utils/supabase/server';
 import { PublicEventClient } from '@/components/public-event-client';
 
@@ -14,23 +15,22 @@ import { PublicEventClient } from '@/components/public-event-client';
  * (apple-app-site-association, assetlinks), so someone with the app installed lands in it
  * and everyone else — crawlers included — gets this page instead of nothing.
  *
- * Prerender the upcoming events and serve the rest on demand: a past event is still a
- * live permalink someone may have shared, and `dynamicParams: false` would 404 both it
- * and any event created since the last build. Same trade as /@handle.
+ * Prerender the next PRERENDER_EVENT_LIMIT upcoming events (#335, lib/prerender-limits.ts)
+ * and serve the rest on demand: a past event is still a live permalink someone may have
+ * shared, and `dynamicParams: false` would 404 both it and any event created since the
+ * last build. Same trade as /@handle.
  */
 export const dynamicParams = true;
 export const revalidate = 300;
 
 export async function generateStaticParams() {
   try {
-    const supabase = createAnonClient();
-    const { data, error } = await supabase
-      .from('events')
-      .select('id')
-      .is('deleted_at', null)
-      .gte('starts_at', new Date().toISOString());
-    if (error) throw error;
-    return (data ?? []).map((e) => ({ id: e.id }));
+    // A row the reader could not validate is withheld and logged by the reader itself
+    // (api.md) — one odd row must not un-prerender the route.
+    const { entries } = await listUpcomingEventIds(createAnonClient(), {
+      limit: PRERENDER_EVENT_LIMIT,
+    });
+    return entries.map((e) => ({ id: e.id }));
   } catch (e) {
     // env/network unavailable at build → prerender nothing, serve every event on demand.
     // Loud on purpose: returning [] silently is indistinguishable from "no upcoming

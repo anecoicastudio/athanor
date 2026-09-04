@@ -1,220 +1,110 @@
--- Stale-reasons purge (migration 20260807201350): hiding a tag field deletes the
--- candidate's PENDING proposals, because `reasons` is a match-time snapshot that
--- names the raw tag keys and nothing ever refreshed it.
--- Proposals are inserted directly as service_role rather than via the matcher:
--- deterministic, and the matcher has its own coverage in 0028 / 0073.
+-- Momento reasons are computed at READ time (#273 D), and the stale-reasons purge
+-- apparatus that existed only because they were not is retired.
+--
+-- What this file used to assert: 20260807201350 + 20260807203343 deleted a candidate's
+-- PENDING proposals (and blanked the text on accepted/passed ones) the moment they hid
+-- or removed a tag, because `momento_reasons()` froze a prose snapshot at match time and
+-- nothing ever refreshed it. get_momenti_deck() now recomputes and re-masks the terms on
+-- every read, so the snapshot cannot rot — the trigger, its function and momento_reasons()
+-- are all dropped, and the assertions below are the inverse of the old ones: hiding a tag
+-- now MASKS a card instead of deleting it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(9);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000','aaaaaaaa-0000-4000-8000-000000000074','authenticated','authenticated','a74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','bbbbbbbb-0000-4000-8000-000000000074','authenticated','authenticated','b74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','cccccccc-0000-4000-8000-000000000074','authenticated','authenticated','c74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','dddddddd-0000-4000-8000-000000000074','authenticated','authenticated','d74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','eeeeeeee-0000-4000-8000-000000000074','authenticated','authenticated','e74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','ffffffff-0000-4000-8000-000000000074','authenticated','authenticated','f74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','abcdabcd-0000-4000-8000-000000000074','authenticated','authenticated','g74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','beefbeef-0000-4000-8000-000000000074','authenticated','authenticated','h74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','cafecafe-0000-4000-8000-000000000074','authenticated','authenticated','i74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','dadadada-0000-4000-8000-000000000074','authenticated','authenticated','j74@test.athanor','{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000','faceface-0000-4000-8000-000000000074','authenticated','authenticated','k74@test.athanor','{}'::jsonb, now(), now());
+  ('00000000-0000-0000-0000-000000000000','bbbbbbbb-0000-4000-8000-000000000074','authenticated','authenticated','b74@test.athanor','{}'::jsonb, now(), now());
+
+-- ── the apparatus is gone ───────────────────────────────────────────────────
+select is(
+  (select count(*) from pg_trigger where tgname = 'profiles_purge_momenti'),
+  0::bigint,
+  'the profiles_purge_momenti trigger is dropped'
+);
+select hasnt_function('athanor', 'purge_stale_momento_proposals',
+  'athanor.purge_stale_momento_proposals is dropped');
+select hasnt_function('public', 'momento_reasons', array['text','text[]','text[]','text[]'],
+  'momento_reasons (the frozen-prose author) is dropped');
 
 set local role service_role;
-
--- A is the recipient for every row. The daily-cap unique is
--- (user_id, proposed_on, daily_rank), so each row gets its own proposed_on and
--- keeps daily_rank 1 — the assertions read the table directly, not the deck.
-update public.profiles set handle = 'a74' where id = 'aaaaaaaa-0000-4000-8000-000000000074';
-update public.profiles set handle = 'b74' where id = 'bbbbbbbb-0000-4000-8000-000000000074';
-update public.profiles set handle = 'c74' where id = 'cccccccc-0000-4000-8000-000000000074';
-update public.profiles set handle = 'd74' where id = 'dddddddd-0000-4000-8000-000000000074';
-update public.profiles set handle = 'e74' where id = 'eeeeeeee-0000-4000-8000-000000000074';
-update public.profiles set handle = 'f74' where id = 'ffffffff-0000-4000-8000-000000000074';
-update public.profiles set handle = 'g74' where id = 'abcdabcd-0000-4000-8000-000000000074';
-
--- H is private BEFORE any proposal exists, so the later re-save is a no-op
--- transition rather than a flip (this is what assertion 8 pins).
-update public.profiles set handle = 'h74', visibility = '{"identity_tags":"private"}'::jsonb
-  where id = 'beefbeef-0000-4000-8000-000000000074';
--- I carries tags that a reason names, and later drops one (the removal axis).
-update public.profiles set handle = 'i74', identity_tags = array['design','music']
-  where id = 'cafecafe-0000-4000-8000-000000000074';
--- J starts private and goes BACK to members — un-hiding must purge nothing.
-update public.profiles set handle = 'j74', visibility = '{"seeking":"private"}'::jsonb
-  where id = 'dadadada-0000-4000-8000-000000000074';
--- K is an accepted-row candidate who then hides: the row must survive with its
--- `reasons` blanked (they stay SELECTable but never render).
-update public.profiles set handle = 'k74' where id = 'faceface-0000-4000-8000-000000000074';
-
--- `reasons` deliberately names a tag key, exactly as momento_reasons() authors it.
-insert into public.momento_proposals
-  (user_id, candidate_id, reasons, affinity, status, proposed_on, passed_until, daily_rank)
-values
-  ('aaaaaaaa-0000-4000-8000-000000000074','bbbbbbbb-0000-4000-8000-000000000074',
-    array['Cerchi: music'], 2, 'pending',  current_date,     null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','cccccccc-0000-4000-8000-000000000074',
-    array['Potrebbe cercare ciò che offri: design'], 2, 'pending', current_date - 1, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','dddddddd-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'accepted', current_date - 2, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','eeeeeeee-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'passed',   current_date - 3, current_date + 60, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','ffffffff-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'pending',  current_date - 4, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','abcdabcd-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'pending',  current_date - 5, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','beefbeef-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'pending',  current_date - 6, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','cafecafe-0000-4000-8000-000000000074',
-    array['Condividete: music'], 2, 'pending',  current_date - 7, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','dadadada-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'pending',  current_date - 8, null, 1),
-  ('aaaaaaaa-0000-4000-8000-000000000074','faceface-0000-4000-8000-000000000074',
-    array['Cerchi: music'], 2, 'accepted', current_date - 9, null, 1),
-  -- A is the RECIPIENT everywhere above; this row makes A a recipient whose own
-  -- flip must not touch their deck (pins candidate_id scoping, not user_id).
-  ('bbbbbbbb-0000-4000-8000-000000000074','aaaaaaaa-0000-4000-8000-000000000074',
-    array['Condividete: design'], 2, 'pending',  current_date - 10, null, 1);
-
--- ── the flips ───────────────────────────────────────────────────────────────
-update public.profiles set visibility = '{"identity_tags":"private"}'::jsonb
-  where id = 'bbbbbbbb-0000-4000-8000-000000000074';
-update public.profiles set visibility = '{"seeking":"private"}'::jsonb
-  where id = 'cccccccc-0000-4000-8000-000000000074';
-update public.profiles set visibility = '{"identity_tags":"private"}'::jsonb
-  where id = 'dddddddd-0000-4000-8000-000000000074';
-update public.profiles set visibility = '{"identity_tags":"private"}'::jsonb
-  where id = 'eeeeeeee-0000-4000-8000-000000000074';
--- F: a plain profile edit, visibility untouched.
-update public.profiles set bio = 'una bio qualunque'
-  where id = 'ffffffff-0000-4000-8000-000000000074';
--- G: a visibility change on an unrelated key.
-update public.profiles set visibility = '{"bio":"private"}'::jsonb
-  where id = 'abcdabcd-0000-4000-8000-000000000074';
--- H: re-save while ALREADY private — same value, so no transition.
-update public.profiles set bio = 'ri-salvata', visibility = '{"identity_tags":"private"}'::jsonb
-  where id = 'beefbeef-0000-4000-8000-000000000074';
--- I: drops a tag instead of hiding it — the other way to un-say «music».
-update public.profiles set identity_tags = array['design']
-  where id = 'cafecafe-0000-4000-8000-000000000074';
--- J: private → members. Un-hiding must purge nothing.
-update public.profiles set visibility = '{}'::jsonb
-  where id = 'dadadada-0000-4000-8000-000000000074';
--- K: hides while holding an ACCEPTED row — survives, text blanked.
-update public.profiles set visibility = '{"identity_tags":"private"}'::jsonb
-  where id = 'faceface-0000-4000-8000-000000000074';
--- A hides too. A is the RECIPIENT of everything above and the CANDIDATE of
--- exactly one row (B←A), so this separates the two axes: the row naming A must
--- go, A's own deck must not.
-update public.profiles set visibility = '{"identity_tags":"private"}'::jsonb
+-- A is the recipient, B the candidate: complementary in both directions (B is what A
+-- seeks; A is what B seeks), so both the seek_hit and the offer_hit terms fire.
+update public.profiles set handle = 'a74',
+       identity_tags = array['freelance','artista'], seeking = array['mentorship']
   where id = 'aaaaaaaa-0000-4000-8000-000000000074';
+update public.profiles set handle = 'b74',
+       identity_tags = array['mentor','coach'], seeking = array['collaborazioni']
+  where id = 'bbbbbbbb-0000-4000-8000-000000000074';
+insert into public.dreams (profile_id, text)
+  values ('bbbbbbbb-0000-4000-8000-000000000074','Il sogno di B');
 
+-- Inserted directly rather than through the matcher: deterministic, and the matcher has
+-- its own coverage in 0028 / 0073. `reasons` stays at its '{}' default — nothing writes
+-- it any more.
+insert into public.momento_proposals (user_id, candidate_id, affinity, status, proposed_on, daily_rank)
+values ('aaaaaaaa-0000-4000-8000-000000000074','bbbbbbbb-0000-4000-8000-000000000074',
+        4, 'pending', current_date, 1);
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"aaaaaaaa-0000-4000-8000-000000000074","role":"authenticated"}';
 select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'bbbbbbbb-0000-4000-8000-000000000074'),
-  0::bigint,
-  'identity_tags → private purges the candidate''s pending proposal'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'cccccccc-0000-4000-8000-000000000074'),
-  0::bigint,
-  'seeking alone → private also purges (the single-field case affinity-0 misses)'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'dddddddd-0000-4000-8000-000000000074'),
-  1::bigint,
-  'an ACCEPTED proposal survives the flip (a conversation hangs off it)'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'eeeeeeee-0000-4000-8000-000000000074'),
-  1::bigint,
-  'a PASSED proposal survives the flip'
-);
-select is(
-  (select passed_until from public.momento_proposals
-    where candidate_id = 'eeeeeeee-0000-4000-8000-000000000074'),
-  current_date + 60,
-  'the passed row keeps its suppression window intact'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'ffffffff-0000-4000-8000-000000000074'),
-  1::bigint,
-  'a profile edit that does not touch visibility purges nothing'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'abcdabcd-0000-4000-8000-000000000074'),
-  1::bigint,
-  'a visibility change on an unrelated key purges nothing'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'beefbeef-0000-4000-8000-000000000074'),
-  1::bigint,
-  're-saving an already-private profile is not a transition — nothing purged'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'cafecafe-0000-4000-8000-000000000074'),
-  0::bigint,
-  'REMOVING a tag purges too — hiding is not the only way to un-say it'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where candidate_id = 'dadadada-0000-4000-8000-000000000074'),
-  1::bigint,
-  'private → members (un-hiding) purges nothing'
-);
-select is(
-  (select reasons from public.momento_proposals
-    where candidate_id = 'faceface-0000-4000-8000-000000000074'),
-  '{}'::text[],
-  'an accepted row survives but its reasons are blanked (still SELECTable, never rendered)'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where user_id = 'bbbbbbbb-0000-4000-8000-000000000074'
-      and candidate_id = 'aaaaaaaa-0000-4000-8000-000000000074'),
-  0::bigint,
-  'the row naming A as CANDIDATE is purged when A hides'
-);
-select is(
-  (select count(*) from public.momento_proposals
-    where user_id = 'aaaaaaaa-0000-4000-8000-000000000074'),
-  7::bigint,
-  'A''s own deck survives A''s own flip — the delete is scoped to candidate_id, not user_id'
+  (select seek_hit from public.get_momenti_deck()),
+  array['coach','mentor'],
+  'the deck reads the candidate''s CURRENT identity tags, not a snapshot'
 );
 reset role;
 
--- ── trigger + helper lockdown (0073 precedent) ──────────────────────────────
-select trigger_is(
-  'public', 'profiles', 'profiles_purge_momenti',
-  'athanor', 'purge_stale_momento_proposals',
-  'profiles UPDATE fires the purge trigger'
+-- ── hiding a field masks the card, it no longer deletes it ──────────────────
+set local role service_role;
+update public.profiles set visibility = '{"identity_tags":"private"}'::jsonb
+  where id = 'bbbbbbbb-0000-4000-8000-000000000074';
+reset role;
+
+select is(
+  (select count(*) from public.momento_proposals
+    where candidate_id = 'bbbbbbbb-0000-4000-8000-000000000074' and status = 'pending'),
+  1::bigint,
+  'hiding identity_tags no longer deletes the pending proposal (the old trigger did)'
+);
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"aaaaaaaa-0000-4000-8000-000000000074","role":"authenticated"}';
+select is(
+  (select seek_hit from public.get_momenti_deck()),
+  '{}'::text[],
+  'the hidden field is masked out of the reason terms on the very next read'
+);
+-- `seeking` was left visible, so the term derived from it survives — the same
+-- field-by-field boundary 0073 pins for the matcher.
+select is(
+  (select offer_hit from public.get_momenti_deck()),
+  array['artista','freelance'],
+  'a field the candidate did NOT hide still produces its term'
+);
+reset role;
+
+-- ── editing a tag is reflected without a matcher run ────────────────────────
+set local role service_role;
+update public.profiles set visibility = '{}'::jsonb, identity_tags = array['coach']
+  where id = 'bbbbbbbb-0000-4000-8000-000000000074';
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"aaaaaaaa-0000-4000-8000-000000000074","role":"authenticated"}';
+select is(
+  (select seek_hit from public.get_momenti_deck()),
+  array['coach'],
+  'dropping a tag drops its term immediately — no stale prose to purge'
 );
 select is(
-  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'athanor' and p.proname = 'purge_stale_momento_proposals'
-      and p.prosecdef),
-  1::bigint,
-  'purge_stale_momento_proposals is SECURITY DEFINER (authenticated has no DELETE grant)'
+  (select count(*) from public.momento_proposals where reasons <> '{}'),
+  0::bigint,
+  'no row carries frozen reason prose any more'
 );
-select is(
-  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'athanor' and p.proname = 'purge_stale_momento_proposals'
-      and p.proconfig @> array['search_path=""']),
-  1::bigint,
-  'purge_stale_momento_proposals pins an empty search_path'
-);
-select ok(
-  not has_function_privilege('authenticated', 'athanor.purge_stale_momento_proposals()', 'execute'),
-  'authenticated cannot execute the purge helper directly'
-);
+reset role;
 
 select * from finish();
 rollback;

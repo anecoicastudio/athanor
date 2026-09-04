@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(29);
 
 -- ── seed ────────────────────────────────────────────────────────────────────────────
 -- two members. The handle_new_user trigger auto-creates their public.profiles rows.
@@ -15,25 +15,37 @@ values
   ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
    'authenticated', 'authenticated', 'voter_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
-   'authenticated', 'authenticated', 'voter_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now());
+   'authenticated', 'authenticated', 'voter_b@test.athanor', '{"locale":"en"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '33333333-3333-3333-3333-333333333333',
+   'authenticated', 'authenticated', 'voter_c@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 
 -- aura snapshot for user_a only. The trigger no longer reads it; the row stays so the
 -- "Aura does not tilt the tally" assertion below is non-vacuous.
 insert into public.aura_scores (profile_id, score)
   values ('11111111-1111-1111-1111-111111111111', 700);
 
--- one open edition (service_role — fund_editions is service-role write only)
+-- one open cycle in the voting phase, ballot window live (service_role — fund_editions is
+-- service-role write only). The window is required from #217 on: cast_vote fails closed on
+-- NULL bounds, so the seed publishes one.
 set local role service_role;
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
-  values ('00000000-0000-0000-0000-0000000000ed', 2027, now() + interval '30 days', 1000000, 'community', true, false);
--- two votable candidacies, one per author (status submitted). Written as owner (bypasses the
--- identity-verified insert gate — exactly the service-role path).
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status)
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  voting_starts_at, voting_ends_at,
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
+  values ('00000000-0000-0000-0000-0000000000ed', now() + interval '30 days', 1000000, 'voting', true, false,
+          now() - interval '1 hour', now() + interval '1 hour',
+          100000, 5, 3, 10, 'fixture costs statement', 'none');
+-- two votable candidacies, one per author — 'shortlisted', because the ballot is the
+-- SCREENED set from #218 on (is_on_ballot). Written as owner (bypasses the
+-- identity-verified insert gate — exactly the service-role path). created_at is explicit and
+-- distinct: same-transaction inserts share now(), and the D7 tie-break tests below need a1
+-- to be the earlier submission.
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, plan, status, budget_cents, min_viable_cents, created_at)
 values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000ed',
-   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','submitted'),
+   '11111111-1111-1111-1111-111111111111','s','g','i','11111111-1111-1111-1111-111111111111/a.mp4','p','shortlisted', 800000, 500000, now() - interval '2 days'),
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000ed',
-   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','submitted');
+   '22222222-2222-2222-2222-222222222222','s','g','i','22222222-2222-2222-2222-222222222222/b.mp4','p','shortlisted', 800000, 500000, now() - interval '1 day');
 reset role;
 
 -- ── schema / RLS ──────────────────────────────────────────────────────────────────────
@@ -44,7 +56,8 @@ select ok(
 );
 select policies_are(
   'public', 'candidacy_votes',
-  array['candidacy_votes_select_own','candidacy_votes_insert_own','candidacy_votes_delete_own'],
+  array['candidacy_votes_select_own','candidacy_votes_insert_own','candidacy_votes_delete_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the three vote policies'
 );
 select is(
@@ -126,14 +139,124 @@ select is(
 );
 
 -- ── phase gate ────────────────────────────────────────────────────────────────────────
--- flip the edition out of the community phase (service role) → cast_vote refuses
+-- flip the cycle out of the voting phase (service role) → cast_vote refuses
 reset role;
-update public.fund_editions set phase='reputation' where id='00000000-0000-0000-0000-0000000000ed';
+update public.fund_editions set phase='screening' where id='00000000-0000-0000-0000-0000000000ed';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select throws_ok(
   $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
-  'P0001', null, 'cast_vote phase-gated to community (closed → P0001)'
+  'P0001', 'voting closed', 'cast_vote phase-gated to voting (outside it → P0001)'
+);
+
+-- ── ballot-open gate (#217, FUND-15) ──────────────────────────────────────────────────
+-- The cycle sits in 'screening' with TWO votable candidacies against min_candidacies = 3:
+-- the transition into 'voting' must refuse (fund_editions_ballot_open trigger).
+reset role;
+select throws_ok(
+  $$ update public.fund_editions set phase = 'voting' where id = '00000000-0000-0000-0000-0000000000ed' $$,
+  'P0001', null, 'below min_candidacies the ballot does not open'
+);
+
+-- minimum met (the operator re-declares it at open) but the window undeclared → still refused
+update public.fund_editions
+   set min_candidacies = 2, voting_starts_at = null, voting_ends_at = null
+ where id = '00000000-0000-0000-0000-0000000000ed';
+select throws_ok(
+  $$ update public.fund_editions set phase = 'voting' where id = '00000000-0000-0000-0000-0000000000ed' $$,
+  'P0001', null, 'without a declared ballot window the cycle cannot enter voting'
+);
+
+-- window declared + minimum met → the cycle enters voting
+update public.fund_editions
+   set voting_starts_at = now() - interval '1 hour', voting_ends_at = now() + interval '1 hour'
+ where id = '00000000-0000-0000-0000-0000000000ed';
+select lives_ok(
+  $$ update public.fund_editions set phase = 'voting' where id = '00000000-0000-0000-0000-0000000000ed' $$,
+  'window declared and minimum met — the cycle enters voting'
+);
+select has_trigger(
+  'public', 'fund_editions', 'fund_editions_ballot_open',
+  'the ballot-open trigger is bound'
+);
+
+-- ── ballot window in cast_vote (#217, FUND-15) ────────────────────────────────────────
+-- Window edits below do not retrigger the ballot-open gate (it fires on UPDATE OF phase),
+-- which is exactly what lets a test move the window around a cycle already in 'voting'.
+update public.fund_editions
+   set voting_starts_at = now() + interval '1 day', voting_ends_at = now() + interval '2 days'
+ where id = '00000000-0000-0000-0000-0000000000ed';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select throws_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
+  'P0001', 'voting closed', 'a vote before voting_starts_at raises'
+);
+
+reset role;
+update public.fund_editions
+   set voting_starts_at = now() - interval '2 days', voting_ends_at = now() - interval '1 day'
+ where id = '00000000-0000-0000-0000-0000000000ed';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select throws_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
+  'P0001', 'voting closed', 'a vote after voting_ends_at raises'
+);
+
+reset role;
+update public.fund_editions
+   set voting_starts_at = now() - interval '1 hour', voting_ends_at = now() + interval '1 hour'
+ where id = '00000000-0000-0000-0000-0000000000ed';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select lives_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
+  'a vote inside the window succeeds'
+);
+
+-- ── the refusal STRINGS are a client contract (#382) ───────────────────────────────────
+-- `CAST_VOTE_ERROR_COPY` (apps/native/src/lib/vote-error.ts) keys the member-visible sentence
+-- off these exact messages — the same #103 idiom the contribution path uses — so the wording is
+-- API surface, not a diagnostic. The three window/phase assertions above now pin 'voting closed'
+-- by TEXT rather than by SQLSTATE alone; these two pin the remaining refusals. Reword one in a
+-- migration and this file goes red. Without that, the client silently degrades every refusal to
+-- its generic sentence and the stale-edition refetch stops firing — a quieter version of the
+-- silence #382 existed to end, with nothing pointing at the cause.
+select throws_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000ff') $$,
+  'P0001', 'candidacy not votable', 'the not-votable refusal keeps its exact message'
+);
+
+-- No `sub` claim → auth.uid() is null → the auth refusal, on 42501 rather than P0001. Last
+-- assertion that needs this role, and the D7 section below opens with `reset role`.
+set local request.jwt.claims = '{"role":"authenticated"}';
+select throws_ok(
+  $$ select cast_vote('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000a1') $$,
+  '42501', 'auth required', 'the auth refusal keeps its exact message'
+);
+
+-- ── D7 tie order in candidacy_tally ───────────────────────────────────────────────────
+-- The cast above moved user_a to cand_a1, so the tally is a 1–1 tie: a1 (submitted 2 days
+-- ago) must sort before b1 (1 day ago) — ties break on earliest submission.
+-- (Both rows are 'shortlisted'; the tie is about created_at, not status.)
+reset role;
+select results_eq(
+  $$ select candidacy_id from public.candidacy_tally('00000000-0000-0000-0000-0000000000ed') $$,
+  $$ values ('00000000-0000-0000-0000-0000000000a1'::uuid), ('00000000-0000-0000-0000-0000000000b1'::uuid) $$,
+  'tally ties break on earliest submission (D7)'
+);
+
+-- a third voter on b1 breaks the tie the other way: raw distinct-voter count outranks
+-- submission order, so the LATER-submitted b1 now sorts first.
+set local role service_role;
+insert into public.candidacy_votes (edition_id, candidacy_id, voter_id)
+  values ('00000000-0000-0000-0000-0000000000ed','00000000-0000-0000-0000-0000000000b1','33333333-3333-3333-3333-333333333333');
+reset role;
+select results_eq(
+  $$ select candidacy_id from public.candidacy_tally('00000000-0000-0000-0000-0000000000ed') $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b1'::uuid), ('00000000-0000-0000-0000-0000000000a1'::uuid) $$,
+  'raw distinct-voter count outranks submission order (D7)'
 );
 
 -- ── zero Aura ─────────────────────────────────────────────────────────────────────────

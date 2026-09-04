@@ -1,0 +1,29 @@
+-- #88 payments walk (2026-08-20): subscribeTicket (packages/api/src/events.ts) subscribes to
+-- postgres_changes on public.event_tickets, but the table was never added to the
+-- supabase_realtime publication — not on staging, not on production. postgres_changes only
+-- delivers what the publication carries, so the subscription has never fired a single event.
+-- It fails SILENTLY: the channel still reports SUBSCRIBED, so nothing surfaces the break.
+--
+-- What that costs: the buyer's `confirming → ticket-ready` flip (frontend §3.4 / §7 S3) never
+-- arrives over realtime. TicketBar's one post-Checkout refetchTicket() is the only thing that
+-- has ever made the QR appear, and it usually wins the race — which is why this went unseen.
+-- It loses whenever the webhook (W1) lands after that refetch (the bar sits on confirmSlow and
+-- never resolves), and it does not exist at all for any LATER transition: check-in, refund,
+-- chargeback all leave an open screen stale until it remounts.
+--
+-- Full table, not a column list. profiles needed the list in 20260811084600 because its
+-- authenticated SELECT grant is narrower than its column set; event_tickets grants
+-- authenticated SELECT on every column, so the whole row already IS the granted payload.
+-- 0025 asserts that as an identity (publication columns = authenticated SELECT grant) rather
+-- than as a literal list, so a future column granted more narrowly than the table goes red
+-- there instead of leaking through realtime.
+--
+-- Grants and read access are unchanged. Realtime evaluates RLS per subscriber, and
+-- event_tickets_select_own ((select auth.uid()) = user_id) is this table's ONLY permissive
+-- SELECT policy — a member receives their own row and nothing else, and the organiser (who
+-- cannot read a holder's ticket at all, 0025) gains nothing. Publication membership confers
+-- no privilege, so 0121's grant catalog is untouched.
+--
+-- Replica identity stays default (primary key), matching every other published table; the
+-- subscriber reads payload.new only.
+alter publication supabase_realtime add table public.event_tickets;

@@ -1,18 +1,28 @@
 import { Pressable, Text, View } from '@/tw';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t } from '@athanor/i18n';
 import type { Locale, Notification } from '@athanor/schemas';
+import { displayParams } from '@/lib/notif-params';
 import { timeAgo } from '@/lib/time';
-import { NOTIF_VISUAL, NOTIF_LEAD } from './notifTypes';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
+import {
+  NOTIF_VISUAL,
+  NOTIF_VISUAL_BY_TEMPLATE,
+  NOTIF_LEAD,
+  NOTIF_LEAD_BY_TEMPLATE,
+} from './notifTypes';
 
 /**
  * One notification row (M9 §4). Composed of:
- *  - ndot: accent circle (cyan for `moment`, neutral for all others — rule #4) + Unicode glyph
- *  - body: bolded lead (`notif.type.*`) + tail (interpolated `notif.tpl.*` template)
+ *  - ndot: accent circle (cyan for `moment` and for the `helpConfirmed` template, neutral for
+ *    everything else — rule #4) + Unicode glyph
+ *  - body: bolded lead (`notif.type.*`, or a per-template override) + tail (interpolated
+ *    `notif.tpl.*` template)
  *  - relative time stamp
  *  - optional «Apri Momento» action chip (moment type only)
  *  - unread presence dot (`read_at == null`) — never a number (rule #3)
  *
- * No glow on this surface (rule #4). The `moment` accent is a flat `aura-soft` fill — not a glow.
+ * No glow on this surface (rule #4). Both celebratory accents are a flat `aura-soft` fill —
+ * not a glow.
  */
 export default function NotificationRow({
   item,
@@ -23,16 +33,16 @@ export default function NotificationRow({
   locale: Locale;
   onPress: (n: Notification) => void;
 }) {
-  const v = NOTIF_VISUAL[item.type];
+  // Template first, then type — the same precedence the lead uses, and for the same reason:
+  // a template can mean something its type does not (#637).
+  const v = NOTIF_VISUAL_BY_TEMPLATE[item.template_key] ?? NOTIF_VISUAL[item.type];
   const unread = item.read_at == null;
-  const lead = t(NOTIF_LEAD[item.type] as MessageKey, locale);
+  const lead = t(NOTIF_LEAD_BY_TEMPLATE[item.template_key] ?? NOTIF_LEAD[item.type], locale);
   // Template tail: interpolate `{name}`, `{count}`, `{title}`, `{amount}` etc. from params.
-  // params values are `unknown`; cast to Record<string,string|number> for t().
-  const tail = t(
-    item.template_key as MessageKey,
-    locale,
-    item.params as Record<string, string | number>,
-  );
+  // template_key is schema-validated (unknown keys degrade to notif.tpl.generic — #113).
+  // displayParams localizes the warn template's `reason` token (#313); every other
+  // template's params pass through untouched.
+  const tail = t(item.template_key, locale, displayParams(item, locale));
 
   return (
     <Pressable
@@ -43,7 +53,15 @@ export default function NotificationRow({
     >
       {/* ndot: accent circle + glyph */}
       <View className={`mt-0.5 h-9 w-9 items-center justify-center rounded-full ${v.accentClass}`}>
-        <Text className={`text-base ${v.celebratory ? 'text-aura' : 'text-faint'}`}>{v.glyph}</Text>
+        {/* `ornament` (#639): the disc stays a disc — height and width would grow by the
+            glyph's line box and its advance, which are different numbers. The row's own
+            accessibilityLabel above carries the meaning, so the glyph reads nothing. */}
+        <Text
+          className={`text-base ${v.celebratory ? 'text-aura' : 'text-faint'}`}
+          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+        >
+          {v.glyph}
+        </Text>
       </View>
 
       {/* Body */}

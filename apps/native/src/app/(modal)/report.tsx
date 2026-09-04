@@ -1,35 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Alert } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { blockKeys, blockUser, reportKeys, submitReport } from '@athanor/api';
+import { blockUser, reportKeys, submitReport } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import {
-  type Locale,
-  REPORT_CATEGORIES,
-  type ReportCategory,
-  type ReportTargetType,
-} from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { REPORT_CATEGORIES, type ReportCategory, type ReportTargetType } from '@athanor/schemas';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
-import { useAuth } from '@/lib/auth-context';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocale } from '@/hooks/use-locale';
+import { invalidateBlockDependents } from '@/lib/block-cache';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
+import { Screen } from '@/components/Screen';
 
 /**
  * Report sheet (M9, frontend `09` §3.3). One sheet parameterized by targetType ∈
- * {person, post, behavior} + optional targetId. Files a `reports` row (status='open'); the
- * reporter NEVER sees the outcome — the −50..−200 Aura penalty, if upheld, is the M6 engine's
- * job, server-only (rule #1). After a person report, offers «Blocca anche questa persona»
- * (routes through the merged blocks flow). Flat `light` CTA — reporting is not a moment-grade
- * event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
+ * {person, post, behavior, message} + optional targetId — `message` since #574, pushed here by
+ * the chat bubble's action sheet with the message id as the targetId. Files a `reports` row
+ * (status='open'); the reporter NEVER sees the outcome — the −50..−200 Aura penalty, if upheld,
+ * is the M6 engine's job, server-only (rule #1). After a person report, offers «Blocca anche
+ * questa persona» (routes through the merged blocks flow); a message report does not, because
+ * the affordance below keys on `targetId` being a person and for a message it is a message —
+ * the chat overflow menu still offers «Blocca» directly. Flat `light` CTA — reporting is not a
+ * moment-grade event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
  */
 export default function ReportScreen() {
-  const router = useRouter();
+  const leave = useGuardedBack();
   const qc = useQueryClient();
-  const { profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const { targetType, targetId } = useLocalSearchParams<{
     targetType?: ReportTargetType;
     targetId?: string;
@@ -37,7 +41,7 @@ export default function ReportScreen() {
 
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [note, setNote] = useState('');
-  // Track the auto-dismiss timer so an early close (✕) doesn't fire router.back() after unmount.
+  // Track the auto-dismiss timer so an early close (✕) doesn't fire the exit after unmount.
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -58,27 +62,37 @@ export default function ReportScreen() {
       void qc.invalidateQueries({ queryKey: reportKeys.mine() });
       // Confirmation auto-dismisses (~1.9s) unless this is a person report — there we keep
       // the sheet so the user can tap «Blocca anche questa persona».
-      if (targetType !== 'person') dismissTimer.current = setTimeout(() => router.back(), 1900);
+      if (targetType !== 'person') dismissTimer.current = setTimeout(leave, 1900);
     },
   });
 
   const blockAlso = useMutation({
     mutationFn: () => blockUser(supabase, targetId as string),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: blockKeys.all });
-      router.back();
+      invalidateBlockDependents(qc, targetId as string);
+      leave();
     },
   });
 
+  // #636. `isSuccess` matters here beyond the usual: on a person report the sheet stays up
+  // after the write so «Blocca anche questa persona» remains tappable, and the note is by
+  // then submitted rather than unsaved.
+  const [baseline] = useState(() => ({ category, note }));
+  useDirtyGuard({
+    dirty: isDraftDirty(baseline, { category, note }),
+    saving: report.isPending,
+    submitted: report.isSuccess,
+  });
+
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* head — back + title + close x */}
       <ModalHeader
         title={t('report.title', locale)}
         backLabel={t('common.back', locale)}
         right={
           <Pressable
-            onPress={() => router.back()}
+            onPress={leave}
             accessibilityRole="button"
             accessibilityLabel={t('common.cancel', locale)}
             hitSlop={8}
@@ -101,7 +115,19 @@ export default function ReportScreen() {
             </Text>
             {targetType === 'person' && targetId ? (
               <Pressable
-                onPress={() => blockAlso.mutate()}
+                // #633: the same block from user/[id] confirms with `block.confirm`; this screen
+                // has no display name in its params, so its twin key drops the {name}. One
+                // block, one confirm, everywhere.
+                onPress={() =>
+                  Alert.alert(t('report.block.confirm', locale), undefined, [
+                    { text: t('common.cancel', locale), style: 'cancel' },
+                    {
+                      text: t('report.alsoBlock', locale),
+                      style: 'destructive',
+                      onPress: () => blockAlso.mutate(),
+                    },
+                  ])
+                }
                 disabled={blockAlso.isPending}
                 accessibilityRole="button"
                 hitSlop={8}
@@ -125,6 +151,7 @@ export default function ReportScreen() {
               {REPORT_CATEGORIES.map((option) => (
                 <Chip
                   key={option}
+                  role="radio"
                   label={t(`report.reason.${option}`, locale)}
                   selected={category === option}
                   onPress={() => setCategory(option)}
@@ -133,8 +160,7 @@ export default function ReportScreen() {
             </View>
 
             {/* optional note */}
-            <TextInput
-              className="min-h-28 rounded-hero border border-hair bg-raise px-5 py-4 text-lg text-foreground"
+            <Field
               multiline
               maxLength={2000}
               editable={!report.isPending}
@@ -157,6 +183,6 @@ export default function ReportScreen() {
           </>
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

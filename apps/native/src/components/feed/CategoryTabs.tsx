@@ -1,22 +1,28 @@
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
-import type { PostCategory } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
+import { FEED_TABS, type FeedFilter, type FeedTab } from '@/lib/feed-tabs';
 
-export type FeedFilter = PostCategory | 'all';
-const FILTERS: FeedFilter[] = ['all', 'business', 'human', 'creative', 'evolution'];
+// The two unions and the narrowing live in @/lib/feed-tabs (no JSX → reachable from the node
+// test runner, which is where the "the events tab has no posts source" assertions run).
+// Re-exported so the screen keeps importing them here.
+export type { FeedFilter, FeedTab };
 
 /**
  * Horizontal feed-tab row (DESIGN §9 Tabs): text pills, active = foreground
  * text + 2px foreground underline, inactive = foregroundMuted. Tabs are
  * navigation, not moments — no aura here.
+ *
+ * Six tabs since #153: the sixth, «Eventi», is a window into Athanor Live rather than a post
+ * category, so it looks identical and sources differently. The pill itself knows nothing about
+ * that — the screen branches on `postsFilter`.
  */
 export function CategoryTabs({
   active,
   onChange,
   locale,
 }: {
-  active: FeedFilter;
-  onChange: (f: FeedFilter) => void;
+  active: FeedTab;
+  onChange: (f: FeedTab) => void;
   locale: Locale;
 }) {
   return (
@@ -25,7 +31,7 @@ export function CategoryTabs({
       showsHorizontalScrollIndicator={false}
       contentContainerClassName="gap-2 px-5"
     >
-      {FILTERS.map((f) => {
+      {FEED_TABS.map((f) => {
         const isActive = f === active;
         return (
           <Pressable

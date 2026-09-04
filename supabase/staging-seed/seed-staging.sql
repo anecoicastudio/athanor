@@ -26,12 +26,18 @@
 --
 -- ⚠ AURA. Rule 1 says only the score-engine writes `aura_events`/`aura_scores`, and
 -- this file never touches them. But it is not Aura-neutral: §1 sets
--- `identity_verified = true` on the three fund-candidacy authors, and the M6 trigger
--- `profiles_aura_identity` awards **+50 each (150 total) for a verification that never
--- happened**. That is deliberate — `dream_candidacies_insert_own_verified` requires a
--- verified profile, so without it the candidacy flow cannot be walked from the app at
--- all — and it is disclosed here rather than hidden. Re-runs award nothing further
--- (the trigger tests false→true) and the engine dedupes on (profile_id, type, ref_id).
+-- `identity_verified = true` on SIX profiles, and the M6 trigger
+-- `profiles_aura_identity` awards **+50 each (300 total) for a verification that never
+-- happened**. That is deliberate in both halves, and disclosed here rather than hidden:
+--   • the three fund-candidacy authors (marta_ceramica, ele_yoga, rocco_film), because
+--     `dream_candidacies_insert_own_verified` requires a verified profile — without it
+--     the candidacy flow cannot be walked from the app at all;
+--   • the three paid-event organisers (tino_chef, gio_musica, dario_legno), because
+--     #448's `events_enforce_paid_gate` refuses a paid event whose organiser is not
+--     verified. A paid event by an unverified organiser is a row that can no longer
+--     exist, so seeding one would model an impossible world rather than a fake one.
+-- Re-runs award nothing further (the trigger tests false→true) and the engine dedupes
+-- on (profile_id, type, ref_id).
 --
 -- The other M6 triggers mostly do NOT fire on seeded data, so do not expect a
 -- populated Aura tab: milestone/help awards are AFTER UPDATE and these rows are
@@ -45,7 +51,10 @@
 --   stars                      — engine-only output derived from aura_events.
 --   event_tickets, circle_memberships, fund_contributions, verifications,
 --   stripe_webhook_events      — Stripe (test mode) is the source of truth.
---   event_attendance, event_live_stats — produced by the check-in edge function.
+--   event_attendance           — produced by the check-in edge function.
+--   event_live_stats           — produced by the live_window_sweep() cron (#120), never
+--                                by check-in (this file's old claim). Listener count is
+--                                Realtime presence, not a row.
 --   gdpr_export_jobs           — produced by the export job.
 --   push_tokens                — needs a real device token from a real build.
 --
@@ -54,6 +63,12 @@
 -- `pnpm staging:media --confirm` after seeding — the upload script reads the keys back
 -- out of these tables and puts a file at each one, so the two can never drift.
 -- Until it runs, every image and video is a blank rectangle.
+--
+-- COMPANION: refresh-staging.sql installs the hourly `staging_refresh_world()` cron
+-- that keeps this world restored while it is being tested. It carries frozen copies
+-- of the semantic-key lists below (stories, events, statuses, content ids) and of §12's
+-- ballot-window offsets — editing one of those sections here means re-running
+-- refresh-staging.sql afterwards.
 --
 -- The keys are `{uid}/{id}.{ext}` — the same shape the app itself uploads at
 -- (apps/native/src/lib/media/paths.ts), and NOT the `<handle>/stories/<md5>.jpg` this
@@ -205,15 +220,15 @@ from (values
   ('sole_designer',  'Designer. Studio piccolo, progetti che lasciano il mondo un po'' più chiaro.',  'it', array['creativo','freelance'],       array['collaborazioni','connessioni'], '{"bio":"public","dream":"public"}'::jsonb, false, true),
   ('luna_dev',       'Developer. Building things that help people sleep better.',                     'en', array['freelance','creativo'],       array['collaborazioni','crescita'],    '{"bio":"public","dream":"public"}'::jsonb, false, true),
   ('marta_ceramica', 'Ceramista. Tornio, smalti, e un forno che merita di essere acceso più spesso.', 'it', array['artista','freelance'],        array['business','connessioni'],       '{"bio":"public","dream":"public"}'::jsonb, true,  true),
-  ('gio_musica',     'Produttore. Registro in una cantina con ottima acustica e pessimo wifi.',       'it', array['artista','creativo'],         array['collaborazioni','eventi'],      '{"bio":"public"}'::jsonb,                  false, false),
+  ('gio_musica',     'Produttore. Registro in una cantina con ottima acustica e pessimo wifi.',       'it', array['artista','creativo'],         array['collaborazioni','eventi'],      '{"bio":"public"}'::jsonb,                  true,  false),
   ('ele_yoga',       'Insegnante di yoga. Porto la pratica dove di solito non arriva.',               'it', array['coach','freelance'],          array['connessioni','eventi'],         '{"bio":"public","dream":"public"}'::jsonb, true,  false),
-  ('tino_chef',      'Cuoco. Cerco produttori che facciano le cose come si facevano.',                'it', array['imprenditore','creativo'],    array['business','collaborazioni'],    '{"bio":"public"}'::jsonb,                  false, false),
+  ('tino_chef',      'Cuoco. Cerco produttori che facciano le cose come si facevano.',                'it', array['imprenditore','creativo'],    array['business','collaborazioni'],    '{"bio":"public"}'::jsonb,                  true,  false),
   -- vera_erbe is the one deliberately-private profile: the 'private' tier is the
   -- least-walked branch of athanor.field_visible (M10), and nothing else here covers it.
   ('vera_erbe',      'Herbalist. I pick, I dry, I listen.',                                           'en', array['artista','freelance'],        array['crescita','connessioni'],       '{"bio":"private","dream":"private"}'::jsonb, false, false),
   ('rocco_film',     'Filmmaker. Documentari corti su mestieri che stanno sparendo.',                 'it', array['artista','creativo'],         array['collaborazioni','crescita'],    '{"bio":"public","dream":"public"}'::jsonb, true,  false),
   ('sara_startup',   'Founder. Second time around, slower on purpose.',                               'en', array['imprenditore','investitore'], array['mentorship','business'],        '{"bio":"public"}'::jsonb,                  false, false),
-  ('dario_legno',    'Falegname. Legno di recupero, giunti a vista, niente viti.',                    'it', array['artista','mentor'],           array['eventi','collaborazioni'],      '{"bio":"public","dream":"public"}'::jsonb, false, false),
+  ('dario_legno',    'Falegname. Legno di recupero, giunti a vista, niente viti.',                    'it', array['artista','mentor'],           array['eventi','collaborazioni'],      '{"bio":"public","dream":"public"}'::jsonb, true,  false),
   ('nina_poeta',     'Scrivo. Per lo più la sera, per lo più a mano.',                                'it', array['creativo','artista'],         array['crescita','connessioni'],       '{}'::jsonb,                                false, false),
   ('bea_foto',       'Fotografa. Ritratti lunghi, pellicola quando posso.',                           'it', array['freelance','artista'],        array['collaborazioni','eventi'],      '{"bio":"public","dream":"public"}'::jsonb, false, false)
 ) as p(handle, bio, locale, identity_tags, seeking, visibility, identity_verified, founding_member)
@@ -286,6 +301,12 @@ select md5('help:' || h.helper || ':' || h.ms_handle || ':' || h.ms_pos)::uuid,
 from (values
   ('sara_startup', 'sole_designer',  1, 'skill',       'Ti do una mano coi preventivi, li ho fatti per due anni.', 'completed'),
   ('bea_foto',     'marta_ceramica', 1, 'connection',  'Conosco chi affitta il capannone dietro la stazione.',      'accepted'),
+  -- #227: marta_ceramica is a CANDIDATE whose candidacy links this dream, so her ballot card
+  -- reads its confirmed history. Without a completed help here the card could only ever show
+  -- «Aiuti confermati · 0» and the half of the block that proves the DEFINER aggregate works
+  -- would be untestable by eye on staging. On milestone 0 (the done one), so the two numbers
+  -- describe the same finished piece of work.
+  ('dario_legno',  'marta_ceramica', 0, 'skill',       'Ti aiuto a montare l''impianto, l''ho fatto nel mio laboratorio.', 'completed'),
   ('gio_musica',   'rocco_film',     1, 'skill',       'Ho una camera silenziosa e un fonico paziente.',            'offered'),
   ('dario_legno',  'ele_yoga',       1, 'opportunity', 'Mia zia dirige una casa di riposo a dieci minuti.',         'offered')
 ) as h(helper, ms_handle, ms_pos, type, message, status)
@@ -323,9 +344,16 @@ on conflict do nothing;
 -- 4. Events. `events_online_or_physical` requires geo on every non-online event, so
 --    each physical one carries a real point — st_point takes (long, lat), matching
 --    create_event(). currency is lowercase per its check (`^[a-z]{3}$`).
+--
+--    settlement_ack_at is stamped on the paid rows and left null on the free ones,
+--    mirroring create_event exactly. #448's events_enforce_paid_gate is a BEFORE INSERT
+--    trigger, so it fires here too — this file writes as the owner, not through the RPC,
+--    and a trigger does not care which. Together with the three organisers verified in
+--    §1, that is what keeps the three paid events insertable at all.
 -- ---------------------------------------------------------------------------------
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
-                           starts_at, ends_at, capacity, price_cents, currency, is_kairos_day, is_athanor_day)
+                           starts_at, ends_at, capacity, price_cents, currency, is_athanor_day,
+                           settlement_ack_at)
 select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.category::public.event_category, e.is_online, e.venue, e.city,
        case when e.is_online then null
@@ -333,16 +361,42 @@ select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.stream_url,
        now() + (e.starts_in_days || ' days')::interval,
        now() + (e.starts_in_days || ' days')::interval + interval '2 hours',
-       e.capacity, e.price_cents, 'eur', e.is_kairos, false
+       e.capacity, e.price_cents, 'eur', e.is_athanor,
+       case when e.price_cents > 0 then now() else null end
 from (values
   ('cena-condivisa', 'tino_chef',     'Cena condivisa: si cucina insieme', 'creativi',   false, 'Cascina Bianca',       'Milano',  9.19, 45.46, null,                                    4, 12, 1500, false),
   ('yoga-alba',      'ele_yoga',      'Pratica all''alba, sul tetto',      'benessere',  false, 'Tetto di via Volta',   'Milano',  9.18, 45.48, null,                                    9, 20,    0, false),
   ('ascolto-disco',  'gio_musica',    'Ascolto guidato: il disco intero',  'musica',     true,  null,                   null,      null, null, 'https://example.invalid/live/ascolto',  16, 40,  800, false),
-  ('kairos-ottobre', 'sole_designer', 'Kairos: il giorno che conta',       'evoluzione', false, 'Spazio Ostro',         'Milano',  9.20, 45.45, null,                                   25, 100,   0, true),
+  ('athanor-ottobre', 'sole_designer', 'Athanor Day: il giorno che conta',  'evoluzione', false, 'Spazio Ostro',         'Milano',  9.20, 45.45, null,                                   25, 100,   0, true),
   -- negative offset = already over, so the "passati" state and the post-event review
   -- prompt both have something to act on.
   ('bottega-aperta', 'dario_legno',   'Bottega aperta: giunti a vista',    'formazione', false, 'Falegnameria Fontana', 'Bergamo', 9.67, 45.70, null,                                   -6, 10, 2000, false)
-) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_kairos)
+) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_athanor)
+on conflict do nothing;
+
+-- #126 fixture: two events sitting INSIDE the reminder windows. Every offset above is
+-- measured in days, and both reminder windows are sub-daily — 24h for any event, 1h for an
+-- online one — so without these the every-minute event_reminder_sweep has nothing to find
+-- and the reminder stays invisible on staging no matter how correct the producer is.
+-- 'promemoria-oggi' is physical and 5h out, so it claims t24 and (correctly) never a t1;
+-- 'diretta-tra-poco' is online and 30m out, so it claims t1 ONLY — the t24 floor is what
+-- stops one person getting two identical reminders on the same tick. refresh-staging.sql
+-- §10b re-stamps both hourly and clears their markers, so the reminder fires again.
+insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
+                           starts_at, ends_at, capacity, price_cents, currency, is_athanor_day)
+select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
+       e.category::public.event_category, e.is_online, e.venue, e.city,
+       case when e.is_online then null
+            else extensions.st_point(e.lng, e.lat)::extensions.geography end,
+       e.stream_url,
+       now() + e.starts_in, now() + e.starts_in + interval '2 hours',
+       e.capacity, 0, 'eur', false
+from (values
+  ('promemoria-oggi',  'ele_yoga',   'Promemoria: il cerchio di stasera', 'benessere', false,
+   'Sala Grande', 'Milano', 9.19, 45.46, null,                                     interval '5 hours',   30),
+  ('diretta-tra-poco', 'gio_musica', 'Diretta: si comincia tra poco',     'musica',    true,
+   null,          null,     null, null,  'https://example.invalid/live/tra-poco',  interval '30 minutes', 60)
+) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in, capacity)
 on conflict do nothing;
 
 insert into public.rsvps (id, user_id, event_id, status)
@@ -356,8 +410,16 @@ from (values
   ('vera_erbe',      'yoga-alba',      'going'),
   ('luna_dev',       'ascolto-disco',  'going'),
   ('rocco_film',     'ascolto-disco',  'going'),
-  ('sara_startup',   'kairos-ottobre', 'going'),
-  ('tino_chef',      'bottega-aperta', 'going')
+  ('sara_startup',   'athanor-ottobre', 'going'),
+  ('tino_chef',      'bottega-aperta', 'going'),
+  -- #126: attendees for the two reminder-window events. The cancelled seat on
+  -- promemoria-oggi is load-bearing — «N partecipano» counts going RSVPs only, so it is
+  -- what proves the count is not just `count(*)` over the table.
+  ('sole_designer',  'promemoria-oggi',  'going'),
+  ('bea_foto',       'promemoria-oggi',  'going'),
+  ('nina_poeta',     'promemoria-oggi',  'cancelled'),
+  ('luna_dev',       'diretta-tra-poco', 'going'),
+  ('rocco_film',     'diretta-tra-poco', 'going')
 ) as r(handle, slug, status)
 on conflict do nothing;
 
@@ -578,23 +640,28 @@ on conflict do nothing;
 --    bare `on conflict do nothing` is what stops this raising.
 --    On a real run you can skip this block and use: select public.run_momenti_matcher();
 -- ---------------------------------------------------------------------------------
-insert into public.momento_proposals (id, user_id, candidate_id, reasons, affinity, status, proposed_on, daily_rank)
+--    No `reasons` column: it is retired (#273 D). The deck computes each card's terms at read
+--    time from the candidate's CURRENT, visibility-masked tags, so a hand-written string here
+--    would render nothing and mislead the next reader. The affinity values below are what the
+--    matcher would score for these pairs; anything under 2 is a card the matcher itself would
+--    no longer propose, kept here only as an already-swiped (passed) row.
+insert into public.momento_proposals (id, user_id, candidate_id, affinity, status, proposed_on, daily_rank)
 select md5('momento:' || m.a || ':' || m.b)::uuid,
-       md5('user:' || m.a)::uuid, md5('user:' || m.b)::uuid, m.reasons, m.affinity,
+       md5('user:' || m.a)::uuid, md5('user:' || m.b)::uuid, m.affinity,
        m.status::public.momento_status, current_date, m.rank
 from (values
-  ('sole_designer',  'gio_musica',    array['Cerchi: collaborazioni','Potrebbe cercare ciò che offri'], 2.0, 'pending',  1),
-  ('gio_musica',     'sole_designer', array['Cerchi: collaborazioni','Potrebbe cercare ciò che offri'], 2.0, 'pending',  1),
-  ('marta_ceramica', 'sara_startup',  array['Cerchi: business'],                                        1.0, 'pending',  2),
-  ('ele_yoga',       'bea_foto',      array['Cerchi: eventi'],                                          1.0, 'pending',  1),
-  ('bea_foto',       'nina_poeta',    array['Cerchi: collaborazioni'],                                  1.0, 'pending',  2),
-  ('vera_erbe',      'nina_poeta',    array['You''re seeking: connessioni'],                            1.0, 'passed',   1),
+  ('sole_designer',  'gio_musica',    2.0, 'pending',  1),
+  ('gio_musica',     'sole_designer', 2.0, 'pending',  1),
+  ('marta_ceramica', 'sara_startup',  2.0, 'pending',  2),
+  ('ele_yoga',       'bea_foto',      2.0, 'pending',  1),
+  ('bea_foto',       'nina_poeta',    2.0, 'pending',  2),
+  ('vera_erbe',      'nina_poeta',    1.0, 'passed',   1),
   -- reciprocal accepted pairs → mutual match, and the two conversations in §7
-  ('sole_designer',  'luna_dev',      array['Cerchi: collaborazioni'],                                  2.0, 'accepted', 2),
-  ('luna_dev',       'sole_designer', array['You''re seeking: collaborazioni'],                         2.0, 'accepted', 1),
-  ('rocco_film',     'gio_musica',    array['Cerchi: collaborazioni'],                                  2.0, 'accepted', 2),
-  ('gio_musica',     'rocco_film',    array['Cerchi: eventi'],                                          2.0, 'accepted', 2)
-) as m(a, b, reasons, affinity, status, rank)
+  ('sole_designer',  'luna_dev',      2.0, 'accepted', 2),
+  ('luna_dev',       'sole_designer', 2.0, 'accepted', 1),
+  ('rocco_film',     'gio_musica',    2.0, 'accepted', 2),
+  ('gio_musica',     'rocco_film',    2.0, 'accepted', 2)
+) as m(a, b, affinity, status, rank)
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------------------
@@ -669,6 +736,31 @@ update public.dream_candidacies c
                 md5('candidacy:ele_yoga')::uuid,
                 md5('candidacy:rocco_film')::uuid);
 
+-- Same role for dream_id (#227): the INSERT below sets it, but the three candidacies are
+-- already on staging and it carries `on conflict do nothing`, so without this the existing
+-- fake world would keep a null link and the ballot's confirmed-history block would never
+-- render there. Scoped by id to the seeded three for the reason stated above — a tester's own
+-- candidacy may legitimately link no dream, and that is a choice #226 made first-class, not a
+-- gap to fill. `where c.dream_id is null` so a tester who edited one of these does not have
+-- their link overwritten.
+-- Same on-conflict-do-nothing reason as the dream_id backfill below: ele_yoga's row already
+-- exists on staging with the pre-#218 'submitted' status.
+update public.dream_candidacies c
+   set status = 'shortlisted'
+ where c.id = md5('candidacy:ele_yoga')::uuid
+   and c.status = 'submitted';
+
+update public.dream_candidacies c
+   set dream_id = d.id
+  from public.dreams d
+ where d.profile_id = c.profile_id
+   and d.deleted_at is null
+   and d.status = 'active'
+   and c.dream_id is null
+   and c.id in (md5('candidacy:marta_ceramica')::uuid,
+                md5('candidacy:ele_yoga')::uuid,
+                md5('candidacy:rocco_film')::uuid);
+
 -- Pinned to the seeded post id, not "every post by these four handles". A post a tester wrote in
 -- the app carries no post_media row, and flipping it to 'image' costs a media query per card and
 -- renders an empty box — the same principle the moments guard above states.
@@ -716,20 +808,48 @@ select md5('block:bea_foto:rocco_film')::uuid, md5('user:bea_foto')::uuid, md5('
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------------------
--- 12. Fund edition + candidacies + votes.
---     phase = 'community' — both because 'candidacy' is not a legal phase, and
---     because cast_vote() requires 'community', which is what makes voting walkable.
+-- 12. Fund cycle + candidacies + votes.
+--     phase = 'voting' — cast_vote() gates on it (20260815075408 renamed the phase
+--     vocabulary; 'community' no longer exists), which is what makes voting walkable.
+--     candidacy_window_open stays true beside it so the candidacy wizard is walkable
+--     too — the two gates are independent columns.
+--     The three min_* columns are NOT NULL with no default (FUND-SPEC §5): the seed
+--     CHOOSES fake-world values — floor €1.000, quorum 5 (six votes below → decisive),
+--     3 candidacies — the same values 20260815075408 backfilled the pre-existing row
+--     with. The voting window is published AND enforced (20260815090015, #217): cast_vote
+--     refuses outside [voting_starts_at, voting_ends_at], so keep the seeded window
+--     spanning now() or the fake world's voting stops being walkable. THIS INSERT IS NOT
+--     THAT MECHANISM (#414): the span is a now()-snapshot written once, and the trailing
+--     `on conflict do nothing` means a re-run neither refreshes it nor ever reaches the
+--     pre-existing row, which predates the two columns carrying values. refresh-staging.sql
+--     §11 re-stamps the window hourly instead — change the offsets here and change them
+--     there too. The direct INSERT into phase = 'voting' below deliberately bypasses the
+--     ballot-open trigger — it fires on UPDATE OF phase only, precisely so this
+--     bootstrap stays legal before the candidacies exist.
 --     `candidacy_votes.weight` is NOT supplied: set_candidacy_vote_weight() is a
 --     BEFORE INSERT trigger that raises 'weight is server-written' for any non-zero
 --     value, service_role included. It writes a constant 1.000 — equal vote (PRD §4.11).
---     Candidacy authors are exactly the identity_verified accounts from §1, so the
---     create/edit flow is actually walkable from the app.
+--     Candidacy authors are all identity_verified in §1, so the create/edit flow is
+--     actually walkable from the app. They are no longer the ONLY verified accounts:
+--     since #448 the three paid-event organisers are verified too, because the gate
+--     refuses a paid event whose organiser is not.
 --     Contributions are NOT seeded — those are Stripe's to create, in test mode.
 -- ---------------------------------------------------------------------------------
-insert into public.fund_editions (id, year, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled)
-values (md5('fundedition:2027')::uuid, 2027,
+insert into public.fund_editions (id, target_at, goal_cents, phase, candidacy_window_open, contributions_enabled,
+                                  voting_starts_at, voting_ends_at,
+                                  min_funding_cents, min_voters, min_candidacies,
+                                  split_pct, cost_fee_statement, equity_declared)
+values (md5('fundedition:2027')::uuid,
         (date_trunc('year', now()) + interval '1 year' + interval '5 months')::timestamptz,
-        5000000, 'community', true, true)
+        5000000, 'voting', true, true,
+        now() - interval '7 days', now() + interval '23 days',
+        100000, 5, 3,
+        -- Cycle-one declarations (#232, D16): 10% knowingly subsidised, equity none.
+        -- Same values 20260815155811 backfilled into the pre-existing row; frozen at open,
+        -- so a re-run can only ever re-create them identically, never amend them.
+        10,
+        'Per questo ciclo Athanor trattiene il 10%. La percentuale copre solo in parte i costi operativi e le commissioni di pagamento; la differenza è volutamente a carico di Athanor. I costi reali sono pubblicati nel report di fine ciclo.',
+        'Nessuna partecipazione societaria nel progetto per questo ciclo.')
 on conflict do nothing;
 
 -- `video_url` is misnamed: it holds a STORAGE KEY in the candidacy-videos bucket, not a URL.
@@ -739,17 +859,35 @@ on conflict do nothing;
 -- never sign, so the candidacy detail has always shown an empty player.
 -- `thumb_path` is set here too, from the same two ids, so a fresh seed is correct on its own —
 -- the standalone UPDATE further up only exists to backfill rows inserted before this column did.
-insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category)
+-- budget_cents / min_viable_cents are NOT NULL with no default (#225): the seed CHOOSES the
+-- same fake-world values 20260815080109 backfilled the pre-existing rows with. category uses
+-- the project_category enum as-is (the old 'craft'/'wellbeing' values fail its CHECK);
+-- skills_needed keys come from @athanor/core SKILLS.
+-- ele_yoga is 'shortlisted' rather than 'submitted' since #227. Not a taste change: #218
+-- narrowed public.is_on_ballot to ('shortlisted','winner') (20260815164809), so the two
+-- 'submitted' rows stopped being visible on the ballot at all and staging's fake ballot became
+-- a single card — enough to hide the category filter (which needs two categories) and to make
+-- the vote look broken. Two shortlisted candidacies in two categories restore a real ballot;
+-- rocco_film stays 'submitted' so the pre-screening state is still represented in the world.
+--
+-- dream_id (#227, FUND-50/D12): each of the three candidates already owns an active dream
+-- with milestones under §2, and the ballot card renders that dream's confirmed history. Left
+-- unset the block could never appear on staging — the feature would look unbuilt rather than
+-- unlinked. md5('dream:' || handle) is the author's OWN dream, which is what the write
+-- policies require of a real submission.
+insert into public.dream_candidacies (id, edition_id, profile_id, story, goal, impact, video_url, thumb_path, plan, status, city, category,
+                                      budget_cents, min_viable_cents, skills_needed, dream_id)
 select md5('candidacy:' || c.handle)::uuid, md5('fundedition:2027')::uuid, md5('user:' || c.handle)::uuid,
        c.story, c.goal, c.impact,
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '.mp4',
        md5('user:' || c.handle)::uuid::text || '/' || md5('candidacy:' || c.handle)::uuid::text || '-thumb.jpg',
-       c.plan, c.status, c.city, c.category
+       c.plan, c.status, c.city, c.category, c.budget_cents, c.min_viable_cents, c.skills_needed,
+       md5('dream:' || c.handle)::uuid
 from (values
-  ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'craft'),
-  ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'submitted',   'Milano', 'wellbeing'),
-  ('rocco_film',     'Filmo mestieri che stanno sparendo. Ne restano cinque sulla costa.',          'Cinque episodi finiti e distribuiti.',                       'Un archivio di cose che tra dieci anni non ci sono più.','Attrezzatura, viaggi, montaggio.',                       'submitted',   'Genova', 'artistic')
-) as c(handle, story, goal, impact, plan, status, city, category)
+  ('marta_ceramica', 'Faccio ceramica da undici anni in uno studio in affitto che devo lasciare.', 'Un forno mio e un laboratorio aperto a chi vuole imparare.', 'Otto corsi l''anno, gratuiti per chi non può pagarli.', 'Forno usato, impianto elettrico, sei mesi di affitto.',  'shortlisted', 'Milano', 'artistic',  800000::bigint,  500000::bigint, array['social-media','fotografia']),
+  ('ele_yoga',       'Insegno yoga da sei anni. Da due lo porto in una casa di riposo, gratis.',    'Arrivare a cinque strutture, con insegnanti pagati.',        'Duecento persone che non uscirebbero di casa.',         'Formazione di quattro insegnanti, un anno di compensi.', 'shortlisted', 'Milano', 'volunteer', 1200000::bigint, 600000::bigint, array['coaching','facilitazione']),
+  ('rocco_film',     'Filmo mestieri che stanno sparendo. Ne restano cinque sulla costa.',          'Cinque episodi finiti e distribuiti.',                       'Un archivio di cose che tra dieci anni non ci sono più.','Attrezzatura, viaggi, montaggio.',                       'submitted',   'Genova', 'artistic',  1500000::bigint, 900000::bigint, array['montaggio','sound-design'])
+) as c(handle, story, goal, impact, plan, status, city, category, budget_cents, min_viable_cents, skills_needed)
 on conflict do nothing;
 
 -- One vote per (edition, voter) — the unique constraint, and the rule.
@@ -775,7 +913,7 @@ on conflict do nothing;
 -- 13. remote_config — boot kill-switches.
 --
 -- ⚠ DELIBERATELY DIVERGES FROM PRODUCTION. The runbook sets
--- fund_contributions_enabled and prime_stelle_enabled to false on production, and
+-- fund_surfaces_enabled and prime_stelle_enabled to false on production, and
 -- fund_editions.contributions_enabled carries a "LEGAL FLAG: gated until counsel
 -- clears" comment. They are true here so the flows can be walked in Stripe test mode.
 -- Do not copy this block to production.
@@ -783,14 +921,14 @@ on conflict do nothing;
 insert into public.remote_config (key, value) values
   ('min_app_version',           '{"ios":"1.0.0","android":"1.0.0"}'::jsonb),
   ('maintenance_mode',          '{"enabled":false,"eta":null}'::jsonb),
-  ('fund_contributions_enabled','{"enabled":true}'::jsonb),
+  ('fund_surfaces_enabled',     '{"enabled":true}'::jsonb),
   ('prime_stelle_enabled',      '{"enabled":true}'::jsonb)
 on conflict do nothing;
 
 commit;
 
 -- ---------------------------------------------------------------------------------
--- Summary — read this after running. `aura_events` is engine-written: expect 3
+-- Summary — read this after running. `aura_events` is engine-written: expect 6
 -- (the disclosed identity_verified awards), and only if the score-engine and its
 -- GUCs are deployed. `stars` is engine-only and should be 0 here.
 -- ---------------------------------------------------------------------------------

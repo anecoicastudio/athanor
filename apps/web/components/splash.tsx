@@ -7,7 +7,7 @@ import styles from './splash.module.css';
 
 /**
  * Athanor splash intro (DESIGN.md §5). On every load the mandorla draws in from
- * empty — two circles + the vertical lens — then the Kairos star pops at the
+ * empty — two circles + the vertical lens — then the ✦ spark pops at the
  * apex and the tagline fades up. After a hold the screen floods white, then a
  * circular window opens from the centre — rimmed in aura cyan — and grows outward
  * to reveal the landing page *through* the white (an iris/aperture reveal; no

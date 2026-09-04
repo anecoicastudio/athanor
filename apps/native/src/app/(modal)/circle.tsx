@@ -7,26 +7,33 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   circleKeys,
   entitlementKeys,
+  getCirclePrices,
   getMyMembership,
   openCustomerPortal,
   startCheckout,
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
+import { circleAnnualSavings, formatPrice } from '@athanor/core';
 import { t } from '@athanor/i18n';
-import { ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
+import { useLocale } from '@/hooks/use-locale';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { useToast } from '@/components/ToastHost';
 import { ListState } from '@/components/ListState';
+import { listState } from '@/lib/list-state';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
 import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 // ── Benefit data (6 rows: 3 Fase-1, 3 Fase-2 soon) ─────────────────────────
 const BENEFITS = [
@@ -41,7 +48,8 @@ const BENEFITS = [
 export default function CircleScreen() {
   const { profile } = useAuth();
   const qc = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
+  const { showToast } = useToast();
   const profileId = profile?.id ?? '';
 
   // ── Local UI state ──────────────────────────────────────────────────────────
@@ -58,6 +66,46 @@ export default function CircleScreen() {
   const entQuery = useEntitlement();
 
   const isMember = entQuery.data?.isMember ?? false;
+
+  // ── Live Stripe amounts (#644) ──────────────────────────────────────────────
+  // The catalog used to carry «€12/mese» and «€99/anno» as literals while the charge came
+  // from Stripe Price ids, so a Dashboard edit shipped an app that quoted one number and
+  // charged another. The amounts now arrive from get-circle-prices and the keys carry only
+  // the template. There is deliberately NO fallback literal: until they arrive the CTA slot
+  // shows a spinner, and if the read fails it shows a retry — a quoted price that is not the
+  // charged one is the defect this closes.
+  // `enabled` skips the surfaces that render no price: iOS hides the whole purchase block
+  // (Apple 3.1.1 / S-IAP-1), and a member sees their plan instead of the toggle. `isMember`
+  // is false until entitlements land, so a member's first render can still fire one read —
+  // deliberately, rather than serialising two round trips for the people who came to see a
+  // price.
+  // `persist: false` is the load-bearing option here, not a tuning knob: the shared client
+  // dehydrates every query to AsyncStorage with a 24h gcTime (`lib/query-client.ts`), so
+  // without it a launch would hydrate yesterday's amount and paint it as the price — a
+  // catalog literal again, just with extra steps. Opting out means a cold start always asks
+  // Stripe; `staleTime` then governs re-reads inside one session, and five minutes is
+  // generous for a number that changes about never.
+  const pricesQuery = useQuery({
+    queryKey: circleKeys.plans(),
+    queryFn: () => getCirclePrices(supabase),
+    enabled: !isMember && Platform.OS !== 'ios',
+    staleTime: 5 * 60_000,
+    meta: { persist: false },
+  });
+  const prices = pricesQuery.data ?? null;
+  const savings = prices ? circleAnnualSavings(prices.monthly, prices.annual) : null;
+  // `staleWins: false` for the same reason the Aura surfaces use it: a stale number presented
+  // as today's is the false confidence this issue exists to remove, and a price is a promise
+  // about money. `paused` therefore stays a spinner (#111's rule: offline-with-intent has
+  // neither failed nor answered) — and resolves on its own when the connection returns,
+  // because nothing about this query is cached to fall back on. `empty` is unreachable: the
+  // queryFn parses or throws, so a settled success always carries both plans.
+  const priceState = listState({
+    status: pricesQuery.status,
+    fetchStatus: pricesQuery.fetchStatus,
+    isEmpty: prices == null,
+    staleWins: false,
+  });
 
   // ── Membership detail query (renewal date, founding flag) ───────────────────
   const memberQuery = useQuery({
@@ -130,19 +178,19 @@ export default function CircleScreen() {
   // ── Loading state ────────────────────────────────────────────────────────────
   if (entQuery.isLoading) {
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center gap-4 px-5">
           <ActivityIndicator color={semantic.aura} />
         </View>
-      </View>
+      </Screen>
     );
   }
 
   // ── Error state ──────────────────────────────────────────────────────────────
   if (entQuery.isError) {
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         {/* The retry used to be a `Pressable` nested inside `EmptyState`'s `<Text>` children —
             a touchable inside a text node, with no accessibilityRole, reached by a literal
@@ -155,7 +203,7 @@ export default function CircleScreen() {
           onRetry={() => void entQuery.refetch()}
           className="flex-1 justify-center px-5"
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -188,14 +236,17 @@ export default function CircleScreen() {
   if (isMember) {
     const membership = memberQuery.data ?? null;
     return (
-      <View {...MODAL_A11Y} className="flex-1 bg-background">
+      <Screen {...MODAL_A11Y}>
         {header}
-        <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+        <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
           {/* 1. Subscription status card (moment glow — belonging is moment-grade) */}
           <SubscriptionStatusCard
             plan={membership?.plan ?? entQuery.data?.plan ?? null}
             status={membership?.status ?? entQuery.data?.status ?? null}
             currentPeriodEnd={membership?.current_period_end ?? null}
+            // #511 — only the membership row carries this; entitlements deliberately does not
+            // (a cancelled member keeps every benefit until the period ends).
+            cancelAtPeriodEnd={membership?.cancel_at_period_end ?? false}
             founding={membership?.founding_member ?? entQuery.data?.founding ?? false}
             locale={locale}
           />
@@ -233,15 +284,15 @@ export default function CircleScreen() {
           {/* 5. Zero-Aura assurance — REQUIRED for member state too (rule #1) */}
           {zeroAuraNote}
         </ScrollView>
-      </View>
+      </Screen>
     );
   }
 
   // ── NON-MEMBER STATE ─────────────────────────────────────────────────────────
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-[104px]">
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
@@ -267,9 +318,11 @@ export default function CircleScreen() {
         {Platform.OS !== 'ios' ? (
           <View className="gap-2">
             <PriceToggle value={plan} onChange={setPlan} locale={locale} />
-            {plan === 'annual' ? (
+            {plan === 'annual' && priceState === 'ready' && savings ? (
               <Text className="text-center text-[13px] text-muted-foreground">
-                {t('circle.plan.annualNote', locale)}
+                {t('circle.plan.annualNote', locale, {
+                  amount: formatPrice(savings.cents, savings.currency, locale),
+                })}
               </Text>
             ) : null}
           </View>
@@ -286,18 +339,30 @@ export default function CircleScreen() {
           <Text className="text-[13px] leading-5 text-muted-foreground">
             {t('circle.iosUnavailable', locale)}
           </Text>
-        ) : (
+        ) : priceState === 'ready' && prices ? (
           <Button
-            label={
-              checkoutPhase === 'opening'
-                ? '…'
-                : plan === 'annual'
-                  ? t('circle.cta.annual', locale)
-                  : t('circle.cta.monthly', locale)
-            }
+            label={t(plan === 'annual' ? 'circle.cta.annual' : 'circle.cta.monthly', locale, {
+              price: formatPrice(prices[plan].unitAmount, prices[plan].currency, locale),
+            })}
             onPress={() => void onJoin()}
             variant="light"
             disabled={checkoutPhase !== 'idle'}
+            // `loading` instead of the old '…' label swap: the spinner + busy state are
+            // what Button implements for exactly this, and «…» was unpronounceable to
+            // VoiceOver while hiding the price mid-tap (#632 review finding).
+            loading={checkoutPhase === 'opening'}
+          />
+        ) : (
+          // No amounts, no order button: quoting a price is what makes this control an offer,
+          // and an unpriced «Entra nel Circle» is the EU price-indication hole #644 names.
+          // `ListState` is this repo's error arm (#111) — spinner while it loads, named
+          // failure plus a retry when the read fails.
+          <ListState
+            state={priceState}
+            locale={locale}
+            errorLabel={t('circle.price.error', locale)}
+            onRetry={() => void pricesQuery.refetch()}
+            className="items-center gap-4 py-2"
           />
         )}
         {checkoutError ? (
@@ -306,9 +371,41 @@ export default function CircleScreen() {
           </Text>
         ) : null}
 
+        {/* 4b. Subscription disclosures (#632): renewal + exit, then the Terms/Privacy
+            links. App Store 3.1.2 and EU consumer law both want these before the order
+            button's screen ends — and a screen that leads with «la visibilità non si
+            compra» owes the reader the way out in the same breath. The renewal sentence
+            renders only where subscribing is possible (non-iOS); the links always. */}
+        {Platform.OS !== 'ios' ? (
+          <Text className="text-[13px] leading-5 text-muted-foreground">
+            {t('circle.legal.renewal', locale)}
+          </Text>
+        ) : null}
+        <View className="flex-row items-center gap-6">
+          {(
+            [
+              ['settings.legal.terms', LEGAL_TERMS_URL],
+              ['settings.legal.privacy', LEGAL_PRIVACY_URL],
+            ] as const
+          ).map(([key, url]) => (
+            <Pressable
+              key={key}
+              className="min-h-[44px] justify-center"
+              accessibilityRole="link"
+              onPress={() => {
+                WebBrowser.openBrowserAsync(url).catch(() =>
+                  showToast(t('settings.legal.error', locale)),
+                );
+              }}
+            >
+              <Text className="text-[13px] text-muted-foreground underline">{t(key, locale)}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         {/* 5. Zero-Aura assurance footnote — REQUIRED on non-member state (rule #1) */}
         {zeroAuraNote}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

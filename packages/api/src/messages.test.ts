@@ -158,6 +158,57 @@ describe('sendMessage', () => {
     expect(client.calls[0]?.op).toBe('insert');
   });
 
+  test('sends an image-only message: media key travels, body key is absent (#155)', async () => {
+    const media = `${ME}/${CONV}/44444444-4444-4444-8444-444444444444.jpg`;
+    const client = makeFakeClient({
+      'messages.insert': [{ data: [message({ body: null, media_url: media })] }],
+    });
+
+    await sendMessage(as(client), { conversationId: CONV, senderId: ME, mediaUrl: media });
+
+    const values = client.calls[0]?.values as Record<string, unknown>;
+    expect(values.media_url).toBe(media);
+    // absent, not null: the DB default owns the empty body, and the row shape stays minimal.
+    expect(Object.keys(values).sort()).toEqual([
+      'conversation_id',
+      'kind',
+      'media_url',
+      'sender_id',
+    ]);
+  });
+
+  test('a caption rides the same insert as the image', async () => {
+    const media = `${ME}/${CONV}/44444444-4444-4444-8444-444444444444.jpg`;
+    const client = makeFakeClient({
+      'messages.insert': [{ data: [message({ media_url: media })] }],
+    });
+
+    await sendMessage(as(client), {
+      conversationId: CONV,
+      senderId: ME,
+      body: ' guarda ',
+      mediaUrl: media,
+    });
+
+    const values = client.calls[0]?.values as Record<string, unknown>;
+    expect(values.body).toBe('guarda');
+    expect(values.media_url).toBe(media);
+  });
+
+  test('rejects a media key outside the sender/conversation folder before touching the database', async () => {
+    const client = makeFakeClient();
+
+    await expect(
+      sendMessage(as(client), {
+        conversationId: CONV,
+        senderId: ME,
+        mediaUrl: `${ME}/99999999-9999-4999-8999-999999999999/x.jpg`,
+      }),
+    ).rejects.toThrow();
+    await expect(sendMessage(as(client), { conversationId: CONV, senderId: ME })).rejects.toThrow();
+    expect(client.calls).toEqual([]);
+  });
+
   test('surfaces an insert error', async () => {
     const client = makeFakeClient({
       'messages.insert': [{ error: { message: 'new row violates row-level security' } }],

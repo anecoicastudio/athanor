@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { nonBlankString, trimmedNonBlank } from './primitives';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 /** Mirrors supabase/migrations dream_milestones. Update both together. */
 export const milestoneStatusSchema = z.enum(['open', 'in_progress', 'done']);

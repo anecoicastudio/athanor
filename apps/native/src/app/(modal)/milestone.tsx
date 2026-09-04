@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { addMilestone } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
-import { ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { Toast } from '@/components/Toast';
-import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/components/ToastHost';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
+import { Screen } from '@/components/Screen';
 
 /**
  * Milestone composer (M2, frontend `02` §3.3 — sheet-milestone). Adds one tappa
@@ -19,15 +23,17 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function MilestoneScreen() {
-  const router = useRouter();
-  const { profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const leave = useGuardedBack();
+  const locale = useLocale();
   const { dreamId } = useLocalSearchParams<{ dreamId?: string }>();
 
   const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
+
+  // `saving` stays true across the 700ms farewell below, so the success path never confirms.
+  useDirtyGuard({ dirty: isDraftDirty('', body), saving });
 
   const add = async () => {
     if (saving) return;
@@ -39,8 +45,9 @@ export default function MilestoneScreen() {
     setError(false);
     try {
       await addMilestone(supabase, { dream_id: dreamId, body });
-      setToast(true);
-      setTimeout(() => router.back(), 700);
+      // The host keeps the toast alive across the pop (#117).
+      showToast(t('milestone.toast.added', locale), 'moment');
+      setTimeout(leave, 700);
     } catch {
       setError(true);
       setSaving(false);
@@ -48,7 +55,7 @@ export default function MilestoneScreen() {
   };
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader
         title={t('milestone.sheet.title', locale)}
         backLabel={t('common.back', locale)}
@@ -65,10 +72,8 @@ export default function MilestoneScreen() {
 
         <View className="gap-2">
           <SectionLabel tone="aura">{t('milestone.field.label', locale)}</SectionLabel>
-          <TextInput
-            className={`rounded-hero border bg-raise px-5 py-4 text-lg text-foreground ${
-              error ? 'border-error' : 'border-hair'
-            }`}
+          <Field
+            error={error ? t('milestone.error.empty', locale) : null}
             maxLength={200}
             editable={!saving}
             placeholder={t('milestone.field.placeholder', locale)}
@@ -80,10 +85,6 @@ export default function MilestoneScreen() {
           />
         </View>
 
-        {error ? (
-          <Text className="text-sm text-error">{t('milestone.error.empty', locale)}</Text>
-        ) : null}
-
         {/* flat light CTA — adding a tappa is not moment-grade, so no glow (rule #4). */}
         <Button
           label={t('milestone.sheet.cta', locale)}
@@ -92,8 +93,6 @@ export default function MilestoneScreen() {
           onPress={add}
         />
       </ScrollView>
-
-      {toast ? <Toast label={t('milestone.toast.added', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

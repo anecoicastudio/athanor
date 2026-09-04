@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
 import { getActiveDream, upsertActiveDream } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
-import { ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text } from '@/tw';
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { isDraftDirty } from '@/lib/dirty-guard';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * Dream editor (M2, frontend `02` §3.2) — create-or-edit the single active dream.
@@ -17,16 +21,22 @@ import { supabase } from '@/lib/supabase';
  * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
  */
 export default function DreamEditorScreen() {
-  const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const leave = useGuardedBack();
+  const { session } = useAuth();
+  const locale = useLocale();
   const userId = session?.user.id;
 
   const [text, setText] = useState('');
+  // What the editor opened with, so an edit is told apart from the prefill (#636).
+  const [baseline, setBaseline] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
+
+  // `saving` stays true from the write through the 700ms farewell below, so the guard is
+  // already standing down by the time `leave()` fires on the success path.
+  useDirtyGuard({ dirty: loaded && isDraftDirty(baseline, text), saving });
 
   // Prefill with the current active dream when editing (empty draft when none).
   useEffect(() => {
@@ -37,7 +47,9 @@ export default function DreamEditorScreen() {
     let cancelled = false;
     getActiveDream(supabase, userId)
       .then((d) => {
-        if (!cancelled) setText(d?.text ?? '');
+        if (cancelled) return;
+        setText(d?.text ?? '');
+        setBaseline(d?.text ?? '');
       })
       .catch(() => {
         // empty draft is the safe default
@@ -60,8 +72,9 @@ export default function DreamEditorScreen() {
     setError(false);
     try {
       await upsertActiveDream(supabase, userId, text);
-      setToast(true);
-      setTimeout(() => router.back(), 700);
+      // The host keeps the toast alive across the pop (#117).
+      showToast(t('dream.toast.saved', locale), 'moment');
+      setTimeout(leave, 700);
     } catch {
       setError(true);
       setSaving(false);
@@ -69,23 +82,23 @@ export default function DreamEditorScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* head: back + title */}
       <ModalHeader title={t('dream.editor.title', locale)} backLabel={t('common.back', locale)} />
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-12 pt-4"
+        contentContainerClassName="gap-6 px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
         <Text className="text-[15px] leading-relaxed text-faint">
           {t('dream.editor.sub', locale)}
         </Text>
 
-        <TextInput
-          className={`min-h-36 rounded-hero border bg-raise px-5 py-4 font-dream text-lg text-foreground ${
-            error ? 'border-error' : 'border-hair'
-          }`}
+        <Field
+          size="lg"
+          register="dream"
+          error={error ? t('dream.error.empty', locale) : null}
           multiline
           maxLength={500}
           editable={loaded && !saving}
@@ -97,10 +110,6 @@ export default function DreamEditorScreen() {
           }}
         />
 
-        {error ? (
-          <Text className="text-sm text-error">{t('dream.error.empty', locale)}</Text>
-        ) : null}
-
         {/* light + glow = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
         <Button
           label={t('dream.editor.cta', locale)}
@@ -110,8 +119,6 @@ export default function DreamEditorScreen() {
           onPress={save}
         />
       </ScrollView>
-
-      {toast ? <Toast label={t('dream.toast.saved', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

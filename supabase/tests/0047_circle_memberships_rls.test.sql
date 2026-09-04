@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(22);
 
 -- two users (the handle_new_user trigger auto-creates their public.profiles rows)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -16,6 +16,15 @@ values
 select has_table('public', 'circle_memberships', 'circle_memberships exists');
 select has_view('public', 'entitlements', 'entitlements view exists');
 select has_column('public', 'circle_memberships', 'founding_member', 'has founding_member');
+-- #511 — «renews on» vs «ends on» is only distinguishable if this column exists and defaults
+-- to false; the app reads it through circleMembershipSchema, which strips anything unnamed.
+select has_column('public', 'circle_memberships', 'cancel_at_period_end', 'has cancel_at_period_end');
+select col_type_is('public', 'circle_memberships', 'cancel_at_period_end', 'boolean',
+  'cancel_at_period_end is boolean');
+select col_not_null('public', 'circle_memberships', 'cancel_at_period_end',
+  'cancel_at_period_end is NOT NULL');
+select col_default_is('public', 'circle_memberships', 'cancel_at_period_end', 'false',
+  'cancel_at_period_end defaults to false — an existing membership is not cancelled');
 select ok(
   (select count(*) = 1 from pg_constraint
    where conrelid = 'public.circle_memberships'::regclass

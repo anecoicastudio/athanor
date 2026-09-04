@@ -1,10 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { auraKeys, getAuraScore } from '@athanor/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { auraKeys, eventKeys, favorKeys, fundKeys, momentiKeys } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
+import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
-import { ScrollView, Text, View } from '@/tw';
+import { ScrollView } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { Screen } from '@/components/Screen';
 import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { DreamHeroCard } from '@/components/home/DreamHeroCard';
 import { FavorNudgeCard } from '@/components/home/FavorNudgeCard';
@@ -17,16 +22,19 @@ import { StarsMiniRow } from '@/components/home/StarsMiniRow';
 import { WeekSlot } from '@/components/home/WeekSlot';
 import { auraSnapshotOrNull } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useAuraScore } from '@/hooks/use-aura-score';
+import { useLocale } from '@/hooks/use-locale';
 
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
  * prototype order and each milestone swaps its «Presto qui» placeholder for the
- * real block. TWO placeholders remain, both as `fallback` props: countdown M7
- * (`DreamHeroCard`) and Esplora Fase2/M8 (`PrimeStelleCard`). Everything else on
- * this screen has landed and renders real data.
+ * real block. ONE placeholder remains, as a `fallback` prop: Esplora Fase2/M8
+ * (`PrimeStelleCard`). The countdown slot's M7 shipped, so its no-data state is a
+ * real state now — `DreamHeroCard` owns it (#224): a confirmed no-cycle read
+ * renders the first cycle's announcement, loading/error collapse. Everything else
+ * on this screen has landed and renders real data.
  *
- * A placeholder promises a MILESTONE, so it belongs only to those two. The blocks
+ * A placeholder promises a MILESTONE, so it belongs only to that one. The blocks
  * whose milestone has landed say something true about today instead, and there are
  * two shapes of that, which is deliberate:
  *
@@ -52,33 +60,40 @@ import { supabase } from '@/lib/supabase';
  */
 export default function HomeScreen() {
   const { profile, session } = useAuth();
+  // Above the `if (!profile)` bail below: a hook cannot sit after an early return.
+  const locale = useLocale();
   const router = useRouter();
   const userId = session?.user.id ?? '';
 
   // Read-only Aura snapshot (M6 score-engine fills the values; rule #1, never client-written).
-  // Shares auraKeys.score + getAuraScore with profile.tsx (one queryFn per key).
-  const auraQuery = useQuery({
-    queryKey: auraKeys.score(userId),
-    queryFn: () => getAuraScore(supabase, userId),
-    enabled: !!userId,
-  });
+  const auraQuery = useAuraScore(userId);
   const aura: AuraSnapshot | null = auraSnapshotOrNull(auraQuery.data, auraQuery.isError);
 
+  // Pull-to-refresh (#640): Home was the only tab root without one, while three of its six
+  // blocks render failure as ABSENCE over a 24h-persisted cache — a collapsed block gives the
+  // member nothing to tap, so the pull is the only recovery gesture there is. Invalidation by
+  // family: fund covers the hero's edition AND aggregate, aura covers score AND recap.
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: fundKeys.all }),
+        qc.invalidateQueries({ queryKey: momentiKeys.deck() }),
+        qc.invalidateQueries({ queryKey: auraKeys.all }),
+        qc.invalidateQueries({ queryKey: favorKeys.openNeeds }),
+        qc.invalidateQueries({ queryKey: eventKeys.today() }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [qc]);
+
   if (!profile) {
-    return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <Text
-          className="text-2xl text-muted-foreground"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          ✦
-        </Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
-  const locale = profile.locale;
   const greeting = t(`home.greeting.${greetingFor(new Date().getHours())}` as MessageKey, locale);
 
   // `messages` opens the conversations list (M5); search (M8) → search modal;
@@ -97,38 +112,49 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-7 px-5 py-12">
-      <HomeHeader greeting={greeting} handle={profile.handle} locale={locale} onAction={onAction} />
-      {/* Block 2: M7 dream-hero — card owns the edition query; returns null when no
-          active edition exists, so we show exactly one element in this slot. */}
-      <DreamHeroCard
-        locale={locale}
-        fallback={<ComingSoonSection title={t('home.dream.title', locale)} locale={locale} />}
-      />
-      {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
-      <MomentiCard locale={locale} />
-      {/* Block 3: Esplora slot — Prime Stelle launch card while the flag is on (P4.2);
-          honest placeholder otherwise. */}
-      <PrimeStelleCard
-        locale={locale}
-        fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
-      />
-      {/* Block 4: «La tua settimana» — the card owns the recap query and says which of its four
+    <Screen>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-7 px-5 pb-12 pt-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={semantic.aura} />
+        }
+      >
+        <HomeHeader
+          greeting={greeting}
+          handle={profile.handle}
+          locale={locale}
+          onAction={onAction}
+        />
+        {/* Block 2: M7 dream-hero — card owns the edition query and its states (#224):
+          announcement on a confirmed no-cycle, collapse on loading/error, card when live. */}
+        <DreamHeroCard locale={locale} />
+        {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
+        <MomentiCard locale={locale} />
+        {/* Block 3: «La tua settimana» — the card owns the recap query and says which of its four
           states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
           week alike, over a feature that shipped in M6. */}
-      <WeekSlot locale={locale} />
-      {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
+        <WeekSlot locale={locale} />
+        {/* Block 4: Esplora slot — Prime Stelle launch card while the flag is on (P4.2); honest
+          placeholder otherwise. BELOW the week recap (#640): a marketing card must not sit in
+          fold 1 outranking «Hai un Momento», and its CTA is ghost for the same reason. */}
+        <PrimeStelleCard
+          locale={locale}
+          fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
+        />
+        {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
           nothing when no need is open, like block 2b and for the same reason (#99). */}
-      <FavorNudgeCard locale={locale} />
-      {/* Block 6: «Oggi» — M4 has landed. Collapses on loading, error and no events alike
+        <FavorNudgeCard locale={locale} />
+        {/* Block 6: «Oggi» — M4 has landed. Collapses on loading, error and no events alike
           (#111), the deliberate half of that sort; `(modal)/live` owns the copy and the retry. */}
-      <TodaySection locale={locale} />
+        <TodaySection locale={locale} />
 
-      {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}
-      <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />
+        {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}
+        <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />
 
-      {/* Block 8: real invite. */}
-      <InviteCard locale={locale} />
-    </ScrollView>
+        {/* Block 8: real invite. */}
+        <InviteCard locale={locale} />
+      </ScrollView>
+    </Screen>
   );
 }

@@ -1,32 +1,30 @@
-import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
+import { useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { type InfiniteData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type ConversationCursor,
+  type ConversationListPage,
   conversationKeys,
   getConversationsPage,
+  markConversationRead,
   subscribeConversations,
 } from '@athanor/api';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConversationRow } from '@/components/chat/ConversationRow';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
+import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 export default function MessagesScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
   const now = Date.now();
-
-  // In-session unread: ids that arrived via realtime while the list was open (#3 — pip, no badge).
-  // Persistent read-state (conversation_reads) is deferred to a later slice.
-  const [unread, setUnread] = useState<Set<string>>(new Set());
 
   const query = useInfiniteQuery({
     queryKey: conversationKeys.list(),
@@ -44,8 +42,36 @@ export default function MessagesScreen() {
     return unsubscribe;
   }, [queryClient]);
 
+  /**
+   * Opening a thread clears its pip (#637). The cache is edited first and the write follows,
+   * because the pip has to go out under the finger — and because nothing would bring the answer
+   * back on its own: the realtime channel watches `conversations`, not `conversation_reads`, and
+   * RN wires no focusManager, so returning from the chat refetches nothing.
+   *
+   * `chat.tsx` marks the same cursor on mount, which is not redundant — it is the only marker on
+   * the path that skips this screen entirely: a tapped push straight into a conversation.
+   */
+  const openConversation = useCallback(
+    (id: string) => {
+      queryClient.setQueryData<InfiniteData<ConversationListPage>>(
+        conversationKeys.list(),
+        (old) =>
+          old && {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((i) => (i.id === id ? { ...i, unread: false } : i)),
+            })),
+          },
+      );
+      markConversationRead(supabase, id).catch((e) => devWarn('[messages] markRead', e));
+      router.push(`/chat?conversationId=${id}`);
+    },
+    [queryClient, router],
+  );
+
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader
         title={t('messages.title', locale)}
         backLabel={t('common.back', locale)}
@@ -80,15 +106,8 @@ export default function MessagesScreen() {
             item={item}
             locale={locale}
             now={now}
-            unread={unread.has(item.id)}
-            onPress={() => {
-              setUnread((prev) => {
-                const next = new Set(prev);
-                next.delete(item.id);
-                return next;
-              });
-              router.push(`/chat?conversationId=${item.id}`);
-            }}
+            unread={item.unread}
+            onPress={() => openConversation(item.id)}
           />
         )}
         ListEmptyComponent={
@@ -112,6 +131,6 @@ export default function MessagesScreen() {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
       />
-    </View>
+    </Screen>
   );
 }

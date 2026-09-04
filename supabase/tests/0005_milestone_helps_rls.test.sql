@@ -28,8 +28,8 @@ select policies_are(
   array[
     'milestone_helps_select_party',
     'milestone_helps_insert_helper',
-    'milestone_helps_update_owner'
-  ],
+    'milestone_helps_update_owner',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on milestone_helps'
 );
 

@@ -1,11 +1,30 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { NOTIFICATION_TEMPLATE_KEYS } from '@athanor/schemas';
 import en from './catalogs/en.json';
 import it from './catalogs/it.json';
-import { t, type MessageKey } from './t';
+import { t, tagLabel, tn, type MessageKey } from './t';
 
 describe('catalog parity', () => {
   test('EN mirrors every IT key (IT is canonical)', () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(it).sort());
+  });
+});
+
+describe('tagLabel', () => {
+  // The Momenti deck localizes tag KEYS returned by get_momenti_deck (#273 D), so the key
+  // is built from data at runtime and cannot be a literal MessageKey.
+  test('resolves an onboarding tag key to its label in each locale', () => {
+    expect(tagLabel('identity', 'artista', 'it')).toBe('Artista');
+    expect(tagLabel('identity', 'artista', 'en')).toBe('Artist');
+    expect(tagLabel('seeking', 'mentorship', 'it')).toBe('Mentorship');
+    // The deck's skills term (#123) resolves through the same path.
+    expect(tagLabel('skill', 'illustrazione', 'it')).toBe('Illustrazione');
+    expect(tagLabel('skill', 'illustrazione', 'en')).toBe('Illustration');
+  });
+
+  test('falls back to the raw key rather than rendering "undefined"', () => {
+    // A tag added to the DB before the catalogs must degrade to something legible.
+    expect(tagLabel('identity', 'astronauta', 'it')).toBe('astronauta');
   });
 });
 
@@ -31,6 +50,249 @@ describe('t', () => {
     const name = /\{(\w+)\}/.exec(it[key!])![1]!;
     // vars provided but without the matching name — placeholder survives verbatim
     expect(t(key!, 'it', { unrelated: 1 })).toContain(`{${name}}`);
+  });
+
+  // #113: callers cast server-supplied strings into MessageKey (notifications.template_key),
+  // so a key outside the catalog is reachable at runtime and must degrade, never throw.
+  test('missing key returns the key itself instead of throwing', () => {
+    const missing = 'nope.absent' as MessageKey;
+    expect(t(missing, 'it')).toBe('nope.absent');
+    expect(t(missing, 'en')).toBe('nope.absent');
+  });
+
+  test('missing key with vars does not throw on interpolation', () => {
+    const missing = 'nope.absent' as MessageKey;
+    expect(t(missing, 'it', { name: 'X7' })).toBe('nope.absent');
+  });
+
+  test('missing key warns outside production', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      t('nope.absent' as MessageKey, 'it');
+      expect(warn).toHaveBeenCalledWith('[i18n] missing key "nope.absent" (it)');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+// #634: «1 eventi» / «1 persone». The pattern, decided once: grammatical number is a key
+// choice — a countable key declares a `.one` sibling in both catalogs, tn picks it at n === 1.
+describe('tn', () => {
+  test('picks the .one sibling at exactly n === 1', () => {
+    expect(tn('profile.stat.events', 1, 'it')).toBe('evento');
+    expect(tn('profile.stat.events', 1, 'en')).toBe('event');
+  });
+
+  test('keeps the base (plural) key at 0 and at 2', () => {
+    expect(tn('profile.stat.events', 0, 'it')).toBe('eventi');
+    expect(tn('profile.stat.events', 2, 'it')).toBe('eventi');
+  });
+
+  test('falls back to the base key when no .one sibling exists', () => {
+    // comment.count has no singular variant yet — adopting the pattern is per-key.
+    expect(tn('comment.count', 1, 'it')).toBe(it['comment.count'].replace('{n}', '1'));
+  });
+
+  test('always exposes {n}, and merges extra vars over it', () => {
+    expect(tn('story.own.stat', 3, 'it')).toBe(it['story.own.stat'].replace('{n}', '3'));
+    expect(tn('story.own.stat', 1, 'it')).toBe(it['story.own.stat.one']);
+    // vars win over the injected n only if the caller passes n explicitly
+    expect(tn('comment.count', 2, 'it', { n: 5 })).toBe(it['comment.count'].replace('{n}', '5'));
+  });
+});
+
+describe('notification template contract', () => {
+  // Compile-time half: every key the schema admits is a real catalog key — a template added
+  // to NOTIFICATION_TEMPLATE_KEYS without catalog copy fails typecheck here.
+  const templateKeys: readonly MessageKey[] = NOTIFICATION_TEMPLATE_KEYS;
+
+  test('every schema template key has copy in both catalogs', () => {
+    for (const key of templateKeys) {
+      expect(it[key], `it.${key}`).toBeTypeOf('string');
+      expect(en[key], `en.${key}`).toBeTypeOf('string');
+    }
+  });
+});
+
+describe('fund pre-payment disclosure (FUND-18, #235)', () => {
+  /**
+   * The sixteen facts in six blocks (FUND-SPEC §3) plus screen chrome, EACH BY NAME —
+   * deliberately never `count === 16`: a count passes on sixteen wrong keys and fails on an
+   * honest merge. `MessageKey`-typed so a key missing from the IT catalog fails typecheck
+   * before this even runs; the runtime half asserts both catalogs carry real copy.
+   * Block membership is the spec's, not the catalog's — reordering a fact into another
+   * block is a spec change and must fail here.
+   */
+  const DISCLOSURE_KEYS: readonly MessageKey[] = [
+    // screen chrome
+    'fund.disclose.title',
+    'fund.disclose.lead',
+    'fund.disclose.cta',
+    // ① dove va il denaro
+    'fund.disclose.where.title',
+    'fund.disclose.where.pool',
+    'fund.disclose.where.anyAmount',
+    'fund.disclose.where.fees',
+    // ② non è un acquisto
+    'fund.disclose.notPurchase.title',
+    'fund.disclose.notPurchase.noShare',
+    'fund.disclose.notPurchase.noAdvantage',
+    'fund.disclose.notPurchase.voteDecides',
+    // ③ non c'è restituzione — nextDream is the FUND-18 line PR #375 deferred here
+    'fund.disclose.noReturn.title',
+    'fund.disclose.noReturn.othersDream',
+    'fund.disclose.noReturn.notReturned',
+    'fund.disclose.noReturn.nextDream',
+    // ④ se il ciclo non riesce — every void carries the money forward (never §17's flat reset)
+    'fund.disclose.ifFails.title',
+    'fund.disclose.ifFails.belowFloor',
+    'fund.disclose.ifFails.belowQuorum',
+    'fund.disclose.ifFails.winnerDeclines',
+    'fund.disclose.ifFails.shortBudget',
+    // ⑤ cosa trattiene Athanor
+    'fund.disclose.retains.title',
+    'fund.disclose.retains.percent',
+    'fund.disclose.retains.equity',
+    // ⑥ conformità normativa
+    'fund.disclose.compliance.title',
+    'fund.disclose.compliance.law',
+  ];
+
+  test.each(DISCLOSURE_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the accept CTA carries the amount in both locales', () => {
+    expect(it['fund.disclose.cta']).toContain('{amt}');
+    expect(en['fund.disclose.cta']).toContain('{amt}');
+  });
+
+  /**
+   * The optional fee coverage (#236 / FUND-51). NOT one of the sixteen facts — it is a
+   * choice offered beneath them — so it is pinned here rather than in DISCLOSURE_KEYS,
+   * which is the spec's block membership and must stay exactly sixteen.
+   */
+  const COVERAGE_KEYS: readonly MessageKey[] = [
+    'fund.disclose.coverage.label',
+    'fund.disclose.coverage.total',
+    'fund.disclose.coverage.optional',
+    'fund.disclose.coverage.notReturned',
+  ];
+
+  test.each(COVERAGE_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the coverage copy shows the payer every figure, in both locales', () => {
+    // The consent is the number. A label that said «copri i costi» without naming the amount
+    // would be asking for a blank cheque on a screen whose whole purpose is that it is not one.
+    expect(it['fund.disclose.coverage.label']).toContain('{fee}');
+    expect(en['fund.disclose.coverage.label']).toContain('{fee}');
+    for (const slot of ['{amt}', '{fee}', '{total}']) {
+      expect(it['fund.disclose.coverage.total'], `it total missing ${slot}`).toContain(slot);
+      expect(en['fund.disclose.coverage.total'], `en total missing ${slot}`).toContain(slot);
+    }
+  });
+
+  test('the coverage copy says it is optional and that a refund does not return it', () => {
+    // PSD2 Art. 62(4): the coverage may never read as a surcharge, so the copy has to say
+    // out loud that declining costs the contributor nothing. FUND-51: and that it is the
+    // contribution that comes back on a refund, never the coverage — stated BEFORE payment,
+    // because afterwards it is a surprise rather than a disclosure.
+    for (const key of ['fund.disclose.coverage.optional', 'fund.disclose.coverage.notReturned']) {
+      expect(it[key as MessageKey].length).toBeGreaterThan(20);
+      expect(en[key as MessageKey].length).toBeGreaterThan(20);
+    }
+    expect(it['fund.disclose.coverage.notReturned'].toLowerCase()).toContain('rimbors');
+    expect(en['fund.disclose.coverage.notReturned'].toLowerCase()).toContain('refund');
+  });
+
+  test('the retained-percentage fact carries the per-cycle number in both locales (#232)', () => {
+    // D15: the percentage is per-cycle DATA, frozen at open — the consent copy renders the
+    // declared figure itself, not an abstract promise that a figure exists somewhere.
+    expect(it['fund.disclose.retains.percent']).toContain('{percent}');
+    expect(en['fund.disclose.retains.percent']).toContain('{percent}');
+  });
+
+  test('the reset is stated conditionally — a void carries forward, never a flat azzeramento', () => {
+    // FUND-SPEC §3: sourcing §17's «al termine del ciclo il contatore viene azzerato» would
+    // misstate the shipped rule (FUND-32: reset on realization only) on the one screen counsel
+    // signs. The three void facts must say the money stays, and no disclosure copy may claim
+    // an unconditional end-of-cycle reset.
+    for (const key of [
+      'fund.disclose.ifFails.belowFloor',
+      'fund.disclose.ifFails.belowQuorum',
+      'fund.disclose.ifFails.winnerDeclines',
+    ] as const) {
+      expect(it[key]).toContain('resta nel fondo');
+      expect(en[key]).toContain('stays in the fund');
+    }
+    for (const key of DISCLOSURE_KEYS) {
+      expect(it[key], `it.${key} states a flat reset`).not.toMatch(/azzera/i);
+    }
+  });
+
+  test('the vote-equality statement stays off this screen (§8 separates money from voice)', () => {
+    // fund.vote.equal is ballot disclosure. No disclosure key may duplicate it.
+    for (const key of DISCLOSURE_KEYS) {
+      expect(it[key], `it.${key}`).not.toBe(it['fund.vote.equal']);
+      expect(en[key], `en.${key}`).not.toBe(en['fund.vote.equal']);
+    }
+  });
+});
+
+describe('organiser settlement disclosure (#437, #104)', () => {
+  /**
+   * #104 deferred Stripe Connect past launch on one condition: organisers are TOLD, before they
+   * list a paid event, that settlement is manual and on what cadence. These three keys are that
+   * condition. Pinned by name rather than by count — a count says nothing about which key went
+   * missing, and this block's whole job is that a specific promise stays on screen.
+   */
+  const SETTLEMENT_KEYS: readonly MessageKey[] = [
+    'event.create.settlement.ack',
+    'event.create.settlement.manual',
+    'event.create.settlement.required',
+  ];
+
+  test.each(SETTLEMENT_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the acknowledgement names the cadence as a figure, in both locales', () => {
+    // Same principle as the fund coverage label above: the consent is the number. «Ti paghiamo
+    // dopo l'evento» is not a cadence, it is a mood — and the 14 days is the half of #104's
+    // condition that a court would read.
+    expect(it['event.create.settlement.ack']).toContain('14');
+    expect(en['event.create.settlement.ack']).toContain('14');
+  });
+
+  test('the acknowledgement names the deduction and promises no percentage', () => {
+    // Ruling 3 on #437: the organiser receives the price MINUS the processing costs. «You receive
+    // the full price» and «0% commission» are both forbidden — #104 introduces a platform fee
+    // later, and a promise made now becomes a change of terms then.
+    expect(it['event.create.settlement.ack'].toLowerCase()).toContain('meno');
+    expect(en['event.create.settlement.ack'].toLowerCase()).toContain('minus');
+    for (const key of SETTLEMENT_KEYS) {
+      expect(it[key], `it.${key} promises a percentage`).not.toMatch(/\d\s*%/);
+      expect(en[key], `en.${key} promises a percentage`).not.toMatch(/\d\s*%/);
+    }
+  });
+
+  test('the copy says settlement is done by hand', () => {
+    // The disclosure exists because settlement is manual. Copy that stated only the cadence would
+    // read as an automated payout that happens to be slow, which is the opposite of the fact.
+    expect(it['event.create.settlement.manual'].toLowerCase()).toContain('a mano');
+    expect(en['event.create.settlement.manual'].toLowerCase()).toContain('by hand');
   });
 });
 
@@ -117,13 +379,16 @@ describe('translation completeness', () => {
     'admin.target.post',
     'admin.waitlist.colEmail',
     'app.name',
+    'aura.a11y.value',
     'aura.unit',
     'auth.codePlaceholder',
     'auth.password.label',
+    'chat.a11y.peerAura',
     'chat.peerAura',
     'circle.benefit.ai.t',
     'circle.benefit.analytics.t',
     'circle.title',
+    'community.title',
     'costellazioni.filter.business',
     'costellazioni.filter.startup',
     'event.cat.business',
@@ -138,7 +403,7 @@ describe('translation completeness', () => {
     'feed.filter.human',
     'fund.countdown.minutes',
     'fund.countdown.seconds',
-    'home.today.seeLive',
+    'home.upcoming.seeLive',
     'lang.en',
     'lang.it',
     'landing.aura.eyebrow',
@@ -160,7 +425,7 @@ describe('translation completeness', () => {
     'live.online',
     'live.tab.online',
     'live.title',
-    'milestone.sectionLabel',
+    'momenti.aura.chip',
     'momenti.title',
     'notif.prefs.moment',
     'post.detail.title',
@@ -186,8 +451,26 @@ describe('translation completeness', () => {
     'tabs.momenti',
     'tag.identity.coach',
     'tag.identity.mentor',
+    'tag.profession.business',
+    'tag.profession.design',
+    'tag.profession.food',
+    'tag.profession.marketing',
     'tag.seeking.business',
     'tag.seeking.mentorship',
+    'tag.skill.advertising',
+    'tag.skill.branding',
+    'tag.skill.coaching',
+    'tag.skill.copywriting',
+    'tag.skill.fundraising',
+    'tag.skill.no-code',
+    'tag.skill.pr',
+    'tag.skill.project-management',
+    'tag.skill.seo',
+    'tag.skill.social-media',
+    'tag.skill.sound-design',
+    'tag.skill.storytelling',
+    'tag.skill.ui-ux',
+    'tag.skill.videomaking',
     'ticket.scan.title',
     'time.hours',
     'time.minutes',
@@ -208,5 +491,101 @@ describe('translation completeness', () => {
       (key) => !(key in it) || it[key as MessageKey] !== en[key as MessageKey],
     );
     expect(stale).toEqual([]);
+  });
+});
+
+describe('delete-account copy says what the job defers (#515)', () => {
+  /**
+   * The erasure job is legal-gated (#184/#107): at the tap it revokes sessions and erases the
+   * fund footprint, and it does NOT delete the account. The old copy said «cancelleremo il tuo
+   * profilo» and «Elimina definitivamente», and the toast said the account *will be* deleted —
+   * three promises of a completion nothing delivers. Pinned by name, like the settlement block
+   * above: a count cannot say which promise came back.
+   */
+  const DELETE_KEYS: readonly MessageKey[] = [
+    'account.delete.body',
+    'account.delete.deferred',
+    'account.delete.cta',
+    'account.delete.toast',
+  ];
+
+  test.each(DELETE_KEYS.map((k) => [k]))('%s has copy in both catalogs', (key) => {
+    expect(it[key], `it.${key}`).toBeTypeOf('string');
+    expect(en[key], `en.${key}`).toBeTypeOf('string');
+    expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+    expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+  });
+
+  test('the deferred line names the wait, in both locales', () => {
+    // The one thing this line exists to say: the erasure does not happen at the tap. If a
+    // rewrite drops that, the screen is back to promising a completion the job cannot deliver.
+    expect(it['account.delete.deferred']).toMatch(/non è immediata|dopo una verifica/i);
+    expect(en['account.delete.deferred']).toMatch(/not immediate|after a review/i);
+  });
+
+  /**
+   * The dream is the sharpest test of the split. `gdpr_erase_fund_footprint` (#240) removes
+   * candidacies, votes and the fund footprint; the `dreams` row goes only with the auth.users
+   * cascade, which is still commented out behind the legal gate. So the dream belongs in the
+   * DEFERRED half and must never be claimed in the immediate one — the first rewrite of this
+   * copy put it in `body` next to «questo accade subito», which is the same false promise
+   * #515 exists to remove, in a new sentence.
+   */
+  test('the dream is promised in the deferred half only, never in the immediate one', () => {
+    expect(it['account.delete.body']).not.toMatch(/sogno/i);
+    expect(en['account.delete.body']).not.toMatch(/dream/i);
+    expect(it['account.delete.deferred']).toMatch(/sogno/i);
+    expect(en['account.delete.deferred']).toMatch(/dream/i);
+  });
+
+  test('nothing claims the account is already gone, or the erasure already running', () => {
+    // «definitivamente» / «permanently» and «verrà eliminato» / «will be deleted» are the exact
+    // words that made the original promise. «è iniziata» / «has started» is the one the first
+    // rewrite reached for: at the tap the request is recorded and nothing server-side has run —
+    // the job is a nightly cron, and PRODUCTION-READINESS keeps it deliberately unscheduled.
+    expect(it['account.delete.cta']).not.toMatch(/definitivamente/i);
+    expect(en['account.delete.cta']).not.toMatch(/permanently|forever/i);
+    expect(it['account.delete.toast']).not.toMatch(/verrà eliminat|è stato eliminat|è iniziata/i);
+    expect(en['account.delete.toast']).not.toMatch(/will be deleted|has been deleted|has started/i);
+    expect(it['account.delete.body']).not.toMatch(/cancelliamo|elimina(?!zione)/i);
+    expect(en['account.delete.body']).not.toMatch(/we erase|we delete/i);
+  });
+});
+
+describe('calendar blocked copy diverges from the shared permission body (#552)', () => {
+  /**
+   * `event.rsvp.calendarBlocked` reads like a duplicate of `permission.blocked.body` and is
+   * not one — #552 weighed consolidating (the candidacy-video-status precedent: both blocked
+   * states share the one key) and chose divergence, on two load-bearing axes:
+   *
+   * 1. AGENCY. The shared body opens «L'hai disattivato» — the member turned it off. Calendar
+   *    `blocked` is reachable with nobody having turned anything off (calendar.ts:5-16): iOS
+   *    17's «Add Events Only» maps to denied + canAskAgain:false, and an Expo Go grant belongs
+   *    to Expo Go, shared by every project ever run on the phone. On those, the shared body
+   *    would be false — and this product's copy does not say false things to be tidy.
+   * 2. RECOVERY. The RSVP bar does not re-launch the add after the Settings round trip, so the
+   *    copy must instruct the retry («riprova»); the shared body's «quando vuoi» is written
+   *    for primers whose surface re-runs on its own.
+   *
+   * The shared key stays the default for blocked states without such routes (candidacy, and
+   * the #549 location surfaces). This block pins the one deliberate exception so a dedupe
+   * sweep does not "fix" it back into a falsehood.
+   */
+  test('the calendar blocked key exists and is not the shared body, in both locales', () => {
+    expect(it['event.rsvp.calendarBlocked']).toBeTypeOf('string');
+    expect(en['event.rsvp.calendarBlocked']).toBeTypeOf('string');
+    expect(it['event.rsvp.calendarBlocked']).not.toBe(it['permission.blocked.body']);
+    expect(en['event.rsvp.calendarBlocked']).not.toBe(en['permission.blocked.body']);
+  });
+
+  test('it never claims the member turned the permission off', () => {
+    // The agency axis: three routes to blocked involve no member action at all.
+    expect(it['event.rsvp.calendarBlocked']).not.toMatch(/l'hai disattivat/i);
+    expect(en['event.rsvp.calendarBlocked']).not.toMatch(/you turned/i);
+  });
+
+  test('it instructs the retry, which the bar cannot run for you', () => {
+    expect(it['event.rsvp.calendarBlocked']).toMatch(/riprova/i);
+    expect(en['event.rsvp.calendarBlocked']).toMatch(/try again/i);
   });
 });

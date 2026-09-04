@@ -110,6 +110,10 @@ export function CircleGate({
         accessibilityRole="button"
         accessibilityLabel={a11yLabel}
         accessibilityHint={t('circle.gate.unlock', locale)}
+        // The 28pt box is deliberate — this is a Tag-sized lock inside an event card's tag
+        // row, and growing it to 44 would break that row. §10's floor is not optional
+        // though, so it comes from slop instead: 28 + 2×8 = 44.
+        hitSlop={8}
         style={{ minHeight: 28 }}
       >
         <Text className="text-[12px] text-muted-foreground">

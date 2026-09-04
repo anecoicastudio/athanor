@@ -5,6 +5,28 @@ import { error, json } from '../_shared/respond.ts';
 // unit-testable (deno test): index.ts keeps the transport shell (OPTIONS,
 // requireServiceRole, body parse, fetch/URL/serviceKey wiring) and injects everything
 // here (repo convention: DI over mocks).
+//
+// TWO shapes, distinguished by the presence of `audience` (#127):
+//
+//   single    { recipient_id, type, template_key, dedupe_key?, … }  → one row, one push.
+//   audience  { audience, type, template_key, dedupe_key, … } → one row per eligible member,
+//             written in bulk, then a bounded push loop.
+//
+// Both write through the SAME (recipient_id, dedupe_key) conflict target (#521): the producers
+// record every POST in athanor.notification_dispatches and a cron reconciler re-POSTs whatever
+// net._http_response says failed, so every insert here has to be safe to repeat. The key is
+// mandatory on the audience shape (the caller owns it) and optional on the single one, where
+// enqueue_notification mints a fresh uuid per call — a NULL key never conflicts, so a body from
+// before that migration still inserts exactly as it used to.
+//
+// The audience shape exists because a fund milestone or a countdown has no single recipient,
+// which is why 20260701160235 skipped fund_aggregates and why #241 removed the type outright.
+// Shape A (N rows) was chosen over a broadcast row clients resolve: per-recipient read_at is
+// what makes the notification centre's unread state work, and a shared row has nowhere to put it.
+//
+// `audience` is a NAMED selector, never a predicate from the caller. SQL passes 'all_members';
+// what that means is decided HERE, once. A predicate crossing the wire would be an injection
+// surface and would put eligibility in two places.
 
 export type FanOutCtx = {
   /** service role — the ONLY legitimate writer of notifications rows (06 §2.11) */
@@ -19,34 +41,280 @@ export type FanOutBody = {
   template_key: string;
   params?: Record<string, unknown>;
   entity_ref?: Record<string, unknown>;
+  /**
+   * Minted per dispatch by athanor.enqueue_notification (#521) — a fresh uuid per CALL, not a
+   * key derived from the content, because two identical notifications are two real events. It
+   * exists so the reconciler's re-POST of the SAME stored body inserts nothing the first
+   * attempt already wrote. Optional: a body from before that migration carries none, and a NULL
+   * key never conflicts (NULLs are distinct in the unique index), so it inserts as it always did.
+   */
+  dedupe_key?: string;
 };
 
-/** Pure field validation — the three required fields must be non-empty strings. */
+export type FanOutAudienceBody = {
+  audience: string;
+  type: string;
+  template_key: string;
+  /** mandatory here: it is what makes a re-send after a 5xx safe (#521) */
+  dedupe_key: string;
+  params?: Record<string, unknown>;
+  entity_ref?: Record<string, unknown>;
+};
+
+/** The only audience that exists. A name the DB does not know is rejected, not guessed at. */
+export const AUDIENCES = ['all_members'] as const;
+
+/**
+ * Recipients resolved per page. The bulk insert is one statement per page, so this bounds both
+ * the PostgREST response and the insert payload rather than the audience.
+ */
+export const AUDIENCE_PAGE = 1000;
+
+/**
+ * push-dispatch invokes in flight. It is one HTTP call per recipient — it reads that person's
+ * prefs, tokens and locale, so it cannot be batched without changing its contract — and an
+ * unbounded Promise.all over the whole membership would open one socket per member.
+ */
+export const PUSH_CONCURRENCY = 8;
+
+/**
+ * Pure field validation — the three required fields must be non-empty strings, and dedupe_key,
+ * when present at all, must be one too. Rejecting a malformed key rather than dropping it is
+ * deliberate: silently continuing would write an unkeyed row, and the retry that follows would
+ * then deliver the notification twice.
+ */
 export function validateFanOutBody(raw: unknown): FanOutBody | null {
   const body = raw as Partial<FanOutBody> | null | undefined;
   const missing = (v: unknown) => typeof v !== 'string' || v.trim() === '';
   if (missing(body?.recipient_id) || missing(body?.type) || missing(body?.template_key)) {
     return null;
   }
+  if (body?.dedupe_key !== undefined && missing(body.dedupe_key)) return null;
   return body as FanOutBody;
 }
 
+/** Pure field validation for the audience shape — four required non-empty strings. */
+export function validateAudienceBody(raw: unknown): FanOutAudienceBody | null {
+  const body = raw as Partial<FanOutAudienceBody> | null | undefined;
+  const missing = (v: unknown) => typeof v !== 'string' || v.trim() === '';
+  if (
+    missing(body?.audience) ||
+    missing(body?.type) ||
+    missing(body?.template_key) ||
+    missing(body?.dedupe_key)
+  ) {
+    return null;
+  }
+  return body as FanOutAudienceBody;
+}
+
+/**
+ * Eligible recipients for a broadcast, one page at a time.
+ *
+ * The predicate mirrors athanor.is_active() (20260813045347) rather than inventing a second
+ * definition of "active": not banned, not currently suspended. There is no deleted_at to check —
+ * erasure DELETEs the profile row through the GDPR queue, so a departed member is simply absent.
+ */
+async function eligibleRecipients(
+  ctx: FanOutCtx,
+  after: string | null,
+): Promise<{ ids: string[]; error?: string }> {
+  // One retry on a transient read failure. #521's observed loss was exactly this class — a
+  // transient 500 on one enqueue of four — and here the blast radius is a whole page of the
+  // membership rather than one attendee, because the producer's marker is already committed and
+  // nothing re-sends. This does not make delivery reliable; it removes the cheapest way to lose
+  // it. End-to-end reconciliation is #521's own scope and is deliberately NOT claimed here.
+  for (let attempt = 0; ; attempt++) {
+    const out = await readRecipientPage(ctx, after);
+    if (!out.error || attempt >= 1) return out;
+    console.error(JSON.stringify({ evt: 'fanout_audience_read_retry', err: out.error }));
+  }
+}
+
+async function readRecipientPage(
+  ctx: FanOutCtx,
+  after: string | null,
+): Promise<{ ids: string[]; error?: string }> {
+  let q = ctx.admin
+    .from('profiles')
+    .select('id')
+    .is('banned_at', null)
+    .or(`suspended_until.is.null,suspended_until.lte.${new Date().toISOString()}`)
+    .order('id', { ascending: true })
+    .limit(AUDIENCE_PAGE);
+  // Keyset, never offset (rule 9): the audience is read in pages while nothing stops a new
+  // member signing up mid-broadcast, and an offset would skip a row under concurrent inserts.
+  if (after) q = q.gt('id', after);
+  const { data, error: err } = await q;
+  if (err) return { ids: [], error: (err as { message?: string }).message ?? 'unknown' };
+  return { ids: ((data ?? []) as { id: string }[]).map((r) => r.id) };
+}
+
+/** Invoke push-dispatch for many recipients with a bounded number in flight. */
+async function pushMany(
+  ctx: FanOutCtx,
+  recipients: string[],
+  payload: Record<string, unknown>,
+): Promise<{ pushed: number; failed: number }> {
+  let pushed = 0;
+  let failed = 0;
+  for (let i = 0; i < recipients.length; i += PUSH_CONCURRENCY) {
+    const slice = recipients.slice(i, i + PUSH_CONCURRENCY);
+    await Promise.all(
+      slice.map((recipient_id) =>
+        // Best-effort per recipient, exactly as the single path is: the in-app row is already
+        // written, and one member's dead token must not cost the rest their push. index.ts's
+        // invokePush rejects on a non-2xx (a bare fetch RESOLVES for a 500, which would have
+        // counted a total push-dispatch outage as full delivery), so this catch is reached for
+        // transport and status failures alike.
+        Promise.resolve(ctx.invokePush({ ...payload, recipient_id }))
+          .then(() => {
+            pushed++;
+          })
+          .catch((e) => {
+            failed++;
+            console.error(
+              JSON.stringify({ evt: 'fanout_push_failed', recipient_id, err: String(e) }),
+            );
+          }),
+      ),
+    );
+  }
+  return { pushed, failed };
+}
+
+/**
+ * Broadcast: one row per eligible member, then a push to the ones whose row is NEW.
+ *
+ * `ignoreDuplicates` makes the insert `on conflict do nothing` against the partial unique index
+ * on (recipient_id, dedupe_key), and the `select()` after it returns only the rows that were
+ * actually inserted. That is what makes a re-send after a 5xx safe end to end: the second run
+ * writes nothing and — because it pushes what it inserted, not what it intended to insert —
+ * pushes nobody. Without that the retry #521 asks for would double every push.
+ */
+async function processAudienceFanOut(ctx: FanOutCtx, body: FanOutAudienceBody): Promise<Response> {
+  if (!(AUDIENCES as readonly string[]).includes(body.audience)) {
+    return error(`unknown audience: ${body.audience}`, 400);
+  }
+
+  let after: string | null = null;
+  let recipients = 0;
+  let inserted = 0;
+  let pushed = 0;
+  let pushFailed = 0;
+
+  for (;;) {
+    const page = await eligibleRecipients(ctx, after);
+    if (page.error) return error(`audience read failed: ${page.error}`, 500);
+    if (page.ids.length === 0) break;
+    recipients += page.ids.length;
+    after = page.ids[page.ids.length - 1];
+
+    const { data, error: insErr } = await ctx.admin
+      .from('notifications')
+      .upsert(
+        page.ids.map((recipient_id) => ({
+          recipient_id,
+          type: body.type,
+          template_key: body.template_key,
+          params: body.params ?? {},
+          entity_ref: body.entity_ref ?? null,
+          dedupe_key: body.dedupe_key,
+        })),
+        { onConflict: 'recipient_id,dedupe_key', ignoreDuplicates: true },
+      )
+      .select('recipient_id');
+    if (insErr) {
+      return error(`notification insert failed: ${(insErr as { message?: string }).message}`, 500);
+    }
+
+    const fresh = ((data ?? []) as { recipient_id: string }[]).map((r) => r.recipient_id);
+    inserted += fresh.length;
+    const outcome = await pushMany(ctx, fresh, {
+      type: body.type,
+      template_key: body.template_key,
+      params: body.params ?? {},
+      entity_ref: JSON.stringify(body.entity_ref ?? {}),
+    });
+    pushed += outcome.pushed;
+    pushFailed += outcome.failed;
+
+    // Loop until a page comes back EMPTY. Breaking on a short page would conflate "fewer than
+    // I asked for" with "no more left", and PostgREST caps rows at the project's `max_rows`
+    // setting — which merely happens to equal AUDIENCE_PAGE today. If that setting were ever
+    // lowered, a short first page would end the broadcast after N members while still reporting
+    // {ok: true} with recipients and inserted agreeing, so the truncation would be invisible.
+  }
+
+  // Structured, because nothing reads this response body: enqueue_audience_notification POSTs
+  // through pg_net and drops it. `inserted < recipients` is the visible signal that a re-send
+  // deduped rather than delivered, which is the thing an operator would want to see.
+  const line = {
+    evt: 'fanout_audience',
+    audience: body.audience,
+    recipients,
+    inserted,
+    pushed,
+    failed: pushFailed,
+  };
+  if (pushFailed > 0) console.error(JSON.stringify(line));
+  else console.log(JSON.stringify(line));
+  return json({ ok: true, recipients, inserted, pushed, failed: pushFailed });
+}
+
 export async function processFanOut(ctx: FanOutCtx, raw: unknown): Promise<Response> {
+  // The audience shape is distinguished by its selector, not by a mode field: a body carrying
+  // `audience` cannot be a single-recipient body, and one carrying `recipient_id` cannot be a
+  // broadcast. Producers already POST bare bodies (no mode), so adding one would have meant
+  // changing every existing caller.
+  if ((raw as { audience?: unknown } | null | undefined)?.audience !== undefined) {
+    const audienceBody = validateAudienceBody(raw);
+    if (!audienceBody) return error('missing fields', 400);
+    return processAudienceFanOut(ctx, audienceBody);
+  }
+
   const body = validateFanOutBody(raw);
   if (!body) return error('missing fields', 400);
 
   // The ONLY legitimate writer of notifications rows (service role bypasses RLS; clients = 42501).
-  const { error: insErr } = await ctx.admin.from('notifications').insert({
-    recipient_id: body.recipient_id,
-    type: body.type,
-    template_key: body.template_key,
-    params: body.params ?? {},
-    entity_ref: body.entity_ref ?? null,
-  });
+  //
+  // Upsert rather than insert, on the same (recipient_id, dedupe_key) target the audience path
+  // uses, so the reconciler's re-POST is exactly-once (#521). One path covers both shapes: an
+  // unkeyed body carries dedupe_key null, NULLs are distinct in a btree unique index, so it
+  // never conflicts and inserts exactly as a plain insert did. `select('id')` returns only the
+  // row actually written — which is what tells a first delivery from a retry of one already made.
+  const { data, error: insErr } = await ctx.admin
+    .from('notifications')
+    .upsert(
+      {
+        recipient_id: body.recipient_id,
+        type: body.type,
+        template_key: body.template_key,
+        params: body.params ?? {},
+        entity_ref: body.entity_ref ?? null,
+        dedupe_key: body.dedupe_key ?? null,
+      },
+      { onConflict: 'recipient_id,dedupe_key', ignoreDuplicates: true },
+    )
+    .select('id');
   if (insErr) return error(`notification insert failed: ${insErr.message}`, 500);
+
+  // Nothing written → an earlier attempt of this same dispatch already delivered it. Return 2xx
+  // (the reconciler must retire the outbox row, not retry it) and push NOBODY: the push went out
+  // with the first attempt, and re-pushing is the double «Hai un Momento» the key exists to stop.
+  if ((data ?? []).length === 0) {
+    console.log(JSON.stringify({ evt: 'fanout_deduped', recipient_id: body.recipient_id }));
+    return json({ ok: true, deduped: true });
+  }
 
   // Then dispatch push (best-effort — the in-app row is already written; preference gate lives
   // there). push-dispatch takes entity_ref as a STRING, so the object crosses JSON-stringified.
+  //
+  // A push failure stays 200 ON PURPOSE and says so in the body instead (#521 asks fan-out to
+  // surface the failure class): the row exists, so re-POSTing would chase a lost push by
+  // re-running an insert that already succeeded. An insert failure is the 500 above and IS
+  // retried; a lost push belongs to push-dispatch's receipt sweep.
+  let pushed = true;
   try {
     await ctx.invokePush({
       recipient_id: body.recipient_id,
@@ -56,7 +324,14 @@ export async function processFanOut(ctx: FanOutCtx, raw: unknown): Promise<Respo
       entity_ref: JSON.stringify(body.entity_ref ?? {}),
     });
   } catch (e) {
-    console.error('push-dispatch invoke failed', e);
+    pushed = false;
+    console.error(
+      JSON.stringify({
+        evt: 'fanout_push_failed',
+        recipient_id: body.recipient_id,
+        err: String(e),
+      }),
+    );
   }
-  return json({ ok: true });
+  return json({ ok: true, pushed });
 }

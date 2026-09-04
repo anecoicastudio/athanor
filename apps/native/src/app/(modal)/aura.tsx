@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { auraKeys, getAuraScoreFull } from '@athanor/api';
 import { auraGlowLevel, breakdownRows } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { RuleRow } from '@/components/aura/RuleRow';
@@ -17,7 +16,9 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraRealtime } from '@/hooks/use-aura-realtime';
+import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 const IDLE_THRESHOLD_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -30,8 +31,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  */
 export default function AuraScreen() {
   const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   // Realtime wiring: when score pushes arrive, auraKeys.all is invalidated so
@@ -58,7 +59,7 @@ export default function AuraScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       {/* Header */}
       <ModalHeader title={t('aura.title', locale)} backLabel={t('common.back', locale)} />
 
@@ -162,6 +163,6 @@ export default function AuraScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

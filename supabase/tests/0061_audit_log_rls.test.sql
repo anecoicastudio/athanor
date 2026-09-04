@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
@@ -13,6 +13,14 @@ select col_is_pk('public', 'audit_log', 'id', 'id is PK');
 select is(
   (select rowsecurity from pg_tables where schemaname='public' and tablename='audit_log'),
   true, 'RLS enabled');
+
+-- Exhaustive (issue #271, was #138): the moderation ledger is append-only via DEFINER RPC;
+-- admin SELECT is the ONLY policy. A silently-added write (or non-admin read) policy would
+-- pass every behavioural probe below — this list is what fails it.
+select policies_are(
+  'public', 'audit_log',
+  array['audit_log_select_admin'],
+  'exactly the expected policies exist on audit_log');
 
 -- anon fully denied
 set local role anon;

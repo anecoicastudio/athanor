@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { FlatList, RefreshControl } from 'react-native';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProjectsPage, type ProjectCursor, projectKeys } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View } from '@/tw';
+import { useLocale } from '@/hooks/use-locale';
+import { Screen } from '@/components/Screen';
 import { ProjectCard } from '@/components/costellazioni/ProjectCard';
 import {
   ProjectFilterTabs,
@@ -14,17 +16,15 @@ import {
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 const COMPOSE_HREF = '/(modal)/project-compose' as const;
 const FAVOR_HREF = '/(modal)/favor' as const;
 
 export default function CostellazioniScreen() {
-  const { profile } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<ProjectFilter>('all');
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
 
   const query = useInfiniteQuery({
     queryKey: projectKeys.list(filter),
@@ -39,7 +39,7 @@ export default function CostellazioniScreen() {
 
   if (query.isError) {
     return (
-      <View className="flex-1 bg-background">
+      <Screen>
         <ListState
           state="error"
           locale={locale}
@@ -47,7 +47,7 @@ export default function CostellazioniScreen() {
           onRetry={onRefresh}
           className="flex-1 justify-center px-5"
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -59,22 +59,49 @@ export default function CostellazioniScreen() {
         });
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <FlatList
         data={projects}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View className="gap-4 py-4">
             <View className="gap-1 px-5">
-              <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+              {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
+              <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
                 {t('costellazioni.title', locale)}
               </Text>
               <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
             </View>
             <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
-            <View className="flex-row items-center justify-between px-5">
-              <SectionLabel>{t('costellazioni.board.label', locale)}</SectionLabel>
-              <Pressable onPress={() => router.push(COMPOSE_HREF)} hitSlop={8}>
+            {/* Passa il Favore — was the ListFooter of an INFINITE list (#640): every fetched
+                page pushed it further away, on a darker-than-page surface. A header row is
+                always reachable; flat card chrome, no glow (rule #4: navigation, not a moment). */}
+            <View className="px-5">
+              <Pressable
+                onPress={() => router.push(FAVOR_HREF)}
+                accessibilityRole="button"
+                accessibilityLabel={t('costellazioni.favor.title', locale)}
+                className="gap-1 rounded-card border border-hair bg-raise px-5 py-4"
+              >
+                <Text className="text-[15px] text-foreground">
+                  {t('costellazioni.favor.title', locale)}
+                </Text>
+                <Text className="text-[13px] text-faint">
+                  {t('costellazioni.favor.desc', locale)}
+                </Text>
+              </Pressable>
+            </View>
+            <View className="flex-row items-center justify-between gap-3 px-5">
+              <SectionLabel numberOfLines={1} className="shrink">
+                {t('costellazioni.board.label', locale)}
+              </SectionLabel>
+              <Pressable
+                onPress={() => router.push(COMPOSE_HREF)}
+                accessibilityRole="button"
+                // 13px label + HIT_SLOP reached ~38pt — HIT_SLOP is sized for a 22pt icon,
+                // not for bare small text. Same shape as `home/TodaySection.tsx`.
+                className="min-h-[44px] shrink-0 justify-center"
+              >
                 <Text className="text-[13px] text-aura">{t('costellazioni.publish', locale)}</Text>
               </Pressable>
             </View>
@@ -87,34 +114,19 @@ export default function CostellazioniScreen() {
         )}
         ListEmptyComponent={
           query.isLoading ? null : (
-            <View className="items-center gap-4 px-5 pt-16">
-              <EmptyState>{emptyTitle}</EmptyState>
-              <Pressable
-                className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-                onPress={() => router.push(COMPOSE_HREF)}
+            <View className="items-center px-5 pt-16">
+              {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
+                  moment-grade surface (rule #4) on an empty feed (#119). */}
+              <EmptyState
+                action={{
+                  label: t('feed.empty.cat.cta', locale),
+                  onPress: () => router.push(COMPOSE_HREF),
+                }}
               >
-                <Text className="text-[13px] text-aura">{t('feed.empty.cat.cta', locale)}</Text>
-              </Pressable>
+                {emptyTitle}
+              </EmptyState>
             </View>
           )
-        }
-        ListFooterComponent={
-          // Flat surface — navigation into the Passa il Favore sheet, NOT a moment (rule #4): no glow.
-          <View className="px-5 pb-2 pt-2">
-            <Pressable
-              onPress={() => router.push(FAVOR_HREF)}
-              accessibilityRole="button"
-              accessibilityLabel={t('costellazioni.favor.title', locale)}
-              className="gap-1 rounded-card bg-surface-muted px-5 py-4"
-            >
-              <Text className="text-[15px] text-foreground">
-                {t('costellazioni.favor.title', locale)}
-              </Text>
-              <Text className="text-[13px] text-faint">
-                {t('costellazioni.favor.desc', locale)}
-              </Text>
-            </Pressable>
-          </View>
         }
         refreshControl={
           <RefreshControl
@@ -127,8 +139,8 @@ export default function CostellazioniScreen() {
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
-        contentContainerClassName="pb-[104px]"
+        contentContainerClassName="pb-12"
       />
-    </View>
+    </Screen>
   );
 }

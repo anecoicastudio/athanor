@@ -43,7 +43,7 @@ describe('mandorlaDataUri', () => {
     for (const hex of hexes) expect(allowed).toContain(hex.toLowerCase());
   });
 
-  it('draws the mandorla as two overlapping vesica circles plus the kairos star', () => {
+  it('draws the mandorla as two overlapping vesica circles plus the apex spark', () => {
     const out = svg();
     const circles = [...out.matchAll(/<circle cx="(\d+)" cy="(\d+)" r="(\d+)"/g)];
     expect(circles).toHaveLength(2);

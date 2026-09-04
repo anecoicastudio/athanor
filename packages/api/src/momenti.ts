@@ -1,7 +1,9 @@
+import { MOMENTO_DECK_REASON_LIMIT, rankReasons } from '@athanor/core';
 import {
   type AcceptMomentResult,
   type MomentoDeckCard,
   type MomentoDeckRow,
+  type MomentoReason,
   type MomentoSuggestion,
   acceptMomentResult,
   momentoDeckCard,
@@ -14,73 +16,111 @@ export const momentiKeys = {
   all: ['momenti'] as const,
   deck: () => [...momentiKeys.all, 'deck'] as const,
   suggestions: () => [...momentiKeys.all, 'suggestions'] as const,
+  answered: () => [...momentiKeys.all, 'answered'] as const,
 };
 
-/** Parse a joined proposal row, then map it to the deck card. `affinity` is never selected/exposed. */
+/** Parse an RPC row, then map it to the deck card. `affinity` is never returned/exposed. */
 export function rowToDeckCard(raw: unknown): MomentoDeckCard {
   const row: MomentoDeckRow = momentoDeckRow.parse(raw);
+  // A term the candidate has masked comes back as [] and simply does not render — no empty
+  // «Condividete:» line, and no stale one either (the server recomputes them per read).
+  //
+  // The order below is the WIRE order, not the display order: `rankReasons` decides which
+  // of the seven a card with room for three actually shows (#384). Before it, this array's
+  // order silently WAS the policy, and the two hardest-earned terms sat last.
+  const terms: MomentoReason[] =
+    row.reason_kind === 'new_dream'
+      ? [{ kind: 'newDream', tags: [] }]
+      : (
+          [
+            { kind: 'shared', tags: row.shared },
+            { kind: 'seeking', tags: row.seek_hit },
+            { kind: 'offering', tags: row.offer_hit },
+            { kind: 'skills', tags: row.skills_shared },
+            // `city` tags hold the candidate's city display name (never a geohash, #123).
+            { kind: 'city', tags: row.city_near },
+            // `mutualActivity` tags hold titles of events both sides checked in at (#361).
+            { kind: 'mutualActivity', tags: row.mutual_activity },
+            // `profession` tags hold the two profession keys of a complementary pair,
+            // the caller's craft first (#361).
+            { kind: 'profession', tags: row.profession_pair },
+          ] as const
+        ).filter((term) => term.tags.length > 0);
   return momentoDeckCard.parse({
-    id: row.id,
-    candidateId: row.candidate_id,
-    handle: row.candidate?.handle ?? null,
-    displayName: row.candidate?.display_name ?? null,
-    avatarPath: row.candidate?.avatar_path ?? null,
-    reasons: row.reasons,
-    dreamText: row.candidate?.dreams?.[0]?.text ?? null,
-    status: row.status,
-  });
-}
-
-/**
- * Today's ≤3 pending proposals (already server-capped). `affinity` is NEVER selected (rule #1 —
- * the score is not client-readable here); the explicit column list excludes it. Bounded `.limit(3)`,
- * no offset (rule #9).
- *
- * Dream-less cards are dropped: the matcher skips candidates whose dream is private, but a
- * candidate can flip `visibility.dream` (or archive the dream) AFTER the proposal row exists,
- * and the embed is then RLS-filtered to null. A Momento without a dream has nothing to answer.
- */
-export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeckCard[]> {
-  const { data, error } = await client
-    .from('momento_proposals')
-    .select(
-      'id, candidate_id, reasons, status, ' +
-        'candidate:profiles!momento_proposals_candidate_id_fkey(handle, display_name, avatar_path, dreams(text))',
-    )
-    .eq('status', 'pending')
-    .order('daily_rank', { ascending: true })
-    .limit(3);
-  if (error) throw error;
-  return (data ?? []).map((r) => rowToDeckCard(r)).filter((card) => card.dreamText != null);
-}
-
-/**
- * «Ti potrebbe interessare» — one curated-lite peer: the most recently written visible active
- * dream, not in today's deck. Real affinity-ranked curation is deferred (no suggestions table in
- * M5) — this ranks by dream recency, which is why the UI chip says «Sogno nuovo», not «Alta
- * affinità». It is NOT ordered by member recency: profiles.updated_at is a touch timestamp.
- *
- * Goes through the get_momenti_suggestion RPC rather than a client query: the filter has to read
- * `profiles.visibility` to drop members who hid BOTH tag fields, and M10 column-scoped the
- * authenticated SELECT grant so that column never reaches the client. Blocks, dream visibility
- * and the caller's own id are re-established inside the function — see the migration.
- */
-export async function getMomentiSuggestion(
-  client: AthanorClient,
-  excludeIds: string[],
-): Promise<MomentoSuggestion | null> {
-  // No caller id here: the RPC derives it from auth.uid() (rule #8). p_exclude carries only
-  // today's deck.
-  const { data, error } = await client.rpc('get_momenti_suggestion', { p_exclude: excludeIds });
-  if (error) throw error;
-  const row = data?.[0];
-  if (!row) return null;
-  return momentoSuggestion.parse({
+    id: row.proposal_id,
     candidateId: row.candidate_id,
     handle: row.handle,
     displayName: row.display_name,
     avatarPath: row.avatar_path,
+    reasons: rankReasons(terms, MOMENTO_DECK_REASON_LIMIT),
     dreamText: row.dream_text,
+  });
+}
+
+/**
+ * The ≤3 pending proposals, newest DAY first (#273 B: `daily_rank` restarts at 1 every night,
+ * so ordering by it alone dealt an arbitrary trio out of every day's rank-1 rows at once).
+ *
+ * Goes through the get_momenti_deck RPC rather than a client select, for the reason
+ * getMomentiSuggestions does: the reasons are computed at read time from the candidate's
+ * current tags and `profiles.visibility`, none of which authenticated may read since the M10
+ * column grant. The RPC also re-establishes the caller (auth.uid(), never an argument), the
+ * block filter both ways, and the dream join that used to be a client-side `.filter()`.
+ *
+ * `affinity` is not in the projection at all (rule #1) — a card carries a reason KIND.
+ */
+export async function getMomentiDeck(client: AthanorClient): Promise<MomentoDeckCard[]> {
+  const { data, error } = await client.rpc('get_momenti_deck');
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToDeckCard(r));
+}
+
+/**
+ * «Ti potrebbe interessare» — up to three affinity-ranked peers (#124), from the member's latest
+ * `momento_suggestions` run, in the server's rank order. It used to be ONE peer ranked by dream
+ * recency, because the suggestions table was deferred at M5; the chip said «Sogno nuovo» for
+ * exactly that reason and now says what the two actually have in common.
+ *
+ * A member no nightly run has reached yet — a new account before 03:11 UTC, or one for whom
+ * nothing scored — still gets one peer, the most recently written visible dream, tagged
+ * `newDream`. The section is never empty.
+ *
+ * Goes through the get_momenti_suggestion RPC rather than a client query, and could not be
+ * anything else: `momento_suggestions` carries no client grant at all, and the row needs
+ * `profiles.visibility`, which M10 column-scoped away from the client. Blocks, bans, dream
+ * visibility and the caller's own id are re-established inside the function at READ time, so a
+ * nightly snapshot never outlives a ban — see the migration.
+ *
+ * `affinity` is not in the projection (rule #3, as on the deck): a row carries reason KINDS.
+ */
+export async function getMomentiSuggestions(
+  client: AthanorClient,
+  excludeIds: string[],
+): Promise<MomentoSuggestion[]> {
+  // No caller id here: the RPC derives it from auth.uid() (rule #8). p_exclude carries only
+  // today's deck.
+  const { data, error } = await client.rpc('get_momenti_suggestion', { p_exclude: excludeIds });
+  if (error) throw error;
+  return (data ?? []).map((row) => {
+    const parsed = momentoSuggestion.parse({
+      candidateId: row.candidate_id,
+      handle: row.handle,
+      displayName: row.display_name,
+      avatarPath: row.avatar_path,
+      dreamText: row.dream_text,
+      reasons: row.reasons,
+    });
+    // Ranked AFTER the parse, off validated kinds, so nothing here needs a cast (rules/api.md).
+    // Ranked here rather than in SQL because REASON_PRIORITY is one policy in one module and the
+    // deck already reads it through this same helper. The server's ROW order is untouched; only
+    // the kinds within a row are reordered, so `reasons[0]` is the chip.
+    return {
+      ...parsed,
+      reasons: rankReasons(
+        parsed.reasons.map((kind) => ({ kind })),
+        parsed.reasons.length,
+      ).map((r) => r.kind),
+    };
   });
 }
 
@@ -111,4 +151,42 @@ export async function passMoment(client: AthanorClient, proposalId: string): Pro
     .update({ status: 'passed' })
     .eq('id', proposalId);
   if (error) throw error;
+}
+
+/**
+ * Has this member ever ANSWERED a Momento — the durable fact the empty state consults to pick
+ * between «you have seen them all» and «nobody has been offered yet» (#600). The in-session
+ * swipe-through latch cannot answer it: it is component state, so a remount (cold start, dev
+ * reload, sign-out/sign-in) resets it while the persisted query cache restores the empty deck
+ * as a settled success — and the never-had-one promise renders to someone who swiped through
+ * yesterday.
+ *
+ * `status <> 'pending'` and NOT "a row exists", for two independent reasons:
+ *
+ *  - a pending row is not evidence of anything, because `expire_momento_proposals()` deletes
+ *    pending rows older than 7 days — an unopened deck leaves nothing behind;
+ *  - the deck can be empty WHILE pending rows exist, because `get_momenti_deck()` filters on
+ *    far more than status (not_blocked, `banned_at is null`, `field_visible` on the dream, and
+ *    an inner join to an active dream). "Any row" would tell a member who has never been dealt
+ *    a card that they have seen them all.
+ *
+ * Accepted and passed rows are the honest signal and nothing deletes them: the stale-reasons
+ * purge apparatus was retired with the read-time recompute (`tests/0074` asserts it gone), so
+ * `expire_momento_proposals` is the only delete path and it is pending-only.
+ *
+ * No caller id: `momento_proposals_select_own` scopes the read to `(select auth.uid())`, so the
+ * subject is the session's, never an argument. Columns are NAMED rather than `*` — the client
+ * grant excludes `affinity`, and a star select is a 42501 (the generated Row type lists the
+ * column anyway; types cannot see column ACLs). `limit(1)` and not a count: this returns whether,
+ * never how many — a Momento count is a vanity metric (rule #3), and the existence of the row IS
+ * the value, so no row shape is read and there is nothing here for a schema to parse.
+ */
+export async function hasAnsweredMomento(client: AthanorClient): Promise<boolean> {
+  const { data, error } = await client
+    .from('momento_proposals')
+    .select('id')
+    .neq('status', 'pending')
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
 }

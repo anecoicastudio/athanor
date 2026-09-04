@@ -21,7 +21,8 @@ select ok(
 );
 select policies_are(
   'public', 'dreams',
-  array['dreams_select_authenticated', 'dreams_insert_own', 'dreams_update_own', 'dreams_select_anon_public'],
+  array['dreams_select_authenticated', 'dreams_insert_own', 'dreams_update_own', 'dreams_select_anon_public',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on dreams'
 );
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { postCommentInsertSchema, postCommentSchema } from './post-comment';
+import { postCommentInsertSchema, postCommentSchema } from './post-comment.ts';
 
 describe('postCommentSchema', () => {
   test('parses a valid comment row', () => {
@@ -36,5 +36,44 @@ describe('postCommentInsertSchema', () => {
         body: '   ',
       }),
     ).toThrow();
+  });
+
+  // #101: the composer supplies its optimistic row's uuid as the insert's PK, so a retried
+  // insert whose first response was lost conflicts on the key instead of double-posting.
+  test('passes a client-generated id through, and stays valid without one', () => {
+    const base = {
+      post_id: '22222222-2222-2222-2222-222222222222',
+      author_id: '33333333-3333-3333-3333-333333333333',
+      body: 'ciao',
+    };
+    expect(
+      postCommentInsertSchema.parse({ ...base, id: '44444444-4444-4444-4444-444444444444' }).id,
+    ).toBe('44444444-4444-4444-4444-444444444444');
+    expect(postCommentInsertSchema.parse(base).id).toBeUndefined();
+    expect(() => postCommentInsertSchema.parse({ ...base, id: 'not-a-uuid' })).toThrow();
+  });
+});
+
+describe('postCommentInsertSchema shape', () => {
+  test('carries exactly post, author, body, parent and the optional client id', () => {
+    expect(Object.keys(postCommentInsertSchema.shape).sort()).toEqual([
+      'author_id',
+      'body',
+      'id',
+      'parent_id',
+      'post_id',
+    ]);
+  });
+
+  test('requires post_id and author_id', () => {
+    const base = {
+      post_id: '22222222-2222-2222-2222-222222222222',
+      author_id: '33333333-3333-3333-3333-333333333333',
+      body: 'ciao',
+    };
+    for (const key of ['post_id', 'author_id'] as const) {
+      const { [key]: _dropped, ...without } = base;
+      expect(postCommentInsertSchema.safeParse(without).success).toBe(false);
+    }
   });
 });

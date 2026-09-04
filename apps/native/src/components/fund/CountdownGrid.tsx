@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { timeRemaining } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { t, tn } from '@athanor/i18n';
 import { View } from '@/tw';
 import { CountdownCell } from './CountdownCell';
 
@@ -19,7 +19,11 @@ export function CountdownGrid({ targetMs, locale }: { targetMs: number; locale: 
     return () => clearInterval(id);
   }, [targetMs]);
 
-  const label = `${rem.days} ${t('fund.countdown.days', locale)}, ${rem.hours} ${t(
+  // `tn` on days only, and that is the whole of it: `fund.countdown.days` has a `.one` sibling
+  // and the other three units do not, so `tn` falls back to their base strings unchanged
+  // (`t.ts`: adoption is per-key). Without this the Home card said «manca 1 giorno» and this
+  // screen — the one that card opens — said «1 giorni» on the same day (#635 review).
+  const label = `${rem.days} ${tn('fund.countdown.days', rem.days, locale)}, ${rem.hours} ${t(
     'fund.countdown.hours',
     locale,
   )}, ${rem.minutes} ${t('fund.countdown.minutes', locale)}, ${rem.seconds} ${t(
@@ -34,7 +38,7 @@ export function CountdownGrid({ targetMs, locale }: { targetMs: number; locale: 
       accessibilityLabel={label}
       accessibilityLiveRegion="none"
     >
-      <CountdownCell value={rem.days} unitLabel={t('fund.countdown.days', locale)} />
+      <CountdownCell value={rem.days} unitLabel={tn('fund.countdown.days', rem.days, locale)} />
       <CountdownCell value={rem.hours} unitLabel={t('fund.countdown.hours', locale)} />
       <CountdownCell value={rem.minutes} unitLabel={t('fund.countdown.minutes', locale)} />
       <CountdownCell value={rem.seconds} unitLabel={t('fund.countdown.seconds', locale)} accent />

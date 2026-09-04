@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { useAuth } from '@/lib/auth-context';
 import { useEntitlement } from '@/hooks/use-entitlement';
+import { useLocale } from '@/hooks/use-locale';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
+import { Screen } from '@/components/Screen';
 import {
   AURA_BUCKETS,
   type AuraBucket,
@@ -46,8 +48,9 @@ import {
 
 export default function SearchFiltersScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  /** Cancel lands where Apply does — the search screen this sheet filters. */
+  const cancel = useGuardedBack('/(modal)/search');
+  const locale = useLocale();
 
   // ── Member guard (defence-in-depth) ──────────────────────────────────────────
   const { data: entitlement, isLoading: entitlementLoading } = useEntitlement();
@@ -62,7 +65,7 @@ export default function SearchFiltersScreen() {
 
   // ── Guard: while loading render nothing (avoid false "lapsed" flash) ──────────
   if (entitlementLoading) {
-    return <View className="flex-1 bg-background" />;
+    return <Screen />;
   }
 
   // ── Guard: if entitlement lapsed mid-session, redirect to Circle upsell ───────
@@ -89,14 +92,15 @@ export default function SearchFiltersScreen() {
   };
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* ── Header ── */}
       <ModalHeader
         title={t('search.filterSheet.title', locale)}
         backLabel={t('common.back', locale)}
+        fallbackHref="/(modal)/search"
         right={
           <Pressable
-            onPress={() => router.back()}
+            onPress={cancel}
             accessibilityRole="button"
             accessibilityLabel={t('common.cancel', locale)}
             hitSlop={8}
@@ -133,10 +137,8 @@ export default function SearchFiltersScreen() {
         {/* ── Città ── */}
         <View className="gap-3">
           <SectionLabel tone="foreground">{t('search.filter.section.city', locale)}</SectionLabel>
-          <TextInput
-            className="rounded-full border border-hair bg-raise px-5 py-3.5 text-[15px] text-foreground"
+          <Input
             placeholder={t('search.filter.city.placeholder', locale)}
-            placeholderTextColor={semantic.foregroundMuted}
             value={city}
             onChangeText={setCity}
             autoCorrect={false}
@@ -175,8 +177,12 @@ export default function SearchFiltersScreen() {
               <View
                 key={slot}
                 className="rounded-full border border-hair bg-raise-2 px-5 py-3"
-                // Not a Pressable — intentionally non-interactive until backend ships
+                // Not a Pressable — intentionally non-interactive until backend ships.
+                // Both flags: `accessibilityElementsHidden` is iOS-only, so without the Android
+                // sibling these three were hidden on one platform and announced on the other —
+                // the lone unpaired site in the tree (#635).
                 accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               >
                 <Text className="text-foreground">
                   {t(`search.filter.availability.${slot}`, locale)}
@@ -192,6 +198,6 @@ export default function SearchFiltersScreen() {
           <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

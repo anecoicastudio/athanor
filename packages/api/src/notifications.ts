@@ -17,7 +17,8 @@ export const notifKeys = {
   prefs: () => [...notifKeys.all, 'prefs'] as const,
 };
 
-const COLUMNS = 'id, recipient_id, type, template_key, params, entity_ref, read_at, created_at';
+const COLUMNS =
+  'id, recipient_id, type, template_key, params, entity_ref, read_at, created_at, updated_at';
 
 /**
  * The caller's notifications, keyset-paginated (created_at desc, id desc) — never offset (rule #9).

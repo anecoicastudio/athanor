@@ -7,42 +7,48 @@
 // requireServiceRole(req) as the ONLY gate, first, before any I/O), or webhook (verify_jwt =
 // false, authenticity from the Stripe signature + the stripe_webhook_events dedupe). The rule
 // also fixes that "`profile_id` is always derived from getUser(), never taken from the request
-// body". These tests cover the user-callable create-* family, which is posture one.
+// body". These tests cover the whole user-callable family, which is posture one.
 // docs/PRD.md:225 makes Identity the gate for creating paid
 // events and candidating a dream, so a spoofable profile_id here is not a nuisance — it verifies
 // the wrong person and unlocks the paid surfaces for them.
 //
-// _shared/config-invariants.test.ts already covers TWO of the three legs:
-//   :72  verify_jwt = true for every user-callable function (create-verification-session included)
-//   :113 requireUser(req) is present in every user-callable function
-// It does NOT cover the ordering leg — :99-111 asserts gate-before-parse for `internal`
-// functions only. These tests close that gap for the money-minting create-* family and add the
-// negative: identity must not be readable out of the request body at all.
+// _shared/config-invariants.test.ts already covers the config leg (verify_jwt = true and
+// requireUser present for every user-callable function) and the uniform gate-before-parse
+// ordering. These tests go deeper for the whole user-callable family: identity must not be
+// readable out of the request body at all, and the service-role client stays out of reach.
+//
+// Discovery comes from the POSTURE table, not a filename prefix (issue #271, was #141): the
+// old `create-` filter silently exempted check-in — the one user-callable function that
+// deliberately holds an admin client — from every rule in this file.
 import { assert } from 'jsr:@std/assert@1';
+import { POSTURE } from './config-invariants.test.ts';
 
-const FUNCTIONS = new URL('../', import.meta.url);
-
-const CREATE_FNS = [...Deno.readDirSync(FUNCTIONS)]
-  .filter((e) => e.isDirectory && e.name.startsWith('create-'))
-  .map((e) => e.name)
+const USER_FNS = Object.entries(POSTURE)
+  .filter(([, posture]) => posture === 'user')
+  .map(([name]) => name)
   .sort();
 
 const src = (fn: string, file = 'index.ts') =>
   Deno.readTextFileSync(new URL(`../${fn}/${file}`, import.meta.url));
 
-Deno.test('every session-minting function is discovered', () => {
-  // Guards the guard: a rename that empties this list would make the rest vacuously green.
-  assert(CREATE_FNS.length >= 5, `expected the create-* family, got ${JSON.stringify(CREATE_FNS)}`);
-  assert(CREATE_FNS.includes('create-verification-session'));
+Deno.test('every user-callable function is discovered', () => {
+  // Guards the guard: an emptied POSTURE table would make the rest vacuously green, and
+  // check-in is named because its absence is exactly how it escaped for two months.
+  assert(
+    USER_FNS.length >= 6,
+    `expected the user-callable family, got ${JSON.stringify(USER_FNS)}`,
+  );
+  assert(USER_FNS.includes('create-verification-session'));
+  assert(USER_FNS.includes('check-in'));
 });
 
-Deno.test('requireUser gates every create-* function BEFORE the body is parsed', () => {
+Deno.test('requireUser gates every user-callable function BEFORE the body is parsed', () => {
   // A gate after `await req.json()` still lets an unauthenticated caller drive parsing, and —
   // worse for this family — makes it syntactically easy to reach for a body field as identity
-  // because the body is already in scope. Same rule config-invariants applies to internal
-  // functions (config-invariants.test.ts:99), applied to the user-callable money surface.
+  // because the body is already in scope. Same rule config-invariants applies uniformly,
+  // kept here too so this file stands alone on the money surface.
   const BODY_READ = /\breq\.(json|text|formData|arrayBuffer)\s*\(/;
-  for (const fn of CREATE_FNS) {
+  for (const fn of USER_FNS) {
     const code = src(fn);
     const gate = code.indexOf('requireUser(req)');
     assert(gate > -1, `${fn}: no requireUser(req)`);
@@ -51,7 +57,7 @@ Deno.test('requireUser gates every create-* function BEFORE the body is parsed',
   }
 });
 
-Deno.test('no create-* function can read an identity out of the request body', () => {
+Deno.test('no user-callable function can read an identity out of the request body', () => {
   // The rule-8 failure that costs money: `const { profile_id } = await req.json()` lets anyone
   // with a valid JWT mint a Checkout session, a subscription, or an Identity verification
   // *as somebody else*.
@@ -65,7 +71,7 @@ Deno.test('no create-* function can read an identity out of the request body', (
     /\b(body|payload|json|parsed)\s*\[\s*['"](profile_id|profileId|user_id|userId)['"]/,
     /const\s*\{[^}]*\b(profile_?[iI]d|user_?[iI]d)\b[^}]*\}\s*=\s*(await\s+)?(req\.json\(\)|body|payload|json|parsed)\b/,
   ];
-  for (const fn of CREATE_FNS) {
+  for (const fn of USER_FNS) {
     const code = src(fn);
     for (const re of BODY_IDENTITY) {
       const m = code.match(re);
@@ -74,12 +80,32 @@ Deno.test('no create-* function can read an identity out of the request body', (
   }
 });
 
-Deno.test('no create-* function reaches for the service-role client', () => {
+// The deliberate exceptions to the no-service-role rule, each by name and with its reason
+// (issue #271, was #141) — the other two tests in this file apply to both in full, and
+// identity still comes from the JWT (requireUser), never the body:
+// - check-in: an organiser scanning a ticket cannot read another member's event_attendance
+//   row under RLS — 20260616022242_event_attendance_revoke_client_mutations blocks the client
+//   path on purpose — so its logic verifies the QR against the ticket row through an admin
+//   client.
+// - create-payout-onboarding: payout_accounts is SRW (#245 — revoke all, grant back SELECT
+//   only), so the initial {profile_id, stripe_account_id} pointer row cannot ride the
+//   caller's RLS; the insert goes through the admin client. Capability flags stay the
+//   webhook's job — this function writes nothing else.
+const SERVICE_ROLE_ALLOWED = new Set(['check-in', 'create-payout-onboarding']);
+
+Deno.test('no user-callable function reaches for the service-role client', () => {
   // Rule 8 confines the service-role key to _shared/supabaseAdmin.ts and server jobs. These are
   // user-callable, so they must run under the caller's RLS — every one of them already takes a
   // `userClient` capability (see the four logic.test.ts ctx builders). An admin client here
   // would silently read rows the caller cannot see and price a Checkout session from them.
-  for (const fn of CREATE_FNS) {
+  for (const fn of SERVICE_ROLE_ALLOWED) {
+    assert(
+      POSTURE[fn] === 'user',
+      `${fn} is allowlisted for the service role as a user-callable function, but its posture is '${POSTURE[fn]}'`,
+    );
+  }
+  for (const fn of USER_FNS) {
+    if (SERVICE_ROLE_ALLOWED.has(fn)) continue;
     for (const file of ['index.ts', 'logic.ts']) {
       const code = src(fn, file);
       assert(

@@ -4,7 +4,7 @@ import {
   PASSWORD_REQUIREMENTS,
   passwordSchema,
   unmetPasswordRequirements,
-} from './password';
+} from './password.ts';
 
 describe('unmetPasswordRequirements', () => {
   it('accepts a password that meets all four rules', () => {

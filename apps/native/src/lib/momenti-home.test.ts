@@ -8,9 +8,8 @@ const card = (id: string, handle: string): MomentoDeckCard => ({
   handle,
   displayName: null,
   avatarPath: null,
-  reasons: ['Stesso sogno'],
+  reasons: [{ kind: 'shared', tags: ['artista'] }],
   dreamText: 'Aprire uno studio di ceramica',
-  status: 'pending',
 });
 
 describe('topWaitingMomento', () => {
@@ -38,12 +37,20 @@ describe('topWaitingMomento', () => {
     expect(topWaitingMomento([b, a])).toBe(b);
   });
 
-  // The order is the server's `daily_rank` (`packages/api/src/momenti.ts:53-54`). Home never
-  // re-ranks — a client sort here would silently disagree with the deck the tab deals from the
-  // same cache entry, so the card you tap would not be the card you get.
+  // The order is the server's (`proposed_on desc, daily_rank asc`), applied inside
+  // `get_momenti_deck()` (#273 B). Home never re-ranks — a client sort here would silently
+  // disagree with the deck the tab deals from the same cache entry, so the card you tap would
+  // not be the card you get.
   it('never re-ranks — position 0 wins even when a later card looks stronger', () => {
     const weak = { ...card('a', 'dario_legno'), reasons: [] };
-    const strong = { ...card('b', 'sole_designer'), reasons: ['x', 'y', 'z'] };
+    const strong = {
+      ...card('b', 'sole_designer'),
+      reasons: [
+        { kind: 'shared' as const, tags: ['artista'] },
+        { kind: 'seeking' as const, tags: ['mentor'] },
+        { kind: 'offering' as const, tags: ['freelance'] },
+      ],
+    };
     expect(topWaitingMomento([weak, strong])).toBe(weak);
   });
 });

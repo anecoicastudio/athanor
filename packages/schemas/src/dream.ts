@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { nonBlankString, trimmedNonBlank } from './primitives';
+import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 /** Mirrors supabase/migrations onboarding_identity + dreams_constraints. Update both together. */
 export const dreamSchema = z.object({

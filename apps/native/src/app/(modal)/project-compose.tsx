@@ -1,18 +1,25 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProject, projectKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { ProjectCategory } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
+import { Field } from '@/components/Field';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocale } from '@/hooks/use-locale';
+import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
+import { useToast } from '@/components/ToastHost';
 
 const CATEGORIES: ProjectCategory[] = [
   'startup',
@@ -23,16 +30,34 @@ const CATEGORIES: ProjectCategory[] = [
 ];
 
 export default function ProjectComposeScreen() {
-  const { profile, session } = useAuth();
-  const router = useRouter();
+  const { session } = useAuth();
+  const leave = useGuardedBack();
   const queryClient = useQueryClient();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('startup');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const authorId = session?.user.id;
+
+  // #636: title + category + description went with one swipe-down. This composer is missing
+  // from the issue's roster entirely; it loses work exactly like the ones that are on it.
+  const { showToast } = useToast();
+
+  /**
+   * TanStack v5 awaits the hook-level `onSuccess` after this component unmounts, and the exit
+   * stays live while the write is in flight — so without this ref a publish that lands late
+   * navigates the member off whatever screen they reached, and a late failure `setError`s into
+   * a component nobody is looking at (#579). Same ref, same reasons, as `post-compose`.
+   */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -48,9 +73,33 @@ export default function ProjectComposeScreen() {
     onSuccess: async () => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await queryClient.invalidateQueries({ queryKey: projectKeys.all });
-      router.back();
+      // A haptic says nothing on web and little on a device (#579). Outside the guard: the
+      // toast host is global, so it reaches the member even if they already left. `'success'`,
+      // not `'moment'` — rule 4 keeps the ✦ for what happens TO them, and a ricerca that finds
+      // someone is the moment, not the posting of it.
+      showToast(t('project.toast.published', locale), 'success');
+      if (mounted.current) leave();
     },
-    onError: () => setError(t('project.compose.error', locale)),
+    onError: () => {
+      /*
+        `project.compose.error` — «Dai un titolo alla ricerca» — is the CLIENT-side validation
+        miss, and it was answering server refusals too: a network drop or an RLS denial told
+        the member to title a ricerca they had already titled, which is advice they cannot act
+        on. Same slip post-compose carried, fixed the same way (#579).
+
+        Inline while they are here; the toast is the only surface left once they are not.
+      */
+      const message = t('project.compose.publishError', locale);
+      if (mounted.current) setError(message);
+      else showToast(message);
+    },
+  });
+
+  const [baseline] = useState(() => ({ title, category, description }));
+  useDirtyGuard({
+    dirty: isDraftDirty(baseline, { title, category, description }),
+    saving: mutation.isPending,
+    submitted: mutation.isSuccess,
   });
 
   const onPublish = () => {
@@ -63,11 +112,8 @@ export default function ProjectComposeScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View className="flex-1 bg-background">
+    <KeyboardAvoiding>
+      <Screen>
         <ModalHeader
           title={t('create.project.title', locale)}
           backLabel={t('common.back', locale)}
@@ -77,10 +123,8 @@ export default function ProjectComposeScreen() {
 
           <View className="gap-2">
             <SectionLabel>{t('project.compose.titleLabel', locale)}</SectionLabel>
-            <TextInput
-              className="rounded-full border border-hair bg-raise p-4 text-[15px] text-foreground"
+            <Input
               placeholder={t('project.compose.titlePlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={title}
               onChangeText={setTitle}
               maxLength={140}
@@ -91,35 +135,29 @@ export default function ProjectComposeScreen() {
           <View className="gap-2">
             <SectionLabel>{t('project.compose.catLabel', locale)}</SectionLabel>
             <View className="flex-row flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
-                const isActive = c === category;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setCategory(c)}
-                    className={`rounded-full border px-4 py-2 ${
-                      isActive ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
-                    }`}
-                  >
-                    <Text className={`text-[13px] ${isActive ? 'text-aura' : 'text-faint'}`}>
-                      {t(`costellazioni.filter.${c}` as MessageKey, locale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {/* The same hand-rolled pill `post-compose` had, over the same six keys the board
+                  filter renders — folded onto `Chip` with it so the two composers and the board
+                  cannot drift (#635). */}
+              {CATEGORIES.map((c) => (
+                <Chip
+                  key={c}
+                  small
+                  label={t(`costellazioni.filter.${c}` as MessageKey, locale)}
+                  selected={c === category}
+                  onPress={() => setCategory(c)}
+                />
+              ))}
             </View>
           </View>
 
           <View className="gap-2">
             <SectionLabel>{t('project.compose.descLabel', locale)}</SectionLabel>
-            <TextInput
-              className="min-h-[120px] rounded-hero border border-hair bg-raise p-4 text-[15px] text-foreground"
+            <Field
+              size="lg"
+              multiline
               placeholder={t('project.compose.descPlaceholder', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
               value={description}
               onChangeText={setDescription}
-              multiline
-              textAlignVertical="top"
             />
           </View>
 
@@ -131,7 +169,7 @@ export default function ProjectComposeScreen() {
             variant="light"
           />
         </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }

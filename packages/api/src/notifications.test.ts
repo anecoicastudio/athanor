@@ -29,6 +29,7 @@ const notification = (over: Record<string, unknown> = {}) => ({
   entity_ref: { kind: 'momento', id: 'm1' },
   read_at: null,
   created_at: '2026-01-02T10:00:00.000Z',
+  updated_at: '2026-01-02T10:00:00.000Z',
   ...over,
 });
 

@@ -4,7 +4,7 @@ import { gradient, semantic } from '@athanor/config';
  * Brand mandorla as an SVG data URI — for `next/og` ImageResponse, where the
  * CSS design tokens aren't available (Satori renders an isolated tree). Colors
  * still come from @athanor/config (never literal hex), per brand rule 4: two
- * vesica circles in the mandala gradient + the cyan Kairos star at the apex.
+ * vesica circles in the mandala gradient + the cyan ✦ spark at the apex.
  */
 export function mandorlaDataUri(stroke = 4): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">

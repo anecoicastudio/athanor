@@ -1,25 +1,74 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
+import { sweepMemberStorage, type SweepStorage } from './sweep.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
-// port wiring) and injects everything here (repo convention: DI over mocks). Auth
-// arrives as a capability port because the fake db has no .auth namespace. The port
-// exposes ONLY signOut — getUserById/deleteUser join it when the legal-gated cascade
-// below goes live.
+// + storage port wiring) and injects everything here (repo convention: DI over mocks).
+// Auth and storage arrive as capability ports because the fake db has no .auth or
+// .storage namespace. The auth port exposes ONLY revokeSessions — getUserById/deleteUser
+// join it when the legal-gated cascade below goes live.
 
 export type ErasureAuth = {
-  /** db.auth.admin.signOut — global revoke, MUST run before any delete (see step 1) */
-  signOut: (profileId: string, scope: 'global') => Promise<unknown>;
+  /**
+   * Revoke every live session of the subject, BY PROFILE ID — MUST run before any delete (step 1).
+   *
+   * By id, and no scope argument, because both are the shape of #542: the port used to be
+   * `signOut(profileId, 'global')` over `db.auth.admin.signOut`, which takes «A valid, logged-in
+   * JWT» and 401'd on every UUID it was handed. Its replacement (./revoke.ts) revokes all of the
+   * user's sessions and nothing else, so a scope parameter would be one the implementation
+   * cannot honour — the same class of lie the port already told once.
+   *
+   * Reports failure BOTH ways, like every other Supabase surface: a rejection, and a RESOLVED
+   * `{ error }` — the shape PostgREST returns for a failed RPC, and the common one. A caller
+   * that only catches would record a run whose sessions are still live as a clean one.
+   */
+  revokeSessions: (profileId: string) => Promise<{ error?: unknown } | null>;
 };
+
+/**
+ * The Storage surface the job needs. BUCKET-AWARE since #573: `remove()` is bucket-scoped, and
+ * the sweep below reaches every declared bucket, so index.ts can no longer pre-bind one
+ * (`db.storage.from('candidacy-videos')` was the whole erasure's storage reach).
+ */
+export type ErasureStorage = SweepStorage;
 
 export type ErasureCtx = {
   /** service role — owns the request status column (+ the gated cascade, when live) */
   db: SupabaseClient;
   auth: ErasureAuth;
+  storage: ErasureStorage;
+  /**
+   * Cloudflare KV purge of the subject's cached public pages (#515 item 3), or **null when
+   * the CF_KV_* trio is absent from edge-function env**. Null is carried this far rather than
+   * resolved inside the loop so the unconfigured state is a value the loop can record: an
+   * unconfigured deployment leaves the erased member's card and page readable by key, which
+   * is the one thing #468/#492 say must never be a silent skip.
+   */
+  kv: ErasureKv | null;
 };
 
+/**
+ * How many of the subject's dream ids one run derives KV keys for.
+ *
+ * Bounded because PostgREST caps a response at `max_rows` (supabase/config.toml) and returns
+ * the truncated page with NO error — an unbounded read would drop the tail silently and this
+ * block would report a clean sweep over a partial key set, which is the one thing it exists to
+ * prevent. Far above any real member (PRD §4.3 allows one active dream, and editing updates in
+ * place rather than archiving), so hitting it means something is wrong; a full page is
+ * therefore treated as a purge gap rather than as a complete read.
+ */
+const DREAM_ID_READ_LIMIT = 500;
+
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
-  const { db, auth } = ctx;
+  const { db, auth, storage, kv } = ctx;
+
+  // Reported whatever happens below, including on a zero-request run: a smoke invocation of
+  // this function is then enough to see that the deployment cannot purge (#515).
+  let kvDeleted = 0;
+  let kvFailed = 0;
+  /** Keys the Storage API accepted across every bucket and every request in this run (#573). */
+  let storageRemoved = 0;
 
   const { data: reqs, error } = await db
     .from('gdpr_erasure_requests')
@@ -31,22 +80,202 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   for (const erasureReq of reqs ?? []) {
     await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', erasureReq.id);
 
-    // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
-    await auth.signOut(erasureReq.profile_id, 'global').catch(() => undefined);
+    // #515 — every step below is best-effort so one dead dependency cannot stall the batch, but
+    // «swallowed» must not mean «unrecorded»: a step that errored is what separates the terminal
+    // 'failed' from 'partial'. 'partial' claims the run did everything it could and stopped only
+    // at the legal gate; that claim is only true while this stays false.
+    let degraded = false;
 
-    // (3) TODO(legal-gate): pseudonymize Stripe-linked rows BEFORE deleting the user, so the
-    //     on-delete-cascade does not remove legally-retained financial history. Detach profile_id to a
-    //     tombstone / null per the retention policy. Confirm the exact FK behavior + retention window
-    //     with counsel (10 §5 line 383, same gate as the fund PRD §13 Q1). Until then this fn stays
-    //     undeployed — do NOT proceed to (4) without (3).
+    // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
+    //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
+    //     a failed statement. Leaving the member's tokens live is the last thing that may pass
+    //     for a clean run — and until #542 it did, on every request that took this path.
+    //     Revoking nothing is NOT a failure: a member who was never signed in on any device has
+    //     no session to revoke, and ./revoke.ts reports that as success (a count, not an error).
+    const revokeResult = await auth
+      .revokeSessions(erasureReq.profile_id)
+      .catch(() => ({ error: new Error('session revoke rejected') }));
+    if (revokeResult?.error) degraded = true;
+
+    // (3) fund-table reach — LIVE (#240). One atomic DB transaction (gdpr_erase_fund_footprint,
+    //     20260815131925): fund_contributions tombstone-reassigned to the pre-seeded no-PII
+    //     sentinel (D50: money rows are pseudonymized, never deleted — and #378's ON DELETE
+    //     RESTRICT makes the reassignment mandatory before (4b) can ever run), candidacy_votes
+    //     + dream_candidacies deleted, touched fund_aggregates recomputed. The function returns
+    //     the candidacy-videos blob manifest — which this loop no longer removes from, see (3a).
     //
-    //     Tables to pseudonymize before (4):
-    //       fund_contributions  — profile_id FK
-    //       event_tickets       — profile_id FK
+    //     Its `data` is deliberately not read. Since #573 the sweep below derives the same rows
+    //     from the same table for EVERY declared bucket, so the fund manifest is a strict subset
+    //     of what (3a) already removes and consuming it here would be one dead Storage round trip
+    //     per request. The RPC's return shape stays as it is: 20260815131925 is applied,
+    //     migrations are append-only, and 0104 pins that manifest as the fund reach's own
+    //     contract.
+    const { error: fundError } = await db.rpc('gdpr_erase_fund_footprint', {
+      p_profile_id: erasureReq.profile_id,
+    });
+    if (fundError) {
+      degraded = true; // nothing irreversible ran for this request — that is a real failure
+    } else {
+      // (3a) BYTES — every bucket, not just candidacy-videos (#573). gdpr_storage_footprint
+      //     (20260827110034) lists the member's `{uid}/` folder across all seven declared
+      //     buckets; ./sweep.ts removes it in re-listing rounds. Rejection and resolved
+      //     `{ error }` are both swallowed and both recorded, like the session revoke: one dead
+      //     Storage call must not stall the batch, but a member's photo still sitting in a
+      //     bucket means this run did not finish what it started, so it is 'failed', never
+      //     'partial'. Rounds running out without the folder draining counts the same way.
+      //
+      //     Gated on the fund reach succeeding, as the candidacy removal was — but the reason is
+      //     narrower than it looks, and is written down here so nobody "fixes" the asymmetry
+      //     later. For candidacy-videos the gate buys consistency outright: the same transaction
+      //     deletes the dream_candidacies rows whose video_url names those keys, so the rows and
+      //     their bytes go together or neither goes. For the other six buckets it buys nothing of
+      //     the kind — (4b) below is still commented behind the legal gate, so the member's posts,
+      //     moments, story segments, messages and profile row all survive this run, now pointing
+      //     at bytes that are gone. Other members see dead signed URLs where the photos were.
+      //
+      //     That is the deliberate side of the trade. Art. 17 is about the bytes: a broken image
+      //     on someone else's feed is a rendering defect, an erased member's photograph still
+      //     sitting in a bucket is the compliance failure #573 was filed for. The row half is
+      //     #107's job (gated on #184), and until it lands a processed erasure leaves that seam
+      //     visible. Do NOT close it by narrowing the sweep.
+      const sweep = await sweepMemberStorage(
+        {
+          list: (profileId, limit) =>
+            db.rpc('gdpr_storage_footprint', { p_profile_id: profileId, p_limit: limit }),
+          remove: storage.remove,
+        },
+        erasureReq.profile_id,
+      );
+      if (sweep.failed || !sweep.exhausted) degraded = true;
+      storageRemoved += sweep.removed;
+    }
+
+    // (3b) purge the subject's cached public web pages from Cloudflare KV (#515 item 3, widened
+    //     to dreams by #159). apps/web caches the prerendered profile page, its OG card and —
+    //     since #159 — every `/dream/{id}` page it has served, and a deploy strands rather than
+    //     replaces them, so those bytes outlive every row erased above
+    //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). ./kv.ts
+    //     does the sweep; this decides what its outcome means for the record.
+    //
+    //     Ordering: BOTH key inputs are read HERE, before (4b) below. The keys are hashes of
+    //     /@handle and /dream/<id>, and (4b) cascades the profiles row away — which takes the
+    //     dreams rows with it — so once the legal gate opens, a purge attempted after it has
+    //     no key input left at all.
+    //
+    //     One sweep, not two: purgePaths lists the whole namespace per call, so handing it the
+    //     handle paths and the dream paths together costs one listing instead of two.
+    const [{ data: profile, error: profileError }, { data: dreamRows, error: dreamsError }] =
+      await Promise.all([
+        db.from('profiles').select('handle').eq('id', erasureReq.profile_id).maybeSingle(),
+        // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
+        // filters describe what the page serves TODAY, and this is about what KV cached
+        // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
+        // facet flip still has a stranded entry under a dead build prefix, holding the text
+        // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
+        db
+          .from('dreams')
+          .select('id')
+          .eq('profile_id', erasureReq.profile_id)
+          // Ordered so the page is deterministic, bounded so a truncated one is detectable.
+          .order('id', { ascending: true })
+          .limit(DREAM_ID_READ_LIMIT),
+      ]);
+    const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
+    const dreamRowCount = ((dreamRows ?? []) as unknown[]).length;
+    const dreamIds = ((dreamRows ?? []) as { id?: string | null }[])
+      .map((row) => row.id)
+      .filter((id): id is string => !!id);
+
+    // `kvPaths`, not `paths`: these are cache keys, and the run also deals in a second list of
+    // strings — ./sweep.ts's storage keys. Two different lists of strings under one name is how
+    // the wrong one gets handed to the wrong call, so they stay named apart even now that the
+    // storage half has moved out of this function.
+    const kvPaths: string[] = [];
+    // A key input we could not READ is not one that never existed: the subject's pages may well
+    // be sitting in KV, and without the handle or the ids there is no key to derive. Same gap as
+    // a failed purge, so each is counted and named as one rather than falling into the
+    // nothing-to-purge branch below and reporting a clean sweep.
+    if (profileError) {
+      degraded = true;
+      kvFailed++;
+      console.error(
+        'erasure-job: handle unreadable, KV purge skipped',
+        erasureReq.id,
+        profileError,
+      );
+    } else if (handle) {
+      kvPaths.push(...ogCardPaths(handle));
+    }
+    if (dreamsError) {
+      degraded = true;
+      kvFailed++;
+      console.error(
+        'erasure-job: dreams unreadable, KV purge of dream pages skipped',
+        erasureReq.id,
+        dreamsError,
+      );
+    } else {
+      kvPaths.push(...dreamPagePaths(dreamIds));
+      // The RAW row count, not `dreamIds`: the filter above drops a row with no id, and a full
+      // page holding one would otherwise leave 499 and slip past this guard — a truncated read
+      // reading as a complete one, which is the shape this guard exists to close.
+      if (dreamRowCount >= DREAM_ID_READ_LIMIT) {
+        // A full page may be a truncated one, and PostgREST does not say which. The keys we
+        // did derive are still purged below — this records that the READ may have missed some,
+        // exactly as an unreadable handle does, so the run cannot report a clean sweep.
+        degraded = true;
+        kvFailed++;
+        console.error(
+          'erasure-job: dream id read hit its limit, some dream pages may be unpurged',
+          erasureReq.id,
+        );
+      }
+    }
+
+    if (kvPaths.length > 0) {
+      if (!kv) {
+        // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
+        // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
+        // 'partial' claims the run did everything it could; with the member's card still
+        // servable from KV that claim is false, so this is a real 'failed'.
+        degraded = true;
+        kvFailed++;
+        console.error(
+          'erasure-job: KV purge unconfigured, cached pages left in place',
+          erasureReq.id,
+        );
+      } else {
+        const purge = await kv
+          .purgePaths(kvPaths)
+          .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
+        kvDeleted += purge.deleted;
+        // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
+        // handles and dream pages prerender not at all, so most members never had a cached
+        // entry under any of these paths. Only a broken sweep counts.
+        if (purge.error) {
+          degraded = true;
+          kvFailed++;
+          // Recorded, not rethrown: the DB erasure above already ran and is irreversible, so
+          // failing the whole batch here would mask a completed cascade behind a KV outage.
+          console.error('erasure-job: KV purge failed', erasureReq.id, purge.error);
+        }
+      }
+    }
+    // The remaining case — both reads succeeded, no handle and no dreams — is genuinely clean:
+    // the member never had a public URL, so nothing was ever cached under one.
+
+    // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
+    //     retention window with counsel (#184; 10 §5 line 383, same gate as the fund PRD §13 Q1).
+    //     Do NOT proceed to (4) while any of these still points at the profile:
+    //       event_tickets       — user_id FK (NOT profile_id — 20260615232924)
     //       circle_memberships  — profile_id FK
-    //     Strategy (when legal gate clears): SET profile_id = '<tombstone-uuid>' WHERE profile_id = erasureReq.profile_id,
-    //     so financial rows survive the auth.users cascade with a detached placeholder rather than being
-    //     deleted. The tombstone profile row itself is a separate pre-seeded sentinel (no PII).
+    //     Chat is NOT on this list by design: conversations.participant_a/b are ON DELETE
+    //     CASCADE, so (4b) erases the member's conversations and their messages outright;
+    //     messages.sender_id's SET NULL no longer aborts that cascade since the
+    //     messages_user_shape widening (#336, 20260813163902). If counsel instead decides
+    //     to preserve counterpart conversations, that becomes a schema change here.
+    //     The retention window itself is deliberately not encoded anywhere yet — nothing in
+    //     this job deletes a retained money row, so there is no number to invent (#184).
 
     // (2)+(4) DEPLOY-GATED: delete auth.users (cascades profiles + on-delete-cascade content), then
     //     purge waitlist by email. Left commented until the legal gate clears so a stray run can't hard-delete.
@@ -60,13 +289,33 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // Step (4b) — delete auth.users row; cascades → profiles → all FK on-delete-cascade content:
     // await db.auth.admin.deleteUser(erasureReq.profile_id);
 
-    await db.from('gdpr_erasure_requests').update({ status: 'failed' }).eq('id', erasureReq.id);
-    // ^ stays 'failed' (not 'done') intentionally while legal-gated: the request is logged but the
-    //   destructive cascade is NOT performed. Flip to the real cascade + status='done' at deploy-time
-    //   once step (3) pseudonymization is implemented and counsel has confirmed the retention window.
+    await db
+      .from('gdpr_erasure_requests')
+      .update({ status: degraded ? 'failed' : 'partial' })
+      .eq('id', erasureReq.id);
+    // ^ never 'done' while legal-gated: the fund reach above ran, but the account itself is NOT
+    //   erased, and 'done' would report a partial erasure as complete. It is not 'failed'
+    //   either unless something actually failed (#515) — the run below the gate did real,
+    //   irreversible work, and calling that a failure misleads whoever reads the row next.
+    //   Note what neither status buys: the claim query filters status='requested', so a
+    //   terminal row is never picked up again. Every step here is idempotent, but nothing
+    //   re-queues a 'failed' one — re-driving it is a manual act until #107 lands.
+    //   Flip the clean branch to status='done' only when (3-gated) + (4) go live (#107, gated
+    //   on #184). Every step above is idempotent, so re-running a request after that flip
+    //   finishes cleanly.
   }
 
-  return new Response(JSON.stringify({ seen: reqs?.length ?? 0 }), {
-    headers: { 'content-type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify({
+      seen: reqs?.length ?? 0,
+      // `configured: false` is the whole point of reporting this: it is true of the
+      // deployment, not of a request, so it shows up even on a run that saw nothing (#515).
+      kvPurge: { configured: kv !== null, deleted: kvDeleted, failed: kvFailed },
+      // #573 — bytes, across every declared bucket. A run that erased members and reports
+      // `removed: 0` is the shape of the bug this replaced: the sweep found nothing where the
+      // member's photos should have been.
+      storageRemoved,
+    }),
+    { headers: { 'content-type': 'application/json' } },
+  );
 }

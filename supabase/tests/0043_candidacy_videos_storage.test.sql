@@ -8,11 +8,14 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(12);
 
 select ok((select not public from storage.buckets where id='candidacy-videos'), 'bucket is private');
 select is((select file_size_limit from storage.buckets where id='candidacy-videos'), 209715200::bigint, '200MB limit');
-select is((select allowed_mime_types from storage.buckets where id='candidacy-videos'), array['video/mp4','image/jpeg'], 'mp4 video + jpeg poster');
+-- #412 widened this to accept QuickTime: an iPhone records .mov and the client used to
+-- mislabel it 'video/mp4' to get past this very list. The client mirrors the two video
+-- entries in MEDIA_LIMITS.VIDEO_MIME_TYPES; image/jpeg is the poster frame (#282).
+select is((select allowed_mime_types from storage.buckets where id='candidacy-videos'), array['video/mp4','video/quicktime','image/jpeg'], 'mp4 + quicktime video, jpeg poster');
 select ok(exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='candidacy_videos_insert_own'), 'insert-own policy');
 
 -- The insert gate must match the candidacy precondition (no orphan blobs): the video write
@@ -39,6 +42,20 @@ select has_function('public', 'fund_edition_open', 'fund_edition_open helper exi
 select ok(
   not has_function_privilege('anon', 'public.fund_edition_open()', 'execute'),
   'anon cannot execute fund_edition_open (read gate is members-only)'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.fund_edition_open()', 'execute'),
+  'authenticated can execute fund_edition_open'
+);
+
+-- #145 re-audit: DEFINER was never required — fund_editions is world-readable
+-- (using (true) + select granted to anon/authenticated since 20260617212319), so
+-- 20260813170840 reverted the helper to invoker. Pin it so it cannot silently regress.
+select ok(
+  (select not p.prosecdef
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fund_edition_open'),
+  'fund_edition_open is SECURITY INVOKER (#145 — definer rights added nothing)'
 );
 
 select * from finish();

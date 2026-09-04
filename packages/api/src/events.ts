@@ -2,6 +2,7 @@ import {
   type Attendance,
   type CheckInResult,
   type Event,
+  type EventCalendarFilters,
   type EventCategory,
   type EventCreate,
   type EventLiveStats,
@@ -17,15 +18,21 @@ import {
   rsvpSchema,
   ticketSchema,
 } from '@athanor/schemas';
+import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import type { AthanorClient } from './client';
 import { keysetFilter, nextCursorOf } from './pagination';
-import { channelTopic } from './realtime';
+import { channelTopic, sharedRoom } from './realtime';
 
 export const eventKeys = {
   all: ['events'] as const,
   nearby: (lat: number, lng: number, radiusKm: number) =>
     [...eventKeys.all, 'nearby', lat, lng, radiusKm] as const,
-  calendar: () => [...eventKeys.all, 'calendar'] as const,
+  /**
+   * Filters belong IN the key (rules/api.md): a changed filter set is a different cache
+   * entry, so TanStack starts it at `initialPageParam: null` and the keyset cursor from
+   * the previous filter set can never be carried into it (rule #9).
+   */
+  calendar: (filters?: EventCalendarFilters) => [...eventKeys.all, 'calendar', filters] as const,
   online: () => [...eventKeys.all, 'online'] as const,
   today: () => [...eventKeys.all, 'today'] as const,
   detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
@@ -34,36 +41,128 @@ export const eventKeys = {
   attendees: (eventId: string) => [...eventKeys.all, 'attendees', eventId] as const,
   liveStats: (eventId: string) => [...eventKeys.all, 'liveStats', eventId] as const,
   ticket: (eventId: string) => [...eventKeys.all, 'ticket', eventId] as const,
+  seats: (eventId: string) => [...eventKeys.all, 'seats', eventId] as const,
   checkin: (eventId: string) => [...eventKeys.all, 'checkin', eventId] as const,
 };
 
 /** Columns the client reads (everything except the geography `geo` column). */
 const EVENT_COLS =
-  'id,organizer_id,title,category,is_online,venue,city,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_kairos_day,is_athanor_day,cover_url,live_started_at,live_ended_at,created_at,updated_at,deleted_at';
+  'id,organizer_id,title,category,is_online,venue,city,description,stream_url,starts_at,ends_at,capacity,price_cents,currency,fee_pct,is_athanor_day,cover_url,live_started_at,live_ended_at,settlement_ack_at,created_at,updated_at,deleted_at';
 
 const PAGE_SIZE = 20;
+
+/**
+ * How long an event with no declared `ends_at` is assumed to run. `events_ends_after_starts`
+ * makes `ends_at` optional, so without this an event that never declares an end would either
+ * vanish at its start instant or linger on the calendar forever.
+ *
+ * Four hours, matching `20260813054817_live_window_sweep.sql`, which closes an unclosed LIVE
+ * window after the same span (#530's ruling was amended to align the two). Keep them equal:
+ * they are the same product question asked from two sides — the sweep decides when a stream
+ * is over, this decides how long an open-ended event stays listed — and an ONLINE event is
+ * held visible by arm 2 for exactly as long as the sweep leaves its window open. Were this
+ * shorter, an in-person open-ended event (nothing marks it live, so arm 4 alone governs)
+ * would vanish mid-session while the database still considered it running.
+ */
+const ASSUMED_DURATION_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * How far back the scan may reach. Without a lower bound the disjunction below is not sargable
+ * against `events_calendar (starts_at, id) where deleted_at is null`: the planner would walk
+ * the index from the oldest event forward, discarding every finished row before it could fill
+ * a page — cost growing with the table's whole history, on the hot path of Home «Oggi», Live
+ * Calendario/Mappa and the feed's «Eventi» tab.
+ *
+ * As a top-level predicate it ANDs with the bound and restores the range start. The trade is
+ * explicit: an event still under way that began more than this long ago is not listed. It also
+ * caps arm 2, which is otherwise unbounded in time — a live window that is never closed
+ * (`live_window_sweep` never overwrites a manually set one) would otherwise sit on every
+ * calendar surface forever.
+ */
+const MAX_EVENT_SPAN_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Opaque keyset cursor for the calendar (the last (starts_at, id) seen). Never an offset (rule #9). */
 export type CalendarCursor = { starts_at: string; id: string };
 export type CalendarPage = { events: Event[]; nextCursor: CalendarCursor | null };
 
-/** Upcoming events ascending by (starts_at, id) — keyset, never offset. */
+/**
+ * Escape the LIKE metacharacters PostgREST forwards, so a city typed into the filter
+ * sheet is matched literally. `*` is PostgREST's own alias for `%` in `like`/`ilike`
+ * and is substituted before Postgres sees the pattern, so a backslash cannot escape it —
+ * it is dropped instead (no city name contains one).
+ */
+function literalIlike(value: string): string {
+  return value.replace(/\*/g, '').replace(/([\\%_])/g, '\\$1');
+}
+
+/**
+ * Events that have not finished — upcoming, live now, or in progress — ascending by
+ * (starts_at, id), keyset, never offset. A row is kept while ANY of: it has not started;
+ * `live_started_at` is set and `live_ended_at` is not; `ends_at` is still to come; or it
+ * declared no `ends_at` and started within the last four hours (`ASSUMED_DURATION_MS`).
+ *
+ * Before #530 this was `starts_at >= now`, which hid an event at the instant it began.
+ * Rows that are already under way therefore sort FIRST now — soonest-`starts_at` ascending
+ * puts a started event ahead of an upcoming one, which is the intent: a live event leads
+ * «Oggi» and the calendar. The bound is a filter, so the (starts_at, id) keyset is unchanged.
+ *
+ * `filters` is appended last and stays optional so the two unfiltered call sites
+ * (`TodaySection` under `eventKeys.today()`, and `useCalendarEvents`) keep their
+ * behaviour byte-for-byte. Every filter is a top-level PostgREST predicate, and
+ * top-level predicates AND together — so they compose with the keyset `or(...)`
+ * rather than widening it.
+ *
+ * The date window is a pair of absolute ISO instants resolved by the caller, never a
+ * preset name: this function reads the clock exactly once, for the visibility bound, and
+ * `dateFrom`/`dateTo` AND with that bound instead of replacing it. A past `dateFrom`
+ * therefore cannot resurrect events that already finished. The converse is deliberate too:
+ * `dateFrom` is a plain `starts_at` lower bound, so a preset like «Domani» still excludes
+ * an event that is live right now but started yesterday — a date filter is a question about
+ * when something starts, and answering it with a row outside the window would be wrong.
+ *
+ * `filters` is trusted on its type: VALIDATING it is the caller's job, and the app does it
+ * in `apps/native/src/lib/event-filters.ts` before the value ever reaches here. Nothing is
+ * cast off a result, which is what rules/api.md's "Zod at a query boundary" governs.
+ */
 export async function getEventsCalendar(
   client: AthanorClient,
   cursor?: CalendarCursor | null,
   limit = PAGE_SIZE,
+  filters?: EventCalendarFilters,
 ): Promise<CalendarPage> {
-  // Upcoming only: hide events that already started (the calendar/«Oggi»/map previews
-  // are "in arrivo"). Top-level filters AND together, so this composes with the keyset.
-  const cutoff = new Date().toISOString();
+  // The visibility bound (#530). A bare `starts_at >= now` dropped every event at the
+  // instant it began — the one moment it matters most — so a row stays while ANY arm holds:
+  // not started yet, explicitly live, or in progress by time. `coalesce(ends_at, starts_at +
+  // ASSUMED_DURATION_MS) >= now` is split into the last two arms because PostgREST cannot add
+  // an interval in a filter; both instants come from the ONE clock read this function promises.
+  // Top-level predicates AND together, so this composes with the keyset `or(...)` below and
+  // with the #151 date window rather than widening either.
+  const now = new Date();
+  const cutoff = now.toISOString();
+  const graceCutoff = new Date(now.getTime() - ASSUMED_DURATION_MS).toISOString();
+  const scanFloor = new Date(now.getTime() - MAX_EVENT_SPAN_MS).toISOString();
   let query = client
     .from('events')
     .select(EVENT_COLS)
     .is('deleted_at', null)
-    .gte('starts_at', cutoff)
+    .gte('starts_at', scanFloor)
+    .or(
+      `starts_at.gte.${cutoff},` +
+        `and(live_started_at.not.is.null,live_ended_at.is.null),` +
+        `ends_at.gte.${cutoff},` +
+        `and(ends_at.is.null,starts_at.gte.${graceCutoff})`,
+    )
     .order('starts_at', { ascending: true })
     .order('id', { ascending: true })
     .limit(limit);
+
+  if (filters?.category) query = query.eq('category', filters.category);
+  // `events.city` is free text written by event-create's reverse geocode, so match it
+  // case-insensitively but WHOLE — no implicit wildcards, or «Roma» would also pull in
+  // every «Roma, RM» variant the geocoder happens to emit.
+  if (filters?.city) query = query.ilike('city', literalIlike(filters.city));
+  if (filters?.dateFrom) query = query.gte('starts_at', filters.dateFrom);
+  if (filters?.dateTo) query = query.lte('starts_at', filters.dateTo);
 
   if (cursor) {
     const { starts_at, id } = cursor;
@@ -185,6 +284,8 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
     p_capacity?: number;
     p_price_cents?: number;
     p_currency?: string;
+    p_settlement_ack?: boolean;
+    p_description?: string;
   } = {
     p_title: v.title,
     p_category: v.category,
@@ -198,8 +299,14 @@ export async function createEvent(client: AthanorClient, input: EventCreate): Pr
   if (v.stream_url != null) rpcArgs.p_stream_url = v.stream_url;
   if (v.ends_at != null) rpcArgs.p_ends_at = v.ends_at;
   if (v.capacity != null) rpcArgs.p_capacity = v.capacity;
+  if (v.description != null) rpcArgs.p_description = v.description;
   if (v.price_cents !== 0) rpcArgs.p_price_cents = v.price_cents;
   if (v.currency !== 'eur') rpcArgs.p_currency = v.currency;
+  // Sent only for a paid event that carries it, matching the RPC's `default false` and its own
+  // `price_cents > 0` scoping. A free event has nothing to settle, so an acknowledgement on one
+  // would record agreement to terms that do not apply. create_event refuses a paid event without
+  // it and stamps settlement_ack_at from now(); the boolean is all the client ever says (#437).
+  if (v.price_cents > 0 && v.settlement_ack) rpcArgs.p_settlement_ack = true;
 
   const { data: id, error } = await client.rpc('create_event', rpcArgs);
   if (error) throw error;
@@ -228,6 +335,10 @@ export async function registerAthanorDaysInterest(
  * conflict flips status — a second "Partecipo" tap is a no-op, a cancel sets
  * status='cancelled' (we keep the row, never delete — backend §2.2). NEVER writes Aura
  * (rule #1): the +15 attend award is the M6 score-engine (TODO(M6)).
+ *
+ * No longer the table's only writer: stripe-webhook mirrors a settled ticket as a going row
+ * (#522). Nothing here has to know that — the mirror is an ordinary row, and the capacity gate
+ * exempts a member whose ticket has settled (20260831090931).
  */
 export async function upsertRsvp(
   client: AthanorClient,
@@ -261,7 +372,13 @@ export async function getMyRsvp(
   return rsvpSchema.parse(data);
 }
 
-/** Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest user_ids. */
+/**
+ * Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest
+ * user_ids. Since #522 that count is the whole audience on a paid event too — the webhook
+ * mirrors each settled ticket as a going RSVP, so «N partecipano» stopped reading zero there
+ * without this query changing. The preview ids follow: a paid event's attendees are as visible
+ * as a free one's, which is the same rule the product already applies to attendance.
+ */
 export type AttendeePreview = { count: number; userIds: string[] };
 export async function getEventAttendees(
   client: AthanorClient,
@@ -290,14 +407,14 @@ export async function getEventAttendees(
   };
 }
 
-/** One-shot read of the live-listener stats for an online event (null if no row yet). */
+/** One-shot read of the live flag for an online event (null if no row yet). */
 export async function getEventLiveStats(
   client: AthanorClient,
   eventId: string,
 ): Promise<EventLiveStats | null> {
   const { data, error } = await client
     .from('event_live_stats')
-    .select('event_id,listener_count,is_live,updated_at')
+    .select('event_id,is_live,updated_at')
     .eq('event_id', eventId)
     .maybeSingle();
   if (error) throw error;
@@ -305,8 +422,9 @@ export async function getEventLiveStats(
 }
 
 /**
- * Subscribe to live-listener stats for one online event (realtime INSERT/UPDATE) — backend 09 C8,
- * channel `event:{id}:live`. The count is service-role/Realtime maintained; clients never write it.
+ * Subscribe to the live flag for one online event (realtime INSERT/UPDATE) — backend 09 C8,
+ * channel `event:{id}:live`. The flag is cron-maintained (live_window_sweep); clients never
+ * write it. The listener count is presence, not a row — see subscribeEventPresence.
  * Returns a cleanup fn — callers MUST call it on unmount (rule api.md, invariant #1).
  */
 export function subscribeEventLive(
@@ -335,6 +453,81 @@ export function subscribeEventLive(
   };
 }
 
+type PresenceMember = {
+  /** where this subscriber wants the room's size delivered */
+  onCount: (count: number) => void;
+  /** whether this subscriber wants its own presence counted, not just observed */
+  track: boolean;
+};
+
+/**
+ * Subscribe to the live listener count of one event via Realtime presence — no table, no
+ * writer, no polling (#120). `onCount` receives the number of open connections in the room
+ * (a person on two devices counts twice). Pass `track: true` from the listening surface
+ * (event detail) to be counted; omit it to observe only (Live-tab rows).
+ * Returns a cleanup fn — callers MUST call it on unmount (rule api.md, invariant #1).
+ *
+ * One shared room per (client, event): presence only counts members of the SAME topic, so
+ * this must NOT go through channelTopic — its uniqueness suffix would put every subscriber
+ * in a private room of one. sharedRoom holds the refcount (realtime.ts); the member is an
+ * internal record rather than `onCount` itself, so a caller passing one stable callback
+ * (a useState setter) from two places still gets two subscribers.
+ */
+export function subscribeEventPresence(
+  client: AthanorClient,
+  eventId: string,
+  onCount: (count: number) => void,
+  opts?: { track?: boolean },
+): () => void {
+  const topic = `event:${eventId}:presence`;
+  return sharedRoom<PresenceMember>(client, topic, (room) => {
+    const channel = client.channel(topic);
+    let joined = false;
+    let tracked = false;
+
+    // track() is derived from the member set rather than counted beside it: one live
+    // track per room however many trackers it holds, dropped when the last one leaves.
+    // Reconciled on join, on leave, and once at SUBSCRIBED — the first tracker normally
+    // arrives before the join completes, so none of the three is redundant.
+    const sync = () => {
+      if (!joined) return;
+      const wanted = [...room.members].some((m) => m.track);
+      if (wanted === tracked) return;
+      tracked = wanted;
+      if (wanted) void channel.track({});
+      else void channel.untrack();
+    };
+
+    channel.on('presence', { event: 'sync' }, () => {
+      const count = Object.keys(channel.presenceState()).length;
+      room.members.forEach((m) => m.onCount(count));
+    });
+    channel.subscribe((status) => {
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+        joined = true;
+        sync();
+      }
+    });
+
+    return { channel, sync };
+  })({ onCount, track: opts?.track ?? false });
+}
+
+/**
+ * A refusal from create-ticket-checkout. `code` is the server's `{error}` string — those
+ * strings are the stable contract (#103); the screen maps them to copy. Plumbing only:
+ * no message mapping here (rule api.md).
+ */
+export class TicketCheckoutError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(`create-ticket-checkout refused: ${code} (${status})`);
+    this.name = 'TicketCheckoutError';
+  }
+}
+
 /**
  * Start a Stripe Checkout for a paid event via the create-ticket-checkout edge fn.
  * Returns the hosted Checkout URL (opened in expo-web-browser). Money flows server-side only
@@ -347,12 +540,39 @@ export async function createTicketCheckout(
   const res = await client.functions.invoke<unknown>('create-ticket-checkout', {
     body: { eventId },
   });
-  // supabase-js types FunctionsResponse.error as `any`; every concrete case
-  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
-  if (res.error) throw res.error as Error;
+  if (res.error) {
+    // On a non-2xx, FunctionsHttpError hangs the Response off `.context` — the JSON body is
+    // the only place the server's reason survives. Read it before rethrowing; an unreadable
+    // body (relay/network failure, non-JSON) falls back to the raw error unchanged.
+    const ctx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } })
+      .context;
+    if (ctx && typeof ctx.json === 'function' && typeof ctx.status === 'number') {
+      let code: unknown;
+      try {
+        code = ((await ctx.json()) as { error?: unknown } | null)?.error;
+      } catch {
+        // body unreadable — rethrow the raw error below
+      }
+      if (typeof code === 'string') throw new TicketCheckoutError(code, ctx.status);
+    }
+    // supabase-js types FunctionsResponse.error as `any`; every concrete case
+    // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+    throw res.error as Error;
+  }
   const url = (res.data as { url?: string } | null)?.url;
   if (!url) throw new Error('checkout did not return a url');
   return { url };
+}
+
+/**
+ * Seats currently held on the paid path — paid + checked_in + unexpired pending claims
+ * (#105). A definer count RPC because ticket rows are owner-only under RLS; feeds the
+ * sold-out state on the event screen next to `event.capacity`.
+ */
+export async function getEventSeatsTaken(client: AthanorClient, eventId: string): Promise<number> {
+  const { data, error } = await client.rpc('event_seats_taken', { p_event_id: eventId });
+  if (error) throw error;
+  return data ?? 0;
 }
 
 /** The viewer's own ticket for an event (null if they never bought one). Owner-reads-own RLS. */
@@ -363,7 +583,9 @@ export async function getMyTicket(
 ): Promise<Ticket | null> {
   const { data, error } = await client
     .from('event_tickets')
-    .select('id,user_id,event_id,stripe_payment_id,qr_token,status,created_at,updated_at')
+    .select(
+      'id,user_id,event_id,stripe_payment_id,qr_token,status,expires_at,created_at,updated_at',
+    )
     .eq('event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();

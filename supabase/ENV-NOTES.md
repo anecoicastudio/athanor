@@ -24,13 +24,13 @@ pair. Keep those local values in `supabase/.env.local` (separately gitignored).
 
 Public identifiers, not secrets:
 
-| What                              | Id                                                                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Account                           | `acct_1U23HsQ27ZDmslJ8`                                                                                                                          |
-| Webhook destination (live config) | `we_1U257CQ27ZDmslJ8unxgUdUC` — API version `2026-05-27.dahlia`, 10 events                                                                       |
-| Old webhook destination           | `we_1U23QwQ27ZDmslJ8EqF5ZvjO` — 2020-08-27, 3 PaymentIntent events the code never handled; disable once the new one is live                      |
-| Payment-method configuration      | `pmc_1U23I2Q27ZDmslJ8WsNgBSei`                                                                                                                   |
-| Circle product                    | `prod_V29QBE8aw9OdcL` (prices in `supabase/.env.example`; €12/€99 copy lives in `packages/i18n` keys `circle.cta.monthly` / `circle.cta.annual`) |
+| What                              | Id                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Account                           | `acct_1U23HsQ27ZDmslJ8`                                                                                                                                                                                                                                                             |
+| Webhook destination (live config) | `we_1U257CQ27ZDmslJ8unxgUdUC` — API version `2026-05-27.dahlia`, 10 events                                                                                                                                                                                                          |
+| Old webhook destination           | `we_1U23QwQ27ZDmslJ8EqF5ZvjO` — 2020-08-27, 3 PaymentIntent events the code never handled; disable once the new one is live                                                                                                                                                         |
+| Payment-method configuration      | `pmc_1U23I2Q27ZDmslJ8WsNgBSei`                                                                                                                                                                                                                                                      |
+| Circle product                    | `prod_V29QBE8aw9OdcL` (prices in `supabase/.env.example`; the app reads their `unit_amount` live through `get-circle-prices` and the `packages/i18n` keys `circle.cta.*` / `circle.plan.annualNote` carry only the template — no amount is RENDERED from anywhere but Stripe, #644) |
 
 **The delayed-settlement trap.** No code pins `payment_method_types`, so the
 payment-method configuration is the _sole_ control over which rails reach Checkout. The
@@ -46,6 +46,33 @@ why it is safe; never ask Stripe Support to switch it.
 created at that same version. Splitting it across code and env is how payload shapes
 drift.
 
+## Return URLs: one scheme var, three https vars (#418)
+
+Stripe validates redirect URLs differently per product, and the difference is not
+documented anywhere plainly — it cost #416/#417 a release cycle to find:
+
+| Product               | Param                        | Accepts `athanor://`?  | Var                                             |
+| --------------------- | ---------------------------- | ---------------------- | ----------------------------------------------- |
+| Checkout              | `success_url` / `cancel_url` | yes                    | `APP_DEEPLINK_BASE`                             |
+| Billing Portal        | `return_url`                 | yes                    | `APP_DEEPLINK_BASE`                             |
+| Identity              | `return_url`                 | **no** (`url_invalid`) | `IDENTITY_RETURN_BASE`                          |
+| Connect Account Links | `return_url` / `refresh_url` | **no** (live mode)     | `PAYOUT_ONBOARDING_RETURN_URL` / `_REFRESH_URL` |
+
+The https vars point at `apps/web`'s `/app/*` hand-off pages, which forward to the
+`athanor://` scheme in the browser. They are deliberately separate from
+`APP_DEEPLINK_BASE`: that var is read by four Checkout-based functions whose URLs must
+stay on the scheme, because that is what `WebBrowser.openAuthSessionAsync` matches on to
+close the sheet. Repointing the shared var would restore Identity's redirect by breaking
+those four.
+
+Both unset states are safe and deliberate, and neither is an error to leave in place:
+Identity omits `return_url` entirely (the verified flip arrives by webhook W9, never by
+the redirect), and `create-payout-onboarding` answers `500 payout onboarding not
+configured` before any Stripe call, so no orphan Connect account can be created.
+
+**Ordering.** `apps/web` reaches production only at a `dev → main` release. Set the
+production values _after_ the pages are live there, or Stripe will redirect members to a 404.
+
 ## Why the mobile app has no Stripe / payment variables
 
 Every payment flow opens a hosted Stripe URL minted by an edge function
@@ -56,17 +83,73 @@ break App Store Expo Go). None of these exist, and adding them would be dead wei
 Metro inlines into the shipped bundle:
 
 `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` (no client SDK to hand it to) ·
-`EXPO_PUBLIC_STRIPE_RETURN_URL` (return URLs built server-side from `APP_DEEPLINK_BASE`)
+`EXPO_PUBLIC_STRIPE_RETURN_URL` (return URLs built server-side from `APP_DEEPLINK_BASE`,
+or from the https vars above)
 · `EXPO_PUBLIC_APP_SCHEME` (declared once, in `app.json` "scheme") ·
 `EXPO_PUBLIC_APPLE_MERCHANT_ID` / `EXPO_PUBLIC_GOOGLE_PAY_TEST_ENV` (need the native SDK)
 · `EXPO_PUBLIC_MERCHANT_COUNTRY` (Checkout takes it from the Stripe account) ·
 `EXPO_PUBLIC_DEFAULT_CURRENCY` (priced server-side per session; `eur` throughout).
 
-## Future authenticated e2e (web admin)
+## Authenticated e2e (web admin)
 
-When authenticated admin flows land in Playwright, test seeding (admin user, session
-minting) uses the `sb_secret_…` key via CI secrets or a server-side helper **only** —
-never an env file the Next process can read, never anything prefixed `NEXT_PUBLIC_`.
+The authenticated admin suite (`apps/web/e2e/admin-authenticated.spec.ts`, #174) seeds its
+own admin, reporter, subject, reports and waitlist row on **staging**, and mints the admin's
+session, through `apps/web/e2e/seed/seed-admin.mts`. That script is the only thing that reads
+the `sb_secret_…` key — `E2E_SUPABASE_SECRET_KEY`, a CI secret. Never an env file the Next
+process can read, never anything prefixed `NEXT_PUBLIC_`.
+
+**The e2e job has its own staging trio, and this is load-bearing.**
+`E2E_SUPABASE_URL` · `E2E_SUPABASE_PUBLISHABLE_KEY` · `E2E_SUPABASE_SECRET_KEY`, mapped onto
+the `NEXT_PUBLIC_*` names inside the e2e job's own steps. The `NEXT_PUBLIC_SUPABASE_*` **repo
+secrets are production's** — `web build` and `deploy` use them to build the live site — so the
+e2e job must never read them, and no longer does. It did until 2026-08-23, which meant the
+unauthenticated smoke tests had been running against production; nobody noticed because they
+only read. The seed is the first step that writes, and its first CI run got production's URL
+with staging's secret key and died on "Invalid API key".
+
+`seed-admin.mts` therefore refuses any project ref but `eralyiwkfrpqsawivegz`, whatever the
+environment says. A mis-set secret is then a loud refusal naming both refs, not a write to
+production.
+
+A **verify the e2e Supabase target** step runs ahead of the seed and prints the shape of both
+public values — first 15 characters and byte length, never the whole thing — then refuses a URL
+that is not staging's exactly, a key not prefixed `sb_publishable_`, and any key the gateway
+does not answer 200 for. It exists because a wrong value is invisible in an Actions log (every
+secret renders as `***`) and surfaces forty seconds later as `Invalid API key` from inside
+`next dev`, which reads like an application bug and is not one. Staging's gateway distinguishes
+the cases and the step's comment records the mapping: a non-`sb_` apikey gets the legacy
+"`anon` or `service_role`" hint, a truncated `sb_` key gets "Double check your API key.", a key
+from another project says so, and whitespace is trimmed rather than rejected.
+
+The isolation is structural, not a convention: Playwright's `webServer` starts `pnpm dev`
+with the `playwright test` process's environment, so a secret exported around the test run
+would be readable by the Next dev server. The seed therefore runs as its **own** step, with
+its own `env:`, and hands the test run two gitignored files instead —
+`apps/web/e2e/.auth/admin.json` (a Playwright `storageState`) and `.auth/fixtures.json` (ids
+and handles, no tokens). A teardown step with the same `env:` removes the fixtures afterwards.
+
+Fixtures are namespaced on `GITHUB_RUN_ID` (`E2E_RUN_TAG` overrides it; a local run is
+`local`). Several PRs touching `apps/web` run this job at once against the same staging
+project, and shared fixture names would have each run's purge delete the other run's admin
+mid-suite. The seed also sweeps any other run's fixtures older than six hours — a job killed
+before its teardown leaves them behind, and six hours cannot reach a run that is still going.
+
+Session minting takes the magic-link token rather than a password or a browser:
+`auth.admin.generateLink` returns a `hashed_token`, and `verifyOtp` redeems it through a
+`@supabase/ssr` server client whose cookie adapter captures what it writes. Nothing test-only
+was added to the admin panel — `app/admin/auth/callback/route.ts` stays PKCE-`code`-only.
+
+Locally:
+
+```bash
+cd apps/web
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:seed   # staging's secret key, in the shell only
+pnpm test:e2e                                          # WITHOUT the secret in the environment
+E2E_SUPABASE_SECRET_KEY='sb_secret_…' pnpm e2e:teardown
+```
+
+Without the seed, `pnpm test:e2e` runs the unauthenticated specs alone; under `CI` it fails
+instead, so a run that skipped half the suite can never read as a pass.
 
 ## `app.settings.*` runtime values (Vault, not GUCs)
 

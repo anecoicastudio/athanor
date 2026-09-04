@@ -5,6 +5,7 @@ import {
   getConversation,
   getConversationsPage,
   getOrCreateConversation,
+  markConversationRead,
   subscribeConversations,
 } from './conversations';
 import { type FakeClient, makeFakeClient } from './test-support/fake-client';
@@ -26,6 +27,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   participant_b: PEER,
   last_message_at: '2026-01-02T10:00:00.000Z',
   last_message_preview: 'ci vediamo',
+  last_message_sender_id: PEER,
+  conversation_reads: [] as { last_read_at: string }[],
   a: { handle: 'me', display_name: 'Io Stessa', avatar_path: 'me/me.jpg' },
   b: { handle: 'peer', display_name: 'Peer Uno', avatar_path: 'p/p.jpg' },
   ...over,
@@ -141,6 +144,109 @@ describe('getConversationsPage', () => {
     });
 
     await expect(getConversationsPage(as(client))).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe('getConversationsPage — the derived unread (#637)', () => {
+  const pageWith = async (over: Record<string, unknown>) => {
+    const client = makeFakeClient({
+      'auth.getUser': session(),
+      'conversations.select': [{ data: [row(over)] }],
+    });
+    return (await getConversationsPage(as(client))).items[0];
+  };
+
+  test('the peer wrote last and I have never opened the thread — unread', async () => {
+    await expect(pageWith({ conversation_reads: [] })).resolves.toMatchObject({ unread: true });
+  });
+
+  test('my cursor predates the reply — unread', async () => {
+    await expect(
+      pageWith({ conversation_reads: [{ last_read_at: '2026-01-02T09:00:00.000Z' }] }),
+    ).resolves.toMatchObject({ unread: true });
+  });
+
+  test('my cursor is newer than the reply — read', async () => {
+    await expect(
+      pageWith({ conversation_reads: [{ last_read_at: '2026-01-02T11:00:00.000Z' }] }),
+    ).resolves.toMatchObject({ unread: false });
+  });
+
+  test('MY OWN message never lights my own thread, cursor or no cursor', async () => {
+    // The regression the last_message_sender_id column exists to prevent: bump_conversation_on_
+    // message moves last_message_at on every send, mine included, so a comparison against the
+    // cursor alone marks a thread unread the instant I reply to it.
+    await expect(
+      pageWith({ last_message_sender_id: ME, conversation_reads: [] }),
+    ).resolves.toMatchObject({ unread: false });
+  });
+
+  test('a conversation carrying only ice-breakers has no sender and reads as read', async () => {
+    // kind 'system'/'prompt' rows never bump, so last_message_sender_id is null on a fresh
+    // momento pair. A null must not read as "someone else", or every new match arrives lit.
+    await expect(
+      pageWith({ last_message_sender_id: null, conversation_reads: [] }),
+    ).resolves.toMatchObject({ unread: false });
+  });
+
+  test('instants are compared, not the strings that spell them', async () => {
+    // Chosen so the two readings DISAGREE, which is the only kind of case that pins the choice:
+    // the cursor reads 11:00+02:00 — 09:00 UTC, an hour BEFORE the 10:00Z message, so the thread
+    // is unread. Compared as text, '…T11:…' sorts after '…T10:…' and the thread reads as already
+    // seen. Every same-offset pair agrees and would leave a string compare looking correct.
+    await expect(
+      pageWith({
+        last_message_at: '2026-01-02T10:00:00.000Z',
+        conversation_reads: [{ last_read_at: '2026-01-02T11:00:00.000+02:00' }],
+      }),
+    ).resolves.toMatchObject({ unread: true });
+  });
+
+  test('the select asks for the cursor embed and the sender column', async () => {
+    const client = makeFakeClient({
+      'auth.getUser': session(),
+      'conversations.select': [{ data: [] }],
+    });
+    await getConversationsPage(as(client));
+    // RLS on conversation_reads is what scopes the embed to my own row, so the query carries no
+    // profile filter of its own — asserting the absence keeps a "helpful" one from being added.
+    expect(client.calls[0]?.columns).toContain('conversation_reads(last_read_at)');
+    expect(client.calls[0]?.columns).toContain('last_message_sender_id');
+    expect(client.calls[0]?.columns).not.toContain('profile_id.eq');
+  });
+});
+
+describe('markConversationRead', () => {
+  test('upserts the caller own cursor and lets the SERVER stamp the time', async () => {
+    const client = makeFakeClient({ 'auth.getUser': session() });
+
+    await markConversationRead(as(client), CONV);
+
+    const call = client.calls[0];
+    expect(call?.table).toBe('conversation_reads');
+    expect(call?.op).toBe('upsert');
+    expect(call?.values).toEqual({ conversation_id: CONV, profile_id: ME });
+    // The whole point of the stamp trigger: a device clock never reaches this column.
+    expect(call?.values).not.toHaveProperty('last_read_at');
+    expect(call?.options).toMatchObject({ onConflict: 'profile_id,conversation_id' });
+  });
+
+  test('a signed-out race costs a cursor update, not a throw', async () => {
+    const client = makeFakeClient({
+      'auth.getUser': [{ data: { user: null }, error: null }],
+    });
+
+    await expect(markConversationRead(as(client), CONV)).resolves.toBeUndefined();
+    expect(client.calls).toHaveLength(0);
+  });
+
+  test('surfaces a database error', async () => {
+    const client = makeFakeClient({
+      'auth.getUser': session(),
+      'conversation_reads.upsert': [{ error: { message: 'permission denied' } }],
+    });
+
+    await expect(markConversationRead(as(client), CONV)).rejects.toThrow(/permission denied/);
   });
 });
 

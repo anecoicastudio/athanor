@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+// A bare `Switch` is an UNNAMED toggle: RN gives it the `switch` role and the checked state from
+// `value`, and nothing else — the label `Text` beside it is a sibling, not an association, so
+// VoiceOver announced «attivato, interruttore» with no subject (#635). Every instance below names
+// itself with the key its visible label already uses; no new copy, and the two can never drift.
 import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,10 +23,12 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
 
 /**
  * Trust & safety (M9 §3.1 + §3.5.3). Quote (the one cyan statement) · read-only Identity card
@@ -34,24 +40,10 @@ import { MODAL_A11Y } from '@/lib/a11y';
 export default function TrustScreen() {
   const router = useRouter();
   const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const verified = profile?.identity_verified ?? false;
   const qc = useQueryClient();
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashToast = useCallback((msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  }, []);
-  // Clear a pending toast timer on unmount so it can't setToast on a dead component
-  // (e.g. tapping «Segnala un comportamento» pushes a new modal mid-toast).
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    [],
-  );
+  const { showToast } = useToast();
 
   // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
   const consents = useQuery({
@@ -120,15 +112,15 @@ export default function TrustScreen() {
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(gdprKeys.consent(profile?.id ?? ''), ctx.prev);
-      flashToast(t('profile.error', locale));
+      showToast(t('profile.error', locale));
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: gdprKeys.consent(profile?.id ?? '') }),
   });
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       <ModalHeader title={t('trust.title', locale)} backLabel={t('common.back', locale)} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-[104px] pt-2">
+      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-12 pt-2">
         {/* Quote — the single cyan statement (rule #4) */}
         <Text className="px-5 text-base font-semibold italic text-aura">
           {t('trust.quote', locale)}
@@ -219,6 +211,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.location.label', locale)}
                 value={grantedFor('location_approx', true)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
@@ -237,6 +230,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.neverSold.label', locale)}
                 value
                 disabled
                 accessibilityState={{ disabled: true }}
@@ -259,6 +253,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.consent.comms', locale)}
                 value={grantedFor('comms', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'comms', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
@@ -277,6 +272,7 @@ export default function TrustScreen() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t('gdpr.consent.diagnostics', locale)}
                 value={grantedFor('analytics', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'analytics', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
@@ -314,8 +310,6 @@ export default function TrustScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

@@ -26,9 +26,14 @@ values
   ('00000000-0000-0000-0000-000000000000', '33333333-3333-3333-3333-333333333333',
    'authenticated','authenticated','holder@test.athanor','{"locale":"it"}'::jsonb, now(), now());
 
-insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents)
+-- The organiser is identity-verified and the row carries settlement_ack_at: #448's
+-- events_enforce_paid_gate refuses a paid event without both, on every write path.
+update public.profiles set identity_verified = true
+  where id = '33333333-3333-3333-3333-333333333333';
+
+insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, settlement_ack_at)
   values ('e0790000-0000-0000-0000-000000000079','33333333-3333-3333-3333-333333333333',
-          'Serata','formazione',true,'https://stream.athanor.test/79', now() + interval '1 day', 1500);
+          'Serata','formazione',true,'https://stream.athanor.test/79', now() + interval '1 day', 1500, now());
 
 insert into public.event_tickets (user_id, event_id, status, stripe_payment_id, qr_token)
   values ('33333333-3333-3333-3333-333333333333','e0790000-0000-0000-0000-000000000079',

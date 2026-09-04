@@ -9,9 +9,9 @@ import {
   type AuraSnapshot,
   type Star,
 } from '@athanor/schemas';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { AthanorClient } from './client';
 import { keysetFilter, nextCursorOf } from './pagination';
+import { sharedRoom } from './realtime';
 
 /** Read-only Aura query-key factories (api rule: per-entity). No mutation keys — rule #1. */
 export const auraKeys = {
@@ -230,67 +230,71 @@ export async function getStars(client: AthanorClient, profileId: string): Promis
   }));
 }
 
+type AuraHandlers = {
+  onScore?: (row: unknown) => void;
+  onEvent?: (row: unknown) => void;
+  onStar?: (row: unknown) => void;
+  onCelebration?: (payload: AuraCelebrationPayload) => void;
+};
+
 /**
  * Subscribe an owner to their Aura realtime: aura_scores / aura_events / stars row
  * changes + the engine's celebration broadcast. Returns a cleanup fn (api rule:
  * unsubscribe on unmount). The engine is the only producer — nothing here writes.
+ *
+ * One shared room per (client, profile) — `aura:<id>` cannot take channelTopic()'s
+ * uniqueness suffix, because the topic is a server-side address: the engine broadcasts
+ * to it and RLS on realtime.messages authorizes it. The Profilo tab (useStarCelebration)
+ * stays mounted under the aura modal (useAuraRealtime), so overlap is the normal case.
+ * sharedRoom holds the refcount; `handlers` is the member object, so each subscribe must
+ * pass its own (realtime.ts).
  */
 export function subscribeAura(
   client: AthanorClient,
   profileId: string,
-  handlers: {
-    onScore?: (row: unknown) => void;
-    onEvent?: (row: unknown) => void;
-    onStar?: (row: unknown) => void;
-    onCelebration?: (payload: AuraCelebrationPayload) => void;
-  },
+  handlers: AuraHandlers,
 ): () => void {
-  let channel: RealtimeChannel | null = null;
-  let cancelled = false;
-
-  // Private channel (09 §5.2): broadcast authz is enforced by RLS on realtime.messages
-  // (owner-receive-only, no client send). postgres_changes stay authorized by each aura_*
-  // table's own RLS. setAuth() MUST complete before the private join (09 §5.2.2), so we
-  // join inside an async IIFE while keeping the synchronous cleanup contract below.
-  void (async () => {
+  const topic = `aura:${profileId}`;
+  return sharedRoom<AuraHandlers>(client, topic, async (room) => {
+    // Private channel (09 §5.2): broadcast authz is enforced by RLS on realtime.messages
+    // (owner-receive-only, no client send). postgres_changes stay authorized by each aura_*
+    // table's own RLS. setAuth() MUST complete before the private join (09 §5.2.2), which is
+    // what makes this build async while sharedRoom keeps the synchronous cleanup contract.
     await client.realtime.setAuth();
-    if (cancelled) return;
-    channel = client
-      .channel(`aura:${profileId}`, { config: { private: true } })
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'aura_scores',
-          filter: `profile_id=eq.${profileId}`,
-        },
-        (p) => handlers.onScore?.(p.new),
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'aura_events',
-          filter: `profile_id=eq.${profileId}`,
-        },
-        (p) => handlers.onEvent?.(p.new),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'stars', filter: `profile_id=eq.${profileId}` },
-        (p) => handlers.onStar?.(p.new),
-      )
-      .on('broadcast', { event: 'celebration' }, (p) => {
-        const parsed = auraCelebrationPayload.safeParse(p.payload);
-        if (parsed.success) handlers.onCelebration?.(parsed.data);
-      })
-      .subscribe();
-  })();
-
-  return () => {
-    cancelled = true;
-    if (channel) void client.removeChannel(channel);
-  };
+    if (room.members.size === 0) return null; // every subscriber left mid-join
+    return {
+      channel: client
+        .channel(topic, { config: { private: true } })
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'aura_scores',
+            filter: `profile_id=eq.${profileId}`,
+          },
+          (p) => room.members.forEach((h) => h.onScore?.(p.new)),
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'aura_events',
+            filter: `profile_id=eq.${profileId}`,
+          },
+          (p) => room.members.forEach((h) => h.onEvent?.(p.new)),
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'stars', filter: `profile_id=eq.${profileId}` },
+          (p) => room.members.forEach((h) => h.onStar?.(p.new)),
+        )
+        .on('broadcast', { event: 'celebration' }, (p) => {
+          const parsed = auraCelebrationPayload.safeParse(p.payload);
+          if (parsed.success) room.members.forEach((h) => h.onCelebration?.(parsed.data));
+        })
+        .subscribe(),
+    };
+  })(handlers);
 }

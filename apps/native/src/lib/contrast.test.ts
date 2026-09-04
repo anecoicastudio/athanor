@@ -67,7 +67,7 @@ describe('the nested-surface trap (regression)', () => {
 });
 
 /**
- * `tokens.ts` lines 27-33 certify `faint` in prose. Pin those numbers so a retune fails here
+ * `tokens.ts` lines 24-30 certify `faint` in prose. Pin those numbers so a retune fails here
  * instead of silently invalidating the comment.
  */
 describe('the faint certification in tokens.ts', () => {
@@ -80,9 +80,12 @@ describe('the faint certification in tokens.ts', () => {
     expect(ratio(semantic.faint, RAISE2)).toBeCloseTo(4.69, 2);
   });
 
-  it('and the bandAlt exclusion the comment calls out', () => {
-    expect(ratio(semantic.faint, semantic.bandAlt)).toBeCloseTo(4.44, 2);
-    expect(ratio(semantic.faint, semantic.bandAlt)).toBeLessThan(AA_NORMAL);
+  // `border` is the surface the comment excludes. It read `bandAlt` until #68 deleted that
+  // token — the two carried the identical #241B3A, and only `border` is still rendered, so the
+  // ratio and the exclusion are unchanged; the name now points at the token that survives.
+  it('and the border exclusion the comment calls out', () => {
+    expect(ratio(semantic.faint, semantic.border)).toBeCloseTo(4.44, 2);
+    expect(ratio(semantic.faint, semantic.border)).toBeLessThan(AA_NORMAL);
   });
 
   it('stays clearly below foregroundMuted, as the retune promised', () => {
@@ -248,7 +251,7 @@ describe('readable tokens × standard surfaces', () => {
   it.each([
     ['a chip nested in a card (NESTED)', () => NESTED],
     ['an accent chip nested in a card (AURA_SOFT_ON_RAISE)', () => AURA_SOFT_ON_RAISE],
-    ['bandAlt / border', () => semantic.bandAlt],
+    ['border', () => semantic.border],
   ])('faint does NOT survive %s', (_label, surface) => {
     expect(ratio(semantic.faint, surface())).toBeLessThan(AA_NORMAL);
   });

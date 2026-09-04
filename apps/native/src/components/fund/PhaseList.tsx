@@ -1,8 +1,8 @@
 import type { FundPhase } from '@athanor/schemas';
+import { OPEN_CYCLE_PHASES } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
-
-const PHASES: FundPhase[] = ['community', 'reputation', 'ethics', 'event'];
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 /** One numbered phase row. Highlighted when `active`. */
 function PhaseRow({
@@ -31,8 +31,13 @@ function PhaseRow({
           active ? 'bg-aura' : 'bg-raise'
         }`}
       >
+        {/* `ornament` (#639): a step counter in a hard 21pt disc. Growing it would take the
+            circle to an ellipse — height by the line box, width by the advance — and the
+            number only restates the row's own position; the phase title and description
+            beside it carry the meaning, and the row reads all three as one string. */}
         <Text
           className={`text-xs font-bold ${active ? 'text-background' : 'text-muted-foreground'}`}
+          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
         >
           {index}
         </Text>
@@ -57,13 +62,18 @@ function PhaseRow({
 }
 
 /**
- * Ordered list of the 4 selection phases (community → reputation → ethics → event).
+ * Ordered list of the open-cycle phases (candidacy → screening → voting → announcement →
+ * realization; `closed` has no row — a closed cycle is not rendered as a step).
  * The row matching `current` is highlighted in cyan + carries the «in corso» chip.
+ *
+ * The list comes from `OPEN_CYCLE_PHASES` (`@athanor/core`), which derives from the zod enum —
+ * this file used to carry a fourth copy of the phase vocabulary (#382), so a phase added to the
+ * cycle silently went unrendered here.
  */
 export function PhaseList({ current, locale }: { current: FundPhase; locale: 'it' | 'en' }) {
   return (
     <View className="gap-0">
-      {PHASES.map((key, i) => (
+      {OPEN_CYCLE_PHASES.map((key, i) => (
         <PhaseRow key={key} index={i + 1} phaseKey={key} active={key === current} locale={locale} />
       ))}
     </View>

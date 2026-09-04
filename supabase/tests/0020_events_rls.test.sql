@@ -13,8 +13,12 @@ values
 
 select has_table('public','events','events table exists');
 select ok((select relrowsecurity from pg_class where oid='public.events'::regclass), 'RLS enabled on events');
+-- No events_update_own since #446: the client's UPDATE privilege is revoked, and a PERMISSIVE
+-- policy with no grant behind it is a vestige 0121 fails on. active_write_update stays — it is
+-- restrictive, so it grants nothing and is now a no-op the moderation net applies uniformly.
 select policies_are('public','events',
-  array['events_select_anon','events_select_authenticated','events_insert_own','events_update_own'],
+  array['events_select_anon','events_select_authenticated','events_insert_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on events');
 
 set local role authenticated;
@@ -32,11 +36,15 @@ select throws_ok($$
           extensions.st_point(0,0)::extensions.geography, now() + interval '1 day')
 $$, '42501', null, 'cannot create event for another organizer');
 
-update public.events set title = 'hijacked'
-  where organizer_id = '11111111-1111-1111-1111-111111111111';
-select results_eq($$ select count(*)::int from public.events where title='hijacked' $$,
-  $$ values (0) $$, 'cross-user update affects zero rows');
 reset role;
+
+-- Since #446 there is no client UPDATE on events at all. The old assertion here ran a cross-user
+-- `update ... set title='hijacked'` and checked it affected zero rows; that now passes for the
+-- wrong reason, because the statement never reaches RLS. Assert the PRIVILEGE instead — it is the
+-- only protection on a verb no policy mediates any more, and it is what the app relies on: nothing
+-- in apps/native, apps/web, packages/api or supabase/functions updates an event.
+select ok(not has_table_privilege('authenticated', 'public.events', 'UPDATE'),
+  'authenticated holds no UPDATE on events — not their own row, not anyone else''s');
 
 set local role anon; set local request.jwt.claims = '';
 select results_eq($$ select count(*)::int from public.events where title='Notte delle Idee' $$,
@@ -67,7 +75,7 @@ select throws_ok($$ select capacity from public.events $$, '42501', null,
   'anon cannot read capacity');
 select lives_ok($$
   select id, title, category, is_online, venue, city, starts_at, ends_at,
-         price_cents, currency, is_kairos_day, is_athanor_day, organizer_id
+         price_cents, currency, is_athanor_day, organizer_id
   from public.events where deleted_at is null
 $$, 'anon still reads every column the public read-model selects');
 -- geo stays granted on purpose: events_nearby is SECURITY INVOKER, so an anonymous

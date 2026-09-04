@@ -12,12 +12,14 @@
 // POST_REACTION is a BASE, not an award (2026-08-09). Every other weight here IS the
 // points granted; this one alone is multiplied by `reviewerWeight(reactor score)` =
 // min(2, 1 + ln1p(s/1000)) before rounding. The gate is s > REACTION_AUTHOR_MIN_SCORE
-// (300), and the lowest reactor that clears it already weighs ≈1.263 — so the band is
-// {3, 4}: 3 from a reactor at 301, 4 from 1118 up. (1118, not 1719: the reviewer curve
-// saturates at ×2 from 1719, but rounding reaches 4 six hundred points earlier, once
-// 2·weight crosses 3.5 at s = 1000·(e^0.75 − 1) ≈ 1117.00002.) **A ✦ is never worth 2.**
-// The constant stays 2 because 2 is what the multiplier consumes; this comment and the
-// PRD §4.9 table used to state 2 as the award, a value no member could ever observe.
+// (300), and the lowest reactor that clears it already weighs ≈1.263 — so every
+// qualifying ✦ awards exactly 3. The 4 arm of the curve is DEAD: rounding reaches 4 only
+// once 2·weight crosses 3.5 at s = 1000·(e^0.75 − 1) ≈ 1117.00002, and no reactor can
+// hold that score — Aura is clamped to SCORE_MAX (1000) in clamp.ts and by the
+// aura_scores 0–1000 check constraint. **A ✦ is never worth 2, and never 4.** The
+// constant stays 2 because 2 is what the multiplier consumes; this comment and the
+// PRD §4.9 table used to state 2 as the award and later {3, 4} as the band — values no
+// member could ever observe.
 //
 // Issue #27 (RESOLVED 2026-08-09, migration 20260809172520): the enqueue payload used to
 // carry no reviewerScore at all, `?? 0` failed the gate, and every ✦ awarded 0. The
@@ -33,7 +35,7 @@ export const ENGINE_WEIGHTS = {
   MOMENTO_CONV: 5, //        +5  · max 10 / month (≥10 msgs both sides)
   MILESTONE_HELP: 40, //     +40 · uncapped (owner-confirmed)
   OWN_MILESTONE: 10, //      +10 · per own milestone completed
-  POST_REACTION: 2, //       BASE ×reviewerWeight → 3–4 (see #27 note above) · max 10 / day
+  POST_REACTION: 2, //       BASE ×reviewerWeight → always 3 (see note above) · max 10 / day
   REPORT_UPHELD_MIN: -50,
   REPORT_UPHELD_MAX: -200,
   // ZERO by rule #1 — never grant Aura for these:
@@ -125,7 +127,7 @@ export type TierId = (typeof TIER_THRESHOLDS)[number]['tier'];
 
 /** Six-star earn criteria (PRD §4.10), v1; tunable with seed data (G-D). */
 export const STAR_CRITERIA = {
-  visionario: { dreamPublished: true, milestonesDefined: 3, ownPostsStarred: 10 },
+  visionario: { dreamPublished: true, milestonesDefined: 3, evoluzionePostsStarred: 10 },
   creatore: { ownMilestonesCompleted: 2 },
   mentor: { helpsCompleted: 3 },
   innovatore: { evoluzionePostsStarred: 5, distinctStarrers: 10 },

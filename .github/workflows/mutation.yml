@@ -27,10 +27,22 @@ on:
       - 'packages/schemas/**'
       - '.github/workflows/mutation.yml'
 
+# Same shape as ci.yml. Nothing deploys from this workflow, but `main` stays exempt anyway:
+# pushes to main are release merges and rare, so the exemption costs at most one superseded
+# run, while a concurrency rule that differs between the two workflows is one more thing to
+# re-derive later. Stryker re-runs the suite once per surviving mutant, which makes a
+# superseded run here the most expensive waste in the repo.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   core:
     name: packages/core mutation score
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 203s, max 210s over 6 successful runs).
+    # Same reason as ci.yml: without one, a wedged step runs for 6 hours.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -53,6 +65,9 @@ jobs:
   schemas:
     name: packages/schemas mutation score
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 203s, max 210s over 6 successful runs).
+    # Same reason as ci.yml: without one, a wedged step runs for 6 hours.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

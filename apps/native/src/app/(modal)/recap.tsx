@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { auraKeys, getStars, starKeys } from '@athanor/api';
+import { auraKeys } from '@athanor/api';
 import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
+import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -12,10 +11,13 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/hooks/use-locale';
+import { useStars } from '@/hooks/use-stars';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { weekRecapIsEmpty } from '@/lib/week-slot';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
+import { Screen } from '@/components/Screen';
 
 /**
  * Week recap sheet (M6 §3.4).
@@ -23,9 +25,9 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * Engine is DORMANT → getAuraEventsSince returns [] → recap all-zeros → empty-week state.
  */
 export default function RecapScreen() {
-  const router = useRouter();
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const leave = useGuardedBack();
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   // Week recap: shared queryFn (lib/week-recap) — one fetch shape per auraKeys.recap key.
@@ -36,11 +38,7 @@ export default function RecapScreen() {
   });
 
   // Stars: for «Prossima stella» block via pickNextStar.
-  const starsQuery = useQuery({
-    queryKey: starKeys.list(me),
-    queryFn: () => getStars(supabase, me),
-    enabled: !!me,
-  });
+  const starsQuery = useStars(me);
 
   const recap = recapQuery.data;
   // `?? []` is safe HERE and nowhere else (issue #16): the only consumer is pickNextStar, which
@@ -68,21 +66,12 @@ export default function RecapScreen() {
   const starName = nextStar ? t(`star.${nextStar.starId}` as MessageKey, locale) : '';
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 pb-3 pt-14">
-        <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
-          {t('recap.title' as MessageKey, locale)}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back' as MessageKey, locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-[17px] text-muted-foreground">✕</Text>
-        </Pressable>
-      </View>
+    <Screen {...MODAL_A11Y}>
+      <ModalHeader
+        leading="none"
+        title={t('recap.title' as MessageKey, locale)}
+        right={<HeaderClose label={t('common.back' as MessageKey, locale)} onPress={leave} />}
+      />
 
       {/* Sub */}
       <Text className="px-5 pb-4 text-[13px] text-muted-foreground">
@@ -107,7 +96,7 @@ export default function RecapScreen() {
           <View className="gap-1">
             {isLoading ? (
               <View className="gap-3 py-2">
-                {Array.from({ length: 4 }).map((_, i) => (
+                {Array.from({ length: 3 }).map((_, i) => (
                   <ShimmerBar key={i} />
                 ))}
               </View>
@@ -135,12 +124,6 @@ export default function RecapScreen() {
                   width={0}
                   showBar={false}
                 />
-                <AuraSourceRow
-                  label={t('recap.metric.hours' as MessageKey, locale)}
-                  value={recap?.oreDonate ?? 0}
-                  width={0}
-                  showBar={false}
-                />
               </View>
             )}
           </View>
@@ -161,6 +144,6 @@ export default function RecapScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

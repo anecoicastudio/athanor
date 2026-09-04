@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
@@ -8,16 +7,17 @@ import {
   getConnectionsPage,
   getOrCreateConversation,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { TextInput, View } from '@/tw';
+import { FlatList, View } from '@/tw';
+import { Input } from '@/components/Input';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { ConnectionRow } from '@/components/connections/ConnectionRow';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * New-message person picker (P3.2): the Messages «+» target. Searchable
@@ -26,13 +26,12 @@ import { supabase } from '@/lib/supabase';
  * picker with the chat. DMs are connections-only by design (M5).
  */
 export default function NewMessageScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [creatingId, setCreatingId] = useState<string | null>(null);
-  const [toast, setToast] = useState(false);
+  const { showToast } = useToast();
 
   const connectionsQuery = useInfiniteQuery({
     queryKey: connectionKeys.list(search),
@@ -53,21 +52,18 @@ export default function NewMessageScreen() {
       const conversationId = await getOrCreateConversation(supabase, peerId);
       router.replace(`/chat?conversationId=${conversationId}`);
     } catch {
-      setToast(true);
-      setTimeout(() => setToast(false), 1600);
+      showToast(t('chat.openFailed', locale));
       setCreatingId(null);
     }
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('messages.new', locale)} backLabel={t('common.back', locale)} />
 
       <View className="px-5 pb-3">
-        <TextInput
-          className="rounded-full border border-hair bg-raise px-5 py-3 text-foreground"
+        <Input
           placeholder={t('connection.list.search', locale)}
-          placeholderTextColor={semantic.faint}
           value={search}
           onChangeText={setSearch}
           autoCapitalize="none"
@@ -109,7 +105,6 @@ export default function NewMessageScreen() {
             void connectionsQuery.fetchNextPage();
         }}
       />
-      {toast ? <Toast label={t('chat.openFailed', locale)} /> : null}
-    </View>
+    </Screen>
   );
 }

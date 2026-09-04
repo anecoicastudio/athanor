@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { memberLabel } from '@athanor/core';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/tw';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { useAvatarUrl } from '@/lib/media/avatar-url';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
@@ -22,17 +24,35 @@ export function Avatar({
   size = 72,
   displayName = null,
   avatarPath = null,
+  previewUri = null,
 }: {
   handle: string | null;
   size?: number;
   /** Optional human name (#76) — sources the initial and the screen-reader label. */
   displayName?: string | null;
-  /** Optional `avatars` storage key (#76). Null, or a key that fails to sign, falls back to the initial. */
+  /**
+   * Optional `avatars` storage key (#76). Null, a key that fails to sign, or a URL that signs
+   * and then fails to load (deleted object, expired TTL) falls back to the initial (#287).
+   */
   avatarPath?: string | null;
+  /**
+   * A local `file://` URI to draw INSTEAD of the signed key (#636). The profile editor stages a
+   * picked photo without uploading it, so between the pick and Save there is no storage key to
+   * sign — and the old behaviour, uploading on pick to get one, overwrote the member's live
+   * avatar before they had agreed to the change.
+   */
+  previewUri?: string | null;
 }) {
-  const url = useAvatarUrl(avatarPath);
+  const signed = useAvatarUrl(avatarPath);
+  // The staged pick wins: it is what the member just chose, and it is not stored yet.
+  const url = previewUri ?? signed;
   const reduce = useReducedMotion();
   const initial = (displayName?.trim() || handle || '?').charAt(0).toUpperCase();
+  const [failed, setFailed] = useState(false);
+
+  // A re-signed URL deserves a fresh attempt (same recovery as MediaFrame): without the reset a
+  // single dead URL would pin the initial for the rest of the session.
+  useEffect(() => setFailed(false), [url]);
 
   return (
     <View
@@ -43,7 +63,7 @@ export function Avatar({
       accessible
       accessibilityLabel={memberLabel(displayName, handle) ?? undefined}
     >
-      {url ? (
+      {url && !failed ? (
         <Image
           source={{ uri: url }}
           style={StyleSheet.absoluteFill}
@@ -53,10 +73,18 @@ export function Avatar({
           // Rows recycle in a list; without this a scrolled-away face can flash in the row that
           // took its place.
           recyclingKey={url}
+          // A URL that signs and then 404s is a blank disc without this — the docblock's promise
+          // held only for sign failures until #287.
+          onError={() => setFailed(true)}
         />
       ) : (
+        // `ornament` (#639): the disc is sized by the `size` prop — a layout constant every
+        // row and rail measures against — so the initial cannot grow without leaving it. It
+        // loses nothing: the View above is `accessible` and labelled with the member's name,
+        // so a screen reader never reads this letter in the first place.
         <Text
           className="font-semibold text-foreground"
+          maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
           style={{ fontSize: Math.round(size * 0.4) }}
         >
           {initial}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REPORT_CATEGORIES, reportInput, reportSchema } from './report';
+import { REPORT_CATEGORIES, reportInput, reportSchema } from './report.ts';
 
 describe('report schemas', () => {
   it('parses a valid raw report row (own, status open)', () => {

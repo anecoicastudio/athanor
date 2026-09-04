@@ -5,10 +5,25 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Supersede in-flight runs of this workflow on the same ref. A second push to a PR branch
+# makes the first run's remaining jobs pure waste — #454 sat 27 minutes on one before it was
+# cancelled by hand. github.ref is refs/pull/<n>/merge on a PR, so the group is per PR, not
+# per branch, and two PRs never contend.
+#
+# `main` is exempt on purpose. The `deploy` job below runs only from a main push; cancelling
+# that run mid-flight would leave Cloudflare half-updated with no red check saying so.
+# Cancelling a PR check costs nothing, cancelling a deploy costs a partial release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   node:
     name: lint · typecheck · test
     runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 93s, max 139s over 16 successful runs). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -32,9 +47,80 @@ jobs:
       - run: pnpm i18n:check
       - run: pnpm format:check
 
+  # PR path-trim for the e2e job below. Unlike the db and native-prebuild filters, this one
+  # gates the JOB rather than its steps: the cost this exists to remove is the job itself
+  # (116s at p50, 400s at its worst), not its last two steps.
+  #
+  # That is safe here and would not be safe there, for one reason — this gate can only fire
+  # on a pull_request, and `deploy` (which has `needs: e2e`) runs only on a main push. On
+  # every event where a skipped job would strand `deploy`, the condition on e2e is true and
+  # the job runs in full. The comments on the db and native-prebuild jobs still hold for
+  # them; they are not being contradicted.
+  #
+  # A job skipped by `if:` still reports its check run, with conclusion `skipped`, which
+  # satisfies branch protection — `deploy web (Cloudflare Workers)` has done exactly that on
+  # every PR. A workflow-level `paths:` filter would not report at all and would block every
+  # PR that missed the filter, permanently. `web e2e (Playwright)` is one of the 7 required
+  # checks, so that distinction is the whole risk of this change.
+  changes:
+    name: changed paths (web)
+    runs-on: ubuntu-latest
+    # Only pull_request runs need the answer. Pushes to dev/main always run everything, so
+    # drift a trimmed PR skipped surfaces on the next dev push at latest.
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 3
+    # The pinned third-party action only ever reads the PR's changed files.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+    # No checkout: on pull_request events the action reads the changed-file list from the
+    # REST API and never touches a working tree.
+    steps:
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            web:
+              # Everything the admin e2e suite can actually see. `packages/**` is not
+              # over-broad here: apps/web/next.config.ts transpiles all five workspace
+              # packages by name, the routes under test import @athanor/i18n and
+              # @athanor/config directly, and since #174 the specs THEMSELVES read their
+              # expected copy out of the i18n catalog — so a catalog-only change can turn the
+              # suite red from either side. @athanor/api and @athanor/schemas are the panel's
+              # readers and @athanor/core prices the moderation penalty the verdict spec
+              # asserts on.
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              # The job must test itself, same as the db and native-prebuild filters.
+              - '.github/workflows/ci.yml'
+
   e2e:
     name: web e2e (Playwright)
     runs-on: ubuntu-latest
+    needs: changes
+    # FAIL-CLOSED, the same convention as the two step-level filters (`!= 'false'`, never
+    # `== 'true'`): when `changes` is skipped — every push event — or breaks, its output is
+    # empty and this job runs in full. `!cancelled()` is what makes that true. Without a
+    # status function here, GitHub ANDs an implicit success() over `needs`, and a failed or
+    # skipped `changes` would skip this job on a main push too, which is the one way this
+    # filter could strand `deploy`.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.web != 'false') }}
+    # 25 covers setup plus ALL FIVE capped steps below: 9 install + 2 verify + 3 seed + 6 smoke
+    # + 2 teardown = 22, and the teardown runs `if: always()` so it is reachable alongside any
+    # of the others. They look mutually exclusive — a failed install exits 1 and the steps after
+    # it are skipped — but an install that merely runs slow and then succeeds does add to
+    # everything that follows, so the sum is reachable. Measured, this job is 116s at p50 and
+    # 400s at its worst; the cap is a ceiling that turns a hang into a red, never a target.
+    # Was 24 while the install step could spend 16 minutes inside apt; dropping --with-deps
+    # retired that budget, and 17 covered 9 + 6 until the seeding, teardown and target-verify
+    # steps (#174) joined them. It has to stay above 9 + 2 + 3 + 6 + 2, or the job cap fires
+    # before the step cap and the same legibility is lost one level up.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -44,33 +130,232 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Chromium is a ~150MB download per run; cache Playwright's browser store.
-      # `playwright install` below still runs (it apt-installs system deps) but skips
-      # the download when the store already holds the pinned build.
+      # `playwright install` below still runs but skips the download when the store
+      # already holds the pinned build.
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: playwright-${{ runner.os }}-
-      - name: e2e admin smoke
+      # THIS JOB TARGETS STAGING, AND SAYS SO IN ITS OWN SECRETS.
+      #
+      # It used to read `NEXT_PUBLIC_SUPABASE_URL` / `_PUBLISHABLE_KEY` / `_ANON_KEY` — the same
+      # repo secrets `web build` and `deploy` use to build the LIVE SITE, so they hold
+      # PRODUCTION's values and this job had been running against production since those
+      # secrets were created (2026-08-08). Read-only smoke tests made that invisible. It
+      # stopped being invisible the moment #174 added a step that WRITES: the first CI run
+      # handed the seed production's URL with staging's secret key and died on "Invalid API
+      # key" — luck, not a safeguard.
+      #
+      # So the job now takes a dedicated trio, `E2E_SUPABASE_URL` / `E2E_SUPABASE_PUBLISHABLE_KEY`
+      # / `E2E_SUPABASE_SECRET_KEY`, all staging's, and maps the first two onto the `NEXT_PUBLIC_*`
+      # names INSIDE its own steps so `pnpm dev` and the SSR client resolve staging. The
+      # `NEXT_PUBLIC_*` repo secrets are not read here at all any more; `web build` and `deploy`
+      # keep them untouched. `e2e/seed/seed-admin.mts` independently refuses any project ref but
+      # staging's, so a mis-set secret fails loudly instead of writing to production.
+      #
+      # The secret key must additionally NOT be visible to `playwright test`, because
+      # `webServer` hands the dev server that step's env. It therefore lives on the seeding and
+      # teardown steps alone, which write a storage state to disk and exit.
+      # Fail-loud policy (same as the db job's types gate): missing secrets soft-skip
+      # on PRs and feature branches (forks have no secrets) but FAIL on a main push —
+      # `deploy` has `needs: e2e`, so a quiet skip on main would let deploy read
+      # "never ran" as "passed" (#146).
+      #
+      # The guard publishes an output rather than ending in a bare `exit 0`: it no longer
+      # shares a step with the work it gates, and `exit 0` only ever concluded its OWN
+      # step. The two steps below gate on it FAIL-CLOSED (`!= 'false'`, never
+      # `== 'true'`, same convention as the db job's paths filter) so a renamed or broken
+      # guard runs the gate instead of silently skipping it. Skipping STEPS rather than
+      # the job is what keeps `deploy`'s `needs: e2e` satisfiable on a main push — and the
+      # job-level path gate above is scoped to pull_request events for the same reason.
+      - name: check e2e secrets
+        id: e2e-secrets
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Presence only — the values are consumed by the steps below, not by this one.
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
         run: |
-          # The two admin smoke tests need only the Next dev server (Playwright webServer
-          # starts `pnpm dev`) + the public Supabase URL and one API key for the SSR client
-          # (publishable preferred, legacy anon accepted while it still exists).
-          # Skip gracefully until the secrets exist (same pattern as the types gate).
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
-            echo "::notice::e2e skipped — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
+          if [ -z "$E2E_SUPABASE_URL" ] || [ -z "$E2E_SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$E2E_SUPABASE_SECRET_KEY" ]; then
+            echo "::warning::e2e SKIPPED — set all three STAGING secrets to enable: E2E_SUPABASE_URL, E2E_SUPABASE_PUBLISHABLE_KEY, E2E_SUPABASE_SECRET_KEY (the sb_secret_ key, seeding only). The NEXT_PUBLIC_* repo secrets are production's and must not be used here."
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "::error::e2e gate cannot run on a main push without the Supabase e2e secrets"
+              exit 1
+            fi
+            echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          pnpm --filter web exec playwright install --with-deps chromium
+          echo "run=true" >> "$GITHUB_OUTPUT"
+      # Split out from the smoke run so the log says WHICH half stalled. It took a log
+      # tail and an elimination argument to establish that the first time; it should take
+      # a glance at the step duration the next.
+      - name: install chromium
+        if: steps.e2e-secrets.outputs.run != 'false'
+        # 9, not 16 and not 6. The apt path this step used to take is gone, and with it the
+        # 13-minute worst case it needed headroom above. The loop below can still burn
+        # 2x240 + 2x5 = 490s = 8m10s if both attempts stall their full budget, so the cap has
+        # to clear 490s — at 6 it would have sat BELOW the loop, and GitHub's step timeout
+        # would have fired 115s into attempt 2, killing the run before the loop's own
+        # ::error:: could say why. That is the failure this step has now been rewritten twice
+        # to avoid, and the first draft of this rewrite reintroduced it.
+        timeout-minutes: 9
+        run: |
+          # No `--with-deps`, deliberately. It put apt — and therefore an Ubuntu mirror — on
+          # the critical path of every PR, and PR #467 lost three consecutive runs to that:
+          # apt hung fetching archive.ubuntu.com InRelease and never returned, the stalled
+          # apt-get outlived `timeout --kill-after=30` (which signals the direct child, not
+          # the grandchild that holds the lock), and both retries then died on
+          # /var/lib/apt/lists/lock held by a process that was never going to release it.
+          #
+          # What --with-deps was actually buying, from those same logs: NINE packages, all
+          # fonts — fonts-freefont-ttf, fonts-ipafont-gothic, fonts-tlwg-loma-otf,
+          # fonts-unifont, fonts-wqy-zenhei, xfonts-cyrillic and three xfonts-* plumbing
+          # packages. Every other Chromium dependency was already "the newest version" on the
+          # runner image. So the mirror was on the critical path to supply CJK, Thai and
+          # Cyrillic fallback faces.
+          #
+          # This suite needs none of them: three unauthenticated tests in
+          # apps/web/e2e/admin.spec.ts and seven authenticated ones in
+          # apps/web/e2e/admin-authenticated.spec.ts, locale it-IT, no screenshot or snapshot
+          # assertions, against an app that self-hosts its faces via next/font/local (#329)
+          # rather than resolving system fonts. The copy they assert on is Italian, which the
+          # runner's default faces already cover. If a later test does render CJK/Thai text or
+          # compares screenshots, add the specific fonts package back as its own step — not
+          # the whole --with-deps set.
+          #
+          # Two attempts remain, because Playwright's CDN can flake like any CDN. They are
+          # short: nothing here can wedge a system lock, so a failure is just a failure.
+          for attempt in 1 2; do
+            timeout 240 pnpm --filter web exec playwright install chromium && exit 0
+            echo "::warning::playwright install attempt ${attempt} failed or stalled; retrying"
+            sleep 5
+          done
+          echo "::error::playwright install failed twice — most likely Playwright's CDN, not this diff"
+          exit 1
+      # Two seconds that turn a mystery into a named cause.
+      #
+      # PR 517 spent a cycle on `⨯ Error: {"message":"Invalid API key","hint":"Double check
+      # your Supabase `anon` or `service_role` API key."}` printed by `next dev` forty seconds
+      # into the suite, with no way to tell from the log whether the app, the workflow or the
+      # secret was at fault — the values are masked, so the shape of what CI actually holds was
+      # unobservable. Probing staging's gateway by hand established what that hint means, and
+      # this step encodes it:
+      #
+      #   apikey not prefixed `sb_`  -> "Invalid API key" + the legacy anon/service_role hint
+      #   well-formed `sb_` truncated -> "Invalid API key" + "Double check your API key."
+      #   an `sb_` key from another project -> "…might also be owned by another Supabase project"
+      #   a good publishable key      -> 200
+      #
+      # Leading/trailing whitespace is NOT among them: the gateway trims, so a stray space
+      # still answers 200. The prefix and length printed below are what make that visible
+      # anyway, and neither is a secret — a publishable key ships in the browser bundle by
+      # design, and only its first 15 characters are printed. The secret key is never touched
+      # by this step.
+      - name: verify the e2e Supabase target
+        if: steps.e2e-secrets.outputs.run != 'false'
+        timeout-minutes: 2
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          shape() {
+            printf '%s = %s… (%s bytes)\n' "$1" "$(printf '%s' "$2" | cut -c1-15)" \
+              "$(printf '%s' "$2" | wc -c | tr -d ' ')"
+          }
+          shape NEXT_PUBLIC_SUPABASE_URL "$NEXT_PUBLIC_SUPABASE_URL"
+          shape NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+
+          # Staging, exactly — the same refusal e2e/seed/seed-admin.mts makes, one step earlier
+          # and against the workflow's own value rather than the seed's process env.
+          if [ "$NEXT_PUBLIC_SUPABASE_URL" != "https://eralyiwkfrpqsawivegz.supabase.co" ]; then
+            echo "::error::E2E_SUPABASE_URL is not staging's URL exactly (expected https://eralyiwkfrpqsawivegz.supabase.co). Production is kwzeiqvrnnaagccyoose — never point this job there."
+            exit 1
+          fi
+          case "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" in
+            sb_publishable_*) ;;
+            *)
+              echo "::error::E2E_SUPABASE_PUBLISHABLE_KEY does not begin with sb_publishable_. The gateway answers every non-sb_ apikey with \"Invalid API key\" and the legacy anon/service_role hint, which is what a wrong value looks like from inside next dev. Re-set the secret from apps/web/.env.local's NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
+              exit 1
+              ;;
+          esac
+
+          # The key CI holds, against the gateway it will be used on. A publishable key reads
+          # `profiles` as anon (profiles_select_anon_public), so 200 is the expected answer and
+          # anything else is the value, not the app.
+          code=$(curl -sS -o /tmp/apikey-probe -w '%{http_code}' \
+            -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+            "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?select=id&limit=1")
+          echo "PostgREST probe: HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::the publishable key CI holds is REJECTED by staging's gateway (HTTP $code) — this is the secret's value, not this repo's code. Re-set E2E_SUPABASE_PUBLISHABLE_KEY."
+            head -c 300 /tmp/apikey-probe; echo
+            exit 1
+          fi
+
+      # The ONLY step that sees the secret key, together with its teardown twin. It creates a
+      # disposable admin (app_metadata.role='admin'), a reporter, a subject, two reports and a
+      # waitlist row on STAGING, then mints the admin's session into
+      # apps/web/e2e/.auth/admin.json. Nothing it writes is a secret: the storage state holds a
+      # session for an account that exists for the length of this job.
+      #
+      # Its fixtures are namespaced on GITHUB_RUN_ID, which the runner sets for us: several
+      # PRs touching apps/web run this job at once against the same staging project, and
+      # shared names would have each run's purge delete the other's admin mid-suite.
+      - name: seed the authenticated e2e fixtures
+        if: steps.e2e-secrets.outputs.run != 'false'
+        # No browser and no dev server — a handful of admin-API round-trips and a file write.
+        timeout-minutes: 3
+        env:
+          # The staging trio, under the names the app and the seed read.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
+        run: pnpm --filter web e2e:seed
+      - name: e2e admin smoke
+        if: steps.e2e-secrets.outputs.run != 'false'
+        # Playwright caps itself well inside this: webServer 120s + 10 tests x 30s (the
+        # authenticated project takes no retries — see playwright.config.ts). Measured, the
+        # test phase is 11s locally against staging.
+        #
+        # NOTE the env below: E2E_SUPABASE_SECRET_KEY is deliberately absent. `webServer` runs
+        # `pnpm dev` with this step's environment, so exporting it here would hand the Next
+        # process a service-role key (supabase/ENV-NOTES.md). The seeding step above left
+        # everything this step needs on disk.
+        timeout-minutes: 6
+        env:
+          # Staging, and only the public half — `webServer` passes this straight to `pnpm dev`.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          # Printed HERE, not only in the verify step above, because this is the env `webServer`
+          # hands to `pnpm dev` — the one whose contents the "Invalid API key" render error was
+          # actually about. Prefix and length only; see the verify step for why that is enough.
+          printf 'dev server will use: url=%s… key=%s… (%s bytes)\n' \
+            "$(printf '%s' "$NEXT_PUBLIC_SUPABASE_URL" | cut -c1-15)" \
+            "$(printf '%s' "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" | cut -c1-15)" \
+            "$(printf '%s' "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" | wc -c | tr -d ' ')"
           pnpm --filter web test:e2e
+      # `always()`, so a red suite still takes its fixtures with it — a resolved report and a
+      # penalised profile left on staging would otherwise outlive the run that made them. The
+      # seed purges leftovers anyway, so a failure HERE is noise, not a broken next run:
+      # `continue-on-error` keeps it from turning a green suite red.
+      - name: remove the authenticated e2e fixtures
+        if: always() && steps.e2e-secrets.outputs.run != 'false'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
+        run: pnpm --filter web e2e:teardown
 
   edge:
     name: edge functions (deno test)
     runs-on: ubuntu-latest
+    # Ceiling, not a target. No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v2
@@ -80,13 +365,231 @@ jobs:
       # from the repo root, Deno finds package.json and expects npm deps in node_modules.
       # --allow-env: _shared/keys.ts reads the injected SUPABASE_* key variables.
       # --allow-read: _shared/config-invariants.test.ts parses config.toml and the function
-      # sources to assert every function's verify_jwt posture matches its in-handler gate.
+      # sources to assert every function's verify_jwt posture matches its in-handler gate,
+      # and _shared/mail-templates.test.ts reads config.toml plus supabase/templates/*.html
+      # to assert every declared auth mail resolves, is Italian, and carries the GoTrue
+      # variable its flow needs. Both read above supabase/functions/, so the bare form.
       - run: deno test --allow-env --allow-read .
         working-directory: supabase/functions
+      # Typecheck every entrypoint (#557): `deno test` typechecks only what a test
+      # imports, and no test imports an index.ts, so an entrypoint-only type error
+      # used to pass CI and first fail at deploy. Per-directory `cd` is mandatory —
+      # each function dir owns its deno.json import map, and Deno resolves the config
+      # nearest the CWD, so a batched `deno check */index.ts` from here reads only the
+      # root config and cannot resolve per-function deps (`stripe`, `expo-server-sdk`).
+      # Plain `deno check`, never `--all`: --all also checks remote deps' own .d.ts
+      # (red today inside @supabase/auth-js) — not ours to gate on. A new function
+      # without its own deno.json gets checked under the root config, whose import
+      # map is deliberately thin — give it one.
+      - name: typecheck every function entrypoint
+        run: |
+          rc=0
+          n=0
+          for d in */; do
+            [ -f "${d}index.ts" ] || continue
+            n=$((n + 1))
+            (cd "$d" && deno check index.ts) || rc=1
+          done
+          echo "checked $n entrypoints"
+          [ "$n" -gt 0 ] || { echo "no entrypoints found — glob broken?"; exit 1; }
+          exit $rc
+        working-directory: supabase/functions
+
+  bundle-leak:
+    name: native bundle (expo export) · leak scan
+    runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 149s, max 173s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: export the JS bundle
+        working-directory: apps/native
+        # Double duty (#147): this export IS CI's native-bundle gate. A bad expo dep or
+        # a Metro resolver break fails this job on every push and PR — there is no other
+        # place apps/native gets bundled before EAS. JS bundling only: config-plugin
+        # execution and native project generation live in `native-prebuild` (#350);
+        # native compile/link (Xcode/Gradle) is still uncovered anywhere in CI.
+        #
+        # Metro inlines EXPO_PUBLIC_* at bundle time. None are set in this job ON PURPOSE:
+        # the export must never need a secret, and whatever Metro inlines from the
+        # environment is exactly what the grep below is hunting for.
+        #
+        # --no-bytecode: Hermes packs its string table with no separators, so the legitimate
+        # 'sb_secret_' prefix literal in the client-side key guard (packages/api/src/
+        # supabase-key.ts rejects secret keys by that prefix) abuts whatever string follows
+        # and reads as key material. Plain JS keeps quotes, so the guard literal and a real
+        # leaked key stay distinguishable.
+        run: pnpm exec expo export --platform ios --platform android --no-bytecode --output-dir dist-ci
+      - name: grep the emitted bundle for secret material
+        working-directory: apps/native
+        run: |
+          # README rule 10's promise, built (issue #271, was #59): the manual release check
+          # R-1 (docs/RELEASE-RUNBOOK.md — unzip the EAS build, grep the JS) run mechanically
+          # on every push. This catches the realistic mistake — a service key or secret-shaped
+          # env var inlined into the bundle — at PR time instead of at release. R-1 stays as
+          # the belt-and-braces check on the real EAS artifact. One pattern is tightened vs
+          # R-1: sb_secret_ requires 16+ key-shaped chars after the prefix, because the bare
+          # prefix is a legitimate literal in the key guard (see the export step). Bundles
+          # only, not sourcemaps: maps embed node_modules sources, which may name env vars
+          # without shipping them. Mutation-tested: an injected sb_secret_… literal in
+          # _layout.tsx survives minification and trips the grep.
+          count=$(find dist-ci -type f -name '*.js' | wc -l | tr -d ' ')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::expo export produced no JS bundle — the leak scan scanned nothing"
+            exit 1
+          fi
+          if find dist-ci -type f -name '*.js' -print0 \
+            | xargs -0 grep -laiE 'service_role|sb_secret_[A-Za-z0-9]{16}|sentry_dsn|sk_live'; then
+            echo "::error::secret material in the exported bundle (service_role / sb_secret_… / sentry_dsn / sk_live) — see matching files above"
+            exit 1
+          fi
+          echo "::notice::bundle-leak scan OK — $count bundle files clean"
+
+  native-prebuild:
+    name: native doctor · prebuild (expo)
+    runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 47s, max 55s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 6
+    # Same reason as the db job: the pinned filter action only reads changed files.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      # PR path-trim, same pattern as the db job (see its comment for the fail-closed
+      # `!= 'false'` rationale and why the `if:` sits on steps, not the job — `deploy`
+      # has `needs:` on this job too). On PRs the steps run only when a native-shaped
+      # input changed; pushes to dev/main always run everything, so drift an untouched
+      # PR skipped surfaces on the next dev push at latest.
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: native-paths
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            native:
+              # The inputs doctor and prebuild actually read: dep versions (package.json
+              # + lockfile + the workspace catalog/pins) and the app config with its
+              # plugin list. apps/native/src/** is deliberately absent — JS-only changes
+              # cannot alter prebuild's output and are already gated by bundle-leak.
+              - 'apps/native/package.json'
+              - 'apps/native/app.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              # The job must test itself (same as the db job's self-listing).
+              - '.github/workflows/ci.yml'
+      - uses: pnpm/action-setup@v4
+        if: steps.native-paths.outputs.native != 'false'
+      - uses: actions/setup-node@v4
+        if: steps.native-paths.outputs.native != 'false'
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.native-paths.outputs.native != 'false'
+      # The other native half (#350): bundle-leak exports the JS, but a native module
+      # that type-checks and bundles yet fails to configure/link would still reach EAS
+      # unverified. These two steps close the cheap part of that gap. What they prove,
+      # exactly (#146 — a gate must not look stronger than it is):
+      #
+      #   expo-doctor    — dependency/SDK coherence: package versions match the SDK's
+      #                    expectations, config is sane. Talks to the Expo/npm APIs, so
+      #                    a new SDK patch can turn it red with no repo change — that is
+      #                    its canary function, same as running it locally after a dep
+      #                    change (the rules/mobile.md ritual, now pinned as a devDep).
+      #   expo prebuild  — config plugins all execute and the native projects generate
+      #                    (AndroidManifest.xml, Podfile, xcodeproj). A crashing plugin
+      #                    or invalid app.json fails here instead of on the EAS builder.
+      #
+      # Neither step COMPILES anything: no Gradle, no Xcode, no dependency linking.
+      # Native compile/link remains EAS-verified only. The Android Gradle-assemble
+      # canary (#350 rung 3) is deliberately not added: it needs JDK + Android SDK
+      # setup and a multi-GB Gradle cache for 10×+ wall-time, and this repo has no
+      # custom native code for it to uniquely catch — managed workflow, no android/
+      # or ios/ committed, every app.json plugin a third-party npm package. Revisit
+      # when a local config plugin or custom native module lands.
+      #
+      # Order matters: doctor runs BEFORE prebuild, because doctor flags generated
+      # android/ + ios/ dirs as a non-CNG project and would fail on prebuild's output.
+      # Both are non-interactive under CI=true (verified headless 2026-08-14).
+      - name: expo-doctor — dependency/SDK coherence
+        if: steps.native-paths.outputs.native != 'false'
+        working-directory: apps/native
+        run: pnpm exec expo-doctor
+      - name: expo prebuild — config plugins + native project generation
+        if: steps.native-paths.outputs.native != 'false'
+        working-directory: apps/native
+        # --no-install: skip pod/npm install — generation is the gate, not the toolchain.
+        # Prebuild rewrites package.json scripts (start → run:*) in the runner checkout;
+        # throwaway, nothing later in this job reads it.
+        run: pnpm exec expo prebuild --no-install
+
+  web-build:
+    name: web build (OpenNext)
+    runs-on: ubuntu-latest
+    # Ceiling, not a target (p50 63s, max 73s). No job in this file had one until
+    # 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: build what deploy ships
+        working-directory: apps/web
+        env:
+          # Next inlines NEXT_PUBLIC_* at build time, so the build needs the same env
+          # the deploy job passes — same names, same source.
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_CF_BEACON_TOKEN: ${{ secrets.NEXT_PUBLIC_CF_BEACON_TOKEN }}
+        run: |
+          # apps/web otherwise builds only inside `deploy`, which is main-push only — a
+          # PR could go green while unbuildable, and the break would first surface on the
+          # release push (#147). This runs the exact command deploy runs
+          # (`opennextjs-cloudflare build` wraps `next build`; no turbo build — the
+          # @athanor/* packages ship raw TS compiled by Next via transpilePackages), so
+          # PR-green means deploy-buildable. Exit status is the whole value: no artifact
+          # is kept, deploy still builds its own.
+          # Same fail-loud shape as the e2e and types gates: quiet skip without secrets
+          # on PRs (forks have none), loud fail on a main push.
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; }; then
+            echo "::warning::web build SKIPPED — set NEXT_PUBLIC_SUPABASE_URL + a key secret (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY preferred, NEXT_PUBLIC_SUPABASE_ANON_KEY legacy) to enable"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "::error::web build gate cannot run on a main push without the Supabase secrets"
+              exit 1
+            fi
+            exit 0
+          fi
+          pnpm exec opennextjs-cloudflare build
+          # The manifest that build just wrote is what OpenNext ships; assert it (#335): the
+          # always-static routes are in it, the dynamic families stay prerenderable, and the
+          # per-handle / per-event caps hold. Kept out of the unit suite so it can never pass
+          # without a build — apps/web/build-checks/prerender-manifest.test.ts.
+          pnpm exec vitest run --config vitest.prerender.config.ts
 
   db:
     name: migrations · pgTAP · types in sync
     runs-on: ubuntu-latest
+    # The one cap NOT sized from p50 (121s) or max (198s). The "generated types cover the
+    # schema" step below carries a pre-existing ECR-rate-limit retry loop whose backoff alone
+    # is 60+120+180+240 = 600s before attempt 5 begins, on top of `supabase start` (~3 min)
+    # and `supabase test db`. A cap sized from the happy path would kill that loop mid-backoff
+    # and turn "retry instead of failing the gate on infra weather" into the hard failure it
+    # was written to avoid — and `deploy` has `needs: db`. Size this from the loop, not the p50.
+    timeout-minutes: 20
     # The default workflow token is write-scoped org-wide; the pinned third-party
     # filter action below only ever needs to read the PR's changed files.
     permissions:
@@ -187,9 +690,13 @@ jobs:
     # Every gate first. Workers Builds (Cloudflare's own git integration) cannot
     # express this, which is why the deploy lives here: it would fire on push while
     # pgTAP and the types gate were still running, or already red.
-    needs: [node, e2e, edge, db]
+    needs: [node, e2e, edge, db, bundle-leak, native-prebuild, web-build]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Ceiling, not a target. Deliberately generous: this job runs only on a main push, so it
+    # never appeared in the sample the other caps were sized from. No job in this file had one
+    # until 2026-08-19, so a wedged step ran to GitHub's 360-minute default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -214,23 +721,64 @@ jobs:
           # Optional: unset simply means no beacon.
           NEXT_PUBLIC_CF_BEACON_TOKEN: ${{ secrets.NEXT_PUBLIC_CF_BEACON_TOKEN }}
         run: |
-          # Same fail-soft-then-fail-loud shape as the types gate above: the Cloudflare
-          # account has to be provisioned by hand once (Worker, KV namespace, API token),
-          # and this job would otherwise turn the first release PR red for a reason no
-          # code change can fix.
+          # This job only ever runs on a main push (job-level `if:` above), so unlike the
+          # e2e and types gates there is no feature-branch case to stay quiet for: a soft
+          # skip here is a release that "passes" while shipping nothing, silently, every
+          # time. The Cloudflare account is provisioned (Worker, KV namespace, API token
+          # — live since the 2026-08 Vercel→Workers migration), so the one-time
+          # bootstrap rationale for skipping is gone. Fail loud (#146).
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::warning::deploy SKIPPED — set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets to enable"
-            exit 0
+            echo "::error::deploy cannot run — set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets"
+            exit 1
           fi
-          # The KV id is account-specific and cannot be committed ahead of time. Catch the
+          # The KV ids are account-specific and cannot be committed ahead of time. Catch the
           # placeholder here, where the message is actionable, rather than as an opaque
           # wrangler API error three minutes into a deploy.
           if grep -q REPLACE_WITH_KV_NAMESPACE_ID wrangler.jsonc; then
             echo "::error::wrangler.jsonc still holds the placeholder KV namespace id — run 'pnpm exec wrangler kv namespace create NEXT_INC_CACHE_KV' and commit the id"
             exit 1
           fi
+          # A well-formed id from ANOTHER account passes the placeholder check and fails
+          # mid-deploy (the 2026-09 account move). Assert every committed id exists in the
+          # account this token deploys to.
+          kv_list=$(pnpm exec wrangler kv namespace list)
+          kv_ids=$(grep -oE '"(id|preview_id)": *"[0-9a-f]{32}"' wrangler.jsonc | grep -oE '[0-9a-f]{32}' || true)
+          # An empty for-list is a silent pass under `bash -e`; a reflow or a renamed key
+          # would disarm the guard. Both ids must be extracted before anything is asserted.
+          if [ "$(printf '%s\n' "$kv_ids" | grep -c .)" -lt 2 ]; then
+            echo "::error::could not extract both KV namespace ids (id + preview_id) from wrangler.jsonc — the guard's grep no longer matches the file"
+            exit 1
+          fi
+          for id in $kv_ids; do
+            if ! printf '%s' "$kv_list" | grep -q "$id"; then
+              echo "::error::KV namespace $id in wrangler.jsonc does not exist in account $CLOUDFLARE_ACCOUNT_ID — recreate it there and commit the new id"
+              exit 1
+            fi
+          done
           # No turbo build first: the @athanor/* packages ship raw TS and are compiled
           # by Next via transpilePackages, so `opennextjs-cloudflare build` (which runs
           # `next build` itself) is the only build there is.
           pnpm exec opennextjs-cloudflare build
           pnpm exec opennextjs-cloudflare deploy
+      - name: post-deploy probe
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        run: |
+          # A deploy into a half-provisioned account (wrong subdomain, custom domain not
+          # attached, stale secret) used to go green with no signal. The built BUILD_ID is
+          # public at /BUILD_ID on the canonical host; it must match what this job built.
+          if [ -z "$NEXT_PUBLIC_SITE_URL" ]; then
+            echo "::error::post-deploy probe: NEXT_PUBLIC_SITE_URL repo secret is empty"
+            exit 1
+          fi
+          expected=$(cat .next/BUILD_ID)
+          deployed=$(curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "$NEXT_PUBLIC_SITE_URL/BUILD_ID") || {
+            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL/BUILD_ID unreachable"
+            exit 1
+          }
+          if [ "$deployed" != "$expected" ]; then
+            echo "::error::post-deploy probe: $NEXT_PUBLIC_SITE_URL serves BUILD_ID $deployed, this job built $expected"
+            exit 1
+          fi
+          echo "deployed $expected at $NEXT_PUBLIC_SITE_URL"

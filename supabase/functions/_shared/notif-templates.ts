@@ -1,9 +1,42 @@
 // Inline mirror of @athanor/i18n notif.tpl.* — the Deno edge fn can't import the TS i18n
 // package. Keep in sync with packages/i18n/src/catalogs/{it,en}.json (title = notif.type.*,
-// body = notif.tpl.*). push-dispatch composes the push from these; the app renders the same
-// notif.tpl.* for the in-app row.
+// body = notif.tpl.*; the help* templates title from notif.lead.help instead — their
+// recipient is the HELPER, whom the owner-directed dreamMilestone type title would misread).
+// push-dispatch composes the push from these; the app renders the same notif.tpl.* for the
+// in-app row.
 type Locale = 'it' | 'en';
 type Tpl = { title: string; body: (p: Record<string, unknown>) => string };
+
+// notif.tpl.warn's `reason` param is a reports.category TOKEN (#313). Mirror of the
+// i18n report.reason.* labels — keep in sync with packages/i18n/src/catalogs/{it,en}.json
+// the same way TEMPLATES below mirrors notif.tpl.*. An unknown token degrades to itself
+// (the tagLabel shape): a category added to the DB before this mirror must still read as
+// a word, never as `undefined`.
+const REASON_LABELS: Record<Locale, Record<string, string>> = {
+  it: {
+    selling: 'Vendite aggressive',
+    income: 'Promesse di guadagno garantito',
+    mlm: 'Reclutamento multilivello',
+    harassment: 'Molestie o comportamento offensivo',
+    spam: 'Spam o contenuto ingannevole',
+    impersonation: 'Identità falsa',
+    other: 'Altro',
+  },
+  en: {
+    selling: 'Aggressive selling',
+    income: 'Guaranteed-income promises',
+    mlm: 'Multi-level recruiting',
+    harassment: 'Harassment or abusive behavior',
+    spam: 'Spam or misleading content',
+    impersonation: 'Fake identity',
+    other: 'Something else',
+  },
+};
+
+function reasonLabel(reason: unknown, locale: Locale): string {
+  const token = typeof reason === 'string' ? reason : '';
+  return REASON_LABELS[locale][token] ?? token;
+}
 
 const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.moment': {
@@ -50,14 +83,34 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: (p) => `«${p.title ?? ''}» is coming up. ${p.count ?? 0} attending.`,
     },
   },
-  'notif.tpl.fundMilestone': {
+  // The t1 slot (#523). Same type, same route, different sentence: «è tra poco» is true an
+  // hour out and false a day out, and the sweep sends both slots from one template before this.
+  'notif.tpl.eventReminderSoon': {
     it: {
-      title: 'Dai Vita al Tuo Sogno',
-      body: (p) => `Il fondo «Dai Vita al Tuo Sogno» ha superato i ${p.amount ?? ''}.`,
+      title: 'Promemoria evento',
+      body: (p) => `«${p.title ?? ''}» comincia tra un'ora. ${p.count ?? 0} partecipano.`,
     },
     en: {
-      title: 'Bring Your Dream to Life',
-      body: (p) => `The «Bring Your Dream to Life» fund passed ${p.amount ?? ''}.`,
+      title: 'Event reminder',
+      body: (p) => `«${p.title ?? ''}» starts in an hour. ${p.count ?? 0} attending.`,
+    },
+  },
+  // The organiser slot (#522). Same type and route again; the sentence names the event as
+  // theirs, because the organiser is not deciding whether to come — they are the event.
+  //
+  // No head-count, unlike the two attendee slots. Those only ever reach somebody who is
+  // themselves a going RSVP, so their {count} is >= 1 by construction. The organiser slot joins
+  // no rsvps at all — it fires for an event nobody has answered yet — and «0 partecipano» an
+  // hour before your own event is a metric, not a wise friend (PRD §4.14). The hour is the
+  // payload here; the head-count is what t24 is for.
+  'notif.tpl.eventReminderOrganizer': {
+    it: {
+      title: 'Il tuo evento',
+      body: (p) => `«${p.title ?? ''}» comincia tra un'ora.`,
+    },
+    en: {
+      title: 'Your event',
+      body: (p) => `«${p.title ?? ''}» starts in an hour.`,
     },
   },
   'notif.tpl.projectResponse': {
@@ -81,6 +134,118 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
     },
     en: { title: 'Connection', body: (p) => `${p.name ?? 'Someone'} accepted your request ✦` },
   },
+  'notif.tpl.helpAccepted': {
+    it: {
+      title: 'Il tuo aiuto',
+      body: (p) => `${p.name ?? 'Qualcuno'} ha accettato il tuo aiuto.`,
+    },
+    en: { title: 'Your help', body: (p) => `${p.name ?? 'Someone'} accepted your help.` },
+  },
+  'notif.tpl.helpConfirmed': {
+    it: {
+      title: 'Il tuo aiuto',
+      body: (p) => `${p.name ?? 'Qualcuno'} ha confermato il tuo aiuto. La tua Aura cresce ✦`,
+    },
+    en: {
+      title: 'Your help',
+      body: (p) => `${p.name ?? 'Someone'} confirmed your help. Your Aura grows ✦`,
+    },
+  },
+  'notif.tpl.warn': {
+    it: {
+      title: 'Un richiamo',
+      body: (p) =>
+        `Abbiamo confermato una segnalazione: ${reasonLabel(p.reason, 'it')}. Fermati e ripensaci.`,
+    },
+    en: {
+      title: 'A warning',
+      body: (p) => `We upheld a report: ${reasonLabel(p.reason, 'en')}. Pause and think it over.`,
+    },
+  },
+  // #129: gdpr_export_jobs status→ready. No params — deliberately no signed URL in the push
+  // payload (a push is not a secure channel for a download link); the member opens the app.
+  'notif.tpl.gdprExport': {
+    it: {
+      title: 'I tuoi dati',
+      body: () => 'Il tuo archivio è pronto. Scaricalo da Impostazioni → I tuoi dati.',
+    },
+    en: {
+      title: 'Your data',
+      body: () => 'Your archive is ready. Download it from Settings → Your data.',
+    },
+  },
+  // #127 — the fund's broadcasts. Titles mirror notif.type.fundMilestone; bodies mirror the
+  // five notif.tpl.fund* keys. The *LastDay pair exists because `t()` has no plural support and
+  // «Mancano 1 giorni» is not Italian, so the 1-day slot writes the number into the sentence.
+  //
+  // Every body is fact-then-invitation, and the invitation is what carries the SECOND PERSON
+  // (rule 5). The fact stays impersonal on purpose: this reaches every member, and a «we raised
+  // it together» framing would claim a contribution most recipients never made — rule 3.
+  'notif.tpl.fundMilestone': {
+    it: {
+      title: 'Il fondo',
+      body: (p) => `Il fondo ha superato il ${p.pct ?? 0}%. Vieni a vedere dove siamo.`,
+    },
+    en: {
+      title: 'The fund',
+      body: (p) => `The fund passed ${p.pct ?? 0}%. Come see where we stand.`,
+    },
+  },
+  'notif.tpl.fundAnnounceCountdown': {
+    it: {
+      title: 'Il fondo',
+      body: (p) =>
+        `Mancano ${p.days ?? 0} giorni all'annuncio. Tieni d'occhio il conto alla rovescia.`,
+    },
+    en: {
+      title: 'The fund',
+      body: (p) => `${p.days ?? 0} days to the announcement. Keep an eye on the countdown.`,
+    },
+  },
+  'notif.tpl.fundAnnounceLastDay': {
+    it: { title: 'Il fondo', body: () => 'Domani si annuncia il sogno scelto. Ci sei?' },
+    en: {
+      title: 'The fund',
+      body: () => 'Tomorrow the chosen dream is announced. Will you be there?',
+    },
+  },
+  'notif.tpl.fundBallotCountdown': {
+    it: {
+      title: 'Il fondo',
+      body: (p) =>
+        `Mancano ${p.days ?? 0} giorni alla chiusura del voto. Se vuoi votare, sei ancora in tempo.`,
+    },
+    en: {
+      title: 'The fund',
+      body: (p) =>
+        `${p.days ?? 0} days until voting closes. If you want to vote, there is still time.`,
+    },
+  },
+  'notif.tpl.fundBallotLastDay': {
+    it: {
+      title: 'Il fondo',
+      body: () => 'Il voto chiude domani. Se non hai ancora votato, è il momento.',
+    },
+    en: {
+      title: 'The fund',
+      body: () => "Voting closes tomorrow. If you haven't voted yet, now is the time.",
+    },
+  },
+  // #602 — the moderation queue alert, two keys on one type. Grammatical split, as with the
+  // fund's *Countdown/*LastDay pair: {count} has no plural support. `count` is the ONLY param
+  // either key reads, deliberately — this body renders on a lock screen, and #97 scopes the
+  // admin read path to reported content, so no handle, note excerpt or report id belongs here.
+  'notif.tpl.reportQueue': {
+    it: {
+      title: 'Le segnalazioni',
+      body: (p) => `${p.count ?? 0} segnalazioni aspettano il tuo sguardo.`,
+    },
+    en: { title: 'Reports', body: (p) => `${p.count ?? 0} reports are waiting for you.` },
+  },
+  'notif.tpl.reportQueueOne': {
+    it: { title: 'Le segnalazioni', body: () => 'Una segnalazione aspetta il tuo sguardo.' },
+    en: { title: 'Reports', body: () => 'One report is waiting for you.' },
+  },
 };
 
 const ROUTE: Record<string, string> = {
@@ -89,9 +254,20 @@ const ROUTE: Record<string, string> = {
   dreamMilestone: 'dream',
   review: 'reviews',
   eventReminder: 'event',
-  fundMilestone: 'fund',
   projectResponse: 'costellazioni',
   connection: 'connections',
+  // #313: the warn has no member-facing destination — the row itself is the outcome. The
+  // in-app router (notification-route.ts) returns null; this push route lands on the
+  // notification center's home surface.
+  moderation: 'trust',
+  // #129: the in-app router opens the Data Export modal (Settings → I tuoi dati).
+  gdprExport: 'data-export',
+  // #127: matches notification-route.ts's arm — every fund broadcast opens the annual screen.
+  fundMilestone: 'annual',
+  // #602: like 'moderation', there is nothing in this app to open — the moderation queue is a
+  // web surface. Lands on the notification centre. The `?? 'momenti'` fallback below is what
+  // makes an omission here silent, which is why the row is explicit.
+  reportQueue: 'trust',
 };
 
 export type DispatchInput = {

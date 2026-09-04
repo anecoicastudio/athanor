@@ -10,22 +10,37 @@ import { t } from '@athanor/i18n';
  *  - going=false → «Partecipo» (Button light)
  *  - going=true  → «✓ Parteciperai» (Button ghost) + «Calendario» (Button ghost)
  *  - soldOut (capacity reached AND not going) → «Tutto esaurito» (disabled)
+ *
+ * `permissionNotice` is the calendar refusal (#531), and it is deliberately NOT the
+ * `confirmation` line: that one auto-dismisses after 2.5s in the parent, which is right for
+ * «Aggiunto al calendario» and wrong for a message whose whole purpose is to offer a route
+ * out. It also draws in `text-faint` rather than the confirmation's cyan — a refusal is not
+ * moment-grade (rule #4).
  */
 export function RsvpBar({
   going,
   soldOut,
   pending,
+  calendarPending,
   confirmation,
+  permissionNotice = null,
   onToggle,
   onAddToCalendar,
+  onOpenSettings = null,
   locale,
 }: {
   going: boolean;
   soldOut: boolean;
   pending: boolean;
+  /** «Calendario» in flight (#548) — Button `loading` implies disabled, so a double-tap cannot queue a second write. */
+  calendarPending: boolean;
   confirmation: string | null;
+  /** Why «Calendario» did nothing. Stays until the member acts. */
+  permissionNotice?: string | null;
   onToggle: () => void;
   onAddToCalendar: () => void;
+  /** Set only when the grant cannot be re-prompted — Settings is then the only way back. */
+  onOpenSettings?: (() => void) | null;
   locale: 'it' | 'en';
 }) {
   return (
@@ -45,6 +60,7 @@ export function RsvpBar({
           <Button
             label={t('event.rsvp.calendar', locale)}
             variant="ghost"
+            loading={calendarPending}
             onPress={onAddToCalendar}
           />
         </View>
@@ -58,6 +74,18 @@ export function RsvpBar({
       )}
       {confirmation ? (
         <Text className="text-center text-[13px] text-aura">{confirmation}</Text>
+      ) : null}
+      {permissionNotice ? (
+        <View className="gap-2">
+          <Text className="text-center text-[13px] text-faint">{permissionNotice}</Text>
+          {onOpenSettings ? (
+            <Button
+              label={t('permission.openSettings', locale)}
+              variant="ghost"
+              onPress={onOpenSettings}
+            />
+          ) : null}
+        </View>
       ) : null}
     </View>
   );

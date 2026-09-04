@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mediaKindSchema, postMediaInsertSchema, postMediaSchema } from './post-media';
+import {
+  mediaKindSchema,
+  postMediaInsertSchema,
+  postMediaPublishSchema,
+  postMediaSchema,
+} from './post-media.ts';
 
 const POST = '00000000-0000-0000-0000-000000000002';
 
@@ -8,6 +13,7 @@ const imageRow = {
   post_id: POST,
   kind: 'image',
   storage_path: 'uid/post/0.jpg',
+  thumb_path: null,
   duration_s: null,
   width: 800,
   height: 600,
@@ -33,11 +39,14 @@ describe('postMediaSchema', () => {
     }
   });
 
-  it('bounds duration_s to ≤1200s, integer, non-negative (mirrors the post_media CHECK)', () => {
+  it('bounds duration_s to ≤60s, integer, non-negative (mirrors the post_media CHECK)', () => {
     const audio = { ...imageRow, kind: 'audio', storage_path: 'uid/post/0.m4a' };
-    expect(postMediaSchema.parse({ ...audio, duration_s: 1200 }).duration_s).toBe(1200);
+    expect(postMediaSchema.parse({ ...audio, duration_s: 60 }).duration_s).toBe(60);
     expect(postMediaSchema.parse({ ...audio, duration_s: 0 }).duration_s).toBe(0);
-    for (const bad of [1201, -1, 90.5]) {
+    // 61 and 1200: the boundary, and the bound this column used to carry (#56). A clip of
+    // twenty minutes was accepted here until the schema and the CHECK were narrowed to the
+    // 60 the app has always enforced, so it is the one over-length value worth naming.
+    for (const bad of [61, 1200, -1, 90.5]) {
       expect(() => postMediaSchema.parse({ ...audio, duration_s: bad })).toThrow();
     }
   });
@@ -64,9 +73,10 @@ describe('postMediaSchema', () => {
 });
 
 describe('postMediaInsertSchema', () => {
-  it('defaults duration and dimensions to null, so a minimal insert is a complete payload', () => {
+  it('defaults thumb, duration and dimensions to null, so a minimal insert is a complete payload', () => {
     expect(postMediaInsertSchema.parse(baseInsert)).toEqual({
       ...baseInsert,
+      thumb_path: null,
       duration_s: null,
       width: null,
       height: null,
@@ -86,6 +96,20 @@ describe('postMediaInsertSchema', () => {
     ).toMatchObject({ kind: 'video', duration_s: 45, width: 1920, height: 1080 });
   });
 
+  it('carries the same ≤60s duration bound as the row, which it re-declares', () => {
+    // The insert does not `.pick()` duration_s, it `.extend()`s a fresh one — so the row's
+    // assertion above says nothing at all about this one, and an upload goes through THIS
+    // schema. #56 narrowed both; only a test that names both keeps them narrowed.
+    expect(
+      postMediaInsertSchema.parse({ ...baseInsert, kind: 'video', duration_s: 60 }).duration_s,
+    ).toBe(60);
+    for (const bad of [61, 1200, -1, 90.5]) {
+      expect(() =>
+        postMediaInsertSchema.parse({ ...baseInsert, kind: 'video', duration_s: bad }),
+      ).toThrow();
+    }
+  });
+
   it('drops nothing from the row shape it was picked from', () => {
     expect(Object.keys(postMediaInsertSchema.shape).sort()).toEqual([
       'duration_s',
@@ -94,6 +118,7 @@ describe('postMediaInsertSchema', () => {
       'position',
       'post_id',
       'storage_path',
+      'thumb_path',
       'width',
     ]);
   });
@@ -109,5 +134,62 @@ describe('postMediaInsertSchema', () => {
     expect(() => postMediaInsertSchema.parse(withoutPost)).toThrow();
     expect(() => postMediaInsertSchema.parse(withoutPath)).toThrow();
     expect(() => postMediaInsertSchema.parse(withoutPosition)).toThrow();
+  });
+});
+
+describe('thumb_path', () => {
+  // Every row and insert in this file carries thumb_path: null, which satisfies any bound. A
+  // real poster key has to parse and an empty one must not — on the row and the insert alike,
+  // since the insert re-declares the field rather than picking it.
+  it('accepts a poster key and rejects an empty one, on the row and the insert', () => {
+    expect(
+      postMediaSchema.parse({ ...imageRow, thumb_path: 'uid/post/0-thumb.jpg' }).thumb_path,
+    ).toBe('uid/post/0-thumb.jpg');
+    expect(() => postMediaSchema.parse({ ...imageRow, thumb_path: '' })).toThrow();
+    expect(
+      postMediaInsertSchema.parse({ ...baseInsert, thumb_path: 'uid/post/0-thumb.jpg' }).thumb_path,
+    ).toBe('uid/post/0-thumb.jpg');
+    expect(() => postMediaInsertSchema.parse({ ...baseInsert, thumb_path: '' })).toThrow();
+  });
+});
+
+describe('postMediaPublishSchema', () => {
+  const publishRow = { kind: 'image', storage_path: 'uid/post/0.jpg', position: 0 };
+
+  // #588: publish_post assigns the parent, so a row aimed at another post is unrepresentable
+  // rather than refused. Asserted on the shape — a schema that still declared post_id would
+  // behave identically here and differ only on the wire.
+  it('carries the insert shape minus post_id', () => {
+    expect(Object.keys(postMediaPublishSchema.shape).sort()).toEqual([
+      'duration_s',
+      'height',
+      'kind',
+      'position',
+      'storage_path',
+      'thumb_path',
+      'width',
+    ]);
+  });
+
+  it('parses a row that names no post, and strips one that does', () => {
+    expect(postMediaPublishSchema.parse(publishRow)).toEqual({
+      kind: 'image',
+      storage_path: 'uid/post/0.jpg',
+      position: 0,
+      thumb_path: null,
+      duration_s: null,
+      width: null,
+      height: null,
+    });
+    expect('post_id' in postMediaPublishSchema.parse({ ...publishRow, post_id: POST })).toBe(false);
+  });
+
+  it('inherits the insert rules it does not restate', () => {
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, kind: 'gif' }).success).toBe(false);
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, position: -1 }).success).toBe(false);
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, storage_path: '' }).success).toBe(
+      false,
+    );
+    expect(postMediaPublishSchema.safeParse({ ...publishRow, duration_s: 61 }).success).toBe(false);
   });
 });

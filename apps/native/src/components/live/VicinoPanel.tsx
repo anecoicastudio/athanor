@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
+import { Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
@@ -11,11 +11,14 @@ import {
 import { metersToKm } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { EventNearby } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
+import { toStatus } from '@/lib/media/permission-status';
 import { supabase } from '@/lib/supabase';
 import { EventRow } from './EventRow';
 import { PanelError } from './PanelError';
@@ -53,19 +56,40 @@ function AthanorDaysCard({
 /* ── Vicino a te ── */
 export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: string) => void }) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [denied, setDenied] = useState(false);
+  /**
+   * Why there is no list (#549). `denied` re-prompts on the next ask, so its action retries;
+   * `blocked` never will — the OS resolves instantly with no dialog, which made the old retry
+   * action a permanent no-op — so its action deep-links to Settings instead. The #179 error
+   * path (services off, timed-out fix) deliberately lands on `denied`: retry is its way back.
+   */
+  const [refusal, setRefusal] = useState<'denied' | 'blocked' | null>(null);
   const [city, setCity] = useState<string | null>(null);
   const [notified, setNotified] = useState(false);
+  const { showToast } = useToast();
   const { session } = useAuth();
 
+  // Never rejects: both callers fire it as `void requestLocation()` (mount + the retry button).
   const requestLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      setDenied(true);
+    let pos: Location.LocationObject;
+    try {
+      const res = await Location.requestForegroundPermissionsAsync();
+      if (!res.granted) {
+        // Same mapper as calendar.ts (#531): `canAskAgain` is the whole denied/blocked
+        // difference, and not reading it is what made blocked a dead end here (#549).
+        setRefusal(toStatus(res) === 'blocked' ? 'blocked' : 'denied');
+        return;
+      }
+      setRefusal(null);
+      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+    } catch (e) {
+      // Location services off, a fix that timed out, a prompt that never resolved — until #179
+      // this rejection went unhandled and the panel sat blank with no way back. Say so, and
+      // reuse the denied state: its «Consenti la posizione» action is the retry.
+      devWarn('[live] requestLocation', e);
+      setRefusal('denied');
+      showToast(t('live.map.locationError', locale));
       return;
     }
-    setDenied(false);
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
     setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     try {
       const [place] = await Location.reverseGeocodeAsync(pos.coords);
@@ -94,7 +118,11 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
       await registerAthanorDaysInterest(supabase, session.user.id, null);
       setNotified(true); // confirm only on a real write — no false success on failure
     } catch (e) {
+      // #132: this write is the only demand signal Athanor Days collects — a swallowed
+      // failure both lies to the member and loses the datum. Surface it; `notified`
+      // stays false, so the CTA still reads «Avvisami» and a second tap retries.
       devWarn('[live] registerAthanorDaysInterest', e);
+      showToast(t('live.athanorDays.error', locale));
     }
   };
 
@@ -109,59 +137,90 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
     </View>
   );
 
-  if (denied) {
+  if (refusal) {
+    const blocked = refusal === 'blocked';
     return (
-      <ScrollView contentContainerClassName="pb-[104px]">
-        {header}
-        <View className="items-center gap-4 px-5 pt-8">
-          <EmptyState>{t('live.map.locationDenied', locale)}</EmptyState>
-          <Pressable
-            className="rounded-ctl border border-aura-line bg-aura-soft px-5 py-2"
-            onPress={() => void requestLocation()}
-          >
-            <Text className="text-[13px] text-aura">{t('live.map.allowLocation', locale)}</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+      <View className="flex-1">
+        <ScrollView contentContainerClassName="pb-12">
+          {header}
+          <View className="items-center px-5 pt-8">
+            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
+                moment-grade surface (rule #4) on a permission ask (#119).
+                Blocked keeps the subject line (it names the permission, which the shared body
+                does not) and adds `permission.blocked.body` + the Settings route — the shared
+                blocked copy per the candidacy precedent; the calendar's bespoke key is the
+                recorded exception (#552), not this. The retry stays VISIBLE below Settings:
+                this panel only requests on mount, so without it a member who granted in
+                Settings and came back (Android does not relaunch) would face a dead screen —
+                the shared body's «quando vuoi» is honest only while a trigger exists.
+                Literal keys on every arm. */}
+            <EmptyState
+              body={blocked ? t('permission.blocked.body', locale) : undefined}
+              action={
+                blocked
+                  ? {
+                      label: t('permission.openSettings', locale),
+                      onPress: () => void Linking.openSettings(),
+                    }
+                  : {
+                      label: t('live.map.allowLocation', locale),
+                      onPress: () => void requestLocation(),
+                    }
+              }
+            >
+              {t('live.map.locationDenied', locale)}
+            </EmptyState>
+            {blocked ? (
+              <Button
+                label={t('live.map.allowLocation', locale)}
+                variant="ghost"
+                onPress={() => void requestLocation()}
+              />
+            ) : null}
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
   if (query.isError) return <PanelError locale={locale} onRetry={() => void query.refetch()} />;
 
   return (
-    <FlatList
-      data={rows}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={header}
-      renderItem={({ item }) => (
-        <View className="px-5 pb-3">
-          <EventRow
-            data={{
-              id: item.id,
-              title: item.title,
-              category: item.category,
-              starts_at: item.starts_at,
-              venue: item.venue,
-              city: item.city,
-              distanceKm: metersToKm(item.dist_meters),
-            }}
-            locale={locale}
-            onPress={() => onOpen(item.id)}
-          />
-        </View>
-      )}
-      ListEmptyComponent={
-        coords && !query.isLoading ? (
-          <View className="items-center px-5 pt-8">
-            <EmptyState>{t('live.vicino.empty', locale)}</EmptyState>
+    <View className="flex-1">
+      <FlatList
+        data={rows}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={header}
+        renderItem={({ item }) => (
+          <View className="px-5 pb-3">
+            <EventRow
+              data={{
+                id: item.id,
+                title: item.title,
+                category: item.category,
+                starts_at: item.starts_at,
+                venue: item.venue,
+                city: item.city,
+                distanceKm: metersToKm(item.dist_meters),
+              }}
+              locale={locale}
+              onPress={() => onOpen(item.id)}
+            />
           </View>
-        ) : null
-      }
-      onEndReachedThreshold={0.5}
-      onEndReached={() => {
-        if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
-      }}
-      contentContainerClassName="pb-[104px]"
-    />
+        )}
+        ListEmptyComponent={
+          coords && !query.isLoading ? (
+            <View className="items-center px-5 pt-8">
+              <EmptyState>{t('live.vicino.empty', locale)}</EmptyState>
+            </View>
+          ) : null
+        }
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+        }}
+        contentContainerClassName="pb-12"
+      />
+    </View>
   );
 }

@@ -1,12 +1,24 @@
 import type { AthanorClient } from './client';
 
-/** The private media buckets. */
+/**
+ * The private media buckets.
+ *
+ * KEEP IN SYNC with the GDPR erasure sweep's bucket list — `gdpr_storage_footprint`'s `in (…)`
+ * predicate in `supabase/migrations/20260827110034_gdpr_storage_footprint_sweep.sql`. A bucket a
+ * member can upload to and an erasure never deletes from is #573. Every name below except
+ * `chat-media` is in exactly that state on `main` (`b203c48`), where this union is five long and
+ * `erasure-job` has no storage port at all — no bucket is swept there, not even candidacy-videos.
+ * `supabase/functions/erasure-job/sweep-buckets.test.ts` parses this union textually and fails if
+ * the sweep does not cover it — textually, because that test runs in the Deno edge job, outside
+ * this workspace, so nothing in the import graph ties the two files together.
+ */
 export type MediaBucketName =
   | 'post-media'
   | 'moments'
   | 'story-segments'
   | 'candidacy-videos'
-  | 'avatars';
+  | 'avatars'
+  | 'chat-media';
 
 /** Upload bytes to a private bucket at an exact key. `upsert` replaces on retry. */
 export async function uploadToBucket(
@@ -20,6 +32,26 @@ export async function uploadToBucket(
     contentType,
     upsert: true,
   });
+  if (error) throw error;
+}
+
+/**
+ * Delete objects from a private bucket. Dedupes and drops falsy paths like `signMediaUrls`,
+ * and no-ops on an empty list rather than issuing a request that deletes nothing.
+ *
+ * Throws on failure, like `uploadToBucket`. storage-js reports a failed remove as a resolved
+ * `{ error }` and a network fault as a rejection, so a caller that handles only one of the two
+ * leaves the other unhandled (#179) — collapsing both into a throw here means one `.catch` at
+ * the call site covers it.
+ */
+export async function removeFromBucket(
+  client: AthanorClient,
+  bucket: MediaBucketName,
+  paths: string[],
+): Promise<void> {
+  const unique = [...new Set(paths)].filter(Boolean);
+  if (unique.length === 0) return;
+  const { error } = await client.storage.from(bucket).remove(unique);
   if (error) throw error;
 }
 
@@ -50,6 +82,10 @@ export const BUCKET_URL_TTL = {
   // (`{uid}/{uid}.{ext}`), so one signed URL is reused across screens for the whole hour rather
   // than re-minted per row. Nothing expires in this bucket, so the TTL bounds no deletion.
   avatars: 3600,
+  // Chat images never expire (no reaper touches the bucket), so like the other hour-long
+  // buckets the TTL bounds nothing — it just keeps a thread's images on one signed URL for
+  // the whole session instead of re-minting per scroll.
+  'chat-media': 3600,
 } as const satisfies Record<MediaBucketName, number>;
 
 /**

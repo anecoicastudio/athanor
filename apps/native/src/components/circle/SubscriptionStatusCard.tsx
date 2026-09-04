@@ -17,19 +17,23 @@ import { longDate } from '@/lib/time';
  * Reduced-motion: opacity-in only, no transform — mirrors level.tsx / candidacy-success.tsx
  * pattern (AccessibilityInfo.isReduceMotionEnabled).
  *
- * Check glyph ✓ from MilestoneRow pattern; plan/renewal via i18n keys; founding → cosmetic Tag
+ * Check glyph ✓ from MilestoneRow pattern; plan/renewal via i18n keys (the renewal line becomes
+ * an end date when cancelAtPeriodEnd is true — #511); founding → cosmetic Tag
  * badge. past_due renders BELOW the glowing card, not inside it — see the comment at that line.
  */
 export function SubscriptionStatusCard({
   plan,
   status,
   currentPeriodEnd,
+  cancelAtPeriodEnd,
   founding,
   locale,
 }: {
   plan: 'monthly' | 'annual' | null;
   status: 'active' | 'past_due' | 'canceled' | 'incomplete' | null;
   currentPeriodEnd: string | null;
+  /** Stripe's pending-cancellation flag (#511). A cancelled member stays active until the date. */
+  cancelAtPeriodEnd: boolean;
   founding: boolean;
   locale: Locale;
 }) {
@@ -72,10 +76,15 @@ export function SubscriptionStatusCard({
         {/* Plan line */}
         {planLabel ? <Text className="text-[14px] text-muted-foreground">{planLabel}</Text> : null}
 
-        {/* Renewal line */}
+        {/* Renewal line — or the end date, when the member has already cancelled.
+            #511: Stripe keeps a cancelled subscription `active` for the period already paid
+            for, so status alone cannot tell the two apart and both used to render as a
+            renewal — a promise of a charge that will never happen. */}
         {renewalDate && !isPastDue ? (
           <Text className="text-[13px] text-muted-foreground">
-            {t('circle.member.renews', locale, { date: renewalDate })}
+            {cancelAtPeriodEnd
+              ? t('circle.member.endsOn', locale, { date: renewalDate })
+              : t('circle.member.renews', locale, { date: renewalDate })}
           </Text>
         ) : null}
       </View>

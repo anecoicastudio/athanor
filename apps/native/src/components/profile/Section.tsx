@@ -40,6 +40,7 @@ export function Section({
             {VISIBILITY_OPTIONS.map((opt) => (
               <Chip
                 key={opt}
+                role="radio"
                 small
                 label={t(`visibility.${opt}` as MessageKey, locale)}
                 selected={(visibility[field] ?? 'members') === opt}

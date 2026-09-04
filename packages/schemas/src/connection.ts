@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { avatarPathSchema, displayNameSchema, peerIdentityFields } from './profile';
+import { avatarPathSchema, displayNameSchema, peerIdentityFields } from './profile.ts';
 
 /**
  * The wire shape of the incoming-requests select, parsed at the boundary. The aliased embed

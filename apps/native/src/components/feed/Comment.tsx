@@ -29,13 +29,23 @@ export function Comment({
       <PostAuthorRow authorId={comment.author_id} size="sm" />
       <Text className="text-[14px] leading-6 text-foreground">{comment.body}</Text>
       <View className="flex-row gap-4">
+        {/* Both were 12px labels with no padding — ~15pt targets (§10). «Rispondi» also
+        carried no accessibilityRole, so VoiceOver announced it as plain text. */}
         {onReply ? (
-          <Pressable className="self-start" onPress={() => onReply(null)}>
+          <Pressable
+            className="min-h-[44px] min-w-[44px] items-center justify-center self-start"
+            onPress={() => onReply(null)}
+            accessibilityRole="button"
+          >
             <Text className="text-[12px] text-muted-foreground">{t('comment.reply', locale)}</Text>
           </Pressable>
         ) : null}
         {onDelete ? (
-          <Pressable className="self-start" onPress={onDelete} accessibilityRole="button">
+          <Pressable
+            className="min-h-[44px] min-w-[44px] items-center justify-center self-start"
+            onPress={onDelete}
+            accessibilityRole="button"
+          >
             <Text className="text-[12px] text-muted-foreground">{t('comment.delete', locale)}</Text>
           </Pressable>
         ) : null}

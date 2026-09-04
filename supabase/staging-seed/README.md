@@ -78,7 +78,10 @@ already-seeded database, act in the app instead.
 The engine writes asynchronously, so the summary the file prints at the end shows
 `aura_events` and `notifications` at 0 even on a healthy run. Re-count them a few
 seconds later: on the 2026-08-10 staging run they settled at 3 `aura_events`,
-3 `aura_scores` and 20 `notifications`.
+3 `aura_scores` and 20 `notifications`. Expect **6 and 6** from a fresh seed since
+#448 — the three paid-event organisers are `identity_verified` now, because
+`events_enforce_paid_gate` refuses a paid event whose organiser is not, and each
+verification carries the same disclosed +50 the three candidacy authors do.
 
 ## Signing in
 
@@ -116,6 +119,91 @@ below) and the story `expires_at` refresh in §6. The latter is deliberate — s
 stories expire after 20 hours and the daily prune soft-deletes them, so without the
 refresh a second run would produce a world with exactly one visible story.
 
+## Hourly refresh (`refresh-staging.sql`)
+
+The seeded world decays while it is tested: a swiped Momento never comes back (the
+pair is unique and the matcher never re-proposes it), stories expire after 20 hours,
+events drift into the past, statuses get flipped by walking the flows.
+`refresh-staging.sql` installs `public.staging_refresh_world()` plus a pg_cron job
+(`staging-refresh-world`, `7 * * * *`) that restores all of that every hour:
+
+- **Momenti deck** — every persona holds 3 pending cards, scored with the matcher's
+  own affinity rules from live tags. Swipe as a persona and the cards are back within
+  the hour (delete + re-insert; the status guard forbids un-passing a row).
+- **Stories** — the nine seeded segments get `expires_at` pushed back out to 20 hours
+  once they come within 4 of expiring, and un-soft-deleted if the prune got them.
+- **Events** — the four future events re-stamp to their seeded offsets (+4/+9/+16/+25
+  days) once they decay within 3 days of now, with any live-window state cleared;
+  `bottega-aperta` stays deliberately past.
+- **Fund ballot window** — `fund_editions.voting_starts_at` / `voting_ends_at` re-stamp
+  to the seeded −7/+23-day span once the ballot comes within 7 days of closing, or was
+  never declared at all. `cast_vote` gates on that window, so without this the fake
+  world's voting goes inert and no re-seed can reopen it (the seed writes the span once,
+  behind `on conflict do nothing`). The two window columns only — the cycle's `phase`,
+  `target_at` and D16 declarations are left exactly as they are.
+- **Statuses & soft-deletes** — seeded dreams, milestones, helps, connection
+  requests, RSVPs, posts, comments, moments, projects and favor offers return to
+  their seeded states; persona `suspended_until` / `banned_at` are cleared.
+
+**Restorative, never a wipe.** Only rows the seed created are touched. Posts,
+messages, accounts and swipes you create while testing survive every run — including
+swipes on a non-persona account (sign in as a persona to get the hourly deck restore,
+or fall back to the full re-seed above). It is diff-aware: an untouched world
+produces zero writes, so an idle hour fires no notifications; persona `moment`
+notifications older than 2 hours are pruned on each run to cap the noise.
+
+What it deliberately does **not** restore: preference toggles (consent, notification
+preferences), reactions, resolved reports, conversations/messages, the GoTrue half of
+a ban (clear that from the Dashboard — SQL cannot reach it), and the fund cycle's own
+progress — `phase`, `candidacy_window_open` and the cosmetic `target_at` countdown.
+Walking the cycle forward is real testing, not decay, and re-entering `voting` fires
+the ballot-open trigger; use the full re-seed above to rewind it.
+
+Install once (same two gates as the seed; the function additionally self-gates on the
+staging Vault marker, so it is inert anywhere else):
+
+```bash
+psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 \
+  -c "set app.settings.seed_confirm = 'yes'" \
+  -f supabase/staging-seed/refresh-staging.sql
+```
+
+(or the single Management-API `database/query` call with the `set` prepended — one
+call is one session, same as the seed.)
+
+On demand, without waiting for the hour:
+
+```bash
+pnpm staging:refresh --confirm
+```
+
+It authenticates with your own CLI credential (`SUPABASE_ACCESS_TOKEN` or the macOS
+keychain entry `supabase login` created) and prints the function's jsonb summary.
+
+Verify: `select jobname, schedule, active from cron.job;` shows `staging-refresh-world`,
+and `cron.job_run_details` keeps each run's summary in `return_message`.
+
+**The bytes reaper cannot touch a seeded story while this job runs (#31).** Since
+`20260821075230` the nightly `prune-expired-story-segments` (03:17) also asks the
+`story-segment-reaper` edge function to delete, through the Storage API, every object in
+`story-segments` whose row has been expired or soft-deleted for over an hour. The hourly
+refresh keeps every seeded row live (`expires_at = now() + 20h`, in place, no re-upload), so
+a seeded object is never a candidate — `select * from public.story_segment_reap_candidates(1000)`
+on staging is the check, and it returns nothing while the refresh is healthy. If the refresh is
+**off for more than ~21 h** the seeded rows expire, the next nightly pass frees their bytes, and
+a later refresh or re-seed revives rows that point at nothing: re-run `pnpm staging:media`.
+
+⚠ **Keep it in step with the seed.** The refresh function carries frozen copies of the
+seed's semantic-key lists (stories, events, statuses, content ids). Any edit to those
+sections of `seed-staging.sql` requires re-running `refresh-staging.sql`. The deck is
+the exception — it recomputes from live profiles. And as with the seed itself: this
+job must **never** be installed on production.
+
+⚠ **gen:types picks it up.** `pnpm gen:types` reads staging, so after installing this
+the generated `database.types.ts` gains a `staging_refresh_world` entry in
+`Functions`. Expected, not schema drift: the RPC exists only on staging and only
+`service_role` may execute it.
+
 ## Media
 
 The seed writes the descriptor rows and the storage **keys**; it cannot write bytes.
@@ -146,11 +234,12 @@ requires the first path segment to match a dashed-uuid regex, and a handle fails
 These are the paths where a hand-written row would prove nothing, so they have to be
 walked for real in the app:
 
-| not seeded                                                                                            | why                                                                                                                                      |
-| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `aura_events`, `aura_scores`                                                                          | Rule 1 — only the score-engine writes them. The M6 triggers produce them from the seeded content, if the function and GUCs are deployed. |
-| `event_tickets`, `circle_memberships`, `fund_contributions`, `verifications`, `stripe_webhook_events` | Stripe is the source of truth. Use test mode from the app.                                                                               |
-| `event_attendance`, `event_live_stats`                                                                | Written by the `check-in` edge function.                                                                                                 |
-| `gdpr_export_jobs`                                                                                    | Written by the export job.                                                                                                               |
-| `push_tokens`                                                                                         | Needs a real device token from a real build.                                                                                             |
-| the **bytes** behind `post_media` / `moments` / `story_segments` / `dream_candidacies` / avatars      | SQL cannot write to Storage. The rows and their keys are seeded; `pnpm staging:media` puts a file at each one. See **Media** above.      |
+| not seeded                                                                                            | why                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `aura_events`, `aura_scores`                                                                          | Rule 1 — only the score-engine writes them. The M6 triggers produce them from the seeded content (config from Vault via `athanor.runtime_setting()`).  |
+| `event_tickets`, `circle_memberships`, `fund_contributions`, `verifications`, `stripe_webhook_events` | Stripe is the source of truth. Use test mode from the app.                                                                                             |
+| `event_attendance`                                                                                    | Written by the `check-in` edge function.                                                                                                               |
+| `event_live_stats`                                                                                    | Written by the `live_window_sweep()` cron (#120) — never by `check-in`, which this file used to claim. Listener count is Realtime presence, not a row. |
+| `gdpr_export_jobs`                                                                                    | Written by the export job.                                                                                                                             |
+| `push_tokens`                                                                                         | Needs a real device token from a real build.                                                                                                           |
+| the **bytes** behind `post_media` / `moments` / `story_segments` / `dream_candidacies` / avatars      | SQL cannot write to Storage. The rows and their keys are seeded; `pnpm staging:media` puts a file at each one. See **Media** above.                    |

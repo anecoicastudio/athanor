@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { searchAll, searchKeys, type SearchCursor } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { SearchResult, SearchScope } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
+import { ModalHeader } from '@/components/ModalHeader';
 import { SearchBar } from '@/components/search/SearchBar';
 import { ScopeTabs } from '@/components/search/ScopeTabs';
 import { ResultRow } from '@/components/search/ResultRow';
@@ -14,10 +15,11 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { CircleGate } from '@/components/circle/CircleGate';
-import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { supabase } from '@/lib/supabase';
 import { type SearchFilterParams, parseFilters, serializeFilters } from '@/lib/search-filters';
+import { Screen } from '@/components/Screen';
 
 /**
  * Search modal screen (M8 §3.3 v-search).
@@ -76,8 +78,7 @@ function deriveRoute(result: SearchResult): string {
 }
 
 export default function SearchScreen() {
-  const { profile } = useAuth();
-  const locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const router = useRouter();
 
   // ── Filters from route params (written back by search-filters sheet, Task 9) ──
@@ -149,18 +150,10 @@ export default function SearchScreen() {
   const filterSheetParams = serializeFilters(filtersFromParams ?? {});
 
   return (
-    <View className="flex-1 bg-background">
-      {/* ── Header row ── */}
-      <View className="flex-row items-center gap-3 px-5 pb-3 pt-14">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', locale)}
-          hitSlop={8}
-          onPress={() => router.back()}
-        >
-          <Text className="text-2xl text-foreground">‹</Text>
-        </Pressable>
-        <View className="flex-1">
+    <Screen>
+      <ModalHeader
+        backLabel={t('common.back', locale)}
+        titleSlot={
           <SearchBar
             value={rawInput}
             onChangeText={setRawInput}
@@ -171,8 +164,8 @@ export default function SearchScreen() {
             placeholder={t('search.placeholder', locale)}
             clearAccessibilityLabel={t('search.clear', locale)}
           />
-        </View>
-      </View>
+        }
+      />
 
       {/* ── Scope tabs ── */}
       <ScopeTabs scope={scope} onChange={setScope} locale={locale} />
@@ -242,7 +235,7 @@ export default function SearchScreen() {
           renderItem={({ item: section }) => (
             <View className="mb-4">
               <View className="px-5 pb-2 pt-3">
-                <SectionLabel>{t(section.labelKey, locale)}</SectionLabel>
+                <SectionLabel heading>{t(section.labelKey, locale)}</SectionLabel>
               </View>
               {section.rows.map((result) => (
                 <ResultRow
@@ -262,6 +255,6 @@ export default function SearchScreen() {
           }}
         />
       )}
-    </View>
+    </Screen>
   );
 }

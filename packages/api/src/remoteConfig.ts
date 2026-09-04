@@ -10,7 +10,7 @@ export const remoteConfigKeys = {
 export interface RemoteConfigSnapshot {
   minAppVersion: { ios: string; android: string } | null;
   maintenance: { enabled: boolean; eta: string | null } | null;
-  /** Feature-flag key → enabled. (e.g. `prime_stelle_enabled`, `fund_contributions_enabled`.) */
+  /** Feature-flag key → enabled. (e.g. `prime_stelle_enabled`, `fund_surfaces_enabled`.) */
   flags: Record<string, boolean>;
 }
 

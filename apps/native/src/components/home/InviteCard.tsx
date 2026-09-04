@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { Share } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { getMyReferralCode, inviteKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text } from '@/tw';
-import { INVITE_URL_BASE } from '@/lib/links';
-import { supabase } from '@/lib/supabase';
+import { inviteShareMessage } from '@/lib/invite-share';
+import { useReferralCode } from '@/hooks/use-referral-code';
 
 /**
  * Invite card (PRD 01-m1-identity §3.2, block 8) — M1 owns it. Opens the native
@@ -17,16 +15,16 @@ export function InviteCard({ locale }: { locale: Locale }) {
   const [sent, setSent] = useState(false);
 
   // Component only renders authed (Home), so the session-gated query is always live.
-  const { data: code } = useQuery({
-    queryKey: inviteKeys.code(),
-    queryFn: () => getMyReferralCode(supabase),
-  });
+  const { data: code } = useReferralCode();
 
   const invite = async () => {
     try {
-      const link = code ? ` ${INVITE_URL_BASE}/${code}` : '';
       const { action } = await Share.share({
-        message: `${t('home.invite', locale)} — ${t('app.name', locale)}${link}`,
+        message: inviteShareMessage({
+          lead: t('home.invite', locale),
+          appName: t('app.name', locale),
+          code,
+        }),
       });
       if (action === Share.sharedAction) {
         setSent(true);

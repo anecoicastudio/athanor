@@ -22,6 +22,30 @@ export const STAR = { lit: '✦', unlit: '✧', unknown: AURA_UNKNOWN } as const
 
 export type StarCellState = keyof typeof STAR;
 
+/**
+ * The SPOKEN form of a member-facing string: the same sentence with the ✦/✧ ornament removed
+ * (#635).
+ *
+ * A rendered glyph can be marked decorative — `accessibilityElementsHidden` plus the Android
+ * sibling, which ~25 sites do. An IMPERATIVE announcement has no element to mark:
+ * `AccessibilityInfo.announceForAccessibility` speaks whatever is in the string, and dozens of catalog
+ * values carry a spark as pure ornament («Invito inviato ✦», «Voto spostato ✦»). VoiceOver reads
+ * it as "white four pointed star" or drops it, and neither is the sentence.
+ *
+ * It lives HERE, next to `STAR`, because this module is where the app decides what the marks
+ * mean: a vocabulary and the rule for taking it out of speech belong together, and this module
+ * is pure, so it is reachable by the `environment: 'node'` harness that `ToastHost.tsx` is not.
+ * Deliberately narrow — it strips the two spark glyphs and the double space that removing one
+ * leaves behind, and NOT «—», «›» or «·», which are either content (the Aura placeholder) or
+ * already inside strings a screen reader handles.
+ */
+export function spoken(label: string): string {
+  return label
+    .replace(/[✦✧]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 /** The glyph for a star's binary state. Callers still choose the colour (`aura` / `faint`). */
 export function star(lit: boolean): string {
   return lit ? STAR.lit : STAR.unlit;

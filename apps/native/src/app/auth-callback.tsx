@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
-import { deviceLocale } from '@/lib/locale';
+import { Text, View } from '@/tw';
+import { Screen } from '@/components/Screen';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { Button } from '@/components/Button';
+import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -31,7 +34,9 @@ export default function AuthCallbackScreen() {
   const errorDescription = params.error_description;
   const router = useRouter();
   const [failed, setFailed] = useState(false);
-  const locale = deviceLocale;
+  // Draft-aware (#158): the OTP link lands here while the draft (and its chosen
+  // locale) is still on disk — the flush clears it only after the exchange.
+  const locale = useDraftLocale();
 
   useEffect(() => {
     // GoTrue appends ?error=…&error_description=… instead of a code when the link
@@ -45,6 +50,7 @@ export default function AuthCallbackScreen() {
     // that never settles would leave the user on a bare ✦ with no way out — the one
     // inescapable state in the tree. Bound it and fall through to the error UI.
     const timeout = new Promise<{ error: { message: string } }>((resolve) =>
+      // i18n-ignore — a sentinel for the race below, matched by identity, never rendered.
       setTimeout(() => resolve({ error: { message: 'timeout' } }), EXCHANGE_TIMEOUT_MS),
     );
     Promise.race([supabase.auth.exchangeCodeForSession(code), timeout])
@@ -61,30 +67,25 @@ export default function AuthCallbackScreen() {
 
   if (failed) {
     return (
-      <View className="flex-1 items-center justify-center gap-6 bg-background px-8">
-        <Text className="text-center text-base text-muted-foreground">
-          {t('auth.error.invalidLink', locale)}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('auth.login.cta', locale)}
-          // mode:'login' or welcome renders the SIGNUP copy — and someone whose
-          // confirmation link expired already has an account, so the signup form
-          // would only answer them with «email already taken».
-          onPress={() => router.replace({ pathname: '/(auth)/welcome', params: { mode: 'login' } })}
-          className="min-h-[44px] items-center justify-center rounded-full border border-hair bg-raise px-6"
-        >
-          <Text className="text-sm font-semibold text-foreground">
-            {t('auth.login.cta', locale)}
+      <Screen>
+        <View className="flex-1 items-center justify-center gap-6 px-8">
+          <Text className="text-center text-base text-muted-foreground">
+            {t('auth.error.invalidLink', locale)}
           </Text>
-        </Pressable>
-      </View>
+          <Button
+            variant="outline"
+            label={t('auth.login.cta', locale)}
+            // mode:'login' or welcome renders the SIGNUP copy — and someone whose
+            // confirmation link expired already has an account, so the signup form
+            // would only answer them with «email already taken».
+            onPress={() =>
+              router.replace({ pathname: '/(auth)/welcome', params: { mode: 'login' } })
+            }
+          />
+        </View>
+      </Screen>
     );
   }
 
-  return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-2xl text-muted-foreground">✦</Text>
-    </View>
-  );
+  return <LoadingScreen />;
 }

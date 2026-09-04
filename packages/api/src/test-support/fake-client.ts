@@ -29,6 +29,16 @@ export type FakeCall = {
   terminal?: 'single' | 'maybeSingle';
 };
 
+/** The realtime channel handle the fake hands out — module-scope so `channel()`'s
+ * two return paths (fresh vs topic-cached) share one declared type. */
+export type ChannelHandle = {
+  on: (...args: unknown[]) => ChannelHandle;
+  subscribe: (cb?: (status: string) => void) => ChannelHandle;
+  track: (payload: unknown) => Promise<string>;
+  untrack: () => Promise<string>;
+  presenceState: () => Record<string, unknown[]>;
+};
+
 /** PostgREST's own code for "single()/maybeSingle() did not match exactly one row". */
 const rowCountError = (rows: number) => ({
   code: 'PGRST116',
@@ -166,9 +176,19 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
     events: unknown[][];
     subscribed: boolean;
     removed: boolean;
+    /** payloads passed to track() — presence self-registrations */
+    tracked: unknown[];
+    untracked: number;
+    /** what presenceState() answers; a test sets this before firing the sync handler */
+    presence: Record<string, unknown[]>;
   };
   const channels: ChannelRecord[] = [];
   const handles = new WeakMap<object, ChannelRecord>();
+  // realtime-js caches ONE live channel per topic and hands the same instance back to a
+  // second caller; adding callbacks to it after subscribe() throws, and removeChannel()
+  // evicts it. Mirrored here so a subscription that builds a second same-topic channel
+  // fails in tests the way it fails in production (#358).
+  const liveByTopic = new Map<string, ChannelHandle>();
 
   return {
     calls,
@@ -221,34 +241,82 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
             }),
           );
         },
+        // Batch variant (signMediaUrls). Script `storage.<bucket>.createSignedUrls` with
+        // `data: [{ path, signedUrl, error }]` rows, as storage-js returns them.
+        createSignedUrls: (paths: string[], expiresIn: number) => {
+          calls.push({
+            table: `storage.${bucket}`,
+            op: 'select',
+            values: { paths, expiresIn },
+            filters: [],
+            modifiers: [],
+          });
+          return Promise.resolve(
+            result(`storage.${bucket}.createSignedUrls`, {
+              table: bucket,
+              op: 'select',
+              filters: [],
+              modifiers: [],
+            }),
+          );
+        },
       }),
     },
     // Realtime: records the channel so a test can assert `.claude/rules/api.md`'s requirement
     // that every subscription hands back a working cleanup function.
-    channel(name: string) {
-      const entry = { name, events: [] as unknown[][], subscribed: false, removed: false };
+    channel(name: string): ChannelHandle {
+      const cached = liveByTopic.get(name);
+      if (cached) return cached;
+      const entry: ChannelRecord = {
+        name,
+        events: [],
+        subscribed: false,
+        removed: false,
+        tracked: [],
+        untracked: 0,
+        presence: {},
+      };
       channels.push(entry);
       const ch = {
         on(...args: unknown[]) {
+          if (entry.subscribed)
+            throw new Error(
+              `cannot add callbacks on ${name} after calling subscribe() — realtime-js shares one channel per topic`,
+            );
           entry.events.push(args);
           return ch;
         },
         subscribe(cb?: (status: string) => void) {
+          if (entry.subscribed)
+            throw new Error('tried to subscribe multiple times per channel instance');
           entry.subscribed = true;
           cb?.('SUBSCRIBED');
           return ch;
+        },
+        track(payload: unknown) {
+          entry.tracked.push(payload);
+          return Promise.resolve('ok');
+        },
+        untrack() {
+          entry.untracked += 1;
+          return Promise.resolve('ok');
+        },
+        presenceState() {
+          return entry.presence;
         },
       };
       // The handle handed to callers is not the record we keep, so identity has to be mapped
       // rather than searched for. Falling back to "the last channel" would let a test that
       // asserts WHICH channel was removed pass against a cleanup that removed the wrong one.
       handles.set(ch, entry);
+      liveByTopic.set(name, ch);
       return ch;
     },
     removeChannel(ch: unknown) {
       const entry = handles.get(ch as object);
       if (!entry) throw new Error('removeChannel called with a channel this client never created');
       entry.removed = true;
+      if (liveByTopic.get(entry.name) === ch) liveByTopic.delete(entry.name);
       return Promise.resolve('ok');
     },
   };

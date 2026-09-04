@@ -4,6 +4,7 @@ import type { AthanorClient } from './client';
 import {
   circleKeys,
   entitlementKeys,
+  getCirclePrices,
   getMyEntitlements,
   getMyMembership,
   openCustomerPortal,
@@ -34,6 +35,7 @@ const membershipRow = (over: Record<string, unknown> = {}) => ({
   plan: 'monthly',
   status: 'active',
   current_period_end: '2026-09-01T00:00:00Z',
+  cancel_at_period_end: false,
   founding_member: true,
   created_at: '2026-08-01T00:00:00Z',
   updated_at: '2026-08-01T00:00:00Z',
@@ -122,6 +124,44 @@ test('startCheckout surfaces an edge-function failure', async () => {
   const invoke = vi.fn().mockResolvedValue({ data: null, error: new Error('stripe down') });
   const { client } = withFn(invoke);
   await expect(startCheckout(client, { plan: 'monthly' })).rejects.toThrow();
+});
+
+test('getCirclePrices reads the live amounts from the server, never a catalog literal (#644)', async () => {
+  const invoke = vi.fn().mockResolvedValue({
+    data: {
+      monthly: { unitAmount: 1200, currency: 'eur' },
+      annual: { unitAmount: 9900, currency: 'eur' },
+    },
+    error: null,
+  });
+  const { client } = withFn(invoke);
+  await expect(getCirclePrices(client)).resolves.toEqual({
+    monthly: { unitAmount: 1200, currency: 'eur' },
+    annual: { unitAmount: 9900, currency: 'eur' },
+  });
+  expect(invoke).toHaveBeenCalledWith('get-circle-prices', { body: {} });
+});
+
+test('getCirclePrices parses the boundary — a malformed amount throws, it never renders', async () => {
+  // rules/api.md: Zod at a query boundary, never a cast. `'1200'` would format as a
+  // plausible «€12,00» and compute the savings as NaN — wrong in one place only.
+  for (const data of [
+    {
+      monthly: { unitAmount: '1200', currency: 'eur' },
+      annual: { unitAmount: 9900, currency: 'eur' },
+    },
+    { monthly: { unitAmount: 1200, currency: 'eur' } },
+    null,
+  ]) {
+    const { client } = withFn(vi.fn().mockResolvedValue({ data, error: null }));
+    await expect(getCirclePrices(client)).rejects.toThrow();
+  }
+});
+
+test('getCirclePrices surfaces an edge-function failure', async () => {
+  const invoke = vi.fn().mockResolvedValue({ data: null, error: new Error('boom') });
+  const { client } = withFn(invoke);
+  await expect(getCirclePrices(client)).rejects.toThrow('boom');
 });
 
 test('openCustomerPortal defers plan changes and cancellation to Stripe', async () => {

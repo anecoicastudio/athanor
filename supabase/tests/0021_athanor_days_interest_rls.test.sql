@@ -14,7 +14,8 @@ values
 select has_table('public','athanor_days_interest','table exists');
 select ok((select relrowsecurity from pg_class where oid='public.athanor_days_interest'::regclass), 'RLS enabled');
 select policies_are('public','athanor_days_interest',
-  array['athanor_days_interest_select_own','athanor_days_interest_insert_own'],
+  array['athanor_days_interest_select_own','athanor_days_interest_insert_own',
+        'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies');
 
 set local role authenticated;

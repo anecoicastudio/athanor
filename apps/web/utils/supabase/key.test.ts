@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { supabaseKey } from './key';
 
@@ -51,5 +52,17 @@ describe('supabaseKey', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_secret_oops');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'legacy_anon_bbb');
     expect(() => supabaseKey()).toThrow(/secret/i);
+  });
+
+  it('no computed env read', () => {
+    // The docblock above has claimed this test since the file was written; it was never actually
+    // here. Asserted from the source because no runtime assertion can distinguish the two forms:
+    // under a real Next build `process.env[name]` is not substituted, so it yields undefined in
+    // the shipped bundle with no error pointing at the cause. `vi.stubEnv` makes both forms work
+    // in this suite, which is exactly why the check has to read the file.
+    const source = readFileSync(new URL('./key.ts', import.meta.url), 'utf8');
+    expect(source).toContain('process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+    expect(source).toContain('process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    expect(source).not.toMatch(/process\.env\[/);
   });
 });

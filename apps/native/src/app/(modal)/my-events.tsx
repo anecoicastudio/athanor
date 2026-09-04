@@ -4,15 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsByOrganizer } from '@athanor/api';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
 import { ScrollView, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { EVENT_HREF, EventRow } from '@/components/live/EventRow';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { Screen } from '@/components/Screen';
 
 /**
  * I tuoi eventi — organizer surface (P4.5; frontend 04 §3.7 Live entry).
@@ -21,9 +22,9 @@ import { supabase } from '@/lib/supabase';
  * Flat light CTA, no glow (rule #4). Bounded 50-row read, small by nature.
  */
 export default function MyEventsScreen() {
-  const { session, profile } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const uid = session?.user.id ?? '';
 
   const query = useQuery({
@@ -35,7 +36,7 @@ export default function MyEventsScreen() {
   const events = query.data ?? [];
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader title={t('live.mine.title', locale)} backLabel={t('common.back', locale)} />
       <ScrollView className="flex-1" contentContainerClassName="gap-4 px-5 pb-16">
         <Button
@@ -77,7 +78,6 @@ export default function MyEventsScreen() {
                   venue: e.venue,
                   city: e.city,
                   is_online: e.is_online,
-                  is_kairos_day: e.is_kairos_day,
                   is_athanor_day: e.is_athanor_day,
                   premiumLocked: false,
                   live: !!e.live_started_at && !e.live_ended_at,
@@ -89,6 +89,6 @@ export default function MyEventsScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }

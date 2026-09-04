@@ -14,6 +14,11 @@ These items require a physical device + screen reader and are verified at device
 ## Device-only (not buildable on web preview — see [[athanor-mobile-web-smoke-limits]])
 
 - [ ] A-6 — Dynamic Type at largest accessibility size: Profilo, Aura, Annual, Chat — no clip/overlap.
+      Code side landed 2026-09-02 (#639): every `Text`/`TextInput` caps at 2× from the `src/tw`
+      wrappers, fixed heights became `min-h`, and `source-audit.test.ts` §30 registers the ones
+      that stayed fixed. What is left here is the AX3–AX5 render itself — start with the Momenti
+      deck well (it now scales with `fontScale`), the fund countdown row, and any header that
+      gained a second line.
 - [ ] A-8 — VoiceOver (iOS) + TalkBack (Android) critical-path smoke: splash → email+password
       (or Google) login → home → open a Momento → profilo → settings → sign out, driven
       entirely by the screen reader. (Auth is email+password+Google, not OTP; Apple disabled —

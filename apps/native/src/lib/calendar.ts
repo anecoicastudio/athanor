@@ -1,7 +1,20 @@
 import { Platform } from 'react-native';
 import * as Calendar from 'expo-calendar';
+import { toStatus } from '@/lib/media/permission-status';
 
-export type CalendarResult = 'added' | 'denied' | 'error';
+/**
+ * `blocked` is separate from `denied` because only one of them has a way out (#531).
+ *
+ * The screen used to stay silent on anything but `granted`, on the premise that «the OS
+ * permission prompt already informed the user». That holds for the FIRST tap and no other:
+ * iOS shows the calendar prompt once per app, and every later request resolves denied
+ * immediately with no dialog. Two further ways to land here having seen no prompt at all —
+ * iOS 17's «Add Events Only», which `expo-calendar@15.0.8` maps to denied
+ * (`CalendarPermissionsRequester.swift:35`, `.writeOnly` → `EXPermissionStatusDenied`), and
+ * Expo Go, where the grant belongs to Expo Go and is shared by every project ever run on the
+ * phone. In all three the button was a permanent no-op with no feedback.
+ */
+export type CalendarResult = 'added' | 'denied' | 'blocked' | 'error';
 
 /** Resolve a writable calendar id (iOS default; first modifiable on Android). */
 async function writableCalendarId(): Promise<string | null> {
@@ -15,9 +28,26 @@ async function writableCalendarId(): Promise<string | null> {
 }
 
 /**
- * Add an event to the device calendar (permission-gated). Returns 'denied' when the
- * user declines, 'error' on any failure, 'added' on success. Pure device I/O — no DB,
- * no Aura (frontend §6 B12).
+ * Add an event to the device calendar (permission-gated). Returns 'added' on success,
+ * 'denied' when the member declined and the OS will ask again, 'blocked' when it will not
+ * (so the only route left is Settings), 'error' on any failure. Idempotent: when an entry
+ * with the same title at the same instant already exists, it returns 'added' without a
+ * second write (#560). Pure device I/O — no DB, no Aura (frontend §6 B12).
+ *
+ * The denied/blocked split is `toStatus`, the same mapper the media primer uses: `canAskAgain`
+ * is the whole difference, and reading it is what the old code skipped. Write-only access
+ * arrives here as blocked, which is the honest answer — the grant cannot be widened from
+ * inside the app.
+ *
+ * The PERMISSION REQUEST is inside the try as well, which it was not before. It sat above it,
+ * so a throw from `requestCalendarPermissionsAsync` escaped this function entirely: the caller
+ * discards the promise (`void onAddToCalendar()`), the root error boundary is a RENDER boundary
+ * and never sees a rejected promise, and the member gets no toast, no notice and no Settings
+ * route. That is the silent no-op #531 exists to remove, surviving on a narrower path — and it
+ * made "'error' on any failure" above a false claim. The rejection is device-only (e.g. an
+ * in-flight permission conflict): expo-calendar DOES ship a web stub (`ExpoCalendar.web.ts`),
+ * whose request resolves UNDETERMINED with canAskAgain:true and never throws — so the expo-web
+ * QA harness lands in the `denied` notice on every tap and cannot reach this catch.
  */
 export async function addEventToCalendar(opts: {
   title: string;
@@ -26,13 +56,27 @@ export async function addEventToCalendar(opts: {
   location?: string | null;
   notes?: string | null;
 }): Promise<CalendarResult> {
-  const { status } = await Calendar.requestCalendarPermissionsAsync();
-  if (status !== 'granted') return 'denied';
   try {
+    const res = await Calendar.requestCalendarPermissionsAsync();
+    const status = toStatus({ granted: res.status === 'granted', canAskAgain: res.canAskAgain });
+    if (status !== 'granted') return status === 'blocked' ? 'blocked' : 'denied';
     const calendarId = await writableCalendarId();
     if (!calendarId) return 'error';
     const start = new Date(opts.startISO);
     const end = opts.endISO ? new Date(opts.endISO) : new Date(start.getTime() + 60 * 60 * 1000); // default 1h
+    // Idempotency read (#560). The screen's in-flight ref stops a double-tap, not a deliberate
+    // re-tap: it clears as soon as this promise settles — sooner than the 2.5s confirmation
+    // toast — and `createEventAsync` happily stores the same event twice. The calendar itself
+    // is queried rather than persisting the created id, because the calendar is the source of
+    // truth: a stored id goes stale the moment the member deletes the entry in the Calendar
+    // app (refusing the re-add they then want) and dies with a reinstall, while a read re-adds
+    // correctly in exactly those cases. Same title at the same instant is our own earlier
+    // write for this purpose; the read costs one native call on a user-tap path.
+    const existing = await Calendar.getEventsAsync([calendarId], start, end);
+    const alreadyThere = existing.some(
+      (e) => e.title === opts.title && new Date(e.startDate).getTime() === start.getTime(),
+    );
+    if (alreadyThere) return 'added';
     await Calendar.createEventAsync(calendarId, {
       title: opts.title,
       startDate: start,

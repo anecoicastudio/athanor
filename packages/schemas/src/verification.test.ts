@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VERIFICATION_STATUSES } from './verification';
+import { VERIFICATION_STATUSES } from './verification.ts';
 
 describe('verification statuses', () => {
   it('exposes the three statuses', () => {

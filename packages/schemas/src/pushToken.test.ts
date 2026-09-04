@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pushPlatformSchema, pushTokenInsertSchema } from './pushToken';
+import { pushPlatformSchema, pushTokenInsertSchema } from './pushToken.ts';
 
 const valid = {
   profile_id: '11111111-1111-1111-1111-111111111111',

@@ -7,7 +7,9 @@ import {
   candidacyVideoPath,
   getCandidateById,
   getCandidates,
+  getMyCandidacy,
   submitCandidacy,
+  updateCandidacy,
 } from './candidacy';
 
 const UID = '00000000-0000-4000-8000-000000000001';
@@ -28,6 +30,11 @@ const CANDIDACY_ROW = {
   status: 'submitted' as const,
   city: null,
   category: null,
+  budget_cents: 800000,
+  min_viable_cents: 500000,
+  skills_needed: [] as string[],
+  dream_id: null,
+  rejection_reasons: null,
   created_at: '2026-07-02T00:00:00Z',
   updated_at: '2026-07-02T00:00:00Z',
   deleted_at: null,
@@ -45,6 +52,14 @@ const CARD_ROW = {
   video_url: `${UID}/${CAND1}.mp4`,
   thumb_path: null,
   created_at: '2026-07-02T00:00:00Z',
+  // #227 — the view's ballot columns. No linked dream here, so the confirmed-history
+  // aggregates are null rather than 0 (see candidateCardSchema for why the two differ).
+  budget_cents: 800000,
+  min_viable_cents: 500000,
+  skills_needed: [],
+  dream_id: null,
+  dream_milestones_done: null,
+  dream_helps_confirmed: null,
 };
 
 /** Thenable PostgREST-builder stub: records calls; awaiting resolves to { data, error }. */
@@ -86,8 +101,9 @@ function stub(rows: Array<Record<string, unknown>> = []) {
 }
 
 describe('candidacyKeys', () => {
-  it('namespaces detail / list under the candidacy root', () => {
+  it('namespaces mine / detail / list under the candidacy root', () => {
     expect(candidacyKeys.all).toEqual(['candidacy']);
+    expect(candidacyKeys.mine(EDITION)).toEqual(['candidacy', 'mine', EDITION]);
     expect(candidacyKeys.detail(CAND1)).toEqual(['candidacy', 'detail', CAND1]);
     expect(candidacyKeys.list(EDITION)).toEqual(['candidacy', 'list', EDITION, null]);
   });
@@ -112,21 +128,101 @@ describe('candidacyThumbPath', () => {
 });
 
 describe('submitCandidacy', () => {
+  const INPUT = {
+    edition_id: EDITION,
+    story: CANDIDACY_ROW.story,
+    goal: CANDIDACY_ROW.goal,
+    impact: CANDIDACY_ROW.impact,
+    video_url: CANDIDACY_ROW.video_url,
+    thumb_path: CANDIDACY_ROW.thumb_path,
+    plan: CANDIDACY_ROW.plan,
+    budget_cents: CANDIDACY_ROW.budget_cents,
+    min_viable_cents: CANDIDACY_ROW.min_viable_cents,
+    skills_needed: [] as string[],
+    category: null,
+    dream_id: null,
+  };
+
   it('sends the client-generated id, pinned profile_id and status=submitted', async () => {
     const { client, calls } = stub([CANDIDACY_ROW]);
-    const input = {
-      edition_id: EDITION,
-      story: CANDIDACY_ROW.story,
-      goal: CANDIDACY_ROW.goal,
-      impact: CANDIDACY_ROW.impact,
-      video_url: CANDIDACY_ROW.video_url,
-      thumb_path: CANDIDACY_ROW.thumb_path,
-      plan: CANDIDACY_ROW.plan,
-    };
+    const created = await submitCandidacy(client, { id: CAND1, profileId: UID, input: INPUT });
+    const insert = calls.find((c) => c.method === 'insert');
+    expect(insert?.arg).toEqual({ ...INPUT, id: CAND1, profile_id: UID, status: 'submitted' });
+    expect(created.status).toBe('submitted');
+  });
+
+  it('carries the ballot numbers and curated skills through the payload (#225)', async () => {
+    const row = { ...CANDIDACY_ROW, skills_needed: ['fotografia', 'montaggio'] };
+    const { client, calls } = stub([row]);
+    const input = { ...INPUT, skills_needed: ['fotografia', 'montaggio'] };
     const created = await submitCandidacy(client, { id: CAND1, profileId: UID, input });
     const insert = calls.find((c) => c.method === 'insert');
-    expect(insert?.arg).toEqual({ ...input, id: CAND1, profile_id: UID, status: 'submitted' });
-    expect(created.status).toBe('submitted');
+    expect(insert?.arg).toMatchObject({
+      budget_cents: 800000,
+      min_viable_cents: 500000,
+      skills_needed: ['fotografia', 'montaggio'],
+    });
+    expect(created.skills_needed).toEqual(['fotografia', 'montaggio']);
+  });
+
+  it('refuses a skills key outside @athanor/core SKILLS before any insert (FUND-10)', async () => {
+    const { client, calls } = stub([CANDIDACY_ROW]);
+    const input = { ...INPUT, skills_needed: ['fotografia', 'ceramica-libera'] };
+    await expect(submitCandidacy(client, { id: CAND1, profileId: UID, input })).rejects.toThrow(
+      'ceramica-libera',
+    );
+    expect(calls.find((c) => c.method === 'insert')).toBeUndefined();
+  });
+});
+
+describe('getMyCandidacy', () => {
+  it('scopes to (edition, profile), skips soft-deleted rows and uses maybeSingle', async () => {
+    const { client, calls } = stub([CANDIDACY_ROW]);
+    const mine = await getMyCandidacy(client, EDITION, UID);
+    expect(
+      calls.some((c) => c.method === 'eq' && c.arg === 'edition_id' && c.arg2 === EDITION),
+    ).toBe(true);
+    expect(calls.some((c) => c.method === 'eq' && c.arg === 'profile_id' && c.arg2 === UID)).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'is' && c.arg === 'deleted_at' && c.arg2 === null)).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'maybeSingle')).toBe(true);
+    expect(mine?.id).toBe(CAND1);
+  });
+
+  it('returns null when the member has no candidacy for the edition', async () => {
+    const { client } = stub([]);
+    expect(await getMyCandidacy(client, EDITION, UID)).toBeNull();
+  });
+});
+
+describe('updateCandidacy', () => {
+  it('updates the row by id and parses the returned candidacy', async () => {
+    const row = { ...CANDIDACY_ROW, story: 'riscritta', skills_needed: ['fotografia'] };
+    const { client, calls } = stub([row]);
+    const patch = { story: 'riscritta', skills_needed: ['fotografia'] };
+    const updated = await updateCandidacy(client, CAND1, patch);
+    const update = calls.find((c) => c.method === 'update');
+    expect(update?.arg).toEqual(patch);
+    expect(calls.some((c) => c.method === 'eq' && c.arg === 'id' && c.arg2 === CAND1)).toBe(true);
+    expect(updated.story).toBe('riscritta');
+  });
+
+  it('refuses a skills key outside @athanor/core SKILLS before any update (FUND-10)', async () => {
+    const { client, calls } = stub([CANDIDACY_ROW]);
+    await expect(
+      updateCandidacy(client, CAND1, { skills_needed: ['fotografia', 'ceramica-libera'] }),
+    ).rejects.toThrow('ceramica-libera');
+    expect(calls.find((c) => c.method === 'update')).toBeUndefined();
+  });
+
+  it('a patch that says nothing about skills passes the vocabulary gate', async () => {
+    const { client, calls } = stub([{ ...CANDIDACY_ROW, plan: 'nuovo piano' }]);
+    const updated = await updateCandidacy(client, CAND1, { plan: 'nuovo piano' });
+    expect(calls.find((c) => c.method === 'update')?.arg).toEqual({ plan: 'nuovo piano' });
+    expect(updated.plan).toBe('nuovo piano');
   });
 });
 
@@ -201,9 +297,28 @@ describe('candidacy — a database failure reaches the caller', () => {
           plan: 'piano',
           video_url: `${UID}/${CAND1}.mp4`,
           thumb_path: null,
+          budget_cents: 800000,
+          min_viable_cents: 500000,
+          skills_needed: [],
+          category: null,
+          dream_id: null,
         },
       }),
     ).rejects.toMatchObject({ code: '57P01' });
+  });
+
+  it('getMyCandidacy rethrows rather than reporting "no candidacy" on a down database', async () => {
+    const fake = makeFakeClient({ 'dream_candidacies.select': [{ error: DB_DOWN }] });
+    await expect(getMyCandidacy(asClient(fake), EDITION, UID)).rejects.toMatchObject({
+      code: '57P01',
+    });
+  });
+
+  it('updateCandidacy rethrows rather than pretending the edit landed', async () => {
+    const fake = makeFakeClient({ 'dream_candidacies.update': [{ error: DB_DOWN }] });
+    await expect(updateCandidacy(asClient(fake), CAND1, { plan: 'x' })).rejects.toMatchObject({
+      code: '57P01',
+    });
   });
 
   it('getCandidates rethrows instead of showing an empty field of candidates', async () => {

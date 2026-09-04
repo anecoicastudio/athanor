@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(16);
 
 -- seed two users + a service-role-written notification for user_b
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -23,6 +23,14 @@ set local role service_role;
 insert into public.notifications (id, recipient_id, type, template_key, params)
 values ('00000000-0000-0000-0000-0000000000b1', current_setting('test.b')::uuid,
         'moment', 'notif.tpl.moment', '{"name":"Marco"}'::jsonb);
+
+-- #180: a second row with a deliberately stale updated_at. Everything in a pgTAP test shares one
+-- transaction, so now() is constant — a row inserted here and updated below would show the same
+-- stamp either way. Seeding it in the past is the only way to watch the trigger actually move it.
+insert into public.notifications (id, recipient_id, type, template_key, params, updated_at)
+values ('00000000-0000-0000-0000-0000000000b2', current_setting('test.b')::uuid,
+        'moment', 'notif.tpl.moment', '{"name":"Marco"}'::jsonb,
+        '2020-01-01 00:00:00+00'::timestamptz);
 
 -- anon cannot read
 set local role anon;
@@ -51,6 +59,36 @@ select throws_ok(
   $$ update public.notifications set template_key = 'x'
      where id = '00000000-0000-0000-0000-0000000000b1' $$,
   '42501', null, 'non-read_at column UPDATE denied (column grant)');
+
+-- #180 — updated_at + touch trigger: read_at is client-updatable, so the row changes and
+-- something has to record when.
+select has_column('public', 'notifications', 'updated_at', 'notifications has updated_at (#180)');
+select col_not_null('public', 'notifications', 'updated_at', 'updated_at is NOT NULL');
+select has_trigger('public', 'notifications', 'notifications_touch_updated_at',
+  'notifications carries the touch trigger');
+
+-- the seeded stale stamp survives INSERT — the trigger is BEFORE UPDATE, not BEFORE INSERT
+select is(
+  (select updated_at from public.notifications where id = '00000000-0000-0000-0000-0000000000b2'),
+  '2020-01-01 00:00:00+00'::timestamptz,
+  'INSERT leaves updated_at alone (trigger is BEFORE UPDATE only)');
+
+-- ...and marking read moves it to now(), which in-transaction is exact
+select lives_ok(
+  $$ update public.notifications set read_at = now()
+     where id = '00000000-0000-0000-0000-0000000000b2' $$,
+  'recipient marks the second notification read');
+select is(
+  (select updated_at from public.notifications where id = '00000000-0000-0000-0000-0000000000b2'),
+  now(),
+  'touch trigger stamps updated_at when read_at flips (#180)');
+
+-- the client cannot write it directly: update(read_at) is the entire column grant for
+-- authenticated, and a column added later inherits nothing from it
+select throws_ok(
+  $$ update public.notifications set updated_at = now() - interval '1 day'
+     where id = '00000000-0000-0000-0000-0000000000b2' $$,
+  '42501', null, 'client cannot write updated_at directly (no column grant)');
 
 -- client DELETE denied (no delete grant — fan-out/service-role only; hosted-revoke lockdown)
 select throws_ok(

@@ -10,7 +10,10 @@ values
 
 -- the DEFINER read functions exist
 select has_function('public', 'admin_waitlist_count', 'admin_waitlist_count() exists');
-select has_function('public', 'admin_list_waitlist', array['integer'], 'admin_list_waitlist(int) exists');
+-- keyset signature since 20260821085655 (#335); the full contract is 0127's
+select has_function(
+  'public', 'admin_list_waitlist', array['integer', 'timestamp with time zone', 'uuid'],
+  'admin_list_waitlist(int, timestamptz, uuid) exists');
 
 -- seed two signups (anon insert is allowed); explicit created_at for deterministic order
 set local role anon;

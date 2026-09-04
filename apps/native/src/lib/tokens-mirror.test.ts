@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { gradient, radius, semantic } from '@athanor/config';
+import { gradient, radius, semantic, spacing } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -31,9 +31,6 @@ const NAME_MAP: Record<keyof typeof semantic, string> = {
   foregroundMuted: 'muted-foreground', // diverges — not `foreground-muted`
   aura: 'aura',
   border: 'line', // diverges — the CSS calls it `line`
-  bandAlt: 'band-alt',
-  inkOnLight: 'ink-on-light',
-  inkMutedOnLight: 'ink-muted-on-light',
   success: 'success',
   error: 'error',
   ink2: 'ink-2',
@@ -90,6 +87,14 @@ describe('global.css mirrors the config tokens', () => {
     const declared = CSS.match(new RegExp(`--radius-${key}\\s*:\\s*([^;]+);`))?.[1]?.trim();
     expect(declared, `--radius-${key} missing from global.css`).toBeDefined();
     expect(declared).toBe(`${radius[key]}px`);
+  });
+
+  // Only the spacing the stylesheet actually declares. `spacing` also carries xs..2xl, which
+  // Tailwind's numeric scale already covers and global.css deliberately doesn't restate.
+  it.each(['gutter'] as const)('spacing.%s === --spacing-%s', (key) => {
+    const declared = CSS.match(new RegExp(`--spacing-${key}\\s*:\\s*([^;]+);`))?.[1]?.trim();
+    expect(declared, `--spacing-${key} missing from global.css`).toBeDefined();
+    expect(declared).toBe(`${spacing[key]}px`);
   });
 
   it('defines no --color-* the map does not know about', () => {

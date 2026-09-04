@@ -1,54 +1,52 @@
 import { useState } from 'react';
-import { Linking, Share } from 'react-native';
+import { Alert, Linking, Share } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useQuery } from '@tanstack/react-query';
-import {
-  auraKeys,
-  blockKeys,
-  getAuraScore,
-  getBlockedCount,
-  getMyReferralCode,
-  inviteKeys,
-  updateProfile,
-} from '@athanor/api';
+import { blockKeys, getBlockedCount, updateProfile } from '@athanor/api';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
-import { Chip } from '@/components/Chip';
+import { LocaleChips } from '@/components/LocaleChips';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SettingsGroup } from '@/components/settings/SettingsGroup';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastHost';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
-import { INVITE_URL_BASE, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
+import { inviteShareMessage } from '@/lib/invite-share';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Screen } from '@/components/Screen';
+import { useLocale } from '@/hooks/use-locale';
+import { useReferralCode } from '@/hooks/use-referral-code';
+import { useAuraScore } from '@/hooks/use-aura-score';
 
 /**
  * Settings (PRD §4, M1 §3.4) — account hub. M1 ships full chrome; most rows
  * navigate to later-milestone screens, stubbed here as calm toasts. Functional
  * in M1: Lingua (persists profiles.locale), Esci (sign-out), version footer.
- * Aura value is read-only (rule #1); identity_verified not shipped yet → the
- * account subtitle is always the unverified variant.
+ * Aura value is read-only (rule #1). The account subtitle swaps on
+ * profiles.identity_verified (#634) — the flag is real since Stripe Identity's
+ * webhook shipped, and verify.tsx refreshes the context profile on the flip.
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { session, profile, refreshProfile } = useAuth();
+  const { session, profile, refreshProfile, signOut: endSession } = useAuth();
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
 
-  const [toast, setToast] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [langBusy, setLangBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
-  const locale: Locale = profile?.locale ?? 'it';
+  const locale = useLocale();
   const email = session?.user.email ?? '';
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
@@ -59,25 +57,12 @@ export default function SettingsScreen() {
   });
 
   // Personal referral code, appended to the Invite row's share link (P4.1).
-  const { data: referralCode } = useQuery({
-    queryKey: inviteKeys.code(),
-    queryFn: () => getMyReferralCode(supabase),
-  });
+  const { data: referralCode } = useReferralCode();
 
-  // Read-only Aura snapshot. Shares auraKeys.score + getAuraScore with profile.tsx/Home
-  // (one queryFn per key).
+  // Read-only Aura snapshot — the entry profile.tsx and Home also read.
   const userId = session?.user.id ?? '';
-  const { data: auraSnapshot, isError: auraIsError } = useQuery({
-    queryKey: auraKeys.score(userId),
-    queryFn: () => getAuraScore(supabase, userId),
-    enabled: !!userId,
-  });
+  const { data: auraSnapshot, isError: auraIsError } = useAuraScore(userId);
   const aura = auraDisplayValue(auraSnapshot?.score, auraIsError);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
 
   const switchLocale = async (next: Locale) => {
     const userId = session?.user.id;
@@ -86,7 +71,7 @@ export default function SettingsScreen() {
     try {
       await updateProfile(supabase, userId, { locale: next });
       await refreshProfile();
-      showToast(t(next === 'it' ? 'settings.lang.it' : 'settings.lang.en', next));
+      showToast(t(next === 'it' ? 'settings.lang.it' : 'settings.lang.en', next), 'success');
     } catch {
       showToast(t('profile.error', locale));
     } finally {
@@ -96,20 +81,30 @@ export default function SettingsScreen() {
 
   const signOut = () => {
     if (signingOut) return;
+    // #633: sign-out ends the session in one tap — every other session-grade act here
+    // (unblock, delete) confirms first. Alert with a destructive style, then the
+    // existing farewell.
+    Alert.alert(t('settings.logout.confirm', locale), undefined, [
+      { text: t('common.cancel', locale), style: 'cancel' },
+      { text: t('settings.logout.cta', locale), style: 'destructive', onPress: doSignOut },
+    ]);
+  };
+
+  const doSignOut = () => {
     setSigningOut(true);
-    showToast(t('settings.logout.toast', locale));
+    showToast(t('settings.logout.toast', locale), 'moment');
     // Brief farewell, then end the session — AuthGuard routes to (auth)/welcome.
     setTimeout(() => {
-      supabase.auth.signOut().catch(() => setSigningOut(false));
+      endSession().catch(() => setSigningOut(false));
     }, 700);
   };
 
   return (
-    <View {...MODAL_A11Y} className="flex-1 bg-background">
+    <Screen {...MODAL_A11Y}>
       {/* Header: back + title */}
       <ModalHeader title={t('settings.title', locale)} backLabel={t('common.back', locale)} />
 
-      <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12 pt-4">
+      <ScrollView className="flex-1" contentContainerClassName="gap-7 px-5 pb-12">
         {/* Account card */}
         <View className="flex-row items-center gap-4 rounded-card border border-hair bg-raise p-5">
           <Avatar
@@ -123,7 +118,13 @@ export default function SettingsScreen() {
               {memberLabel(profile?.display_name, profile?.handle) ?? '—'}
             </Text>
             <Text className="text-[13px] text-faint">
-              {t('settings.account.subUnverified', locale, { email })}
+              {t(
+                profile?.identity_verified
+                  ? 'settings.account.sub'
+                  : 'settings.account.subUnverified',
+                locale,
+                { email },
+              )}
             </Text>
           </View>
         </View>
@@ -152,7 +153,7 @@ export default function SettingsScreen() {
             title={t('settings.payments.title', locale)}
             description={t('settings.payments.desc', locale)}
             onPress={() =>
-              flags.fund_contributions_enabled
+              flags.fund_surfaces_enabled
                 ? router.push('/(modal)/payments')
                 : showToast(t('settings.payments.soon', locale))
             }
@@ -167,24 +168,7 @@ export default function SettingsScreen() {
               <Text className="text-base text-foreground">{t('settings.lang.title', locale)}</Text>
               <Text className="text-[13px] text-faint">{t('settings.lang.desc', locale)}</Text>
             </View>
-            <View
-              className="flex-row gap-2"
-              accessibilityRole="radiogroup"
-              accessibilityLabel={t('settings.lang.title', locale)}
-            >
-              <Chip
-                small
-                label={t('lang.it', locale)}
-                selected={locale === 'it'}
-                onPress={() => switchLocale('it')}
-              />
-              <Chip
-                small
-                label={t('lang.en', locale)}
-                selected={locale === 'en'}
-                onPress={() => switchLocale('en')}
-              />
-            </View>
+            <LocaleChips small value={locale} onChange={switchLocale} />
           </View>
           {/* Tema scuro — dark-only in Fase 1: display-on, non-interactive */}
           <SettingsRow
@@ -253,23 +237,40 @@ export default function SettingsScreen() {
           />
           <SettingsRow
             title={t('settings.legal.terms', locale)}
-            onPress={() => void WebBrowser.openBrowserAsync(LEGAL_TERMS_URL)}
+            onPress={() => {
+              WebBrowser.openBrowserAsync(LEGAL_TERMS_URL).catch(() =>
+                showToast(t('settings.legal.error', locale)),
+              );
+            }}
           />
           <SettingsRow
             title={t('settings.legal.privacy', locale)}
-            onPress={() => void WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL)}
+            onPress={() => {
+              WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL).catch(() =>
+                showToast(t('settings.legal.error', locale)),
+              );
+            }}
           />
           <SettingsRow
             title={t('settings.invite.title', locale)}
             description={t('settings.invite.desc', locale)}
             onPress={() => {
               // Share fires even while the code query is loading — link just omitted.
-              const link = referralCode ? ` ${INVITE_URL_BASE}/${referralCode}` : '';
               Share.share({
-                message: `${t('home.invite', locale)} — ${t('app.name', locale)}${link}`,
-              }).catch(() => {
-                // user dismissed the sheet — no-op
-              });
+                message: inviteShareMessage({
+                  lead: t('home.invite', locale),
+                  appName: t('app.name', locale),
+                  code: referralCode,
+                }),
+              })
+                .then(({ action }) => {
+                  if (action === Share.sharedAction) {
+                    showToast(t('home.invite.done', locale), 'success');
+                  }
+                })
+                .catch(() => {
+                  // user dismissed the sheet — no-op
+                });
             }}
           />
         </SettingsGroup>
@@ -289,8 +290,6 @@ export default function SettingsScreen() {
           {t('settings.version', locale, { version })}
         </Text>
       </ScrollView>
-
-      {toast ? <Toast label={toast} /> : null}
-    </View>
+    </Screen>
   );
 }

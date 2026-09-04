@@ -6,6 +6,9 @@ import type { Profile } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
+import { consumePendingReferral } from './referral';
+import { asyncStoragePersister, queryClient } from './query-client';
+import { readProfileWithRetry } from './profile-read';
 import { registerForPush, unregisterPush } from './push';
 
 type AuthState = {
@@ -21,6 +24,25 @@ type AuthState = {
    *  a broken read apart from a new account and show something instead of freezing. */
   profileError: boolean;
   refreshProfile: () => Promise<void>;
+  /** End the session. Unregisters the push token FIRST — after auth signOut the
+   *  DELETE on push_tokens would run as anon, which the grants deny by design
+   *  (42501). Every sign-out initiator goes through here, never straight to
+   *  supabase.auth.signOut(). */
+  signOut: () => Promise<void>;
+  /** Fetch + register the push token when the OS grant already exists (never prompts —
+   *  #561) and remember it so signOut can unregister it. PushPrimer calls this right
+   *  after its grant; the auth-event branch reuses it on boot/refresh. */
+  registerPush: () => Promise<void>;
+  /** A recovery link was just exchanged (PASSWORD_RECOVERY): the session is real but the
+   *  member still has to choose a new password. Held HERE, not read off the exchange's
+   *  return value, because auth-js notifies subscribers before exchangeCodeForSession
+   *  resolves — AuthGuard can route to (tabs) and unmount auth-callback before that
+   *  screen's .then ever runs. The guard reads this latch instead and routes to
+   *  (modal)/new-password until it clears (#631). */
+  recoveryPending: boolean;
+  /** Clear the latch: after updateUser succeeds, or when the member skips — their old
+   *  password still works, so skipping is a legitimate exit, not a trap. */
+  clearRecovery: () => void;
 };
 
 const AuthContext = createContext<AuthState>({
@@ -30,6 +52,10 @@ const AuthContext = createContext<AuthState>({
   flushing: false,
   profileError: false,
   refreshProfile: async () => {},
+  signOut: async () => {},
+  registerPush: async () => {},
+  recoveryPending: false,
+  clearRecovery: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -38,8 +64,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [flushing, setFlushing] = useState(false);
   const [profileError, setProfileError] = useState(false);
+  const [recoveryPending, setRecoveryPending] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const pushTokenRef = useRef<string | null>(null);
+
+  const signOut = useCallback(async () => {
+    // Best-effort while the JWT still exists (unregisterPush swallows failures);
+    // the ref is cleared here so the !next branch below doesn't retry as anon.
+    await unregisterPush(pushTokenRef.current);
+    pushTokenRef.current = null;
+    await supabase.auth.signOut();
+  }, []);
+
+  // Registration is read-only on the permission (#561): registerForPush no-ops until the
+  // grant exists, so this is safe to fire on every boot and again from PushPrimer the
+  // moment its ask lands. The token has to land in pushTokenRef — signOut unregisters
+  // whatever is here, and a token registered outside this ref would outlive the session.
+  const registerPush = useCallback(async () => {
+    const token = await registerForPush();
+    if (token) pushTokenRef.current = token;
+  }, []);
+
+  const clearRecovery = useCallback(() => setRecoveryPending(false), []);
 
   const refreshProfile = useCallback(async () => {
     const userId = sessionRef.current?.user.id ?? null;
@@ -48,7 +94,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const fresh = await getOwnProfile(supabase);
+      // #512 — «Riprova» is the member's one way out of the error screen; leaving IT
+      // single-attempt meant one more dropped request put them straight back on it.
+      const fresh = await readProfileWithRetry(() => getOwnProfile(supabase));
       if (sessionRef.current?.user.id === userId) {
         setProfile(fresh);
         setProfileError(false);
@@ -74,17 +122,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!next) {
         setProfile(null); // sign-out clears profile here (event handler, not effect)
         setProfileError(false);
-        void unregisterPush(pushTokenRef.current);
+        // No unregisterPush here: with the session gone the DELETE runs as anon
+        // and 42501s (e.g. a revoked session at boot after an account deletion).
+        // The signOut() helper unregisters while authenticated; a token this
+        // branch can't remove is pruned server-side on a DeviceNotRegistered
+        // receipt (push-dispatch) or by the profiles cascade.
         pushTokenRef.current = null;
+        setRecoveryPending(false); // a sign-out mid-recovery abandons the flow
+        // The persisted TanStack cache holds the signed-out account's profile
+        // and feed; drop both the live cache and the AsyncStorage copy so
+        // nothing rehydrates into the next session.
+        queryClient.clear();
+        void asyncStoragePersister.removeClient();
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Recovery-link exchange (auth-callback). The session is live, but AuthGuard
+        // must park the member on the new-password sheet instead of routing home.
+        setRecoveryPending(true);
       } else if (
         event === 'SIGNED_IN' ||
         event === 'INITIAL_SESSION' ||
         event === 'TOKEN_REFRESHED'
       ) {
         if (!pushTokenRef.current) {
-          void registerForPush().then((t) => {
-            pushTokenRef.current = t;
-          });
+          void registerPush();
         }
       }
     });
@@ -105,7 +165,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const p = await getOwnProfile(supabase);
+        // #512 — one dropped request on sign-in used to surface as «Il server non risponde»
+        // with no automatic second attempt. Same budget as every TanStack read (retry: 2).
+        const p = await readProfileWithRetry(() => getOwnProfile(supabase));
         if (cancelled) return;
         setProfileError(false);
         if (p && email && !isProfileComplete(p)) {
@@ -140,9 +202,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [userId, email, refreshProfile]);
 
+  // Referral (#78): the stash is spent here, not on the auth screens. An OAuth signup carries
+  // no user_metadata, so athanor.redeem_referral — which reads the code out of exactly that —
+  // never sees one from a trigger, and every Google or Apple member arrived attributed to
+  // nobody. Deliberately provider-blind: by the time an email signup reaches this point its
+  // trigger has already redeemed and the RPC no-ops, so nothing here needs to know who signed
+  // in. Fire-and-forget, and uncancelled, because it touches no state of ours — it reads the
+  // stash, asks the server, and drops the stash. It never rejects (lib/referral.ts).
+  useEffect(() => {
+    if (!userId) return;
+    void consumePendingReferral(supabase);
+  }, [userId]);
+
   return (
     <AuthContext.Provider
-      value={{ session, profile, loading, flushing, profileError, refreshProfile }}
+      value={{
+        session,
+        profile,
+        loading,
+        flushing,
+        profileError,
+        refreshProfile,
+        signOut,
+        registerPush,
+        recoveryPending,
+        clearRecovery,
+      }}
     >
       {children}
     </AuthContext.Provider>

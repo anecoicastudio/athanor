@@ -5,15 +5,20 @@ import { auraKeys, starKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Profile } from '@athanor/schemas';
 import { Share } from 'react-native';
+import { semantic } from '@athanor/config';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
+import { Screen } from '@/components/Screen';
+import { SettingsIcon } from '@/components/glyphs';
+import { useToast } from '@/components/ToastHost';
 import { DreamSection } from '@/components/profile/DreamSection';
 import { MomentFlash } from '@/components/profile/MomentFlash';
 import { ProfileEditForm } from '@/components/profile/ProfileEditForm';
 import { ProfileView } from '@/components/profile/ProfileView';
-import { Toast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 import { profileShareMessage } from '@/lib/profile-share';
+import { useLocale } from '@/hooks/use-locale';
 import { useOwnDream } from '@/hooks/use-own-dream';
 import { useStarCelebration } from '@/hooks/use-star-celebration';
 
@@ -32,7 +37,7 @@ export default function ProfileScreen() {
 
   if (!profile || !session) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <Screen className="items-center justify-center">
         <Text
           className="text-2xl text-muted-foreground"
           accessibilityElementsHidden
@@ -40,7 +45,7 @@ export default function ProfileScreen() {
         >
           ✦
         </Text>
-      </View>
+      </Screen>
     );
   }
 
@@ -60,12 +65,13 @@ function ProfileEditor({
 }) {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { showToast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const locale = profile.locale;
+  const locale = useLocale();
 
   const dream = useOwnDream(userId);
-  const { starToast, starFlash } = useStarCelebration(userId, locale);
+  const { starFlash } = useStarCelebration(userId, locale);
 
   // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). Consumed in an
   // effect, not a useState initializer: trust dismissTo's back to this already-
@@ -95,7 +101,10 @@ function ProfileEditor({
   const shareProfile = async () => {
     if (!shareMessage) return;
     try {
-      await Share.share({ message: shareMessage });
+      const { action } = await Share.share({ message: shareMessage });
+      if (action === Share.sharedAction) {
+        showToast(t('profile.share.done', locale), 'success');
+      }
     } catch {
       // user dismissed or share unavailable — no-op
     }
@@ -108,74 +117,83 @@ function ProfileEditor({
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-8 px-5 py-12"
-      keyboardShouldPersistTaps="handled"
-    >
-      {!editing ? (
-        <>
-          {/* Header row: share + edit toggle — sized to the 24px icon scale
-              (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. */}
-          <View className="flex-row items-center justify-end gap-5">
-            {shareMessage != null && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('profile.share.toast', locale)}
-                hitSlop={HIT_SLOP}
-                onPress={() => void shareProfile()}
-              >
-                <Text className="text-2xl text-aura">✦</Text>
-              </Pressable>
-            )}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('settings.title', locale)}
-              hitSlop={HIT_SLOP}
-              onPress={() => router.push('/(modal)/settings')}
-            >
-              <Text className="text-2xl text-faint">⚙</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setEditing(true)}
-              accessibilityRole="button"
-              hitSlop={HIT_SLOP}
-            >
-              <Text className="text-base font-semibold text-faint">
-                {t('profile.edit', locale)}
-              </Text>
-            </Pressable>
-          </View>
+    // #614 beyond-the-issue: that issue's out-of-scope note read this screen as a
+    // top-anchored search field, which it is not. `ProfileEditForm`'s name/bio/mission fields sit well down the scroll,
+    // so it had the same defect and takes the same primitive, outside `Screen`.
+    <KeyboardAvoiding>
+      <Screen>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-8 px-5 pb-12 pt-4"
+          keyboardShouldPersistTaps="handled"
+        >
+          {!editing ? (
+            <>
+              {/* Header row: share + edit toggle — sized to the 24px icon scale
+              (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. gap-6 (24px)
+              keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
+              side, so anything under 22px overlaps and taps cross-fire. */}
+              <View className="flex-row items-center justify-end gap-6">
+                {shareMessage != null && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('profile.share.label', locale)}
+                    hitSlop={HIT_SLOP}
+                    onPress={() => void shareProfile()}
+                  >
+                    <Text className="text-2xl text-aura">✦</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.title', locale)}
+                  hitSlop={HIT_SLOP}
+                  onPress={() => router.push('/(modal)/settings')}
+                >
+                  <SettingsIcon size={24} color={semantic.faint} />
+                </Pressable>
+                <Pressable
+                  onPress={() => setEditing(true)}
+                  accessibilityRole="button"
+                  hitSlop={HIT_SLOP}
+                >
+                  <Text className="text-base font-semibold text-faint">
+                    {t('profile.edit', locale)}
+                  </Text>
+                </Pressable>
+              </View>
 
-          <ProfileView
-            userId={userId}
-            profile={profile}
-            locale={locale}
-            hasDream={dream.dreamText != null}
-            dreamSlot={<DreamSection locale={locale} dream={dream} />}
-          />
-        </>
-      ) : (
-        <ProfileEditForm
-          userId={userId}
-          profile={profile}
-          dreamText={dream.dreamText}
-          refreshProfile={refreshProfile}
-          onSaved={onSaved}
-          onCancel={() => setEditing(false)}
-        />
-      )}
+              <ProfileView
+                userId={userId}
+                profile={profile}
+                locale={locale}
+                hasDream={dream.dreamText != null}
+                dreamSlot={<DreamSection locale={locale} dream={dream} />}
+              />
+            </>
+          ) : (
+            <ProfileEditForm
+              userId={userId}
+              profile={profile}
+              dreamText={dream.dreamText}
+              refreshProfile={refreshProfile}
+              onSaved={onSaved}
+              onCancel={() => setEditing(false)}
+            />
+          )}
 
-      {saved ? <Text className="text-sm text-success">{t('profile.saved', locale)}</Text> : null}
+          {saved ? (
+            <Text className="text-sm text-success">{t('profile.saved', locale)}</Text>
+          ) : null}
 
-      {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
-      <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
+          {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
+          <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
 
-      {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash. */}
-      <MomentFlash visible={starFlash} locale={locale} />
-
-      {/* Star-earned toast: transient inline surface (shared Toast recipe). */}
-      {starToast ? <Toast label={starToast} /> : null}
-    </ScrollView>
+          {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
+          The matching toast fires through the global host (#117). */}
+          <MomentFlash visible={starFlash} locale={locale} />
+        </ScrollView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }

@@ -1,19 +1,21 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, FlatList } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type ContributionCursor, fundKeys, getMyContributions } from '@athanor/api';
 import { formatPrice } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FundContribution, Locale } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { FlatList, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { longDate } from '@/lib/time';
+import { Screen } from '@/components/Screen';
 
 function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) {
   const statusKey =
@@ -48,8 +50,8 @@ function ReceiptRow({ row, locale }: { row: FundContribution; locale: Locale }) 
  * (created_at, id) — never offset (rule #9). RLS scopes rows to the owner (rule #3).
  */
 export default function PaymentsScreen() {
-  const { session, profile } = useAuth();
-  const locale: Locale = profile?.locale ?? 'it';
+  const { session } = useAuth();
+  const locale = useLocale();
   const me = session?.user.id ?? '';
 
   const query = useInfiniteQuery({
@@ -65,7 +67,7 @@ export default function PaymentsScreen() {
   const isEmpty = !query.isLoading && !query.isError && rows.length === 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <Screen>
       <ModalHeader
         title={t('settings.payments.title', locale)}
         backLabel={t('common.back', locale)}
@@ -101,7 +103,7 @@ export default function PaymentsScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
           ListHeaderComponent={
             <View className="pb-2 pt-1">
-              <SectionLabel>{t('payments.contributions.label', locale)}</SectionLabel>
+              <SectionLabel heading>{t('payments.contributions.label', locale)}</SectionLabel>
             </View>
           }
           renderItem={({ item }) => <ReceiptRow row={item} locale={locale} />}
@@ -119,6 +121,6 @@ export default function PaymentsScreen() {
           }
         />
       ) : null}
-    </View>
+    </Screen>
   );
 }
