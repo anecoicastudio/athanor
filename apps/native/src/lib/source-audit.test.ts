@@ -799,7 +799,8 @@ describe('the full-bleed viewer lifts the toast band over its overlay chrome (#1
  * back a trail that stops one step early.
  *
  * Lint cannot close this, for two independent reasons. `apps/native/eslint.config.js` is
- * `eslint-config-expo/flat` plus an `ignores` block and nothing else, so
+ * `eslint-config-expo/flat` plus an `ignores` block and a React-Compiler rule-severity block
+ * (#691) and nothing else, so
  * `@typescript-eslint/no-floating-promises` — configured only in
  * `packages/config/eslint/library.js`, which this app does not extend — is not running here at
  * all. And even where it runs it defaults to `ignoreVoid: true`, so `void markStep(…)` satisfies
