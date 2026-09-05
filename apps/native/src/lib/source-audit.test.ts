@@ -1130,7 +1130,7 @@ describe('the upload transport is a single seam (#450)', () => {
     [
       ...new Set(
         codeLines()
-          .filter(([at, text]) => !/\.test\.tsx?:\d+$/.test(at) && pattern.test(text))
+          .filter(([at, text]) => !isTest(at.replace(/:\d+$/, '')) && pattern.test(text))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ].sort();
@@ -1153,9 +1153,17 @@ describe('the upload transport is a single seam (#450)', () => {
   });
 
   it('the policy module imports no platform module — a node-collectable unit', () => {
-    const bare = stripComments(read(`${SRC}${POLICY}`))
-      .split('\n')
-      .flatMap((text) => text.match(/^\s*import\b[^'"]*from\s+['"]([^'"]+)['"]/)?.[1] ?? [])
+    // Whole-source, never line by line. Prettier wraps a named import list at printWidth 100, so
+    // a per-line match would miss exactly the shape this repo produces — `[^'"]*?` spans the
+    // newlines instead, and cannot run past the specifier because the first quote after the
+    // keyword is always the specifier's. Two patterns because a side-effect `import 'x'` has no
+    // `from` at all, and it is every bit as much a platform import as a named one.
+    const src = stripComments(read(`${SRC}${POLICY}`));
+    const bare = [
+      ...src.matchAll(/(?:^|\n)\s*(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g),
+      ...src.matchAll(/(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g),
+    ]
+      .flatMap((m) => m[1] ?? [])
       .filter((specifier) => !specifier.startsWith('.'));
     expect(
       bare,

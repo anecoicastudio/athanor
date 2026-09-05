@@ -113,7 +113,7 @@ export const MEDIA_LIMITS = {
    * rather than an ordinal that quietly changes meaning.
    *
    * The picker's default is `High`, which on an iPhone records at the device maximum: 4K/60 is
-   * ~400 MB per minute — six seconds of it already exceeds `MAX_VIDEO_BYTES`. It used to be
+   * ~400 MB per minute — sixteen seconds of it already exceeds `MAX_VIDEO_BYTES`. It used to be
    * fatal rather than merely refused, because `xhr.send({ uri })` materialised the whole file in
    * one native allocation on iOS; #450 made the body file-backed, so what `Medium` buys now is a
    * recording the member can actually upload instead of one refused after the fact.

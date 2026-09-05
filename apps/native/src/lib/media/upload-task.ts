@@ -35,6 +35,24 @@ import type { UploadHandle, Uploader, UploadResponse } from './upload-transport'
  * which is why `/mobile-qa` forbids uploading through the web harness. Resolving the picker's
  * `blob:` URL to a `Blob` first fixes that, and a browser XHR reports `upload.onprogress` from
  * the same file-backed body, so the watchdog measures the same thing on both surfaces.
+ *
+ * **Its config plugin is not in `app.json`, and listing it would change nothing.** Two facts that
+ * are easy to get backwards, both read out of the installed toolchain rather than recalled:
+ * `@expo/prebuild-config` names `expo-file-system` in `legacyExpoPlugins`
+ * (`build/plugins/withDefaultPlugins.js`) and applies it to every autolinked package whatever
+ * `plugins` says, so `withFileSystem` — and its `withPermissions` for `READ_EXTERNAL_STORAGE`,
+ * `WRITE_EXTERNAL_STORAGE`, `INTERNET` — already runs; and `android.permissions` is a union, not
+ * an allow-list (`AndroidConfig.Permissions.withPermissions` concats into a `Set`; only
+ * `android.blockedPermissions` removes, via `tools:node="remove"`). Registering the plugin would
+ * buy only its two iOS options, `LSSupportsOpeningDocumentsInPlace` / `UIFileSharingEnabled`,
+ * neither of which this seam wants.
+ *
+ * None of that is new here. `expo@57.0.20` lists `expo-file-system ~57.0.6` in its OWN
+ * dependencies, so the module was autolinked and the plugin applied before this file existed;
+ * putting it in `apps/native/package.json` pins the version the import resolves against and adds
+ * no native module and no permission. Whether a Play-bound manifest should carry two storage
+ * permissions the app never uses is a real question, and the lever is `android.blockedPermissions`
+ * — not this line, and not this change.
  */
 
 /** Bridges an `AbortSignal`-free handle onto whatever the platform gives us. */
