@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 import { isReservedHandle } from './reserved-handles.ts';
+import { birthDateSchema, zodiacSignSchema } from './zodiac.ts';
 
 /** Mirrors supabase/migrations init_profiles. Update both together. */
 export const localeSchema = z.enum(['it', 'en']);
@@ -89,6 +90,11 @@ export const profileSchema = z.object({
   seeking: z.array(z.string()).max(10),
   identity_verified: z.boolean(),
   founding_member: z.boolean(),
+  // #694 — birth_date is OWN-read only (no client SELECT grant; get_own_profile's DEFINER
+  // `select *` is the sole path), zodiac_sign is generated from it server-side. Both nullable:
+  // pre-#694 members have neither. Listed here or Zod strips them silently on the way in.
+  birth_date: birthDateSchema.nullable(),
+  zodiac_sign: zodiacSignSchema.nullable(),
   // Moderation state (#106) — server-written only (clients hold no write grant), but the
   // OWN read does see them: `get_own_profile()` is a DEFINER `select *`, so its row carries
   // both columns past the column-scoped grants (0072 asserts the full-row read) — that is
@@ -113,6 +119,9 @@ export const profileUpdateSchema = profileSchema
     visibility: true,
     identity_tags: true,
     seeking: true,
+    // #694 — the owner may set (or clear) their date later; zodiac_sign is generated and has
+    // no write grant, so it is deliberately absent from this pick.
+    birth_date: true,
   })
   // The two fields whose write shape differs from their read shape, added here rather than
   // picked above and overridden (a picked entry the extend replaces is a flag that does nothing):
@@ -147,6 +156,9 @@ export const personProfileSchema = profileSchema
     skills: true,
     profession: true,
     city: true,
+    // #694 — public by decision, no visibility key; NULL on a tombstone. birth_date is never
+    // picked here: the RPC does not project it, and this schema must not suggest it could.
+    zodiac_sign: true,
     identity_verified: true,
     founding_member: true,
   })

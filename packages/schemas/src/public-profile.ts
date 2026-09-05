@@ -3,6 +3,7 @@ import { milestoneStatusSchema } from './milestone.ts';
 // Import and re-export the canonical handleSchema from profile (mirrors profiles.handle CHECK
 // ^[a-z0-9_]{3,30}$) so the package index can export * from both files without a name clash.
 import { displayNameSchema, handleSchema } from './profile.ts';
+import { zodiacSignSchema } from './zodiac.ts';
 export { handleSchema };
 export type Handle = string;
 
@@ -30,6 +31,9 @@ export const publicProfileSchema = z.object({
   handle: handleSchema,
   displayName: displayNameSchema.nullable(),
   avatarUrl: z.string().url().nullable(),
+  // #694 — the sun sign is public by decision and anon-granted on the column, so it rides the
+  // shell with the name and the photo. Null for a member who has no date yet.
+  zodiacSign: zodiacSignSchema.nullable(),
   bio: z.string().nullable(),
   dream: z
     .object({

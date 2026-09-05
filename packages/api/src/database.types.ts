@@ -2373,6 +2373,7 @@ export type Database = {
           avatar_path: string | null
           banned_at: string | null
           bio: string | null
+          birth_date: string | null
           city: string | null
           city_geohash: string | null
           created_at: string
@@ -2392,11 +2393,13 @@ export type Database = {
           suspended_until: string | null
           updated_at: string
           visibility: Json
+          zodiac_sign: string | null
         }
         Insert: {
           avatar_path?: string | null
           banned_at?: string | null
           bio?: string | null
+          birth_date?: string | null
           city?: string | null
           city_geohash?: string | null
           created_at?: string
@@ -2416,11 +2419,13 @@ export type Database = {
           suspended_until?: string | null
           updated_at?: string
           visibility?: Json
+          zodiac_sign?: string | null
         }
         Update: {
           avatar_path?: string | null
           banned_at?: string | null
           bio?: string | null
+          birth_date?: string | null
           city?: string | null
           city_geohash?: string | null
           created_at?: string
@@ -2440,6 +2445,7 @@ export type Database = {
           suspended_until?: string | null
           updated_at?: string
           visibility?: Json
+          zodiac_sign?: string | null
         }
         Relationships: []
       }
@@ -3489,6 +3495,7 @@ export type Database = {
           avatar_path: string | null
           banned_at: string | null
           bio: string | null
+          birth_date: string | null
           city: string | null
           city_geohash: string | null
           created_at: string
@@ -3508,6 +3515,7 @@ export type Database = {
           suspended_until: string | null
           updated_at: string
           visibility: Json
+          zodiac_sign: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -3533,6 +3541,7 @@ export type Database = {
           removed: boolean
           seeking: string[]
           skills: string[]
+          zodiac_sign: string
         }[]
       }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
