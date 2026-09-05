@@ -101,7 +101,8 @@ export const MEDIA_LIMITS = {
    * request leaves (`RCTNetworkTask.mm` → `NSMutableData` → `HTTPBody`), so the largest number
    * this constant permits is the largest single allocation an upload asks the OS for, inside
    * Expo Go, where there is no native uploader to fall back to. #450 is DEFERRED, not fixed —
-   * blocked on #508's SDK 54 pin — and this ceiling is what makes deferring it survivable.
+   * its blocker, #508's SDK 54 pin, lifted on 2026-09-05 — and this ceiling is what makes
+   * deferring it survivable.
    * There is a good product reason to want longer, heavier video one day; take it together
    * with #450, not before it.
    */

@@ -4,7 +4,7 @@ Community platform where reputation (the **Aura** score) is earned only through 
 
 ## Stack
 
-TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Expo SDK 54 + expo-router + NativeWind v5 · Supabase (Postgres + RLS, Auth, Realtime, Storage, Deno edge functions) · Stripe (Checkout, Billing, Identity) · Vitest + pgTAP + Deno tests.
+TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Expo SDK 57 + expo-router + NativeWind v5 · Supabase (Postgres + RLS, Auth, Realtime, Storage, Deno edge functions) · Stripe (Checkout, Billing, Identity) · Vitest + pgTAP + Deno tests.
 
 ## Repository map
 
@@ -172,7 +172,7 @@ gitignored; CI greps the built bundle for leaked keys as a release gate.
 
 ## Working conventions
 
-- **Native dependencies:** `pnpm exec expo install`, never `pnpm add`; then `pnpm exec expo-doctor`. The project is on **Expo SDK 54** (deliberate) — check the SDK 54 docs, not the latest.
+- **Native dependencies:** `pnpm exec expo install`, never `pnpm add`; then `pnpm exec expo-doctor`. The project is on **Expo SDK 57**, tracking the SDK App Store Expo Go ships — check the SDK 57 docs, not the latest.
 - **Styling:** NativeWind classNames through the wrappers in `src/tw` — plain RN components don't accept `className` here.
 - **The app pnpm package is named `native`, unscoped** — `--filter @athanor/native` is a silent no-op; use `--filter native`.
 - **Environments:** production is maintainer-only; staging is the shared workbench, seeded with fake data — never put real people's content in it. Enable MFA on your GitHub and Supabase accounts.

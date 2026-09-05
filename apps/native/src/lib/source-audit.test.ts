@@ -1097,8 +1097,9 @@ describe('placeholders are a token, never the platform default (#499)', () => {
  * On iOS, `xhr.send({ uri })` does not stream: `RCTNetworkTask.mm` appends the whole file into
  * an `NSMutableData` and `RCTNetworking.mm` assigns it as `HTTPBody`, so a picked video becomes
  * one contiguous native allocation before the request leaves. That is #450, and it was
- * DEFERRED rather than fixed — blocked on #508's SDK 54 pin, because the replacement
- * (`expo/fetch`, or a native uploader) is not reachable from App Store Expo Go today.
+ * DEFERRED rather than fixed — until 2026-09-05 blocked on #508's SDK 54 pin, because the
+ * replacement (`expo/fetch`, or a native uploader) was not reachable from App Store Expo Go.
+ * SDK 57 made both reachable; the deferral is now a choice of scope, not a constraint.
  *
  * The deferral is only safe because the eventual swap is one module: `XMLHttpRequest` is
  * constructed in exactly one file, so however many upload surfaces get built on top of
@@ -1278,7 +1279,7 @@ describe('the events tab has no posts source (#153)', () => {
 // ---------------------------------------------------------------------------------------
 
 /**
- * `Pressable` defaults `accessible={true}` (`react-native@0.81.5`, `Pressable.js:245`), and on
+ * `Pressable` defaults `accessible={true}` (`react-native@0.86.3`, `Pressable.js:252`), and on
  * iOS an accessible view is ATOMIC: VoiceOver focuses it as one unit and never descends into
  * it. So a Pressable inside a Pressable is a control a screen-reader user cannot reach.
  *
