@@ -2825,21 +2825,40 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
     // dependency and VENDORED it, so `usePreventRemove` and native-stack's `isRemovePrevented`
     // are now two files inside ONE package and the identity holds by construction. Two
     // assertions keep that from going vacuous — the vendored copy is where this section
-    // thinks it is — and two assert the new way to break it: a standalone `@react-navigation/*`
-    // added back, which would give the hook a context the navigator never reads, with every
-    // grep above still green (#636, #508).
+    // thinks it is — one asserts the identity itself, and two assert the new way to break it: a
+    // standalone `@react-navigation/*` added back, which would give the hook a context the
+    // navigator never reads, with every grep above still green (#636, #508).
     const req = createRequire(`${SRC}package.json`);
-    const routerRoot = req.resolve('expo-router/package.json').slice(0, -'package.json'.length);
     expect(
-      req.resolve('expo-router/react-navigation').startsWith(routerRoot),
-      'expo-router/react-navigation resolves OUTSIDE the expo-router package this app renders ' +
-        'through, so the prevent-remove context the hook fills is not the one the navigator reads.',
-    ).toBe(true);
+      () => req.resolve('expo-router/react-navigation'),
+      'expo-router stopped exporting its vendored react-navigation at expo-router/react-navigation, ' +
+        'so the prevent-remove context the hook fills is not the one the navigator reads.',
+    ).not.toThrow();
     expect(
-      req.resolve('expo-router/build/react-navigation/native-stack').startsWith(routerRoot),
+      () => req.resolve('expo-router/build/react-navigation/native-stack'),
       'expo-router no longer vendors native-stack. This section assumes the hook and the ' +
         'navigator are one package — re-derive the identity before trusting the guards above.',
-    ).toBe(true);
+    ).not.toThrow();
+    // Identity, not existence: a subpath resolved from one base always lands under that base's
+    // copy, so the way two copies sneak in is the INSTALL — two expo-router versions locked at
+    // once, or an installed copy that is not the locked one. The lockfile is the record CI
+    // installs from (`node_modules/.pnpm` keeps stale dirs and cannot be counted), and turbo's
+    // global hash already covers it.
+    const lock = read(`${NATIVE}../../pnpm-lock.yaml`);
+    const locked = [...new Set([...lock.matchAll(/^ {2}expo-router@([^(:]+)/gm)].map((m) => m[1]))];
+    expect(
+      locked,
+      'more than one expo-router version is locked, so two physical copies of the vendored ' +
+        'react-navigation exist and the hook and the navigator can resolve different ones (#636).',
+    ).toHaveLength(1);
+    const installed = (
+      JSON.parse(read(req.resolve('expo-router/package.json'))) as { version: string }
+    ).version;
+    expect(
+      installed,
+      'the expo-router this app resolves is not the locked one — the install drifted from the ' +
+        'lockfile, and the identity argument above is about the lockfile.',
+    ).toBe(locked[0]);
     expect(
       /from 'expo-router\/react-navigation'/.test(read(`${SRC}hooks/use-dirty-guard.ts`)),
       'use-dirty-guard.ts stopped taking usePreventRemove from expo-router/react-navigation.',
