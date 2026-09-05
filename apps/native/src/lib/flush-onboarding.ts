@@ -28,17 +28,25 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
   const draft = await loadDraft();
   if (!hasDraftAnswers(draft)) return 'nodraft';
 
-  try {
-    const answers = onboardingAnswersSchema.parse({
-      handle: suggestHandle(email),
-      locale: draft.locale,
-      identity_tags: draft.identity_tags,
-      seeking: draft.seeking,
-      // #694 — `updateOnboardingProfile` re-parses with the same schema and strips unknown
-      // keys, so leaving this out would drop the date silently, not fail.
-      birth_date: draft.birth_date,
-    });
+  // Shape first, outside the retry path: a draft the schema refuses (an impossible day typed
+  // into the web fallback, say) can never satisfy the server, and keeping it would loop the
+  // member through the funnel with the same date rehydrated (#694). Drop it, like a bad tag.
+  const shaped = onboardingAnswersSchema.safeParse({
+    handle: suggestHandle(email),
+    locale: draft.locale,
+    identity_tags: draft.identity_tags,
+    seeking: draft.seeking,
+    // `updateOnboardingProfile` re-parses with the same schema and strips unknown keys, so
+    // leaving this out would drop the date silently, not fail.
+    birth_date: draft.birth_date,
+  });
+  if (!shaped.success) {
+    await clearDraft();
+    return 'error';
+  }
+  const answers = shaped.data;
 
+  try {
     const vocab = validateOnboardingAnswers(answers);
     if (!vocab.ok) {
       // A draft with an off-vocabulary tag can never satisfy the server — drop it
@@ -56,9 +64,28 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
     return 'flushed';
   } catch (e) {
     devWarn('[onboarding] flush', e);
-    // Keep the draft; the next foreground (or next auth event) retries the flush.
+    // A check_violation is the database refusing the CONTENT — the 14+ guard or the 1900 floor
+    // on birth_date (#694). Retrying the same draft can only fail the same way, and the guard
+    // would route the member back to a funnel that rehydrates and re-accepts the date: a trap
+    // until a cold restart. Drop it; the fresh funnel asks again.
+    if (isCheckViolation(e)) {
+      await clearDraft();
+      return 'error';
+    }
+    // Anything else is transport-shaped: keep the draft; the next foreground (or next auth
+    // event) retries the flush.
     return 'error';
   }
+}
+
+/** Postgres check_violation — the row's content was refused, not the connection. */
+function isCheckViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === '23514'
+  );
 }
 
 /**

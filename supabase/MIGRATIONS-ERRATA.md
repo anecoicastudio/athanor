@@ -1538,16 +1538,16 @@ drift the rule exists to prevent — so both files stay empty, and the statement
 carry landed as `20260905171924_profiles_zodiac_sign_execute_service_role.sql` instead.
 
 What that statement corrects is a claim in `20260905165133_profiles_birth_date_zodiac.sql` §1:
-«service*role keeps the default-ACL 'f' row». It does not. The first explicit `revoke … from
-public` materialises the function's ACL as `{owner, authenticated}`, and service_role — which had
+«`service_role` keeps the default-ACL 'f' row». It does not. The first explicit `revoke … from
+public` materialises the function's ACL as `{owner, authenticated}`, and `service_role` — which had
 been executing through the implicit PUBLIC grant — loses EXECUTE with it. Because Postgres
 recomputes a stored generated column on every UPDATE of the row and checks the function
-privilege as the writing role, every service_role UPDATE on `profiles` failed with
+privilege as the writing role, every `service_role` UPDATE on `profiles` failed with
 `42501: permission denied for function zodiac_sign` between the two pushes (a display_name-only
 update included, proved by a staging probe). Read §1's rationale as «authenticated needs an
-explicit grant» and nothing more; the full rule is \_every role that writes the table needs
-EXECUTE on the generation function*.
+explicit grant» and nothing more; the full rule is **every role that writes the table needs
+EXECUTE on the generation function**.
 
 Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql` — the function-ACL block
 asserts EXECUTE for both `authenticated` and `service_role`, and the fixture itself is a
-service_role UPDATE on `profiles`.
+`service_role` UPDATE on `profiles`.

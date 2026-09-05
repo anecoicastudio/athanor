@@ -11,7 +11,7 @@ import {
   zodiacSignFromBirthDate,
 } from '@athanor/core';
 import { localeTag, t, type MessageKey } from '@athanor/i18n';
-import type { Locale } from '@athanor/schemas';
+import { birthDateSchema, type Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -72,6 +72,9 @@ export default function OnboardingScreen() {
   // @athanor/core stays pure; the sign is derived, never stored in state.
   const [birthDate, setBirthDate] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  // One instant per mount for the picker's bounds and default: a fresh `new Date()` per render
+  // would hand the native wheel a new `maximumDate` on every tick and make it re-clamp.
+  const [today] = useState(() => new Date());
   const reduceMotion = useReducedMotion();
   const revealOpacity = useRef(new Animated.Value(0)).current;
 
@@ -99,22 +102,18 @@ export default function OnboardingScreen() {
     );
   }, [step, locale]);
 
-  // Persist the latest answers on every transition so a relaunch resumes here.
-  const persist = (next: {
-    locale: Locale;
-    identity: string[];
-    seeking: string[];
-    dream: string;
-    avatarUri: string | null;
-    birthDate: string | null;
-  }) =>
+  // Persist the latest answers on every transition so a relaunch resumes here. Every draft
+  // field defaults to the current state; a call site names only what it is changing, so a
+  // field added later cannot be silently dropped by a site that forgot to spell it.
+  const persist = (over: Partial<Parameters<typeof saveDraft>[0]> = {}) =>
     saveDraft({
-      locale: next.locale,
-      identity_tags: next.identity,
-      seeking: next.seeking,
-      dream: next.dream,
-      avatar_uri: next.avatarUri,
-      birth_date: next.birthDate,
+      locale,
+      identity_tags: identity,
+      seeking,
+      dream,
+      avatar_uri: avatarUri,
+      birth_date: birthDate,
+      ...over,
     });
 
   // Persist immediately (not just on step transitions): switching language is the
@@ -122,7 +121,7 @@ export default function OnboardingScreen() {
   const switchLocale = (next: Locale) => {
     if (next === locale) return;
     setLocale(next);
-    void persist({ locale: next, identity, seeking, dream, avatarUri, birthDate });
+    void persist({ locale: next });
   };
 
   // Step 1 (#694): the sign for the live reveal, and the 14+ floor (GDPR Art. 8, the Italian
@@ -155,14 +154,14 @@ export default function OnboardingScreen() {
   }, [step, identity, seeking, birthDate, tooYoung]);
 
   const next = () => {
-    persist({ locale, identity, seeking, dream, avatarUri, birthDate });
+    persist();
     setStep((s) => s + 1);
   };
 
   // Persist the draft to disk BEFORE navigating, so the post-auth flush can always
   // read it (a lost draft → incomplete profile → AuthGuard loops back here).
   const createAccount = async () => {
-    await persist({ locale, identity, seeking, dream, avatarUri, birthDate });
+    await persist();
     router.push('/(auth)/welcome');
   };
 
@@ -271,14 +270,18 @@ export default function OnboardingScreen() {
                   {Platform.OS === 'web' ? (
                     // QA fallback only: @react-native-community/datetimepicker renders NOTHING
                     // on react-native-web (its src/datetimepicker.js warns «not supported on:
-                    // web»), and Expo web is the only surface a walk can reach here.
+                    // web»), and Expo web is the only surface a walk can reach here. Validated
+                    // with the same schema the flush and the column use, so an impossible day
+                    // never reaches state (it would read as «under 14», the wrong line).
                     <Input
                       placeholder={t('onboarding.birth.isoHint', locale)}
                       inputMode="numeric"
                       autoCapitalize="none"
                       autoCorrect={false}
                       defaultValue={birthDate ?? ''}
-                      onChangeText={(v) => setBirthDate(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)}
+                      onChangeText={(v) =>
+                        setBirthDate(birthDateSchema.safeParse(v).success ? v : null)
+                      }
                     />
                   ) : (
                     <Pressable
@@ -298,15 +301,15 @@ export default function OnboardingScreen() {
                       value={
                         birthDate
                           ? parseCalendarDay(birthDate)
-                          : new Date(new Date().getFullYear() - DEFAULT_BIRTH_YEARS_BACK, 0, 1, 12)
+                          : new Date(today.getFullYear() - DEFAULT_BIRTH_YEARS_BACK, 0, 1, 12)
                       }
                       mode="date"
                       // A year wheel, not a compact popover: a birthday is decades back.
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       themeVariant="dark"
                       locale={localeTag(locale)}
-                      maximumDate={new Date()}
-                      minimumDate={new Date(new Date().getFullYear() - MAX_BIRTH_YEARS_BACK, 0, 1)}
+                      maximumDate={today}
+                      minimumDate={new Date(today.getFullYear() - MAX_BIRTH_YEARS_BACK, 0, 1)}
                       onChange={(_, picked) => {
                         setShowPicker(Platform.OS === 'ios');
                         // dayKey reads local parts — the same calendar day the wheel showed;
@@ -435,14 +438,7 @@ export default function OnboardingScreen() {
                         accessibilityRole="button"
                         onPress={() => {
                           setAvatarUri(null);
-                          void persist({
-                            locale,
-                            identity,
-                            seeking,
-                            dream,
-                            avatarUri: null,
-                            birthDate,
-                          });
+                          void persist({ avatar_uri: null });
                         }}
                         className="min-h-[44px] justify-center px-4"
                       >
@@ -487,7 +483,7 @@ export default function OnboardingScreen() {
             onPick={(asset) => {
               if (asset.kind !== 'image') return;
               setAvatarUri(asset.uri);
-              void persist({ locale, identity, seeking, dream, avatarUri: asset.uri, birthDate });
+              void persist({ avatar_uri: asset.uri });
             }}
           />
         </ScrollView>

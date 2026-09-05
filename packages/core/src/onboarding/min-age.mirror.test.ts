@@ -36,16 +36,24 @@ function currentDefinition(fnName: string): string {
   return last;
 }
 
+/** The migration minus its `--` comment lines: a header may quote the number, only the body enforces it. */
+function code(sql: string): string {
+  return sql
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n');
+}
+
 describe('athanor.profiles_birth_date_guard mirrors MIN_MEMBER_AGE', () => {
-  it('refuses at the same number of years', () => {
-    const sql = currentDefinition('athanor\\.profiles_birth_date_guard');
-    const years = sql.match(/interval '(\d+) years'/)?.[1];
+  it('refuses at the same number of years — read from the guard statement, not a comment', () => {
+    const body = code(currentDefinition('athanor\\.profiles_birth_date_guard'));
+    const years = body.match(/if new\.birth_date > \(v_today - interval '(\d+) years'\)/)?.[1];
     expect(years).toBeDefined();
     expect(Number(years)).toBe(MIN_MEMBER_AGE);
   });
 
-  it('refuses with check_violation, the code the funnel’s flush treats as a hard stop', () => {
-    const sql = currentDefinition('athanor\\.profiles_birth_date_guard');
-    expect(sql).toMatch(/errcode = 'check_violation'/);
+  it('refuses with check_violation — the code flush-onboarding treats as a hard stop, not a retry', () => {
+    const body = code(currentDefinition('athanor\\.profiles_birth_date_guard'));
+    expect(body).toMatch(/errcode = 'check_violation'/);
   });
 });
