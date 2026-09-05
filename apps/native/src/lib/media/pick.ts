@@ -20,12 +20,16 @@ import {
  * **Every launch that can return a video also asks iOS to compress it (#449).** The picker's
  * defaults are `videoQuality: High` (record at the device maximum — 4K/60 is ~400 MB per
  * minute) and `videoExportPreset: Passthrough` (library: no transcode at all), and nothing
- * downstream ever re-encodes a video: `process.ts` is image-only. That is survivable on
- * Android, where `xhr.send({ uri })` streams from disk, and fatal on iOS, where the whole file
- * becomes one native allocation before the request leaves — an OS jetsam kill with no JS
- * exception to catch. Compressing here is the only lever available inside Expo Go, so it is
- * applied at every door, not only the candidacy one. The values live in `MEDIA_LIMITS` and are
- * enum member NAMES, indexed below so a renamed member is a type error.
+ * downstream ever re-encodes a video: `process.ts` is image-only.
+ *
+ * The reason used to be memory — `xhr.send({ uri })` streamed on Android and became one native
+ * allocation on iOS, an OS jetsam kill with no JS exception to catch. #450 made the upload body
+ * file-backed on both platforms, so that is no longer why. What is left still binds: an
+ * uncompressed 4K clip blows `MAX_VIDEO_BYTES` (which is `media-process`'s own ceiling, so a
+ * larger object silently misses the server-side strip) and spends minutes of a phone connection
+ * before it can be refused. Compressing at the picker is still the only lever inside Expo Go, so
+ * it is applied at every door, not only the candidacy one. The values live in `MEDIA_LIMITS` and
+ * are enum member NAMES, indexed below so a renamed member is a type error.
  */
 
 // `PickedMedia` + the asset→PickedMedia mapping live in ./asset, which imports

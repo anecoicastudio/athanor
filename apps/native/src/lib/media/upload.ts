@@ -5,7 +5,8 @@ import { resolveAudioContentType, resolveVideoContentType } from './asset';
 import type { UploadTarget } from './paths';
 import { processImage, processVideo } from './process';
 import { buildStorageUploadRequest } from './storage-request';
-import { UnsupportedMediaTypeError, xhrUpload, type UploadProgress } from './upload-transport';
+import { platformUploader } from './upload-task';
+import { UnsupportedMediaTypeError, uploadFile, type UploadProgress } from './upload-transport';
 
 // Pure path builders + types live in paths.ts (unit-testable, no expo imports);
 // re-exported here so callers keep importing from './upload'. Same door for the
@@ -37,15 +38,16 @@ export function newMediaId(): string {
 /**
  * Send a local file into a bucket, with cancel / stall-watchdog / progress (#294).
  *
- * Sends the XHR body as `{ uri }`, which RN's networking layer resolves natively — so a
- * 200 MB video never lands in the JS heap the way the old `fetch(uri).arrayBuffer()` read
- * did. What it costs in NATIVE memory is platform-split, and this used to claim otherwise
- * (#449): Android streams the file from disk at constant memory, iOS reads all of it into one
- * contiguous allocation and hands that to `NSURLSession`. So the JS heap is safe everywhere
- * and the iOS native heap is not — `pick.ts` compresses the input to keep the allocation
- * survivable inside Expo Go, and #450 is the issue that removes it. The request mirrors the
- * storage-js upsert upload byte for byte (storage-request.ts), so a retry still overwrites the
- * same key cleanly. Throws on failure.
+ * The body is file-backed on every platform (#450): `upload-task.ts` hands the URI to
+ * `expo-file-system`'s `UploadTask` on device, which streams it from disk at constant memory,
+ * and to a browser XHR with a real `Blob` on web. Neither the JS heap nor the native heap ever
+ * holds the file — which is what the previous `xhr.send({ uri })` did on iOS, one contiguous
+ * `NSMutableData` before a byte left, and an OS jetsam kill inside Expo Go rather than an error
+ * anything could catch. `pick.ts` still compresses, but now for upload time and for
+ * `media-process`'s own ceiling, not to keep an allocation survivable.
+ *
+ * The request mirrors the storage-js upsert upload byte for byte (storage-request.ts), so a
+ * retry still overwrites the same key cleanly. Throws on failure.
  *
  * Split out of `processAndUpload` because a video Momento uploads twice: the video itself, then
  * the poster frame `extractVideoPoster` saved (#131). Same bytes-to-Storage tail, one copy.
@@ -63,13 +65,16 @@ export async function uploadLocalFile(
     target,
     contentType,
   });
-  await xhrUpload({
-    url: req.url,
-    headers: req.headers,
-    body: { uri: localUri },
-    signal: opts.signal,
-    onProgress: opts.onProgress,
-  });
+  await uploadFile(
+    {
+      url: req.url,
+      headers: req.headers,
+      file: { uri: localUri },
+      signal: opts.signal,
+      onProgress: opts.onProgress,
+    },
+    { uploader: platformUploader },
+  );
 }
 
 /**
