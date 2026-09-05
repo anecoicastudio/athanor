@@ -29,7 +29,7 @@
  *    - `everAnswered`, a persisted read of «has this member ever accepted or passed a Momento»
  *      (`hasAnsweredMomento`), holds ACROSS sessions. It exists because the latch is component
  *      state and dies on a REMOUNT — a cold start, a dev reload, a sign-out/sign-in. A tab
- *      switch is not one of those: `@react-navigation/bottom-tabs` keeps a visited tab mounted
+ *      switch is not one of those: expo-router's vendored bottom-tabs keeps a visited tab mounted
  *      (no `unmountOnBlur` in v7, and this app sets no `freezeOnBlur`/`detachInactiveScreens`),
  *      so the latch survives navigation. #600's original wording said otherwise and a QA walk
  *      following it would have found the screen correct. What the remount does is worse than a

@@ -223,8 +223,9 @@ describe('no server-side secret ever reaches the client bundle', () => {
 
 /**
  * It is a NATIVE module. Adding it means the app can no longer run in App Store Expo Go —
- * the whole reason SDK 54 was chosen (mobile.md). Every payment flow already opens hosted
- * Stripe Checkout from an edge function, so the client never needs a Stripe key at all.
+ * the whole reason this app tracks the SDK Expo Go ships (mobile.md). Every payment flow
+ * already opens hosted Stripe Checkout from an edge function, so the client never needs a
+ * Stripe key at all.
  * Checked in both places because a dependency without an import, or an import without a
  * dependency, are each half of the same mistake.
  */
@@ -2702,10 +2703,11 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
  * (`src/lib/dirty-guard.test.ts`); this pins the wiring.
  *
  * The other thing a grep cannot see is DUPLICATION. `usePreventRemoveContext` is a React
- * context object, so the hook and the navigator must resolve the same physical copy of
- * `@react-navigation/native`; under two copies the hook fills a context the navigator never
- * reads and every guard below goes dead with this section still green. The last assertion
- * pins that, because the declared `^7.1.8` makes the dedup incidental rather than guaranteed.
+ * context object, so the hook and the navigator must share one physical copy of
+ * react-navigation; under two copies the hook fills a context the navigator never reads and
+ * every guard below goes dead with this section still green. expo-router 57 vendors its copy,
+ * which makes the identity structural — so the identity test asserts the vendored copy is
+ * where this section thinks it is, and that no standalone `@react-navigation/*` comes back.
  */
 const DIRTY_GUARD_ROSTER = [
   'app/(modal)/dream-editor.tsx',
