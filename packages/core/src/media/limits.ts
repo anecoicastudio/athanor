@@ -94,17 +94,16 @@ export const MEDIA_LIMITS = {
    * backstop can still process, and the member is told «troppo pesante» in one second
    * instead of finding out never.
    *
-   * **Raising this re-arms #450.** It is now the only bound left on the contiguous iOS
-   * allocation: `MAX_CLIP_SECONDS` stopped being one when #56 settled at 60s, because seconds
-   * do not bound bytes — a 60s 4K clip and a 60s 720p clip differ by an order of magnitude.
-   * On iOS `xhr.send({ uri })` materialises the whole file in one native buffer before the
-   * request leaves (`RCTNetworkTask.mm` → `NSMutableData` → `HTTPBody`), so the largest number
-   * this constant permits is the largest single allocation an upload asks the OS for, inside
-   * Expo Go, where there is no native uploader to fall back to. #450 is DEFERRED, not fixed —
-   * its blocker, #508's SDK 54 pin, lifted on 2026-09-05 — and this ceiling is what makes
-   * deferring it survivable.
-   * There is a good product reason to want longer, heavier video one day; take it together
-   * with #450, not before it.
+   * **This no longer bounds an iOS allocation — #450 is fixed.** It used to: `xhr.send({ uri })`
+   * materialised the whole file in one native buffer before the request left
+   * (`RCTNetworkTask.mm` → `NSMutableData` → `HTTPBody`), so this constant was the largest single
+   * allocation an upload asked the OS for inside Expo Go, and raising it re-armed a jetsam kill.
+   * The body is file-backed on both platforms now (`apps/native/src/lib/media/upload-task.ts`),
+   * so memory is flat in the file size and the ceiling above is the only reason left for this
+   * number. `MAX_CLIP_SECONDS` was never a substitute — seconds do not bound bytes, and a 60s 4K
+   * clip and a 60s 720p clip differ by an order of magnitude.
+   * There is a good product reason to want longer, heavier video one day; what gates it now is
+   * `media-process`'s own ceiling and upload time on a phone connection, not the client's heap.
    */
   MAX_VIDEO_BYTES: 100 * 1024 * 1024,
   /**
@@ -114,11 +113,10 @@ export const MEDIA_LIMITS = {
    * rather than an ordinal that quietly changes meaning.
    *
    * The picker's default is `High`, which on an iPhone records at the device maximum: 4K/60 is
-   * ~400 MB per minute. That number is not merely large, it is fatal. `xhr.send({ uri })`
-   * streams on Android but on iOS materialises the whole file in one native allocation
-   * (`RCTNetworkTask.mm` appends into an NSMutableData, then `RCTNetworking.mm` assigns it as
-   * `HTTPBody`), so the bytes the picker hands back are bytes that must fit in RAM inside Expo
-   * Go. Recording at `Medium` is what keeps them under the OS jetsam threshold.
+   * ~400 MB per minute — six seconds of it already exceeds `MAX_VIDEO_BYTES`. It used to be
+   * fatal rather than merely refused, because `xhr.send({ uri })` materialised the whole file in
+   * one native allocation on iOS; #450 made the body file-backed, so what `Medium` buys now is a
+   * recording the member can actually upload instead of one refused after the fact.
    */
   VIDEO_CAPTURE_QUALITY_IOS: 'Medium',
   /**

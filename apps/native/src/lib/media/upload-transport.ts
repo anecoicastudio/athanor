@@ -1,17 +1,19 @@
 /**
- * XHR upload transport: progress, cancellation, and a no-progress watchdog (#294).
+ * Upload policy: progress, cancellation, a no-progress watchdog (#294) and the error taxonomy.
  *
- * XHR rather than `fetch` because RN's fetch has no upload-progress signal, while its
- * XMLHttpRequest dispatches `upload.onprogress` from the native layer and accepts a
- * `{ uri }` body the native layer resolves itself — no `arrayBuffer()` in the JS heap first.
+ * **How the bytes actually move is not here** — `upload-task.ts` holds the two platform arms
+ * behind the `Uploader` seam below, and it is the only file in the app that names
+ * `expo-file-system` or `XMLHttpRequest`. This module decides what a status, a silence and an
+ * abort each MEAN; that one does the transfer. The split is what lets the policy be unit-tested
+ * with a fake uploader in a node environment, which is also why nothing in here may import expo
+ * (`candidacy-video-status.ts` imports the error classes and is tested the same way).
  *
- * **What `{ uri }` costs is platform-split, and only Android gets the good half (#449).** On
- * Android `NetworkingModule` turns it into a file input stream and the request body really is
- * streamed at constant memory. On iOS `RCTNetworkTask` appends every chunk into one
- * `NSMutableData` and `RCTNetworking` assigns the result as `request.HTTPBody`, so the entire
- * file is resident in native memory before a byte leaves — and inside Expo Go that is an OS
- * jetsam kill, not a catchable error. The JS heap is spared on both; iOS's native heap is not.
- * The defence is upstream, at the picker (`pick.ts` compresses); #450 removes the allocation.
+ * **#450 is fixed, not deferred, as of this module's rewrite.** The transport used to POST
+ * `{ uri }` through RN's `XMLHttpRequest`, whose cost was platform-split: Android streamed the
+ * file, iOS read all of it into one `NSMutableData` and assigned it as `HTTPBody`, so a picked
+ * video was one contiguous native allocation before the request left — an OS jetsam kill inside
+ * Expo Go rather than a catchable error. The body is now file-backed on both platforms (see
+ * `upload-task.ts` for the mechanism and for why `expo/fetch` cannot do this job).
  *
  * The timeout is a stall watchdog, not a wall-clock cap: a large video on a slow but
  * moving connection must never be killed, a transfer with zero bytes for
@@ -19,10 +21,6 @@
  *
  * The window before the FIRST progress event is a different measurement and gets its own,
  * longer budget — see `UPLOAD_FIRST_PROGRESS_TIMEOUT_MS`.
- *
- * Pure module (no expo/supabase imports): XHR construction and timers are injectable,
- * so the abort/stall/progress logic is unit-testable with a fake XHR (same convention
- * as `paths.ts` / `media-state.ts` beside it).
  */
 
 /** Abort an upload after this long with ZERO bytes moved — stall, not total duration. */
@@ -33,22 +31,26 @@ export const UPLOAD_STALL_TIMEOUT_MS = 30_000;
  *
  * Separate from `UPLOAD_STALL_TIMEOUT_MS` because it measures something else. Between two
  * progress events, silence means the connection died. Before the first one, silence means the
- * native layer has not finished preparing the body — and on iOS preparing the body is reading
- * the whole file (up to `MAX_VIDEO_BYTES`) into memory and letting `NSURLSession` copy it.
- * Nothing can be on the wire yet, so the stall window was measuring an event that had not been
- * given a chance to happen, and a large file on a loaded device was aborted as
- * `UploadStalledError` while it was working.
+ * transfer has not started — and what that covers changed with #450. It used to be iOS reading
+ * the whole file (up to `MAX_VIDEO_BYTES`) into memory before `NSURLSession` saw a byte, which
+ * is why the stall window was far too short and a large file on a loaded device was aborted as
+ * `UploadStalledError` while it was working. With a file-backed body there is no read: what is
+ * left is DNS, TLS and the native session actually starting the task.
  *
- * Long, but still a bound: a request that never moves at all has to end, or the upload tile
- * spins at 0% forever with no exit but leaving the screen — the defect family #412 exists to
- * delete. Three minutes covers the read; nothing legitimate takes longer to produce one byte.
+ * **Deliberately left at three minutes rather than retired.** The read it was sized for is gone,
+ * so the number is now generous for what it covers — but it is a bound, not a budget, and
+ * nothing legitimate spends it. Narrowing it trades no user-visible benefit for the risk of
+ * calling a slow handshake a stall, and the evidence that would justify a new number is device
+ * timings this change does not have. A request that never moves at all still has to end, or the
+ * upload tile spins at 0% forever with no exit but leaving the screen — the defect family #412
+ * exists to delete.
  */
 export const UPLOAD_FIRST_PROGRESS_TIMEOUT_MS = 180_000;
 
 export type UploadProgress = {
   /** Bytes sent so far. */
   loaded: number;
-  /** Total bytes, or null when the native layer cannot compute the length. */
+  /** Total bytes, or null when the platform cannot compute the length. */
   total: number | null;
 };
 
@@ -152,31 +154,43 @@ export class UploadHttpError extends Error {
   }
 }
 
-export type XhrProgressEvent = { lengthComputable: boolean; loaded: number; total: number };
-
-/** The slice of XMLHttpRequest the transport touches — what the fake in the test implements. */
-export type UploadXhr = {
-  open(method: string, url: string): void;
-  setRequestHeader(name: string, value: string): void;
-  send(body: unknown): void;
-  abort(): void;
-  status: number;
-  responseText: string;
-  onload: (() => void) | null;
-  onerror: (() => void) | null;
-  onabort: (() => void) | null;
-  upload: { onprogress: ((e: XhrProgressEvent) => void) | null };
+/** A local file to send, by URI. Never read into this module — only handed to the uploader. */
+export type UploadFileRef = {
+  /** `file:///…` from the picker on native; a `blob:`/`data:` URL on web. */
+  uri: string;
 };
 
-export type XhrUploadRequest = {
+/** What a completed request answered, whatever the status. */
+export type UploadResponse = {
+  status: number;
+  body: string;
+};
+
+/** A transfer in flight. `cancel()` is idempotent and makes `done` reject. */
+export type UploadHandle = {
+  /**
+   * Resolves for ANY completed response — a 403 is a resolution here, not a rejection, because
+   * deciding what a status means is this module's job and not the uploader's. Rejects only when
+   * the transfer itself failed or was cancelled; the reason is immaterial, since the transport
+   * already knows why it called `cancel()`.
+   */
+  done: Promise<UploadResponse>;
+  cancel: () => void;
+};
+
+/**
+ * How bytes leave the device. Injected, so the policy above is testable without a platform —
+ * `upload-task.ts` is the real one.
+ */
+export type Uploader = (
+  req: { url: string; headers: Record<string, string>; file: UploadFileRef },
+  hooks: { onProgress: (p: UploadProgress) => void },
+) => UploadHandle;
+
+export type UploadRequest = {
   url: string;
   headers: Record<string, string>;
-  /**
-   * Handed to `xhr.send` verbatim — on RN `{ uri: 'file://…' }` is resolved by the native
-   * networking layer. Streamed from disk on Android, read whole into native memory on iOS; see
-   * the module docblock.
-   */
-  body: unknown;
+  file: UploadFileRef;
   signal?: AbortSignal;
   onProgress?: (p: UploadProgress) => void;
 };
@@ -186,8 +200,9 @@ type Timers = {
   clear: (handle: unknown) => void;
 };
 
-export type XhrUploadDeps = {
-  createXhr?: () => UploadXhr;
+export type UploadDeps = {
+  /** Required: this module has no default, because a default would mean importing a platform. */
+  uploader: Uploader;
   stallTimeoutMs?: number;
   firstProgressTimeoutMs?: number;
   timers?: Timers;
@@ -199,11 +214,11 @@ const realTimers: Timers = {
 };
 
 /**
- * POST `body` to `url` (always POST: the storage upload endpoint, with `x-upsert` doing
- * replace-on-retry). Resolves on 2xx; rejects with `UploadCanceledError` /
+ * POST the file at `req.file.uri` to `req.url` (always POST: the storage upload endpoint, with
+ * `x-upsert` doing replace-on-retry). Resolves on 2xx; rejects with `UploadCanceledError` /
  * `UploadStalledError` / `UploadHttpError` / a bare network `Error`.
  */
-export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Promise<void> {
+export function uploadFile(req: UploadRequest, deps: UploadDeps): Promise<void> {
   const stallTimeoutMs = deps.stallTimeoutMs ?? UPLOAD_STALL_TIMEOUT_MS;
   const firstProgressTimeoutMs = deps.firstProgressTimeoutMs ?? UPLOAD_FIRST_PROGRESS_TIMEOUT_MS;
   const timers = deps.timers ?? realTimers;
@@ -214,9 +229,9 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
       return;
     }
 
-    const xhr = deps.createXhr?.() ?? (new XMLHttpRequest() as unknown as UploadXhr);
     let watchdog: unknown = null;
-    // Why xhr.abort() fired, decided BEFORE calling it — onabort cannot tell the two apart.
+    // Why cancel() was called, decided BEFORE calling it — the rejection cannot tell the two
+    // apart, and the uploader is not told which of the two it is on purpose.
     let abortReason: 'canceled' | 'stalled' | null = null;
     let settled = false;
 
@@ -226,19 +241,6 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
         watchdog = null;
       }
     };
-    const armWatchdog = (ms: number) => {
-      clearWatchdog();
-      watchdog = timers.set(() => {
-        abortReason = 'stalled';
-        xhr.abort();
-      }, ms);
-    };
-
-    const onSignalAbort = () => {
-      abortReason = 'canceled';
-      xhr.abort();
-    };
-    req.signal?.addEventListener('abort', onSignalAbort);
 
     const settle = (finish: () => void) => {
       if (settled) return;
@@ -248,31 +250,74 @@ export function xhrUpload(req: XhrUploadRequest, deps: XhrUploadDeps = {}): Prom
       finish();
     };
 
-    xhr.open('POST', req.url);
-    for (const [name, value] of Object.entries(req.headers)) {
-      xhr.setRequestHeader(name, value);
-    }
+    // Declared before `armWatchdog`/`onSignalAbort` can run, but referenced by both — the handle
+    // exists by the time either fires, because both are driven by timers or events.
+    let handle: UploadHandle | null = null;
 
-    xhr.upload.onprogress = (e) => {
-      // First progress event narrows the window: from here on, silence really is a stall.
-      armWatchdog(stallTimeoutMs);
-      req.onProgress?.({ loaded: e.loaded, total: e.lengthComputable ? e.total : null });
+    const armWatchdog = (ms: number) => {
+      clearWatchdog();
+      watchdog = timers.set(() => {
+        abortReason = 'stalled';
+        handle?.cancel();
+      }, ms);
     };
-    xhr.onload = () =>
-      settle(() => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new UploadHttpError(xhr.status, xhr.responseText));
-      });
-    xhr.onerror = () => settle(() => reject(new Error(`upload-network-error (${req.url})`)));
-    xhr.onabort = () =>
-      settle(() =>
-        reject(abortReason === 'stalled' ? new UploadStalledError() : new UploadCanceledError()),
-      );
 
-    // Armed on the first-progress budget, not the stall one: `send` is where iOS reads the
-    // whole file, and no progress event can fire until it has (#449).
+    function onSignalAbort() {
+      abortReason = 'canceled';
+      handle?.cancel();
+    }
+    req.signal?.addEventListener('abort', onSignalAbort);
+
+    // Armed BEFORE the transfer starts: the window covers the native session getting going, and
+    // no progress event can fire until it has.
     armWatchdog(firstProgressTimeoutMs);
-    xhr.send(req.body);
+
+    let started: UploadHandle;
+    try {
+      started = deps.uploader(
+        { url: req.url, headers: req.headers, file: req.file },
+        {
+          onProgress: (p) => {
+            if (settled) return;
+            // First progress event narrows the window: from here on, silence really is a stall.
+            armWatchdog(stallTimeoutMs);
+            req.onProgress?.(p);
+          },
+        },
+      );
+    } catch (err: unknown) {
+      // An uploader that throws before it returns a handle would otherwise leave this promise
+      // pending forever, with the watchdog as the only thing that ever ends the screen's spinner.
+      settle(() => reject(new Error(`upload-network-error (${req.url}): ${String(err)}`)));
+      return;
+    }
+    handle = started;
+
+    started.done.then(
+      (res) =>
+        settle(() => {
+          // A cancel that landed while the response was already in flight still reads as a
+          // cancel: the member asked, and telling them it succeeded would be a lie.
+          if (abortReason !== null) {
+            reject(
+              abortReason === 'stalled' ? new UploadStalledError() : new UploadCanceledError(),
+            );
+          } else if (res.status >= 200 && res.status < 300) {
+            resolve();
+          } else {
+            reject(new UploadHttpError(res.status, res.body));
+          }
+        }),
+      (err: unknown) =>
+        settle(() => {
+          if (abortReason === 'stalled') reject(new UploadStalledError());
+          else if (abortReason === 'canceled') reject(new UploadCanceledError());
+          else {
+            const detail = err instanceof Error ? err.message : String(err);
+            reject(new Error(`upload-network-error (${req.url}): ${detail}`));
+          }
+        }),
+    );
   });
 }
 

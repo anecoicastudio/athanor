@@ -1095,39 +1095,74 @@ describe('placeholders are a token, never the platform default (#499)', () => {
 // ---------------------------------------------------------------------------------------
 
 /**
- * On iOS, `xhr.send({ uri })` does not stream: `RCTNetworkTask.mm` appends the whole file into
- * an `NSMutableData` and `RCTNetworking.mm` assigns it as `HTTPBody`, so a picked video becomes
- * one contiguous native allocation before the request leaves. That is #450, and it was
- * DEFERRED rather than fixed — until 2026-09-05 blocked on #508's SDK 54 pin, because the
- * replacement (`expo/fetch`, or a native uploader) was not reachable from App Store Expo Go.
- * SDK 57 made both reachable; the deferral is now a choice of scope, not a constraint.
+ * #450 is FIXED, not deferred: the request body is file-backed on every platform. It used to be
+ * `xhr.send({ uri })`, whose cost was platform-split — Android's `NetworkingModule` streamed it,
+ * while iOS's `RCTNetworkTask.mm` appended the whole file into an `NSMutableData` that
+ * `RCTNetworking.mm` assigned as `HTTPBody`, so a picked video was one contiguous native
+ * allocation before the request left, and inside Expo Go that is an OS jetsam kill rather than a
+ * catchable error.
  *
- * The deferral is only safe because the eventual swap is one module: `XMLHttpRequest` is
- * constructed in exactly one file, so however many upload surfaces get built on top of
- * `uploadWithProgress`, none of them adds a second place to fix. That property was true by
- * luck. This makes it true by assertion — a second `new XMLHttpRequest()` anywhere in the tree
- * silently doubles the cost of #450, and nothing else would say so.
+ * What made the fix affordable, and what keeps the next one affordable, is that there is exactly
+ * ONE place bytes leave the device. Six buckets (`post-media`, `avatars`, `moments`,
+ * `story-segments`, `candidacy-videos`, `chat-media`) and every upload surface funnel through
+ * `uploadLocalFile` → `uploadFile` → this seam, so a transport change is one module and never a
+ * sweep. That property was true by luck before #450 and is asserted here instead.
  *
- * Comments are stripped first: `upload-transport.ts` names the type in prose, and #450's own
- * reasoning is the kind of thing a future docblock will quote.
+ * The seam is split in two on purpose and both halves are pinned below:
+ *
+ * - `upload-task.ts` is the ONLY file that may name `expo-file-system` or `XMLHttpRequest`. A
+ *   second construction site anywhere silently doubles the cost of the next transport change.
+ * - `upload-transport.ts` holds the policy (watchdog, cancellation, the error taxonomy) and must
+ *   import NO platform module at all. That is not tidiness: `environment: 'node'` is what
+ *   collects this suite, `candidacy-video-status.ts` imports the error classes from it, and one
+ *   `expo-*` import there takes both files out of the harness with no other symptom.
+ *
+ * Comments are stripped first — `upload-task.ts` names both types in prose, and #450's own
+ * reasoning is the kind of thing a future docblock will quote. TEST files are excluded from the
+ * two name pins for the same reason this file excludes itself: `upload-task.test.ts` mocks the
+ * seam, and a mock has to name what it replaces.
  */
 describe('the upload transport is a single seam (#450)', () => {
-  const TRANSPORT = 'lib/media/upload-transport.ts';
+  const TASK = 'lib/media/upload-task.ts';
+  const POLICY = 'lib/media/upload-transport.ts';
 
-  it('XMLHttpRequest is used in exactly one file, and it is the transport', () => {
-    const users = [
+  const shippedFilesNaming = (pattern: RegExp): string[] =>
+    [
       ...new Set(
         codeLines()
-          .filter(([, text]) => /\bXMLHttpRequest\b/.test(text))
+          .filter(([at, text]) => !/\.test\.tsx?:\d+$/.test(at) && pattern.test(text))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ].sort();
+
+  it('XMLHttpRequest is used in exactly one file, and it is the platform seam', () => {
     expect(
-      users,
-      'XMLHttpRequest has escaped the transport — #450 (iOS buffers the whole body in native ' +
-        'memory) is deferred on the promise that its fix is one module. Route the upload ' +
-        `through ${TRANSPORT} instead.`,
-    ).toEqual([TRANSPORT]);
+      shippedFilesNaming(/\bXMLHttpRequest\b/),
+      'XMLHttpRequest has escaped the seam. It is the WEB arm of the upload transport only — on ' +
+        `device the body must stay file-backed (#450). Route the upload through ${TASK}.`,
+    ).toEqual([TASK]);
+  });
+
+  it('expo-file-system is imported in exactly one file, and it is the platform seam', () => {
+    expect(
+      shippedFilesNaming(/\bexpo-file-system\b/),
+      'expo-file-system has escaped the seam. It is a no-op stub on web (it resolves ' +
+        '`{ status: 0 }` and warns), so a second call site is a silently skipped upload on the ' +
+        `one surface QA can reach. Route the upload through ${TASK}.`,
+    ).toEqual([TASK]);
+  });
+
+  it('the policy module imports no platform module — a node-collectable unit', () => {
+    const bare = stripComments(read(`${SRC}${POLICY}`))
+      .split('\n')
+      .flatMap((text) => text.match(/^\s*import\b[^'"]*from\s+['"]([^'"]+)['"]/)?.[1] ?? [])
+      .filter((specifier) => !specifier.startsWith('.'));
+    expect(
+      bare,
+      `${POLICY} must import nothing outside its own directory. It is unit-tested under ` +
+        "vitest's node environment, and `candidacy-video-status.ts` pulls its error classes in " +
+        `— one expo import here silently drops both files out of the suite. Put it in ${TASK}.`,
+    ).toEqual([]);
   });
 });
 
