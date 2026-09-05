@@ -106,6 +106,7 @@ export function ProfileView({
           locale,
           verified: profile.identity_verified,
           founding: profile.founding_member,
+          zodiacSign: profile.zodiac_sign ?? null,
         }}
         statCounts={statCounts}
         afterHero={

@@ -1525,3 +1525,29 @@ call site.
 Asserted by: `supabase/tests/0144_admin_report_handles.test.sql` — S7 pins the policy text
 unchanged, A1–A3 that it still hides a blocked pair from the admin, A5–A7 / U1–U2 that the channel
 names them anyway, E1 that a banned reporter still names.
+
+## `20260905170330_profiles_zodiac_sign_service_role_execute.sql` and `20260905171142_profiles_zodiac_sign_grant_service_role.sql` — two EMPTY migrations, deliberately left empty
+
+Both files are zero bytes and were applied to staging that way: `supabase migration new` created
+each, the shell write that should have filled it went astray (a `$(ls …)` capture rewritten by a
+token-saving hook handed `cat` a path that was not the file), and the following `db push` recorded
+it as applied before anyone looked. The second attempt repeated the first's mistake before the
+cause was found. Rule 7 makes an applied migration immutable — even a body added to
+an empty one would replay on CI's from-zero stack and never on staging, which is exactly the
+drift the rule exists to prevent — so both files stay empty, and the statement they were meant to
+carry landed as `20260905171924_profiles_zodiac_sign_execute_service_role.sql` instead.
+
+What that statement corrects is a claim in `20260905165133_profiles_birth_date_zodiac.sql` §1:
+«`service_role` keeps the default-ACL 'f' row». It does not. The first explicit `revoke … from
+public` materialises the function's ACL as `{owner, authenticated}`, and `service_role` — which had
+been executing through the implicit PUBLIC grant — loses EXECUTE with it. Because Postgres
+recomputes a stored generated column on every UPDATE of the row and checks the function
+privilege as the writing role, every `service_role` UPDATE on `profiles` failed with
+`42501: permission denied for function zodiac_sign` between the two pushes (a display_name-only
+update included, proved by a staging probe). Read §1's rationale as «authenticated needs an
+explicit grant» and nothing more; the full rule is **every role that writes the table needs
+EXECUTE on the generation function**.
+
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql` — the function-ACL block
+asserts EXECUTE for both `authenticated` and `service_role`, and the fixture itself is a
+`service_role` UPDATE on `profiles`.

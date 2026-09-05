@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { ZodiacSign } from '@athanor/schemas';
 
 /**
  * Sacred-geometry glyphs (DESIGN.md §6): built from the Mandorla vocabulary —
@@ -117,3 +118,158 @@ export const PILLAR_GLYPHS: Record<string, ComponentType<GlyphProps>> = {
   marketplace: Diamond,
   circle: Ring,
 };
+
+/**
+ * Zodiac set (DESIGN.md §6 addendum, #694) — the same twelve drawings as
+ * apps/native/src/components/glyphs.tsx at this file's 1.2 stroke. Cosmetic register:
+ * `text-muted-foreground`, never `text-aura`, never a glow. Rendered only beside the name on
+ * the public @handle page; `aria-hidden` here, the accessible text is the sibling `sr-only`.
+ */
+export function Ariete({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M12 21V8" />
+      <path d="M12 8c0-5-6-5-6 0" />
+      <path d="M12 8c0-5 6-5 6 0" />
+    </>,
+  );
+}
+export function Toro({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <circle cx="12" cy="14" r="6" />
+      <path d="M5 4c0 4 3 6 7 6s7-2 7-6" />
+    </>,
+  );
+}
+export function Gemelli({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M8 5v14M16 5v14" />
+      <path d="M5 4c3 2 11 2 14 0" />
+      <path d="M5 20c3-2 11-2 14 0" />
+    </>,
+  );
+}
+export function Cancro({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <circle cx="8.5" cy="9" r="2.5" />
+      <circle cx="15.5" cy="15" r="2.5" />
+      <path d="M6 9c0-5 8-6 12-2M18 15c0 5-8 6-12 2" />
+    </>,
+  );
+}
+export function Leone({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <circle cx="7.5" cy="15.5" r="3" />
+      <path d="M10.5 15.5C10.5 9 12 4 15 4c3 0 4 3 4 5 0 3-3 6-3 9 0 2 2 3 4 2" />
+    </>,
+  );
+}
+export function Vergine({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M4 18V8c0-2 4-2 4 0v10M8 8c0-2 4-2 4 0v10" />
+      <path d="M12 12c4 0 7 3 6 6c-1 2-4 2-6 0" />
+    </>,
+  );
+}
+export function Bilancia({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M4 15h4a4 4 0 0 1 8 0h4" />
+      <path d="M4 19h16" />
+    </>,
+  );
+}
+export function Scorpione({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M4 18V8c0-2 4-2 4 0v10M8 8c0-2 4-2 4 0v10" />
+      <path d="M12 8v8c0 2 2 3 4 2" />
+      <path d="M15 15l2 3-3 1" />
+    </>,
+  );
+}
+export function Sagittario({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M5 19L19 5" />
+      <path d="M12 5h7v7" />
+      <path d="M8 12l4 4" />
+    </>,
+  );
+}
+export function Capricorno({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M4 7c1-2 3-2 4 0v9M8 7c1-2 3-2 4 0v7" />
+      <circle cx="16" cy="15" r="3.5" />
+      <path d="M12.5 14c0-4 3-5 6-3" />
+    </>,
+  );
+}
+export function Acquario({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M3 9l3-3 3 3 3-3 3 3 3-3 3 3" />
+      <path d="M3 16l3-3 3 3 3-3 3 3 3-3 3 3" />
+    </>,
+  );
+}
+export function Pesci({ size = 18, className }: GlyphProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M7 4c-4 4-4 12 0 16" />
+      <path d="M17 4c4 4 4 12 0 16" />
+      <path d="M4 12h16" />
+    </>,
+  );
+}
+
+/** Every storable sign has a drawing — a missing key is a type error, not a blank. */
+export const ZODIAC_GLYPHS: Record<ZodiacSign, ComponentType<GlyphProps>> = {
+  ariete: Ariete,
+  toro: Toro,
+  gemelli: Gemelli,
+  cancro: Cancro,
+  leone: Leone,
+  vergine: Vergine,
+  bilancia: Bilancia,
+  scorpione: Scorpione,
+  sagittario: Sagittario,
+  capricorno: Capricorno,
+  acquario: Acquario,
+  pesci: Pesci,
+};
+
+export function ZodiacGlyph({ sign, size = 18, className }: GlyphProps & { sign: ZodiacSign }) {
+  const Glyph = ZODIAC_GLYPHS[sign];
+  return <Glyph size={size} className={className} />;
+}

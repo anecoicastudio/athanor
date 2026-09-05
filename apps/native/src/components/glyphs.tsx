@@ -1,6 +1,8 @@
+import type { ComponentType } from 'react';
 import type { ColorValue } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
 import { semantic } from '@athanor/config';
+import type { ZodiacSign } from '@athanor/schemas';
 
 // The single home for the app's SVG icon set: tab-bar esoteric glyphs (below)
 // plus the header line icons (bottom). Unicode-glyph stand-ins elsewhere
@@ -22,7 +24,7 @@ import { semantic } from '@athanor/config';
  */
 // `ColorValue`, not `string`: react-navigation hands `tabBarIcon` a `ColorValue` since RN 0.86's
 // types, and react-native-svg's `stroke` takes the same type, so nothing narrows in between.
-type GlyphProps = { size?: number; color?: ColorValue };
+export type GlyphProps = { size?: number; color?: ColorValue };
 
 const VB = 24;
 
@@ -221,4 +223,196 @@ export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
       <Line x1={2.5} y1={2.5} x2={21.5} y2={21.5} {...line(c)} />
     </Svg>
   );
+}
+
+/**
+ * Zodiac set (DESIGN.md §6 addendum, #694) — twelve glyphs in the same compass-and-ruler
+ * system as the set above: stroke only, 1.8, round caps, at most three primitives each, no
+ * fill. Register is cosmetic/granted like «Membro fondatore» — the default colour is `ink2`,
+ * never `aura`, never a glow (rule #4): a sign is something you were born under, not
+ * something that happened here. Keys are the twelve lowercase Italian `ZodiacSign` values, so
+ * a sign the database can store always has a drawing (the Record makes that a type error).
+ *
+ * Rendered ONLY beside the display name in the profile header and in the funnel's reveal;
+ * never on cards, chat, lists, or the OG card. No a11y props here — `ZodiacMark` wraps the
+ * drawing and names it (`profile.zodiac.a11y`), the same split as `Avatar`.
+ */
+const zodiacSvg = (size: number, color: ColorValue | undefined, children: React.ReactNode) => (
+  <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+    {children}
+  </Svg>
+);
+
+const z = (color?: ColorValue) => line(color ?? semantic.ink2);
+
+export function ArieteGlyph({ size = 20, color }: GlyphProps) {
+  // The ram: a stem with two horns curling outward from its top.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M12 21V8" {...z(color)} />
+      <Path d="M12 8c0-5-6-5-6 0" {...z(color)} />
+      <Path d="M12 8c0-5 6-5 6 0" {...z(color)} />
+    </>,
+  );
+}
+
+export function ToroGlyph({ size = 20, color }: GlyphProps) {
+  // The bull: a circle wearing a crescent of horns.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Circle cx={12} cy={14} r={6} {...z(color)} />
+      <Path d="M5 4c0 4 3 6 7 6s7-2 7-6" {...z(color)} />
+    </>,
+  );
+}
+
+export function GemelliGlyph({ size = 20, color }: GlyphProps) {
+  // The twins: two uprights joined by a bowed bar top and bottom.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M8 5v14M16 5v14" {...z(color)} />
+      <Path d="M5 4c3 2 11 2 14 0" {...z(color)} />
+      <Path d="M5 20c3-2 11-2 14 0" {...z(color)} />
+    </>,
+  );
+}
+
+export function CancroGlyph({ size = 20, color }: GlyphProps) {
+  // The crab: two claws, each a point with a tail sweeping past the other.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Circle cx={8.5} cy={9} r={2.5} {...z(color)} />
+      <Circle cx={15.5} cy={15} r={2.5} {...z(color)} />
+      <Path d="M6 9c0-5 8-6 12-2M18 15c0 5-8 6-12 2" {...z(color)} />
+    </>,
+  );
+}
+
+export function LeoneGlyph({ size = 20, color }: GlyphProps) {
+  // The lion: a small circle and one mane-stroke that rises, loops and falls to a tail.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Circle cx={7.5} cy={15.5} r={3} {...z(color)} />
+      <Path d="M10.5 15.5C10.5 9 12 4 15 4c3 0 4 3 4 5 0 3-3 6-3 9 0 2 2 3 4 2" {...z(color)} />
+    </>,
+  );
+}
+
+export function VergineGlyph({ size = 20, color }: GlyphProps) {
+  // The maiden: three arches, the last closing into a loop.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M4 18V8c0-2 4-2 4 0v10M8 8c0-2 4-2 4 0v10" {...z(color)} />
+      <Path d="M12 12c4 0 7 3 6 6c-1 2-4 2-6 0" {...z(color)} />
+    </>,
+  );
+}
+
+export function BilanciaGlyph({ size = 20, color }: GlyphProps) {
+  // The scales: an omega over its base.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M4 15h4a4 4 0 0 1 8 0h4" {...z(color)} />
+      <Path d="M4 19h16" {...z(color)} />
+    </>,
+  );
+}
+
+export function ScorpioneGlyph({ size = 20, color }: GlyphProps) {
+  // The scorpion: the maiden's arches, the last one ending in a barbed tail.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M4 18V8c0-2 4-2 4 0v10M8 8c0-2 4-2 4 0v10" {...z(color)} />
+      <Path d="M12 8v8c0 2 2 3 4 2" {...z(color)} />
+      <Path d="M15 15l2 3-3 1" {...z(color)} />
+    </>,
+  );
+}
+
+export function SagittarioGlyph({ size = 20, color }: GlyphProps) {
+  // The archer: an arrow on the diagonal, head up-right, fletched.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M5 19L19 5" {...z(color)} />
+      <Path d="M12 5h7v7" {...z(color)} />
+      <Path d="M8 12l4 4" {...z(color)} />
+    </>,
+  );
+}
+
+export function CapricornoGlyph({ size = 20, color }: GlyphProps) {
+  // The sea-goat: two arches, then a circle hooked to the second.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M4 7c1-2 3-2 4 0v9M8 7c1-2 3-2 4 0v7" {...z(color)} />
+      <Circle cx={16} cy={15} r={3.5} {...z(color)} />
+      <Path d="M12.5 14c0-4 3-5 6-3" {...z(color)} />
+    </>,
+  );
+}
+
+export function AcquarioGlyph({ size = 20, color }: GlyphProps) {
+  // The water-bearer: two zigzags (not waves — the 20-set already owns `waves`).
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M3 9l3-3 3 3 3-3 3 3 3-3 3 3" {...z(color)} />
+      <Path d="M3 16l3-3 3 3 3-3 3 3 3-3 3 3" {...z(color)} />
+    </>,
+  );
+}
+
+export function PesciGlyph({ size = 20, color }: GlyphProps) {
+  // The fishes: two arcs facing away, tied by a bar.
+  return zodiacSvg(
+    size,
+    color,
+    <>
+      <Path d="M7 4c-4 4-4 12 0 16" {...z(color)} />
+      <Path d="M17 4c4 4 4 12 0 16" {...z(color)} />
+      <Path d="M4 12h16" {...z(color)} />
+    </>,
+  );
+}
+
+/** Every storable sign has a drawing — a missing key here is a type error, not a blank. */
+export const ZODIAC_GLYPHS: Record<ZodiacSign, ComponentType<GlyphProps>> = {
+  ariete: ArieteGlyph,
+  toro: ToroGlyph,
+  gemelli: GemelliGlyph,
+  cancro: CancroGlyph,
+  leone: LeoneGlyph,
+  vergine: VergineGlyph,
+  bilancia: BilanciaGlyph,
+  scorpione: ScorpioneGlyph,
+  sagittario: SagittarioGlyph,
+  capricorno: CapricornoGlyph,
+  acquario: AcquarioGlyph,
+  pesci: PesciGlyph,
+};
+
+export function ZodiacGlyph({ sign, size = 20, color }: GlyphProps & { sign: ZodiacSign }) {
+  const Glyph = ZODIAC_GLYPHS[sign];
+  return <Glyph size={size} color={color} />;
 }

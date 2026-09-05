@@ -16,7 +16,7 @@ import { parseOrWithhold } from './parse-or-withhold';
  * logic, no Aura.
  *
  * The shell columns (handle, display_name, avatar_path) are anon-granted since
- * 20260814151601. `bio` is still always null on this anon path: content columns are not
+ * 20260814151601, and zodiac_sign since 20260905165133 (#694 — public by decision). `bio` is still always null on this anon path: content columns are not
  * granted to anon at the trust boundary (migration 20260614153620 — column-level GRANT),
  * so public bio (when bio:public) stays deferred to a future SECURITY DEFINER RPC that
  * projects only the allowed columns server-side. Dream + tappe are whole-row-public (RLS
@@ -35,7 +35,7 @@ export async function getPublicProfileByHandle(
 ): Promise<PublicProfile | null> {
   const { data: profile, error: pErr } = await client
     .from('profiles')
-    .select('id, handle, display_name, avatar_path')
+    .select('id, handle, display_name, avatar_path, zodiac_sign')
     .eq('handle', handle)
     .maybeSingle();
   if (pErr) throw pErr;
@@ -81,6 +81,8 @@ export async function getPublicProfileByHandle(
     handle: profile.handle,
     displayName: profile.display_name ?? null,
     avatarUrl,
+    // #694 — anon-granted on the column like the shell; null until the member has a date.
+    zodiacSign: profile.zodiac_sign ?? null,
     bio,
     dream,
   });

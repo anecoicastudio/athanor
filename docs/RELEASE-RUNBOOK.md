@@ -459,6 +459,20 @@ hold the stock English defaults. Verify by sending yourself one of each after in
 
 ---
 
+### 4.6 Migration ORDER when a client schema REQUIRES a column (#694)
+
+`profileSchema` and `personProfileSchema` require the keys `birth_date` and `zodiac_sign`
+(`.nullable()`, not optional), and `getPublicProfileByHandle` selects `zodiac_sign` off
+`profiles`. A build or a web deploy that carries that schema against a database without
+`20260905165133` fails **every** sign-in (`get_own_profile` → ZodError, non-retryable in
+`profile-read.ts`) and every `/@handle` render (42703). So:
+
+**Rule: apply the migrations to production first, build and deploy second** — the mirror image
+of §4.4, and for the same reason: the side that starts depending on the other must land last.
+Check `supabase/.temp/linked-project.json` reads `athanor` (production) before the push, and
+verify with `select column_name from information_schema.columns where table_name = 'profiles'
+and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagging.
+
 ## 5. Apple IAP / Stripe Compliance Posture (S-IAP-1 … S-IAP-4)
 
 Spec ref: `10-m10-launch.md` §7.

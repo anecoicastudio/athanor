@@ -376,6 +376,7 @@ export default function PersonDetailScreen() {
             // #634: the column is selected and granted; only this prop was missing, so a
             // verified member's badge never rendered on their public profile.
             verified: person.identity_verified,
+            zodiacSign: person.zodiac_sign ?? null,
           }}
           statCounts={statCounts}
           dream={

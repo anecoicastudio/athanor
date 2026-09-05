@@ -21,6 +21,8 @@ export * from './onboarding/handle';
 export * from './onboarding/validate';
 export * from './profile/completeness';
 export * from './profile/label';
+export * from './profile/zodiac';
+export * from './profile/age';
 export * from './profile/sanction';
 export * from './media/limits';
 export * from './media/post-type';

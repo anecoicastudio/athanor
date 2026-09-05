@@ -3,7 +3,12 @@ import { IDENTITY_TAGS, SEEKING_TAGS } from './tags';
 
 export type OnboardingValidation = { ok: true } | { ok: false; field: 'identity_tags' | 'seeking' };
 
-/** Vocabulary membership check — zod (schemas) handles shape, this handles meaning. */
+/**
+ * Vocabulary membership check — zod (schemas) handles shape, this handles meaning.
+ * `birth_date` (#694) is deliberately NOT checked here: `birthDateSchema` (`z.string().date()`)
+ * already refuses impossible days, and age needs a clock, which `isAtLeastAge` takes as a
+ * parameter — an arm here would be unreachable from every caller.
+ */
 export function validateOnboardingAnswers(answers: OnboardingAnswers): OnboardingValidation {
   const identityOk = answers.identity_tags.every((tag) =>
     (IDENTITY_TAGS as readonly string[]).includes(tag),

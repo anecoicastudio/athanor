@@ -1,0 +1,21 @@
+-- #694 follow-up — service_role must be able to execute athanor.zodiac_sign(date).
+--
+-- 20260905165133 revoked EXECUTE from public and anon and granted it to authenticated, on the
+-- reading that "service_role keeps the default-ACL 'f' row". That reading was wrong: a function
+-- with a NULL proacl is executable through PUBLIC (plus the pg_default_acl row for the client
+-- roles), and the first explicit REVOKE materialises the ACL as {owner, authenticated} — the
+-- implicit PUBLIC grant service_role was riding is gone with it. Postgres recomputes a stored
+-- generated column on EVERY update of the row and checks EXECUTE on its function as the writing
+-- role, so from that migration until this one every service_role UPDATE on profiles — any
+-- column — failed with `42501: permission denied for function zodiac_sign`. A staging probe
+-- proved it on a display_name-only update; the 0146 smoke hit it in its fixture.
+--
+-- Every service-role write path on profiles needs this: the staging seed, moderation
+-- (banned_at / suspended_until), the Stripe webhook (identity_verified), the GDPR job.
+-- 0146 asserts the grant so it cannot regress. 0121's function sweep is public-schema only
+-- and pins anon/PUBLIC names, neither of which changes here.
+--
+-- 20260905170330 and 20260905171142 are EMPTY and stay so: each was recorded as applied on
+-- staging before its body reached disk (a shell mishap, twice), and an applied migration is
+-- never edited (rule 7) — see supabase/MIGRATIONS-ERRATA.md.
+grant execute on function athanor.zodiac_sign(date) to service_role;

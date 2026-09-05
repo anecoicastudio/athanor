@@ -27,7 +27,7 @@ import {
 const KEY = 'athanor.onboarding.draft';
 // The stamp the module writes today. Read from the module so a bump does not silently make
 // these assertions test a version nothing produces any more.
-const DRAFT_VERSION = 2;
+const DRAFT_VERSION = 3;
 
 const ANSWERS = {
   locale: 'it' as const,
@@ -35,6 +35,7 @@ const ANSWERS = {
   seeking: ['collab'],
   dream: 'aprire un forno',
   avatar_uri: null,
+  birth_date: '1990-08-10',
 };
 
 beforeEach(() => {
@@ -76,7 +77,18 @@ describe('saveDraft / loadDraft', () => {
       seeking: [],
       dream: '',
       avatar_uri: null,
+      birth_date: null,
     });
+  });
+
+  it('a non-string birth_date reads as null rather than as a value (#694)', async () => {
+    store.mem.set(KEY, JSON.stringify({ v: DRAFT_VERSION, ...ANSWERS, birth_date: 19900810 }));
+    expect((await loadDraft())?.birth_date).toBeNull();
+  });
+
+  it('a v2 draft (no birth_date) is invalidated, not migrated', async () => {
+    store.mem.set(KEY, JSON.stringify({ v: 2, ...ANSWERS }));
+    expect(await loadDraft()).toBeNull();
   });
 
   it('a failed write does not throw (__DEV__ warn path)', async () => {
@@ -102,10 +114,13 @@ describe('hasDraftAnswers', () => {
     expect(hasDraftAnswers(null)).toBe(false);
   });
 
-  it('needs both vocab answers; dream is optional', () => {
+  it('needs both vocab answers and a birth date; dream and photo are optional', () => {
     expect(hasDraftAnswers(draft({}))).toBe(true);
     expect(hasDraftAnswers(draft({ dream: '' }))).toBe(true);
+    expect(hasDraftAnswers(draft({ avatar_uri: null }))).toBe(true);
     expect(hasDraftAnswers(draft({ identity_tags: [] }))).toBe(false);
     expect(hasDraftAnswers(draft({ seeking: [] }))).toBe(false);
+    // #694: a draft with no date cannot satisfy onboardingAnswersSchema — not worth a round trip.
+    expect(hasDraftAnswers(draft({ birth_date: null }))).toBe(false);
   });
 });
