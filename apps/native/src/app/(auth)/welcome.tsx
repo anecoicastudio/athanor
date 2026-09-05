@@ -9,6 +9,7 @@ import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
@@ -62,6 +63,9 @@ export default function WelcomeScreen() {
   const submitting = phase === 'submitting';
   // Draft-aware (#158): the funnel routes here right after a language choice.
   const locale = useDraftLocale();
+  // #689: the keyboard no longer covers the viewport (#614), but nothing brought the tapped
+  // field INTO it — the password field is last in the column and stayed off screen.
+  const reveal = useRevealOnFocus();
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
     t(`${login ? 'auth.login' : 'auth.signup'}.${suffix}` as MessageKey, locale);
@@ -215,6 +219,7 @@ export default function WelcomeScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ScrollView
+          {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
@@ -351,11 +356,12 @@ export default function WelcomeScreen() {
                   The name field renders on the signup branch only, so its `none` is
                   unconditional — there is no sign-in half of it to keep a fill for. */}
                 {!login ? (
-                  <View className="gap-2">
+                  <View className="gap-2" ref={reveal.rowRef('name')}>
                     <Text className="text-xs font-medium text-muted-foreground">
                       {t('auth.name.label', locale)}
                     </Text>
                     <Input
+                      {...reveal.fieldProps('name')}
                       autoCapitalize="words"
                       autoComplete="name"
                       textContentType="none"
@@ -366,11 +372,12 @@ export default function WelcomeScreen() {
                   </View>
                 ) : null}
 
-                <View className="gap-2">
+                <View className="gap-2" ref={reveal.rowRef('email')}>
                   <Text className="text-xs font-medium text-muted-foreground">
                     {t('auth.email.label', locale)}
                   </Text>
                   <Input
+                    {...reveal.fieldProps('email')}
                     autoCapitalize="none"
                     autoComplete="email"
                     textContentType={login ? 'emailAddress' : 'none'}
@@ -381,7 +388,10 @@ export default function WelcomeScreen() {
                   />
                 </View>
 
-                <View className="gap-2">
+                {/* The row, not the field: what has to end up visible is the label, the field
+                  and the checklist under it — which does not exist yet at the moment of the tap
+                  (it mounts on the first keystroke), so the reveal fires again as it grows. */}
+                <View className="gap-2" ref={reveal.rowRef('password')}>
                   <Text className="text-xs font-medium text-muted-foreground">
                     {t('auth.password.label', locale)}
                   </Text>
@@ -391,6 +401,7 @@ export default function WelcomeScreen() {
                     UIKit clearing a secure field when editing resumes — has no call-site remedy
                     short of dropping `secureTextEntry`; see #620's device notes. */}
                   <Input
+                    {...reveal.fieldProps('password')}
                     autoCapitalize="none"
                     autoComplete={login ? 'current-password' : 'new-password'}
                     textContentType={login ? 'password' : 'none'}

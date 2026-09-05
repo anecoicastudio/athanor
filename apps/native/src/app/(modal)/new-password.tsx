@@ -11,6 +11,7 @@ import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { useAuth } from '@/lib/auth-context';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { supabase } from '@/lib/supabase';
@@ -40,6 +41,10 @@ export default function NewPasswordScreen() {
   const { showToast } = useToast();
   const router = useRouter();
   const locale = useLocale();
+  // Same assist as (auth)/welcome (#689): the wrapper uncovers the viewport, this puts the
+  // field and its checklist inside it. Measuring against the list's own content view, so the
+  // sheet this screen is presented in never enters the arithmetic.
+  const reveal = useRevealOnFocus();
 
   const unmet = unmetPasswordRequirements(password);
   const disabled = saving || password.length === 0 || unmet.length > 0;
@@ -81,6 +86,7 @@ export default function NewPasswordScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ScrollView
+          {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
@@ -95,11 +101,12 @@ export default function NewPasswordScreen() {
             </Text>
           </View>
 
-          <View className="mt-8 gap-2">
+          <View className="mt-8 gap-2" ref={reveal.rowRef('password')}>
             <Text className="text-xs font-medium text-muted-foreground">
               {t('auth.password.label', locale)}
             </Text>
             <Input
+              {...reveal.fieldProps('password')}
               autoCapitalize="none"
               autoComplete="new-password"
               // iOS AutoFill: `none`, not `newPassword` — the strong-password overlay

@@ -3321,3 +3321,162 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 36 — a focused field is revealed, not merely uncovered (#689)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #614 stopped the keyboard covering the viewport: `KeyboardAvoiding` pads the wrapper by the
+ * keyboard's height and the content region shrinks. It moves nothing INSIDE that region, so on
+ * the device walk the signup password field — last in the column — was still off screen after
+ * the lift, reachable only by scrolling. #689 is the other half: `hooks/use-reveal-on-focus.ts`
+ * scrolls the focused row into the shrunken viewport.
+ *
+ * Three things a call site can get silently wrong, so three assertions:
+ *
+ *   1. the props never land at all — the screen imports the hook and forgets to spread
+ *      `scrollProps`, or grows a field that has no `fieldProps`. The field count is the gate:
+ *      every field on a registered screen — `Input` and `Field`, the app's two field
+ *      primitives — carries the reveal, so a new one cannot land without deciding to. The list
+ *      tag is checked for a SECOND SPELLING of what the spread already supplies: an `onScroll`
+ *      or a `ref` written on the tag as well as arriving through the spread leaves which one
+ *      survives to source order, and if it is not the reveal's the list stops being tracked
+ *      silently. Position is not read — a prop written before the spread would lose rather than
+ *      win, and is flagged too. Over-reporting on purpose, the stance `jsxOpeningTags` takes:
+ *      one tag carrying both spellings is worth a second look either way round.
+ *   2. the row ref and the focus handler are given DIFFERENT keys. Nothing throws — the reveal
+ *      measures a row that was never registered and returns — so the two key sets are compared
+ *      rather than counted.
+ *   3. a second mechanism appears beside it. `measureLayout` is the reveal's whole coupling to
+ *      layout, and it belongs in one file for the same reason `Keyboard.addListener` does (§8):
+ *      two answers to "where is this field" drift apart.
+ *
+ * ## What it cannot see
+ *
+ * The device behaviour. `react-native-web`'s `Keyboard` is a stub — `isVisible()` is false and
+ * `addListener` returns a no-op — so the inset is 0 in the browser harness, the viewport never
+ * shrinks, and the reveal has nothing to do there. The arithmetic and the sequencing are tested
+ * at a boundary instead (`lib/reveal-on-focus.test.ts`, node); that an iPhone actually lands the
+ * field above the keyboard is a device claim and stays one.
+ *
+ * Not the composers, deliberately. The registry is the FORM screens — several fields stacked
+ * down a scroll, where focusing one says nothing about where the others sit — not `chat`,
+ * `post-compose`, `story-compose`, `candidacy`, `(onboarding)` or `ProfileEditForm`, whose one
+ * field IS the screen and which the wrapper's lift already clears. `project-compose` is named
+ * like a composer and shaped like a form — a title field, a chip row, then a tall description at
+ * the foot — so it is in.
+ */
+describe('a focused field is revealed, not merely uncovered (#689)', () => {
+  /** The form screens that wire the reveal, with the key each of their fields is filed under. */
+  const FORMS = [
+    { file: `${SRC}app/(auth)/welcome.tsx`, keys: ['name', 'email', 'password'] },
+    { file: `${SRC}app/(auth)/forgot-password.tsx`, keys: ['email'] },
+    { file: `${SRC}app/(modal)/new-password.tsx`, keys: ['password'] },
+    {
+      file: `${SRC}app/(modal)/event-create.tsx`,
+      keys: ['name', 'desc', 'streamUrl', 'venue', 'city', 'capacity', 'price'],
+    },
+    { file: `${SRC}app/(modal)/project-compose.tsx`, keys: ['title', 'description'] },
+  ];
+
+  /** The app's two field primitives. Either one on a registered screen owes a reveal. */
+  const FIELDS = ['Input', 'Field'];
+
+  const SEAM = 'lib/reveal-on-focus.ts';
+
+  /** Keys quoted at a `.rowRef('…')` / `.fieldProps('…')` call, receiver-agnostic. */
+  const keysOf = (src: string, method: 'rowRef' | 'fieldProps') =>
+    [...src.matchAll(new RegExp(`\\.${method}\\('([^']+)'\\)`, 'g'))]
+      .map((m) => m[1] as string)
+      .sort();
+
+  it('finds the screens it is walking', () => {
+    // A registry naming a moved file would pass everything below by finding nothing.
+    const missing = FORMS.map((f) => f.file).filter((p) => !FILES.includes(p));
+    expect(
+      missing.map(rel),
+      'a registered form screen has moved — this section is vacuous until the paths are fixed.',
+    ).toEqual([]);
+  });
+
+  it('every registered form wires the list, and every field on it asks for the reveal', () => {
+    const wrong: string[] = [];
+    for (const form of FORMS) {
+      const src = stripComments(read(form.file));
+      const where = rel(form.file).replace('apps/native/src/', '');
+      if (!src.includes('useRevealOnFocus')) wrong.push(`${where}: does not call useRevealOnFocus`);
+      if (!src.includes('KeyboardAvoiding')) {
+        wrong.push(`${where}: the reveal is half a pair — the wrapper is the other half`);
+      }
+      const tags = jsxOpeningTags(src);
+      const lists = tags.filter((t) => t.base === 'ScrollView');
+      const spread = lists.filter((t) => /\.\.\.[A-Za-z_$][\w$]*\.scrollProps/.test(t.raw));
+      if (spread.length === 0) {
+        wrong.push(`${where}: its ScrollView does not spread the reveal's scrollProps`);
+      }
+      for (const one of spread) {
+        const clash = /\b(onScroll|onLayout|onContentSizeChange|ref)=/.exec(one.raw);
+        if (clash) {
+          wrong.push(`${where}:${one.line} re-declares \`${clash[1] as string}\` after the spread`);
+        }
+      }
+      const fields = tags.filter((t) => FIELDS.includes(t.base));
+      const revealed = fields.filter((t) => /\.fieldProps\('/.test(t.raw));
+      if (fields.length !== revealed.length) {
+        wrong.push(
+          `${where}: ${fields.length} field(s), ${revealed.length} with a reveal — ` +
+            `unrevealed at line(s) ${fields
+              .filter((t) => !/\.fieldProps\('/.test(t.raw))
+              .map((t) => t.line)
+              .join(', ')}`,
+        );
+      }
+    }
+    expect(
+      wrong,
+      `a form screen no longer reveals the field the member tapped:\n  ${wrong.join('\n  ')}\n` +
+        'KeyboardAvoiding uncovers the viewport; it moves nothing into it. A field added to one ' +
+        'of these screens takes a row ref and a fieldProps spread under the same key (#689).',
+    ).toEqual([]);
+  });
+
+  it('the row ref and the focus handler agree on every key', () => {
+    const wrong: string[] = [];
+    for (const form of FORMS) {
+      const src = stripComments(read(form.file));
+      const where = rel(form.file).replace('apps/native/src/', '');
+      const rows = keysOf(src, 'rowRef');
+      const focus = keysOf(src, 'fieldProps');
+      const expected = [...form.keys].sort();
+      if (rows.join() !== focus.join()) {
+        wrong.push(
+          `${where}: rowRef ${JSON.stringify(rows)} vs fieldProps ${JSON.stringify(focus)}`,
+        );
+      } else if (rows.join() !== expected.join()) {
+        wrong.push(
+          `${where}: wires ${JSON.stringify(rows)}, registry says ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+    expect(
+      wrong,
+      `a reveal key is spelled two ways, or the registry is stale:\n  ${wrong.join('\n  ')}\n` +
+        'A key that matches nothing fails SILENTLY — the reveal measures a row it was never ' +
+        'given and returns, so the field stays under the keyboard with nothing to see (#689).',
+    ).toEqual([]);
+  });
+
+  it('only the reveal seam measures a row against its list', () => {
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => stripComments(read(p)).includes('measureLayout('))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(
+      users,
+      'measureLayout is the reveal’s whole coupling to layout and belongs in one file, the ' +
+        'same reason keyboard events do (§8). A second answer to "where is this field" ' +
+        'drifts from the first (#689).',
+    ).toEqual([SEAM]);
+  });
+});

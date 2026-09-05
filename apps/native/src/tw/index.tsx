@@ -68,9 +68,12 @@ export const Pressable = (props: PressableProps) =>
   useCssElement(PressableImpl, props as Record<string, unknown>, { className: 'style' });
 Pressable.displayName = 'CSS(Pressable)';
 
+// `ref` for the same reason View and FlatList declare theirs: RN's ScrollView is a class, so
+// `ComponentProps` does not carry a ref, and the instance is what `scrollTo` lives on (#689).
 export type ScrollViewProps = React.ComponentProps<typeof RNScrollView> & {
   className?: string;
   contentContainerClassName?: string;
+  ref?: React.Ref<RNScrollView>;
 };
 const ScrollViewImpl = RNScrollView as unknown as React.ComponentType<Record<string, unknown>>;
 export const ScrollView = (props: ScrollViewProps) =>

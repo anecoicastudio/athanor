@@ -10,6 +10,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { authErrorKey } from '@/lib/auth-errors';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { AUTH_REDIRECT_URL } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 
@@ -39,6 +40,8 @@ export default function ForgotPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const locale = useDraftLocale();
+  // The auth family's one focus-reveal recipe (#689) — welcome.tsx is where it is explained.
+  const reveal = useRevealOnFocus();
   const submitting = phase === 'submitting';
   const disabled = submitting || !EMAIL_RE.test(email.trim());
 
@@ -73,6 +76,7 @@ export default function ForgotPasswordScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ScrollView
+          {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
@@ -141,11 +145,12 @@ export default function ForgotPasswordScreen() {
                 </Text>
               </View>
 
-              <View className="mt-8 gap-2">
+              <View className="mt-8 gap-2" ref={reveal.rowRef('email')}>
                 <Text className="text-xs font-medium text-muted-foreground">
                   {t('auth.email.label', locale)}
                 </Text>
                 <Input
+                  {...reveal.fieldProps('email')}
                   autoCapitalize="none"
                   autoComplete="email"
                   // #662: `emailAddress`, spelled out rather than left to RN's `autoComplete`

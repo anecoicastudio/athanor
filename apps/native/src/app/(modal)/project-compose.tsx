@@ -14,6 +14,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -34,6 +35,8 @@ export default function ProjectComposeScreen() {
   const leave = useGuardedBack();
   const queryClient = useQueryClient();
   const locale = useLocale();
+  // Same recipe as the auth forms (#689); `(auth)/welcome.tsx` explains it.
+  const reveal = useRevealOnFocus();
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('startup');
   const [description, setDescription] = useState('');
@@ -118,12 +121,17 @@ export default function ProjectComposeScreen() {
           title={t('create.project.title', locale)}
           backLabel={t('common.back', locale)}
         />
-        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
+        <ScrollView
+          {...reveal.scrollProps}
+          className="flex-1"
+          contentContainerClassName="gap-5 px-5 pb-8"
+        >
           <Text className="text-[14px] text-faint">{t('create.project.desc', locale)}</Text>
 
-          <View className="gap-2">
+          <View className="gap-2" ref={reveal.rowRef('title')}>
             <SectionLabel>{t('project.compose.titleLabel', locale)}</SectionLabel>
             <Input
+              {...reveal.fieldProps('title')}
               placeholder={t('project.compose.titlePlaceholder', locale)}
               value={title}
               onChangeText={setTitle}
@@ -150,9 +158,12 @@ export default function ProjectComposeScreen() {
             </View>
           </View>
 
-          <View className="gap-2">
+          {/* The lowest field on the form and a tall one — the below-the-fold case #689
+              exists for. `Field`, not `Input`, and it forwards focus the same way. */}
+          <View className="gap-2" ref={reveal.rowRef('description')}>
             <SectionLabel>{t('project.compose.descLabel', locale)}</SectionLabel>
             <Field
+              {...reveal.fieldProps('description')}
               size="lg"
               multiline
               placeholder={t('project.compose.descPlaceholder', locale)}
