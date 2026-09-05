@@ -3,7 +3,11 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/supabase/functions/_shared/notif-templates.ts"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/functions/_shared/notif-templates.ts",
+        "$TURBO_ROOT$/pnpm-lock.yaml"
+      ]
     }
   }
 }

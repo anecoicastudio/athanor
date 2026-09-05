@@ -223,8 +223,9 @@ describe('no server-side secret ever reaches the client bundle', () => {
 
 /**
  * It is a NATIVE module. Adding it means the app can no longer run in App Store Expo Go —
- * the whole reason SDK 54 was chosen (mobile.md). Every payment flow already opens hosted
- * Stripe Checkout from an edge function, so the client never needs a Stripe key at all.
+ * the whole reason this app tracks the SDK Expo Go ships (mobile.md). Every payment flow
+ * already opens hosted Stripe Checkout from an edge function, so the client never needs a
+ * Stripe key at all.
  * Checked in both places because a dependency without an import, or an import without a
  * dependency, are each half of the same mistake.
  */
@@ -798,7 +799,8 @@ describe('the full-bleed viewer lifts the toast band over its overlay chrome (#1
  * back a trail that stops one step early.
  *
  * Lint cannot close this, for two independent reasons. `apps/native/eslint.config.js` is
- * `eslint-config-expo/flat` plus an `ignores` block and nothing else, so
+ * `eslint-config-expo/flat` plus an `ignores` block and a React-Compiler rule-severity block
+ * (#691) and nothing else, so
  * `@typescript-eslint/no-floating-promises` — configured only in
  * `packages/config/eslint/library.js`, which this app does not extend — is not running here at
  * all. And even where it runs it defaults to `ignoreVoid: true`, so `void markStep(…)` satisfies
@@ -1096,8 +1098,9 @@ describe('placeholders are a token, never the platform default (#499)', () => {
  * On iOS, `xhr.send({ uri })` does not stream: `RCTNetworkTask.mm` appends the whole file into
  * an `NSMutableData` and `RCTNetworking.mm` assigns it as `HTTPBody`, so a picked video becomes
  * one contiguous native allocation before the request leaves. That is #450, and it was
- * DEFERRED rather than fixed — blocked on #508's SDK 54 pin, because the replacement
- * (`expo/fetch`, or a native uploader) is not reachable from App Store Expo Go today.
+ * DEFERRED rather than fixed — until 2026-09-05 blocked on #508's SDK 54 pin, because the
+ * replacement (`expo/fetch`, or a native uploader) was not reachable from App Store Expo Go.
+ * SDK 57 made both reachable; the deferral is now a choice of scope, not a constraint.
  *
  * The deferral is only safe because the eventual swap is one module: `XMLHttpRequest` is
  * constructed in exactly one file, so however many upload surfaces get built on top of
@@ -1277,7 +1280,7 @@ describe('the events tab has no posts source (#153)', () => {
 // ---------------------------------------------------------------------------------------
 
 /**
- * `Pressable` defaults `accessible={true}` (`react-native@0.81.5`, `Pressable.js:245`), and on
+ * `Pressable` defaults `accessible={true}` (`react-native@0.86.3`, `Pressable.js:252`), and on
  * iOS an accessible view is ATOMIC: VoiceOver focuses it as one unit and never descends into
  * it. So a Pressable inside a Pressable is a control a screen-reader user cannot reach.
  *
@@ -2702,10 +2705,11 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
  * (`src/lib/dirty-guard.test.ts`); this pins the wiring.
  *
  * The other thing a grep cannot see is DUPLICATION. `usePreventRemoveContext` is a React
- * context object, so the hook and the navigator must resolve the same physical copy of
- * `@react-navigation/native`; under two copies the hook fills a context the navigator never
- * reads and every guard below goes dead with this section still green. The last assertion
- * pins that, because the declared `^7.1.8` makes the dedup incidental rather than guaranteed.
+ * context object, so the hook and the navigator must share one physical copy of
+ * react-navigation; under two copies the hook fills a context the navigator never reads and
+ * every guard below goes dead with this section still green. expo-router 57 vendors its copy,
+ * which makes the identity structural — so the identity test asserts the vendored copy is
+ * where this section thinks it is, and that no standalone `@react-navigation/*` comes back.
  */
 const DIRTY_GUARD_ROSTER = [
   'app/(modal)/dream-editor.tsx',
@@ -2815,30 +2819,81 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
     ).toEqual([]);
   });
 
-  it('the hook and the navigator share one @react-navigation/native', () => {
-    // `usePreventRemoveContext` is a React context OBJECT. Two physical copies of the package
-    // means `usePreventRemove` populates a context `native-stack` never reads: no
-    // `preventNativeDismiss`, no interception, every guard above dead — and every other
-    // assertion in this section still green, because they only grep for the call.
-    // Resolved along the path the APP actually takes — apps/native -> expo-router ->
-    // native-stack -> native. Resolving native-stack from apps/native instead would walk
-    // pnpm's hidden hoist directory and can land on an orphaned peer variant left behind by
-    // an earlier install, which says nothing about what Metro bundles. Node's resolver is a
-    // PROXY for Metro's here: the two agree on plain node_modules directory walking, which is
-    // all this edge depends on.
+  it('the hook and the navigator are one vendored react-navigation', () => {
+    // `usePreventRemoveContext` is a React context OBJECT. On SDK 54 the risk was two npm
+    // copies of `@react-navigation/native`; SDK 56 dropped expo-router's react-navigation
+    // dependency and VENDORED it, so `usePreventRemove` and native-stack's `isRemovePrevented`
+    // are now two files inside ONE package and the identity holds by construction. Two
+    // assertions keep that from going vacuous — the vendored copy is where this section
+    // thinks it is — one asserts the identity itself, and two assert the new way to break it: a
+    // standalone `@react-navigation/*` added back, which would give the hook a context the
+    // navigator never reads, with every grep above still green (#636, #508).
     const req = createRequire(`${SRC}package.json`);
-    const fromApp = req.resolve('@react-navigation/native');
-    const stack = createRequire(req.resolve('expo-router')).resolve(
-      '@react-navigation/native-stack',
-    );
-    const fromStack = createRequire(stack).resolve('@react-navigation/native');
     expect(
-      fromApp,
-      'apps/native and @react-navigation/native-stack resolve DIFFERENT copies of ' +
-        '@react-navigation/native, so the prevent-remove context the hook fills is not the ' +
-        'one the navigator reads. Dedupe them (the declared range is a caret, so this is not ' +
-        'guaranteed by the manifest) (#636).',
-    ).toBe(fromStack);
+      () => req.resolve('expo-router/react-navigation'),
+      'expo-router stopped exporting its vendored react-navigation at expo-router/react-navigation, ' +
+        'so the prevent-remove context the hook fills is not the one the navigator reads.',
+    ).not.toThrow();
+    expect(
+      () => req.resolve('expo-router/build/react-navigation/native-stack'),
+      'expo-router no longer vendors native-stack. This section assumes the hook and the ' +
+        'navigator are one package — re-derive the identity before trusting the guards above.',
+    ).not.toThrow();
+    // Identity, not existence: a subpath resolved from one base always lands under that base's
+    // copy, so the way two copies sneak in is the INSTALL — two expo-router versions locked at
+    // once, or an installed copy that is not the locked one. The lockfile is the record CI
+    // installs from (`node_modules/.pnpm` keeps stale dirs and cannot be counted), and turbo's
+    // global hash already covers it.
+    const lock = read(`${NATIVE}../../pnpm-lock.yaml`);
+    const locked = [...new Set([...lock.matchAll(/^ {2}expo-router@([^(:]+)/gm)].map((m) => m[1]))];
+    expect(
+      locked,
+      'more than one expo-router version is locked, so two physical copies of the vendored ' +
+        'react-navigation exist and the hook and the navigator can resolve different ones (#636).',
+    ).toHaveLength(1);
+    const installed = (
+      JSON.parse(read(req.resolve('expo-router/package.json'))) as { version: string }
+    ).version;
+    expect(
+      installed,
+      'the expo-router this app resolves is not the locked one — the install drifted from the ' +
+        'lockfile, and the identity argument above is about the lockfile.',
+    ).toBe(locked[0]);
+    expect(
+      /from 'expo-router\/react-navigation'/.test(read(`${SRC}hooks/use-dirty-guard.ts`)),
+      'use-dirty-guard.ts stopped taking usePreventRemove from expo-router/react-navigation.',
+    ).toBe(true);
+
+    const pkg = JSON.parse(readFileSync(`${NATIVE}package.json`, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    const declared = Object.keys({
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+      ...pkg.peerDependencies,
+    }).filter((name) => name.startsWith('@react-navigation/'));
+    expect(
+      declared,
+      'a standalone @react-navigation/* is back in apps/native. expo-router 57 vendors its own ' +
+        'copy; a second physical one means usePreventRemove fills a context native-stack never ' +
+        'reads and every guard above goes dead, silently (#636, #508).',
+    ).toEqual([]);
+
+    const imports = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => /from '@react-navigation\//.test(text))
+          .map(([at]) => at),
+      ),
+    ].sort();
+    expect(
+      imports,
+      "import from 'expo-router/react-navigation' instead — apps/native declares no " +
+        '@react-navigation package on SDK 57, so a bare import would resolve through a ' +
+        'transitive copy or not at all.',
+    ).toEqual([]);
   });
 
   it('the primitive still branches, so the roster cannot go vacuous', () => {
@@ -3478,5 +3533,59 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
         'same reason keyboard events do (§8). A second answer to "where is this field" ' +
         'drifts from the first (#689).',
     ).toEqual([SEAM]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 37 — the one private expo path, named and bounded (#508)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `lib/oauth.ts` reaches into `expo-auth-session/build/QueryParams` — a compiled path, not a
+ * public export. It is the only deep import into a `build/` directory in the app, and it exists
+ * because `expo-auth-session` does not re-export `QueryParams` from its index (still true on
+ * SDK 57, `build/index.d.ts`, checked 2026-09-05) and ships no `exports` map, which is the only
+ * reason the path resolves at all.
+ *
+ * The failure mode is silent: an `exports` map added upstream turns this into a Metro resolution
+ * error at bundle time, which is loud; a rename inside `build/` turns `getQueryParams` into
+ * `undefined` at the OAuth CALLBACK, on device, with no type error. The second assertion is what
+ * stands between that rename and a dead sign-in. The public replacement is `expo-linking`'s
+ * `parse(url).queryParams` (already imported in `oauth.ts`); moving to it changes the
+ * `errorCode` shape and is its own change, not a reflex.
+ */
+describe('the expo-auth-session deep import stays deliberate', () => {
+  const DEEP = 'expo-auth-session/build/QueryParams';
+
+  it('is used in exactly one file, and it is oauth.ts', () => {
+    const users = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => text.includes(DEEP))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      users,
+      `${DEEP} is a PRIVATE path — expo-auth-session does not export QueryParams from its ` +
+        'index and ships no `exports` map. One site, so the day it stops resolving there is one ' +
+        'file to fix (#508).',
+    ).toEqual(['lib/oauth.ts']);
+  });
+
+  it('the private path still resolves and still exports getQueryParams', () => {
+    const req = createRequire(`${SRC}package.json`);
+    expect(
+      () => req.resolve(DEEP),
+      'expo-auth-session moved or gated build/QueryParams. Check whether the SDK now exports ' +
+        'QueryParams publicly; if not, `parse(url).queryParams` from expo-linking is the public ' +
+        'replacement — oauth.ts already imports expo-linking.',
+    ).not.toThrow();
+    const mod = req(req.resolve(DEEP)) as { getQueryParams?: unknown };
+    expect(
+      typeof mod.getQueryParams,
+      'build/QueryParams resolves but no longer exports getQueryParams — oauth.ts would read ' +
+        '`undefined` at the OAuth callback with no type error.',
+    ).toBe('function');
   });
 });

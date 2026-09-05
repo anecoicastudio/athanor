@@ -348,7 +348,7 @@ Deliberate early delivery of concept ch. 11 — the concept roadmap placed Coste
 ```
 athanor/
 ├── apps/
-│   ├── native/                 # Expo SDK 54, expo-router, NativeWind v5
+│   ├── native/                 # Expo SDK 57, expo-router, NativeWind v5
 │   │   └── src/app/(tabs)/     # home · community · costellazioni · momenti · profilo
 │   └── web/                    # Next.js App Router, Tailwind, shadcn/ui
 │       └── app/                # marketing + legal · [handle] public pages · admin/

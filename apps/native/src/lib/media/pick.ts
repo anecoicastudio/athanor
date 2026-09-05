@@ -10,7 +10,7 @@ import {
 } from './asset';
 
 /**
- * SDK-54 `mediaTypes` is an array of the `MediaType` string union
+ * Since SDK 52, `mediaTypes` is an array of the `MediaType` string union
  * (`'images' | 'videos' | 'livePhotos'`) — the old `MediaTypeOptions` enum is
  * deprecated. We never pass `livePhotos` (we want a plain still, not a paired
  * video). The picker's own `quality` is the canonical `MEDIA_LIMITS.IMAGE_QUALITY`

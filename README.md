@@ -4,7 +4,7 @@ Community platform where reputation (the **Aura** score) is earned only through 
 
 ## Stack
 
-TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Expo SDK 54 + expo-router + NativeWind v5 · Supabase (Postgres + RLS, Auth, Realtime, Storage, Deno edge functions) · Stripe (Checkout, Billing, Identity) · Vitest + pgTAP + Deno tests.
+TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Expo SDK 57 + expo-router + NativeWind v5 · Supabase (Postgres + RLS, Auth, Realtime, Storage, Deno edge functions) · Stripe (Checkout, Billing, Identity) · Vitest + pgTAP + Deno tests.
 
 ## Repository map
 
@@ -57,22 +57,27 @@ pnpm --filter web dev                       # web app on :3000 (copy apps/web/.e
 publishable key (provided at onboarding) in `apps/native/.env`. `EXPO_PUBLIC_*` variables
 only — a service-role key must never appear in this repo or the app.
 
-**On a physical device, only `--tunnel` can complete a sign-up confirmation.** Plain
-`expo start` serves Metro over your LAN, so the app's redirect is
-`exp://<LAN-IP>:8081/--/auth-callback` — and GoTrue refuses a private-LAN redirect
-target. It does not error: it silently substitutes Site URL, so the confirmation mail
-opens a web page and the app never signs in. The account **is** confirmed; only the
-return trip is broken, and no allow-list entry fixes it (#73).
+**On a physical device, a plain LAN `expo start` cannot complete a sign-up confirmation or
+an OAuth return.** It makes the app's redirect `exp://<LAN-IP>:8081/--/auth-callback`, and an
+IP-literal LAN address cannot be allow-listed (#73). GoTrue does not error: it silently
+substitutes Site URL, so the confirmation mail or the Google round trip opens a web page and
+the app never signs in. The account **is** confirmed; only the return trip is broken. Two ways
+round it, both against staging:
 
 ```bash
+# 1. ngrok tunnel — a public *.exp.direct host, already allow-listed. Slow (US relay,
+#    0.4–0.8 MB/s for a 15 MB Expo Go bundle) and some WiFi DNS filters block ngrok.
 cd apps/native && pnpm exec expo start --tunnel
+
+# 2. LAN speed under a public name — a hostname that resolves to your Mac's LAN IP.
+#    Allow-listed on staging as exp://**.nip.io:8081/--/auth-callback (2026-09-05).
+cd apps/native && EXPO_PACKAGER_PROXY_URL=http://$(ipconfig getifaddr en0 | tr . -).nip.io:8081 pnpm exec expo start
 ```
 
-That gives Metro a public `*.exp.direct` host, which the staging allow-list already
-matches. The first `--tunnel` run asks to install `@expo/ngrok` — say yes; it installs
-**globally**, not into this repo, and nothing is added to any `package.json`.
-Everything else (feed, dreams, hot reload) is fine over plain LAN, and the **iOS
-Simulator** needs no tunnel: its `127.0.0.1` is the Mac, which GoTrue allows.
+The first `--tunnel` run asks to install `@expo/ngrok` — say yes; it installs **globally**,
+not into this repo, and nothing is added to any `package.json`. Everything else (feed, dreams,
+hot reload) is fine over plain LAN, and the **iOS Simulator** needs no tunnel: its `127.0.0.1`
+is the Mac, which GoTrue allows.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns
@@ -172,7 +177,7 @@ gitignored; CI greps the built bundle for leaked keys as a release gate.
 
 ## Working conventions
 
-- **Native dependencies:** `pnpm exec expo install`, never `pnpm add`; then `pnpm exec expo-doctor`. The project is on **Expo SDK 54** (deliberate) — check the SDK 54 docs, not the latest.
+- **Native dependencies:** `pnpm exec expo install`, never `pnpm add`; then `pnpm exec expo-doctor`. The project is on **Expo SDK 57**, tracking the SDK App Store Expo Go ships — check the SDK 57 docs, not the latest.
 - **Styling:** NativeWind classNames through the wrappers in `src/tw` — plain RN components don't accept `className` here.
 - **The app pnpm package is named `native`, unscoped** — `--filter @athanor/native` is a silent no-op; use `--filter native`.
 - **Environments:** production is maintainer-only; staging is the shared workbench, seeded with fake data — never put real people's content in it. Enable MFA on your GitHub and Supabase accounts.

@@ -107,7 +107,7 @@ export default function VerifyScreen() {
     try {
       const result = await requestVerification(supabase);
       const url = 'url' in result ? result.url : null;
-      if (!url) throw new Error('no url'); // clientSecret/native path not used on SDK54 (web sheet only)
+      if (!url) throw new Error('no url'); // clientSecret/native path unused: a native Stripe module would break Expo Go (web sheet only)
       setSessionPending(true);
       showToast(t('trust.verify.toast.started', locale), 'success');
       await WebBrowser.openAuthSessionAsync(url, 'athanor://verify');

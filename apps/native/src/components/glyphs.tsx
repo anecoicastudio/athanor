@@ -1,3 +1,4 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
 import { semantic } from '@athanor/config';
 
@@ -19,11 +20,13 @@ import { semantic } from '@athanor/config';
  *   Costellazioni → constellation      (joined stars, the projects)
  *   Profilo       → sphere of meridians (the self that evolves)
  */
-type GlyphProps = { size?: number; color?: string };
+// `ColorValue`, not `string`: react-navigation hands `tabBarIcon` a `ColorValue` since RN 0.86's
+// types, and react-native-svg's `stroke` takes the same type, so nothing narrows in between.
+type GlyphProps = { size?: number; color?: ColorValue };
 
 const VB = 24;
 
-const line = (color?: string) => ({
+const line = (color?: ColorValue) => ({
   stroke: color ?? semantic.foregroundMuted,
   strokeWidth: 1.8,
   strokeLinecap: 'round' as const,
@@ -90,7 +93,7 @@ export function ProfiloGlyph({ size = 24, color }: GlyphProps) {
  * 22px default, matching the prototype's inline SVGs (deliberately weightier
  * than the 1.8px tab glyphs). Formerly components/home/icons.tsx.
  */
-const stroke = (color?: string) => ({
+const stroke = (color?: ColorValue) => ({
   stroke: color ?? semantic.foregroundMuted,
   strokeWidth: 2,
   strokeLinecap: 'round' as const,

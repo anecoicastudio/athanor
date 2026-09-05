@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
-import { usePreventRemove } from '@react-navigation/native';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { useNavigation } from 'expo-router';
 import { type Locale, t } from '@athanor/i18n';
 import { useLocale } from '@/hooks/use-locale';
@@ -22,7 +22,7 @@ function askToDiscard(locale: Locale, onDiscard: () => void): void {
  *
  * ## Why `usePreventRemove` and not a `beforeRemove` listener
  *
- * Not a style preference — the listener cannot do this job. `@react-navigation/native-stack`
+ * Not a style preference — the listener cannot do this job. expo-router's vendored native-stack
  * reads the prevent-remove CONTEXT, not the event, and passes `preventNativeDismiss` down to
  * the native screen from it (`NativeStackView.native.tsx`, `isRemovePrevented`). Only
  * `usePreventRemove` populates that context. A `navigation.addListener('beforeRemove', …)`
@@ -35,9 +35,11 @@ function askToDiscard(locale: Locale, onDiscard: () => void): void {
  * it presents as a push card whose gesture is the iOS left-edge back-swipe, and
  * `ProfileEditForm` is not a route at all (see `useDiscardConfirm` below).
  *
- * `@react-navigation/native` is a direct dependency for this reason: `expo-router@6` does not
- * re-export the hook (`build/exports.d.ts`), and the transitive copy under `node_modules/.pnpm`
- * is not reachable by a bare import.
+ * `usePreventRemove` comes from `expo-router/react-navigation`. SDK 56 dropped expo-router's
+ * react-navigation dependency and vendored it, so the hook and the navigator are two files in
+ * ONE package and the prevent-remove context is the same object by construction. A standalone
+ * `@react-navigation/*` added back to this app would reintroduce the two-copy failure —
+ * source-audit §31 asserts it stays out.
  *
  * ## What it covers, in one call
  *
@@ -53,7 +55,7 @@ function askToDiscard(locale: Locale, onDiscard: () => void): void {
  * so removal never fires for them; they are not composers and hold no draft. And on
  * react-native-web the guard stands down entirely — see `shouldGuardExit`.
  *
- * No sibling unit test: this file imports `@react-navigation/native` and `react-native`, and
+ * No sibling unit test: this file imports `expo-router/react-navigation` and `react-native`, and
  * `vitest.config.ts` runs `environment: 'node'`, where react-native's untranspiled Flow cannot
  * be collected. The decision it defers to is pure and tested in `src/lib/dirty-guard.test.ts`;
  * source-audit §31 pins the wiring so this cannot go vacuous.
