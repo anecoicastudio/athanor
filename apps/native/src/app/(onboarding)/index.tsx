@@ -1,33 +1,50 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, StyleSheet } from 'react-native';
-import { IDENTITY_TAGS, SEEKING_TAGS } from '@athanor/core';
-import { t, type MessageKey } from '@athanor/i18n';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { semantic } from '@athanor/config';
+import {
+  IDENTITY_TAGS,
+  MIN_MEMBER_AGE,
+  SEEKING_TAGS,
+  isAtLeastAge,
+  zodiacSignFromBirthDate,
+} from '@athanor/core';
+import { localeTag, t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
+import { ZodiacGlyph } from '@/components/glyphs';
+import { Input } from '@/components/Input';
 import { LocaleChips } from '@/components/LocaleChips';
 import { MediaSheet } from '@/components/media/MediaSheet';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { SectionLabel } from '@/components/SectionLabel';
 import { StepBars } from '@/components/StepBars';
 import { deviceLocale } from '@/lib/locale';
 import { spoken } from '@/lib/star';
+import { calendarDay, dayKey, parseCalendarDay } from '@/lib/time';
 import { toggleTag } from '@/lib/tags';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
 
-/** identity → seeking → dream → face. The last one is skippable and writes nothing required. */
-const STEPS = 4;
+/** identity → birth → seeking → dream → face. The last one is skippable and writes nothing required. */
+const STEPS = 5;
+
+/** The picker's opening year when no date is set yet: an adult, not today (#694). */
+const DEFAULT_BIRTH_YEARS_BACK = 30;
+/** How far back the picker scrolls. Beyond this the column's 1900 floor refuses anyway. */
+const MAX_BIRTH_YEARS_BACK = 120;
 
 /**
  * Onboarding funnel (prototype order: questions FIRST, account last). Runs with
- * NO session — anon has no `profiles` access — so the answers (identity, seeking,
- * dream, the locale picked on step 0 (#158), and since #76 an optional photo)
+ * NO session — anon has no `profiles` access — so the answers (identity, the birth date
+ * (#694), seeking, dream, the locale picked on step 0 (#158), and since #76 an optional photo)
  * are kept in a local AsyncStorage draft
  * and flushed to the profile after OTP (see `lib/flush-onboarding.ts`). The photo
  * is stashed as a LOCAL uri for the same reason: every `avatars` storage policy
@@ -51,6 +68,12 @@ export default function OnboardingScreen() {
   const [dream, setDream] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // `YYYY-MM-DD`, local parts (#694). The screen owns the clock (`new Date()` below) so
+  // @athanor/core stays pure; the sign is derived, never stored in state.
+  const [birthDate, setBirthDate] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const revealOpacity = useRef(new Animated.Value(0)).current;
 
   // Resume an abandoned funnel: rehydrate the local draft on mount.
   useEffect(() => {
@@ -62,6 +85,7 @@ export default function OnboardingScreen() {
       setSeeking(d.seeking);
       setDream(d.dream);
       setAvatarUri(d.avatar_uri);
+      setBirthDate(d.birth_date);
     });
     return () => {
       cancelled = true;
@@ -82,6 +106,7 @@ export default function OnboardingScreen() {
     seeking: string[];
     dream: string;
     avatarUri: string | null;
+    birthDate: string | null;
   }) =>
     saveDraft({
       locale: next.locale,
@@ -89,6 +114,7 @@ export default function OnboardingScreen() {
       seeking: next.seeking,
       dream: next.dream,
       avatar_uri: next.avatarUri,
+      birth_date: next.birthDate,
     });
 
   // Persist immediately (not just on step transitions): switching language is the
@@ -96,24 +122,47 @@ export default function OnboardingScreen() {
   const switchLocale = (next: Locale) => {
     if (next === locale) return;
     setLocale(next);
-    void persist({ locale: next, identity, seeking, dream, avatarUri });
+    void persist({ locale: next, identity, seeking, dream, avatarUri, birthDate });
   };
+
+  // Step 1 (#694): the sign for the live reveal, and the 14+ floor (GDPR Art. 8, the Italian
+  // floor). `new Date()` here, not in core — a boundary the screen owns.
+  const sign = birthDate ? zodiacSignFromBirthDate(birthDate) : null;
+  const tooYoung = birthDate !== null && !isAtLeastAge(birthDate, MIN_MEMBER_AGE, new Date());
+
+  // The reveal fades in (rule #4: a flat line, no glow — a sign is granted, not earned).
+  // Under Reduce Motion it appears; MomentFlash is the precedent.
+  useEffect(() => {
+    if (!sign || tooYoung) {
+      revealOpacity.setValue(0);
+      return;
+    }
+    revealOpacity.setValue(reduceMotion ? 1 : 0);
+    if (reduceMotion) return;
+    Animated.timing(revealOpacity, {
+      toValue: 1,
+      duration: 200,
+      easing: Easing.ease,
+      useNativeDriver: true,
+    }).start();
+  }, [sign, tooYoung, reduceMotion, revealOpacity]);
 
   const canNext = useMemo(() => {
     if (step === 0) return identity.length > 0;
-    if (step === 1) return seeking.length > 0;
+    if (step === 1) return birthDate !== null && !tooYoung;
+    if (step === 2) return seeking.length > 0;
     return true;
-  }, [step, identity, seeking]);
+  }, [step, identity, seeking, birthDate, tooYoung]);
 
   const next = () => {
-    persist({ locale, identity, seeking, dream, avatarUri });
+    persist({ locale, identity, seeking, dream, avatarUri, birthDate });
     setStep((s) => s + 1);
   };
 
   // Persist the draft to disk BEFORE navigating, so the post-auth flush can always
   // read it (a lost draft → incomplete profile → AuthGuard loops back here).
   const createAccount = async () => {
-    await persist({ locale, identity, seeking, dream, avatarUri });
+    await persist({ locale, identity, seeking, dream, avatarUri, birthDate });
     router.push('/(auth)/welcome');
   };
 
@@ -214,6 +263,89 @@ export default function OnboardingScreen() {
 
               {step === 1 ? (
                 <View className="gap-4">
+                  <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
+                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                    {t('onboarding.birth.title', locale)}
+                  </Text>
+                  <Text className="text-muted-foreground">{t('onboarding.birth.sub', locale)}</Text>
+                  {Platform.OS === 'web' ? (
+                    // QA fallback only: @react-native-community/datetimepicker renders NOTHING
+                    // on react-native-web (its src/datetimepicker.js warns «not supported on:
+                    // web»), and Expo web is the only surface a walk can reach here.
+                    <Input
+                      placeholder={t('onboarding.birth.isoHint', locale)}
+                      inputMode="numeric"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      defaultValue={birthDate ?? ''}
+                      onChangeText={(v) => setBirthDate(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)}
+                    />
+                  ) : (
+                    <Pressable
+                      onPress={() => setShowPicker(true)}
+                      accessibilityRole="button"
+                      className="rounded-card border border-hair bg-raise p-5"
+                    >
+                      <Text className="text-[15px] text-foreground">
+                        {birthDate
+                          ? calendarDay(birthDate, locale)
+                          : t('onboarding.birth.pick', locale)}
+                      </Text>
+                    </Pressable>
+                  )}
+                  {showPicker ? (
+                    <DateTimePicker
+                      value={
+                        birthDate
+                          ? parseCalendarDay(birthDate)
+                          : new Date(new Date().getFullYear() - DEFAULT_BIRTH_YEARS_BACK, 0, 1, 12)
+                      }
+                      mode="date"
+                      // A year wheel, not a compact popover: a birthday is decades back.
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      themeVariant="dark"
+                      locale={localeTag(locale)}
+                      maximumDate={new Date()}
+                      minimumDate={new Date(new Date().getFullYear() - MAX_BIRTH_YEARS_BACK, 0, 1)}
+                      onChange={(_, picked) => {
+                        setShowPicker(Platform.OS === 'ios');
+                        // dayKey reads local parts — the same calendar day the wheel showed;
+                        // a birthday is a day, never an instant (PlanPhaseCard precedent).
+                        if (picked) setBirthDate(dayKey(picked.toISOString()));
+                      }}
+                    />
+                  ) : null}
+                  {tooYoung ? (
+                    <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                      {t('onboarding.birth.tooYoung', locale)}
+                    </Text>
+                  ) : null}
+                  {sign && !tooYoung ? (
+                    <Animated.View style={{ opacity: revealOpacity }}>
+                      <View className="flex-row items-center gap-3 pt-2">
+                        {/* The drawing is decorative; the line beside it is the announcement. */}
+                        <View
+                          accessibilityElementsHidden
+                          importantForAccessibility="no-hide-descendants"
+                        >
+                          <ZodiacGlyph sign={sign} size={32} color={semantic.ink2} />
+                        </View>
+                        <Text
+                          className="text-lg font-semibold text-foreground"
+                          accessibilityLiveRegion="polite"
+                        >
+                          {t('onboarding.birth.reveal', locale, {
+                            sign: t(`zodiac.${sign}` as MessageKey, locale),
+                          })}
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {step === 2 ? (
+                <View className="gap-4">
                   <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
                   <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
                     {t('onboarding.seeking.title', locale)}
@@ -234,7 +366,7 @@ export default function OnboardingScreen() {
                 </View>
               ) : null}
 
-              {step === 2 ? (
+              {step === 3 ? (
                 <View className="gap-4">
                   <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
                   <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
@@ -253,7 +385,7 @@ export default function OnboardingScreen() {
                 </View>
               ) : null}
 
-              {step === 3 ? (
+              {step === 4 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
                   <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
@@ -285,7 +417,7 @@ export default function OnboardingScreen() {
                         </Text>
                       )}
                     </View>
-                    {/* The only control that performs step 4 — the 116pt avatar above is a
+                    {/* The only control that performs step 5 — the 116pt avatar above is a
                     View, not a target. Bare, it was a 15px line box ≈19.5pt tall (§10). */}
                     <Pressable
                       accessibilityRole="button"
@@ -303,7 +435,14 @@ export default function OnboardingScreen() {
                         accessibilityRole="button"
                         onPress={() => {
                           setAvatarUri(null);
-                          void persist({ locale, identity, seeking, dream, avatarUri: null });
+                          void persist({
+                            locale,
+                            identity,
+                            seeking,
+                            dream,
+                            avatarUri: null,
+                            birthDate,
+                          });
                         }}
                         className="min-h-[44px] justify-center px-4"
                       >
@@ -348,7 +487,7 @@ export default function OnboardingScreen() {
             onPick={(asset) => {
               if (asset.kind !== 'image') return;
               setAvatarUri(asset.uri);
-              void persist({ locale, identity, seeking, dream, avatarUri: asset.uri });
+              void persist({ locale, identity, seeking, dream, avatarUri: asset.uri, birthDate });
             }}
           />
         </ScrollView>

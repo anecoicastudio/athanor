@@ -34,6 +34,9 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
       locale: draft.locale,
       identity_tags: draft.identity_tags,
       seeking: draft.seeking,
+      // #694 — `updateOnboardingProfile` re-parses with the same schema and strips unknown
+      // keys, so leaving this out would drop the date silently, not fail.
+      birth_date: draft.birth_date,
     });
 
     const vocab = validateOnboardingAnswers(answers);

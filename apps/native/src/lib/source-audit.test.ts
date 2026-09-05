@@ -2558,7 +2558,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:458',
     'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:458',
-    'app/(onboarding)/index.tsx:266':
+    'app/(onboarding)/index.tsx:398':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
