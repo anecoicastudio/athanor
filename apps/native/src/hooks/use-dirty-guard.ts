@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
-import { usePreventRemove } from '@react-navigation/native';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { useNavigation } from 'expo-router';
 import { type Locale, t } from '@athanor/i18n';
 import { useLocale } from '@/hooks/use-locale';

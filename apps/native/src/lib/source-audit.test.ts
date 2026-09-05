@@ -2815,30 +2815,62 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
     ).toEqual([]);
   });
 
-  it('the hook and the navigator share one @react-navigation/native', () => {
-    // `usePreventRemoveContext` is a React context OBJECT. Two physical copies of the package
-    // means `usePreventRemove` populates a context `native-stack` never reads: no
-    // `preventNativeDismiss`, no interception, every guard above dead — and every other
-    // assertion in this section still green, because they only grep for the call.
-    // Resolved along the path the APP actually takes — apps/native -> expo-router ->
-    // native-stack -> native. Resolving native-stack from apps/native instead would walk
-    // pnpm's hidden hoist directory and can land on an orphaned peer variant left behind by
-    // an earlier install, which says nothing about what Metro bundles. Node's resolver is a
-    // PROXY for Metro's here: the two agree on plain node_modules directory walking, which is
-    // all this edge depends on.
+  it('the hook and the navigator are one vendored react-navigation', () => {
+    // `usePreventRemoveContext` is a React context OBJECT. On SDK 54 the risk was two npm
+    // copies of `@react-navigation/native`; SDK 56 dropped expo-router's react-navigation
+    // dependency and VENDORED it, so `usePreventRemove` and native-stack's `isRemovePrevented`
+    // are now two files inside ONE package and the identity holds by construction. Two
+    // assertions keep that from going vacuous — the vendored copy is where this section
+    // thinks it is — and two assert the new way to break it: a standalone `@react-navigation/*`
+    // added back, which would give the hook a context the navigator never reads, with every
+    // grep above still green (#636, #508).
     const req = createRequire(`${SRC}package.json`);
-    const fromApp = req.resolve('@react-navigation/native');
-    const stack = createRequire(req.resolve('expo-router')).resolve(
-      '@react-navigation/native-stack',
-    );
-    const fromStack = createRequire(stack).resolve('@react-navigation/native');
+    const routerRoot = req.resolve('expo-router/package.json').slice(0, -'package.json'.length);
     expect(
-      fromApp,
-      'apps/native and @react-navigation/native-stack resolve DIFFERENT copies of ' +
-        '@react-navigation/native, so the prevent-remove context the hook fills is not the ' +
-        'one the navigator reads. Dedupe them (the declared range is a caret, so this is not ' +
-        'guaranteed by the manifest) (#636).',
-    ).toBe(fromStack);
+      req.resolve('expo-router/react-navigation').startsWith(routerRoot),
+      'expo-router/react-navigation resolves OUTSIDE the expo-router package this app renders ' +
+        'through, so the prevent-remove context the hook fills is not the one the navigator reads.',
+    ).toBe(true);
+    expect(
+      req.resolve('expo-router/build/react-navigation/native-stack').startsWith(routerRoot),
+      'expo-router no longer vendors native-stack. This section assumes the hook and the ' +
+        'navigator are one package — re-derive the identity before trusting the guards above.',
+    ).toBe(true);
+    expect(
+      /from 'expo-router\/react-navigation'/.test(read(`${SRC}hooks/use-dirty-guard.ts`)),
+      'use-dirty-guard.ts stopped taking usePreventRemove from expo-router/react-navigation.',
+    ).toBe(true);
+
+    const pkg = JSON.parse(readFileSync(`${NATIVE}package.json`, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    const declared = Object.keys({
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+      ...pkg.peerDependencies,
+    }).filter((name) => name.startsWith('@react-navigation/'));
+    expect(
+      declared,
+      'a standalone @react-navigation/* is back in apps/native. expo-router 57 vendors its own ' +
+        'copy; a second physical one means usePreventRemove fills a context native-stack never ' +
+        'reads and every guard above goes dead, silently (#636, #508).',
+    ).toEqual([]);
+
+    const imports = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => /from '@react-navigation\//.test(text))
+          .map(([at]) => at),
+      ),
+    ].sort();
+    expect(
+      imports,
+      "import from 'expo-router/react-navigation' instead — apps/native declares no " +
+        '@react-navigation package on SDK 57, so a bare import would resolve through a ' +
+        'transitive copy or not at all.',
+    ).toEqual([]);
   });
 
   it('the primitive still branches, so the roster cannot go vacuous', () => {
