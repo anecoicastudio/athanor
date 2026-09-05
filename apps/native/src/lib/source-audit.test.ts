@@ -3147,3 +3147,177 @@ describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => 
     ).toEqual([]);
   });
 });
+
+// 35 — every AutoFill-capable field decides its iOS posture in place (#615, #662)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #615 found that re-editing a filled field could replace the whole line, and pinned the cause
+ * on iOS AutoFill committing a suggestion (its hypothesis 2). The remedy is a call-site one:
+ * `textContentType` is iOS-only and OVERRIDES the value RN derives from `autoComplete`
+ * (`TextInput.js` maps one to the other only when the explicit prop is absent), so a field can
+ * keep its Android manager and still refuse the iOS fill. #620 applied it to the password field
+ * alone; #662 is the residual — `name` and `emailAddress` rode into the signup branch, where the
+ * same vector lands.
+ *
+ * The rule the tree now follows is about what the person is DOING, not about which field it is:
+ * a value being CREATED takes `none`, a value being RECALLED keeps the fill. That is a JSX
+ * invariant on props no assertion in this app can reach at runtime — `apps/native` has no render
+ * harness — so it is a static guard, the same answer as §21, §28, §29.
+ *
+ * It pins three things:
+ *
+ *   1. the registry below is the WHOLE set of AutoFill-capable fields, by count. A new field that
+ *      asks a platform manager to fill it therefore cannot land without a posture decided here.
+ *   2. each registered field carries both spellings — which is what keeps the two props
+ *      independent in fact and not just in the comment: dropping `autoComplete` while "cleaning
+ *      up" the iOS side would silently take Android's password and contact managers with it.
+ *   3. separately from the registry, that no field on `welcome.tsx` asks iOS to fill during
+ *      SIGNUP. Stated on its own so that flipping a registry row back to a fill goes red on the
+ *      invariant rather than quietly redefining it.
+ *
+ * ## What it cannot see
+ *
+ * Not the device behaviour. Whether iOS actually replaces the line is #615's open question, and
+ * no static read answers it; this only asserts that the app asks for what it decided to ask for.
+ *
+ * Nothing about a field that carries NEITHER prop: with both absent, iOS has no content type to
+ * commit and Android no manager to offer, so there is no posture to decide. The count in the
+ * first assertion is therefore over EITHER prop, because either one ALONE is enough to be
+ * filled and the two reach different platforms: RN hands `autoComplete` to the native component
+ * on Android only (`TextInput.js:922-926`), while `textContentType` is honoured whenever it is
+ * non-null (`:927-937`). A field spelling only `textContentType` is iOS-fillable with no Android
+ * manager at all, so counting `autoComplete` sites alone would have let one land unregistered.
+ *
+ * Two rows on one screen may share an `autoComplete` spelling; they are then matched in FILE
+ * order, one tag each. That is why the second assertion claims a tag as it consumes it rather
+ * than searching the whole file per row: an unclaimed search would satisfy both rows from the
+ * first tag, leaving the second field's posture unchecked while the count still balanced —
+ * the one way this section could have passed over exactly the field it exists to pin.
+ */
+describe('every AutoFill-capable field decides its iOS posture in place (#615, #662)', () => {
+  const WELCOME = `${SRC}app/(auth)/welcome.tsx`;
+
+  /**
+   * Every field in the app a platform manager can fill, with the two spellings it must carry.
+   * Keyed by the `autoComplete` spelling, because two fields on one screen are told apart by it
+   * and not by their tag. Whitespace-collapsed at the point of comparison — prettier owns how
+   * these wrap.
+   */
+  const FIELDS = [
+    {
+      what: 'signup name',
+      file: WELCOME,
+      autoComplete: `autoComplete="name"`,
+      textContentType: `textContentType="none"`,
+    },
+    {
+      what: 'email, both branches',
+      file: WELCOME,
+      autoComplete: `autoComplete="email"`,
+      textContentType: `textContentType={login ? 'emailAddress' : 'none'}`,
+    },
+    {
+      what: 'password, both branches',
+      file: WELCOME,
+      autoComplete: `autoComplete={login ? 'current-password' : 'new-password'}`,
+      textContentType: `textContentType={login ? 'password' : 'none'}`,
+    },
+    {
+      what: 'password reset',
+      file: `${SRC}app/(modal)/new-password.tsx`,
+      autoComplete: `autoComplete="new-password"`,
+      textContentType: `textContentType="none"`,
+    },
+    {
+      what: 'forgotten-password email',
+      file: `${SRC}app/(auth)/forgot-password.tsx`,
+      autoComplete: `autoComplete="email"`,
+      textContentType: `textContentType="emailAddress"`,
+    },
+  ];
+
+  const flat = (s: string) => s.replace(/\s+/g, ' ');
+
+  /**
+   * Every JSX opening tag in the app tree that asks for an autofill, with its file. EITHER prop
+   * counts: one without the other still gets the field filled, on one platform or the other.
+   */
+  const autofillTags = () =>
+    FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter((t) => /(?:autoComplete|textContentType)\s*=/.test(t.raw))
+        .map((t) => ({ ...t, path: p })),
+    );
+
+  it('finds the fields it is walking', () => {
+    // A registry naming files that have moved would pass every assertion below by finding
+    // nothing, and `read` would crash out with an ENOENT that says nothing about why.
+    const missing = [...new Set(FIELDS.map((f) => f.file))].filter((p) => !FILES.includes(p));
+    expect(
+      missing.map(rel),
+      'a registered AutoFill screen has moved — this section is vacuous until the paths are ' +
+        'fixed (#662).',
+    ).toEqual([]);
+    // The count is the gate on NEW fields: a screen that grows an autofilled input has to
+    // decide its iOS posture and register it here, in the same change.
+    const found = autofillTags().map((t) => `${rel(t.path)}:${t.line}`);
+    expect(
+      found.length,
+      `the app has ${found.length} autofilled field(s), the registry has ${FIELDS.length}:\n  ` +
+        `${found.join('\n  ')}\n` +
+        'A new one has to pick an iOS posture — `none` where the person is creating the value, ' +
+        'the fill where they are recalling it — and take a row above (#615, #662).',
+    ).toBe(FIELDS.length);
+  });
+
+  it('every registered field carries both spellings', () => {
+    const wrong: string[] = [];
+    const pools = new Map<string, ReturnType<typeof jsxOpeningTags>>();
+    for (const f of FIELDS) {
+      if (!pools.has(f.file)) pools.set(f.file, jsxOpeningTags(stripComments(read(f.file))));
+      const pool = pools.get(f.file) as ReturnType<typeof jsxOpeningTags>;
+      const tag = pool.find((t) => flat(t.raw).includes(flat(f.autoComplete)));
+      if (!tag) {
+        wrong.push(`${rel(f.file)}: no field spelled \`${f.autoComplete}\` (${f.what})`);
+        continue;
+      }
+      // Claimed, so a second row with the same spelling reads the NEXT field and not this one.
+      pool.splice(pool.indexOf(tag), 1);
+      if (!flat(tag.raw).includes(flat(f.textContentType))) {
+        wrong.push(
+          `${rel(f.file)}:${tag.line} (${f.what}) does not carry \`${f.textContentType}\``,
+        );
+      }
+    }
+    expect(
+      wrong,
+      `an AutoFill posture no longer matches the registry:\n  ${wrong.join('\n  ')}\n` +
+        'Both props are load-bearing and independent: `autoComplete` is the whole of Android’s ' +
+        'password and contact manager, `textContentType` is the whole of iOS’s. Dropping either ' +
+        'to tidy the other is a silent loss (#615, #662).',
+    ).toEqual([]);
+  });
+
+  it('no field asks iOS to fill during signup', () => {
+    const src = stripComments(read(WELCOME));
+    const bad = jsxOpeningTags(src)
+      .map((t) => ({ t, m: /textContentType=(\{[^}]*\}|"[^"]*")/.exec(flat(t.raw)) }))
+      .filter(({ m }) => m)
+      .filter(({ m }) => {
+        const v = (m as RegExpExecArray)[1] as string;
+        // Either off outright, or on only in the sign-in branch with `none` as the other arm.
+        return !(v === '"none"' || /^\{login \? '[A-Za-z]+' : 'none'\}$/.test(v));
+      })
+      .map(({ t, m }) => `${rel(WELCOME)}:${t.line} — ${(m as RegExpExecArray)[1]}`);
+    expect(
+      bad,
+      `a welcome.tsx field asks iOS for an AutoFill value in the signup branch:\n  ` +
+        `${bad.join('\n  ')}\n` +
+        'Signing up, the person is typing a value that does not exist yet, and a committed ' +
+        'suggestion replaces the whole line on re-focus (#615 hypothesis 2). Every field on this ' +
+        'screen is `"none"`, or `{login ? <type> : \'none\'}` where the sign-in branch recalls a ' +
+        'value that does exist (#662).',
+    ).toEqual([]);
+  });
+});

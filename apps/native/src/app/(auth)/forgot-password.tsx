@@ -148,6 +148,14 @@ export default function ForgotPasswordScreen() {
                 <Input
                   autoCapitalize="none"
                   autoComplete="email"
+                  // #662: `emailAddress`, spelled out rather than left to RN's `autoComplete`
+                  // mapping. Recovering an account, the address already exists and a full-field
+                  // fill is the point — the opposite of the signup branch, which takes `none`
+                  // (see the note in `(auth)/welcome.tsx`). Explicit because a DERIVED posture
+                  // is one nothing can read: this field carried the same iOS AutoFill as
+                  // signup's without ever naming it, which is how #615's residual stayed
+                  // invisible here. §35 of `source-audit.test.ts` pins it.
+                  textContentType="emailAddress"
                   keyboardType="email-address"
                   placeholder={t('auth.email.placeholder', locale)}
                   value={email}

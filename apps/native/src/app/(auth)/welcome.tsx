@@ -329,6 +329,27 @@ export default function WelcomeScreen() {
               )}
 
               <View className="gap-4">
+                {/* #615, widened by #662 — the iOS AutoFill posture of every field below.
+                  `textContentType` is iOS-only and OVERRIDES the value RN derives from
+                  `autoComplete` (TextInput.js maps one to the other only when the explicit prop
+                  is absent), so the two props are set independently: Android keeps its password
+                  and contact managers through `autoComplete`, iOS gets exactly the AutoFill
+                  asked for here.
+
+                  The split is by what the person is DOING, not by which field it is. Signing up
+                  they are creating a value that does not exist yet, and a committed suggestion
+                  REPLACES the whole value on re-focus — hypothesis 2 of the #615 report
+                  («re-editing replaces the line»), whose repro was field-agnostic. So every
+                  field takes `none` on the signup branch. Signing in they are recalling a value
+                  that does exist, where a full-field fill is the point, and the fill stays.
+
+                  #620 applied that to the password alone; #662 is the residual — name and email
+                  carried `name` / `emailAddress` into signup, the same vector. Deleting the
+                  explicit prop would NOT have fixed it: `autoComplete` derives the identical
+                  type straight back through the branch above. `none` is the remedy.
+
+                  The name field renders on the signup branch only, so its `none` is
+                  unconditional — there is no sign-in half of it to keep a fill for. */}
                 {!login ? (
                   <View className="gap-2">
                     <Text className="text-xs font-medium text-muted-foreground">
@@ -337,7 +358,7 @@ export default function WelcomeScreen() {
                     <Input
                       autoCapitalize="words"
                       autoComplete="name"
-                      textContentType="name"
+                      textContentType="none"
                       placeholder={t('auth.name.placeholder', locale)}
                       value={name}
                       onChangeText={setName}
@@ -352,7 +373,7 @@ export default function WelcomeScreen() {
                   <Input
                     autoCapitalize="none"
                     autoComplete="email"
-                    textContentType="emailAddress"
+                    textContentType={login ? 'emailAddress' : 'none'}
                     inputMode="email"
                     placeholder={t('auth.email.placeholder', locale)}
                     value={email}
@@ -364,16 +385,11 @@ export default function WelcomeScreen() {
                   <Text className="text-xs font-medium text-muted-foreground">
                     {t('auth.password.label', locale)}
                   </Text>
-                  {/* #615: `textContentType` is iOS-only and OVERRIDES the value RN derives from
-                    `autoComplete` (TextInput.js maps one to the other only when the explicit prop
-                    is absent), so the two props can be set independently — Android keeps its
-                    password manager through `autoComplete`, iOS gets exactly the AutoFill asked
-                    for here. Signup takes `none`: `newPassword` is what puts iOS's strong-password
-                    overlay on the field, and a committed suggestion REPLACES the whole value on
-                    re-focus, which is hypothesis 2 of the report («re-editing replaces the line»).
-                    Sign-in keeps `password`, where a full-field fill is the point. Hypothesis 1
-                    — UIKit clearing a secure field when editing resumes — has no call-site
-                    remedy short of dropping `secureTextEntry`; see the PR's device notes. */}
+                  {/* Per the note above, signup takes `none` here: `newPassword` is what puts
+                    iOS's strong-password overlay on the field, and the overlay's suggestion is
+                    the committed value in question. Sign-in keeps `password`. Hypothesis 1 —
+                    UIKit clearing a secure field when editing resumes — has no call-site remedy
+                    short of dropping `secureTextEntry`; see #620's device notes. */}
                   <Input
                     autoCapitalize="none"
                     autoComplete={login ? 'current-password' : 'new-password'}

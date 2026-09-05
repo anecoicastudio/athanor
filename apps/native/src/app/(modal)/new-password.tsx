@@ -104,7 +104,8 @@ export default function NewPasswordScreen() {
               autoComplete="new-password"
               // iOS AutoFill: `none`, not `newPassword` — the strong-password overlay
               // replaces the whole value on re-focus (#615's hypothesis 2; welcome.tsx
-              // makes the same call on its signup branch for the same reason).
+              // makes the same call on EVERY field of its signup branch, for the same
+              // reason — widened from the password alone by #662).
               textContentType="none"
               secureTextEntry={!revealed}
               placeholder={t('auth.password.placeholder', locale)}
