@@ -3512,3 +3512,57 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
     ).toEqual([SEAM]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 37 — the one private expo path, named and bounded (#508)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `lib/oauth.ts` reaches into `expo-auth-session/build/QueryParams` — a compiled path, not a
+ * public export. It is the only deep import into a `build/` directory in the app, and it exists
+ * because `expo-auth-session` does not re-export `QueryParams` from its index (still true on
+ * SDK 57, `build/index.d.ts`, checked 2026-09-05) and ships no `exports` map, which is the only
+ * reason the path resolves at all.
+ *
+ * The failure mode is silent: an `exports` map added upstream turns this into a Metro resolution
+ * error at bundle time, which is loud; a rename inside `build/` turns `getQueryParams` into
+ * `undefined` at the OAuth CALLBACK, on device, with no type error. The second assertion is what
+ * stands between that rename and a dead sign-in. The public replacement is `expo-linking`'s
+ * `parse(url).queryParams` (already imported in `oauth.ts`); moving to it changes the
+ * `errorCode` shape and is its own change, not a reflex.
+ */
+describe('the expo-auth-session deep import stays deliberate', () => {
+  const DEEP = 'expo-auth-session/build/QueryParams';
+
+  it('is used in exactly one file, and it is oauth.ts', () => {
+    const users = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => text.includes(DEEP))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      users,
+      `${DEEP} is a PRIVATE path — expo-auth-session does not export QueryParams from its ` +
+        'index and ships no `exports` map. One site, so the day it stops resolving there is one ' +
+        'file to fix (#508).',
+    ).toEqual(['lib/oauth.ts']);
+  });
+
+  it('the private path still resolves and still exports getQueryParams', () => {
+    const req = createRequire(`${SRC}package.json`);
+    expect(
+      () => req.resolve(DEEP),
+      'expo-auth-session moved or gated build/QueryParams. Check whether the SDK now exports ' +
+        'QueryParams publicly; if not, `parse(url).queryParams` from expo-linking is the public ' +
+        'replacement — oauth.ts already imports expo-linking.',
+    ).not.toThrow();
+    const mod = req(req.resolve(DEEP)) as { getQueryParams?: unknown };
+    expect(
+      typeof mod.getQueryParams,
+      'build/QueryParams resolves but no longer exports getQueryParams — oauth.ts would read ' +
+        '`undefined` at the OAuth callback with no type error.',
+    ).toBe('function');
+  });
+});
