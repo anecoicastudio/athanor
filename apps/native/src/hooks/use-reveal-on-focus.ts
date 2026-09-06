@@ -28,5 +28,8 @@ import { createRevealOnFocus, type RevealOnFocus } from '@/lib/reveal-on-focus';
  * built once per screen — a new one per render would forget which field is focused.
  */
 export function useRevealOnFocus(): RevealOnFocus {
-  return useMemo(createRevealOnFocus, []);
+  // Inline, not a bare reference: `react-hooks/use-memo` requires the factory to be an
+  // inline function expression. Behaviour-identical — React calls the factory with no
+  // arguments either way, and `createRevealOnFocus` defaults its options.
+  return useMemo(() => createRevealOnFocus(), []);
 }

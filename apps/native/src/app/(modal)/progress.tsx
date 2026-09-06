@@ -118,11 +118,14 @@ export default function ProgressScreen() {
   // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
   const now = useNow();
 
+  // Hoisted: reading `edition.id` inside the body made the compiler infer `edition` as the
+  // dependency while the source named `edition?.id`, so the manual memo could not be preserved.
+  const editionId = edition?.id;
   const invalidate = useCallback(async () => {
-    if (!edition?.id) return;
-    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.mine(edition.id) });
-    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.feed(edition.id) });
-  }, [edition?.id, qc]);
+    if (!editionId) return;
+    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.mine(editionId) });
+    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.feed(editionId) });
+  }, [editionId, qc]);
 
   const postMutation = useMutation({
     mutationFn: () =>
