@@ -10,10 +10,16 @@ import { useEffect, useState } from 'react';
  * it traded one diagnostic for two.
  *
  * **Pinned is the default, and it is a per-MOUNT guarantee, not a per-navigation one.** Every
- * pinned caller is a pushed or modal screen, which mounts fresh each time it is opened, and one
- * instant per screen is exactly what makes every «2 ore fa» in a list agree with the others —
- * what the two fund screens wanted the ref for. A lapsed sanction or a closed ballot window
- * therefore still clears on the next screen, with no timer.
+ * pinned caller but one is a pushed or modal screen, which mounts fresh each time it is opened,
+ * and one instant per screen is exactly what makes every «2 ore fa» in a list agree with the
+ * others — what the two fund screens wanted the ref for. A closed ballot window therefore still
+ * clears on the next screen, with no timer.
+ *
+ * The exception is `SuspendedNotice`, which is not a screen: it mounts inside `Screen`, so on a
+ * tab it lives as long as the tab does and a sanction that lapses mid-session keeps its banner
+ * until the member opens another screen. Left pinned deliberately — the banner is cosmetic and
+ * the enforcement is server-side (rule 2's restrictive write net), so a stale one fails in the
+ * safe direction, and a timer on every mounted `Screen` is a poor trade for it.
  *
  * A **bottom tab does not remount** — expo-router's vendored bottom-tabs keeps a visited tab
  * mounted (`(tabs)/momenti.tsx` says so for its own latch) — so a tab that reads the clock for a
