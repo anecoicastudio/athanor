@@ -118,6 +118,25 @@ Deno.test('circlePriceIds reads the two STRIPE_PRICE_CIRCLE_* names, and nothing
   assertEquals(seen.sort(), ['STRIPE_PRICE_CIRCLE_ANNUAL', 'STRIPE_PRICE_CIRCLE_MONTHLY']);
 });
 
+Deno.test('circlePriceIds returns the value TRIMMED, not merely tested trimmed', () => {
+  // The hazard nonBlank's docblock describes, asserted so it cannot be deleted silently: a value
+  // pasted into the Supabase secrets UI with a trailing newline is set (so no «unset» warning
+  // fires) and non-blank (so it is used verbatim). For a price id that is a cross-mode-looking
+  // `prices.retrieve` failure (#644); for a signing secret it is three days of unlogged 400s
+  // against a secret that looks correct in the dashboard.
+  assertEquals(circlePriceIds(env({ STRIPE_PRICE_CIRCLE_MONTHLY: ' price_m\n' })), {
+    monthly: 'price_m',
+    annual: undefined,
+  });
+  assertEquals(
+    webhookSigningSecrets(env({ STRIPE_CONNECT_WEBHOOK_SECRET: `\t${CONNECT_SECRET} ` })),
+    {
+      platform: undefined,
+      connect: CONNECT_SECRET,
+    },
+  );
+});
+
 Deno.test('circlePriceIds treats a blank value as unset', () => {
   // A declared-but-empty secret must read as «not configured», never as an empty id that
   // reaches `prices.retrieve` and fails as a Stripe error the operator reads the wrong way.
