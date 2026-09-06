@@ -23,7 +23,15 @@ export function CityPicker({
   onChange: (city: string, geohash: string | null) => void;
   locale: Locale;
 }) {
-  const [suggestions, setSuggestions] = useState<CitySuggestion[]>([]);
+  // The result carries the query it answers, so "these suggestions are stale" is a comparison
+  // during render rather than a `setState([])` in an effect (#691) — a too-short query, a
+  // picked value and an in-flight debounce all stop showing the previous city's list without
+  // anything having to clear it.
+  const [result, setResult] = useState<{ query: string; items: CitySuggestion[] }>({
+    query: '',
+    items: [],
+  });
+  const suggestions = result.query === city ? result.items : [];
   // Suppresses the lookup for the change that a pick itself causes.
   const picked = useRef(false);
 
@@ -32,17 +40,14 @@ export function CityPicker({
       picked.current = false;
       return;
     }
-    if (city.trim().length < 2 || !citySearchAvailable()) {
-      setSuggestions([]);
-      return;
-    }
+    if (city.trim().length < 2 || !citySearchAvailable()) return;
     const controller = new AbortController();
     const timer = setTimeout(() => {
       searchCities(city, locale, controller.signal)
-        .then(setSuggestions)
+        .then((items) => setResult({ query: city, items }))
         // Search is a convenience, not a gate: on any failure the member
         // simply keeps their typed text (the free-text path).
-        .catch(() => setSuggestions([]));
+        .catch(() => setResult({ query: city, items: [] }));
     }, 300);
     return () => {
       clearTimeout(timer);
@@ -52,7 +57,8 @@ export function CityPicker({
 
   const pick = (s: CitySuggestion) => {
     picked.current = true;
-    setSuggestions([]);
+    // No clearing: `onChange` moves `city` to the picked name, which no longer matches the
+    // query these suggestions answered, so the list stops rendering on the same commit.
     onChange(s.name, encodeGeohash(s.lat, s.lng, CITY_GEOHASH_PRECISION));
   };
 

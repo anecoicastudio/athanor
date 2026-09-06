@@ -104,7 +104,11 @@ export function StoriesViewer({
   onPin: (segment: StorySegment) => void;
   onDelete: (segment: StorySegment) => void;
 }) {
-  const [si, setSi] = useState(0);
+  // A new `segments` identity is a person change (#298): open at the end `startAt` names.
+  // `startAt` only means something with new segments, which is why it is read here and not
+  // remembered. Derived rather than reset from an effect (#691) — the effect landed a commit
+  // late, so `segments[si]` below ran once against the PREVIOUS person's index.
+  const [cursor, setCursor] = useState<{ segments: StorySegment[]; i: number } | null>(null);
   const [paused, setPaused] = useState(false);
   // Tap-zone width from onLayout, not Dimensions-at-module-scope: that snapshot goes stale
   // after a rotation or in split view (#297 beyond-the-issue).
@@ -120,22 +124,17 @@ export function StoriesViewer({
   const { showToast } = useToast();
   const reduce = useReducedMotion();
   const progress = useAnimatedValue(0);
+  const openAt = startAt === 'last' ? Math.max(0, segments.length - 1) : 0;
+  const si = cursor?.segments === segments ? cursor.i : openAt;
   const current = segments[si];
   const currentUrl = current ? urls[current.storage_path] : undefined;
 
-  useEffect(() => {
-    // A new segments identity is a person change (#298): open at the end `startAt` names.
-    // `startAt` is deliberately not a dependency — it only means something with new segments.
-    setSi(startAt === 'last' ? Math.max(0, segments.length - 1) : 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segments]);
-
   const goNext = () => {
-    if (si + 1 < segments.length) setSi(si + 1);
+    if (si + 1 < segments.length) setCursor({ segments, i: si + 1 });
     else onAdvanceEnd();
   };
   const goPrev = () => {
-    if (si > 0) setSi(si - 1);
+    if (si > 0) setCursor({ segments, i: si - 1 });
     else onAdvanceStart();
   };
 

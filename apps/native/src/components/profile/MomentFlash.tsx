@@ -12,6 +12,10 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
  * Moment flash (frontend `02` §9): the one glow moment (rule #4) — a help became real.
  * A centered cyan ✦ pulse + the «Hai avvicinato un sogno ✦» toast for ~700ms.
  *
+ * `flash` is the episode's id — a milestone id, a star id — and `null` for nothing to say. An
+ * id rather than a boolean because the flash outlives nothing: it shows once per id and stops,
+ * even while the caller's condition is still true.
+ *
  * Reduced-motion safe: under Reduce Motion it fades opacity only (no scale/transform).
  * Uses the RN core `Animated` API + `AccessibilityInfo` (the codebase pattern, see
  * BrandSplash) rather than reanimated worklets — simpler and stable.
@@ -19,15 +23,20 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
  * TODO(M3): the richer Foundation `burst` host (Sheet/burst) replaces this inline flash.
  * Never animates an Aura number — there is none in M2 (rule #1).
  */
-export function MomentFlash({ visible, locale }: { visible: boolean; locale: Locale }) {
-  const [mounted, setMounted] = useState(false);
+export function MomentFlash({ flash, locale }: { flash: string | null; locale: Locale }) {
+  // The EPISODE that has already played out, not a mounted flag. `flash` is a level — the
+  // caller's condition outlives the ~700ms show (a star grant holds for 2800ms) — so the flash
+  // has to take itself off screen. Holding that as `mounted` meant turning it ON from inside
+  // the effect (#691); holding the finished episode instead makes «still showing» a comparison
+  // during render, and the fade-out callback is the only writer.
+  const [playedOut, setPlayedOut] = useState<string | null>(null);
+  const showing = flash !== null && playedOut !== flash;
   const reduceMotion = useReducedMotion();
   const opacity = useAnimatedValue(0);
   const scale = useAnimatedValue(0.9);
 
   useEffect(() => {
-    if (!visible) return;
-    setMounted(true);
+    if (flash === null) return;
     opacity.setValue(0);
     scale.setValue(reduceMotion ? 1 : 0.9);
     const anims = [
@@ -56,12 +65,12 @@ export function MomentFlash({ visible, locale }: { visible: boolean; locale: Loc
         duration: 200,
         easing: Easing.ease,
         useNativeDriver: true,
-      }).start(() => setMounted(false));
+      }).start(() => setPlayedOut(flash));
     }, 520);
     return () => clearTimeout(out);
-  }, [visible, reduceMotion, opacity, scale]);
+  }, [flash, reduceMotion, opacity, scale]);
 
-  if (!mounted) return null;
+  if (!showing) return null;
 
   return (
     <View

@@ -99,8 +99,18 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
     }
   };
 
+  // Ask the OS for a fix once, on mount. Two directives, two different reasons:
+  //
+  // - `set-state-in-effect`: every `setState` inside `requestLocation` sits behind an `await` on
+  //   a native permissions or geolocation call, so none of them runs synchronously in this
+  //   effect body — the compiler does not model the async boundary and reads the call as if
+  //   they did (#691). There is nothing to derive here; asking an external system is the job.
+  // - `exhaustive-deps`: `requestLocation` is rebuilt every render and closes over `locale`, so
+  //   listing it would re-prompt for the member's position on a language switch. Mount only.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void requestLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const query = useInfiniteQuery({

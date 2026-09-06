@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { auraKeys, starKeys } from '@athanor/api';
@@ -63,7 +63,7 @@ function ProfileEditor({
   profile: Profile;
   refreshProfile: () => Promise<void>;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editingLocal, setEditingLocal] = useState(false);
   const [saved, setSaved] = useState(false);
   const { showToast } = useToast();
   const router = useRouter();
@@ -73,15 +73,17 @@ function ProfileEditor({
   const dream = useOwnDream(userId);
   const { starFlash } = useStarCelebration(userId, locale);
 
-  // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). Consumed in an
-  // effect, not a useState initializer: trust dismissTo's back to this already-
-  // mounted tab, so only the params change — an initializer would never re-run.
+  // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). A useState initializer would
+  // never re-run — trust `dismissTo`s back to this ALREADY-MOUNTED tab, so only the params
+  // change — so the link is read on every render and the editor is DERIVED from it (#691),
+  // rather than an effect that setStates and rewrites the params behind it. Closing clears
+  // both halves, which is what stops the link from re-opening what the member just closed.
   const { edit } = useLocalSearchParams<{ edit?: string }>();
-  useEffect(() => {
-    if (edit !== '1') return;
-    setEditing(true);
-    router.setParams({ edit: undefined });
-  }, [edit, router]);
+  const editing = editingLocal || edit === '1';
+  const closeEditor = () => {
+    setEditingLocal(false);
+    if (edit !== undefined) router.setParams({ edit: undefined });
+  };
 
   // Invalidate Aura + Stars whenever Profilo regains focus so the grid refreshes
   // after confirmed help events (preserves focus-refetch behaviour from old useEffect).
@@ -111,7 +113,7 @@ function ProfileEditor({
   };
 
   const onSaved = () => {
-    setEditing(false);
+    closeEditor();
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -153,7 +155,7 @@ function ProfileEditor({
                   <SettingsIcon size={24} color={semantic.faint} />
                 </Pressable>
                 <Pressable
-                  onPress={() => setEditing(true)}
+                  onPress={() => setEditingLocal(true)}
                   accessibilityRole="button"
                   hitSlop={HIT_SLOP}
                 >
@@ -178,7 +180,7 @@ function ProfileEditor({
               dreamText={dream.dreamText}
               refreshProfile={refreshProfile}
               onSaved={onSaved}
-              onCancel={() => setEditing(false)}
+              onCancel={closeEditor}
             />
           )}
 
@@ -187,11 +189,11 @@ function ProfileEditor({
           ) : null}
 
           {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
-          <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
+          <MomentFlash flash={dream.flashMilestoneId} locale={locale} />
 
           {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
           The matching toast fires through the global host (#117). */}
-          <MomentFlash visible={starFlash} locale={locale} />
+          <MomentFlash flash={starFlash} locale={locale} />
         </ScrollView>
       </Screen>
     </KeyboardAvoiding>

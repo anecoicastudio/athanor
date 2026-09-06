@@ -799,8 +799,8 @@ describe('the full-bleed viewer lifts the toast band over its overlay chrome (#1
  * back a trail that stops one step early.
  *
  * Lint cannot close this, for two independent reasons. `apps/native/eslint.config.js` is
- * `eslint-config-expo/flat` plus an `ignores` block and a React-Compiler rule-severity block
- * (#691) and nothing else, so
+ * `eslint-config-expo/flat` plus an `ignores` block and nothing else — the React-Compiler
+ * rule-severity block that used to sit beside it is gone, its sweep done (#691) — so
  * `@typescript-eslint/no-floating-promises` — configured only in
  * `packages/config/eslint/library.js`, which this app does not extend — is not running here at
  * all. And even where it runs it defaults to `ignoreVoid: true`, so `void markStep(…)` satisfies
@@ -2565,7 +2565,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:360': 'the reply send disc — same reason as chat.tsx:523',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:523',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',

@@ -55,13 +55,12 @@ export function SwipeDeck({
   onEmpty: () => void;
   deckRef?: React.MutableRefObject<SwipeDeckHandle | null>;
 }) {
-  const [index, setIndex] = useState(0);
+  const [cursor, setCursor] = useState<{ deckKey: string; index: number }>({
+    deckKey: '',
+    index: 0,
+  });
   const reduceMotion = useReducedMotion();
   const pan = useAnimatedValueXY();
-
-  useEffect(() => {
-    pan.setValue({ x: 0, y: 0 });
-  }, [index, pan]);
 
   // The parent refetches the deck after every accept/pass (invalidateQueries), handing us a
   // fresh, shorter `cards` array. Reset the cursor to the new top whenever the deck identity
@@ -70,15 +69,20 @@ export function SwipeDeck({
   // accepts/passes (and labels) someone other than the visible person. (accept/pass always
   // removes the row server-side, so the id list — and this key — changes after each action.)
   const deckKey = cards.map((c) => c.id).join('|');
+  // Derived, not reset from an effect (#691): the effect landed a commit LATE, so exactly one
+  // render still showed and acted on cards[stale index] — the desync above, narrowed rather
+  // than closed. Reading the cursor through its own deck key closes it.
+  const index = cursor.deckKey === deckKey ? cursor.index : 0;
+
   useEffect(() => {
-    setIndex(0);
-  }, [deckKey]);
+    pan.setValue({ x: 0, y: 0 });
+  }, [index, pan]);
 
   const advance = (dir: 'left' | 'right', card: MomentoDeckCard) => {
     if (dir === 'right') onAccept(card);
     else onPass(card);
     const ni = index + 1;
-    setIndex(ni);
+    setCursor({ deckKey, index: ni });
     if (ni >= cards.length) onEmpty();
   };
 

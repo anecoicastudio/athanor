@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Image } from 'expo-image';
 import { memberLabel } from '@athanor/core';
 import { StyleSheet } from 'react-native';
@@ -48,11 +48,12 @@ export function Avatar({
   const url = previewUri ?? signed;
   const reduce = useReducedMotion();
   const initial = (displayName?.trim() || handle || '?').charAt(0).toUpperCase();
-  const [failed, setFailed] = useState(false);
-
-  // A re-signed URL deserves a fresh attempt (same recovery as MediaFrame): without the reset a
-  // single dead URL would pin the initial for the rest of the session.
-  useEffect(() => setFailed(false), [url]);
+  // The URL that failed, rather than a bare flag. A re-signed URL is a different string, so
+  // "give it a fresh attempt" is a comparison during render instead of a `setState` in an
+  // effect (#691) — and it can no longer show one render of the OLD failure against a NEW
+  // url, which is the window the effect left open.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = url !== undefined && failedUrl === url;
 
   return (
     <View
@@ -75,7 +76,7 @@ export function Avatar({
           recyclingKey={url}
           // A URL that signs and then 404s is a blank disc without this — the docblock's promise
           // held only for sign failures until #287.
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(url ?? null)}
         />
       ) : (
         // `ornament` (#639): the disc is sized by the `size` prop — a layout constant every

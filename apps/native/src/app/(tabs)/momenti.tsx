@@ -59,7 +59,7 @@ export default function MomentiScreen() {
   // announcement lives — so on the platform testers actually hold, accepting a Momento produced
   // no announcement at all.
   useAnnounceOnMount(deckToast ?? undefined);
-  const [done, setDone] = useState(false);
+  const [sweptKey, setSweptKey] = useState<string | null>(null);
 
   const deck = useMomentiDeck();
   const cards = deck.data ?? [];
@@ -70,12 +70,14 @@ export default function MomentiScreen() {
   // that case: bottom-tabs keeps a visited tab mounted, so `done` survives navigation.
   const answered = useMomentiAnswered();
 
-  // `done` latches the in-session swipe-through (SwipeDeck.onEmpty fires once its
-  // local index passes the array). A refetch that brings fresh cards back must
-  // un-strand the deck — otherwise the exhausted state would stick forever.
-  useEffect(() => {
-    if (cards.length > 0) setDone(false);
-  }, [cards.length]);
+  // The in-session swipe-through latch (SwipeDeck.onEmpty fires once its local index passes
+  // the array), carrying the deck it swept. It must stay true through the window where the
+  // mutation and refetch have not settled — `cards` is still the answered array there, and
+  // `momentiDeckView` needs `exhausted` — and go false the moment a refetch brings a DIFFERENT
+  // deck back, or the tab strands. That is exactly "the array has not changed since", so the
+  // key says it during render instead of an effect clearing a flag a commit later (#691).
+  const deckKey = cards.map((c) => c.id).join('|');
+  const done = sweptKey !== null && sweptKey === deckKey;
 
   const suggestions = useQuery({
     queryKey: momentiKeys.suggestions(),
@@ -188,7 +190,7 @@ export default function MomentiScreen() {
               deckRef={deckRef}
               onAccept={(c) => accept.mutate(c)}
               onPass={(c) => pass.mutate(c)}
-              onEmpty={() => setDone(true)}
+              onEmpty={() => setSweptKey(deckKey)}
             />
           )}
         </View>

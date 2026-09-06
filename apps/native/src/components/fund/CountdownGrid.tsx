@@ -6,15 +6,18 @@ import { CountdownCell } from './CountdownCell';
 
 /** 4-cell countdown ticking toward a server-authoritative target. Tick is local (Date.now); the deadline is display-only (frontend 07 §5/§9). */
 export function CountdownGrid({ targetMs, locale }: { targetMs: number; locale: 'it' | 'en' }) {
-  const [rem, setRem] = useState(() => timeRemaining(targetMs, Date.now()));
+  // The CLOCK is the state; the remainder is derived from it and `targetMs` during render. Held
+  // as a remainder it needed a `setState` inside the effect to re-sync when `targetMs` changed
+  // (#691) — which is just "recompute", and recomputing is what render is for.
+  const [now, setNow] = useState(() => Date.now());
+  const rem = timeRemaining(targetMs, now);
 
   useEffect(() => {
-    setRem(timeRemaining(targetMs, Date.now()));
     if (timeRemaining(targetMs, Date.now()).done) return;
     const id = setInterval(() => {
-      const next = timeRemaining(targetMs, Date.now());
-      setRem(next);
-      if (next.done) clearInterval(id);
+      const t = Date.now();
+      setNow(t);
+      if (timeRemaining(targetMs, t).done) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
   }, [targetMs]);

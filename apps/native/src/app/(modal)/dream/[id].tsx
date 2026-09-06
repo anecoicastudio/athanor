@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -137,9 +137,11 @@ function AuthorByline({
   label: string;
   onPress: () => void;
 }) {
-  const [failed, setFailed] = useState(false);
-  // A refetch can re-sign the url; give the photo a fresh attempt (same recovery as Avatar).
-  useEffect(() => setFailed(false), [author.avatarUrl]);
+  // The URL that failed, rather than a bare flag (same recovery as Avatar): a refetch can
+  // re-sign the url, and a different string is a fresh attempt without a `setState` in an
+  // effect (#691).
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = author.avatarUrl != null && failedUrl === author.avatarUrl;
   // `||`, not `??`: an empty-string display name must fall through to the handle (Avatar.tsx
   // makes the same call), or the disc renders blank.
   const initial = (author.displayName || author.handle).trim().charAt(0).toUpperCase();
@@ -164,7 +166,7 @@ function AuthorByline({
             source={{ uri: author.avatarUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            onError={() => setFailed(true)}
+            onError={() => setFailedUrl(author.avatarUrl ?? null)}
           />
         ) : (
           <Text className="text-lg font-light text-aura">{initial}</Text>
