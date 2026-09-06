@@ -1584,6 +1584,20 @@ corrects — `create-payout-onboarding` requests only the `transfers` capability
 `charges_enabled` never becomes true on these accounts and a gate on it would refuse every
 organiser permanently.
 
+### A second, smaller overstatement in the same header
+
+`organizer_payout_destination`'s comment says the event-keyed shape scopes the disclosure "to
+organisers of live paid events, which is exactly the set whose account a buyer is about to be sent
+to anyway". The second clause overstates it: any `authenticated` member can call the function with
+any readable paid event's id **without buying anything**, so the real exposure is every payable
+organiser of every readable paid event, not only the ones a given caller is mid-checkout on.
+
+The decision the comment defends is still the right one and is not being reversed here — a
+uid-keyed twin would let a member enumerate every organiser's Stripe account id with no event
+involved, and the service-role alternative is asserted against in
+`supabase/functions/_shared/auth-posture.test.ts` (`SERVICE_ROLE_ALLOWED` does not and must not
+contain `create-ticket-checkout`). Only the prose is loose.
+
 Asserted by: `supabase/tests/0147_ticket_payout_gate.test.sql` — which pins the behaviour that
 exists (the flag, the coalesce-to-false on a missing row, both write paths, and the order against
 the identity arm), and deliberately asserts nothing about `capabilities.transfers`, because nothing

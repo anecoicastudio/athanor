@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(30);
 
 -- #104 — a paid event needs an organiser who can actually be paid.
 --
@@ -73,6 +73,17 @@ select ok(
      where n.nspname = 'public' and p.proname = 'has_payouts_enabled')
   @> array['search_path=""'],
   'has_payouts_enabled locks search_path to the empty string'
+);
+
+-- Pinned directly rather than left to the behaviour assertion below. If this function ever
+-- reverted to INVOKER it would drop out of 0080's prosecdef-keyed sweep SILENTLY, taking its
+-- search_path and grant coverage with it — the behaviour test would still fail, but for a reason
+-- that names none of that.
+select is(
+  (select prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'organizer_payout_destination'),
+  true,
+  'organizer_payout_destination is SECURITY DEFINER — payout_accounts is select-own and the buyer is not the organiser'
 );
 
 select ok(

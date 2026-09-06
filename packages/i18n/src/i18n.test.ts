@@ -309,9 +309,15 @@ describe('organiser settlement disclosure (#437, #104)', () => {
       expect(catalog['event.create.settlement.ack'], `${name} must name {pct}%`).toContain(
         '{pct}%',
       );
-      expect(catalog['event.create.settlement.ack'], `${name} hardcodes a percentage`).not.toMatch(
-        /\d\s*%/,
-      );
+    }
+    // The literal ban stays across ALL THREE keys, exactly as the version this replaces applied it.
+    // Only the reason changed: it used to mean "promise no commission at all", and now means "the
+    // one place a rate may appear is the placeholder". Narrowing it to `.ack` would leave `.split`
+    // and `.required` free to hardcode «10%» beside an interpolated one and drift silently from
+    // events.fee_pct — the very failure the placeholder exists to prevent.
+    for (const key of SETTLEMENT_KEYS) {
+      expect(it[key], `it.${key} hardcodes a percentage`).not.toMatch(/\d\s*%/);
+      expect(en[key], `en.${key} hardcodes a percentage`).not.toMatch(/\d\s*%/);
     }
   });
 
