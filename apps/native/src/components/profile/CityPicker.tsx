@@ -57,8 +57,10 @@ export function CityPicker({
 
   const pick = (s: CitySuggestion) => {
     picked.current = true;
-    // No clearing: `onChange` moves `city` to the picked name, which no longer matches the
-    // query these suggestions answered, so the list stops rendering on the same commit.
+    // Cleared outright rather than left to `onChange` moving `city` off the query: type
+    // «Milano» in full and tap the identically-named suggestion and `city` does not move at
+    // all, so a derived comparison would keep the list open under the member's finger.
+    setResult({ query: '', items: [] });
     onChange(s.name, encodeGeohash(s.lat, s.lng, CITY_GEOHASH_PRECISION));
   };
 

@@ -46,7 +46,7 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
 
   // Above the early returns: a hook below them would run in a different order on the
   // render where the cycle appears.
-  const now = useNow();
+  const now = useNow(60_000);
 
   const slot = dreamHeroSlot(
     fundCycleState({

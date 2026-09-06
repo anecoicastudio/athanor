@@ -99,7 +99,9 @@ export default function CommunityScreen() {
   // opens the viewer (and the chain), without one it opens the composer. Also warms
   // storyKeys.person(myId) so the viewer's session can include you without a refetch.
   const myStoryQuery = usePersonStory(myId);
-  const now = useNow();
+  // Ticking, not pinned: bottom-tabs keeps this tab mounted for the session, and a story that
+  // expires while the member sits here must stop reading as live.
+  const now = useNow(60_000);
   const myHasLive = (myStoryQuery.data?.segments ?? []).some(
     (s) => !s.deleted_at && new Date(s.expires_at).getTime() > now,
   );

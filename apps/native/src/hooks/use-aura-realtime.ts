@@ -69,7 +69,7 @@ export function useAuraRealtime(
 
     return cleanup;
     // Only profileId drives (re)subscription. onStarEarned is read via
-    // onStarEarnedRef (updated every render), so omitting it from deps does NOT
+    // onStarEarnedRef (updated from an effect), so omitting it from deps does NOT
     // stale the callback. queryClient/router are stable singletons.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);

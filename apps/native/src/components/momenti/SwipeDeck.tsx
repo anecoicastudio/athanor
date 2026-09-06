@@ -95,7 +95,7 @@ export function SwipeDeck({
       duration: reduceMotion ? FLY_OUT_REDUCED_MS : FLY_OUT_MS,
       useNativeDriver: false,
     }).start(({ finished }) => {
-      // A refetch landing mid-flight resets pan/index (the effects above), which kills
+      // A refetch landing mid-flight re-derives `index` and resets `pan`, which kills
       // this animation with finished: false — the deck already moved on, so advancing
       // anyway acted on the old card against the new deck: half-moved card, desynced
       // index (#357). StoriesViewer's progress timer guards the same way.

@@ -1703,7 +1703,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * reached the screen by pushing, which is why it survived across 20 files.
  *
  * A `(modal)` screen is a stack root more often than the in-app push path suggests:
- * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:52`
+ * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:53`
  * `replace`s EVERY `/@handle` link into `/(modal)/user/[id]`; the Android `intentFilters` in
  * `app.json` claim `/post`, `/event` and `/dream`, none of which has a top-level route
  * directory, so they resolve into `(modal)` too; and a modal→modal `replace` hands its

@@ -265,10 +265,11 @@ export function AudioRecorderSheet({
     onCancel();
   }
 
-  // Render-safe by construction: while recording this branch is not taken, and once
-  // `recording` is false nothing writes `lastMs` again, so the value read here is final and
-  // cannot go stale. Reading the LIVE `durationMillis` instead would show 0 through the closing
-  // fade, on a recorder that no longer exists.
+  // Render-safe by construction: while recording this branch is not taken, and the only writer
+  // while `recording` is false is `start()`, which zeroes it — the reset a new take wants. So
+  // the value read here is either the finished take's length or the zero a fresh one begins
+  // from, never a stale reading. Reading the LIVE `durationMillis` instead would show 0 through
+  // the closing fade, on a recorder that no longer exists.
   // eslint-disable-next-line react-hooks/refs
   const seconds = recordedSeconds(recording ? state.durationMillis : lastMs.current);
 

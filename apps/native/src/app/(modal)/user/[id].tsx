@@ -60,7 +60,7 @@ export default function PersonDetailScreen() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { showToast } = useToast();
   /**
-   * `/@handle` reaches this screen through a `replace` (`src/app/[handle].tsx:52`), so on every
+   * `/@handle` reaches this screen through a `replace` (`src/app/[handle].tsx:53`), so on every
    * deep link to a member this screen IS the stack — warm or cold, not only on a cold start.
    * A bare `back()` after blocking would leave the blocker staring at the person they just
    * blocked (#578).
