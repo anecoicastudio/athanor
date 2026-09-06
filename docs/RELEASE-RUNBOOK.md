@@ -473,6 +473,65 @@ Check `supabase/.temp/linked-project.json` reads `athanor` (production) before t
 verify with `select column_name from information_schema.columns where table_name = 'profiles'
 and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagging.
 
+### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06)
+
+Since #104 a ticket Checkout Session carries `payment_intent_data.transfer_data.destination` (the
+organiser's connected account) and `payment_intent_data.application_fee_amount` (Athanor's
+`events.fee_pct`, default 10%). Stripe splits the money at payment time. Nothing in this repo
+initiates a refund — there is no `refunds.create` anywhere — so refunds stay **Dashboard-issued**,
+and that is exactly why this section exists: the Dashboard's defaults are wrong for this charge
+shape, and getting them wrong costs real money in a direction nobody notices for a month.
+
+**Read this before refunding a ticket.**
+
+#### What Stripe does by default, and why it is wrong here
+
+> "When refunding a charge that has a `transfer_data[destination]`, by default the destination
+> account keeps the funds that were transferred to it, leaving the platform account to cover the
+> negative balance from the refund."
+> — docs.stripe.com/connect/destination-charges, "Issue refunds"
+
+So a plain refund of a €15 ticket takes €15 out of Athanor's balance and leaves €13,50 sitting with
+the organiser. Athanor eats the whole ticket, not its commission.
+
+#### The two flags
+
+| flag                     | default | what to use, and why                                                                                                                                                                                                                                                                                                  |
+| ------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reverse_transfer`       | `false` | **Always `true` for a ticket.** Pulls the organiser's share back to cover the refund. A full refund reverses the whole transfer; a partial refund reverses proportionally. Without it Athanor funds the organiser's refund out of its own balance.                                                                    |
+| `refund_application_fee` | `false` | **Leave `false`** unless the refund is Athanor's fault (a platform outage, a duplicate charge we caused). `false` keeps the commission on a sale that was made and then unwound; `true` hands it to the organiser. Either way the buyer is made whole — this flag only moves money between Athanor and the organiser. |
+
+Stripe's own constraint, worth knowing before the Dashboard argues with you: _"If you refund the
+application fee for a destination charge, you must also reverse the transfer."_ `refund_application_fee: true` without `reverse_transfer: true` is rejected.
+
+In the Dashboard the two appear as checkboxes on the refund dialog for a Connect charge. If they
+are not offered, the charge is not a destination charge — stop and find out why before refunding.
+
+Neither flag returns Stripe's **processing fee**, which is not refunded on a refund. Athanor is out
+that amount on every refunded ticket regardless of the flags, because the platform is the one that
+paid it (`controller.fees.payer: 'application'` on these accounts).
+
+#### Disputes
+
+> "For destination charges, with or without `on_behalf_of`, Stripe debits dispute amounts and fees
+> from your platform account."
+
+The organiser is not touched automatically. Recovering their share is a **manual transfer
+reversal**, from the Dashboard's Transfers view or the transfer-reversal API. If the dispute is
+later won, transferring the money back to the organiser needs Athanor's balance to cover it.
+
+There is no dispute-recovery automation and no `charge.dispute.created` arm that reverses a
+transfer. W12 revokes the buyer's ticket; the money side is an operator act. **If ticket volume
+makes that unsustainable, that is a new issue, not a thing to improvise during an incident.**
+
+#### One more asymmetry worth knowing
+
+For delayed payment methods (SEPA), if the destination account loses its `transfers` capability
+between authorisation and settlement, Stripe **skips the transfer** and the funds stay in Athanor's
+balance, signalled by `charge.updated` with a null `transfer_data`. Nothing here listens for that
+today. The ticket is issued and the organiser is not paid, and only a balance reconciliation would
+show it.
+
 ## 5. Apple IAP / Stripe Compliance Posture (S-IAP-1 … S-IAP-4)
 
 Spec ref: `10-m10-launch.md` §7.
@@ -500,7 +559,7 @@ Spec ref: `10-m10-launch.md` §7.
 
 > **Payout onboarding deploy config (2026-08-15, #246):** the Dashboard webhook endpoint's enabled events must include **`account.updated`** (the W13 arm maintains `payout_accounts`; without the event the capability flags never flip and #247's transfer gate never opens). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
 
-> **Stripe https return pages (2026-08-18, #418):** the pages those two URLs point at now exist — `apps/web` serves `/app/payout/return`, `/app/payout/refresh` and `/app/verify`, each forwarding to the `athanor://` scheme. Three edge-function secrets go with them, and **all three must be set only after `apps/web` is live in production**, i.e. after the `dev → main` release that carries those routes — set earlier, Stripe redirects members to a 404. Values: `PAYOUT_ONBOARDING_RETURN_URL=https://www.athanor.world/app/payout/return`, `PAYOUT_ONBOARDING_REFRESH_URL=https://www.athanor.world/app/payout/refresh`, and `IDENTITY_RETURN_BASE=https://www.athanor.world/app/` (a **base**, trailing slash included — `create-verification-session` appends `verify?status=complete`). `IDENTITY_RETURN_BASE` is optional: unset, Identity simply sends no `return_url`, which is what shipped in #417 and costs nothing (webhook W9 carries the flip). Do **not** repoint `APP_DEEPLINK_BASE` at the https base to achieve the same thing — four Checkout-based functions read it and need the `athanor://` scheme for `openAuthSessionAsync` to close the sheet.
+> **Stripe https return pages (2026-08-18, #418):** the pages those two URLs point at now exist — `apps/web` serves `/app/payout/return`, `/app/payout/refresh` and `/app/verify`, each forwarding to the `athanor://` scheme. Three edge-function secrets go with them, and **all three must be set only after `apps/web` is live in production**, i.e. after the `dev → main` release that carries those routes — set earlier, Stripe redirects members to a 404. Values: `PAYOUT_ONBOARDING_RETURN_URL=https://www.athanor.world/app/payout/return`, `PAYOUT_ONBOARDING_REFRESH_URL=https://www.athanor.world/app/payout/refresh`, and `IDENTITY_RETURN_BASE=https://www.athanor.world/app/` (a **base**, trailing slash included — `create-verification-session` appends `verify?status=complete`). `IDENTITY_RETURN_BASE` is optional: unset, Identity simply sends no `return_url`, which is what shipped in #417 and costs nothing (webhook W9 carries the flip). Do **not** repoint `APP_DEEPLINK_BASE` at the https base to achieve the same thing — four Checkout-based functions read it and need the `athanor://` scheme for `openAuthSessionAsync` to close the sheet. **Since #104 the `PAYOUT_ONBOARDING_*` pair is BLOCKING for paid events, not merely pending.** Until #104 no client invoked `create-payout-onboarding` at all, so an unset pair was a dead function nobody could reach; the composer now offers organisers a Connect-your-account CTA, and with either URL unset that CTA returns `payout onboarding not configured` (500) — which means no organiser can ever publish a paid event, because the creation gate requires `payouts_enabled` and only this flow can set it.
 
 ---
 
