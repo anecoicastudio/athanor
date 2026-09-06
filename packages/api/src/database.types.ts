@@ -3544,6 +3544,7 @@ export type Database = {
           zodiac_sign: string
         }[]
       }
+      has_payouts_enabled: { Args: { uid: string }; Returns: boolean }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
       invoke_fund_settle_sweep: { Args: never; Returns: undefined }
       invoke_post_media_reaper: { Args: never; Returns: undefined }
@@ -3572,6 +3573,10 @@ export type Database = {
         }[]
       }
       live_window_sweep: { Args: never; Returns: undefined }
+      organizer_payout_destination: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
         Args: { p_milestone_id: string }
