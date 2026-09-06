@@ -13,7 +13,6 @@ module.exports = defineConfig([
     // the SDK 57 dependency bump does not carry a 42-file behaviour sweep; #691 is that sweep,
     // and deleting this block is its acceptance test.
     rules: {
-      'react-hooks/refs': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
     },
   },

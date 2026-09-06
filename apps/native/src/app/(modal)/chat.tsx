@@ -75,9 +75,14 @@ export default function ChatScreen() {
   // shows the caption too, and the signed URL is read from the map below at render time so a
   // re-sign mid-view reaches the viewer the same way it reaches the bubble.
   const [viewing, setViewing] = useState<Message | null>(null);
+  // Open-ness is SEPARATE from which photo (#691). Nulling `viewing` to close yanked the
+  // photo out from under the viewer's own dismiss animation, which the viewer then had to
+  // paper over by remembering the last open render in a ref. Closing now leaves `viewing`
+  // where it is — it is only ever the last photo tapped — and the fade has something to show.
+  const [viewerOpen, setViewerOpen] = useState(false);
   // Stable, unlike this screen's other modal handlers: the viewer builds a PanResponder keyed on
   // it, and an inline arrow would rebuild that responder on every keystroke in the composer.
-  const closeViewer = useCallback(() => setViewing(null), []);
+  const closeViewer = useCallback(() => setViewerOpen(false), []);
   // The staged image, one per message (#155). `mediaId` is minted at PICK time, not at send:
   // a failed send retried from the same staging re-uploads to the SAME key (upsert), instead
   // of orphaning an object per attempt.
@@ -384,7 +389,12 @@ export default function ChatScreen() {
                 // cropped by the same fixed frame as the peer's. Only where there is a photo —
                 // a text bubble must not become a button that does nothing.
                 {...(item.message.media_url
-                  ? { onImagePress: () => setViewing(item.message) }
+                  ? {
+                      onImagePress: () => {
+                        setViewing(item.message);
+                        setViewerOpen(true);
+                      },
+                    }
                   : {})}
                 // The face sits on the LAST bubble of a run, beside the row it is bottom-aligned
                 // to. A run ends when the next row is a day marker, the end of the thread, or a
@@ -552,7 +562,7 @@ export default function ChatScreen() {
         {/* The photo a bubble was tapped on (#576). Handed the URL the thread already signed —
           the viewer never mints its own, so opening one costs no round trip. */}
         <PhotoViewer
-          visible={viewing !== null}
+          visible={viewerOpen}
           url={viewing?.media_url ? mediaUrls[viewing.media_url] : undefined}
           isLoading={mediaUrlsLoading}
           label={t('chat.photo.label', locale)}

@@ -25,9 +25,12 @@ export function useAuraRealtime(
 
   // Forward the latest onStarEarned through a ref so the subscription (dep:
   // [profileId]) always calls the current closure — e.g. after a locale switch —
-  // without re-subscribing on every render.
+  // without re-subscribing on every render. Written from an effect, never during
+  // render (#691): the only reader is a realtime push, which arrives after commit.
   const onStarEarnedRef = useRef(opts?.onStarEarned);
-  onStarEarnedRef.current = opts?.onStarEarned;
+  useEffect(() => {
+    onStarEarnedRef.current = opts?.onStarEarned;
+  }, [opts?.onStarEarned]);
 
   useEffect(() => {
     if (!profileId) return;

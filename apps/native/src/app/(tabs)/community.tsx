@@ -64,7 +64,12 @@ export default function CommunityScreen() {
   const posts = query.data?.pages.flatMap((p) => p.posts) ?? [];
 
   const tabRef = useRef(tab);
-  tabRef.current = tab;
+  // Written from an effect, never during render (#691). The subscription below reads it from
+  // a realtime callback that fires long after commit, so a value one commit late is not a
+  // value this callback can observe.
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
   const myId = session?.user.id;
 
   // Realtime: "Nuovi passi ›" banner — skip your own posts and posts outside the

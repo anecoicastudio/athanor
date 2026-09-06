@@ -132,6 +132,11 @@ export function SwipeDeck({
   // that need current state go through `gestureRef` instead.
   const responder = useMemo(
     () =>
+      // `PanResponder.create` STORES these handlers for the gesture system to call on touch
+      // events; not one of them runs during render, so the `gestureRef` reads inside them
+      // cannot be render reads. The memo exists precisely so this object outlives every render
+      // (#357), which is what makes the ref necessary in the first place.
+      // eslint-disable-next-line react-hooks/refs
       PanResponder.create({
         onMoveShouldSetPanResponder: (_e, g) => shouldClaimSwipe(g.dx, g.dy),
         // Once claimed, never hand the gesture to the enclosing ScrollView mid-drag —
