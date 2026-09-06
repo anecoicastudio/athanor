@@ -24,6 +24,8 @@ const validRow = {
   seeking: [],
   identity_verified: false,
   founding_member: true,
+  birth_date: null,
+  zodiac_sign: null,
   created_at: '2026-07-07T00:00:00Z',
   updated_at: '2026-07-07T00:00:00Z',
 };
@@ -101,6 +103,7 @@ describe('personProfileSchema — third-person identity (#76)', () => {
     skills: null,
     profession: null,
     city: null,
+    zodiac_sign: null,
     identity_verified: false,
     founding_member: true,
     removed: false,
@@ -259,10 +262,11 @@ describe('profile vocabularies (mirror the column enums)', () => {
 // column from the surface, and every "accepts X" test above still passes for the columns it
 // kept.
 describe('profile derived shapes', () => {
-  it('profileUpdateSchema edits exactly the thirteen member-owned columns', () => {
+  it('profileUpdateSchema edits exactly the fourteen member-owned columns', () => {
     expect(Object.keys(profileUpdateSchema.shape).sort()).toEqual([
       'avatar_path',
       'bio',
+      'birth_date',
       'city',
       'city_geohash',
       'display_name',
@@ -293,6 +297,73 @@ describe('profile derived shapes', () => {
       'removed',
       'seeking',
       'skills',
+      'zodiac_sign',
     ]);
+  });
+});
+
+describe('profileSchema — birth_date and zodiac_sign (#694)', () => {
+  it('parses a row carrying a date and its generated sign', () => {
+    const parsed = profileSchema.parse({
+      ...validRow,
+      birth_date: '1990-08-10',
+      zodiac_sign: 'leone',
+    });
+    expect(parsed.birth_date).toBe('1990-08-10');
+    expect(parsed.zodiac_sign).toBe('leone');
+  });
+
+  it('rejects a sign outside the twelve keys — the CHECK and this enum must agree', () => {
+    expect(() => profileSchema.parse({ ...validRow, zodiac_sign: 'leo' })).toThrow();
+  });
+
+  it('rejects a birth_date that is not a calendar day', () => {
+    expect(() => profileSchema.parse({ ...validRow, birth_date: '2023-02-29' })).toThrow();
+    expect(() =>
+      profileSchema.parse({ ...validRow, birth_date: '1990-08-10T00:00:00Z' }),
+    ).toThrow();
+  });
+
+  it('the owner may write birth_date but never zodiac_sign (generated column, no grant)', () => {
+    const parsed = profileUpdateSchema.parse({ birth_date: '1990-08-10', zodiac_sign: 'leone' });
+    expect(parsed.birth_date).toBe('1990-08-10');
+    expect(parsed).not.toHaveProperty('zodiac_sign');
+  });
+
+  it('accepts clearing the date back to null', () => {
+    expect(profileUpdateSchema.parse({ birth_date: null }).birth_date).toBeNull();
+  });
+});
+
+describe('personProfileSchema — zodiac_sign (#694)', () => {
+  const personRow = {
+    id: validRow.id,
+    handle: validRow.handle,
+    display_name: 'Stella Prima',
+    avatar_path: validRow.avatar_path,
+    bio: null,
+    mission: null,
+    identity_tags: null,
+    seeking: null,
+    skills: null,
+    profession: null,
+    city: null,
+    zodiac_sign: 'leone',
+    identity_verified: false,
+    founding_member: true,
+    removed: false,
+  };
+
+  it('carries the sign another member may render', () => {
+    expect(personProfileSchema.parse(personRow).zodiac_sign).toBe('leone');
+  });
+
+  it('accepts a member who has no date yet', () => {
+    expect(personProfileSchema.parse({ ...personRow, zodiac_sign: null }).zodiac_sign).toBeNull();
+  });
+
+  it('strips birth_date — the date is the owner’s alone, whatever the RPC returned', () => {
+    const parsed = personProfileSchema.parse({ ...personRow, birth_date: '1990-08-10' });
+    expect(parsed).not.toHaveProperty('birth_date');
   });
 });

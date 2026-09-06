@@ -10,7 +10,9 @@ import { useAuraRealtime } from '@/hooks/use-aura-realtime';
  * invalidation (auraKeys / ledgerKeys / starKeys) happens inside useAuraRealtime.
  */
 export function useStarCelebration(userId: string, locale: Locale) {
-  const [starFlash, setStarFlash] = useState(false);
+  // The star's id, not a boolean: `MomentFlash` needs an EPISODE to show once and get out of
+  // the way, and a boolean carries no identity to tell one grant from the next (#691).
+  const [starFlash, setStarFlash] = useState<string | null>(null);
   const { showToast } = useToast();
 
   useAuraRealtime(userId, {
@@ -18,8 +20,8 @@ export function useStarCelebration(userId: string, locale: Locale) {
       // Localize the star id → display name for the toast.
       const name = t(`star.${starId}` as MessageKey, locale);
       showToast(t('star.earned.toast', locale, { star: name }));
-      setStarFlash(true);
-      setTimeout(() => setStarFlash(false), 2800);
+      setStarFlash(starId);
+      setTimeout(() => setStarFlash(null), 2800);
     },
   });
 

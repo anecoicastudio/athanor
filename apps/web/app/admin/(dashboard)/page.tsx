@@ -18,7 +18,10 @@ export default async function AdminQueue({
     | 'reviewing'
     | 'resolved';
   const [supabase, locale] = await Promise.all([createAuthedClient(), getLocale()]);
-  const { rows, nextCursor } = await getReportQueue(supabase, { status: tab, cursor });
+  const { rows, nextCursor, handlesExcluded } = await getReportQueue(supabase, {
+    status: tab,
+    cursor,
+  });
   return (
     <section className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">{t('admin.queue.title', locale)}</h1>
@@ -31,6 +34,14 @@ export default async function AdminQueue({
             <ReportRow key={r.id} row={r} locale={locale} />
           ))}
         </ul>
+      )}
+      {handlesExcluded > 0 && (
+        // Handle rows the reader could not validate are withheld and counted (#664): a «—» on
+        // this page is then a schema disagreement, not an unnamed report — the same line the
+        // waitlist and the fund audit show.
+        <p className="text-sm text-muted-foreground">
+          {t('admin.audit.withheld', locale, { count: handlesExcluded })}
+        </p>
       )}
       {nextCursor && (
         <a

@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
@@ -44,8 +45,8 @@ export default function MatchOverlay() {
   }>();
   const accepted = source === 'accepted';
   const reduceMotion = useReducedMotion();
-  const scale = useRef(new Animated.Value(0.9)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useAnimatedValue(0.9);
+  const opacity = useAnimatedValue(0);
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();

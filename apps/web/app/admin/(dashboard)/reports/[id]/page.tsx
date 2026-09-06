@@ -54,6 +54,13 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
           {t('admin.report.filed', locale)}{' '}
           {new Date(report.created_at).toLocaleDateString(localeTag(locale))}
         </p>
+        {report.handlesExcluded > 0 && (
+          // The handles row was withheld at the boundary (#664): the «—» above is a schema
+          // disagreement, not an unnamed party.
+          <p className="text-sm text-muted-foreground">
+            {t('admin.audit.withheld', locale, { count: report.handlesExcluded })}
+          </p>
+        )}
       </header>
       {report.note && (
         <p className="rounded-[14px] border border-border bg-card p-4">{report.note}</p>

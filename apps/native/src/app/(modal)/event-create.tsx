@@ -19,6 +19,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
@@ -43,6 +44,9 @@ export default function EventCreateScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const locale = useLocale();
+  // The longest form in the app — seven fields, so most of them are below the fold with the
+  // keyboard up. Same recipe as the auth screens (#689); `(auth)/welcome.tsx` explains it.
+  const reveal = useRevealOnFocus();
   const { profile } = useAuth();
 
   const [title, setTitle] = useState('');
@@ -208,10 +212,15 @@ export default function EventCreateScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ModalHeader title={t('event.create.title', locale)} backLabel={t('common.back', locale)} />
-        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-16">
-          <View className="gap-2">
+        <ScrollView
+          {...reveal.scrollProps}
+          className="flex-1"
+          contentContainerClassName="gap-5 px-5 pb-16"
+        >
+          <View className="gap-2" ref={reveal.rowRef('name')}>
             {label('event.create.name')}
             <Input
+              {...reveal.fieldProps('name')}
               placeholder={t('event.create.namePlaceholder', locale)}
               value={title}
               onChangeText={setTitle}
@@ -222,9 +231,10 @@ export default function EventCreateScreen() {
           {/* #634: the detail used to render one fabricated sentence for every event under the
               organizer's name. These are the organizer's own words instead; optional, because
               an absent paragraph asserts nothing. */}
-          <View className="gap-2">
+          <View className="gap-2" ref={reveal.rowRef('desc')}>
             {label('event.create.desc')}
             <Input
+              {...reveal.fieldProps('desc')}
               placeholder={t('event.create.descPlaceholder', locale)}
               value={description}
               onChangeText={setDescription}
@@ -265,9 +275,10 @@ export default function EventCreateScreen() {
           </View>
 
           {isOnline ? (
-            <View className="gap-2">
+            <View className="gap-2" ref={reveal.rowRef('streamUrl')}>
               {label('event.create.streamUrl')}
               <Input
+                {...reveal.fieldProps('streamUrl')}
                 placeholder={t('event.create.streamUrlPlaceholder', locale)}
                 value={streamUrl}
                 onChangeText={setStreamUrl}
@@ -277,18 +288,20 @@ export default function EventCreateScreen() {
             </View>
           ) : (
             <>
-              <View className="gap-2">
+              <View className="gap-2" ref={reveal.rowRef('venue')}>
                 {label('event.create.venue')}
                 <Input
+                  {...reveal.fieldProps('venue')}
                   placeholder={t('event.create.venuePlaceholder', locale)}
                   value={venue}
                   onChangeText={setVenue}
                   maxLength={240}
                 />
               </View>
-              <View className="gap-2">
+              <View className="gap-2" ref={reveal.rowRef('city')}>
                 {label('event.create.city')}
                 <Input
+                  {...reveal.fieldProps('city')}
                   placeholder={t('event.create.cityPlaceholder', locale)}
                   value={city}
                   onChangeText={setCity}
@@ -352,9 +365,10 @@ export default function EventCreateScreen() {
             ) : null}
           </View>
 
-          <View className="gap-2">
+          <View className="gap-2" ref={reveal.rowRef('capacity')}>
             {label('event.create.capacity')}
             <Input
+              {...reveal.fieldProps('capacity')}
               placeholder={t('event.create.capacityHint', locale)}
               value={capacity}
               onChangeText={(text) => setCapacity(text.replace(/[^0-9]/g, ''))}
@@ -376,8 +390,9 @@ export default function EventCreateScreen() {
               ))}
             </View>
             {paid ? (
-              <View className="gap-2">
+              <View className="gap-2" ref={reveal.rowRef('price')}>
                 <Input
+                  {...reveal.fieldProps('price')}
                   placeholder={t('event.create.pricePlaceholder', locale)}
                   value={price}
                   onChangeText={setPrice}

@@ -1,13 +1,14 @@
 import { requireUser } from '../_shared/auth.ts';
 import { requireSupportedVersion } from '../_shared/version-gate.ts';
-import { stripeClient } from '../_shared/stripe.ts';
+import { circlePriceIds, stripeClient } from '../_shared/stripe.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { error } from '../_shared/respond.ts';
 import { getCirclePrices } from './logic.ts';
 
 /**
  * POST {} → { monthly: { unitAmount, currency }, annual: { … } }. Reads the two Circle Prices
- * behind STRIPE_PRICE_CIRCLE_MONTHLY/_ANNUAL — the same ids create-circle-checkout charges —
+ * behind STRIPE_PRICE_CIRCLE_MONTHLY/_ANNUAL (`circlePriceIds`, the one resolver both this and
+ * create-circle-checkout read, #674) — the same ids create-circle-checkout charges —
  * so the app renders what Stripe bills instead of a catalog literal (#644, rule #6).
  * Reads only: no Customer is created, no membership is written, no Aura is touched.
  * Auth: caller JWT → requireUser(). Nothing here is caller-specific, but the amounts are the
@@ -27,9 +28,6 @@ Deno.serve(async (req) => {
 
   return getCirclePrices({
     retrievePrice: (id) => stripeClient().prices.retrieve(id),
-    priceIds: {
-      monthly: Deno.env.get('STRIPE_PRICE_CIRCLE_MONTHLY'),
-      annual: Deno.env.get('STRIPE_PRICE_CIRCLE_ANNUAL'),
-    },
+    priceIds: circlePriceIds(),
   });
 });

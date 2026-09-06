@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -37,20 +38,25 @@ type ToastState = { label: string; tone?: ToastTone } | null;
 
 type ToastApi = {
   showToast: (label: string, tone?: ToastTone) => void;
-  registerViewport: () => { id: number; unregister: () => void };
+  /**
+   * The viewport brings its OWN id — a `useId()` it can also compare against during render.
+   * The provider used to mint one and hand it back, which meant the only place a viewport
+   * learned its identity was inside a focus effect, so it had to keep it in a ref and read
+   * that ref while rendering (#691).
+   */
+  registerViewport: (id: string) => { unregister: () => void };
 };
 
-type ToastRender = { toast: ToastState; topViewport: number | null };
+type ToastRender = { toast: ToastState; topViewport: string | null };
 
 const ToastApiContext = createContext<ToastApi | null>(null);
 const ToastRenderContext = createContext<ToastRender>({ toast: null, topViewport: null });
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastState>(null);
-  const [topViewport, setTopViewport] = useState<number | null>(null);
+  const [topViewport, setTopViewport] = useState<string | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const nextId = useRef(0);
-  const stack = useRef<number[]>([]);
+  const stack = useRef<string[]>([]);
 
   useEffect(
     () => () => {
@@ -72,12 +78,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(spoken(label));
   }, []);
 
-  const registerViewport = useCallback(() => {
-    const id = ++nextId.current;
+  const registerViewport = useCallback((id: string) => {
     stack.current = [...stack.current, id];
     setTopViewport(id);
     return {
-      id,
       unregister: () => {
         stack.current = stack.current.filter((v) => v !== id);
         setTopViewport(stack.current[stack.current.length - 1] ?? null);
@@ -121,21 +125,19 @@ export function useToast(): Pick<ToastApi, 'showToast'> {
 export function ToastViewport({ bottomInset = 0 }: { bottomInset?: number }) {
   const api = useContext(ToastApiContext);
   const { toast, topViewport } = useContext(ToastRenderContext);
-  const idRef = useRef<number | null>(null);
+  const id = useId();
 
   useFocusEffect(
     useCallback(() => {
       if (!api) return undefined;
-      const { id, unregister } = api.registerViewport();
-      idRef.current = id;
-      return () => {
-        idRef.current = null;
-        unregister();
-      };
-    }, [api]),
+      const { unregister } = api.registerViewport(id);
+      return unregister;
+    }, [api, id]),
   );
 
-  if (!toast || idRef.current === null || topViewport !== idRef.current) return null;
+  // No `idRef.current === null` arm any more: unregistering pops this id off the stack, so an
+  // unfocused viewport can never still be `topViewport`.
+  if (!toast || topViewport !== id) return null;
   // Measured, not a constant: the composer grows with a multi-line draft and the
   // keyboard lifts it, so a hardcoded offset would be wrong in exactly the states
   // where the collision is worst.

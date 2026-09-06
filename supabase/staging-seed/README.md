@@ -112,7 +112,7 @@ rows — everything else cascades — and run the file again.
 
 ⚠ **Storage objects do NOT cascade.** Deleting the twelve users leaves every uploaded
 photo and video orphaned in its bucket, and the re-seeded rows point at fresh keys, so
-the old objects are unreachable dead weight. Empty the five buckets in the same pass.
+the old objects are unreachable dead weight. Empty the six buckets in the same pass.
 
 Two exceptions to "a re-run inserts nothing": the `profiles` UPDATE in §1 (documented
 below) and the story `expires_at` refresh in §6. The latter is deliberate — seeded
@@ -135,6 +135,12 @@ events drift into the past, statuses get flipped by walking the flows.
 - **Events** — the four future events re-stamp to their seeded offsets (+4/+9/+16/+25
   days) once they decay within 3 days of now, with any live-window state cleared;
   `bottega-aperta` stays deliberately past.
+- **Reminder fixtures** — `promemoria-oggi` (5h), `diretta-tra-poco` (30m) and
+  `bottega-tra-poco` (40m, its organiser `dario_legno` self-RSVP'd — the #617 shape, #624)
+  re-stamp every hour and their `event_reminder_sends` markers are dropped, so the
+  every-minute sweep sends each reminder again within the hour. The price is one
+  `eventReminder` row per fixture member per hour, capped by the 2-hour prune below;
+  no persona holds a push token, so nothing buzzes unless a tester registered one.
 - **Fund ballot window** — `fund_editions.voting_starts_at` / `voting_ends_at` re-stamp
   to the seeded −7/+23-day span once the ballot comes within 7 days of closing, or was
   never declared at all. `cast_vote` gates on that window, so without this the fake
@@ -211,14 +217,16 @@ Two commands finish the job:
 
 ```bash
 ./supabase/staging-seed/transcode-media.sh   # sources → docs/test-stories/derived/
-pnpm staging:media --confirm                 # derived/ → the five buckets
+pnpm staging:media --confirm                 # derived/ → the six buckets
 ```
 
 The upload script never composes a key. It derives each row's id the same way the SQL
 does, looks the row up, and uploads to whatever the path column literally contains — so
 the two cannot drift. It then signs and fetches every object **as a seeded member**,
 not as service role, because service role bypasses RLS and would have happily "verified"
-the old unreadable keys.
+the old unreadable keys. For the three chat images (#613 — one peer-sent photo per
+seeded conversation, at `{sender}/{conversation}/{message}.jpg` in `chat-media`) that
+member is the conversation's other participant, since nobody else may read them.
 
 Source media lives in `docs/test-stories/` and is not in the repo (`docs/` is
 gitignored). Filenames the transcode expects, and which persona each file belongs to,
@@ -234,12 +242,12 @@ requires the first path segment to match a dashed-uuid regex, and a handle fails
 These are the paths where a hand-written row would prove nothing, so they have to be
 walked for real in the app:
 
-| not seeded                                                                                            | why                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `aura_events`, `aura_scores`                                                                          | Rule 1 — only the score-engine writes them. The M6 triggers produce them from the seeded content (config from Vault via `athanor.runtime_setting()`).  |
-| `event_tickets`, `circle_memberships`, `fund_contributions`, `verifications`, `stripe_webhook_events` | Stripe is the source of truth. Use test mode from the app.                                                                                             |
-| `event_attendance`                                                                                    | Written by the `check-in` edge function.                                                                                                               |
-| `event_live_stats`                                                                                    | Written by the `live_window_sweep()` cron (#120) — never by `check-in`, which this file used to claim. Listener count is Realtime presence, not a row. |
-| `gdpr_export_jobs`                                                                                    | Written by the export job.                                                                                                                             |
-| `push_tokens`                                                                                         | Needs a real device token from a real build.                                                                                                           |
-| the **bytes** behind `post_media` / `moments` / `story_segments` / `dream_candidacies` / avatars      | SQL cannot write to Storage. The rows and their keys are seeded; `pnpm staging:media` puts a file at each one. See **Media** above.                    |
+| not seeded                                                                                                     | why                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `aura_events`, `aura_scores`                                                                                   | Rule 1 — only the score-engine writes them. The M6 triggers produce them from the seeded content (config from Vault via `athanor.runtime_setting()`).  |
+| `event_tickets`, `circle_memberships`, `fund_contributions`, `verifications`, `stripe_webhook_events`          | Stripe is the source of truth. Use test mode from the app.                                                                                             |
+| `event_attendance`                                                                                             | Written by the `check-in` edge function.                                                                                                               |
+| `event_live_stats`                                                                                             | Written by the `live_window_sweep()` cron (#120) — never by `check-in`, which this file used to claim. Listener count is Realtime presence, not a row. |
+| `gdpr_export_jobs`                                                                                             | Written by the export job.                                                                                                                             |
+| `push_tokens`                                                                                                  | Needs a real device token from a real build.                                                                                                           |
+| the **bytes** behind `post_media` / `moments` / `story_segments` / `dream_candidacies` / avatars / chat images | SQL cannot write to Storage. The rows and their keys are seeded; `pnpm staging:media` puts a file at each one. See **Media** above.                    |

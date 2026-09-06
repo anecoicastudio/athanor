@@ -25,6 +25,7 @@ import { ListState } from '@/components/ListState';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { type FeedTab, postsFilter } from '@/lib/feed-tabs';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
@@ -63,7 +64,12 @@ export default function CommunityScreen() {
   const posts = query.data?.pages.flatMap((p) => p.posts) ?? [];
 
   const tabRef = useRef(tab);
-  tabRef.current = tab;
+  // Written from an effect, never during render (#691). The subscription below reads it from
+  // a realtime callback that fires long after commit, so a value one commit late is not a
+  // value this callback can observe.
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
   const myId = session?.user.id;
 
   // Realtime: "Nuovi passi ›" banner — skip your own posts and posts outside the
@@ -93,8 +99,11 @@ export default function CommunityScreen() {
   // opens the viewer (and the chain), without one it opens the composer. Also warms
   // storyKeys.person(myId) so the viewer's session can include you without a refetch.
   const myStoryQuery = usePersonStory(myId);
+  // Ticking, not pinned: bottom-tabs keeps this tab mounted for the session, and a story that
+  // expires while the member sits here must stop reading as live.
+  const now = useNow(60_000);
   const myHasLive = (myStoryQuery.data?.segments ?? []).some(
-    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > Date.now(),
+    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > now,
   );
 
   // Realtime: a new story segment → refresh the rail (skip your own insert).

@@ -12,7 +12,7 @@ import { MEDIA_LIMITS } from '@athanor/core';
  * `opts` overrides those two numbers and nothing else — the re-encode is not optional. An
  * avatar passes AVATAR_MAX_EDGE/AVATAR_QUALITY and gets the identical privacy guarantee.
  *
- * SDK-54 uses the contextual manipulator API:
+ * Since SDK 52, expo-image-manipulator uses the contextual API:
  *   ImageManipulator.manipulate(uri) → context
  *   context.resize({ width | height }) → context (chainable, ratio-preserving)
  *   context.renderAsync() → ImageRef (has .width/.height/.saveAsync)
@@ -52,7 +52,7 @@ export async function processImage(
 /**
  * Video passthrough — returns the input uri unchanged.
  *
- * CLIENT-SIDE video metadata strip is NOT available without transcode on SDK 54.
+ * CLIENT-SIDE video metadata strip is NOT available without transcode, and Expo Go has no transcoder.
  * We rely on iOS limited-PHPicker (exported assets carry no GPS). The server-side
  * backstop is live: the `media-process` edge function strips every MP4's `udta`/`meta`
  * boxes on upload (resilience §7.2 / backend 10 §4.1a), so this passthrough is by

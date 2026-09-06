@@ -1,6 +1,8 @@
 {
   "imports": {
     "stripe": "npm:stripe@22",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "zod": "npm:zod@3",
+    "@athanor/schemas": "../../../packages/schemas/src/index.ts"
   }
 }

@@ -9,6 +9,7 @@ import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
@@ -62,6 +63,9 @@ export default function WelcomeScreen() {
   const submitting = phase === 'submitting';
   // Draft-aware (#158): the funnel routes here right after a language choice.
   const locale = useDraftLocale();
+  // #689: the keyboard no longer covers the viewport (#614), but nothing brought the tapped
+  // field INTO it — the password field is last in the column and stayed off screen.
+  const reveal = useRevealOnFocus();
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
     t(`${login ? 'auth.login' : 'auth.signup'}.${suffix}` as MessageKey, locale);
@@ -215,6 +219,7 @@ export default function WelcomeScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ScrollView
+          {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
@@ -329,15 +334,37 @@ export default function WelcomeScreen() {
               )}
 
               <View className="gap-4">
+                {/* #615, widened by #662 — the iOS AutoFill posture of every field below.
+                  `textContentType` is iOS-only and OVERRIDES the value RN derives from
+                  `autoComplete` (TextInput.js maps one to the other only when the explicit prop
+                  is absent), so the two props are set independently: Android keeps its password
+                  and contact managers through `autoComplete`, iOS gets exactly the AutoFill
+                  asked for here.
+
+                  The split is by what the person is DOING, not by which field it is. Signing up
+                  they are creating a value that does not exist yet, and a committed suggestion
+                  REPLACES the whole value on re-focus — hypothesis 2 of the #615 report
+                  («re-editing replaces the line»), whose repro was field-agnostic. So every
+                  field takes `none` on the signup branch. Signing in they are recalling a value
+                  that does exist, where a full-field fill is the point, and the fill stays.
+
+                  #620 applied that to the password alone; #662 is the residual — name and email
+                  carried `name` / `emailAddress` into signup, the same vector. Deleting the
+                  explicit prop would NOT have fixed it: `autoComplete` derives the identical
+                  type straight back through the branch above. `none` is the remedy.
+
+                  The name field renders on the signup branch only, so its `none` is
+                  unconditional — there is no sign-in half of it to keep a fill for. */}
                 {!login ? (
-                  <View className="gap-2">
+                  <View className="gap-2" ref={reveal.rowRef('name')}>
                     <Text className="text-xs font-medium text-muted-foreground">
                       {t('auth.name.label', locale)}
                     </Text>
                     <Input
+                      {...reveal.fieldProps('name')}
                       autoCapitalize="words"
                       autoComplete="name"
-                      textContentType="name"
+                      textContentType="none"
                       placeholder={t('auth.name.placeholder', locale)}
                       value={name}
                       onChangeText={setName}
@@ -345,14 +372,15 @@ export default function WelcomeScreen() {
                   </View>
                 ) : null}
 
-                <View className="gap-2">
+                <View className="gap-2" ref={reveal.rowRef('email')}>
                   <Text className="text-xs font-medium text-muted-foreground">
                     {t('auth.email.label', locale)}
                   </Text>
                   <Input
+                    {...reveal.fieldProps('email')}
                     autoCapitalize="none"
                     autoComplete="email"
-                    textContentType="emailAddress"
+                    textContentType={login ? 'emailAddress' : 'none'}
                     inputMode="email"
                     placeholder={t('auth.email.placeholder', locale)}
                     value={email}
@@ -360,21 +388,20 @@ export default function WelcomeScreen() {
                   />
                 </View>
 
-                <View className="gap-2">
+                {/* The row, not the field: what has to end up visible is the label, the field
+                  and the checklist under it — which does not exist yet at the moment of the tap
+                  (it mounts on the first keystroke), so the reveal fires again as it grows. */}
+                <View className="gap-2" ref={reveal.rowRef('password')}>
                   <Text className="text-xs font-medium text-muted-foreground">
                     {t('auth.password.label', locale)}
                   </Text>
-                  {/* #615: `textContentType` is iOS-only and OVERRIDES the value RN derives from
-                    `autoComplete` (TextInput.js maps one to the other only when the explicit prop
-                    is absent), so the two props can be set independently — Android keeps its
-                    password manager through `autoComplete`, iOS gets exactly the AutoFill asked
-                    for here. Signup takes `none`: `newPassword` is what puts iOS's strong-password
-                    overlay on the field, and a committed suggestion REPLACES the whole value on
-                    re-focus, which is hypothesis 2 of the report («re-editing replaces the line»).
-                    Sign-in keeps `password`, where a full-field fill is the point. Hypothesis 1
-                    — UIKit clearing a secure field when editing resumes — has no call-site
-                    remedy short of dropping `secureTextEntry`; see the PR's device notes. */}
+                  {/* Per the note above, signup takes `none` here: `newPassword` is what puts
+                    iOS's strong-password overlay on the field, and the overlay's suggestion is
+                    the committed value in question. Sign-in keeps `password`. Hypothesis 1 —
+                    UIKit clearing a secure field when editing resumes — has no call-site remedy
+                    short of dropping `secureTextEntry`; see #620's device notes. */}
                   <Input
+                    {...reveal.fieldProps('password')}
                     autoCapitalize="none"
                     autoComplete={login ? 'current-password' : 'new-password'}
                     textContentType={login ? 'password' : 'none'}

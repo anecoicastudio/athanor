@@ -48,17 +48,18 @@ function DetailVideo({ url, onError }: { url: string; onError: () => void }) {
 function DetailAudio({ url, label, locale }: { url: string; label: string; locale: Locale }) {
   const player = useAudioPlayer(url);
   const status = useAudioPlayerStatus(player);
-  const [failed, setFailed] = useState(false);
-
-  // A re-signed URL deserves a fresh attempt — MediaFrame's rule, applied locally.
-  useEffect(() => setFailed(false), [url]);
+  // The URL that failed, rather than a bare flag — MediaFrame's shape, applied locally. A
+  // re-signed URL is a different string, so the fresh attempt is a comparison during render
+  // instead of a `setState` in an effect (#691).
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = failedUrl === url;
 
   // Absence of `isLoaded` after the grace window is the only failure evidence expo-audio leaves.
   // Deps are the primitive, not the status object, so per-tick status updates don't reset the
   // clock.
   useEffect(() => {
     if (failed || status.isLoaded) return;
-    const timer = setTimeout(() => setFailed(true), AUDIO_LOAD_GRACE_MS);
+    const timer = setTimeout(() => setFailedUrl(url), AUDIO_LOAD_GRACE_MS);
     return () => clearTimeout(timer);
   }, [url, status.isLoaded, failed]);
 

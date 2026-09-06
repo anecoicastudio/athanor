@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Locale } from '@athanor/i18n';
 import { t } from '@athanor/i18n';
 import type { PublicProfile } from '@athanor/schemas';
+import { ZodiacGlyph } from '@/components/icons/glyphs';
 
 const STATE_KEY = {
   open: 'milestone.state.open',
@@ -47,10 +48,23 @@ export function PublicProfileView({ profile, locale }: { profile: PublicProfile;
           </div>
         )}
         <div className="flex flex-col gap-1">
+          {/* The sun sign sits after whichever line leads (#694) — cosmetic register:
+              muted, never aura, never a glow. The drawing is aria-hidden; the sr-only text
+              names it as a sign, so a screen reader never hears «Leo» as a surname. */}
           {profile.displayName ? (
-            <h1 className="text-2xl font-semibold leading-tight">{profile.displayName}</h1>
+            <h1 className="flex flex-wrap items-center gap-1.5 text-2xl font-semibold leading-tight">
+              <span>{profile.displayName}</span>
+              {profile.zodiacSign ? (
+                <ZodiacSignMark sign={profile.zodiacSign} locale={locale} />
+              ) : null}
+            </h1>
           ) : null}
-          <span className="text-sm tracking-widest text-aura">@{profile.handle}</span>
+          <span className="flex flex-wrap items-center gap-1.5 text-sm tracking-widest text-aura">
+            <span>@{profile.handle}</span>
+            {!profile.displayName && profile.zodiacSign ? (
+              <ZodiacSignMark sign={profile.zodiacSign} locale={locale} />
+            ) : null}
+          </span>
         </div>
         {profile.bio ? (
           <p className="text-lg leading-relaxed text-muted-foreground">{profile.bio}</p>
@@ -97,5 +111,21 @@ export function PublicProfileView({ profile, locale }: { profile: PublicProfile;
         </Link>
       </footer>
     </main>
+  );
+}
+
+function ZodiacSignMark({
+  sign,
+  locale,
+}: {
+  sign: NonNullable<PublicProfile['zodiacSign']>;
+  locale: Locale;
+}) {
+  const name = t(`zodiac.${sign}` as const, locale);
+  return (
+    <>
+      <ZodiacGlyph sign={sign} size={18} className="text-muted-foreground" />
+      <span className="sr-only">{t('profile.zodiac.a11y', locale, { sign: name })}</span>
+    </>
   );
 }

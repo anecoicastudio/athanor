@@ -15,6 +15,7 @@ import {
 import { semantic } from '@athanor/config';
 import { circleAnnualSavings, formatPrice } from '@athanor/core';
 import { t } from '@athanor/i18n';
+import type { CirclePlan } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useLocale } from '@/hooks/use-locale';
@@ -25,7 +26,7 @@ import { ListState } from '@/components/ListState';
 import { listState } from '@/lib/list-state';
 import { AnalyticsLiteCard } from '@/components/circle/AnalyticsLiteCard';
 import { BenefitRow } from '@/components/circle/BenefitRow';
-import { PriceToggle, type PricePlan } from '@/components/circle/PriceToggle';
+import { PriceToggle } from '@/components/circle/PriceToggle';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
@@ -53,7 +54,7 @@ export default function CircleScreen() {
   const profileId = profile?.id ?? '';
 
   // ── Local UI state ──────────────────────────────────────────────────────────
-  const [plan, setPlan] = useState<PricePlan>('monthly');
+  const [plan, setPlan] = useState<CirclePlan>('monthly');
   const [checkoutPhase, setCheckoutPhase] = useState<'idle' | 'opening' | 'portal'>('idle');
   const [checkoutError, setCheckoutError] = useState(false);
   const [portalError, setPortalError] = useState(false);
@@ -100,12 +101,22 @@ export default function CircleScreen() {
   // neither failed nor answered) — and resolves on its own when the connection returns,
   // because nothing about this query is cached to fall back on. `empty` is unreachable: the
   // queryFn parses or throws, so a settled success always carries both plans.
-  const priceState = listState({
-    status: pricesQuery.status,
-    fetchStatus: pricesQuery.fetchStatus,
-    isEmpty: prices == null,
-    staleWins: false,
-  });
+  //
+  // A retry in flight reads as loading, not as the error it is retrying (#674 item 2). The
+  // pair `status: 'error'` + `fetchStatus: 'fetching'` is exactly a tapped retry, and
+  // `listState` maps it to `'error'`, so the tap used to give zero feedback — the same copy
+  // and the same button, with nothing to say the read was under way. Kept caller-local rather
+  // than folded into `listState`: on a list, swapping the error copy for a spinner mid-retry
+  // would blank the message the member is reading; here there is nothing else in the slot.
+  const retrying = pricesQuery.status === 'error' && pricesQuery.fetchStatus === 'fetching';
+  const priceState = retrying
+    ? 'loading'
+    : listState({
+        status: pricesQuery.status,
+        fetchStatus: pricesQuery.fetchStatus,
+        isEmpty: prices == null,
+        staleWins: false,
+      });
 
   // ── Membership detail query (renewal date, founding flag) ───────────────────
   const memberQuery = useQuery({
@@ -314,16 +325,28 @@ export default function CircleScreen() {
           </Text>
         </View>
 
-        {/* 2. Price toggle — hidden on iOS (Apple 3.1.1 / S-IAP-1: no in-app subscribe) */}
+        {/* 2. Price toggle — hidden on iOS (Apple 3.1.1 / S-IAP-1: no in-app subscribe).
+            Each segment carries its live amount (#675), and the savings line sits under the
+            toggle whenever the annual plan actually saves something — from the DEFAULT
+            (monthly) state too, so the reason to pick annual is visible before it is picked.
+            It used to appear only once annual was selected, which also made the CTA jump
+            under the thumb on every toggle (run 12). Numerals: tabular, no tracking. */}
         {Platform.OS !== 'ios' ? (
           <View className="gap-2">
-            <PriceToggle value={plan} onChange={setPlan} locale={locale} />
-            {plan === 'annual' && priceState === 'ready' && savings ? (
-              <Text className="text-center text-[13px] text-muted-foreground">
-                {t('circle.plan.annualNote', locale, {
-                  amount: formatPrice(savings.cents, savings.currency, locale),
-                })}
-              </Text>
+            <PriceToggle value={plan} onChange={setPlan} locale={locale} prices={prices} />
+            {priceState === 'ready' && savings ? (
+              <View className="items-center">
+                <View className="rounded-full border border-hair bg-raise px-3 py-1">
+                  <Text
+                    className="text-[13px] text-foreground"
+                    style={{ fontVariant: ['tabular-nums'] }}
+                  >
+                    {t('circle.plan.annualNote', locale, {
+                      amount: formatPrice(savings.cents, savings.currency, locale),
+                    })}
+                  </Text>
+                </View>
+              </View>
             ) : null}
           </View>
         ) : null}

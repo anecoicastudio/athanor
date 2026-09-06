@@ -40,6 +40,7 @@ export * from './search.ts';
 export * from './city-search.ts';
 export * from './block.ts';
 export * from './report.ts';
+export * from './zodiac.ts';
 export * from './notification.ts';
 export * from './notificationPreference.ts';
 export * from './verification.ts';

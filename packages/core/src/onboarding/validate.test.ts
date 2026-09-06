@@ -6,6 +6,7 @@ const valid = {
   locale: 'it' as const,
   identity_tags: ['coach'],
   seeking: ['connessioni'],
+  birth_date: '1990-08-10',
 };
 
 describe('validateOnboardingAnswers', () => {

@@ -73,12 +73,19 @@ function ProfileEditor({
   const dream = useOwnDream(userId);
   const { starFlash } = useStarCelebration(userId, locale);
 
-  // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). Consumed in an
-  // effect, not a useState initializer: trust dismissTo's back to this already-
-  // mounted tab, so only the params change — an initializer would never re-run.
+  // `?edit=1` deep-link (trust modal → «Chi vede il mio sogno»). Consumed in an effect, not a
+  // useState initializer: trust `dismissTo`s back to this ALREADY-MOUNTED tab, so only the
+  // params change — an initializer would never re-run.
+  //
+  // Nor can it be derived (#691). The param is a LEVEL with no per-push identity: the same
+  // `'1'` means "open" on the first push and on the fifth, so any render-time expression that
+  // remembers having closed it also refuses to reopen it, and one that does not remember shows
+  // the editor again the frame after the member closed it. Observing that edge and consuming
+  // it is what the effect is for, and it costs one commit per link.
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   useEffect(() => {
     if (edit !== '1') return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditing(true);
     router.setParams({ edit: undefined });
   }, [edit, router]);
@@ -187,11 +194,11 @@ function ProfileEditor({
           ) : null}
 
           {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
-          <MomentFlash visible={dream.flashMilestoneId != null} locale={locale} />
+          <MomentFlash flash={dream.flashMilestoneId} locale={locale} />
 
           {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
           The matching toast fires through the global host (#117). */}
-          <MomentFlash visible={starFlash} locale={locale} />
+          <MomentFlash flash={starFlash} locale={locale} />
         </ScrollView>
       </Screen>
     </KeyboardAvoiding>

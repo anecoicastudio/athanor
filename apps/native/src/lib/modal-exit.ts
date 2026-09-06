@@ -26,7 +26,7 @@ import { useRouter, type Href } from 'expo-router';
  * ## Why `dismissTo` and not `replace`
  *
  * `dismissTo` is `POP_TO`: it pops back to the fallback route when it is already below us, and
- * `@react-navigation/routers`' `StackRouter` degrades it to "remove the current route and add
+ * expo-router's vendored `StackRouter` degrades it to "remove the current route and add
  * the new one" when it is not — the right behaviour in both directions, where `replace` would
  * flatten a real stack.
  *

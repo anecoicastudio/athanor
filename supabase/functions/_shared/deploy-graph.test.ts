@@ -97,9 +97,11 @@ type Edge = { importer: string; specifier: string; target: URL };
  * an extension would be wrong. A BARE specifier is followed only when the function's own
  * deno.json, or the functions-root one, maps it to an in-repo path: that is the `@athanor/schemas`
  * alias, which points at `packages/schemas/src/index.ts`. No deployed source names that bare
- * specifier today, so THIS walk never reaches the barrel — an extension-less re-export added to it
- * leaves every assertion here green (verified by injection). That gap is covered separately, by the
- * alias roots at the bottom of this file, not by the entrypoint graphs.
+ * specifier at RUNTIME — `_shared/circle-price.ts` and the two Circle logic modules import it
+ * `type`-only (#674), which `specifiers()` erases — so THIS walk never reaches the barrel, and an
+ * extension-less re-export added to it leaves every assertion here green (verified by injection).
+ * That gap is covered separately, by the alias roots at the bottom of this file, not by the
+ * entrypoint graphs.
  */
 function graph(entry: URL, dir: URL) {
   const local = importMap(dir);
@@ -260,9 +262,11 @@ function configDirs(root: URL): URL[] {
  * point is not to be a snapshot nobody re-checks should not itself be scoped by a snapshot.
  *
  * `GRAPHS` above says nothing about these. The entrypoint walk follows a bare specifier only when a
- * deployed source actually names it, and none names `@athanor/schemas` today, so appending an
+ * deployed source names it at runtime, and none names `@athanor/schemas` that way today — the
+ * Circle functions' `import type` (#674) is erased before the walk — so appending an
  * extension-less `export * from './primitives'` to `packages/schemas/src/index.ts` leaves all of
- * the assertions above green. That was verified by injection, not assumed.
+ * the assertions above green. That was verified by injection, not assumed. Drop the word `type`
+ * in any of those three files and the barrel joins that function's deployed graph.
  *
  * The alias being DECLARED is what makes that a hazard rather than a curiosity: importing it is a
  * one-line edit in any function, and `packages/core/src/score/display.ts` already value-imports the

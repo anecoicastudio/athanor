@@ -13,12 +13,11 @@ import type { AdminReportedMessage, ReportedMessageState } from '@athanor/api';
  * `notApplicable` has no entry, and the `??` fallback below is what covers it. It is rare rather
  * than impossible: `getReportDetail` enters the evidence branch only when `target_id` is set, so
  * a `'message'` report filed with a NULL target leaves the state at `notApplicable` while this
- * component still renders. Nothing in the app produces that — the chat sheet always sends the
- * message id — but `reports_target_type_check` constrains the type and not the pairing, and
- * `reportInput` marks `targetId` `.nullish()` for every type, so the shape is admitted. Such a
- * report reads as «no longer available», which is not exactly right and is close enough for a
- * row nobody can currently file; requiring a target per type is a pre-existing gap on `'person'`
- * and `'post'` too, so it belongs in an issue rather than here.
+ * component still renders. Since #611 no such row can exist: `reportInput` refuses a
+ * targetless `'message'` report and `reports_target_required_unless_behavior` (20260904152300)
+ * refuses it at the table, so the fallback covers a state the schema no longer admits. It stays
+ * because the union member does, and because a rendered «no longer available» is the safer
+ * failure than a blank should either guard ever loosen.
  */
 const ABSENCE_COPY: Partial<Record<ReportedMessageState, MessageKey>> = {
   absent: 'admin.report.evidenceGone',

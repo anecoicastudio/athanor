@@ -6,25 +6,31 @@ import { CountdownCell } from './CountdownCell';
 
 /** 4-cell countdown ticking toward a server-authoritative target. Tick is local (Date.now); the deadline is display-only (frontend 07 §5/§9). */
 export function CountdownGrid({ targetMs, locale }: { targetMs: number; locale: 'it' | 'en' }) {
-  const [rem, setRem] = useState(() => timeRemaining(targetMs, Date.now()));
+  // The CLOCK is the state; the remainder is derived from it and `targetMs` during render. Held
+  // as a remainder it needed a `setState` inside the effect to re-sync when `targetMs` changed
+  // (#691) — which is just "recompute", and recomputing is what render is for.
+  const [now, setNow] = useState(() => Date.now());
+  const rem = timeRemaining(targetMs, now);
 
   useEffect(() => {
-    setRem(timeRemaining(targetMs, Date.now()));
     if (timeRemaining(targetMs, Date.now()).done) return;
     const id = setInterval(() => {
-      const next = timeRemaining(targetMs, Date.now());
-      setRem(next);
-      if (next.done) clearInterval(id);
+      const t = Date.now();
+      setNow(t);
+      if (timeRemaining(targetMs, t).done) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
   }, [targetMs]);
 
-  // `tn` on days only, and that is the whole of it: `fund.countdown.days` has a `.one` sibling
-  // and the other three units do not, so `tn` falls back to their base strings unchanged
-  // (`t.ts`: adoption is per-key). Without this the Home card said «manca 1 giorno» and this
-  // screen — the one that card opens — said «1 giorni» on the same day (#635 review).
-  const label = `${rem.days} ${tn('fund.countdown.days', rem.days, locale)}, ${rem.hours} ${t(
+  // `tn` on days and hours, `t` on minutes and seconds — and that split is the whole of it.
+  // Days and hours are words («giorni»/«ore») with a `.one` sibling each (#635 review, #652:
+  // without it the Home card said «manca 1 giorno» and this screen said «1 giorni», then «1
+  // ore»). Minutes and seconds are the abbreviations «min»/«sec», invariant in both languages
+  // and on `i18n.test.ts`'s IDENTICAL_BY_DESIGN allowlist, so they have no `.one` sibling and
+  // `tn` would be a promise the catalog does not keep (`t.ts`: adoption is per-key).
+  const label = `${rem.days} ${tn('fund.countdown.days', rem.days, locale)}, ${rem.hours} ${tn(
     'fund.countdown.hours',
+    rem.hours,
     locale,
   )}, ${rem.minutes} ${t('fund.countdown.minutes', locale)}, ${rem.seconds} ${t(
     'fund.countdown.seconds',
@@ -39,7 +45,7 @@ export function CountdownGrid({ targetMs, locale }: { targetMs: number; locale: 
       accessibilityLiveRegion="none"
     >
       <CountdownCell value={rem.days} unitLabel={tn('fund.countdown.days', rem.days, locale)} />
-      <CountdownCell value={rem.hours} unitLabel={t('fund.countdown.hours', locale)} />
+      <CountdownCell value={rem.hours} unitLabel={tn('fund.countdown.hours', rem.hours, locale)} />
       <CountdownCell value={rem.minutes} unitLabel={t('fund.countdown.minutes', locale)} />
       <CountdownCell value={rem.seconds} unitLabel={t('fund.countdown.seconds', locale)} accent />
     </View>

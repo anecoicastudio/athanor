@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { Modal, PanResponder } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { t } from '@athanor/i18n';
@@ -50,18 +50,13 @@ export function PhotoViewer({
   locale: Locale;
   onClose: () => void;
 }) {
-  // What the fade-out shows. `visible` flips before the caller can clear what it was showing —
-  // the chat screen nulls its `viewing` message in the same handler that closes this — and the
-  // Modal keeps rendering its children for the length of the animation. Rendering the live props
-  // through that would hand `MediaFrame` a `url` of undefined with nothing loading, i.e. the
-  // terminal «this photo won't load» state, so every dismissal would flash an error where the
-  // photo was. The ref is written from an effect rather than during render, so the close render
-  // still reads what the last OPEN render was given.
-  const last = useRef<{ url?: string; caption?: string | null }>({});
-  useEffect(() => {
-    if (visible) last.current = { url, caption };
-  }, [visible, url, caption]);
-  const shown = visible ? { url, caption } : last.current;
+  // The props ARE what the fade-out shows, and that is a contract with the caller: it must keep
+  // handing the photo through the dismiss animation, because the Modal renders its children for
+  // the length of it. Yanking them mid-fade hands `MediaFrame` a `url` of undefined with nothing
+  // loading — the terminal «this photo won't load» state — so every dismissal flashed an error
+  // where the photo was. This used to be papered over here with a ref written from an effect and
+  // read during render (#691); the caller now separates "which photo" from "open", which is the
+  // same fix one component earlier and leaves nothing to read.
 
   const pan = useMemo(
     () =>
@@ -100,7 +95,7 @@ export function PhotoViewer({
           <View className="flex-1" {...pan.panHandlers}>
             <MediaFrame
               kind="photo"
-              url={shown.url}
+              url={url}
               isLoading={visible && isLoading}
               locale={locale}
               contentFit="contain"
@@ -108,10 +103,8 @@ export function PhotoViewer({
             />
           </View>
 
-          {shown.caption ? (
-            <Text className="px-gutter pb-10 pt-3 text-center text-foreground">
-              {shown.caption}
-            </Text>
+          {caption ? (
+            <Text className="px-gutter pb-10 pt-3 text-center text-foreground">{caption}</Text>
           ) : (
             <View className="pb-10" />
           )}

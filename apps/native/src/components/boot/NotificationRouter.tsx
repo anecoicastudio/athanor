@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { devWarn } from '@/lib/log';
@@ -44,9 +44,27 @@ import { routeForPushData } from '@/lib/notification-route';
  * in-app ✦ pip updates instead). Everything here is background and cold start, which is also why
  * it cannot be exercised on expo-web at all.
  */
+/**
+ * The cold-start read, as a lazy `useState` initializer rather than a `setState` inside the
+ * mount effect (#691). It reads NATIVE state that is already there before any JS ran, so
+ * reading it once while the component first renders is the same answer the effect got, one
+ * commit earlier — and the effect below still consumes it after routing has settled.
+ */
+function lastResponse(): Notifications.NotificationResponse | null {
+  try {
+    return Notifications.getLastNotificationResponse() ?? null;
+  } catch (e) {
+    devWarn('[push] cold-start response unavailable', e);
+    return null;
+  }
+}
+
 export function NotificationRouter() {
   const router = useRouter();
-  const [response, setResponse] = useState<Notifications.NotificationResponse | null>(null);
+  const [response, setResponse] = useState<Notifications.NotificationResponse | null>(lastResponse);
+  // Which response has already been routed. A ref, and written from the effect below: clearing
+  // STATE was the old "run once" mechanism, and that was a `setState` inside an effect.
+  const handled = useRef<Notifications.NotificationResponse | null>(null);
 
   useEffect(() => {
     let subscription: { remove: () => void } | null = null;
@@ -55,17 +73,11 @@ export function NotificationRouter() {
     } catch (e) {
       devWarn('[push] response listener unavailable', e);
     }
-    try {
-      const last = Notifications.getLastNotificationResponse();
-      if (last) setResponse(last);
-    } catch (e) {
-      devWarn('[push] cold-start response unavailable', e);
-    }
     return () => subscription?.remove();
   }, []);
 
   useEffect(() => {
-    if (!response) return;
+    if (!response || handled.current === response) return;
     // Only the plain tap. An action button (none are registered today) must not inherit the
     // body's destination the day one is, which is the trap Expo's own example calls out.
     if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
@@ -76,9 +88,9 @@ export function NotificationRouter() {
     } catch (e) {
       devWarn('[push] clearing the last response', e);
     }
-    // Clearing STATE as well as native state is what makes this run once: the effect re-enters
-    // on the null and returns, so a remount cannot replay a route the member already took.
-    setResponse(null);
+    // Marking it handled is what makes this run once — together with the native clear above, a
+    // remount cannot replay a route the member already took.
+    handled.current = response;
     // A type with no destination (a warn, the moderation queue) still opened the app, which is
     // the whole of what it had to do. Staying put is the answer, not a fallback.
     if (href) router.push(href as Parameters<typeof router.push>[0]);

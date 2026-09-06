@@ -109,6 +109,22 @@ describe('submitReport', () => {
     expect(report).toEqual(BASE_ROW);
   });
 
+  it('refuses a targetless person report before touching the client (#611)', async () => {
+    const { client, calls } = stub();
+    await expect(
+      submitReport(client, { targetType: 'person', targetId: null, category: 'spam' }),
+    ).rejects.toMatchObject({ issues: [{ path: ['targetId'], message: 'target_required' }] });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a non-uuid target before touching the client', async () => {
+    const { client, calls } = stub();
+    await expect(
+      submitReport(client, { targetType: 'post', targetId: 'nope', category: 'spam' }),
+    ).rejects.toMatchObject({ issues: [{ path: ['targetId'] }] });
+    expect(calls).toHaveLength(0);
+  });
+
   it('throws when the insert errors', async () => {
     const boom = new Error('rls denied');
     const { client } = stub(null, boom);

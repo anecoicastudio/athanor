@@ -11,9 +11,10 @@ import { deviceLocale } from '@/lib/locale';
  * the OTP round-trip + app backgrounding because AsyncStorage is on disk.
  */
 const KEY = 'athanor.onboarding.draft';
-// v2 adds `avatar_uri` (#76). Bumping invalidates any v1 draft in flight rather than migrating
-// it — a draft lives minutes, and `loadDraft` already treats an unknown version as no draft.
-const VERSION = 2 as const;
+// v2 added `avatar_uri` (#76); v3 adds `birth_date` (#694). Bumping invalidates any older draft
+// in flight rather than migrating it — a draft lives minutes, and `loadDraft` already treats an
+// unknown version as no draft.
+const VERSION = 3 as const;
 
 export type OnboardingDraft = {
   v: typeof VERSION;
@@ -29,6 +30,13 @@ export type OnboardingDraft = {
    * lands. It is a cache path, so it can be gone by then; the flush treats that as no photo.
    */
   avatar_uri: string | null;
+  /**
+   * `YYYY-MM-DD`, local calendar parts (#694). Required for a NEW sign-up: the funnel's step 2
+   * does not advance without one, and `hasDraftAnswers` refuses to flush without one — so a
+   * draft that somehow lacks it routes back to the funnel rather than landing a profile the
+   * onboarding schema would reject.
+   */
+  birth_date: string | null;
 };
 
 export async function saveDraft(draft: Omit<OnboardingDraft, 'v'>): Promise<void> {
@@ -54,6 +62,7 @@ export async function loadDraft(): Promise<OnboardingDraft | null> {
       seeking: Array.isArray(parsed.seeking) ? parsed.seeking : [],
       dream: typeof parsed.dream === 'string' ? parsed.dream : '',
       avatar_uri: typeof parsed.avatar_uri === 'string' ? parsed.avatar_uri : null,
+      birth_date: typeof parsed.birth_date === 'string' ? parsed.birth_date : null,
     };
   } catch (e) {
     devWarn('[onboarding-draft] loadDraft', e);
@@ -69,7 +78,16 @@ export async function clearDraft(): Promise<void> {
   }
 }
 
-/** A draft worth flushing has at least the two required vocab answers (dream is optional). */
+/**
+ * A draft worth flushing has the two required vocab answers and a birth date (#694); the dream
+ * and the photo are optional. Anything less cannot satisfy `onboardingAnswersSchema`, so it is
+ * not worth a round trip.
+ */
 export function hasDraftAnswers(draft: OnboardingDraft | null): draft is OnboardingDraft {
-  return !!draft && draft.identity_tags.length > 0 && draft.seeking.length > 0;
+  return (
+    !!draft &&
+    draft.identity_tags.length > 0 &&
+    draft.seeking.length > 0 &&
+    draft.birth_date !== null
+  );
 }

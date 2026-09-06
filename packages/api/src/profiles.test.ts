@@ -45,6 +45,7 @@ describe('getProfileById (get_person_profile RPC — M10 visibility)', () => {
     skills: null,
     profession: 'arte',
     city: 'Milano',
+    zodiac_sign: 'leone',
     identity_verified: false,
     founding_member: false,
     removed: false,
@@ -122,6 +123,8 @@ describe('getOwnProfile (get_own_profile RPC)', () => {
       seeking: [],
       identity_verified: false,
       founding_member: false,
+      birth_date: null,
+      zodiac_sign: null,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     };
@@ -224,6 +227,7 @@ const answers = {
   locale: 'it' as const,
   identity_tags: ['maker'],
   seeking: ['connessioni'],
+  birth_date: '1990-08-10',
 };
 
 describe('updateOnboardingProfile', () => {
@@ -248,7 +252,13 @@ describe('updateOnboardingProfile', () => {
     } as never);
 
     const values = fake.calls[0]!.values as Record<string, unknown>;
-    expect(Object.keys(values).sort()).toEqual(['handle', 'identity_tags', 'locale', 'seeking']);
+    expect(Object.keys(values).sort()).toEqual([
+      'birth_date',
+      'handle',
+      'identity_tags',
+      'locale',
+      'seeking',
+    ]);
   });
 
   it('validates before touching the database', async () => {

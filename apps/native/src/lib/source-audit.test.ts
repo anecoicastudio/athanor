@@ -223,8 +223,9 @@ describe('no server-side secret ever reaches the client bundle', () => {
 
 /**
  * It is a NATIVE module. Adding it means the app can no longer run in App Store Expo Go —
- * the whole reason SDK 54 was chosen (mobile.md). Every payment flow already opens hosted
- * Stripe Checkout from an edge function, so the client never needs a Stripe key at all.
+ * the whole reason this app tracks the SDK Expo Go ships (mobile.md). Every payment flow
+ * already opens hosted Stripe Checkout from an edge function, so the client never needs a
+ * Stripe key at all.
  * Checked in both places because a dependency without an import, or an import without a
  * dependency, are each half of the same mistake.
  */
@@ -798,7 +799,8 @@ describe('the full-bleed viewer lifts the toast band over its overlay chrome (#1
  * back a trail that stops one step early.
  *
  * Lint cannot close this, for two independent reasons. `apps/native/eslint.config.js` is
- * `eslint-config-expo/flat` plus an `ignores` block and nothing else, so
+ * `eslint-config-expo/flat` plus an `ignores` block and nothing else — the React-Compiler
+ * rule-severity block that used to sit beside it is gone, its sweep done (#691) — so
  * `@typescript-eslint/no-floating-promises` — configured only in
  * `packages/config/eslint/library.js`, which this app does not extend — is not running here at
  * all. And even where it runs it defaults to `ignoreVoid: true`, so `void markStep(…)` satisfies
@@ -1093,38 +1095,82 @@ describe('placeholders are a token, never the platform default (#499)', () => {
 // ---------------------------------------------------------------------------------------
 
 /**
- * On iOS, `xhr.send({ uri })` does not stream: `RCTNetworkTask.mm` appends the whole file into
- * an `NSMutableData` and `RCTNetworking.mm` assigns it as `HTTPBody`, so a picked video becomes
- * one contiguous native allocation before the request leaves. That is #450, and it was
- * DEFERRED rather than fixed — blocked on #508's SDK 54 pin, because the replacement
- * (`expo/fetch`, or a native uploader) is not reachable from App Store Expo Go today.
+ * #450 is FIXED, not deferred: the request body is file-backed on every platform. It used to be
+ * `xhr.send({ uri })`, whose cost was platform-split — Android's `NetworkingModule` streamed it,
+ * while iOS's `RCTNetworkTask.mm` appended the whole file into an `NSMutableData` that
+ * `RCTNetworking.mm` assigned as `HTTPBody`, so a picked video was one contiguous native
+ * allocation before the request left, and inside Expo Go that is an OS jetsam kill rather than a
+ * catchable error.
  *
- * The deferral is only safe because the eventual swap is one module: `XMLHttpRequest` is
- * constructed in exactly one file, so however many upload surfaces get built on top of
- * `uploadWithProgress`, none of them adds a second place to fix. That property was true by
- * luck. This makes it true by assertion — a second `new XMLHttpRequest()` anywhere in the tree
- * silently doubles the cost of #450, and nothing else would say so.
+ * What made the fix affordable, and what keeps the next one affordable, is that there is exactly
+ * ONE place bytes leave the device. Six buckets (`post-media`, `avatars`, `moments`,
+ * `story-segments`, `candidacy-videos`, `chat-media`) and every upload surface funnel through
+ * `uploadLocalFile` → `uploadFile` → this seam, so a transport change is one module and never a
+ * sweep. That property was true by luck before #450 and is asserted here instead.
  *
- * Comments are stripped first: `upload-transport.ts` names the type in prose, and #450's own
- * reasoning is the kind of thing a future docblock will quote.
+ * The seam is split in two on purpose and both halves are pinned below:
+ *
+ * - `upload-task.ts` is the ONLY file that may name `expo-file-system` or `XMLHttpRequest`. A
+ *   second construction site anywhere silently doubles the cost of the next transport change.
+ * - `upload-transport.ts` holds the policy (watchdog, cancellation, the error taxonomy) and must
+ *   import NO platform module at all. That is not tidiness: `environment: 'node'` is what
+ *   collects this suite, `candidacy-video-status.ts` imports the error classes from it, and one
+ *   `expo-*` import there takes both files out of the harness with no other symptom.
+ *
+ * Comments are stripped first — `upload-task.ts` names both types in prose, and #450's own
+ * reasoning is the kind of thing a future docblock will quote. TEST files are excluded from the
+ * two name pins for the same reason this file excludes itself: `upload-task.test.ts` mocks the
+ * seam, and a mock has to name what it replaces.
  */
 describe('the upload transport is a single seam (#450)', () => {
-  const TRANSPORT = 'lib/media/upload-transport.ts';
+  const TASK = 'lib/media/upload-task.ts';
+  const POLICY = 'lib/media/upload-transport.ts';
 
-  it('XMLHttpRequest is used in exactly one file, and it is the transport', () => {
-    const users = [
+  const shippedFilesNaming = (pattern: RegExp): string[] =>
+    [
       ...new Set(
         codeLines()
-          .filter(([, text]) => /\bXMLHttpRequest\b/.test(text))
+          .filter(([at, text]) => !isTest(at.replace(/:\d+$/, '')) && pattern.test(text))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ].sort();
+
+  it('XMLHttpRequest is used in exactly one file, and it is the platform seam', () => {
     expect(
-      users,
-      'XMLHttpRequest has escaped the transport — #450 (iOS buffers the whole body in native ' +
-        'memory) is deferred on the promise that its fix is one module. Route the upload ' +
-        `through ${TRANSPORT} instead.`,
-    ).toEqual([TRANSPORT]);
+      shippedFilesNaming(/\bXMLHttpRequest\b/),
+      'XMLHttpRequest has escaped the seam. It is the WEB arm of the upload transport only — on ' +
+        `device the body must stay file-backed (#450). Route the upload through ${TASK}.`,
+    ).toEqual([TASK]);
+  });
+
+  it('expo-file-system is imported in exactly one file, and it is the platform seam', () => {
+    expect(
+      shippedFilesNaming(/\bexpo-file-system\b/),
+      'expo-file-system has escaped the seam. It is a no-op stub on web (it resolves ' +
+        '`{ status: 0 }` and warns), so a second call site is a silently skipped upload on the ' +
+        `one surface QA can reach. Route the upload through ${TASK}.`,
+    ).toEqual([TASK]);
+  });
+
+  it('the policy module imports no platform module — a node-collectable unit', () => {
+    // Whole-source, never line by line. Prettier wraps a named import list at printWidth 100, so
+    // a per-line match would miss exactly the shape this repo produces — `[^'"]*?` spans the
+    // newlines instead, and cannot run past the specifier because the first quote after the
+    // keyword is always the specifier's. Two patterns because a side-effect `import 'x'` has no
+    // `from` at all, and it is every bit as much a platform import as a named one.
+    const src = stripComments(read(`${SRC}${POLICY}`));
+    const bare = [
+      ...src.matchAll(/(?:^|\n)\s*(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g),
+      ...src.matchAll(/(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g),
+    ]
+      .flatMap((m) => m[1] ?? [])
+      .filter((specifier) => !specifier.startsWith('.'));
+    expect(
+      bare,
+      `${POLICY} must import nothing outside its own directory. It is unit-tested under ` +
+        "vitest's node environment, and `candidacy-video-status.ts` pulls its error classes in " +
+        `— one expo import here silently drops both files out of the suite. Put it in ${TASK}.`,
+    ).toEqual([]);
   });
 });
 
@@ -1277,7 +1323,7 @@ describe('the events tab has no posts source (#153)', () => {
 // ---------------------------------------------------------------------------------------
 
 /**
- * `Pressable` defaults `accessible={true}` (`react-native@0.81.5`, `Pressable.js:245`), and on
+ * `Pressable` defaults `accessible={true}` (`react-native@0.86.3`, `Pressable.js:252`), and on
  * iOS an accessible view is ATOMIC: VoiceOver focuses it as one unit and never descends into
  * it. So a Pressable inside a Pressable is a control a screen-reader user cannot reach.
  *
@@ -1657,7 +1703,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * reached the screen by pushing, which is why it survived across 20 files.
  *
  * A `(modal)` screen is a stack root more often than the in-app push path suggests:
- * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:52`
+ * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:53`
  * `replace`s EVERY `/@handle` link into `/(modal)/user/[id]`; the Android `intentFilters` in
  * `app.json` claim `/post`, `/event` and `/dream`, none of which has a top-level route
  * directory, so they resolve into `(modal)` too; and a modal→modal `replace` hands its
@@ -1672,7 +1718,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * `(modal)` screens and shared components both. A component does not know which screen mounts
  * it, so a `back()` inside `ModalHeader` is exactly as dead as one written in the screen —
  * that is where #577's bug lived. `(tabs)` and `(auth)` are out: a tab root has no back
- * affordance at all, and `(auth)/welcome.tsx:185` already renders its own conditionally.
+ * affordance at all, and `(auth)/welcome.tsx:231` already renders its own conditionally.
  *
  * ## What it cannot see
  *
@@ -2505,21 +2551,21 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:458':
+    'app/(modal)/chat.tsx:468':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:513':
+    'app/(modal)/chat.tsx:523':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:458',
-    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:458',
-    'app/(onboarding)/index.tsx:266':
+    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(onboarding)/index.tsx:402':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:513',
+    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:523',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
@@ -2702,10 +2748,11 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
  * (`src/lib/dirty-guard.test.ts`); this pins the wiring.
  *
  * The other thing a grep cannot see is DUPLICATION. `usePreventRemoveContext` is a React
- * context object, so the hook and the navigator must resolve the same physical copy of
- * `@react-navigation/native`; under two copies the hook fills a context the navigator never
- * reads and every guard below goes dead with this section still green. The last assertion
- * pins that, because the declared `^7.1.8` makes the dedup incidental rather than guaranteed.
+ * context object, so the hook and the navigator must share one physical copy of
+ * react-navigation; under two copies the hook fills a context the navigator never reads and
+ * every guard below goes dead with this section still green. expo-router 57 vendors its copy,
+ * which makes the identity structural — so the identity test asserts the vendored copy is
+ * where this section thinks it is, and that no standalone `@react-navigation/*` comes back.
  */
 const DIRTY_GUARD_ROSTER = [
   'app/(modal)/dream-editor.tsx',
@@ -2815,30 +2862,81 @@ describe('a composer confirms before it throws a draft away (#636)', () => {
     ).toEqual([]);
   });
 
-  it('the hook and the navigator share one @react-navigation/native', () => {
-    // `usePreventRemoveContext` is a React context OBJECT. Two physical copies of the package
-    // means `usePreventRemove` populates a context `native-stack` never reads: no
-    // `preventNativeDismiss`, no interception, every guard above dead — and every other
-    // assertion in this section still green, because they only grep for the call.
-    // Resolved along the path the APP actually takes — apps/native -> expo-router ->
-    // native-stack -> native. Resolving native-stack from apps/native instead would walk
-    // pnpm's hidden hoist directory and can land on an orphaned peer variant left behind by
-    // an earlier install, which says nothing about what Metro bundles. Node's resolver is a
-    // PROXY for Metro's here: the two agree on plain node_modules directory walking, which is
-    // all this edge depends on.
+  it('the hook and the navigator are one vendored react-navigation', () => {
+    // `usePreventRemoveContext` is a React context OBJECT. On SDK 54 the risk was two npm
+    // copies of `@react-navigation/native`; SDK 56 dropped expo-router's react-navigation
+    // dependency and VENDORED it, so `usePreventRemove` and native-stack's `isRemovePrevented`
+    // are now two files inside ONE package and the identity holds by construction. Two
+    // assertions keep that from going vacuous — the vendored copy is where this section
+    // thinks it is — one asserts the identity itself, and two assert the new way to break it: a
+    // standalone `@react-navigation/*` added back, which would give the hook a context the
+    // navigator never reads, with every grep above still green (#636, #508).
     const req = createRequire(`${SRC}package.json`);
-    const fromApp = req.resolve('@react-navigation/native');
-    const stack = createRequire(req.resolve('expo-router')).resolve(
-      '@react-navigation/native-stack',
-    );
-    const fromStack = createRequire(stack).resolve('@react-navigation/native');
     expect(
-      fromApp,
-      'apps/native and @react-navigation/native-stack resolve DIFFERENT copies of ' +
-        '@react-navigation/native, so the prevent-remove context the hook fills is not the ' +
-        'one the navigator reads. Dedupe them (the declared range is a caret, so this is not ' +
-        'guaranteed by the manifest) (#636).',
-    ).toBe(fromStack);
+      () => req.resolve('expo-router/react-navigation'),
+      'expo-router stopped exporting its vendored react-navigation at expo-router/react-navigation, ' +
+        'so the prevent-remove context the hook fills is not the one the navigator reads.',
+    ).not.toThrow();
+    expect(
+      () => req.resolve('expo-router/build/react-navigation/native-stack'),
+      'expo-router no longer vendors native-stack. This section assumes the hook and the ' +
+        'navigator are one package — re-derive the identity before trusting the guards above.',
+    ).not.toThrow();
+    // Identity, not existence: a subpath resolved from one base always lands under that base's
+    // copy, so the way two copies sneak in is the INSTALL — two expo-router versions locked at
+    // once, or an installed copy that is not the locked one. The lockfile is the record CI
+    // installs from (`node_modules/.pnpm` keeps stale dirs and cannot be counted), and turbo's
+    // global hash already covers it.
+    const lock = read(`${NATIVE}../../pnpm-lock.yaml`);
+    const locked = [...new Set([...lock.matchAll(/^ {2}expo-router@([^(:]+)/gm)].map((m) => m[1]))];
+    expect(
+      locked,
+      'more than one expo-router version is locked, so two physical copies of the vendored ' +
+        'react-navigation exist and the hook and the navigator can resolve different ones (#636).',
+    ).toHaveLength(1);
+    const installed = (
+      JSON.parse(read(req.resolve('expo-router/package.json'))) as { version: string }
+    ).version;
+    expect(
+      installed,
+      'the expo-router this app resolves is not the locked one — the install drifted from the ' +
+        'lockfile, and the identity argument above is about the lockfile.',
+    ).toBe(locked[0]);
+    expect(
+      /from 'expo-router\/react-navigation'/.test(read(`${SRC}hooks/use-dirty-guard.ts`)),
+      'use-dirty-guard.ts stopped taking usePreventRemove from expo-router/react-navigation.',
+    ).toBe(true);
+
+    const pkg = JSON.parse(readFileSync(`${NATIVE}package.json`, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    const declared = Object.keys({
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+      ...pkg.peerDependencies,
+    }).filter((name) => name.startsWith('@react-navigation/'));
+    expect(
+      declared,
+      'a standalone @react-navigation/* is back in apps/native. expo-router 57 vendors its own ' +
+        'copy; a second physical one means usePreventRemove fills a context native-stack never ' +
+        'reads and every guard above goes dead, silently (#636, #508).',
+    ).toEqual([]);
+
+    const imports = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => /from '@react-navigation\//.test(text))
+          .map(([at]) => at),
+      ),
+    ].sort();
+    expect(
+      imports,
+      "import from 'expo-router/react-navigation' instead — apps/native declares no " +
+        '@react-navigation package on SDK 57, so a bare import would resolve through a ' +
+        'transitive copy or not at all.',
+    ).toEqual([]);
   });
 
   it('the primitive still branches, so the roster cannot go vacuous', () => {
@@ -3145,5 +3243,392 @@ describe('the «Aiuta» CTA is gated on the shared helpable rule (#660)', () => 
         'Every one of them has to sit inside the `{offerable ? (` branch, or the CTA comes back ' +
         'on a done tappa and leads to a picker that will not list it (#660).',
     ).toEqual([]);
+  });
+});
+
+// 35 — every AutoFill-capable field decides its iOS posture in place (#615, #662)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #615 found that re-editing a filled field could replace the whole line, and pinned the cause
+ * on iOS AutoFill committing a suggestion (its hypothesis 2). The remedy is a call-site one:
+ * `textContentType` is iOS-only and OVERRIDES the value RN derives from `autoComplete`
+ * (`TextInput.js` maps one to the other only when the explicit prop is absent), so a field can
+ * keep its Android manager and still refuse the iOS fill. #620 applied it to the password field
+ * alone; #662 is the residual — `name` and `emailAddress` rode into the signup branch, where the
+ * same vector lands.
+ *
+ * The rule the tree now follows is about what the person is DOING, not about which field it is:
+ * a value being CREATED takes `none`, a value being RECALLED keeps the fill. That is a JSX
+ * invariant on props no assertion in this app can reach at runtime — `apps/native` has no render
+ * harness — so it is a static guard, the same answer as §21, §28, §29.
+ *
+ * It pins three things:
+ *
+ *   1. the registry below is the WHOLE set of AutoFill-capable fields, by count. A new field that
+ *      asks a platform manager to fill it therefore cannot land without a posture decided here.
+ *   2. each registered field carries both spellings — which is what keeps the two props
+ *      independent in fact and not just in the comment: dropping `autoComplete` while "cleaning
+ *      up" the iOS side would silently take Android's password and contact managers with it.
+ *   3. separately from the registry, that no field on `welcome.tsx` asks iOS to fill during
+ *      SIGNUP. Stated on its own so that flipping a registry row back to a fill goes red on the
+ *      invariant rather than quietly redefining it.
+ *
+ * ## What it cannot see
+ *
+ * Not the device behaviour. Whether iOS actually replaces the line is #615's open question, and
+ * no static read answers it; this only asserts that the app asks for what it decided to ask for.
+ *
+ * Nothing about a field that carries NEITHER prop: with both absent, iOS has no content type to
+ * commit and Android no manager to offer, so there is no posture to decide. The count in the
+ * first assertion is therefore over EITHER prop, because either one ALONE is enough to be
+ * filled and the two reach different platforms: RN hands `autoComplete` to the native component
+ * on Android only (`TextInput.js:922-926`), while `textContentType` is honoured whenever it is
+ * non-null (`:927-937`). A field spelling only `textContentType` is iOS-fillable with no Android
+ * manager at all, so counting `autoComplete` sites alone would have let one land unregistered.
+ *
+ * Two rows on one screen may share an `autoComplete` spelling; they are then matched in FILE
+ * order, one tag each. That is why the second assertion claims a tag as it consumes it rather
+ * than searching the whole file per row: an unclaimed search would satisfy both rows from the
+ * first tag, leaving the second field's posture unchecked while the count still balanced —
+ * the one way this section could have passed over exactly the field it exists to pin.
+ */
+describe('every AutoFill-capable field decides its iOS posture in place (#615, #662)', () => {
+  const WELCOME = `${SRC}app/(auth)/welcome.tsx`;
+
+  /**
+   * Every field in the app a platform manager can fill, with the two spellings it must carry.
+   * Keyed by the `autoComplete` spelling, because two fields on one screen are told apart by it
+   * and not by their tag. Whitespace-collapsed at the point of comparison — prettier owns how
+   * these wrap.
+   */
+  const FIELDS = [
+    {
+      what: 'signup name',
+      file: WELCOME,
+      autoComplete: `autoComplete="name"`,
+      textContentType: `textContentType="none"`,
+    },
+    {
+      what: 'email, both branches',
+      file: WELCOME,
+      autoComplete: `autoComplete="email"`,
+      textContentType: `textContentType={login ? 'emailAddress' : 'none'}`,
+    },
+    {
+      what: 'password, both branches',
+      file: WELCOME,
+      autoComplete: `autoComplete={login ? 'current-password' : 'new-password'}`,
+      textContentType: `textContentType={login ? 'password' : 'none'}`,
+    },
+    {
+      what: 'password reset',
+      file: `${SRC}app/(modal)/new-password.tsx`,
+      autoComplete: `autoComplete="new-password"`,
+      textContentType: `textContentType="none"`,
+    },
+    {
+      what: 'forgotten-password email',
+      file: `${SRC}app/(auth)/forgot-password.tsx`,
+      autoComplete: `autoComplete="email"`,
+      textContentType: `textContentType="emailAddress"`,
+    },
+  ];
+
+  const flat = (s: string) => s.replace(/\s+/g, ' ');
+
+  /**
+   * Every JSX opening tag in the app tree that asks for an autofill, with its file. EITHER prop
+   * counts: one without the other still gets the field filled, on one platform or the other.
+   */
+  const autofillTags = () =>
+    FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter((t) => /(?:autoComplete|textContentType)\s*=/.test(t.raw))
+        .map((t) => ({ ...t, path: p })),
+    );
+
+  it('finds the fields it is walking', () => {
+    // A registry naming files that have moved would pass every assertion below by finding
+    // nothing, and `read` would crash out with an ENOENT that says nothing about why.
+    const missing = [...new Set(FIELDS.map((f) => f.file))].filter((p) => !FILES.includes(p));
+    expect(
+      missing.map(rel),
+      'a registered AutoFill screen has moved — this section is vacuous until the paths are ' +
+        'fixed (#662).',
+    ).toEqual([]);
+    // The count is the gate on NEW fields: a screen that grows an autofilled input has to
+    // decide its iOS posture and register it here, in the same change.
+    const found = autofillTags().map((t) => `${rel(t.path)}:${t.line}`);
+    expect(
+      found.length,
+      `the app has ${found.length} autofilled field(s), the registry has ${FIELDS.length}:\n  ` +
+        `${found.join('\n  ')}\n` +
+        'A new one has to pick an iOS posture — `none` where the person is creating the value, ' +
+        'the fill where they are recalling it — and take a row above (#615, #662).',
+    ).toBe(FIELDS.length);
+  });
+
+  it('every registered field carries both spellings', () => {
+    const wrong: string[] = [];
+    const pools = new Map<string, ReturnType<typeof jsxOpeningTags>>();
+    for (const f of FIELDS) {
+      if (!pools.has(f.file)) pools.set(f.file, jsxOpeningTags(stripComments(read(f.file))));
+      const pool = pools.get(f.file) as ReturnType<typeof jsxOpeningTags>;
+      const tag = pool.find((t) => flat(t.raw).includes(flat(f.autoComplete)));
+      if (!tag) {
+        wrong.push(`${rel(f.file)}: no field spelled \`${f.autoComplete}\` (${f.what})`);
+        continue;
+      }
+      // Claimed, so a second row with the same spelling reads the NEXT field and not this one.
+      pool.splice(pool.indexOf(tag), 1);
+      if (!flat(tag.raw).includes(flat(f.textContentType))) {
+        wrong.push(
+          `${rel(f.file)}:${tag.line} (${f.what}) does not carry \`${f.textContentType}\``,
+        );
+      }
+    }
+    expect(
+      wrong,
+      `an AutoFill posture no longer matches the registry:\n  ${wrong.join('\n  ')}\n` +
+        'Both props are load-bearing and independent: `autoComplete` is the whole of Android’s ' +
+        'password and contact manager, `textContentType` is the whole of iOS’s. Dropping either ' +
+        'to tidy the other is a silent loss (#615, #662).',
+    ).toEqual([]);
+  });
+
+  it('no field asks iOS to fill during signup', () => {
+    const src = stripComments(read(WELCOME));
+    const bad = jsxOpeningTags(src)
+      .map((t) => ({ t, m: /textContentType=(\{[^}]*\}|"[^"]*")/.exec(flat(t.raw)) }))
+      .filter(({ m }) => m)
+      .filter(({ m }) => {
+        const v = (m as RegExpExecArray)[1] as string;
+        // Either off outright, or on only in the sign-in branch with `none` as the other arm.
+        return !(v === '"none"' || /^\{login \? '[A-Za-z]+' : 'none'\}$/.test(v));
+      })
+      .map(({ t, m }) => `${rel(WELCOME)}:${t.line} — ${(m as RegExpExecArray)[1]}`);
+    expect(
+      bad,
+      `a welcome.tsx field asks iOS for an AutoFill value in the signup branch:\n  ` +
+        `${bad.join('\n  ')}\n` +
+        'Signing up, the person is typing a value that does not exist yet, and a committed ' +
+        'suggestion replaces the whole line on re-focus (#615 hypothesis 2). Every field on this ' +
+        'screen is `"none"`, or `{login ? <type> : \'none\'}` where the sign-in branch recalls a ' +
+        'value that does exist (#662).',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 36 — a focused field is revealed, not merely uncovered (#689)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #614 stopped the keyboard covering the viewport: `KeyboardAvoiding` pads the wrapper by the
+ * keyboard's height and the content region shrinks. It moves nothing INSIDE that region, so on
+ * the device walk the signup password field — last in the column — was still off screen after
+ * the lift, reachable only by scrolling. #689 is the other half: `hooks/use-reveal-on-focus.ts`
+ * scrolls the focused row into the shrunken viewport.
+ *
+ * Three things a call site can get silently wrong, so three assertions:
+ *
+ *   1. the props never land at all — the screen imports the hook and forgets to spread
+ *      `scrollProps`, or grows a field that has no `fieldProps`. The field count is the gate:
+ *      every field on a registered screen — `Input` and `Field`, the app's two field
+ *      primitives — carries the reveal, so a new one cannot land without deciding to. The list
+ *      tag is checked for a SECOND SPELLING of what the spread already supplies: an `onScroll`
+ *      or a `ref` written on the tag as well as arriving through the spread leaves which one
+ *      survives to source order, and if it is not the reveal's the list stops being tracked
+ *      silently. Position is not read — a prop written before the spread would lose rather than
+ *      win, and is flagged too. Over-reporting on purpose, the stance `jsxOpeningTags` takes:
+ *      one tag carrying both spellings is worth a second look either way round.
+ *   2. the row ref and the focus handler are given DIFFERENT keys. Nothing throws — the reveal
+ *      measures a row that was never registered and returns — so the two key sets are compared
+ *      rather than counted.
+ *   3. a second mechanism appears beside it. `measureLayout` is the reveal's whole coupling to
+ *      layout, and it belongs in one file for the same reason `Keyboard.addListener` does (§8):
+ *      two answers to "where is this field" drift apart.
+ *
+ * ## What it cannot see
+ *
+ * The device behaviour. `react-native-web`'s `Keyboard` is a stub — `isVisible()` is false and
+ * `addListener` returns a no-op — so the inset is 0 in the browser harness, the viewport never
+ * shrinks, and the reveal has nothing to do there. The arithmetic and the sequencing are tested
+ * at a boundary instead (`lib/reveal-on-focus.test.ts`, node); that an iPhone actually lands the
+ * field above the keyboard is a device claim and stays one.
+ *
+ * Not the composers, deliberately. The registry is the FORM screens — several fields stacked
+ * down a scroll, where focusing one says nothing about where the others sit — not `chat`,
+ * `post-compose`, `story-compose`, `candidacy`, `(onboarding)` or `ProfileEditForm`, whose one
+ * field IS the screen and which the wrapper's lift already clears. `project-compose` is named
+ * like a composer and shaped like a form — a title field, a chip row, then a tall description at
+ * the foot — so it is in.
+ */
+describe('a focused field is revealed, not merely uncovered (#689)', () => {
+  /** The form screens that wire the reveal, with the key each of their fields is filed under. */
+  const FORMS = [
+    { file: `${SRC}app/(auth)/welcome.tsx`, keys: ['name', 'email', 'password'] },
+    { file: `${SRC}app/(auth)/forgot-password.tsx`, keys: ['email'] },
+    { file: `${SRC}app/(modal)/new-password.tsx`, keys: ['password'] },
+    {
+      file: `${SRC}app/(modal)/event-create.tsx`,
+      keys: ['name', 'desc', 'streamUrl', 'venue', 'city', 'capacity', 'price'],
+    },
+    { file: `${SRC}app/(modal)/project-compose.tsx`, keys: ['title', 'description'] },
+  ];
+
+  /** The app's two field primitives. Either one on a registered screen owes a reveal. */
+  const FIELDS = ['Input', 'Field'];
+
+  const SEAM = 'lib/reveal-on-focus.ts';
+
+  /** Keys quoted at a `.rowRef('…')` / `.fieldProps('…')` call, receiver-agnostic. */
+  const keysOf = (src: string, method: 'rowRef' | 'fieldProps') =>
+    [...src.matchAll(new RegExp(`\\.${method}\\('([^']+)'\\)`, 'g'))]
+      .map((m) => m[1] as string)
+      .sort();
+
+  it('finds the screens it is walking', () => {
+    // A registry naming a moved file would pass everything below by finding nothing.
+    const missing = FORMS.map((f) => f.file).filter((p) => !FILES.includes(p));
+    expect(
+      missing.map(rel),
+      'a registered form screen has moved — this section is vacuous until the paths are fixed.',
+    ).toEqual([]);
+  });
+
+  it('every registered form wires the list, and every field on it asks for the reveal', () => {
+    const wrong: string[] = [];
+    for (const form of FORMS) {
+      const src = stripComments(read(form.file));
+      const where = rel(form.file).replace('apps/native/src/', '');
+      if (!src.includes('useRevealOnFocus')) wrong.push(`${where}: does not call useRevealOnFocus`);
+      if (!src.includes('KeyboardAvoiding')) {
+        wrong.push(`${where}: the reveal is half a pair — the wrapper is the other half`);
+      }
+      const tags = jsxOpeningTags(src);
+      const lists = tags.filter((t) => t.base === 'ScrollView');
+      const spread = lists.filter((t) => /\.\.\.[A-Za-z_$][\w$]*\.scrollProps/.test(t.raw));
+      if (spread.length === 0) {
+        wrong.push(`${where}: its ScrollView does not spread the reveal's scrollProps`);
+      }
+      for (const one of spread) {
+        const clash = /\b(onScroll|onLayout|onContentSizeChange|ref)=/.exec(one.raw);
+        if (clash) {
+          wrong.push(`${where}:${one.line} re-declares \`${clash[1] as string}\` after the spread`);
+        }
+      }
+      const fields = tags.filter((t) => FIELDS.includes(t.base));
+      const revealed = fields.filter((t) => /\.fieldProps\('/.test(t.raw));
+      if (fields.length !== revealed.length) {
+        wrong.push(
+          `${where}: ${fields.length} field(s), ${revealed.length} with a reveal — ` +
+            `unrevealed at line(s) ${fields
+              .filter((t) => !/\.fieldProps\('/.test(t.raw))
+              .map((t) => t.line)
+              .join(', ')}`,
+        );
+      }
+    }
+    expect(
+      wrong,
+      `a form screen no longer reveals the field the member tapped:\n  ${wrong.join('\n  ')}\n` +
+        'KeyboardAvoiding uncovers the viewport; it moves nothing into it. A field added to one ' +
+        'of these screens takes a row ref and a fieldProps spread under the same key (#689).',
+    ).toEqual([]);
+  });
+
+  it('the row ref and the focus handler agree on every key', () => {
+    const wrong: string[] = [];
+    for (const form of FORMS) {
+      const src = stripComments(read(form.file));
+      const where = rel(form.file).replace('apps/native/src/', '');
+      const rows = keysOf(src, 'rowRef');
+      const focus = keysOf(src, 'fieldProps');
+      const expected = [...form.keys].sort();
+      if (rows.join() !== focus.join()) {
+        wrong.push(
+          `${where}: rowRef ${JSON.stringify(rows)} vs fieldProps ${JSON.stringify(focus)}`,
+        );
+      } else if (rows.join() !== expected.join()) {
+        wrong.push(
+          `${where}: wires ${JSON.stringify(rows)}, registry says ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+    expect(
+      wrong,
+      `a reveal key is spelled two ways, or the registry is stale:\n  ${wrong.join('\n  ')}\n` +
+        'A key that matches nothing fails SILENTLY — the reveal measures a row it was never ' +
+        'given and returns, so the field stays under the keyboard with nothing to see (#689).',
+    ).toEqual([]);
+  });
+
+  it('only the reveal seam measures a row against its list', () => {
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => stripComments(read(p)).includes('measureLayout('))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(
+      users,
+      'measureLayout is the reveal’s whole coupling to layout and belongs in one file, the ' +
+        'same reason keyboard events do (§8). A second answer to "where is this field" ' +
+        'drifts from the first (#689).',
+    ).toEqual([SEAM]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 37 — the one private expo path, named and bounded (#508)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * `lib/oauth.ts` reaches into `expo-auth-session/build/QueryParams` — a compiled path, not a
+ * public export. It is the only deep import into a `build/` directory in the app, and it exists
+ * because `expo-auth-session` does not re-export `QueryParams` from its index (still true on
+ * SDK 57, `build/index.d.ts`, checked 2026-09-05) and ships no `exports` map, which is the only
+ * reason the path resolves at all.
+ *
+ * The failure mode is silent: an `exports` map added upstream turns this into a Metro resolution
+ * error at bundle time, which is loud; a rename inside `build/` turns `getQueryParams` into
+ * `undefined` at the OAuth CALLBACK, on device, with no type error. The second assertion is what
+ * stands between that rename and a dead sign-in. The public replacement is `expo-linking`'s
+ * `parse(url).queryParams` (already imported in `oauth.ts`); moving to it changes the
+ * `errorCode` shape and is its own change, not a reflex.
+ */
+describe('the expo-auth-session deep import stays deliberate', () => {
+  const DEEP = 'expo-auth-session/build/QueryParams';
+
+  it('is used in exactly one file, and it is oauth.ts', () => {
+    const users = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => text.includes(DEEP))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      users,
+      `${DEEP} is a PRIVATE path — expo-auth-session does not export QueryParams from its ` +
+        'index and ships no `exports` map. One site, so the day it stops resolving there is one ' +
+        'file to fix (#508).',
+    ).toEqual(['lib/oauth.ts']);
+  });
+
+  it('the private path still resolves and still exports getQueryParams', () => {
+    const req = createRequire(`${SRC}package.json`);
+    expect(
+      () => req.resolve(DEEP),
+      'expo-auth-session moved or gated build/QueryParams. Check whether the SDK now exports ' +
+        'QueryParams publicly; if not, `parse(url).queryParams` from expo-linking is the public ' +
+        'replacement — oauth.ts already imports expo-linking.',
+    ).not.toThrow();
+    const mod = req(req.resolve(DEEP)) as { getQueryParams?: unknown };
+    expect(
+      typeof mod.getQueryParams,
+      'build/QueryParams resolves but no longer exports getQueryParams — oauth.ts would read ' +
+        '`undefined` at the OAuth callback with no type error.',
+    ).toBe('function');
   });
 });

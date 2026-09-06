@@ -125,10 +125,11 @@ export function useCandidacyUpload(
     try {
       const path = candidacyVideoPath(uid, candidacyId);
       // Raw video through the shared tail (#294 rerouted this off its own fetch→arrayBuffer
-      // copy): `uploadLocalFile` hands the native layer a `{ uri }` body and carries the
-      // signal + progress. That body streams from disk on Android and does NOT on iOS, where
-      // the whole file becomes one native allocation before the request leaves (#449) — which
-      // is why the picker compresses (`pick.ts`) and why #450 exists to remove the allocation.
+      // copy): `uploadLocalFile` streams the file from disk and carries the signal + progress.
+      // Constant memory on both platforms since #450 — iOS used to materialise the whole file
+      // in one native allocation here, which is the allocation this screen's 100 MiB ceiling
+      // was sized against. The picker still compresses (`pick.ts`), now for upload time and
+      // `media-process`'s ceiling rather than to survive the send.
       await uploadLocalFile(asset.uri, { bucket: 'candidacy-videos', path }, contentType, {
         signal: controller.signal,
         onProgress: ({ loaded, total }) => {

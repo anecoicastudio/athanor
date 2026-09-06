@@ -8,46 +8,44 @@ import {
   UploadStalledError,
   uploadErrorKey,
   uploadFailureStatus,
-  xhrUpload,
+  uploadFile,
   type UploadProgress,
-  type UploadXhr,
-  type XhrProgressEvent,
+  type UploadResponse,
+  type Uploader,
 } from './upload-transport';
 
-class FakeXhr implements UploadXhr {
-  opened: { method: string; url: string } | null = null;
-  headers: Record<string, string> = {};
-  sent: unknown = undefined;
-  abortCalls = 0;
-  status = 0;
-  responseText = '';
-  onload: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  upload: { onprogress: ((e: XhrProgressEvent) => void) | null } = { onprogress: null };
-
-  open(method: string, url: string) {
-    this.opened = { method, url };
-  }
-  setRequestHeader(name: string, value: string) {
-    this.headers[name] = value;
-  }
-  send(body: unknown) {
-    this.sent = body;
-  }
-  abort() {
-    this.abortCalls += 1;
-    this.onabort?.();
-  }
-
-  progress(loaded: number, total: number, lengthComputable = true) {
-    this.upload.onprogress?.({ lengthComputable, loaded, total });
-  }
-  respond(status: number, responseText = '') {
-    this.status = status;
-    this.responseText = responseText;
-    this.onload?.();
-  }
+/**
+ * A controllable stand-in for `upload-task.ts`. Models the contract the real arms honour: `done`
+ * resolves for ANY completed response (a 403 included) and rejects when the transfer failed or
+ * was cancelled, and `cancel()` is what makes it reject.
+ */
+function makeUploader(opts: { throwOnStart?: unknown } = {}) {
+  const state = {
+    creates: 0,
+    cancels: 0,
+    req: null as Parameters<Uploader>[0] | null,
+    resolve: (_: UploadResponse) => {},
+    reject: (_: unknown) => {},
+    progress: (_: UploadProgress) => {},
+  };
+  const uploader: Uploader = (req, hooks) => {
+    state.creates += 1;
+    if (opts.throwOnStart !== undefined) throw opts.throwOnStart;
+    state.req = req;
+    state.progress = hooks.onProgress;
+    const done = new Promise<UploadResponse>((resolve, reject) => {
+      state.resolve = resolve;
+      state.reject = reject;
+    });
+    return {
+      done,
+      cancel: () => {
+        state.cancels += 1;
+        state.reject(new Error('upload-aborted'));
+      },
+    };
+  };
+  return { state, uploader };
 }
 
 /** One pending timer at a time — exactly the watchdog's usage pattern. */
@@ -74,119 +72,144 @@ class FakeTimers {
 }
 
 function start(overrides: { signal?: AbortSignal; onProgress?: (p: UploadProgress) => void } = {}) {
-  const xhr = new FakeXhr();
+  const { state, uploader } = makeUploader();
   const clock = new FakeTimers();
-  const promise = xhrUpload(
+  const promise = uploadFile(
     {
       url: 'https://x.test/storage/v1/object/moments/u1/m1.mp4',
-      headers: { apikey: 'k', 'content-type': 'video/mp4' },
-      body: { uri: 'file:///tmp/m1.mp4' },
+      headers: { apikey: 'k', 'content-type': 'video/mp4', 'x-upsert': 'true' },
+      file: { uri: 'file:///tmp/m1.mp4' },
       ...overrides,
     },
-    { createXhr: () => xhr, timers: clock.timers },
+    { uploader, timers: clock.timers },
   );
-  return { xhr, clock, promise };
+  return { state, clock, promise };
 }
 
-describe('xhrUpload', () => {
-  it('POSTs the body verbatim with every header, resolving on 2xx', async () => {
-    const { xhr, promise } = start();
-    expect(xhr.opened).toEqual({
-      method: 'POST',
+describe('uploadFile', () => {
+  it('hands the uploader the URL, every header and the file ref untouched, resolving on 2xx', async () => {
+    const { state, promise } = start();
+    // The transport never reads the file and never rewrites a header: what `storage-request.ts`
+    // built is what the platform arm puts on the wire, `x-upsert` included — an upsert over an
+    // existing key is evaluated by the bucket's UPDATE policy, so losing it changes which RLS
+    // policy decides a retry.
+    expect(state.req).toEqual({
       url: 'https://x.test/storage/v1/object/moments/u1/m1.mp4',
+      headers: { apikey: 'k', 'content-type': 'video/mp4', 'x-upsert': 'true' },
+      file: { uri: 'file:///tmp/m1.mp4' },
     });
-    expect(xhr.headers).toEqual({ apikey: 'k', 'content-type': 'video/mp4' });
-    // `{ uri }` must reach xhr.send untouched — RN's networking layer is what understands it
-    // (convertRequestBody). Whether that streams is platform-split; see the module docblock.
-    expect(xhr.sent).toEqual({ uri: 'file:///tmp/m1.mp4' });
-    xhr.respond(200);
+    state.resolve({ status: 200, body: '' });
     await expect(promise).resolves.toBeUndefined();
   });
 
   it('rejects UploadHttpError with the status outside 2xx', async () => {
-    const { xhr, promise } = start();
-    xhr.respond(403, 'row-level security');
+    const { state, promise } = start();
+    // A non-2xx RESOLVES the handle — deciding that 403 is a failure is this module's job, and
+    // an uploader that rejected it would throw away the body the status lives in (#412).
+    state.resolve({ status: 403, body: 'row-level security' });
     await expect(promise).rejects.toMatchObject({ name: 'UploadHttpError', status: 403 });
   });
 
-  it('rejects a plain Error on network failure', async () => {
-    const { xhr, promise } = start();
-    xhr.onerror?.();
+  it('rejects a plain Error on network failure, carrying the underlying reason', async () => {
+    const { state, promise } = start();
+    state.reject(new Error('ECONNRESET'));
     await expect(promise).rejects.toThrow('upload-network-error');
+    await expect(promise).rejects.toThrow('ECONNRESET');
   });
 
-  it('rejects UploadCanceledError without creating an XHR when the signal is already aborted', async () => {
+  it('rejects rather than hanging when the uploader throws before returning a handle', async () => {
+    // Nothing would ever settle this promise otherwise: there is no `done` to reject, so the
+    // upload tile would spin until the watchdog — the #412 failure mode, one layer down.
+    const { uploader } = makeUploader({ throwOnStart: new Error('no such file') });
+    await expect(
+      uploadFile(
+        { url: 'u', headers: {}, file: { uri: 'file:///gone.mp4' } },
+        { uploader, timers: new FakeTimers().timers },
+      ),
+    ).rejects.toThrow('upload-network-error');
+  });
+
+  it('rejects UploadCanceledError without starting a transfer when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
-    let created = 0;
+    const { state, uploader } = makeUploader();
     await expect(
-      xhrUpload(
-        { url: 'u', headers: {}, body: null, signal: controller.signal },
-        {
-          createXhr: () => {
-            created += 1;
-            return new FakeXhr();
-          },
-          timers: new FakeTimers().timers,
-        },
+      uploadFile(
+        { url: 'u', headers: {}, file: { uri: 'file:///a.mp4' }, signal: controller.signal },
+        { uploader, timers: new FakeTimers().timers },
       ),
     ).rejects.toBeInstanceOf(UploadCanceledError);
-    expect(created).toBe(0);
+    expect(state.creates).toBe(0);
   });
 
-  it('aborts the XHR and rejects UploadCanceledError when the signal fires mid-flight', async () => {
+  it('cancels the transfer and rejects UploadCanceledError when the signal fires mid-flight', async () => {
     const controller = new AbortController();
-    const { xhr, clock, promise } = start({ signal: controller.signal });
+    const { state, clock, promise } = start({ signal: controller.signal });
     controller.abort();
-    expect(xhr.abortCalls).toBe(1);
+    expect(state.cancels).toBe(1);
     await expect(promise).rejects.toBeInstanceOf(UploadCanceledError);
     // Settling clears the watchdog — nothing left to fire later.
     expect(clock.pending).toBeNull();
   });
 
   it('waits the FIRST-PROGRESS window, not the stall window, before the first byte (#449)', async () => {
-    // On iOS everything between send() and the first progress event is the native layer
-    // reading the whole file into memory — no bytes are on the wire yet and none can be. The
-    // stall window measures silence BETWEEN progress events and is far too short to cover
-    // that read, so arming it pre-send aborted a working upload of a large file as 'stalled'.
+    // The window covers everything between starting the task and the first byte moving — DNS,
+    // TLS, the native session starting. #450 removed the whole-file read it was originally
+    // sized for; it stays a bound because a transfer that never moves still has to end.
     const { clock } = start();
     expect(clock.pending?.ms).toBe(UPLOAD_FIRST_PROGRESS_TIMEOUT_MS);
     expect(UPLOAD_FIRST_PROGRESS_TIMEOUT_MS).toBeGreaterThan(UPLOAD_STALL_TIMEOUT_MS);
   });
 
-  it('still aborts and rejects UploadStalledError if the first byte never arrives', async () => {
+  it('arms the watchdog BEFORE the transfer starts, not after', async () => {
+    // Armed after, an uploader that threw or hung inside its own constructor would never be
+    // watched at all.
+    const clock = new FakeTimers();
+    let armedAtStart = -1;
+    const uploader: Uploader = () => {
+      armedAtStart = clock.setCalls;
+      return { done: new Promise<UploadResponse>(() => {}), cancel: () => {} };
+    };
+    void uploadFile(
+      { url: 'u', headers: {}, file: { uri: 'file:///a.mp4' } },
+      { uploader, timers: clock.timers },
+    );
+    expect(armedAtStart).toBe(1);
+  });
+
+  it('still cancels and rejects UploadStalledError if the first byte never arrives', async () => {
     // The longer window is a bound, not an amnesty: a request that never moves at all must
     // still end, or the tile spins forever with no way out but leaving the screen.
-    const { xhr, clock, promise } = start();
+    const { state, clock, promise } = start();
     clock.fire();
-    expect(xhr.abortCalls).toBe(1);
+    expect(state.cancels).toBe(1);
     await expect(promise).rejects.toBeInstanceOf(UploadStalledError);
   });
 
   it('drops to the stall window once bytes are actually moving', async () => {
-    const { xhr, clock } = start();
-    xhr.progress(1, 100);
+    const { state, clock } = start();
+    state.progress({ loaded: 1, total: 100 });
     expect(clock.pending?.ms).toBe(UPLOAD_STALL_TIMEOUT_MS);
   });
 
   it('re-arms the watchdog on every progress event — moving bytes never stall out', async () => {
-    const { xhr, clock, promise } = start();
+    const { state, clock, promise } = start();
     expect(clock.setCalls).toBe(1);
-    xhr.progress(1, 100);
+    state.progress({ loaded: 1, total: 100 });
     expect(clock.setCalls).toBe(2);
-    xhr.progress(2, 100);
+    state.progress({ loaded: 2, total: 100 });
     expect(clock.setCalls).toBe(3);
     // Only after the LAST progress event does silence become a stall.
     clock.fire();
     await expect(promise).rejects.toBeInstanceOf(UploadStalledError);
   });
 
-  it('reports progress as bytes, with total null when the length is not computable', async () => {
+  it('passes progress through verbatim, total null included', async () => {
     const seen: UploadProgress[] = [];
-    const { xhr, promise } = start({ onProgress: (p) => seen.push(p) });
-    xhr.progress(10, 100);
-    xhr.progress(20, 0, false);
-    xhr.respond(200);
+    const { state, promise } = start({ onProgress: (p) => seen.push(p) });
+    state.progress({ loaded: 10, total: 100 });
+    state.progress({ loaded: 20, total: null });
+    state.resolve({ status: 200, body: '' });
     await promise;
     expect(seen).toEqual([
       { loaded: 10, total: 100 },
@@ -194,13 +217,36 @@ describe('xhrUpload', () => {
     ]);
   });
 
-  it('ignores a signal abort after settling — no second abort reaches the XHR', async () => {
+  it('ignores progress that arrives after settling — no watchdog is re-armed behind the result', async () => {
+    const seen: UploadProgress[] = [];
+    const { state, clock, promise } = start({ onProgress: (p) => seen.push(p) });
+    state.resolve({ status: 200, body: '' });
+    await promise;
+    const armedAtSettle = clock.setCalls;
+    state.progress({ loaded: 99, total: 100 });
+    expect(seen).toEqual([]);
+    expect(clock.setCalls).toBe(armedAtSettle);
+    expect(clock.pending).toBeNull();
+  });
+
+  it('a 2xx that lands after a cancel is still a cancel, not a success', async () => {
+    // The member asked for it to stop. `expo-file-system` cancels the native task and then
+    // rejects, but a response already in flight can win the race — telling the screen the
+    // upload succeeded after the member cancelled it would be a lie about their own action.
     const controller = new AbortController();
-    const { xhr, promise } = start({ signal: controller.signal });
-    xhr.respond(200);
+    const { state, promise } = start({ signal: controller.signal });
+    controller.abort();
+    state.resolve({ status: 200, body: '' });
+    await expect(promise).rejects.toBeInstanceOf(UploadCanceledError);
+  });
+
+  it('ignores a signal abort after settling — no second cancel reaches the uploader', async () => {
+    const controller = new AbortController();
+    const { state, promise } = start({ signal: controller.signal });
+    state.resolve({ status: 200, body: '' });
     await promise;
     controller.abort();
-    expect(xhr.abortCalls).toBe(0);
+    expect(state.cancels).toBe(0);
   });
 });
 

@@ -7,6 +7,7 @@ describe('onboardingAnswersSchema', () => {
     locale: 'it',
     identity_tags: ['coach'],
     seeking: ['connessioni'],
+    birth_date: '1990-08-10',
   };
 
   test('accepts a valid payload', () => {
@@ -44,6 +45,7 @@ describe('onboardingAnswersSchema handle reservation (#430)', () => {
     locale: 'it',
     identity_tags: ['coach'],
     seeking: ['connessioni'],
+    birth_date: '1990-08-10',
   };
 
   // The write shape refuses a reserved handle; `handleSchema` — which read models use — does
@@ -61,5 +63,27 @@ describe('onboardingAnswersSchema handle reservation (#430)', () => {
     expect(onboardingAnswersSchema.parse({ ...valid, handle: 'admin_luna' }).handle).toBe(
       'admin_luna',
     );
+  });
+});
+
+describe('onboardingAnswersSchema — birth_date (#694)', () => {
+  const valid = {
+    handle: 'lucia_ferri',
+    locale: 'it',
+    identity_tags: ['coach'],
+    seeking: ['connessioni'],
+    birth_date: '1990-08-10',
+  };
+
+  test('is required — a new sign-up cannot flush without it', () => {
+    const { birth_date: _omitted, ...without } = valid;
+    expect(() => onboardingAnswersSchema.parse(without)).toThrow();
+  });
+
+  test('rejects a datetime or an impossible day', () => {
+    expect(() =>
+      onboardingAnswersSchema.parse({ ...valid, birth_date: '1990-08-10T00:00:00Z' }),
+    ).toThrow();
+    expect(() => onboardingAnswersSchema.parse({ ...valid, birth_date: '2023-02-29' })).toThrow();
   });
 });

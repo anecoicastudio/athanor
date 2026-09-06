@@ -10,7 +10,7 @@
  * This module is the part of the answer that is a pure function, and it lives apart from the
  * hook for the reason `src/lib/media/audio-recording.ts` states about `Platform.OS`: a decision
  * taken as an argument is a decision a node-environment test can reach. `use-dirty-guard.ts`
- * imports `@react-navigation/native` and `react-native`, neither of which this harness can
+ * imports `expo-router/react-navigation` and `react-native`, neither of which this harness can
  * collect (`vitest.config.ts` runs `environment: 'node'` over `src/**\/*.test.ts`, and
  * react-native ships untranspiled Flow), so everything worth asserting is here instead.
  */

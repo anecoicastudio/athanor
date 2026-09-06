@@ -60,11 +60,12 @@ select lives_ok(
   'second verdict no-ops on resolved report');
 reset role;
 
--- penalty on non-person target → 22023
+-- penalty on non-person target → 22023 (a post target is named — since #611 a 'post' report
+-- cannot be filed without one; no FK, so the id need not resolve)
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","role":"authenticated"}';
 insert into public.reports (id, target_type, target_id, category)
-  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','post', null, 'spam');
+  values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','post', 'ffffffff-ffff-ffff-ffff-ffffffffffff', 'spam');
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated","app_metadata":{"role":"admin"}}';

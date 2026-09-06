@@ -52,6 +52,7 @@ import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useToast } from '@/components/ToastHost';
 
@@ -288,7 +289,7 @@ export default function AnnualFundScreen() {
   });
   const publicPhases = useMemo(() => publicPhasesQuery.data ?? [], [publicPhasesQuery.data]);
   // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
-  const nowMs = useRef(Date.now()).current;
+  const nowMs = useNow();
 
   // One signing call for the whole ballot, not one per card: `useSignedUrls` keys on the sorted
   // path list, so N cards signing themselves would be N requests and N cache entries for one

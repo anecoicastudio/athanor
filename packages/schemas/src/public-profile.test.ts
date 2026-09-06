@@ -24,6 +24,7 @@ describe('publicProfileSchema', () => {
       handle: 'sole',
       displayName: 'Sole Marini',
       avatarUrl: 'https://x.supabase.co/storage/v1/object/sign/avatars/u/u.jpg?token=t',
+      zodiacSign: 'leone',
       bio: 'Designer',
       dream: {
         text: 'Aprire uno studio',
@@ -38,10 +39,12 @@ describe('publicProfileSchema', () => {
       handle: 'sole',
       displayName: null,
       avatarUrl: null,
+      zodiacSign: null,
       bio: null,
       dream: null,
     });
     expect(parsed.displayName).toBeNull();
+    expect(parsed.zodiacSign).toBeNull();
     expect(parsed.avatarUrl).toBeNull();
     expect(parsed.bio).toBeNull();
     expect(parsed.dream).toBeNull();

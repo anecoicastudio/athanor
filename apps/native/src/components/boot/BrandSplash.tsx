@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Animated, Easing, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { t } from '@athanor/i18n';
 import { mandorla, semantic } from '@athanor/config';
 import { Text } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -24,12 +25,12 @@ const LENS = 'M50 24 A30 30 0 0 1 50 76 A30 30 0 0 1 50 24 Z';
  * `expo-splash-screen` covers the pre-JS frame; this is the brand beat after it.
  */
 export function BrandSplash({ onDone }: { onDone: () => void }) {
-  const circles = useRef(new Animated.Value(DASH)).current;
-  const lens = useRef(new Animated.Value(DASH)).current;
-  const spark = useRef(new Animated.Value(0)).current;
-  const wordmark = useRef(new Animated.Value(0)).current;
-  const tagline = useRef(new Animated.Value(0)).current;
-  const container = useRef(new Animated.Value(1)).current;
+  const circles = useAnimatedValue(DASH);
+  const lens = useAnimatedValue(DASH);
+  const spark = useAnimatedValue(0);
+  const wordmark = useAnimatedValue(0);
+  const tagline = useAnimatedValue(0);
+  const container = useAnimatedValue(1);
   const reduce = useReducedMotion();
 
   useEffect(() => {

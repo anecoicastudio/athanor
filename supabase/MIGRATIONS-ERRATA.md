@@ -3,9 +3,23 @@
 Migrations are append-only once applied (project rule #7): a comment that turns out to be
 wrong can never be fixed in place, and the file keeps asserting it to everyone who reads it.
 
-Corrections land here. One section per migration, newest first. Each entry names the lines it
-supersedes and points at the test that holds the verified behaviour — the test is the source
-of truth, this file is the signpost.
+Corrections land here. The unit is a `##` section headed by the migration's file name. A
+migration gets one `##` where a single correction covers it; corrections that surface later
+land as `###` subsections under that heading, or as a further `##` when they were filed on
+their own — both shapes exist and neither is wrong. A heading may name several files when
+one comment was wrong in each of them, and a few sections are keyed on a claim rather than a
+file («no-op until the GUCs are set», the `TODO(M9)` markers) and list the migrations that
+made it in an inner table.
+
+There is no ordering guarantee. The first block was kept newest-first; everything after it
+was added at the end as it was found. Find a migration by searching for its timestamp, never
+by position.
+
+The target for every entry is to name the lines it supersedes, in the heading or the first
+sentence, and to point at the test that holds the verified behaviour (`Asserted by:`). Most
+recent entries meet it; not all of the older ones do. The test is the source of truth, this
+file is the signpost — when an entry names no line, grep the migration for the comment it
+quotes.
 
 It lives one level up from the migrations it annotates: the Supabase CLI treats every file in
 `supabase/migrations/` as a candidate migration and prints a "Skipping …" line for anything
@@ -1486,3 +1500,54 @@ Corrected by `20260903085640_blocks_comment_keeps_exemption.sql`, which re-issue
 the live `obj_description()` text with the #663 sentence kept. The rule that falls out: a comment
 is re-issuable, but only from `obj_description()` on the linked project — a migration file is a
 snapshot of one contributor, never the current text.
+
+## `20260818114947_banned_read_side_hiding.sql` — the admin clause's stated reason no longer describes a read that exists
+
+The header at `:103-107` explains `or athanor.is_admin()` by pointing at «packages/api/src/admin.ts:158
+resolves a person report's target_handle with a direct `from('profiles')` read», and reasons that
+without the clause «the moderation panel would lose the handle of every member it bans». Two things
+have moved.
+
+The line ref drifted first (`:117` by 2026-09-03). Then #664 removed the read altogether: the same
+policy composes the SYMMETRIC `athanor.not_blocked` OUTSIDE the parenthesis the admin clause sits in,
+so that direct read — and the queue's reporter embed, and the message-sender read — returned NULL
+whenever the admin and the member were a blocked pair, which is the half of the story the header
+did not see. `20260904142701_admin_report_handles.sql` moves all three behind one DEFINER channel,
+`public.admin_report_handles(uuid[])`, and `packages/api/src/admin.ts` no longer reads `profiles`
+at all.
+
+The clause itself stands and is still needed: `search_all`'s person arm and every other
+`profiles` embed an admin reaches keep showing banned members to an admin through it, and the
+channel deliberately mirrors that (a banned party still names). Read the header's rationale as
+«an admin keeps every profiles read they had before the ban gate», not as a description of any one
+call site.
+
+Asserted by: `supabase/tests/0144_admin_report_handles.test.sql` — S7 pins the policy text
+unchanged, A1–A3 that it still hides a blocked pair from the admin, A5–A7 / U1–U2 that the channel
+names them anyway, E1 that a banned reporter still names.
+
+## `20260905170330_profiles_zodiac_sign_service_role_execute.sql` and `20260905171142_profiles_zodiac_sign_grant_service_role.sql` — two EMPTY migrations, deliberately left empty
+
+Both files are zero bytes and were applied to staging that way: `supabase migration new` created
+each, the shell write that should have filled it went astray (a `$(ls …)` capture rewritten by a
+token-saving hook handed `cat` a path that was not the file), and the following `db push` recorded
+it as applied before anyone looked. The second attempt repeated the first's mistake before the
+cause was found. Rule 7 makes an applied migration immutable — even a body added to
+an empty one would replay on CI's from-zero stack and never on staging, which is exactly the
+drift the rule exists to prevent — so both files stay empty, and the statement they were meant to
+carry landed as `20260905171924_profiles_zodiac_sign_execute_service_role.sql` instead.
+
+What that statement corrects is a claim in `20260905165133_profiles_birth_date_zodiac.sql` §1:
+«`service_role` keeps the default-ACL 'f' row». It does not. The first explicit `revoke … from
+public` materialises the function's ACL as `{owner, authenticated}`, and `service_role` — which had
+been executing through the implicit PUBLIC grant — loses EXECUTE with it. Because Postgres
+recomputes a stored generated column on every UPDATE of the row and checks the function
+privilege as the writing role, every `service_role` UPDATE on `profiles` failed with
+`42501: permission denied for function zodiac_sign` between the two pushes (a display_name-only
+update included, proved by a staging probe). Read §1's rationale as «authenticated needs an
+explicit grant» and nothing more; the full rule is **every role that writes the table needs
+EXECUTE on the generation function**.
+
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql` — the function-ACL block
+asserts EXECUTE for both `authenticated` and `service_role`, and the fixture itself is a
+`service_role` UPDATE on `profiles`.

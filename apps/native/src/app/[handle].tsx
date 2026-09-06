@@ -24,10 +24,19 @@ export default function HandleCatchScreen() {
   const { handle: raw } = useLocalSearchParams<{ handle: string }>();
   const { session, loading } = useAuth();
   const router = useRouter();
-  const [unavailable, setUnavailable] = useState(false);
+  const [lookupFailed, setLookupFailed] = useState(false);
 
   const locale = useLocale();
   const userId = session?.user.id ?? null;
+
+  // Whether the path is even a handle is knowable during render, so it is derived rather than
+  // set from the effect below (#691). The leading `@` is REQUIRED — see the docblock. Only the
+  // LOOKUP's answer needs state.
+  const parsed = raw?.startsWith('@') ? handleSchema.safeParse(raw.slice(1).toLowerCase()) : null;
+  const handle = parsed?.success ? parsed.data : null;
+  // Withheld until the session has settled and turned out to be signed in: those two arms
+  // redirect, and «questo profilo non è disponibile» is the wrong thing to flash on the way.
+  const unavailable = !loading && !!userId && (handle === null || lookupFailed);
 
   useEffect(() => {
     if (loading) return;
@@ -35,32 +44,24 @@ export default function HandleCatchScreen() {
       router.replace('/(auth)/welcome');
       return;
     }
-    if (!raw?.startsWith('@')) {
-      setUnavailable(true);
-      return;
-    }
-    const parsed = handleSchema.safeParse(raw.slice(1).toLowerCase());
-    if (!parsed.success) {
-      setUnavailable(true);
-      return;
-    }
+    if (!handle) return;
     let cancelled = false;
-    getProfileIdByHandle(supabase, parsed.data)
+    getProfileIdByHandle(supabase, handle)
       .then((id) => {
         if (cancelled) return;
         if (id) {
           router.replace({ pathname: '/(modal)/user/[id]', params: { id } });
         } else {
-          setUnavailable(true);
+          setLookupFailed(true);
         }
       })
       .catch(() => {
-        if (!cancelled) setUnavailable(true);
+        if (!cancelled) setLookupFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [loading, userId, raw, router]);
+  }, [loading, userId, handle, router]);
 
   if (unavailable) {
     return (

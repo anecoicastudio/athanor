@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   checkInScan,
   eventKeys,
@@ -28,8 +28,8 @@ export default function CheckinScreen() {
   const leave = useGuardedBack();
   const locale = useLocale();
 
+  const qc = useQueryClient();
   const [permission, requestPermission] = useCameraPermissions();
-  const [count, setCount] = useState(0);
   const [last, setLast] = useState<{ v: Verdict; name?: string } | null>(null);
   // Lock so the continuous camera stream submits one token at a time + a short cooldown after a result.
   const busy = useRef(false);
@@ -46,14 +46,17 @@ export default function CheckinScreen() {
     queryFn: () => getEventCheckinCount(supabase, id),
     enabled: !!id,
   });
-  useEffect(() => {
-    if (seed.data != null) setCount(seed.data);
-  }, [seed.data]);
+  // The stream bumps the CACHED count, not a local mirror of it. The seed read and the live
+  // INSERTs used to be two sources for one number, reconciled by a `setState` in an effect
+  // (#691); now there is one source and the subscription writes to it.
   useEffect(() => {
     if (!id) return;
-    const off = subscribeAttendance(supabase, id, () => setCount((c) => c + 1));
+    const off = subscribeAttendance(supabase, id, () =>
+      qc.setQueryData(eventKeys.checkin(id), (c: number | undefined) => (c ?? 0) + 1),
+    );
     return off;
-  }, [id]);
+  }, [id, qc]);
+  const count = seed.data ?? 0;
 
   // The verdict is a transient sentence with no other surface: it appears in a pill for 2s and is
   // gone (#635). Announce it — on iOS nothing else would, and the scanner's whole output is this
