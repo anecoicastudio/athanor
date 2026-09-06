@@ -71,13 +71,21 @@ export default function MomentiScreen() {
   const answered = useMomentiAnswered();
 
   // The in-session swipe-through latch (SwipeDeck.onEmpty fires once its local index passes
-  // the array), carrying the deck it swept. It must stay true through the window where the
-  // mutation and refetch have not settled — `cards` is still the answered array there, and
-  // `momentiDeckView` needs `exhausted` — and go false the moment a refetch brings a DIFFERENT
-  // deck back, or the tab strands. That is exactly "the array has not changed since", so the
-  // key says it during render instead of an effect clearing a flag a commit later (#691).
+  // the array), carrying the deck it swept. Two things must hold, and only one of them is
+  // about the key:
+  //
+  // - it stays true through the window where the mutation and the refetch have not settled —
+  //   `cards` is still the answered array there, so the key still matches;
+  // - it stays true when the refetch comes back EMPTY, which is the ordinary end of a
+  //   swipe-through. `neverHadOne` is `deckIsEmpty && !sweptThrough && everAnswered === false`,
+  //   so dropping the latch on an empty deck offers «Quando troviamo la persona giusta» to
+  //   someone who just answered every card — the #600 defect this latch exists to prevent.
+  //
+  // It goes false only when a refetch brings a DIFFERENT, NON-EMPTY deck back, or the tab
+  // strands. Both conditions are readable during render, so no effect clears a flag a commit
+  // later (#691).
   const deckKey = cards.map((c) => c.id).join('|');
-  const done = sweptKey !== null && sweptKey === deckKey;
+  const done = sweptKey !== null && (cards.length === 0 || sweptKey === deckKey);
 
   const suggestions = useQuery({
     queryKey: momentiKeys.suggestions(),
