@@ -475,6 +475,31 @@ and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagg
 
 ### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06)
 
+> **⛔ BLOCKING, both Stripe accounts — Connect is not signed up for (found 2026-09-06 while shipping #104).**
+> Invoking `create-payout-onboarding` against **staging** with a real organiser JWT returns 500, and the
+> function log carries Stripe's reason verbatim:
+>
+> > `You can only create new accounts if you've signed up for Connect, which you can do at https://dashboard.stripe.com/connect.`
+> > — `accounts.create`, `req_Ha8fVQKCd3RRsI`, staging, 2026-09-06
+>
+> This is **Dashboard state, not repo state**, and it is pre-existing rather than new: until #104 nothing
+> in `apps/` or `packages/` invoked that function, so it had never been called and the condition had
+> never surfaced. It was recorded as unverifiable in #104's issue check on the same day.
+>
+> The consequence is total for paid events, and it chains: no Connect → `accounts.create` fails → no
+> `payout_accounts` row can ever reach `payouts_enabled` → `has_payouts_enabled` is false for everyone →
+> **`create_event` refuses every paid event with 55000**, and `create-ticket-checkout` refuses every
+> purchase with 403. Free events, RSVPs, Circle, Identity and the fund rail are all untouched.
+>
+> **Sign up for Connect on the staging account first and re-walk the CTA there, then on production
+> before the release that carries #104.** The fund rail's payout path (#247) has the same dependency and
+> the same blocker, so this unblocks both. Nothing in the repo can detect or work around it — treat a
+> green CI and a green pgTAP run as saying nothing about this.
+>
+> Stripe also returns an advisory on every `accounts.create`: _"We recommend building your integration
+> using Accounts v2."_ The current shape uses v1 controller properties, which is correct and supported;
+> migrating is a separate decision, not a launch item.
+
 Since #104 a ticket Checkout Session carries `payment_intent_data.transfer_data.destination` (the
 organiser's connected account) and `payment_intent_data.application_fee_amount` (Athanor's
 `events.fee_pct`, default 10%). Stripe splits the money at payment time. Nothing in this repo

@@ -413,14 +413,16 @@ Deno.test('a zero fee_pct still mints a destination charge, with no application 
 });
 
 Deno.test(
-  'no payable destination → 409, before the seat is claimed and before Stripe',
+  'no payable destination → 403, before the seat is claimed and before Stripe',
   async () => {
     // The creation gate makes this near-unreachable, but Stripe revokes capabilities after the fact.
     // It must refuse BEFORE claim_event_seat, or a revoked organiser's event would hold seats for
     // 35 minutes each time somebody tried to buy.
     const c = ctx({ ...sellable(), 'rpc.organizer_payout_destination': [{ data: null }] });
     const { res, body } = await run(c);
-    assertEquals(res.status, 409);
+    // 403, the same status as 'organizer not verified': both are authorization-shaped refusals
+    // about the ORGANISER, not a conflict with concurrent state the way the 409s here are.
+    assertEquals(res.status, 403);
     assertEquals(body, { error: 'organizer cannot receive payouts' });
     assertEquals(c.created.length, 0);
     assertEquals(
@@ -445,19 +447,82 @@ Deno.test('a destination lookup error fails closed — 500, no seat, no charge',
   );
 });
 
-Deno.test('the destination is resolved for THIS event, and after the identity gate', async () => {
-  const c = ctx(sellable());
-  await run(c);
-  const calls = c.db.calls.filter((call) => call.op === 'rpc');
-  const verify = calls.findIndex((call) => call.columns === 'is_identity_verified');
-  const dest = calls.findIndex((call) => call.columns === 'organizer_payout_destination');
-  const claim = calls.findIndex((call) => call.columns === 'claim_event_seat');
-  assert(verify >= 0 && dest >= 0 && claim >= 0);
-  // Identity first (it is the older, broader refusal), then payability, then the seat.
-  assert(verify < dest, 'identity must still refuse before payability');
-  assert(dest < claim, 'payability must refuse before a seat is held');
-  assertEquals(calls[dest].values, { p_event_id: EVENT });
-});
+Deno.test(
+  'the destination is resolved for THIS event, last of the reads and before the seat',
+  () => {
+    const c = ctx(sellable());
+    return run(c).then(() => {
+      const calls = c.db.calls.filter((call) => call.op === 'rpc');
+      const verify = calls.findIndex((call) => call.columns === 'is_identity_verified');
+      const dest = calls.findIndex((call) => call.columns === 'organizer_payout_destination');
+      const claim = calls.findIndex((call) => call.columns === 'claim_event_seat');
+      assert(verify >= 0 && dest >= 0 && claim >= 0);
+      assert(verify < dest, 'identity must still refuse before payability');
+      assert(dest < claim, 'payability must refuse before a seat is held');
+      assertEquals(calls[dest].values, { p_event_id: EVENT });
+    });
+  },
+);
+
+Deno.test(
+  'a held ticket refuses before the destination is resolved, so the bar can self-heal',
+  async () => {
+    // TicketBar keys refetchTicket() on 'ticket already owned' — that is how a stale bar flips to the
+    // ticket view. If the payout refusal ran first, a buyer whose cache is stale would be told the
+    // organiser cannot be paid, the refetch would never fire, and the bar would keep offering to sell
+    // a ticket they already hold. Ordering is the fix, so ordering is what is asserted.
+    const c = ctx({
+      ...sellable(),
+      'event_tickets.select': [{ data: { status: 'paid' } }],
+      'rpc.organizer_payout_destination': [{ data: null }],
+    });
+    const { res, body } = await run(c);
+    assertEquals(res.status, 409);
+    assertEquals(body, { error: 'ticket already owned' });
+    assertEquals(
+      c.db.calls.find(
+        (call) => call.op === 'rpc' && call.columns === 'organizer_payout_destination',
+      ),
+      undefined,
+    );
+  },
+);
+
+Deno.test(
+  'the organizer and an ended event also refuse before the destination is resolved',
+  async () => {
+    // Same argument: these refusals name a cause the buyer can act on (or not act on), and the payout
+    // refusal would mask both with a cause that is not theirs.
+    const cases: { label: string; script: Record<string, FakeResult[]>; status: number }[] = [
+      {
+        label: 'organizer',
+        script: { 'events.select': [{ data: eventRow({ organizer_id: PROFILE }) }] },
+        status: 403,
+      },
+      {
+        label: 'ended',
+        script: { 'events.select': [{ data: eventRow({ ends_at: '2026-08-01T00:00:00Z' }) }] },
+        status: 410,
+      },
+    ];
+    for (const { label, script, status } of cases) {
+      const c = ctx({
+        ...sellable(),
+        ...script,
+        'rpc.organizer_payout_destination': [{ data: null }],
+      });
+      const { res } = await run(c);
+      assertEquals(res.status, status, label);
+      assertEquals(
+        c.db.calls.find(
+          (call) => call.op === 'rpc' && call.columns === 'organizer_payout_destination',
+        ),
+        undefined,
+        label,
+      );
+    }
+  },
+);
 
 Deno.test(
   'an unverified organizer is refused before the destination is ever resolved',

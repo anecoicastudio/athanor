@@ -128,7 +128,15 @@ export default function EventCreateScreen() {
     meta: { persist: false },
   });
   const payoutsEnabled = payoutQuery.data?.payoutsEnabled ?? false;
-  const payoutStarted = payoutQuery.data?.hasAccount ?? false;
+  /**
+   * SUBMITTED, not "a row exists". create-payout-onboarding inserts the payout_accounts row right
+   * after accounts.create and BEFORE it returns the Account Link, so `hasAccount` is already true on
+   * the first tap of the CTA — before the organiser has typed a character into Stripe's form. Gating
+   * the "Stripe is still checking" line on that would tell someone who opened the sheet and dismissed
+   * it that we are reviewing an application they never filed. `onboarded_at` is the field that
+   * separates the two: W13 stamps it on the first account.updated carrying details_submitted.
+   */
+  const payoutSubmitted = payoutQuery.data?.onboardedAt != null;
   // Unknown is not "missing": while the first read is in flight the CTA stays hidden rather than
   // accusing an already-onboarded organiser of not having a bank account.
   const payoutKnown = payoutQuery.isSuccess;
@@ -252,26 +260,25 @@ export default function EventCreateScreen() {
 
   const onSubmit = () => {
     setError(null);
-    // Paid events require verified identity (PRD §4.13). The gate used to block EVERY paid
-    // event «pending M9» — but verification has shipped (#416 closed), so a verified organizer
-    // was being refused with copy promising verification «presto» (#634 item 4). The client
-    // check mirrors create_event's own is_identity_verified refusal; the server one is the
-    // load-bearing gate.
+    // The three paid-event refusals, in the order BOTH server gates raise them: acknowledgement
+    // (22023), then identity (42501), then payout (55000). The order is the point, not a detail —
+    // checking payout first would send a verified organiser who simply had not ticked the box
+    // through an entire Stripe onboarding flow, and only then tell them to tick it.
+    if (paid && !settlementAck) {
+      setError(t('event.create.settlement.required', locale));
+      return;
+    }
+    // Verification has shipped (#416 closed), so a verified organizer was being refused with copy
+    // promising verification «presto» (#634 item 4). Mirrors create_event's is_identity_verified
+    // refusal; the server one is the load-bearing gate.
     if (paid && !profile?.identity_verified) {
       setError(t('event.create.verifyGate', locale));
       return;
     }
-    // #104 — mirrors create_event's own 55000 refusal. Placed AFTER the identity gate and before
-    // the acknowledgement, exactly the order both server gates declare, so the first thing an
-    // organiser is told is the first thing the server would have told them.
-    // `payoutKnown` keeps a still-loading read from refusing a submit the server would allow; the
-    // server gate is the load-bearing one either way.
+    // #104 — mirrors create_event's own 55000 refusal. `payoutKnown` keeps a still-loading read from
+    // refusing a submit the server would allow; the server gate is load-bearing either way.
     if (paid && payoutKnown && !payoutsEnabled) {
       setError(t('event.create.payout.gate', locale));
-      return;
-    }
-    if (paid && !settlementAck) {
-      setError(t('event.create.settlement.required', locale));
       return;
     }
     if (title.trim().length === 0) return setError(t('event.create.error', locale));
@@ -533,10 +540,10 @@ export default function EventCreateScreen() {
                     <Text className="text-[14px] leading-5 text-foreground">
                       {t('event.create.payout.gate', locale)}
                     </Text>
-                    {/* A row that exists but is not enabled means Stripe is still reviewing:
-                        telling that organiser to "connect an account" would send them back through
-                        a flow they have already finished. */}
-                    {payoutStarted ? (
+                    {/* Submitted but not yet enabled means Stripe is still reviewing: telling that
+                        organiser to "connect an account" would send them back through a flow they
+                        have already finished. An abandoned first tap shows the plain CTA instead. */}
+                    {payoutSubmitted ? (
                       <Text className="text-[12px] leading-4 text-muted-foreground">
                         {t('event.create.payout.pending', locale)}
                       </Text>

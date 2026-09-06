@@ -147,9 +147,9 @@ export function buildTicketSessionParams(
 /**
  * Gates in order: event exists & not deleted → priced (free events never reach Stripe) →
  * organizer identity-verified (P2.4, 08 §3.1 — fail-closed on lookup error; never sell
- * for an unverifiable organizer) → organizer has a payable connected account (#104) →
- * caller is not the organizer → event has not ended →
- * caller does not already hold a ticket (#116). Then builds the session; the buyer's
+ * for an unverifiable organizer) → caller is not the organizer → event has not ended →
+ * caller does not already hold a ticket (#116) → organizer has a payable connected
+ * account (#104). Then builds the session; the buyer's
  * ticket is issued by the webhook (W1), not here.
  *
  * Every gate is server-side on purpose. The screen hides these buttons too, but this is a
@@ -200,23 +200,6 @@ export async function createTicketCheckout(
   if (verErr) return error('organizer verification lookup failed', 500);
   if (!organizerVerified) return error('organizer not verified', 403);
 
-  // #104 — the transfer destination, resolved BEFORE the seat claim so a refusal holds nothing.
-  // organizer_payout_destination is the DEFINER helper from 20260906141227: this function runs on
-  // the BUYER's client and payout_accounts is select-own, so a direct read returns zero rows, and
-  // an admin client here is asserted against in _shared/auth-posture.test.ts — it "would silently
-  // read rows the caller cannot see and price a Checkout session from them".
-  //
-  // A null covers every miss uniformly (deleted, free, un-onboarded, capability revoked) and all of
-  // them mean the same thing here. The creation gate makes this near-unreachable, but Stripe
-  // revokes capabilities after the fact, so this is the arm that catches a revocation on an event
-  // that was legitimately created. Fail-closed on lookup error: never sell when unsure.
-  const { data: destination, error: destErr } = await userClient.rpc(
-    'organizer_payout_destination',
-    { p_event_id: eventId },
-  );
-  if (destErr) return error('payout destination lookup failed', 500);
-  if (!destination) return error('organizer cannot receive payouts', 409);
-
   // The organizer cannot buy a ticket to their own event. The screen knows this
   // (isOrganizer) and never passed it on; decided here from the verified caller.
   if (event.organizer_id === profileId) return error('organizer cannot buy', 403);
@@ -241,6 +224,30 @@ export async function createTicketCheckout(
   if (ticket?.status === 'paid' || ticket?.status === 'checked_in') {
     return error('ticket already owned', 409);
   }
+
+  // #104 — the transfer destination. organizer_payout_destination is the DEFINER helper from
+  // 20260906141227: this function runs on the BUYER's client and payout_accounts is select-own, so a
+  // direct read returns zero rows, and an admin client here is asserted against in
+  // _shared/auth-posture.test.ts — it "would silently read rows the caller cannot see and price a
+  // Checkout session from them".
+  //
+  // Placed LAST of the read-only gates and still before claim_event_seat. Both halves matter. Above
+  // the three gates before it, this refusal would mask theirs: a buyer whose local ticket cache is
+  // stale would be told the organiser cannot be paid instead of 'ticket already owned', and
+  // TicketBar's refetchTicket() — which exists to flip exactly that stale bar to the ticket view —
+  // keys on the code and would never run. Below claim_event_seat, a revoked organiser's event would
+  // hold a 35-minute seat on every attempt to buy.
+  //
+  // A null covers every miss uniformly (deleted, free, un-onboarded, capability revoked) and all of
+  // them mean the same thing here. The creation gate makes this near-unreachable, but Stripe revokes
+  // capabilities after the fact, so this is the arm that catches a revocation on an event that was
+  // legitimately created. Fail-closed on lookup error: never sell when unsure.
+  const { data: destination, error: destErr } = await userClient.rpc(
+    'organizer_payout_destination',
+    { p_event_id: eventId },
+  );
+  if (destErr) return error('payout destination lookup failed', 500);
+  if (!destination) return error('organizer cannot receive payouts', 403);
 
   // #105 — claim the seat before the money moves (see the docblock). The RPC runs as the
   // caller (auth.uid()), so the claim can never be minted for someone else.
