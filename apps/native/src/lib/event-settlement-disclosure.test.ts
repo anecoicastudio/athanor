@@ -49,7 +49,7 @@ describe('the settlement acknowledgement (#437)', () => {
     const s = screen();
     for (const key of [
       'event.create.settlement.ack',
-      'event.create.settlement.manual',
+      'event.create.settlement.split',
       'event.create.settlement.required',
     ]) {
       expect(s, `missing ${key}`).toContain(key);
@@ -59,17 +59,54 @@ describe('the settlement acknowledgement (#437)', () => {
     expect(paidBranch).toContain('event.create.settlement.ack');
   });
 
-  it('carries no claim of a platform commission', () => {
-    // `event.create.feeNote` («la piattaforma trattiene una piccola commissione») was deleted with
-    // this change: Athanor takes 0% at launch and `fee_pct` is dead config, so it described a
-    // deduction nobody takes, beside copy that names the one deduction that is real.
-    expect(screen()).not.toContain('event.create.feeNote');
+  it('states the commission, and takes the rate from the constant rather than a literal', () => {
+    // This assertion is the INVERSE of the one it replaces. That version read "carries no claim of
+    // a platform commission", on the grounds that Athanor took 0% and `fee_pct` was dead config.
+    // The 2026-09-06 ruling on #104 made the fee real, so silence about it became the defect: an
+    // organiser now consents to a deduction, and a consent box that does not name it is worse than
+    // no box. The rate must come from DEFAULT_TICKET_FEE_PCT — which ticket-split.mirror.test.ts
+    // pins against the events.fee_pct column default — so it cannot drift from what Stripe applies.
+    const s = screen();
+    expect(s).toContain('DEFAULT_TICKET_FEE_PCT');
+    expect(s).toContain('{ pct: DEFAULT_TICKET_FEE_PCT }');
+    // The old zero-commission key stays deleted; it now describes the opposite of the truth.
+    expect(s).not.toContain('event.create.feeNote');
   });
 
-  it('keeps the paid-event gate that makes this dormant', () => {
-    // Opening the paid path is #416/M9's decision, not this issue's. The disclosure ships behind
-    // a closed gate on purpose; the server-side refusal is what makes it real in the meantime. If
-    // this assertion is what fails, read the migration header before deleting it.
-    expect(screen()).toContain("setError(t('event.create.verifyGate', locale));");
+  it('offers the payout onboarding the paid path now requires', () => {
+    // #104's gate refuses a paid event whose organiser has no payable connected account. A refusal
+    // with no next action is the failure this block exists to prevent, so the CTA is asserted
+    // beside the copy: the screen must both name the missing step and open the flow that fixes it.
+    const s = screen();
+    expect(s).toContain('event.create.payout.gate');
+    expect(s).toContain('event.create.payout.cta');
+    expect(s).toContain('requestPayoutOnboarding');
+    // openAuthSessionAsync, never a native Stripe module: one would break App Store Expo Go, which
+    // is the only surface that reaches testers (rules/mobile.md). The absence of the native module
+    // is NOT asserted here — source-audit.test.ts already pins it across the whole import graph,
+    // which is the stronger claim, and naming the package here would itself trip that guard.
+    expect(s).toContain('WebBrowser.openAuthSessionAsync');
+  });
+
+  it('refetches the payout flag on focus, because the redirect proves nothing', () => {
+    // payouts_enabled is flipped by stripe-webhook's account.updated arm (W13), not by Stripe's
+    // redirect. Without the focus refetch the CTA would sit there after a completed onboarding,
+    // and the organiser would have no way to tell that they were done.
+    const s = screen();
+    expect(s).toContain('useFocusEffect');
+    expect(s).toContain('payoutKeys.mine()');
+    // And the flag may never be served from the persisted cache: a rehydrated "all set" would
+    // paint over an account Stripe has since put back into review.
+    expect(s).toContain('meta: { persist: false }');
+  });
+
+  it('keeps both server refusals mapped to their own copy', () => {
+    // 42501 is the identity arm, 55000 is #104's payout arm, and create_event and the trigger raise
+    // the same pair on both write paths. Collapsing either into the generic «Riprova» would leave
+    // an organiser retrying a form that can never submit.
+    const s = screen();
+    expect(s).toContain("setError(t('event.create.verifyGate', locale));");
+    expect(s).toContain("code === '55000'");
+    expect(s).toContain("code === '42501'");
   });
 });

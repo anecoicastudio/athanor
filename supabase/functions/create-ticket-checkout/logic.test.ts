@@ -373,28 +373,34 @@ Deno.test('ticketSplit keeps fee_pct percent and conserves the money', () => {
   assertEquals(DEFAULT_TICKET_FEE_PCT, 10);
 });
 
-Deno.test('the session is a destination charge: fee from fee_pct, destination from the RPC', async () => {
-  const c = ctx(sellable());
-  await run(c);
-  const pid = c.created[0].payment_intent_data;
-  // 1500 at 10% — the fee is computed from the EVENT ROW's rate, never from a constant.
-  assertEquals(pid?.application_fee_amount, 150);
-  assertEquals(pid?.transfer_data?.destination, 'acct_organiser_1');
-  // The buyer still pays the displayed price: the absorbed model changes no price in the app.
-  assertEquals(c.created[0].line_items?.[0].price_data?.unit_amount, 1500);
-});
+Deno.test(
+  'the session is a destination charge: fee from fee_pct, destination from the RPC',
+  async () => {
+    const c = ctx(sellable());
+    await run(c);
+    const pid = c.created[0].payment_intent_data;
+    // 1500 at 10% — the fee is computed from the EVENT ROW's rate, never from a constant.
+    assertEquals(pid?.application_fee_amount, 150);
+    assertEquals(pid?.transfer_data?.destination, 'acct_organiser_1');
+    // The buyer still pays the displayed price: the absorbed model changes no price in the app.
+    assertEquals(c.created[0].line_items?.[0].price_data?.unit_amount, 1500);
+  },
+);
 
-Deno.test('the fee follows the row, including a fractional rate and a string from PostgREST', async () => {
-  const half = ctx(sellable({ price_cents: 2000, fee_pct: 7.5 }));
-  await run(half);
-  assertEquals(half.created[0].payment_intent_data?.application_fee_amount, 150);
+Deno.test(
+  'the fee follows the row, including a fractional rate and a string from PostgREST',
+  async () => {
+    const half = ctx(sellable({ price_cents: 2000, fee_pct: 7.5 }));
+    await run(half);
+    assertEquals(half.created[0].payment_intent_data?.application_fee_amount, 150);
 
-  // numeric(5,2) can arrive JSON-encoded as a string; Number() at the call site is what keeps a
-  // NaN out of application_fee_amount, where Stripe would reject the whole Session.
-  const asString = ctx(sellable({ price_cents: 1000, fee_pct: '12.50' }));
-  await run(asString);
-  assertEquals(asString.created[0].payment_intent_data?.application_fee_amount, 125);
-});
+    // numeric(5,2) can arrive JSON-encoded as a string; Number() at the call site is what keeps a
+    // NaN out of application_fee_amount, where Stripe would reject the whole Session.
+    const asString = ctx(sellable({ price_cents: 1000, fee_pct: '12.50' }));
+    await run(asString);
+    assertEquals(asString.created[0].payment_intent_data?.application_fee_amount, 125);
+  },
+);
 
 Deno.test('a zero fee_pct still mints a destination charge, with no application fee', async () => {
   // The rate is server config and could be set to 0 for a campaign. That must transfer the whole
@@ -406,20 +412,23 @@ Deno.test('a zero fee_pct still mints a destination charge, with no application 
   assertEquals(c.created[0].payment_intent_data?.transfer_data?.destination, 'acct_organiser_1');
 });
 
-Deno.test('no payable destination → 409, before the seat is claimed and before Stripe', async () => {
-  // The creation gate makes this near-unreachable, but Stripe revokes capabilities after the fact.
-  // It must refuse BEFORE claim_event_seat, or a revoked organiser's event would hold seats for
-  // 35 minutes each time somebody tried to buy.
-  const c = ctx({ ...sellable(), 'rpc.organizer_payout_destination': [{ data: null }] });
-  const { res, body } = await run(c);
-  assertEquals(res.status, 409);
-  assertEquals(body, { error: 'organizer cannot receive payouts' });
-  assertEquals(c.created.length, 0);
-  assertEquals(
-    c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'claim_event_seat'),
-    undefined,
-  );
-});
+Deno.test(
+  'no payable destination → 409, before the seat is claimed and before Stripe',
+  async () => {
+    // The creation gate makes this near-unreachable, but Stripe revokes capabilities after the fact.
+    // It must refuse BEFORE claim_event_seat, or a revoked organiser's event would hold seats for
+    // 35 minutes each time somebody tried to buy.
+    const c = ctx({ ...sellable(), 'rpc.organizer_payout_destination': [{ data: null }] });
+    const { res, body } = await run(c);
+    assertEquals(res.status, 409);
+    assertEquals(body, { error: 'organizer cannot receive payouts' });
+    assertEquals(c.created.length, 0);
+    assertEquals(
+      c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'claim_event_seat'),
+      undefined,
+    );
+  },
+);
 
 Deno.test('a destination lookup error fails closed — 500, no seat, no charge', async () => {
   const c = ctx({
@@ -450,14 +459,19 @@ Deno.test('the destination is resolved for THIS event, and after the identity ga
   assertEquals(calls[dest].values, { p_event_id: EVENT });
 });
 
-Deno.test('an unverified organizer is refused before the destination is ever resolved', async () => {
-  // Order matters for the copy: "verify your identity" and "finish getting paid" are different
-  // instructions, and the buyer-facing refusal must name the same first cause the composer does.
-  const c = ctx({ ...sellable(), 'rpc.is_identity_verified': [{ data: false }] });
-  const { res } = await run(c);
-  assertEquals(res.status, 403);
-  assertEquals(
-    c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'organizer_payout_destination'),
-    undefined,
-  );
-});
+Deno.test(
+  'an unverified organizer is refused before the destination is ever resolved',
+  async () => {
+    // Order matters for the copy: "verify your identity" and "finish getting paid" are different
+    // instructions, and the buyer-facing refusal must name the same first cause the composer does.
+    const c = ctx({ ...sellable(), 'rpc.is_identity_verified': [{ data: false }] });
+    const { res } = await run(c);
+    assertEquals(res.status, 403);
+    assertEquals(
+      c.db.calls.find(
+        (call) => call.op === 'rpc' && call.columns === 'organizer_payout_destination',
+      ),
+      undefined,
+    );
+  },
+);
