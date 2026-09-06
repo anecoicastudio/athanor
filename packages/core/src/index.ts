@@ -30,6 +30,7 @@ export * from './media/poster';
 export * from './feed/boost';
 export * from './events/distance';
 export * from './events/price';
+export * from './events/ticket-split';
 export * from './circle/savings';
 export * from './chat/dayBucket';
 export * from './fund/countdown';
