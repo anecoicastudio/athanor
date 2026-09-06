@@ -354,8 +354,33 @@ on conflict do nothing;
 --    mirroring create_event exactly. #448's events_enforce_paid_gate is a BEFORE INSERT
 --    trigger, so it fires here too — this file writes as the owner, not through the RPC,
 --    and a trigger does not care which. Together with the three organisers verified in
---    §1, that is what keeps the three paid events insertable at all.
+--    §1 and the three payout rows immediately below, that is what keeps the three paid
+--    events insertable at all.
 -- ---------------------------------------------------------------------------------
+
+-- #104 added a third arm to that trigger: a paid event's organiser must also have
+-- payout_accounts.payouts_enabled, because the ticket Checkout Session now names their
+-- connected account as the destination of a split payment. So the three organisers who
+-- hold a paid event below get a payout row here.
+--
+-- ⚠ THESE ACCOUNT IDS ARE NOT REAL, and deliberately do not look real. They exist so the
+-- INSERT above passes the gate and the "passati"/ticket flows still have paid events to
+-- walk. A ticket checkout against a seeded paid event WILL fail at Stripe with "No such
+-- destination account" — cleanly, with the seat released and no charge, because
+-- create-ticket-checkout wraps the call. To walk a REAL split, run the onboarding CTA in
+-- the composer against your own profile, let Stripe's Express test flow complete it, and
+-- create your own paid event; W13 flips payouts_enabled from the account.updated webhook.
+--
+-- payouts_enabled true / charges_enabled false is the shape Stripe actually produces for
+-- these accounts: create-payout-onboarding requests only the `transfers` capability, so
+-- charges_enabled never becomes true and nothing may gate on it.
+insert into public.payout_accounts (id, profile_id, stripe_account_id,
+                                    charges_enabled, payouts_enabled, onboarded_at)
+select md5('payout:' || h)::uuid, md5('user:' || h)::uuid,
+       'acct_STAGINGSEED_NOT_A_REAL_ACCOUNT_' || h,
+       false, true, now() - interval '30 days'
+from unnest(array['tino_chef', 'gio_musica', 'dario_legno']) as h
+on conflict do nothing;
 insert into public.events (id, organizer_id, title, category, is_online, venue, city, geo, stream_url,
                            starts_at, ends_at, capacity, price_cents, currency, is_athanor_day,
                            settlement_ack_at)

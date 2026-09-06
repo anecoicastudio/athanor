@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Linking, Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createEvent, eventKeys } from '@athanor/api';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  PayoutOnboardingError,
+  createEvent,
+  eventKeys,
+  getMyPayoutAccount,
+  payoutKeys,
+  requestPayoutOnboarding,
+} from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
-import { parseEuroToCents } from '@athanor/core';
+import { DEFAULT_TICKET_FEE_PCT, parseEuroToCents } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -99,6 +107,82 @@ export default function EventCreateScreen() {
 
   const { showToast } = useToast();
 
+  /**
+   * #104 — a paid event now needs a connected account that can receive payouts, because the ticket
+   * Checkout Session names it as the destination of a split payment. The server holds the real
+   * gate (create_event raises 55000, and the trigger raises it on the direct path too); this read
+   * exists so the organiser is told BEFORE they fill in a form they cannot submit.
+   *
+   * `enabled` on `paid`: a free event never touches any of this, and most events are free.
+   *
+   * `persist: false` is load-bearing, not tuning. The shared client dehydrates every query to
+   * device storage with a 24h gcTime (`lib/query-client.ts`), so without it a launch would rehydrate
+   * yesterday's flag and paint a stale "you're all set" over an account Stripe has since put back
+   * into review — the money-state rule the Circle price read follows for the same reason.
+   */
+  const payoutQuery = useQuery({
+    queryKey: payoutKeys.mine(),
+    queryFn: () => getMyPayoutAccount(supabase),
+    enabled: paid,
+    staleTime: 30_000,
+    meta: { persist: false },
+  });
+  const payoutsEnabled = payoutQuery.data?.payoutsEnabled ?? false;
+  /**
+   * SUBMITTED, not "a row exists". create-payout-onboarding inserts the payout_accounts row right
+   * after accounts.create and BEFORE it returns the Account Link, so `hasAccount` is already true on
+   * the first tap of the CTA — before the organiser has typed a character into Stripe's form. Gating
+   * the "Stripe is still checking" line on that would tell someone who opened the sheet and dismissed
+   * it that we are reviewing an application they never filed. `onboarded_at` is the field that
+   * separates the two: W13 stamps it on the first account.updated carrying details_submitted.
+   */
+  const payoutSubmitted = payoutQuery.data?.onboardedAt != null;
+  // Unknown is not "missing": while the first read is in flight the CTA stays hidden rather than
+  // accusing an already-onboarded organiser of not having a bank account.
+  const payoutKnown = payoutQuery.isSuccess;
+  const [payoutOpening, setPayoutOpening] = useState(false);
+
+  /**
+   * The flag is flipped by stripe-webhook's account.updated arm (W13), not by the redirect, so
+   * coming back from Stripe proves nothing on its own. Refetching on focus is what makes the CTA
+   * disappear once the webhook has actually landed — and it also covers the case where Stripe
+   * finished the review hours later, with the composer left open.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      void queryClient.invalidateQueries({ queryKey: payoutKeys.mine() });
+    }, [queryClient]),
+  );
+
+  /**
+   * Opens Stripe's hosted Express onboarding. `openAuthSessionAsync`, never a native Stripe module:
+   * a native module breaks App Store Expo Go, which is the only way this app reaches testers
+   * (rules/mobile.md). Account Links are single-use and expire in minutes, so the URL is minted per
+   * tap and never cached.
+   */
+  const startPayoutOnboarding = useCallback(async () => {
+    setError(null);
+    setPayoutOpening(true);
+    try {
+      const { url } = await requestPayoutOnboarding(supabase);
+      await WebBrowser.openAuthSessionAsync(url, 'athanor://payout');
+      // Returned — completed OR cancelled, the browser cannot tell us which. The refetch decides.
+      void queryClient.invalidateQueries({ queryKey: payoutKeys.mine() });
+    } catch (e) {
+      devWarn('[event-create] payout onboarding', e);
+      setError(
+        t(
+          e instanceof PayoutOnboardingError && e.code === 'identity not verified'
+            ? 'event.create.verifyGate'
+            : 'event.create.payout.error',
+          locale,
+        ),
+      );
+    } finally {
+      setPayoutOpening(false);
+    }
+  }, [locale, queryClient]);
+
   const requestMyLocation = async () => {
     setLocationRefusal(null);
     let pos: Location.LocationObject;
@@ -163,22 +247,38 @@ export default function EventCreateScreen() {
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
       router.replace(EVENT_HREF(event.id));
     },
-    onError: () => setError(t('event.create.error', locale)),
+    onError: (e) => {
+      // The server is the real gate, and its refusals must not all read as «Riprova». 55000 is
+      // #104's payout arm (create_event and the trigger raise the same code on both write paths);
+      // 42501 is the identity arm. PostgREST carries the SQLSTATE through as `code`.
+      const code = (e as { code?: unknown } | null)?.code;
+      if (code === '55000') return setError(t('event.create.payout.gate', locale));
+      if (code === '42501') return setError(t('event.create.verifyGate', locale));
+      setError(t('event.create.error', locale));
+    },
   });
 
   const onSubmit = () => {
     setError(null);
-    // Paid events require verified identity (PRD §4.13). The gate used to block EVERY paid
-    // event «pending M9» — but verification has shipped (#416 closed), so a verified organizer
-    // was being refused with copy promising verification «presto» (#634 item 4). The client
-    // check mirrors create_event's own is_identity_verified refusal; the server one is the
-    // load-bearing gate.
+    // The three paid-event refusals, in the order BOTH server gates raise them: acknowledgement
+    // (22023), then identity (42501), then payout (55000). The order is the point, not a detail —
+    // checking payout first would send a verified organiser who simply had not ticked the box
+    // through an entire Stripe onboarding flow, and only then tell them to tick it.
+    if (paid && !settlementAck) {
+      setError(t('event.create.settlement.required', locale));
+      return;
+    }
+    // Verification has shipped (#416 closed), so a verified organizer was being refused with copy
+    // promising verification «presto» (#634 item 4). Mirrors create_event's is_identity_verified
+    // refusal; the server one is the load-bearing gate.
     if (paid && !profile?.identity_verified) {
       setError(t('event.create.verifyGate', locale));
       return;
     }
-    if (paid && !settlementAck) {
-      setError(t('event.create.settlement.required', locale));
+    // #104 — mirrors create_event's own 55000 refusal. `payoutKnown` keeps a still-loading read from
+    // refusing a submit the server would allow; the server gate is load-bearing either way.
+    if (paid && payoutKnown && !payoutsEnabled) {
+      setError(t('event.create.payout.gate', locale));
       return;
     }
     if (title.trim().length === 0) return setError(t('event.create.error', locale));
@@ -405,7 +505,9 @@ export default function EventCreateScreen() {
                   <Pressable
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: settlementAck }}
-                    accessibilityLabel={t('event.create.settlement.ack', locale)}
+                    accessibilityLabel={t('event.create.settlement.ack', locale, {
+                      pct: DEFAULT_TICKET_FEE_PCT,
+                    })}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     className="min-h-[44px] flex-row items-center gap-3"
                     onPress={() => setSettlementAck((v) => !v)}
@@ -418,13 +520,45 @@ export default function EventCreateScreen() {
                       {settlementAck ? '✓' : '○'}
                     </Text>
                     <Text className="flex-1 text-[14px] leading-5 text-foreground">
-                      {t('event.create.settlement.ack', locale)}
+                      {/* The rate comes from the constant the mirror test pins against the
+                          events.fee_pct column default — never a literal in the catalog, because a
+                          percentage inside a consent box is a term and a stale term is a false one. */}
+                      {t('event.create.settlement.ack', locale, { pct: DEFAULT_TICKET_FEE_PCT })}
                     </Text>
                   </Pressable>
                   <Text className="text-[12px] leading-4 text-muted-foreground">
-                    {t('event.create.settlement.manual', locale)}
+                    {t('event.create.settlement.split', locale)}
                   </Text>
                 </View>
+
+                {/* #104 — the account the split pays into. Shown only once the read has landed, so
+                    an already-onboarded organiser never sees an accusation; and only while the flag
+                    is false, so it disappears the moment W13 flips it. Flat cyan CTA, no glow:
+                    connecting a bank account is a chore, not a moment-grade event (rule #4). */}
+                {payoutKnown && !payoutsEnabled ? (
+                  <View className="gap-3 rounded-card border border-hair bg-raise p-5">
+                    <Text className="text-[14px] leading-5 text-foreground">
+                      {t('event.create.payout.gate', locale)}
+                    </Text>
+                    {/* Submitted but not yet enabled means Stripe is still reviewing: telling that
+                        organiser to "connect an account" would send them back through a flow they
+                        have already finished. An abandoned first tap shows the plain CTA instead. */}
+                    {payoutSubmitted ? (
+                      <Text className="text-[12px] leading-4 text-muted-foreground">
+                        {t('event.create.payout.pending', locale)}
+                      </Text>
+                    ) : null}
+                    <Button
+                      variant="light"
+                      label={t(
+                        payoutOpening ? 'event.create.payout.opening' : 'event.create.payout.cta',
+                        locale,
+                      )}
+                      disabled={payoutOpening}
+                      onPress={() => void startPayoutOnboarding()}
+                    />
+                  </View>
+                ) : null}
                 {/* #634: «la verifica arriva presto» was a falsehood once #416 shipped it. An
                     unverified organizer is told the actual requirement before submit; a
                     verified one is told nothing. */}

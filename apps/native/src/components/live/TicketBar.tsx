@@ -30,6 +30,10 @@ const ERROR_COPY: Record<string, MessageKey> = {
   'event not found': 'ticket.error.notFound',
   'event is free': 'ticket.error.eventFree',
   'organizer not verified': 'ticket.error.organizerUnverified',
+  // #104 — the organiser has no connected account that can receive the split, or Stripe has
+  // revoked it. Unmapped this fell through to 'payment failed', which is false: no payment was
+  // attempted, and nothing the buyer does can fix it.
+  'organizer cannot receive payouts': 'ticket.error.organizerPayouts',
   'organizer cannot buy': 'ticket.error.organizerSelf',
   'event ended': 'ticket.error.eventEnded',
   'ticket already owned': 'ticket.error.alreadyOwned',

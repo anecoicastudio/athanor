@@ -30,6 +30,13 @@ values
 -- events_enforce_paid_gate refuses a paid event without both, on every write path.
 update public.profiles set identity_verified = true
   where id = '33333333-3333-3333-3333-333333333333';
+-- #104 added a third arm to events_enforce_paid_gate: a paid event's organiser must have a
+-- payout_accounts row with payouts_enabled, because the ticket Session's transfer destination is
+-- that connected account. Same reasoning as the identity flag above — a paid event by an organiser
+-- who cannot be paid is a row that can no longer exist, so a fixture that made one would model an
+-- impossible world. 0147 owns the refusals themselves.
+insert into public.payout_accounts (profile_id, stripe_account_id, payouts_enabled)
+  values ('33333333-3333-3333-3333-333333333333', 'acct_test_0079', true);
 
 insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, settlement_ack_at)
   values ('e0790000-0000-0000-0000-000000000079','33333333-3333-3333-3333-333333333333',

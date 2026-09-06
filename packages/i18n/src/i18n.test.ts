@@ -274,14 +274,19 @@ describe('fund pre-payment disclosure (FUND-18, #235)', () => {
 
 describe('organiser settlement disclosure (#437, #104)', () => {
   /**
-   * #104 deferred Stripe Connect past launch on one condition: organisers are TOLD, before they
-   * list a paid event, that settlement is manual and on what cadence. These three keys are that
-   * condition. Pinned by name rather than by count — a count says nothing about which key went
-   * missing, and this block's whole job is that a specific promise stays on screen.
+   * #437 put this disclosure on screen because settlement was manual and Athanor took nothing.
+   * The 2026-09-06 ruling on #104 changed both halves: the ticket Checkout Session is now a Stripe
+   * DESTINATION CHARGE, so the split happens automatically at payment time, and Athanor retains
+   * `events.fee_pct` percent of the price as the `application_fee_amount`.
+   *
+   * This block used to forbid a percentage and require the words "14 days" and "by hand". All three
+   * are now false, so the assertions were rewritten rather than deleted: the disclosure is a legal
+   * acknowledgement under CRD 2011/83/EU, and what it must do is describe the money accurately.
+   * The pins below are the new promise, stated the same way — by name, so a missing key says which.
    */
   const SETTLEMENT_KEYS: readonly MessageKey[] = [
     'event.create.settlement.ack',
-    'event.create.settlement.manual',
+    'event.create.settlement.split',
     'event.create.settlement.required',
   ];
 
@@ -292,31 +297,89 @@ describe('organiser settlement disclosure (#437, #104)', () => {
     expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
   });
 
-  test('the acknowledgement names the cadence as a figure, in both locales', () => {
-    // Same principle as the fund coverage label above: the consent is the number. «Ti paghiamo
-    // dopo l'evento» is not a cadence, it is a mood — and the 14 days is the half of #104's
-    // condition that a court would read.
-    expect(it['event.create.settlement.ack']).toContain('14');
-    expect(en['event.create.settlement.ack']).toContain('14');
-  });
-
-  test('the acknowledgement names the deduction and promises no percentage', () => {
-    // Ruling 3 on #437: the organiser receives the price MINUS the processing costs. «You receive
-    // the full price» and «0% commission» are both forbidden — #104 introduces a platform fee
-    // later, and a promise made now becomes a change of terms then.
-    expect(it['event.create.settlement.ack'].toLowerCase()).toContain('meno');
-    expect(en['event.create.settlement.ack'].toLowerCase()).toContain('minus');
+  test('the acknowledgement names the rate as a placeholder, never as a literal', () => {
+    // The rate is `{pct}`, filled from DEFAULT_TICKET_FEE_PCT, which ticket-split.mirror.test.ts
+    // pins against the events.fee_pct column default. A hardcoded «10%» would read identically and
+    // drift silently the first time the column default moved — which is the whole failure this
+    // disclosure cannot afford, because a percentage in a consent box is a term, not a label.
+    for (const [name, catalog] of [
+      ['it', it],
+      ['en', en],
+    ] as const) {
+      expect(catalog['event.create.settlement.ack'], `${name} must name {pct}%`).toContain(
+        '{pct}%',
+      );
+    }
+    // The literal ban stays across ALL THREE keys, exactly as the version this replaces applied it.
+    // Only the reason changed: it used to mean "promise no commission at all", and now means "the
+    // one place a rate may appear is the placeholder". Narrowing it to `.ack` would leave `.split`
+    // and `.required` free to hardcode «10%» beside an interpolated one and drift silently from
+    // events.fee_pct — the very failure the placeholder exists to prevent.
     for (const key of SETTLEMENT_KEYS) {
-      expect(it[key], `it.${key} promises a percentage`).not.toMatch(/\d\s*%/);
-      expect(en[key], `en.${key} promises a percentage`).not.toMatch(/\d\s*%/);
+      expect(it[key], `it.${key} hardcodes a percentage`).not.toMatch(/\d\s*%/);
+      expect(en[key], `en.${key} hardcodes a percentage`).not.toMatch(/\d\s*%/);
     }
   });
 
-  test('the copy says settlement is done by hand', () => {
-    // The disclosure exists because settlement is manual. Copy that stated only the cadence would
-    // read as an automated payout that happens to be slow, which is the opposite of the fact.
-    expect(it['event.create.settlement.manual'].toLowerCase()).toContain('a mano');
-    expect(en['event.create.settlement.manual'].toLowerCase()).toContain('by hand');
+  test('the acknowledgement names the deduction, in both locales', () => {
+    // «Ricevi il prezzo del biglietto» on its own would be false: a share is withheld, and the
+    // consent is that share. The word that carries it is asserted, not the sentence.
+    expect(it['event.create.settlement.ack'].toLowerCase()).toContain('meno');
+    expect(en['event.create.settlement.ack'].toLowerCase()).toContain('minus');
+  });
+
+  test('no settlement key claims the organiser pays the processing fee', () => {
+    // The load-bearing one, and the reason this block was rewritten rather than relaxed. On a
+    // destination charge Stripe credits the connected account the FULL amount and transfers the
+    // application fee back to the platform, which then pays the processing out of it — the
+    // organiser receives price minus fee, exactly. The old copy promised "minus the payment
+    // processing costs", which was already imprecise and is now simply wrong, and the accounts
+    // agree: create-payout-onboarding sets controller.fees.payer to 'application'.
+    for (const key of SETTLEMENT_KEYS) {
+      expect(
+        it[key].toLowerCase(),
+        `it.${key} still charges the organiser for processing`,
+      ).not.toContain('elaborazione');
+      expect(
+        en[key].toLowerCase(),
+        `en.${key} still charges the organiser for processing`,
+      ).not.toContain('processing');
+    }
+  });
+
+  test('the copy says the split is automatic, and promises no manual cadence', () => {
+    // Settlement is no longer something a person does afterwards, so copy naming a hand-made
+    // transfer or a 14-day window would describe a process that does not exist. Both were pinned
+    // by the previous version of this block; both are now pinned as absent.
+    expect(it['event.create.settlement.split'].toLowerCase()).toContain('automatica');
+    expect(en['event.create.settlement.split'].toLowerCase()).toContain('automatic');
+    for (const key of SETTLEMENT_KEYS) {
+      expect(it[key].toLowerCase(), `it.${key} still promises manual settlement`).not.toContain(
+        'a mano',
+      );
+      expect(en[key].toLowerCase(), `en.${key} still promises manual settlement`).not.toContain(
+        'by hand',
+      );
+      expect(it[key], `it.${key} still promises a 14-day cadence`).not.toContain('14');
+      expect(en[key], `en.${key} still promises a 14-day cadence`).not.toContain('14');
+    }
+  });
+
+  test('the payout CTA copy names the missing step in both catalogs', () => {
+    // The gate refuses with 55000 and the composer has to say what to do about it. Copy that only
+    // said "you cannot publish" would leave an organiser with a refusal and no next action.
+    for (const key of [
+      'event.create.payout.gate',
+      'event.create.payout.cta',
+      'event.create.payout.opening',
+      'event.create.payout.pending',
+      'event.create.payout.error',
+    ] as const) {
+      expect(it[key], `it.${key}`).toBeTypeOf('string');
+      expect(en[key], `en.${key}`).toBeTypeOf('string');
+      expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+      expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+    }
   });
 });
 

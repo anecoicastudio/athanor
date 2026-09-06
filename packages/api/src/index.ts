@@ -39,6 +39,7 @@ export * from './notificationPreferences';
 export * from './consent';
 export * from './gdpr';
 export * from './verifications';
+export * from './payouts';
 export * from './remoteConfig';
 export * from './admin';
 export * from './supabase-key';

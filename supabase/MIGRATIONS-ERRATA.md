@@ -1551,3 +1551,54 @@ EXECUTE on the generation function**.
 Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql` — the function-ACL block
 asserts EXECUTE for both `authenticated` and `service_role`, and the fixture itself is a
 `service_role` UPDATE on `profiles`.
+
+## `20260906141227_ticket_split_payout_gate.sql`
+
+The header's rationale for moving the refusal to creation time reads:
+
+> Stripe rejects a destination whose transfers capability is not active
+
+and the `has_payouts_enabled` block adds "payouts_enabled rather than charges_enabled". Both
+sentences are true about Stripe and about the choice between the two cached flags, but read
+together they imply the gate tests the capability Stripe actually enforces. **It does not.**
+
+What Stripe enforces at `checkout.sessions.create` is whether the destination account's
+`transfers` capability is `active`. What both functions in this migration read is
+`payout_accounts.payouts_enabled`, which is the only relevant flag `stripe-webhook`'s W13 arm
+caches (`handleAccountUpdated` writes `charges_enabled`, `payouts_enabled` and `onboarded_at`,
+and never `capabilities.transfers.status`). The two move together in practice, so the gate is a
+close proxy — not the exact condition, and the migration does not say so.
+
+The residual is narrow and money-safe. An account whose `transfers` capability lapses while
+`payouts_enabled` has not yet flipped passes both the creation gate and
+`organizer_payout_destination`, and is then refused by Stripe instead — _after_ `claim_event_seat`
+has held a seat, so the buyer sees the generic payment error rather than the specific one, and the
+seat is released by the existing catch. No charge is created on that path.
+
+Closing it properly means caching `capabilities.transfers` in W13 and gating on that. It was
+deliberately not done here: the 2026-09-06 ruling on #104 named `payouts_enabled`, and widening the
+cache is its own change with its own webhook test surface.
+
+`payouts_enabled` over `charges_enabled` is separately correct and is not what this entry
+corrects — `create-payout-onboarding` requests only the `transfers` capability, so
+`charges_enabled` never becomes true on these accounts and a gate on it would refuse every
+organiser permanently.
+
+### A second, smaller overstatement in the same header
+
+`organizer_payout_destination`'s comment says the event-keyed shape scopes the disclosure "to
+organisers of live paid events, which is exactly the set whose account a buyer is about to be sent
+to anyway". The second clause overstates it: any `authenticated` member can call the function with
+any readable paid event's id **without buying anything**, so the real exposure is every payable
+organiser of every readable paid event, not only the ones a given caller is mid-checkout on.
+
+The decision the comment defends is still the right one and is not being reversed here — a
+uid-keyed twin would let a member enumerate every organiser's Stripe account id with no event
+involved, and the service-role alternative is asserted against in
+`supabase/functions/_shared/auth-posture.test.ts` (`SERVICE_ROLE_ALLOWED` does not and must not
+contain `create-ticket-checkout`). Only the prose is loose.
+
+Asserted by: `supabase/tests/0147_ticket_payout_gate.test.sql` — which pins the behaviour that
+exists (the flag, the coalesce-to-false on a missing row, both write paths, and the order against
+the identity arm), and deliberately asserts nothing about `capabilities.transfers`, because nothing
+in the schema knows it. Operational half: `docs/RELEASE-RUNBOOK.md` §4.7.
