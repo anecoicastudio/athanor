@@ -14,6 +14,7 @@ import { FlatList, Pressable, Text, View } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConversationRow } from '@/components/chat/ConversationRow';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
@@ -24,7 +25,7 @@ export default function MessagesScreen() {
   const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const now = Date.now();
+  const now = useNow();
 
   const query = useInfiniteQuery({
     queryKey: conversationKeys.list(),

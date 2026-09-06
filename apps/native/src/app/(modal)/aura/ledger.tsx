@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, SectionList } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type LedgerCursor, type LedgerFilter, getAuraLedgerPage, ledgerKeys } from '@athanor/api';
@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
@@ -92,8 +93,8 @@ export default function LedgerScreen() {
 
   const [filter, setFilter] = useState<LedgerFilter>('all');
 
-  // Pin `now` for the whole render pass so day-labels are stable across sections.
-  const nowRef = useRef(new Date());
+  // Pinned for the screen's life so day-labels stay stable across sections.
+  const nowMs = useNow();
 
   const query = useInfiniteQuery({
     queryKey: ledgerKeys.list(me, filter),
@@ -114,7 +115,7 @@ export default function LedgerScreen() {
   const sections: Section[] = useMemo(() => {
     if (rows.length === 0) return [];
     const map = new Map<string, Section>();
-    const now = nowRef.current;
+    const now = new Date(nowMs);
     for (const row of rows) {
       const key = dayKey(row.createdAt);
       if (!map.has(key)) {
@@ -127,7 +128,7 @@ export default function LedgerScreen() {
       map.get(key)!.data.push(row);
     }
     return Array.from(map.values());
-  }, [rows, locale]);
+  }, [rows, locale, nowMs]);
 
   // ---------------------------------------------------------------------------
   // Render helpers

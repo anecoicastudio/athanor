@@ -15,7 +15,6 @@ module.exports = defineConfig([
     rules: {
       'react-hooks/refs': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/purity': 'warn',
       'react-hooks/preserve-manual-memoization': 'warn',
       'react-hooks/use-memo': 'warn',
     },

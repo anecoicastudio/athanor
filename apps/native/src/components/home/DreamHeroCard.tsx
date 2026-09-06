@@ -9,6 +9,7 @@ import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { dreamHeroSlot, fundCycleState } from '@/lib/fund-cycle';
 import { supabase } from '@/lib/supabase';
+import { useNow } from '@/hooks/use-now';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
@@ -43,6 +44,10 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
     refetchInterval: 60_000,
   });
 
+  // Above the early returns: a hook below them would run in a different order on the
+  // render where the cycle appears.
+  const now = useNow();
+
   const slot = dreamHeroSlot(
     fundCycleState({
       status: editionQuery.status,
@@ -66,7 +71,7 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
     );
   }
 
-  const { days } = timeRemaining(Date.parse(edition.target_at), Date.now());
+  const { days } = timeRemaining(Date.parse(edition.target_at), now);
   const agg = aggregateQuery.data ?? null;
   const raisedCents = agg?.raised_cents ?? 0;
   const contributors = agg?.contributor_count ?? 0;

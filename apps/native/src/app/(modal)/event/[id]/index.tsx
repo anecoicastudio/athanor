@@ -26,6 +26,7 @@ import { TicketBar } from '@/components/live/TicketBar';
 import { CircleGate } from '@/components/circle/CircleGate';
 import { ListState } from '@/components/ListState';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
@@ -172,7 +173,7 @@ export default function EventDetailScreen() {
     }
   }, [event, locale]);
 
-  const now = Date.now();
+  const now = useNow();
   const isPast = event ? new Date(event.ends_at ?? event.starts_at).getTime() < now : false;
   const isPaid = (event?.price_cents ?? 0) > 0;
   const isPremium = event ? event.is_athanor_day : false;

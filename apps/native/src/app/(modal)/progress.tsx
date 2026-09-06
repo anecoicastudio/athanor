@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -33,6 +33,7 @@ import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -115,7 +116,7 @@ export default function ProgressScreen() {
   // an unsaved change — the guard would then fire on the way out having lost nothing.
   const [editingBaseline, setEditingBaseline] = useState('');
   // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
-  const now = useRef(Date.now()).current;
+  const now = useNow();
 
   const invalidate = useCallback(async () => {
     if (!edition?.id) return;

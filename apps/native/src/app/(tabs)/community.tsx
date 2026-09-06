@@ -25,6 +25,7 @@ import { ListState } from '@/components/ListState';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
 import { type FeedTab, postsFilter } from '@/lib/feed-tabs';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
@@ -93,8 +94,9 @@ export default function CommunityScreen() {
   // opens the viewer (and the chain), without one it opens the composer. Also warms
   // storyKeys.person(myId) so the viewer's session can include you without a refetch.
   const myStoryQuery = usePersonStory(myId);
+  const now = useNow();
   const myHasLive = (myStoryQuery.data?.segments ?? []).some(
-    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > Date.now(),
+    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > now,
   );
 
   // Realtime: a new story segment → refresh the rail (skip your own insert).

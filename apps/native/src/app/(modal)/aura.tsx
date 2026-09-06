@@ -16,6 +16,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { AURA_UNKNOWN } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { useAuraRealtime } from '@/hooks/use-aura-realtime';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -51,10 +52,11 @@ export default function AuraScreen() {
   const glowLevel = auraGlowLevel(score);
 
   // Decay caption: show only when idle > 30 days from lastQualifyingActionAt
+  const now = useNow();
   let idleDays: number | null = null;
   if (full?.lastQualifyingActionAt) {
     const last = new Date(full.lastQualifyingActionAt).getTime();
-    const elapsed = Math.floor((Date.now() - last) / MS_PER_DAY);
+    const elapsed = Math.floor((now - last) / MS_PER_DAY);
     if (elapsed > IDLE_THRESHOLD_DAYS) idleDays = elapsed;
   }
 
