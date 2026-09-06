@@ -115,8 +115,13 @@ Deno.test('no Stripe server secret is reachable from the client bundle', () => {
   // secret NAME appearing there means a secret VALUE was provisioned within reach of a bundle.
   // apps/web is excluded: it is a Next.js app whose server components legitimately hold server
   // secrets — its client-side halves are covered by the next test instead.
+  //
+  // The webhook arm is a PATTERN, not a name (#702). A signing secret is per Dashboard
+  // endpoint, so a second endpoint scope means a second variable — STRIPE_CONNECT_WEBHOOK_SECRET
+  // today — and none of them contains the substring STRIPE_WEBHOOK_SECRET. Enumerating names
+  // meant the guard silently stopped covering the family the moment it grew a member.
   const SERVER_SECRET =
-    /STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|STRIPE_RESTRICTED_KEY|SUPABASE_SERVICE_ROLE_KEY/;
+    /STRIPE_SECRET_KEY|STRIPE_RESTRICTED_KEY|SUPABASE_SERVICE_ROLE_KEY|STRIPE_[A-Z0-9_]*WEBHOOK_SECRET/;
   // Per-root population is asserted by the SCAN_ROOTS guard test above.
   const bundled = [...walk(new URL('apps/native/', REPO)), ...walk(new URL('packages/', REPO))];
   const hits = bundled.filter((p) => SERVER_SECRET.test(read(p))).map(rel);
@@ -129,7 +134,8 @@ Deno.test('no Stripe server secret is reachable from the client bundle', () => {
 Deno.test('no client component reads a server secret', () => {
   // The Next.js form of the same rule: a 'use client' module is shipped to the browser, so a
   // secret read there is a leak even though the same read is fine one file over.
-  const SERVER_SECRET = /STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|SUPABASE_SERVICE_ROLE_KEY/;
+  const SERVER_SECRET =
+    /STRIPE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY|STRIPE_[A-Z0-9_]*WEBHOOK_SECRET/;
   const hits = walk(new URL('apps/', REPO))
     .filter((p) => {
       const src = read(p);

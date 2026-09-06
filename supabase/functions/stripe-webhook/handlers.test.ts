@@ -72,8 +72,8 @@ const subscription = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as unknown as Stripe.Subscription;
 
-const stripeEvent = (type: string, object: unknown, id = 'evt_1') =>
-  ({ id, type, data: { object } }) as unknown as Stripe.Event;
+const stripeEvent = (type: string, object: unknown, id = 'evt_1', account?: string) =>
+  ({ id, type, data: { object }, ...(account ? { account } : {}) }) as unknown as Stripe.Event;
 
 // ── mapSubStatus (pure) ──────────────────────────────────────────────────────
 
@@ -873,6 +873,75 @@ Deno.test(
     assertEquals(db.calls.length, 1);
   },
 );
+
+Deno.test(
+  'handleAccountUpdated keys on the event account id when the delivery carries one',
+  async () => {
+    // #702: a «Connected accounts»-scoped delivery names its account at the EVENT's top level.
+    // That id, not data.object.id, is what Stripe guarantees identifies the connected account.
+    const db = makeFakeDb();
+    await handleAccountUpdated(
+      asDb(db),
+      connectAccount({ id: 'acct_from_object', payouts_enabled: true, details_submitted: true }),
+      'acct_from_event',
+    );
+    const [flags, onboarded] = db.calls;
+    assertEquals(flags.filters, [['eq', 'stripe_account_id', 'acct_from_event']]);
+    assertEquals(flags.values, { charges_enabled: false, payouts_enabled: true });
+    assertEquals(onboarded.filters, [
+      ['eq', 'stripe_account_id', 'acct_from_event'],
+      ['is', 'onboarded_at', null],
+    ]);
+  },
+);
+
+Deno.test('handleAccountUpdated falls back to data.object.id with no event account', async () => {
+  // The «Your account» shape, and every existing caller: no top-level account, so the object's
+  // own id is the key. For account.updated the two agree — the fallback is what keeps that true.
+  const db = makeFakeDb();
+  await handleAccountUpdated(asDb(db), connectAccount({ id: 'acct_from_object' }), undefined);
+  assertEquals(db.calls[0].filters, [['eq', 'stripe_account_id', 'acct_from_object']]);
+});
+
+Deno.test('processEvent W13 flips the flags from a Connected-accounts-scoped payload', async () => {
+  // End to end through the arm, in the shape Stripe actually delivers once the second endpoint
+  // exists: top-level `account` set, capabilities granted, onboarding complete.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent(
+      'account.updated',
+      connectAccount({
+        id: 'acct_connected',
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+      }),
+      'evt_connect',
+      'acct_connected',
+    ),
+  );
+  const [flags, onboarded] = db.calls;
+  assertEquals(flags.table, 'payout_accounts');
+  assertEquals(flags.values, { charges_enabled: true, payouts_enabled: true });
+  assertEquals(flags.filters, [['eq', 'stripe_account_id', 'acct_connected']]);
+  assert(
+    typeof (onboarded.values as Record<string, unknown>).onboarded_at === 'string',
+    'onboarded_at must be stamped when details_submitted',
+  );
+});
+
+Deno.test('processEvent W13 still works on a payload with no top-level account', async () => {
+  // Nothing about the arm may depend on the new field being present — a redelivery of an older
+  // event, or a Stripe re-scope, must land on the same row.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('account.updated', connectAccount({ id: 'acct_plain', payouts_enabled: true })),
+  );
+  assertEquals(db.calls[0].values, { charges_enabled: false, payouts_enabled: true });
+  assertEquals(db.calls[0].filters, [['eq', 'stripe_account_id', 'acct_plain']]);
+});
 
 Deno.test('handleAccountUpdated throws on a failed write (Stripe must retry)', async () => {
   for (const script of [
