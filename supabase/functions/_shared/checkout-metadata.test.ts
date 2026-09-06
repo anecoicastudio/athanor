@@ -59,10 +59,11 @@ Deno.test(
   'ticket metadata minted by create-ticket-checkout is readable by the webhook',
   async () => {
     const params = buildTicketSessionParams(
-      { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur' },
+      { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur', fee_pct: 10 },
       PROFILE,
       APP,
       CREATED * 1000, // injected clock (ms) — only expires_at derives from it here
+      'acct_organiser_9', // #104 destination; this test is about metadata, not the split
     );
     const db = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
     // If the producer ever renames a metadata key, handleTicketPaid throws 'missing metadata'

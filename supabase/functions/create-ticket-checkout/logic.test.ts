@@ -6,7 +6,13 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 // run — an unpinned specifier would typecheck against latest and redden on SDK majors.
 import type Stripe from 'npm:stripe@22';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
-import { buildTicketSessionParams, createTicketCheckout, type TicketCheckoutCtx } from './logic.ts';
+import {
+  DEFAULT_TICKET_FEE_PCT,
+  buildTicketSessionParams,
+  createTicketCheckout,
+  ticketSplit,
+  type TicketCheckoutCtx,
+} from './logic.ts';
 
 const PROFILE = 'prof-1';
 const EVENT = 'evt-1';
@@ -19,6 +25,7 @@ const eventRow = (over: Record<string, unknown> = {}) => ({
   title: 'Cena alchemica',
   price_cents: 1500,
   currency: 'eur',
+  fee_pct: 10,
   organizer_id: 'org-1',
   starts_at: '2026-08-20T18:00:00Z', // future relative to NOW
   ends_at: null,
@@ -30,6 +37,7 @@ const eventRow = (over: Record<string, unknown> = {}) => ({
 const sellable = (over: Record<string, unknown> = {}): Record<string, FakeResult[]> => ({
   'events.select': [{ data: eventRow(over) }],
   'rpc.is_identity_verified': [{ data: true }],
+  'rpc.organizer_payout_destination': [{ data: 'acct_organiser_1' }],
   'rpc.claim_event_seat': [{ data: 'claimed' }],
 });
 
@@ -247,10 +255,11 @@ Deno.test(
 
 Deno.test('buildTicketSessionParams is pure: metadata.kind ticket, ids from args', () => {
   const params = buildTicketSessionParams(
-    { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur' },
+    { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur', fee_pct: 10 },
     'prof-9',
     'https://app.example/',
     NOW.getTime(),
+    'acct_organiser_9',
   );
   assertEquals(params.metadata, { kind: 'ticket', event_id: 'evt-9', profile_id: 'prof-9' });
   assertEquals(params.line_items?.[0].price_data?.unit_amount, 700);
@@ -344,4 +353,111 @@ Deno.test('a successful checkout releases nothing — the webhook pays the claim
   const c = ctx(sellable());
   await run(c);
   assert(!c.db.calls.some((call) => call.columns === 'release_event_seat'));
+});
+
+// ── #104: the destination charge ─────────────────────────────────────────────
+
+Deno.test('ticketSplit keeps fee_pct percent and conserves the money', () => {
+  assertEquals(ticketSplit({ priceCents: 1500, feePct: 10 }), {
+    priceCents: 1500,
+    applicationFeeCents: 150,
+    organiserCents: 1350,
+  });
+  // Nearest cent, not down and not up — 10.5 rounds to 11, 10.4 to 10.
+  assertEquals(ticketSplit({ priceCents: 105, feePct: 10 }).applicationFeeCents, 11);
+  assertEquals(ticketSplit({ priceCents: 104, feePct: 10 }).applicationFeeCents, 10);
+  // Clamped into [0, price]: Stripe rejects a fee above the charge total, and this runs after the
+  // seat is claimed, so an out-of-range rate must degrade to a valid split.
+  assertEquals(ticketSplit({ priceCents: 1000, feePct: 250 }).applicationFeeCents, 1000);
+  assertEquals(ticketSplit({ priceCents: 1000, feePct: -10 }).applicationFeeCents, 0);
+  assertEquals(DEFAULT_TICKET_FEE_PCT, 10);
+});
+
+Deno.test('the session is a destination charge: fee from fee_pct, destination from the RPC', async () => {
+  const c = ctx(sellable());
+  await run(c);
+  const pid = c.created[0].payment_intent_data;
+  // 1500 at 10% — the fee is computed from the EVENT ROW's rate, never from a constant.
+  assertEquals(pid?.application_fee_amount, 150);
+  assertEquals(pid?.transfer_data?.destination, 'acct_organiser_1');
+  // The buyer still pays the displayed price: the absorbed model changes no price in the app.
+  assertEquals(c.created[0].line_items?.[0].price_data?.unit_amount, 1500);
+});
+
+Deno.test('the fee follows the row, including a fractional rate and a string from PostgREST', async () => {
+  const half = ctx(sellable({ price_cents: 2000, fee_pct: 7.5 }));
+  await run(half);
+  assertEquals(half.created[0].payment_intent_data?.application_fee_amount, 150);
+
+  // numeric(5,2) can arrive JSON-encoded as a string; Number() at the call site is what keeps a
+  // NaN out of application_fee_amount, where Stripe would reject the whole Session.
+  const asString = ctx(sellable({ price_cents: 1000, fee_pct: '12.50' }));
+  await run(asString);
+  assertEquals(asString.created[0].payment_intent_data?.application_fee_amount, 125);
+});
+
+Deno.test('a zero fee_pct still mints a destination charge, with no application fee', async () => {
+  // The rate is server config and could be set to 0 for a campaign. That must transfer the whole
+  // amount, not omit the destination — omitting it would silently make Athanor the merchant of
+  // record for money it never intended to keep.
+  const c = ctx(sellable({ fee_pct: 0 }));
+  await run(c);
+  assertEquals(c.created[0].payment_intent_data?.application_fee_amount, 0);
+  assertEquals(c.created[0].payment_intent_data?.transfer_data?.destination, 'acct_organiser_1');
+});
+
+Deno.test('no payable destination → 409, before the seat is claimed and before Stripe', async () => {
+  // The creation gate makes this near-unreachable, but Stripe revokes capabilities after the fact.
+  // It must refuse BEFORE claim_event_seat, or a revoked organiser's event would hold seats for
+  // 35 minutes each time somebody tried to buy.
+  const c = ctx({ ...sellable(), 'rpc.organizer_payout_destination': [{ data: null }] });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 409);
+  assertEquals(body, { error: 'organizer cannot receive payouts' });
+  assertEquals(c.created.length, 0);
+  assertEquals(
+    c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'claim_event_seat'),
+    undefined,
+  );
+});
+
+Deno.test('a destination lookup error fails closed — 500, no seat, no charge', async () => {
+  const c = ctx({
+    ...sellable(),
+    'rpc.organizer_payout_destination': [{ error: { message: 'boom' } }],
+  });
+  const { res, body } = await run(c);
+  assertEquals(res.status, 500);
+  assertEquals(body, { error: 'payout destination lookup failed' });
+  assertEquals(c.created.length, 0);
+  assertEquals(
+    c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'claim_event_seat'),
+    undefined,
+  );
+});
+
+Deno.test('the destination is resolved for THIS event, and after the identity gate', async () => {
+  const c = ctx(sellable());
+  await run(c);
+  const calls = c.db.calls.filter((call) => call.op === 'rpc');
+  const verify = calls.findIndex((call) => call.columns === 'is_identity_verified');
+  const dest = calls.findIndex((call) => call.columns === 'organizer_payout_destination');
+  const claim = calls.findIndex((call) => call.columns === 'claim_event_seat');
+  assert(verify >= 0 && dest >= 0 && claim >= 0);
+  // Identity first (it is the older, broader refusal), then payability, then the seat.
+  assert(verify < dest, 'identity must still refuse before payability');
+  assert(dest < claim, 'payability must refuse before a seat is held');
+  assertEquals(calls[dest].values, { p_event_id: EVENT });
+});
+
+Deno.test('an unverified organizer is refused before the destination is ever resolved', async () => {
+  // Order matters for the copy: "verify your identity" and "finish getting paid" are different
+  // instructions, and the buyer-facing refusal must name the same first cause the composer does.
+  const c = ctx({ ...sellable(), 'rpc.is_identity_verified': [{ data: false }] });
+  const { res } = await run(c);
+  assertEquals(res.status, 403);
+  assertEquals(
+    c.db.calls.find((call) => call.op === 'rpc' && call.columns === 'organizer_payout_destination'),
+    undefined,
+  );
 });
