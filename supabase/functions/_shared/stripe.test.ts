@@ -229,8 +229,9 @@ Deno.test('verifyWithAnySecret skips unset and blank secrets rather than trying 
 });
 
 Deno.test('verifyWithAnySecret names the failure when NO secret is configured', async () => {
-  // handleWebhook answers «bad signature» for any throw and logs nothing, so an unnamed failure
-  // here sends the operator after the wrong secret for the three days Stripe keeps retrying.
+  // Named for a reader holding a stack trace, NOT for the operator: this throw lands in
+  // handleWebhook's bare catch, which answers 400 and logs nothing. index.ts's cold-start warn is
+  // what says a variable is missing. Asserting the names still pins them against a rename.
   const { tried, verify } = acceptsOnly(PLATFORM_SECRET);
   const err = await assertRejects(() => verifyWithAnySecret(verify, [undefined, '  ']), Error);
   assertEquals(tried, [], 'nothing to try means nothing is called');

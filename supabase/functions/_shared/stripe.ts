@@ -79,10 +79,19 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
  * A declared-but-empty secret is what an un-provisioned one looks like on a hosted project, and
  * every consumer here wants the same answer for both: «not configured», never an empty string
  * handed to Stripe as if it were an id or a key.
+ *
+ * The value is returned TRIMMED, not merely tested trimmed. A secret pasted into the Supabase
+ * secrets UI with a trailing newline is set, so no «unset» warning fires, and it is non-blank, so
+ * it is used verbatim as the HMAC key — every delivery then fails verification and answers an
+ * unlogged 400 for the three days Stripe keeps retrying, against a secret that looks correct in
+ * the dashboard. The SDK detects the same hazard (`secretContainsWhitespace`) and can only warn
+ * about it after the fact. A price id pasted the same way fails `prices.retrieve` instead (#644).
  */
 const nonBlank = (env: EnvPort, name: string): string | undefined => {
   const v = env.get(name);
-  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  return trimmed === '' ? undefined : trimmed;
 };
 
 /** The two Circle Price ids, by plan. `undefined` where the variable is unset or blank. */
@@ -144,11 +153,14 @@ export function webhookSigningSecrets(env: EnvPort = denoEnv): WebhookSigningSec
  * and the platform secret first because platform events are the overwhelming majority.
  *
  * A secret that is unset or blank is skipped rather than tried, so an absent Connect secret costs
- * nothing and changes nothing for the platform arms. With none configured at all the throw is
- * NAMED, for the reason `stripeClient` names its own: handleWebhook answers «bad signature» 400
- * for any throw and logs nothing, so an unnamed failure sends the operator after the wrong secret
- * for the three days Stripe keeps retrying. On a real mismatch the FIRST failure is rethrown —
- * the platform secret's, which is the one an operator is almost always debugging.
+ * nothing and changes nothing for the platform arms. On a real mismatch the FIRST failure is
+ * rethrown — the platform secret's, which is the one an operator is almost always debugging.
+ *
+ * With none configured at all the throw is NAMED, but do not mistake that for a signal an operator
+ * will see. Unlike `stripeClient`, which throws at module scope and so lands in the boot log, this
+ * throws per request into handleWebhook's bare catch, which answers «bad signature» 400 and logs
+ * nothing. The name is there for a reader with a stack trace and for any future logged path; what
+ * actually tells the operator is the cold-start `console.warn` pair in stripe-webhook/index.ts.
  */
 export async function verifyWithAnySecret(
   verify: (secret: string) => Promise<Stripe.Event>,

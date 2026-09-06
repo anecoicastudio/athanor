@@ -12,6 +12,7 @@ import {
   type Db,
   type WebhookCtx,
   assertSettled,
+  CONNECT_SCOPED_TYPES,
   handleAccountUpdated,
   handleChargeRefunded,
   handleContribution,
@@ -1172,6 +1173,67 @@ Deno.test('processEvent routes each event type to the right table', async () => 
     await processEvent(routingCtx(db), stripeEvent(type, object));
     assertEquals(db.calls[0]?.table, table, `${type} should write ${table}`);
   }
+});
+
+// ── scope partition: a Connect-scoped delivery reaches W13 and nothing else (#702) ──
+
+Deno.test(
+  'processEvent acks a connected-account delivery of a platform type, writing nothing',
+  async () => {
+    // Both endpoints post to the same URL, so the ONLY thing keeping endpoint #2's deliveries off
+    // the platform arms must be this partition — never the Dashboard's enabled-event list, which an
+    // operator copies across in one click. Each of these would otherwise do real damage.
+    for (const [type, object] of [
+      ['checkout.session.completed', ticketSession()],
+      ['charge.refunded', { payment_intent: 'pi_c1' }],
+      ['charge.dispute.created', { payment_intent: 'pi_c1' }],
+      ['customer.subscription.updated', subscription()],
+      ['transfer.created', fundTransfer()],
+      ['transfer.reversed', fundTransfer({ amount_reversed: 4000 })],
+      ['identity.verification_session.verified', { id: 'vs_1', metadata: { profile_id: 'p' } }],
+    ] as [string, unknown][]) {
+      const db = makeFakeDb();
+      await processEvent(routingCtx(db), stripeEvent(type, object, 'evt_1', 'acct_connected'));
+      assertEquals(db.calls.length, 0, `${type} from a connected account must write nothing`);
+    }
+  },
+);
+
+Deno.test('processEvent does not THROW on a connected-account async_payment delivery', async () => {
+  // The arm that matters most. assertSettled's sibling throws by design so a delayed-settlement
+  // misconfiguration is loud — but a 5xx storm is what gets an endpoint DISABLED, which would
+  // silence account.updated again: #702, reintroduced by its own fix. Acked here instead.
+  for (const type of [
+    'checkout.session.async_payment_succeeded',
+    'checkout.session.async_payment_failed',
+  ]) {
+    const db = makeFakeDb();
+    await processEvent(routingCtx(db), stripeEvent(type, ticketSession(), 'evt_1', 'acct_x'));
+    assertEquals(db.calls.length, 0);
+  }
+  // …and still throws on the platform endpoint, where it means what it always meant.
+  await assertRejects(() =>
+    processEvent(
+      routingCtx(makeFakeDb()),
+      stripeEvent('checkout.session.async_payment_succeeded', ticketSession()),
+    ),
+  );
+});
+
+Deno.test('processEvent routes the one allowlisted type from a connected account', async () => {
+  // The partition must not swallow what the Connect endpoint exists to deliver.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('account.updated', connectAccount({ id: 'acct_c' }), 'evt_1', 'acct_c'),
+  );
+  assertEquals(db.calls[0]?.table, 'payout_accounts');
+});
+
+Deno.test('CONNECT_SCOPED_TYPES is the allowlist, and account.updated is on it', () => {
+  // Pinned by name: growing the Connect surface (#701's account.external_account.updated,
+  // payout.failed) is a deliberate edit here plus a case, never an unnoticed Dashboard change.
+  assertEquals([...CONNECT_SCOPED_TYPES], ['account.updated']);
 });
 
 Deno.test('processEvent W11 reconcile retrieves the subscription from checkout', async () => {
