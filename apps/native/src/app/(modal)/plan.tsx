@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -42,6 +42,21 @@ import { calendarDay, dayKey } from '@/lib/time';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+
+/** The plan's four prose fields, as the draft carries them. */
+type ProseDraft = {
+  objective: string;
+  expectedResult: string;
+  professionals: string;
+  suppliers: string;
+};
+
+const EMPTY_PROSE: ProseDraft = {
+  objective: '',
+  expectedResult: '',
+  professionals: '',
+  suppliers: '',
+};
 
 /**
  * The winner's realization plan (#229, FUND-25) — authored AFTER the cycle chose the dream,
@@ -101,50 +116,57 @@ export default function RealizationPlanScreen() {
   const published = plan?.published_at != null;
 
   // ── Local draft ──────────────────────────────────────────────────────────────
-  const [objective, setObjective] = useState('');
-  const [expectedResult, setExpectedResult] = useState('');
-  const [professionals, setProfessionals] = useState('');
-  const [suppliers, setSuppliers] = useState('');
-  const [phases, setPhases] = useState<DraftPhase[]>([]);
-  // The server row is the draft's origin exactly once per load; after that the member's
-  // typing owns the fields, so a background refetch never overwrites what they are writing.
-  const [hydrated, setHydrated] = useState(false);
-  // The phases get their own flag rather than reading «is the list empty?»: an empty list is
-  // a legitimate draft state — the member just removed the last phase — and re-hydrating on
-  // it would resurrect the phase on the next background refetch.
-  const [phasesHydrated, setPhasesHydrated] = useState(false);
-  // #636. Captured AT hydration, in the same effects that fill the fields — a baseline taken
-  // at mount would be the empty draft, and every loaded plan would read as edited before the
-  // member touched it.
-  const [proseBaseline, setProseBaseline] = useState({
-    objective: '',
-    expectedResult: '',
-    professionals: '',
-    suppliers: '',
-  });
-  const [phasesBaseline, setPhasesBaseline] = useState<DraftPhase[]>([]);
+  //
+  // The server row IS the draft until the member types. That used to be two effects copying it
+  // into eight `useState`s behind two `hydrated` flags (#691); it is a fallback now. The three
+  // properties those flags were protecting all survive, and two of them get stronger:
+  //
+  // - a background refetch cannot overwrite what the member is writing — once `edit` is set it
+  //   wins outright, so there is no window in which a late row lands on top of a keystroke;
+  // - an empty phase list stays empty. It is a legitimate draft state (the member removed the
+  //   last phase) and nothing re-derives it, so it cannot be resurrected;
+  // - the #636 baseline is still captured at the moment editing STARTS — it rides along in the
+  //   same state — so a loaded plan does not read as edited before it is touched, and a refetch
+  //   mid-edit cannot move the mark the guard measures against.
+  const serverProse: ProseDraft = plan
+    ? {
+        objective: plan.objective,
+        expectedResult: plan.expected_result,
+        professionals: plan.professionals,
+        suppliers: plan.suppliers,
+      }
+    : EMPTY_PROSE;
+  const [proseEdit, setProseEdit] = useState<{
+    values: ProseDraft;
+    baseline: ProseDraft;
+  } | null>(null);
+  const { objective, expectedResult, professionals, suppliers } = proseEdit?.values ?? serverProse;
+  const proseBaseline = proseEdit?.baseline ?? serverProse;
+  const editProse = (patch: Partial<ProseDraft>) =>
+    setProseEdit((edit) => ({
+      values: { ...(edit?.values ?? serverProse), ...patch },
+      baseline: edit?.baseline ?? serverProse,
+    }));
+  const setObjective = (v: string) => editProse({ objective: v });
+  const setExpectedResult = (v: string) => editProse({ expectedResult: v });
+  const setProfessionals = (v: string) => editProse({ professionals: v });
+  const setSuppliers = (v: string) => editProse({ suppliers: v });
 
-  useEffect(() => {
-    if (hydrated || !plan) return;
-    setObjective(plan.objective);
-    setExpectedResult(plan.expected_result);
-    setProfessionals(plan.professionals);
-    setSuppliers(plan.suppliers);
-    setProseBaseline({
-      objective: plan.objective,
-      expectedResult: plan.expected_result,
-      professionals: plan.professionals,
-      suppliers: plan.suppliers,
+  const serverDraftPhases = draftFromPhases(serverPhases);
+  const [phasesEdit, setPhasesEdit] = useState<{
+    values: DraftPhase[];
+    baseline: DraftPhase[];
+  } | null>(null);
+  const phases = phasesEdit?.values ?? serverDraftPhases;
+  const phasesBaseline = phasesEdit?.baseline ?? serverDraftPhases;
+  const setPhases = (next: DraftPhase[] | ((current: DraftPhase[]) => DraftPhase[])) =>
+    setPhasesEdit((edit) => {
+      const current = edit?.values ?? serverDraftPhases;
+      return {
+        values: typeof next === 'function' ? next(current) : next,
+        baseline: edit?.baseline ?? serverDraftPhases,
+      };
     });
-    setHydrated(true);
-  }, [hydrated, plan]);
-
-  useEffect(() => {
-    if (phasesHydrated || !plan || phasesQuery.data === undefined) return;
-    setPhases(draftFromPhases(serverPhases));
-    setPhasesBaseline(draftFromPhases(serverPhases));
-    setPhasesHydrated(true);
-  }, [phasesHydrated, plan, phasesQuery.data, serverPhases]);
 
   const payable = payableCents(edition?.confirmed_pool_cents ?? 0, edition?.split_pct ?? 0);
   const costed = costedCents(phases);
@@ -162,7 +184,10 @@ export default function RealizationPlanScreen() {
   // survivor still holds, which React reads as the same row.
   const nextPhaseKey = useRef(0);
 
-  const addPhase = useCallback(() => {
+  // No `useCallback`: `setPhases` is a plain function now rather than a `useState` setter, so a
+  // manual memo would have to list it and re-make itself every render anyway. Its only call site
+  // is an `onPress`, and the compiler memoizes what is worth memoizing.
+  const addPhase = () => {
     setPhases((current) => [
       ...current,
       {
@@ -175,7 +200,7 @@ export default function RealizationPlanScreen() {
         criteria: '',
       },
     ]);
-  }, []);
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -253,14 +278,12 @@ export default function RealizationPlanScreen() {
   );
 
   const busy = saveMutation.isPending || publishMutation.isPending;
-  // Only once both halves have hydrated: comparing against a not-yet-arrived row would make
-  // every load dirty. Unpublished prose and phase edits are the work at risk here.
+  // No "has it hydrated yet" arm: an untouched draft IS its own baseline, so a load — with a
+  // row or without one — compares equal. Unpublished prose and phase edits are the work at risk.
   useDirtyGuard({
     dirty:
-      hydrated &&
-      phasesHydrated &&
-      (isDraftDirty(proseBaseline, { objective, expectedResult, professionals, suppliers }) ||
-        isDraftDirty(phasesBaseline, phases)),
+      isDraftDirty(proseBaseline, { objective, expectedResult, professionals, suppliers }) ||
+      isDraftDirty(phasesBaseline, phases),
     saving: busy,
   });
 

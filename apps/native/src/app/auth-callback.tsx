@@ -33,18 +33,18 @@ export default function AuthCallbackScreen() {
   const code = Array.isArray(params.code) ? params.code[0] : params.code;
   const errorDescription = params.error_description;
   const router = useRouter();
-  const [failed, setFailed] = useState(false);
+  // GoTrue appends ?error=…&error_description=… instead of a code when the link is expired or
+  // already consumed. That is knowable during render, so it is derived — only the exchange's
+  // own failure needs state (#691).
+  const invalidLink = Boolean(errorDescription) || !code;
+  const [exchangeFailed, setExchangeFailed] = useState(false);
+  const failed = invalidLink || exchangeFailed;
   // Draft-aware (#158): the OTP link lands here while the draft (and its chosen
   // locale) is still on disk — the flush clears it only after the exchange.
   const locale = useDraftLocale();
 
   useEffect(() => {
-    // GoTrue appends ?error=…&error_description=… instead of a code when the link
-    // is expired or already consumed.
-    if (errorDescription || !code) {
-      setFailed(true);
-      return;
-    }
+    if (invalidLink || !code) return;
     let cancelled = false;
     // AuthGuard deliberately does not redirect away from this route, so a request
     // that never settles would leave the user on a bare ✦ with no way out — the one
@@ -55,15 +55,15 @@ export default function AuthCallbackScreen() {
     );
     Promise.race([supabase.auth.exchangeCodeForSession(code), timeout])
       .then(({ error }) => {
-        if (!cancelled && error) setFailed(true);
+        if (!cancelled && error) setExchangeFailed(true);
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setExchangeFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [code, errorDescription]);
+  }, [code, invalidLink]);
 
   if (failed) {
     return (

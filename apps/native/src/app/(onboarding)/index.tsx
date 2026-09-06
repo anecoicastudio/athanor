@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { semantic } from '@athanor/config';
@@ -21,6 +21,7 @@ import { ZodiacGlyph } from '@/components/glyphs';
 import { Input } from '@/components/Input';
 import { LocaleChips } from '@/components/LocaleChips';
 import { MediaSheet } from '@/components/media/MediaSheet';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { SectionLabel } from '@/components/SectionLabel';
 import { StepBars } from '@/components/StepBars';
@@ -76,7 +77,7 @@ export default function OnboardingScreen() {
   // would hand the native wheel a new `maximumDate` on every tick and make it re-clamp.
   const [today] = useState(() => new Date());
   const reduceMotion = useReducedMotion();
-  const revealOpacity = useRef(new Animated.Value(0)).current;
+  const revealOpacity = useAnimatedValue(0);
 
   // Resume an abandoned funnel: rehydrate the local draft on mount.
   useEffect(() => {

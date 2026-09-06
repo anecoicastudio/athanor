@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, type PanResponderGestureState } from 'react-native';
 import type { Locale, MomentoDeckCard } from '@athanor/schemas';
 import { View } from '@/tw';
+import { useAnimatedValueXY } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import {
   COMMIT_DISTANCE_PX,
@@ -54,13 +55,12 @@ export function SwipeDeck({
   onEmpty: () => void;
   deckRef?: React.MutableRefObject<SwipeDeckHandle | null>;
 }) {
-  const [index, setIndex] = useState(0);
+  const [cursor, setCursor] = useState<{ deckKey: string; index: number }>({
+    deckKey: '',
+    index: 0,
+  });
   const reduceMotion = useReducedMotion();
-  const pan = useRef(new Animated.ValueXY()).current;
-
-  useEffect(() => {
-    pan.setValue({ x: 0, y: 0 });
-  }, [index, pan]);
+  const pan = useAnimatedValueXY();
 
   // The parent refetches the deck after every accept/pass (invalidateQueries), handing us a
   // fresh, shorter `cards` array. Reset the cursor to the new top whenever the deck identity
@@ -69,15 +69,20 @@ export function SwipeDeck({
   // accepts/passes (and labels) someone other than the visible person. (accept/pass always
   // removes the row server-side, so the id list — and this key — changes after each action.)
   const deckKey = cards.map((c) => c.id).join('|');
+  // Derived, not reset from an effect (#691): the effect landed a commit LATE, so exactly one
+  // render still showed and acted on cards[stale index] — the desync above, narrowed rather
+  // than closed. Reading the cursor through its own deck key closes it.
+  const index = cursor.deckKey === deckKey ? cursor.index : 0;
+
   useEffect(() => {
-    setIndex(0);
-  }, [deckKey]);
+    pan.setValue({ x: 0, y: 0 });
+  }, [index, pan]);
 
   const advance = (dir: 'left' | 'right', card: MomentoDeckCard) => {
     if (dir === 'right') onAccept(card);
     else onPass(card);
     const ni = index + 1;
-    setIndex(ni);
+    setCursor({ deckKey, index: ni });
     if (ni >= cards.length) onEmpty();
   };
 
@@ -90,7 +95,7 @@ export function SwipeDeck({
       duration: reduceMotion ? FLY_OUT_REDUCED_MS : FLY_OUT_MS,
       useNativeDriver: false,
     }).start(({ finished }) => {
-      // A refetch landing mid-flight resets pan/index (the effects above), which kills
+      // A refetch landing mid-flight re-derives `index` and resets `pan`, which kills
       // this animation with finished: false — the deck already moved on, so advancing
       // anyway acted on the old card against the new deck: half-moved card, desynced
       // index (#357). StoriesViewer's progress timer guards the same way.
@@ -131,6 +136,11 @@ export function SwipeDeck({
   // that need current state go through `gestureRef` instead.
   const responder = useMemo(
     () =>
+      // `PanResponder.create` STORES these handlers for the gesture system to call on touch
+      // events; not one of them runs during render, so the `gestureRef` reads inside them
+      // cannot be render reads. The memo exists precisely so this object outlives every render
+      // (#357), which is what makes the ref necessary in the first place.
+      // eslint-disable-next-line react-hooks/refs
       PanResponder.create({
         onMoveShouldSetPanResponder: (_e, g) => shouldClaimSwipe(g.dx, g.dy),
         // Once claimed, never hand the gesture to the enclosing ScrollView mid-drag —

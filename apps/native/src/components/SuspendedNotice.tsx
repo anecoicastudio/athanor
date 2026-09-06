@@ -1,6 +1,7 @@
 import { sanctionState } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { longDate } from '@/lib/time';
@@ -17,7 +18,8 @@ export function SuspendedNotice() {
   // Above the early return: members in good standing render nothing, and a hook called
   // after that branch would run in a different order on the render where a sanction lands.
   const locale = useLocale();
-  const sanction = sanctionState(profile, Date.now());
+  const now = useNow();
+  const sanction = sanctionState(profile, now);
   if (!sanction) return null;
   const title =
     sanction.kind === 'banned'

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -32,6 +32,7 @@ import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 import { useActiveEdition } from '@/hooks/use-active-edition';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -104,7 +105,7 @@ export default function CandidacyDetailScreen() {
   const editionQuery = useActiveEdition();
   // Pinned per render pass, like annual.tsx: a window that closes while the screen sits open is
   // not caught here, and that residual race is what the refusal copy below is for.
-  const nowMs = useRef(Date.now()).current;
+  const nowMs = useNow();
 
   // Refetch the tally on focus — others' votes don't stream (own-row RLS).
   useFocusEffect(

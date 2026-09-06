@@ -3,6 +3,7 @@ import { AccessibilityInfo, Animated, Easing } from 'react-native';
 import { Text } from '@/tw';
 import { t } from '@athanor/i18n';
 import { useLocale } from '@/hooks/use-locale';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { spoken } from '@/lib/star';
 
@@ -23,7 +24,7 @@ export function AuraValue({
   flashOnIncrease?: boolean;
   className?: string;
 }) {
-  const anim = useRef(new Animated.Value(value)).current;
+  const anim = useAnimatedValue(value);
   const [display, setDisplay] = useState(value);
   const reduce = useReducedMotion();
   /*

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -33,6 +33,7 @@ import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 
 /**
@@ -115,13 +116,16 @@ export default function ProgressScreen() {
   // an unsaved change — the guard would then fire on the way out having lost nothing.
   const [editingBaseline, setEditingBaseline] = useState('');
   // Pinned per render pass so every «2 ore fa» in one list agrees with the others.
-  const now = useRef(Date.now()).current;
+  const now = useNow();
 
+  // Hoisted: reading `edition.id` inside the body made the compiler infer `edition` as the
+  // dependency while the source named `edition?.id`, so the manual memo could not be preserved.
+  const editionId = edition?.id;
   const invalidate = useCallback(async () => {
-    if (!edition?.id) return;
-    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.mine(edition.id) });
-    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.feed(edition.id) });
-  }, [edition?.id, qc]);
+    if (!editionId) return;
+    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.mine(editionId) });
+    await qc.invalidateQueries({ queryKey: realizationUpdateKeys.feed(editionId) });
+  }, [editionId, qc]);
 
   const postMutation = useMutation({
     mutationFn: () =>

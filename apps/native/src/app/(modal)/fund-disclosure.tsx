@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -69,7 +69,10 @@ export default function FundDisclosureScreen() {
   // screen's job is to show the payer the figure, never to name it.
   const split = validAmount ? feeCoverage(amountCents) : null;
 
-  const onAccept = useCallback(async () => {
+  // No `useCallback`: the compiler could not preserve this memo (it reads state the
+  // async body mutates), and a skipped component is worse than an unmemoized handler.
+  // Its only call site wraps it in a fresh arrow anyway.
+  const onAccept = async () => {
     if (!validAmount) return;
     setContribPhase('opening');
     try {
@@ -99,7 +102,7 @@ export default function FundDisclosureScreen() {
       if (copy) void qc.invalidateQueries({ queryKey: fundKeys.activeEdition() });
       setContribPhase('error');
     }
-  }, [validAmount, amountCents, coverFees, edition?.id, router, qc]);
+  };
 
   return (
     <Screen>

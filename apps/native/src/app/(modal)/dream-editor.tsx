@@ -29,7 +29,11 @@ export default function DreamEditorScreen() {
   const [text, setText] = useState('');
   // What the editor opened with, so an edit is told apart from the prefill (#636).
   const [baseline, setBaseline] = useState('');
-  const [loaded, setLoaded] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
+  // With no user there is nothing to prefill, so the editor is ready on its FIRST render.
+  // Derived rather than set from the effect below (#691), which also drops the one commit
+  // where the guard saw `loaded` false on a screen that was already usable.
+  const loaded = prefilled || !userId;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const { showToast } = useToast();
@@ -40,10 +44,7 @@ export default function DreamEditorScreen() {
 
   // Prefill with the current active dream when editing (empty draft when none).
   useEffect(() => {
-    if (!userId) {
-      setLoaded(true);
-      return;
-    }
+    if (!userId) return;
     let cancelled = false;
     getActiveDream(supabase, userId)
       .then((d) => {
@@ -55,7 +56,7 @@ export default function DreamEditorScreen() {
         // empty draft is the safe default
       })
       .finally(() => {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) setPrefilled(true);
       });
     return () => {
       cancelled = true;

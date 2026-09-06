@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { type MessageKey, t } from '@athanor/i18n';
@@ -96,15 +96,17 @@ export function MediaFrame({
   children,
   overlay,
 }: Props) {
-  const [failed, setFailed] = useState(false);
+  // The URL that failed, rather than a bare flag. A re-signed URL is a different string, so
+  // "give it a fresh attempt" is a comparison during render instead of a `setState` in an
+  // effect (#691) — and it can no longer show one render of the OLD failure against a NEW
+  // url, which is the window the effect left open.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = url !== undefined && failedUrl === url;
   const reduce = useReducedMotion();
 
-  // A re-signed URL deserves a fresh attempt: story-segments re-sign every 240s, so the URL that
-  // 404'd is not the URL the next render gets.
-  useEffect(() => setFailed(false), [url]);
-
-  // Stable so a player's failure effect doesn't re-fire on every parent render.
-  const reportFailure = useCallback(() => setFailed(true), []);
+  // Stable per URL so a player's failure effect doesn't re-fire on every parent render. It
+  // does re-fire when the URL changes, which is correct: that is a different attempt.
+  const reportFailure = useCallback(() => setFailedUrl(url ?? null), [url]);
 
   const state = mediaState({ url, isLoading, failed });
   // `mediaState` only says ready when `url` is non-empty; re-deriving it here is what lets the
@@ -135,7 +137,7 @@ export function MediaFrame({
               // Tiles recycle in a grid; without this a scrolled-away image can flash in the cell
               // that took its place.
               recyclingKey={readyUrl}
-              onError={() => setFailed(true)}
+              onError={() => setFailedUrl(url ?? null)}
             />
           )}
           {overlay}

@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Button } from '@/components/Button';
 import { Mandorla } from '@/components/Mandorla';
@@ -28,8 +29,8 @@ export default function LevelOverlay() {
   const { tier = '' } = useLocalSearchParams<{ tier: string }>();
 
   const reduceMotion = useReducedMotion();
-  const scale = useRef(new Animated.Value(0.9)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useAnimatedValue(0.9);
+  const opacity = useAnimatedValue(0);
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
