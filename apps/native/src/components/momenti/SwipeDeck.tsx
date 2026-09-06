@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, type PanResponderGestureState } from 'react-native';
 import type { Locale, MomentoDeckCard } from '@athanor/schemas';
 import { View } from '@/tw';
+import { useAnimatedValueXY } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import {
   COMMIT_DISTANCE_PX,
@@ -56,7 +57,7 @@ export function SwipeDeck({
 }) {
   const [index, setIndex] = useState(0);
   const reduceMotion = useReducedMotion();
-  const pan = useRef(new Animated.ValueXY()).current;
+  const pan = useAnimatedValueXY();
 
   useEffect(() => {
     pan.setValue({ x: 0, y: 0 });

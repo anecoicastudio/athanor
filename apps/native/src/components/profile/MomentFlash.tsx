@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Easing } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
@@ -21,8 +22,8 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 export function MomentFlash({ visible, locale }: { visible: boolean; locale: Locale }) {
   const [mounted, setMounted] = useState(false);
   const reduceMotion = useReducedMotion();
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.9)).current;
+  const opacity = useAnimatedValue(0);
+  const scale = useAnimatedValue(0.9);
 
   useEffect(() => {
     if (!visible) return;

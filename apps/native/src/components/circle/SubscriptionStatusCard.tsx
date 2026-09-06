@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Animated } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Tag } from '@/components/Tag';
 import { auraGlow } from '@/lib/glow';
@@ -38,7 +39,7 @@ export function SubscriptionStatusCard({
   locale: Locale;
 }) {
   const reduceMotion = useReducedMotion();
-  const opacity = useRef(new Animated.Value(0)).current;
+  const opacity = useAnimatedValue(0);
 
   useEffect(() => {
     if (!reduceMotion) {

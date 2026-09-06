@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Animated, Easing } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import { Pressable, Text } from '@/tw';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { star } from '@/lib/star';
 
@@ -29,7 +30,7 @@ export function ReactionStar({
   locale: Locale;
 }) {
   const reduceMotion = useReducedMotion();
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useAnimatedValue(1);
 
   useEffect(() => {
     if (!lit || reduceMotion) return;

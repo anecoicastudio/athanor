@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated, Keyboard, PanResponder, StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { t, tn } from '@athanor/i18n';
@@ -8,6 +8,7 @@ import { Input } from '@/components/Input';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { useToast } from '@/components/ToastHost';
 import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
+import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
 import { star } from '@/lib/star';
@@ -118,7 +119,7 @@ export function StoriesViewer({
   const [sending, setSending] = useState(false);
   const { showToast } = useToast();
   const reduce = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const progress = useAnimatedValue(0);
   const current = segments[si];
   const currentUrl = current ? urls[current.storage_path] : undefined;
 
