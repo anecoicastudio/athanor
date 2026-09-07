@@ -9,6 +9,7 @@ import {
   eventNearbySchema,
   eventSchema,
   isEmptyEventCalendarFilters,
+  MIN_PAID_TICKET_CENTS,
   rsvpSchema,
   rsvpStatusSchema,
   ticketSchema,
@@ -69,6 +70,20 @@ describe('eventSchema (read)', () => {
   it('accepts a paid price and rejects a negative one', () => {
     expect(eventSchema.parse({ ...baseRow, price_cents: 2500 }).price_cents).toBe(2500);
     expect(() => eventSchema.parse({ ...baseRow, price_cents: -1 })).toThrow();
+  });
+  // #701 — the floor is a BAND, not a minimum: free stays legal and everything between the two
+  // is refused. Both edges are asserted with hard literals rather than with the constant, so
+  // moving the constant cannot move the test with it and leave the pair vacuously green.
+  it('rejects a paid price under the minimum, on the read schema too (#701)', () => {
+    expect(eventSchema.parse({ ...baseRow, price_cents: 0 }).price_cents).toBe(0);
+    expect(eventSchema.parse({ ...baseRow, price_cents: 500 }).price_cents).toBe(500);
+    for (const under of [1, 499]) {
+      const parsed = eventSchema.safeParse({ ...baseRow, price_cents: under });
+      expect(parsed.success, `${under} must be refused`).toBe(false);
+      expect(parsed.error?.issues.find((i) => i.path[0] === 'price_cents')?.message).toBe(
+        'price_below_minimum',
+      );
+    }
   });
   // Both anchors matter: without `^` a 'xeur' passes, without `$` a 'eurx' does, and either
   // would reach Stripe as a currency it does not recognise.
@@ -156,6 +171,42 @@ describe('eventCreateSchema', () => {
     const paid = { ...physical, price_cents: 2500, settlement_ack: true };
     expect(eventCreateSchema.parse(paid).price_cents).toBe(2500);
     expect(() => eventCreateSchema.parse({ ...paid, price_cents: -1 })).toThrow();
+  });
+  // #701 — same band on the write side, asserted separately because the create input RE-DECLARES
+  // price_cents rather than picking it: the read schema's bound above says nothing about this one.
+  it('rejects a paid price under the minimum (#701)', () => {
+    const paid = { ...physical, settlement_ack: true };
+    expect(eventCreateSchema.parse({ ...paid, price_cents: 500 }).price_cents).toBe(500);
+    expect(eventCreateSchema.parse({ ...paid, price_cents: 0 }).price_cents).toBe(0);
+    for (const under of [1, 499]) {
+      const parsed = eventCreateSchema.safeParse({ ...paid, price_cents: under });
+      expect(parsed.success, `${under} must be refused`).toBe(false);
+      expect(parsed.error?.issues.find((i) => i.path[0] === 'price_cents')?.message).toBe(
+        'price_below_minimum',
+      );
+    }
+  });
+  // #701 fallout, not #701 itself. events.capacity is `integer` and create_event takes
+  // `p_capacity integer`, so PostgREST casts and an out-of-range value raises 22003 — the SAME
+  // code the floor arms raise. Verified against staging: p_capacity 99999999999 returns
+  // {"code":"22003","message":"value ... is out of range for type integer"}. Without this bound
+  // the composer's 22003 arm answers an overflow with «your price is too low».
+  it('bounds capacity to int4, so the composer 22003 arm cannot be answering an overflow', () => {
+    const base = { ...physical, settlement_ack: false };
+    expect(eventCreateSchema.parse({ ...base, capacity: 2_147_483_647 }).capacity).toBe(
+      2_147_483_647,
+    );
+    expect(eventCreateSchema.safeParse({ ...base, capacity: 2_147_483_648 }).success).toBe(false);
+    expect(eventCreateSchema.safeParse({ ...base, capacity: 99_999_999_999 }).success).toBe(false);
+    // Still nullable and still positive — the bound narrows the top only.
+    expect(eventCreateSchema.parse({ ...base, capacity: null }).capacity).toBeNull();
+    expect(eventCreateSchema.safeParse({ ...base, capacity: 0 }).success).toBe(false);
+  });
+
+  // The figure itself, pinned once. Every bound above is written with literals, so this is the
+  // only assertion that fails if the constant moves — which is what makes it the one to read.
+  it('MIN_PAID_TICKET_CENTS is €5,00 (#701 ruling 2026-09-07)', () => {
+    expect(MIN_PAID_TICKET_CENTS).toBe(500);
   });
   it('refuses a paid event with no settlement acknowledgement (#437)', () => {
     // #104's deferral was granted on the condition that organisers are told, before they list a

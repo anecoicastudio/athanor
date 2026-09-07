@@ -65,6 +65,15 @@ describe('publicEventSchema', () => {
     expect(publicEventSchema.safeParse({ ...row, price_cents: -1 }).success).toBe(false);
   });
 
+  // #701 — the same band as the member read model, because it is the same column. A price the
+  // app refuses to render and the marketing site renders anyway is one row described two ways.
+  it('carries the paid-ticket floor, free excepted (#701)', () => {
+    expect(publicEventSchema.safeParse({ ...row, price_cents: 0 }).success).toBe(true);
+    expect(publicEventSchema.safeParse({ ...row, price_cents: 500 }).success).toBe(true);
+    expect(publicEventSchema.safeParse({ ...row, price_cents: 499 }).success).toBe(false);
+    expect(publicEventSchema.safeParse({ ...row, price_cents: 1 }).success).toBe(false);
+  });
+
   it('rejects an organizer handle that is not a valid handle', () => {
     expect(publicEventSchema.safeParse({ ...row, organizer_handle: 'Sole' }).success).toBe(false);
   });

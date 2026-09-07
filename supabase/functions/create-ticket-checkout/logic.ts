@@ -56,6 +56,21 @@ export type TicketEvent = {
  */
 export const DEFAULT_TICKET_FEE_PCT = 10;
 
+/**
+ * The floor on a PAID ticket, in minor units (#701, ruling 2026-09-07). A band, not a minimum:
+ * a free event is legal and never reaches this function at all — the `event is free` gate above
+ * refuses it first.
+ *
+ * DUPLICATED FROM `packages/schemas/src/event.ts`, where `MIN_PAID_TICKET_CENTS` is declared and
+ * where the Zod band reads it, and re-exported from `packages/core/src/events/ticket-split.ts`
+ * for the composer. Same reason as `DEFAULT_TICKET_FEE_PCT` above: `supabase/functions` is outside
+ * the pnpm workspace. The fourth home is the `events_price_min` CHECK
+ * (`20260907145152_events_min_paid_ticket_price.sql`), and
+ * `packages/core/src/events/ticket-split.mirror.test.ts` reads all four as text. Change one,
+ * change all four.
+ */
+export const MIN_PAID_TICKET_CENTS = 500;
+
 /** The two figures a paid ticket splits into. `applicationFeeCents + organiserCents === priceCents`. */
 export type TicketSplit = {
   priceCents: number;
@@ -190,6 +205,16 @@ export async function createTicketCheckout(
   if (evErr) return error('event lookup failed', 500);
   if (!event) return error('event not found', 404);
   if (!event.price_cents || event.price_cents <= 0) return error('event is free', 400);
+
+  // #701 — the floor, immediately after the free gate because both are facts about the PRICE and
+  // neither needs a lookup. The write paths (events_price_min, create_event, the insert trigger)
+  // make a sub-floor paid row impossible to create, but this endpoint is public HTTP over rows it
+  // did not write: a row that predates the CHECK, or one written by something that is not this
+  // app, must refuse here rather than mint a Session whose fee cannot cover its own processing.
+  // Before the seat claim, so refusing costs nobody a 35-minute hold.
+  if (event.price_cents < MIN_PAID_TICKET_CENTS) {
+    return error('ticket below minimum price', 400);
+  }
 
   // P2.4 — organizer must be identity_verified before selling tickets (08 §3.1).
   // is_identity_verified is the DEFINER helper from m7_candidacy (reads the column without

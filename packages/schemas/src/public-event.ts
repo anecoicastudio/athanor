@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eventCategorySchema } from './event.ts';
+import { eventCategorySchema, priceCentsSchema } from './event.ts';
 import { handleSchema } from './profile.ts';
 
 /**
@@ -31,7 +31,8 @@ export const publicEventSchema = z
     description: z.string().max(2000).nullable(),
     starts_at: z.string(),
     ends_at: z.string().nullable(),
-    price_cents: z.number().int().min(0),
+    /** Same bound as the member read model — one column, one band (#701). */
+    price_cents: priceCentsSchema,
     currency: z.string().regex(/^[a-z]{3}$/),
     is_athanor_day: z.boolean(),
     organizer_handle: handleSchema.nullable(),

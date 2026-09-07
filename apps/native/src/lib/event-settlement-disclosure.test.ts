@@ -100,13 +100,64 @@ describe('the settlement acknowledgement (#437)', () => {
     expect(s).toContain('meta: { persist: false }');
   });
 
-  it('keeps both server refusals mapped to their own copy', () => {
-    // 42501 is the identity arm, 55000 is #104's payout arm, and create_event and the trigger raise
-    // the same pair on both write paths. Collapsing either into the generic «Riprova» would leave
-    // an organiser retrying a form that can never submit.
+  it('keeps every server refusal mapped to its own copy', () => {
+    // 22003 is #701's floor arm, 42501 is the identity arm, 55000 is #104's payout arm, and
+    // create_event and the trigger raise the same three on both write paths. Collapsing any of
+    // them into the generic «Riprova» would leave an organiser retrying a form that can never
+    // submit. Enumerated rather than spot-checked: this list is what a fourth arm has to join.
     const s = screen();
     expect(s).toContain("setError(t('event.create.verifyGate', locale));");
-    expect(s).toContain("code === '55000'");
-    expect(s).toContain("code === '42501'");
+    for (const code of ['22003', '42501', '55000']) {
+      expect(s, `no arm for SQLSTATE ${code}`).toContain(`code === '${code}'`);
+    }
+    // 23514 is the bare events_price_min CHECK, shared with every other CHECK on `events` and
+    // unreachable from this app (nothing here updates a price). An arm on it would mis-describe
+    // an online event with no stream_url as a price problem.
+    expect(s).not.toContain("code === '23514'");
+  });
+});
+
+describe('the minimum paid ticket price (#701)', () => {
+  it('refuses under the floor BEFORE the schema parse, or the copy is unreachable', () => {
+    // eventCreateSchema now carries the same band, and a ZodError has no `code` — so if the guard
+    // ran after mutation.mutate(), onError would fall through to the generic «Riprova» and
+    // event.create.price.min would never be shown. Order is the assertion.
+    const s = screen();
+    const guard = s.indexOf('parseEuroToCents(price, MIN_PAID_TICKET_CENTS)');
+    const submit = s.indexOf('mutation.mutate();');
+    expect(guard, 'the floor guard is gone from onSubmit').toBeGreaterThan(-1);
+    expect(submit).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(submit);
+  });
+
+  it('takes the floor from the constant, never a literal', () => {
+    // The DEFAULT_TICKET_FEE_PCT argument, applied to the second ticket-money constant:
+    // ticket-split.mirror.test.ts pins MIN_PAID_TICKET_CENTS against the events_price_min CHECK
+    // and both write gates, so importing it is what keeps the sentence true.
+    const s = screen();
+    expect(s).toContain('MIN_PAID_TICKET_CENTS');
+    expect(s).toContain('formatEuroAmount(MIN_PAID_TICKET_CENTS, locale)');
+    expect(s).not.toMatch(/price[A-Za-z]*\s*[<>]=?\s*500\b/);
+  });
+
+  it('states the floor before it refuses it, in the paid branch', () => {
+    // A rule a person meets only as a rejection is a rule the form kept to itself.
+    const s = screen();
+    const paidBranch = s.slice(s.indexOf('{paid ? ('));
+    expect(paidBranch).toContain('{minPriceMessage}');
+  });
+
+  it('interpolates the amount in BOTH catalogs and spells no figure in either', () => {
+    // A price inside a term is a term. A catalog that hardcodes «5» keeps quoting five euro the
+    // day the ruling moves, in one language and not the other.
+    for (const lang of ['it', 'en'] as const) {
+      const catalog = JSON.parse(
+        readFileSync(`${SRC}../../../packages/i18n/src/catalogs/${lang}.json`, 'utf8'),
+      ) as Record<string, string>;
+      const line = catalog['event.create.price.min'];
+      expect(line, `${lang}.json has no event.create.price.min`).toBeDefined();
+      expect(line).toContain('{min}');
+      expect(line, `${lang} spells the figure instead of interpolating it`).not.toMatch(/\d/);
+    }
   });
 });

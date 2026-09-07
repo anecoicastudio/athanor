@@ -15,7 +15,12 @@ import {
   requestPayoutOnboarding,
 } from '@athanor/api';
 import { type MessageKey, t } from '@athanor/i18n';
-import { DEFAULT_TICKET_FEE_PCT, parseEuroToCents } from '@athanor/core';
+import {
+  DEFAULT_TICKET_FEE_PCT,
+  MIN_PAID_TICKET_CENTS,
+  formatEuroAmount,
+  parseEuroToCents,
+} from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -76,6 +81,16 @@ export default function EventCreateScreen() {
   // the 14-day promise attaches to an event rather than to the organiser.
   const [settlementAck, setSettlementAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * #701 — the paid-ticket floor, as one sentence used twice: a hint under the price field, and
+   * the refusal when the field is ignored. Derived at render rather than stored, so it survives a
+   * locale flip (#531's argument), and the figure is INTERPOLATED from the constant the mirror
+   * test pins against the CHECK — a literal «5» in the catalog would be a term that goes stale
+   * silently, which is the same reason `settlement.ack` interpolates its percentage.
+   */
+  const minPriceMessage = t('event.create.price.min', locale, {
+    min: formatEuroAmount(MIN_PAID_TICKET_CENTS, locale),
+  });
   /**
    * Why «Usa la mia posizione» did nothing (#549). Outcome stored, sentence derived at render
    * (the [id] screen's #531 reasoning: no timer, must survive a locale flip). `denied` keeps
@@ -233,8 +248,10 @@ export default function EventCreateScreen() {
         starts_at: startsAt.toISOString(),
         ends_at: null,
         capacity: capacity ? Number(capacity) : null,
-        // Floor 0, named: a ticket may be free (`events.price_cents >= 0`), unlike a fund
-        // contribution, whose €1 minimum is the parser's default (#387).
+        // Floor 0, named: a ticket may be free, unlike a fund contribution, whose €1 minimum is
+        // the parser's default (#387). The column rule is now the BAND `price_cents = 0 or >= 500`
+        // (#701, events_price_min) — 0 stays the right floor HERE because onSubmit has already
+        // refused everything between the two, so what reaches this line is free or legal.
         price_cents: paid && price ? parseEuroToCents(price, 0) : 0,
         currency: 'eur',
         // The boolean is all the client gets to say. `settlement_ack_at` is stamped by
@@ -252,6 +269,14 @@ export default function EventCreateScreen() {
       // #104's payout arm (create_event and the trigger raise the same code on both write paths);
       // 42501 is the identity arm. PostgREST carries the SQLSTATE through as `code`.
       const code = (e as { code?: unknown } | null)?.code;
+      // #701 — 22003 is the floor arm, raised by create_event and by the insert trigger alike so
+      // one mapping covers both write paths. The bare events_price_min CHECK raises 23514 instead
+      // and is deliberately NOT mapped: no path in this app updates a price, and every other CHECK on
+      // `events` shares that code, so an arm on it would mis-describe them.
+      // 22003 is not unique either — PostgREST raises it casting an out-of-int4 p_capacity — which
+      // is why eventCreateSchema bounds capacity (MAX_EVENT_CAPACITY). Remove that and this arm
+      // starts answering overflows with price copy.
+      if (code === '22003') return setError(minPriceMessage);
       if (code === '55000') return setError(t('event.create.payout.gate', locale));
       if (code === '42501') return setError(t('event.create.verifyGate', locale));
       setError(t('event.create.error', locale));
@@ -260,10 +285,26 @@ export default function EventCreateScreen() {
 
   const onSubmit = () => {
     setError(null);
-    // The three paid-event refusals, in the order BOTH server gates raise them: acknowledgement
-    // (22023), then identity (42501), then payout (55000). The order is the point, not a detail —
-    // checking payout first would send a verified organiser who simply had not ticked the box
-    // through an entire Stripe onboarding flow, and only then tell them to tick it.
+    // The four paid-event refusals, in the order BOTH server gates raise them: price floor
+    // (22003), acknowledgement (22023), then identity (42501), then payout (55000). The order is
+    // the point, not a detail — checking payout first would send a verified organiser who simply
+    // had not ticked the box through an entire Stripe onboarding flow, and only then tell them to
+    // tick it.
+    //
+    // #701 is first because it is the only one about the FIELD in front of them, and because the
+    // acknowledgement below quotes a split of the price: asking someone to consent to ten percent
+    // of a figure the server will refuse is asking them to agree to nothing. It must also run
+    // BEFORE mutation.mutate(), because eventCreateSchema now refuses the same band — a ZodError
+    // carries no `code`, so onError would fall through to the generic «Riprova» and this copy
+    // would be unreachable.
+    // `minCents` rather than a comparison: the parser returns null for a blank, a malformed
+    // amount AND anything under the floor, which are the three inputs this sentence answers.
+    // Comparing `parseEuroToCents(price, 0) < MIN_PAID_TICKET_CENTS` would lean on `null` coercing
+    // to 0 — true today, and a silent hole the day the parser returns undefined instead.
+    if (paid && parseEuroToCents(price, MIN_PAID_TICKET_CENTS) === null) {
+      setError(minPriceMessage);
+      return;
+    }
     if (paid && !settlementAck) {
       setError(t('event.create.settlement.required', locale));
       return;
@@ -498,6 +539,12 @@ export default function EventCreateScreen() {
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"
                 />
+                {/* #701 — the floor, stated where the number is typed rather than only after it is
+                    refused. Same muted treatment as the settlement note below: a pricing rule is
+                    not a moment-grade event, so no cyan and no glow (rule #4). */}
+                <Text className="text-[12px] leading-4 text-muted-foreground">
+                  {minPriceMessage}
+                </Text>
                 {/* #437 — how the organiser gets paid, at the point the price is decided rather
                     than buried in terms. Neutral chrome on purpose: a settlement notice is not a
                     moment-grade event, so no cyan glow (rule #4), same argument as PriceToggle. */}

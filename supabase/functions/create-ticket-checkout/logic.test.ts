@@ -8,6 +8,7 @@ import type Stripe from 'npm:stripe@22';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import {
   DEFAULT_TICKET_FEE_PCT,
+  MIN_PAID_TICKET_CENTS,
   buildTicketSessionParams,
   createTicketCheckout,
   ticketSplit,
@@ -95,6 +96,36 @@ Deno.test('free event (0 / null price) → 400, Stripe never called', async () =
     assertEquals(body, { error: 'event is free' });
     assertEquals(c.created.length, 0);
   }
+});
+
+// #701 — the belt. An event under the floor cannot be created any more, but this endpoint is
+// public HTTP in front of rows that predate the CHECK and rows written by anything that is not
+// this app, so it refuses rather than trusting the write path. Before the seat claim, so a
+// sub-floor event never holds a seat for 35 minutes.
+Deno.test('paid event under the minimum price → 400, Stripe never called (#701)', async () => {
+  for (const price_cents of [1, 499]) {
+    const c = ctx({ 'events.select': [{ data: eventRow({ price_cents }) }] });
+    const { res, body } = await run(c);
+    assertEquals(res.status, 400);
+    assertEquals(body, { error: 'ticket below minimum price' });
+    assertEquals(c.created.length, 0);
+    // The seat claim sits after this gate; holding one for a row that can never sell would
+    // block the (non-existent) buyer for the claim's whole 35-minute TTL.
+    assertEquals(c.db.calls.filter((call) => call.columns === 'claim_event_seat').length, 0);
+  }
+});
+
+Deno.test('exactly the minimum price still sells (#701)', async () => {
+  const c = ctx(sellable({ price_cents: MIN_PAID_TICKET_CENTS }));
+  const { res } = await run(c);
+  assertEquals(res.status, 200);
+  assertEquals(c.created.length, 1);
+});
+
+Deno.test('MIN_PAID_TICKET_CENTS is the ruled 500 (#701)', () => {
+  // Mirrored by value from packages/schemas/src/event.ts and into the events_price_min CHECK;
+  // packages/core/src/events/ticket-split.mirror.test.ts reads all four and fails on a drift.
+  assertEquals(MIN_PAID_TICKET_CENTS, 500);
 });
 
 Deno.test('event queried by the given id and deleted_at null', async () => {
