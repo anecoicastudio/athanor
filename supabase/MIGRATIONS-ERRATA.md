@@ -1602,3 +1602,38 @@ Asserted by: `supabase/tests/0147_ticket_payout_gate.test.sql` — which pins th
 exists (the flag, the coalesce-to-false on a missing row, both write paths, and the order against
 the identity arm), and deliberately asserts nothing about `capabilities.transfers`, because nothing
 in the schema knows it. Operational half: `docs/RELEASE-RUNBOOK.md` §4.7.
+
+## `20260905165133_profiles_birth_date_zodiac.sql:139-140` — 0121 never sees the function this revoke protects
+
+The comment above the trigger function's revoke reads:
+
+> A trigger function is born EXECUTE-able by PUBLIC and both client roles (#409 — the default
+> ACL was never narrowed for functions); 0121 demands the revoke.
+
+The first clause stands. The second names a witness that cannot see this function.
+`0121_grant_catalog_sweep.test.sql` builds `actual_function_acl` under `n.nspname = 'public'`
+(`:399-409`) and its trigger-function rule reads only from that view (`:415-419`), so
+`athanor.profiles_birth_date_guard()` sits outside the sweep entirely — a restored PUBLIC execute
+on it would leave 0121 green. That the rule is written as a rule rather than a list is what makes
+the mistake easy: it does cover every trigger function this schema does not have yet, in `public`
+only.
+
+This is the same limit already recorded above for `20260902153060`, and the migrations that state
+it correctly say so out loud — «`athanor` is outside 0121's function-EXECUTE block (which covers
+`public`)» (`20260824070529:301`, `20260824071839:123`, `20260824072554:125`), «0121's function-ACL
+sweep is scoped to schema `public`, so this function owes it no row» (`20260818114947:77-80`), and
+«this revoke is convention and review, not something CI catches» (`20260817165404:94-95`). Those
+five are the pattern; this header and `20260902153060`'s are the two that drifted from it.
+
+The revoke is correct and still required; only the reason given for it is wrong. Read the clause as
+«…and a trigger function must not carry EXECUTE for PUBLIC or the client roles
+(rules/supabase-db.md), which for an `athanor`-schema function no catalog sweep asserts — so the
+revoke is the only guard, and this migration's own test is the only witness».
+
+It does not supersede the other correction to this file: §1's `service_role` claim is corrected
+under the `20260905170330…` heading above, which is a different sentence.
+
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:81-84` — `anon` and
+`authenticated` cannot execute `athanor.profiles_birth_date_guard()`. Neither assertion names
+PUBLIC, but `has_function_privilege` counts a PUBLIC grant for every role, so a restored
+`grant … to public` reddens both.

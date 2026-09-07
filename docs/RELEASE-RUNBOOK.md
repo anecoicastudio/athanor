@@ -299,11 +299,11 @@ longer the low-stakes member of this table.
 
 | Variable                        | Read at                                                                                                                                          | Live value                                                    |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`             | `supabase/functions/_shared/stripe.ts:48`                                                                                                        | the live-mode secret key, or a restricted key                 |
-| `STRIPE_WEBHOOK_SECRET`         | `supabase/functions/_shared/stripe.ts:142` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:13`)                                   | the new live **Your account** endpoint's signing secret       |
-| `STRIPE_CONNECT_WEBHOOK_SECRET` | `supabase/functions/_shared/stripe.ts:143` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
-| `STRIPE_PRICE_CIRCLE_MONTHLY`   | `supabase/functions/_shared/stripe.ts:112` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`    | `supabase/functions/_shared/stripe.ts:113` (same resolver)                                                                                       | the live-mode price id                                        |
+| `STRIPE_SECRET_KEY`             | `supabase/functions/_shared/stripe.ts:55`                                                                                                        | the live-mode secret key, or a restricted key                 |
+| `STRIPE_WEBHOOK_SECRET`         | `supabase/functions/_shared/stripe.ts:151` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:13`)                                   | the new live **Your account** endpoint's signing secret       |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | `supabase/functions/_shared/stripe.ts:152` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
+| `STRIPE_PRICE_CIRCLE_MONTHLY`   | `supabase/functions/_shared/stripe.ts:121` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`    | `supabase/functions/_shared/stripe.ts:122` (same resolver)                                                                                       | the live-mode price id                                        |
 
 Those five are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code

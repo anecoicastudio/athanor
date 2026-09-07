@@ -41,12 +41,16 @@ const clients = new WeakMap<EnvPort, Stripe>();
 /** The SDK's own config type, derived from the constructor so a rename cannot strand it. */
 type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
 
-/** The Stripe client, built on first use and memoized. Throws if the secret is absent. */
+/** The Stripe client, built on first use and memoized. Throws when the secret is unset or blank. */
 export function stripeClient(env: EnvPort = denoEnv): Stripe {
   const memo = clients.get(env);
   if (memo) return memo;
-  const key = env.get('STRIPE_SECRET_KEY');
-  if (typeof key !== 'string' || key.trim() === '') {
+  // Through `nonBlank` (below) like every other STRIPE_* read (#704): the SDK closes over this
+  // string and stamps it into `Authorization`, where whitespace is at best ignored and at worst
+  // fatal — nonBlank's docblock has which is which. Blank still reads as unset, which is what
+  // the named throw below says.
+  const key = nonBlank(env, 'STRIPE_SECRET_KEY');
+  if (key === undefined) {
     // Named explicitly. The SDK's own failure is «Neither apiKey nor config.authenticator
     // provided», which reads like an SDK misuse rather than an unset secret — and in
     // stripe-webhook it would surface through handleWebhook's signature catch as a plain
@@ -86,6 +90,14 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
  * unlogged 400 for the three days Stripe keeps retrying, against a secret that looks correct in
  * the dashboard. The SDK detects the same hazard (`secretContainsWhitespace`) and can only warn
  * about it after the fact. A price id pasted the same way fails `prices.retrieve` instead (#644).
+ * The API key's version is different in kind and worth naming, because the obvious guess is wrong
+ * (#704). A trailing newline is harmless there — `fetch` trims a header value on the way out — and
+ * so is a leading space: Stripe parses the credential after the `Bearer ` scheme, and its «Invalid
+ * API Key provided» echo — which masks the key it actually read — comes back identical for
+ * `Bearer <SP><TAB>key` and for `Bearer key`. What is fatal is a LEADING or embedded NEWLINE:
+ * `new Headers({ Authorization: 'Bearer \nkey' })` throws `TypeError: Invalid header value`, so
+ * every call fails before the network with an SDK-shaped message and no 401 anywhere to send the
+ * operator at the secret. One trim answers all five names.
  */
 const nonBlank = (env: EnvPort, name: string): string | undefined => {
   const v = env.get(name);
