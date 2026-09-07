@@ -57,6 +57,52 @@ Deno.test('stripeClient throws on a blank secret, not just a missing one', () =>
   }
 });
 
+/**
+ * The credential the built client will actually send, read the only way stripe@22 exposes it.
+ *
+ * #704 expected `getApiField('auth')`; that field does not exist in this SDK and — because
+ * `getApiField` is keyed over an `any`-typed `_api` — asking for it typechecks and returns
+ * `undefined`, so a test written that way would assert nothing. The key is closed over by the
+ * request authenticator, which stamps `Authorization: 'Bearer ' + key` and also hangs the key off
+ * itself as `_apiKey` («For testing», the SDK's own comment). Invoking the authenticator is the
+ * better of the two: it pins the header name and the `Bearer ` prefix as well as the value. Both
+ * are private reaches, and the cast is what that costs — a test file is where it is acceptable.
+ *
+ * `deno.lock` is gitignored, so CI floats `stripe@22.x` and an SDK-internal rename would redden
+ * this file with no repo change. That is the accepted trade: every drift here fails loudly (a
+ * `TypeError` on the call, or a header that no longer matches), never silently green.
+ */
+const authorizationOf = async (client: Stripe): Promise<string | undefined> => {
+  const request = { headers: {} as Record<string, string> };
+  await (
+    client as unknown as {
+      _authenticator: (r: { headers: Record<string, string> }) => Promise<void>;
+    }
+  )._authenticator(request);
+  return request.headers.Authorization;
+};
+
+Deno.test('stripeClient authenticates with the TRIMMED key, not the pasted one', async () => {
+  // The read goes through `nonBlank` for the reason the other four STRIPE_* names do; the API
+  // key's own failure mode is the one nonBlank's docblock names — a leading or embedded newline
+  // makes `Headers` throw before any request leaves, while a trailing newline and a leading space
+  // are both survivable. What this pins is the credential the client will actually send, so the
+  // trim cannot be dropped back to a `trim() === ''` test that leaves the value untouched.
+  assertEquals(
+    await authorizationOf(stripeClient(env({ STRIPE_SECRET_KEY: SECRET }))),
+    `Bearer ${SECRET}`,
+  );
+  assertEquals(
+    await authorizationOf(stripeClient(env({ STRIPE_SECRET_KEY: ` \t${SECRET}\n` }))),
+    `Bearer ${SECRET}`,
+  );
+  // The fatal form, kept beside the survivable ones so the witness matches the documented hazard.
+  assertEquals(
+    await authorizationOf(stripeClient(env({ STRIPE_SECRET_KEY: `\n${SECRET}` }))),
+    `Bearer ${SECRET}`,
+  );
+});
+
 Deno.test('stripeClient builds one client per env port and memoizes it', () => {
   // "Same client, same config, memoized" is the behaviour the module-scope version gave every
   // consumer for free; laziness must not turn it into a client per call.
