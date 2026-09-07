@@ -67,6 +67,10 @@ Deno.test('stripeClient throws on a blank secret, not just a missing one', () =>
  * itself as `_apiKey` («For testing», the SDK's own comment). Invoking the authenticator is the
  * better of the two: it pins the header name and the `Bearer ` prefix as well as the value. Both
  * are private reaches, and the cast is what that costs — a test file is where it is acceptable.
+ *
+ * `deno.lock` is gitignored, so CI floats `stripe@22.x` and an SDK-internal rename would redden
+ * this file with no repo change. That is the accepted trade: every drift here fails loudly (a
+ * `TypeError` on the call, or a header that no longer matches), never silently green.
  */
 const authorizationOf = async (client: Stripe): Promise<string | undefined> => {
   const request = { headers: {} as Record<string, string> };
@@ -90,6 +94,11 @@ Deno.test('stripeClient authenticates with the TRIMMED key, not the pasted one',
   );
   assertEquals(
     await authorizationOf(stripeClient(env({ STRIPE_SECRET_KEY: ` \t${SECRET}\n` }))),
+    `Bearer ${SECRET}`,
+  );
+  // The fatal form, kept beside the survivable ones so the witness matches the documented hazard.
+  assertEquals(
+    await authorizationOf(stripeClient(env({ STRIPE_SECRET_KEY: `\n${SECRET}` }))),
     `Bearer ${SECRET}`,
   );
 });

@@ -79,7 +79,7 @@ select ok(has_function_privilege('authenticated', 'athanor.zodiac_sign(date)', '
 select ok(has_function_privilege('service_role', 'athanor.zodiac_sign(date)', 'execute'),
   'service_role can execute athanor.zodiac_sign — every role that writes profiles recomputes the generated column (20260905171924; the first migration''s ACL dropped it and every service-role UPDATE failed 42501)');
 select ok(not has_function_privilege('anon', 'athanor.profiles_birth_date_guard()', 'execute'),
-  'anon cannot execute the guard (trigger functions are revoked — 0121 rule)');
+  'anon cannot execute the guard (0121 states the rule but filters nspname = public, so it never sees an athanor function — these two assertions are the only witness; MIGRATIONS-ERRATA 20260905165133)');
 select ok(not has_function_privilege('authenticated', 'athanor.profiles_birth_date_guard()', 'execute'),
   'authenticated cannot execute the guard');
 
