@@ -6,9 +6,11 @@ import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
+import { providerMark } from '@/components/provider-marks';
 import { Input } from '@/components/Input';
 import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
+import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
@@ -22,10 +24,24 @@ import { Screen } from '@/components/Screen';
 // Well-formed check (UX gate only) — the real validity verdict is Supabase's.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Apple sign-in needs the Supabase Apple provider, which requires a paid Apple
-// Developer account (Services ID + key) — not yet configured. Flip to true once it
-// is; the code path is provider-agnostic and needs no other change.
-const APPLE_ENABLED = false;
+// Apple sign-in needs the Supabase Apple provider, which needs a paid Apple Developer account
+// (Services ID + key). Apple has not approved the enrolment (#95), so the provider is off on
+// BOTH hosted projects — `external_apple_enabled: false`, no client ID (queried 2026-09-07).
+//
+// This used to be a compile-time constant, which meant the day the credentials exist the CTA
+// costs an app release and a store review to reveal. It is now a remote_config feature flag
+// (#79 ruling, 2026-09-07): the day Apple approves, enabling sign-in is a provider config plus
+// one row in `remote_config` — zero code, no build. `remote_config` is readable by `anon` and
+// `BootGate` (which owns the fetch) is mounted ABOVE `AuthGuard` in `app/_layout.tsx`, so this
+// pre-auth screen renders with the flags already resolved.
+//
+// CLOSED is the default in every direction that matters: the key is absent on both projects
+// today, an absent key reads `undefined`, a failed fetch leaves `useFeatureFlags()` at `{}`,
+// and `=== true` refuses all three. The one direction it is NOT instant is revocation — the
+// boot query is persisted for its 24h `gcTime` (`lib/query-client.ts`), so a device that
+// fetched successfully yesterday keeps yesterday's answer until a fetch lands. Flipping the
+// flag OFF is therefore eventual, not immediate; flipping it ON is what this key is for.
+const APPLE_FLAG = 'apple_signin_enabled';
 
 // Google is configured on the staging project: provider on, client ID + secret set. Staging's
 // allow-list carries the standalone `athanor://` forms and the exp.direct ones, so the device
@@ -37,8 +53,6 @@ const APPLE_ENABLED = false;
 // live for real members today. The flag stays environment-blind: pointed at a project whose
 // provider is off, it still renders and the round trip can only come back an error.
 const GOOGLE_ENABLED = true;
-
-const ANY_OAUTH = APPLE_ENABLED || GOOGLE_ENABLED;
 
 const PROVIDER_LABEL: Record<'apple' | 'google', string> = { apple: 'Apple', google: 'Google' };
 
@@ -66,6 +80,11 @@ export default function WelcomeScreen() {
   // #689: the keyboard no longer covers the viewport (#614), but nothing brought the tapped
   // field INTO it — the password field is last in the column and stayed off screen.
   const reveal = useRevealOnFocus();
+  // Runtime, so `ANY_OAUTH` below is runtime too — computing it at module scope would pin the
+  // divider logic to the compile-time value and leave «oppure con email» separating email from
+  // one button on the day Apple turns on.
+  const appleEnabled = useFeatureFlags()[APPLE_FLAG] === true;
+  const anyOauth = appleEnabled || GOOGLE_ENABLED;
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
     t(`${login ? 'auth.login' : 'auth.signup'}.${suffix}` as MessageKey, locale);
@@ -299,13 +318,19 @@ export default function WelcomeScreen() {
               {/* OAuth on top, per the prototype. Each provider is hidden until it is configured
                 in Supabase; with none of them on, the block AND the «oppure con email» divider
                 go too — a divider separating email from nothing reads as a broken screen. */}
-              {ANY_OAUTH ? (
+              {anyOauth ? (
                 <>
+                  {/* The two provider marks are the app's ONLY third-party marks (#539) — a
+                    vendor attribution, carved out of the 20-glyph icon rule by DESIGN §6, and
+                    decorative: each Button already speaks «Continua con …». `providerMark`
+                    returns null for a vendor whose file the repo does not carry yet, which is
+                    Apple's case today, so that CTA keeps exactly today's geometry. */}
                   <View className="mt-7 gap-3">
-                    {APPLE_ENABLED ? (
+                    {appleEnabled ? (
                       <Button
                         variant="outline"
                         label={t('auth.apple.cta', locale)}
+                        icon={providerMark('apple')}
                         disabled={busy}
                         loading={oauthBusy === 'apple'}
                         onPress={() => handleOAuth('apple')}
@@ -316,6 +341,7 @@ export default function WelcomeScreen() {
                       <Button
                         variant="outline"
                         label={t('auth.google.cta', locale)}
+                        icon={providerMark('google')}
                         disabled={busy}
                         loading={oauthBusy === 'google'}
                         onPress={() => handleOAuth('google')}
