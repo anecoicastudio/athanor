@@ -513,7 +513,7 @@ and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagg
 
 ### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06)
 
-> **⛔ BLOCKING, both Stripe accounts — Connect is not signed up for (found 2026-09-06 while shipping #104).**
+> **⛔ BLOCKING on production only — Connect is not signed up for there (found 2026-09-06 while shipping #104; resolved on the test account the same day, see the closing note).**
 > Invoking `create-payout-onboarding` against **staging** with a real organiser JWT returns 500, and the
 > function log carries Stripe's reason verbatim:
 >
@@ -658,13 +658,18 @@ against each method's Stripe documentation on 2026-09-07:
 No delayed rail reaches a buyer today, so the fail-closed guard is correct and dormant. Two standing
 conditions on that:
 
-- **`blik` and `giropay` are enabled in the configuration and should be turned off, in test and in
-  live.** giropay is retired by Stripe and BLIK is PLN-only, so neither renders for EUR — but BLIK is a
+- **`blik` and `giropay` are enabled in the test configuration and should be turned off there now, and
+  again in live when the live account is configured.** giropay is retired by Stripe and BLIK is PLN-only, so neither renders for EUR — but BLIK is a
   delayed-notification rail, which means the day anything here presents PLN it would arrive `unpaid`
   and start the 5xx spiral §4.1 exists to catch. Dead config that is also a landmine.
 - **The live-mode configuration is a separate object and has not been checked.** Test and live payment
-  methods are configured independently. Run `pnpm payments offers` against the live account, read-only,
-  before the release that opens payments — it is the same walk with a different key.
+  methods are configured independently, so nothing above is evidence about live. `pnpm payments` cannot
+  answer this one: it dies on any key that is not `sk_test_`, deliberately and with no override, because
+  even `offers` _mints_ a Checkout Session before reading the method list back. Read the live
+  configuration in the Dashboard instead (Settings → Payment methods), and re-derive the per-surface
+  filtering by hand from the rules above — subscription mode drops the bank redirects, a destination
+  charge drops PayPal. Per §4.2 no live-mode endpoint exists yet, so this is a step in opening payments,
+  not a check that is overdue.
 
 #### Proving a rail, one at a time
 

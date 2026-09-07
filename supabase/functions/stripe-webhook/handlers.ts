@@ -30,11 +30,18 @@ export type WebhookCtx = {
 };
 
 /**
- * Fail-closed settlement gate. Every payment method enabled on the account is an
+ * Fail-closed settlement gate. Every payment method a buyer can actually be SHOWN is an
  * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay, Bancontact,
  * EPS, and PayPal (Stripe permits only synchronous funding sources on PayPal unless you ask
  * Support to enable asynchronous ones). All of them carry the final outcome on
  * checkout.session.completed, so fulfilling there is safe.
+ *
+ * "Shown" is narrower than "enabled", and the gap is not academic: as of 2026-09-07 the test
+ * account's configuration also enables `giropay` and `blik`, and BLIK is a delayed-notification
+ * rail. Neither reaches a buyer today — giropay is retired by Stripe, BLIK is PLN-only and every
+ * Session here is EUR — so the guard stays dormant, but the margin is a currency away. Both are
+ * marked for removal; `pnpm payments offers` prints the enabled set and the per-surface offered
+ * set side by side, and docs/RELEASE-RUNBOOK.md §4.8 is the operator-facing copy.
  *
  * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
  * promote/retire machinery. But nothing in this repo selects payment methods — the create-*

@@ -144,6 +144,8 @@ async function stripe(method, path, body) {
 async function stagingQuery(sql) {
   const url = `https://api.supabase.com/v1/projects/${STAGING_REF}/database/query`;
   if (url.includes(PRODUCTION_REF)) die(`refusing: ${url} is PRODUCTION.`);
+  if (!url.includes(STAGING_REF))
+    die(`refusing: ${url} is not the staging project (${STAGING_REF}).`);
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken()}`, 'Content-Type': 'application/json' },
@@ -159,6 +161,16 @@ async function stagingQuery(sql) {
   } catch {
     return die(`could not parse Management API response:\n${text}`);
   }
+}
+
+/**
+ * Stripe object ids reach the Management API by interpolation, so they are bounded here rather
+ * than trusted: Stripe's ids are `[A-Za-z0-9_]`, and anything else is a bug or a hostile response,
+ * not a query.
+ */
+function stripeId(value, what) {
+  if (!/^[A-Za-z0-9_]+$/.test(value ?? '')) die(`refusing: ${what} is not a Stripe id: ${value}`);
+  return value;
 }
 
 function printRows(rows) {
@@ -308,7 +320,8 @@ async function cmdMint(kind, flags) {
     metadata = {
       'metadata[kind]': 'subscription',
       'metadata[profile_id]': profile,
-      'subscription_data[metadata][kind]': 'subscription',
+      // create-circle-checkout puts profile_id and nothing else here — it is what carries the
+      // profile onto every customer.subscription.* event (W5/W6/W7).
       'subscription_data[metadata][profile_id]': profile,
     };
   } else {
@@ -341,27 +354,43 @@ async function cmdCheck(id) {
 `);
 
   const kind = s.metadata?.kind;
-  const profile = s.metadata?.profile_id;
+  const sessionId = stripeId(s.id, 'session id');
 
-  console.log('  staging — webhook ledger (processed_at NULL is the fail-closed alarm):');
+  // Every predicate below names THIS Session. An earlier walk by the same test profile left rows
+  // that match on profile_id alone, so a profile-keyed read would report someone else's success
+  // as this rail's — the "passes for the wrong reason" shape, in a tool whose only job is to say
+  // whether one rail settled. A missing row is the answer, not a reason to widen the query.
+  console.log('  staging — this Session in the webhook ledger (processed_at NULL is the alarm):');
   printRows(
     await stagingQuery(
-      'select event_id, type, received_at, processed_at from stripe_webhook_events order by received_at desc limit 5;',
+      `select event_id, type, received_at, processed_at from stripe_webhook_events
+       where payload->'data'->'object'->>'id' = '${sessionId}' order by received_at desc;`,
     ),
   );
 
-  if (!kind || !profile) {
-    console.log('\n  (no kind/profile_id in metadata — nothing to reconcile)\n');
+  if (!kind) {
+    console.log('\n  (no metadata.kind — nothing to reconcile)\n');
     return;
   }
 
   console.log('\n  staging — the row this Session should have written:');
+  const paymentIntent = pi.id ? stripeId(pi.id, 'payment_intent id') : '';
+  const subscription =
+    typeof s.subscription === 'string' ? stripeId(s.subscription, 'subscription id') : '';
   const q = {
-    ticket: `select id, event_id, user_id, status, stripe_payment_id, created_at from event_tickets where stripe_payment_id = '${pi.id ?? ''}' or user_id = '${profile}' order by created_at desc limit 3;`,
-    contribution: `select id, edition_id, profile_id, amount_cents, coverage_cents, charged_cents, status, created_at from fund_contributions where stripe_checkout_session_id = '${s.id}' or profile_id = '${profile}' order by created_at desc limit 3;`,
-    subscription: `select profile_id, plan, status, current_period_end, founding_member, created_at from circle_memberships where profile_id = '${profile}' order by created_at desc limit 3;`,
+    ticket: paymentIntent
+      ? `select id, event_id, user_id, status, stripe_payment_id, created_at from event_tickets where stripe_payment_id = '${paymentIntent}';`
+      : null,
+    contribution: `select id, edition_id, profile_id, amount_cents, coverage_cents, charged_cents, status, created_at from fund_contributions where stripe_checkout_session_id = '${sessionId}';`,
+    subscription: subscription
+      ? `select profile_id, plan, status, current_period_end, founding_member, created_at from circle_memberships where stripe_subscription_id = '${subscription}';`
+      : null,
   }[kind];
-  if (!q) return console.log(`  (unknown metadata.kind '${kind}')\n`);
+  if (q === undefined) return console.log(`  (unknown metadata.kind '${kind}')\n`);
+  if (q === null) {
+    console.log('  (the Session has no payment intent / subscription yet — it was never paid)\n');
+    return;
+  }
   printRows(await stagingQuery(q));
   console.log();
 }
