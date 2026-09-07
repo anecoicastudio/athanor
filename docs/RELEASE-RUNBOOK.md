@@ -704,9 +704,15 @@ Stripe works.
 | **Google Pay** | Chrome signed into a Google account with any card                                                                                                                       | desktop Chrome |
 
 Run each rail on each surface that offers it — 5 for contributions, 4 for tickets, 3 for Circle. Pass
-means `payment_status: paid`, `processed_at` not null, and the target row present
-(`fund_contributions` / `event_tickets` / `circle_memberships`). Two out of three is a failure, and
-which two tells you where to look.
+means `payment_status: paid`, a ledger row for this Session with `processed_at` not null, and the
+target row present (`fund_contributions` / `event_tickets` / `circle_memberships`). Two out of three
+is a failure, and which two tells you where to look.
+
+Read the ledger read carefully, because its two failure shapes have different causes. A row present
+with `processed_at` **NULL** means the handler threw — §4.1's alarm, and the event is queryable and
+retrying. **No row at all** means Stripe never delivered the event: the endpoint is missing, disabled,
+or scoped wrong (§4.2 has the inventory). The first is a code or data problem, the second is Dashboard
+state, and only the second can look identical to "the rail does not work" while the rail is fine.
 
 #### The three tests beyond the happy path
 

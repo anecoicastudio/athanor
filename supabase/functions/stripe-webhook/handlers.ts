@@ -38,10 +38,15 @@ export type WebhookCtx = {
  *
  * "Shown" is narrower than "enabled", and the gap is not academic: as of 2026-09-07 the test
  * account's configuration also enables `giropay` and `blik`, and BLIK is a delayed-notification
- * rail. Neither reaches a buyer today — giropay is retired by Stripe, BLIK is PLN-only and every
- * Session here is EUR — so the guard stays dormant, but the margin is a currency away. Both are
- * marked for removal; `pnpm payments offers` prints the enabled set and the per-surface offered
- * set side by side, and docs/RELEASE-RUNBOOK.md §4.8 is the operator-facing copy.
+ * rail. Neither reaches a buyer today — giropay is retired by Stripe, and BLIK is PLN-only while
+ * every Session actually minted is EUR — so the guard stays dormant. Dormant is not enforced,
+ * though, and the distance is one argument: contribution and Circle Sessions hardcode EUR, but a
+ * ticket takes `event.currency`, which nothing pins to it. The column's check constraint
+ * (`20260615094844_events.sql`) and `packages/schemas/src/event.ts` both accept any three
+ * lowercase letters, and `packages/api/src/events.ts` forwards a non-default currency to
+ * `create_event` on purpose. So a PLN event would offer BLIK, and BLIK would arrive `unpaid` here.
+ * Turning both off in the Dashboard is the fix; `pnpm payments offers` prints the enabled set and
+ * the per-surface offered set side by side, and docs/RELEASE-RUNBOOK.md §4.8 is the operator copy.
  *
  * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
  * promote/retire machinery. But nothing in this repo selects payment methods — the create-*
