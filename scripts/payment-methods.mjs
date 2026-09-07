@@ -94,7 +94,7 @@ function stripeKey(allowLive = false) {
   const key = fromEnv || fromFile;
   if (!key)
     die(
-      `no Stripe key. Either export STRIPE_SECRET_KEY=sk_test_… or put it in supabase/.env.\nThis is the test-mode key; the live key must never be used with this script.`,
+      `no Stripe key. Either export STRIPE_SECRET_KEY=sk_test_… or put it in supabase/.env.\nEvery command here is test-mode only except \`endpoints\`, which may read a live key.`,
     );
   if (!key.startsWith('sk_test_') && !allowLive)
     die(
@@ -309,13 +309,22 @@ async function cmdEndpoints() {
   const { data } = await stripe('GET', '/webhook_endpoints?limit=100', undefined, {
     allowLive: true,
   });
-  const live = !stripeKey(true).startsWith('sk_test_');
-  console.log(`\nStripe webhook endpoints — ${live ? 'LIVE' : 'TEST'} mode (read-only)\n`);
+  // Mode comes from the response, not from re-resolving the key: `stripeKey(true)` outside
+  // `stripe()` would be a live secret in a local variable with no transport assertion behind it,
+  // which is exactly the widening path the guard exists to prevent. An empty list has no mode to
+  // report, and says so.
+  const live = data[0]?.livemode;
+  const mode = live === undefined ? 'no endpoints' : live ? 'LIVE' : 'TEST';
+  console.log(`\nStripe webhook endpoints — ${mode} mode (read-only)\n`);
   if (!data.length) console.log('  (none)');
 
   let connectScoped = 0;
   for (const e of data) {
-    const scope = e.application || e.connect ? 'Connected accounts' : 'Your account';
+    // `application` is the discriminator, established from the wire rather than the SDK types:
+    // a «Connected accounts» endpoint carries a `ca_…` Connect application id and an account
+    // endpoint carries null. `connect` exists only on CREATE params — it is absent from the
+    // retrieved object, so testing it here would always be false.
+    const scope = e.application ? 'Connected accounts' : 'Your account';
     if (scope === 'Connected accounts') connectScoped += 1;
     const project = e.url.match(/https:\/\/([a-z]+)\.supabase\.co/)?.[1] ?? '—';
     const known = { [STAGING_REF]: 'staging', [PRODUCTION_REF]: 'PRODUCTION' }[project];

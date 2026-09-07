@@ -7,7 +7,7 @@
 //
 // The cache's capability columns are otherwise written only by a delivered account.updated, and
 // a delivery that never happens leaves no trace: stripe_webhook_events is silent, because
-// silence is what "never delivered" looks like. See docs/RELEASE-RUNBOOK.md §4.8.
+// silence is what "never delivered" looks like. See docs/RELEASE-RUNBOOK.md §4.2.
 //
 // Transport shell only — the comparison, the per-row failure isolation and the report shape live
 // in ./logic.ts (unit-tested, DI'd).

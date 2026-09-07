@@ -55,6 +55,12 @@ export async function handleAccountUpdated(
   // onboarded_at means "when onboarding completed", not "last account event": stamp it on the
   // first event with details_submitted and never move it — the is-null guard makes replays
   // and later capability events no-ops here.
+  //
+  // On the reconcile path (#707) the stamp is the reconcile's clock, which can be days after the
+  // onboarding it records — a row whose completion event was never delivered has no earlier time
+  // available, and Stripe's Account object carries none. Every consumer reads this column as
+  // null-vs-not-null (packages/api/src/payouts.ts, the composer's CTA), so the widened meaning
+  // costs nothing today; it would matter the day something treats it as a date.
   if (account.details_submitted) {
     const { error: onbErr } = await db
       .from('payout_accounts')

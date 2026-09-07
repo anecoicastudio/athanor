@@ -454,7 +454,7 @@ asserted by `supabase/tests/0111_payout_accounts_rls.test.sql`.
 
 ---
 
-## `20260906141227_ticket_split_payout_gate.sql:29-31` — "charges_enabled is false on these accounts forever" is false
+## `20260906141227_ticket_split_payout_gate.sql:29-33` — "charges_enabled is false on these accounts forever", and "maintained only by W13", are both false
 
 The comment above `has_payouts_enabled` explains the choice of flag by asserting that because
 `create-payout-onboarding` requests only the `transfers` capability, `charges_enabled` "is false
@@ -480,6 +480,15 @@ opens correctly.
 The same claim appears in `packages/api/src/payouts.ts`'s `getMyPayoutAccount` docblock, which is
 corrected in the same change. `charges_enabled` stays out of that function's return type, but for
 the honest reason: nothing in the app should gate on it, so it is parsed and not exposed.
+
+The next two lines (`:32-33`) say the flag "is maintained only by stripe-webhook's
+`account.updated` arm (W13)". That ended with #707. It is still maintained by exactly one
+_function_ — `handleAccountUpdated`, in `supabase/functions/_shared/payout-account-cache.ts` — but
+that function now has two callers: the W13 arm, and `reconcile-payout-accounts`, which retrieves
+the account from Stripe and hands it to the same writer. Read it as **one writer, two callers**;
+the amended `20260815205504_payout_accounts.sql` entry above says the same thing from the table's
+side. What has not changed is that Stripe is the source of truth and no client may write these
+columns — `supabase/tests/0111_payout_accounts_rls.test.sql` still asserts the denial.
 
 Verified 2026-09-07 against the hosted staging project and Stripe's API.
 

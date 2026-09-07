@@ -59,7 +59,7 @@ type CachedRow = {
  * reporting a number that looks like progress. Each outcome is reported; the caller decides.
  *
  * NOT SCHEDULED. There is no cron job behind this. It is invoked by an operator (or by a script)
- * when a row is suspected stale or after a webhook outage — see docs/RELEASE-RUNBOOK.md §4.8.
+ * when a row is suspected stale or after a webhook outage — see docs/RELEASE-RUNBOOK.md §4.2.
  * Making it periodic is the thing that would also catch a revocation unasked, and that is a
  * separate decision with a migration behind it.
  */
@@ -78,7 +78,7 @@ export async function reconcilePayoutAccounts(ctx: ReconcileCtx, req: Request): 
   if (stripeAccountId) query = query.eq('stripe_account_id', stripeAccountId);
 
   const { data, error: selErr } = await query;
-  if (selErr) return json({ error: 'could not read payout accounts' }, 500);
+  if (selErr) return error('could not read payout accounts', 500);
 
   const rows = (data ?? []) as CachedRow[];
   const outcomes: AccountOutcome[] = [];

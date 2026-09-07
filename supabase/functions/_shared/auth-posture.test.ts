@@ -89,8 +89,9 @@ Deno.test('no user-callable function can read an identity out of the request bod
 //   client.
 // - create-payout-onboarding: payout_accounts is SRW (#245 — revoke all, grant back SELECT
 //   only), so the initial {profile_id, stripe_account_id} pointer row cannot ride the
-//   caller's RLS; the insert goes through the admin client. Capability flags stay the
-//   webhook's job — this function writes nothing else.
+//   caller's RLS; the insert goes through the admin client. Capability flags are written
+//   elsewhere — `_shared/payout-account-cache.ts`, called by W13 and by
+//   reconcile-payout-accounts (#707) — and this function writes nothing else.
 const SERVICE_ROLE_ALLOWED = new Set(['check-in', 'create-payout-onboarding']);
 
 Deno.test('no user-callable function reaches for the service-role client', () => {
