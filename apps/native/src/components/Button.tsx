@@ -47,10 +47,12 @@ import { auraGlow } from '@/lib/glow';
  * resolved to. `providerMark()` is written that way for exactly this reason.
  *
  * The cost of keying the gutter per BUTTON rather than per group, named because it is one: two
- * stacked pills stretch to the same width, so one with an icon gives its label 64pt less room
- * than one without. Stacked provider CTAs can therefore reach the wrap point at different text
- * scales and stand at different heights — «Continua con Google» wraps around 1.4× while
- * «Continua con Apple» has not. Legible rather than broken (#639's `min-h` is what makes it
+ * stacked pills stretch to the same width, so one with an icon gives its label 56px less room
+ * on device / 64px on the web build than one without — `rem` inlines at 14 on native and 16 in
+ * a browser (§11's 2026-08-30 row), so a number here has to say which build it came from.
+ * Stacked provider CTAs can therefore reach the wrap point at different text scales and stand
+ * at different heights — «Continua con Google» wraps around 1.4× while «Continua con Apple»
+ * has not. Legible rather than broken (#639's `min-h` is what makes it
  * grow instead of clip), and the alternative — a gutter the caller reserves across a group —
  * buys symmetry with an API nothing else here needs.
  *
@@ -128,8 +130,9 @@ export function Button({
       accessibilityState={{ disabled: inert, busy: loading }}
     >
       {mark ? (
-        // `left-6` puts the mark where a no-icon label would have started, inside the 56pt
-        // gutter `px-14` reserves on both sides.
+        // `left-6` puts the mark where a no-icon label would have started, inside the gutter
+        // `px-14` reserves on both sides (49px device / 56px web). It tracks `px-6` step for
+        // step, so the mirrored-gutter property holds on both builds without a second number.
         <View className="absolute bottom-0 left-6 top-0 justify-center">{mark}</View>
       ) : null}
       {loading ? (

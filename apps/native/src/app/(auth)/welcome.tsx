@@ -26,7 +26,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Apple sign-in needs the Supabase Apple provider, which needs a paid Apple Developer account
 // (Services ID + key). Apple has not approved the enrolment (#95), so the provider is off on
-// BOTH hosted projects — `external_apple_enabled: false`, no client ID (queried 2026-09-07).
+// both hosted projects — `external_apple_enabled: false`, `external_apple_client_id: null`
+// (Management API `/config/auth`, staging and production, 2026-09-07).
 //
 // This used to be a compile-time constant, which meant the day the credentials exist the CTA
 // costs an app release and a store review to reveal. It is now a remote_config feature flag
@@ -44,8 +45,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // gated on `status` for it, because gating would also delay the Google CTA — which is live for
 // real members — behind a fetch it does not need.
 //
-// CLOSED is the default in every direction that matters: the key is absent on both projects
-// today, an absent key reads `undefined`, a failed fetch leaves `useFeatureFlags()` at `{}`,
+// CLOSED is the default in every direction that matters: the key is absent from `remote_config`
+// on both projects (queried 2026-09-07 — the four rows are `min_app_version`,
+// `maintenance_mode`, `fund_surfaces_enabled`, `prime_stelle_enabled`), an absent key reads
+// `undefined`, a failed fetch leaves `useFeatureFlags()` at `{}`,
 // and `=== true` refuses all three. The one direction it is NOT instant is revocation — the
 // boot query is persisted for its 24h `gcTime` (`lib/query-client.ts`), so a device that
 // fetched successfully yesterday keeps yesterday's answer until a fetch lands. Flipping the

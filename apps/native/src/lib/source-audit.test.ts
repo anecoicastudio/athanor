@@ -3691,15 +3691,17 @@ describe('the expo-auth-session deep import stays deliberate', () => {
  * `signInWithOAuth` outside `apps/native` — so nothing over there needs a matching guard.
  */
 describe('provider brand marks live only on the provider CTAs (#539)', () => {
-  // The trailing quote anchors the end of the specifier; the leading slash lets `@/components/…`
-  // and `./provider-marks` match the same way.
-  const MODULE = "/provider-marks'";
+  // The closing quote anchors the end of the specifier; the leading slash lets `@/components/…`
+  // and `./provider-marks` match the same way; the optional extension covers
+  // `'…/provider-marks.tsx'`, which resolves just as well and would otherwise slip past. Either
+  // quote character, so this does not silently depend on `.prettierrc`'s `singleQuote`.
+  const MODULE = /\/provider-marks(\.tsx)?['"]/;
 
   it('is imported by exactly one file, and it is the welcome screen', () => {
     const importers = [
       ...new Set(
         codeLines()
-          .filter(([at, text]) => text.includes(MODULE) && !/\.test\.tsx?:\d+$/.test(at))
+          .filter(([at, text]) => MODULE.test(text) && !/\.test\.tsx?:\d+$/.test(at))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ]
