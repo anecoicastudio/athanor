@@ -552,15 +552,26 @@ export async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Prom
  * so an unmatched id means the account is not ours or the profile was erased and the row
  * cascaded away — recreating it would resurrect a deleted profile's pointer. Ack either way.
  * Idempotent: a redelivery rewrites the same flags, and onboarded_at is guarded set-once.
+ *
+ * `eventAccountId` is the delivery's top-level `event.account` (#702). Stripe sets it on every
+ * connected-account event, and only a «Connected accounts»-scoped endpoint receives one — which
+ * is why this arm had never fired. For account.updated it equals `account.id`, so preferring it
+ * changes nothing today; it is here because the event, not its data object, is what Stripe
+ * guarantees names the account, and an arm keyed on the guarantee survives a re-scope.
  */
-export async function handleAccountUpdated(db: Db, account: Stripe.Account): Promise<void> {
+export async function handleAccountUpdated(
+  db: Db,
+  account: Stripe.Account,
+  eventAccountId?: string,
+): Promise<void> {
+  const stripeAccountId = eventAccountId ?? account.id;
   const { error: updErr } = await db
     .from('payout_accounts')
     .update({
       charges_enabled: !!account.charges_enabled,
       payouts_enabled: !!account.payouts_enabled,
     })
-    .eq('stripe_account_id', account.id);
+    .eq('stripe_account_id', stripeAccountId);
   if (updErr) throw updErr;
 
   // onboarded_at means "when onboarding completed", not "last account event": stamp it on the
@@ -570,7 +581,7 @@ export async function handleAccountUpdated(db: Db, account: Stripe.Account): Pro
     const { error: onbErr } = await db
       .from('payout_accounts')
       .update({ onboarded_at: new Date().toISOString() })
-      .eq('stripe_account_id', account.id)
+      .eq('stripe_account_id', stripeAccountId)
       .is('onboarded_at', null);
     if (onbErr) throw onbErr;
   }
@@ -669,11 +680,38 @@ export async function handleTransferReversed(db: Db, transfer: Stripe.Transfer):
   }
 }
 
+/**
+ * The event types this function handles on a «Connected accounts»-scoped delivery (#702).
+ *
+ * Exactly one today: W13. A new Connect arm — `account.external_account.updated`, `payout.failed`
+ * — is one entry here plus its case, and it will not route until it is listed. That is the point:
+ * the allowlist is in the repo and tested, not in a Dashboard checkbox nobody diffs.
+ */
+export const CONNECT_SCOPED_TYPES: ReadonlySet<string> = new Set(['account.updated']);
+
 export async function processEvent(
   ctx: Pick<WebhookCtx, 'db' | 'qrSecret' | 'retrieveSubscription'>,
   event: Stripe.Event,
 ): Promise<void> {
   const { db } = ctx;
+
+  // SCOPE PARTITION (#702). Since this function verifies a second signing secret, deliveries from
+  // the «Connected accounts» endpoint are accepted too — and they land in the same switch. What
+  // keeps a connected account's events off the platform arms must not be the Dashboard's
+  // enabled-event list on endpoint #2, because both endpoints point at this one URL and copying
+  // that list across is the obvious operator shortcut. Two things go wrong if it is copied: the
+  // async_payment_* arm THROWS by design, and sustained 5xx is what gets an endpoint disabled —
+  // silencing account.updated again, the exact #702 symptom; and handleTransferCreated
+  // authenticates a fund payout on metadata alone, so a connected account's transfer.* would
+  // reach fund_payout_ledger. Ack anything else instead, as `default` already does for an
+  // unhandled type: the ledger row is written and processed_at stamped, so it stays queryable.
+  //
+  // `event.account` is the discriminator because Stripe sets it on connected-account events only
+  // («The connected account that originates the event»), and only a Connect-scoped endpoint
+  // receives one. A destination charge and its transfer are platform-owned objects delivered to
+  // «Your account», so they carry no `account` and are untouched here.
+  if (event.account && !CONNECT_SCOPED_TYPES.has(event.type)) return;
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -733,8 +771,9 @@ export async function processEvent(
       return;
     }
     case 'account.updated': {
-      // W13 — Connect Express account state (payout_accounts cache).
-      await handleAccountUpdated(db, event.data.object as Stripe.Account);
+      // W13 — Connect Express account state (payout_accounts cache). Delivered only to a
+      // «Connected accounts»-scoped endpoint, which is what carries event.account (#702).
+      await handleAccountUpdated(db, event.data.object as Stripe.Account, event.account);
       return;
     }
     case 'transfer.created': {

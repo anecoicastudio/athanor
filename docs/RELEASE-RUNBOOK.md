@@ -216,8 +216,8 @@ but nothing recorded **where each one pointed, or in which mode** — which is w
 Dashboard hunt across two modes plus a SQL query against production to establish something a lookup
 should have answered in a line.
 
-**The rule.** Every Stripe webhook endpoint is attributable to exactly one Supabase project and one
-mode, and **production is only ever reachable from a live-mode endpoint**. An endpoint nobody can
+**The rule.** Every Stripe webhook endpoint is attributable to exactly one Supabase project, one
+mode and one **scope**, and **production is only ever reachable from a live-mode endpoint**. An endpoint nobody can
 attribute gets deleted, not left. The reason is that a signing secret is per-endpoint _and_
 per-mode: a test-mode `whsec_…` can never verify a live event, and the reverse — a production
 project holding a test-mode secret — is the shape #473 took. Production verified staging's test
@@ -232,6 +232,39 @@ on staging.
 | production `kwzeiqvrnnaagccyoose` | **never** in this mode           | deleted, and proven gone under load: a four-leg staging walk moved staging 11 → 16 while production stayed flat at 9 (#473, 2026-08-23)                                                                                            |
 | a **Vercel** URL                  | unknown — origin unidentified    | present. Stale by definition, since `apps/web` runs on Cloudflare Workers; possibly the upstream's (`kaira-app`). **Identify it or delete it before the live swap** — an unattributed endpoint must not be carried into live mode. |
 | anything live-mode                | at cutover, one per live project | none — no live-mode account or endpoint exists yet                                                                                                                                                                                 |
+
+#### Scope is a third axis, and the inventory above did not have it (2026-09-06, #702)
+
+An endpoint's **scope** is fixed when it is created — Workbench's **Events from**, the API's
+`connect` parameter — and it decides which events reach it at all:
+
+- **Your account** (`connect: false`) — Checkout, Billing, Identity, charges, transfers. Everything
+  `stripe-webhook` handled until #702.
+- **Connected accounts** (`connect: true`) — a connected account's v1 `account.updated`, and every
+  other event a connected account raises. These carry a top-level `account` field naming it.
+
+A connected account's `account.updated` is delivered **only** to the second kind. Both endpoints in
+the inventory above are the first kind, so W13 — the arm that maintains `payout_accounts`, and
+therefore the only thing that can open #247's transfer gate — had never fired once: correct code,
+no event. Staging proved it on 2026-09-06: 17 rows in `stripe_webhook_events`, **zero** of type
+`account.updated`, and both real `acct_1UCj…` accounts sitting all-false with `onboarded_at` NULL.
+
+A signing secret is **per endpoint**, so a second scope is a second endpoint AND a second secret.
+Four are needed in all, and each needs its own `whsec_…`:
+
+| Project                           | Scope              | Variable                        | State on 2026-09-06                               |
+| --------------------------------- | ------------------ | ------------------------------- | ------------------------------------------------- |
+| staging `eralyiwkfrpqsawivegz`    | Your account       | `STRIPE_WEBHOOK_SECRET`         | exists (the endpoint in the inventory above)      |
+| staging `eralyiwkfrpqsawivegz`    | Connected accounts | `STRIPE_CONNECT_WEBHOOK_SECRET` | **to create** — Dashboard endpoint + secret (#80) |
+| production `kwzeiqvrnnaagccyoose` | Your account       | `STRIPE_WEBHOOK_SECRET`         | at cutover, live mode — the table below           |
+| production `kwzeiqvrnnaagccyoose` | Connected accounts | `STRIPE_CONNECT_WEBHOOK_SECRET` | at cutover, live mode — the table below           |
+
+Both endpoints point at the same URL (`/functions/v1/stripe-webhook`); the function verifies a
+delivery against each secret it holds and skips the ones it does not
+(`functions/_shared/stripe.ts`, `webhookSigningSecrets` / `verifyWithAnySecret`). Neither secret is
+boot-fatal — an unset one costs only its own scope's events, exactly the 400 an unset
+`STRIPE_WEBHOOK_SECRET` has always meant, and the function warns once per cold start naming what is
+missing. So the deploy may precede the secret; only the events wait.
 
 Recorded `we_…` ids live in `supabase/ENV-NOTES.md`, under **Stripe reference**. That table predates
 #473, lists two destinations, mentions no Vercel endpoint and records an event count of 10 that the
@@ -250,9 +283,11 @@ survives a review. Record the `we_…` id of anything kept — §4.1's recovery 
 
 Production's edge-function env is still test-mode. `STRIPE_WEBHOOK_SECRET` is **unset** as of
 2026-08-24 (#473 step 2), which fails closed: no secret, no signature verification, 400, nothing
-written. The other three still carry **test-mode** values — inert for webhooks, but a checkout
-function invoked on production would mint test-mode sessions against live members. The swap is
-therefore all four together, or none.
+written. `STRIPE_CONNECT_WEBHOOK_SECRET` is unset there too and fails closed the same way — it is
+the newest of the five (#702) and has never held a production value in any mode. The other three
+still carry **test-mode** values — inert for webhooks, but a checkout function invoked on
+production would mint test-mode sessions against live members. The swap is therefore all five
+together, or none.
 
 A **half** swap is now visible to members rather than merely wrong (#644). Since the Circle join
 CTA renders only once `get-circle-prices` has returned a live amount, a production holding a
@@ -262,14 +297,15 @@ silently, until the ids are swapped too. That is a feature of the fix, not a reg
 alternative was quoting a price nobody could be charged. It does mean the price ids are no
 longer the low-stakes member of this table.
 
-| Variable                      | Read at                                                                                                                                         | Live value                                    |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`                                                                                                       | the live-mode secret key, or a restricted key |
-| `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`                                                                                                  | the new live endpoint's signing secret        |
-| `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/_shared/stripe.ts:95` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/_shared/stripe.ts:96` (same resolver)                                                                                       | the live-mode price id                        |
+| Variable                        | Read at                                                                                                                                          | Live value                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`             | `supabase/functions/_shared/stripe.ts:48`                                                                                                        | the live-mode secret key, or a restricted key                 |
+| `STRIPE_WEBHOOK_SECRET`         | `supabase/functions/_shared/stripe.ts:142` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:13`)                                   | the new live **Your account** endpoint's signing secret       |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | `supabase/functions/_shared/stripe.ts:143` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
+| `STRIPE_PRICE_CIRCLE_MONTHLY`   | `supabase/functions/_shared/stripe.ts:112` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`    | `supabase/functions/_shared/stripe.ts:113` (same resolver)                                                                                       | the live-mode price id                                        |
 
-Those four are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
+Those five are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
 constant (`supabase/functions/_shared/stripe.ts:19`), deliberately, so that it cannot be set
 per-environment and must move in lockstep with the Dashboard webhook endpoint —
@@ -282,8 +318,9 @@ exists to prevent. `STRIPE_FEE_BPS`
 and `STRIPE_FEE_FIXED_CENTS` are named constants in `packages/core` (`src/fund/fees.ts`), which is
 where rule 10 requires them; they describe Stripe's pricing, not Athanor's configuration, and
 nothing about the cutover moves them. `STRIPE_IDENTITY_WEBHOOK_SECRET` appears in the backend spec
-and was never implemented — Identity rides `stripe-webhook` on the W9/W10 arms, under the one
-signing secret above.
+and was never implemented — Identity rides `stripe-webhook` on the W9/W10 arms, under the
+**platform** signing secret above (Identity sessions belong to the platform account, not to a
+connected one, so they arrive on the «Your account» endpoint).
 
 **Order, and it matters.**
 
@@ -292,8 +329,9 @@ signing secret above.
    endpoint, on the same budget §4.1 describes. That check reads deployed function versions and
    Vault secret _names_; it cannot read edge-function env values, so it can never tell you whether
    the swap below has happened. Nothing automated can — which is why this is a written step.
-2. **Create the live-mode endpoint**, at the pinned API version and with the required enabled
-   events. Both already have a home in §5 and are not restated here: the **Webhook endpoint API
+2. **Create the live-mode endpoints — plural, one per scope** (#702), at the pinned API version
+   and with the required enabled events. `account.updated` belongs on the **Connected accounts**
+   one and is delivered nowhere else; everything else belongs on **Your account**. Both already have a home in §5 and are not restated here: the **Webhook endpoint API
    version** rider for the version, the **Payout transfer deploy config** rider (#247) for
    `transfer.created` / `transfer.reversed`, and the **Payout onboarding deploy config** rider
    (#246) for `account.updated`. Read the last one whole, and the **Stripe https return pages**
@@ -582,7 +620,7 @@ Spec ref: `10-m10-launch.md` §7.
 
 > **Moderation queue alert deploy config (2026-08-31, #602):** a NEW `pg_cron` job, `report-queue-alert-sweep` (every 15 minutes), calls `public.report_queue_alert_sweep()`. Unlike the three riders above it needs **no edge-function deploy and no new Vault pair** — it reuses `athanor.enqueue_notification`, so the only secrets it touches are `app.settings.notification_fanout_url` / `_key`, which both projects already carry (§7.2; re-confirmed on production 2026-08-31, both present). Nothing to run at release. The one prerequisite is not a secret but an account: the sweep derives its recipients from `auth.users.raw_app_meta_data->>'role' = 'admin'`, so **an admin with a `profiles` row must exist on the project** — production has exactly one and it does have a profile (checked 2026-08-31). What that account did NOT have on the same date is a push token: `push_enabled = true` but zero rows in `push_tokens`, and `push-dispatch` treats zero tokens as a silent no-op. Until Marco signs into the app on a device as the admin account, the alert lands as an in-app notification row and the phone stays quiet — which is the half of #602's acceptance line that no migration can deliver. **Verify** after the first release that carries this migration: `select jobname, schedule from cron.job where jobname = 'report-queue-alert-sweep'` returns one row, then file a report on production and check `select count(*) from public.notifications where type = 'reportQueue'` within a quarter hour. A second unresolved report does NOT produce a second notification unless it arrives after the first was announced — the sweep is keyed on `athanor.report_alert_sends`, one row per (report, watcher), so a re-announcement is a bug and a silent quarter hour on an already-announced queue is the design.
 
-> **Payout onboarding deploy config (2026-08-15, #246):** the Dashboard webhook endpoint's enabled events must include **`account.updated`** (the W13 arm maintains `payout_accounts`; without the event the capability flags never flip and #247's transfer gate never opens). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
+> **Payout onboarding deploy config (2026-08-15, #246; corrected 2026-09-06, #702):** `account.updated` must be enabled on a webhook endpoint whose **scope** is «Connected accounts», not merely enabled somewhere. Enabling it on the «Your account» endpoint achieves nothing at all: a connected account's v1 `account.updated` is delivered only to a Connect-scoped endpoint, so the W13 arm that maintains `payout_accounts` never runs, the capability flags never flip, and #247's transfer gate never opens. That is what this rider said for three weeks and what actually happened — staging had the event enabled and had never received one. So: a **second** Dashboard endpoint per project, scope «Connected accounts», pointing at the same `/functions/v1/stripe-webhook` URL, with its own signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET` (§4.2's scope table). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
 
 > **Stripe https return pages (2026-08-18, #418):** the pages those two URLs point at now exist — `apps/web` serves `/app/payout/return`, `/app/payout/refresh` and `/app/verify`, each forwarding to the `athanor://` scheme. Three edge-function secrets go with them, and **all three must be set only after `apps/web` is live in production**, i.e. after the `dev → main` release that carries those routes — set earlier, Stripe redirects members to a 404. Values: `PAYOUT_ONBOARDING_RETURN_URL=https://www.athanor.world/app/payout/return`, `PAYOUT_ONBOARDING_REFRESH_URL=https://www.athanor.world/app/payout/refresh`, and `IDENTITY_RETURN_BASE=https://www.athanor.world/app/` (a **base**, trailing slash included — `create-verification-session` appends `verify?status=complete`). `IDENTITY_RETURN_BASE` is optional: unset, Identity simply sends no `return_url`, which is what shipped in #417 and costs nothing (webhook W9 carries the flip). Do **not** repoint `APP_DEEPLINK_BASE` at the https base to achieve the same thing — four Checkout-based functions read it and need the `athanor://` scheme for `openAuthSessionAsync` to close the sheet. **Since #104 the `PAYOUT_ONBOARDING_*` pair is BLOCKING for paid events, not merely pending.** Until #104 no client invoked `create-payout-onboarding` at all, so an unset pair was a dead function nobody could reach; the composer now offers organisers a Connect-your-account CTA, and with either URL unset that CTA returns `payout onboarding not configured` (500) — which means no organiser can ever publish a paid event, because the creation gate requires `payouts_enabled` and only this flow can set it.
 
