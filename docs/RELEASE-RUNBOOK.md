@@ -620,25 +620,29 @@ pnpm payments offers
 mints one throwaway Session per surface with its builder's shape, reads back the
 `payment_method_types` Stripe computed, and expires it. As of 2026-09-07, test mode:
 
-| surface             | Session shape                          | what the buyer is shown                     |
-| ------------------- | -------------------------------------- | ------------------------------------------- |
-| fund contribution   | `mode: payment`, EUR                   | card, Bancontact, EPS, Link, **PayPal**     |
-| Circle              | `mode: subscription`, EUR              | card, Link, **PayPal**                      |
-| event ticket (#104) | `mode: payment` + `transfer_data`, EUR | card, Bancontact, EPS, Link — **no PayPal** |
+| surface             | Session shape                          | what the buyer is shown |
+| ------------------- | -------------------------------------- | ----------------------- |
+| fund contribution   | `mode: payment`, EUR                   | card, Link, **PayPal**  |
+| Circle              | `mode: subscription`, EUR              | card, Link, **PayPal**  |
+| event ticket (#104) | `mode: payment` + `transfer_data`, EUR | card, Link — no PayPal  |
 
-Three things that table is the only way to learn:
+Two things that table is the only way to learn:
 
 - **PayPal is silently absent on ticket purchases.** PayPal's Connect support is _"Partial — requires
   manual approval"_, so Stripe drops it from any Session carrying `payment_intent_data.transfer_data`.
   Nothing errors; the button is simply not drawn. Ask Stripe for Connect approval or accept the gap,
   but do not discover it from a member's mail.
-- **Bank redirects never reach Circle.** Bancontact and EPS are unsupported in Checkout subscription
-  mode (and in Subscriptions generally except `send_invoice`), so recurring is card, Link, PayPal — and
-  PayPal recurring _"might require approval"_ too, which is the one Circle rail still worth proving.
 - **Apple Pay and Google Pay never appear in `payment_method_types`.** They ride `card` and surface per
   device. Their absence from the list is not a defect and their presence cannot be inferred from it —
   the only proof is `payment_method_details.card.wallet.type` on the charge after a real wallet tap,
   which `pnpm payments check` prints.
+
+The enabled set was narrowed on 2026-09-07 to card, Link, PayPal, Apple Pay and Google Pay; BLIK,
+Bancontact and EPS were disabled and giropay is retired by Stripe. Two card networks read differently
+depending on where you look, and neither is a discrepancy: the Dashboard lists **Cartes Bancaires**
+and **Stripe balance (preview)** as enabled while the payment-method configuration reports them
+`off`, because CB is a card network that rides `card` and Stripe balance is not a configuration field
+at all. `pnpm payments offers` is the authority — it asks Stripe per Session.
 
 #### Every offered rail is inside the settlement standard
 
@@ -646,22 +650,27 @@ Three things that table is the only way to learn:
 the whole design rests on every reachable method being an **immediate-notification** one. Verified
 against each method's Stripe documentation on 2026-09-07:
 
-| method             | notification  | refunds     | disputes       |
-| ------------------ | ------------- | ----------- | -------------- |
-| card               | immediate     | yes         | yes            |
-| Apple / Google Pay | = card        | yes         | yes            |
-| Link               | immediate     | yes         | yes            |
-| PayPal             | **immediate** | yes (180 d) | yes            |
-| Bancontact         | **immediate** | yes (730 d) | no chargebacks |
-| EPS                | **immediate** | yes (180 d) | no chargebacks |
+| method             | notification  | refunds     | disputes |
+| ------------------ | ------------- | ----------- | -------- |
+| card               | immediate     | yes         | yes      |
+| Apple / Google Pay | = card        | yes         | yes      |
+| Link               | immediate     | yes         | yes      |
+| PayPal             | **immediate** | yes (180 d) | yes      |
 
-No delayed rail reaches a buyer today, so the fail-closed guard is correct and dormant. Two standing
-conditions on that:
+Bancontact and EPS were verified immediate too (refundable 730 and 180 days, neither disputable) and
+Bancontact was walked successfully on a test Payment Link before both were disabled — recorded here
+because if either is ever re-enabled, that evidence still stands.
 
-- **`blik` and `giropay` are enabled in the test configuration and should be turned off there now, and
-  again in live when the live account is configured.** giropay is retired by Stripe and BLIK is PLN-only, so neither renders for EUR — but BLIK is a
-  delayed-notification rail, which means the day anything here presents PLN it would arrive `unpaid`
-  and start the 5xx spiral §4.1 exists to catch. Dead config that is also a landmine.
+No delayed rail reaches a buyer, so the fail-closed guard is dormant. One standing condition on that:
+
+> **Correction, 2026-09-07 — BLIK is not a delayed-notification rail.** An earlier revision of this
+> section and of `assertSettled`'s docblock listed it as one, inherited from that docblock's original
+> delayed-rail list. Stripe's Dashboard reports BLIK's payment confirmation as **Immediate**, and no
+> Stripe documentation classifies it as delayed. It was disabled anyway, along with Bancontact and
+> EPS, so nothing turns on it — but the claim was wrong and had been repeated, and the delayed list in
+> `handlers.ts` has been corrected. giropay is not merely disabled: the account offers no toggle for
+> it at all, Stripe having dropped it after the service was discontinued in 2024.
+
 - **The live-mode configuration is a separate object and has not been checked.** Test and live payment
   methods are configured independently, so nothing above is evidence about live. `pnpm payments` cannot
   answer this one: it dies on any key that is not `sk_test_`, deliberately and with no override, because
@@ -698,12 +707,15 @@ Stripe works.
 | card declined  | `4000 0000 0000 0002` — assert **no** row is written                                                                                                                    | —              |
 | Link           | any email and phone; test-mode verification code `000000`                                                                                                               | —              |
 | PayPal         | test mode redirects to a Stripe-hosted simulator, not real PayPal — authorise there                                                                                     | —              |
-| Bancontact     | Stripe test page → "Authorize test payment"; run again → "Fail test payment"                                                                                            | —              |
-| EPS            | choose a test bank → authorise, then a second run → fail                                                                                                                | —              |
 | **Apple Pay**  | Safari on iPhone or Mac with a real card in Wallet. Test mode does not charge it. Hosted Checkout runs on Stripe's domain, so there is no Apple Pay domain to register. | an iPhone      |
 | **Google Pay** | Chrome signed into a Google account with any card                                                                                                                       | desktop Chrome |
 
-Run each rail on each surface that offers it — 5 for contributions, 4 for tickets, 3 for Circle. Pass
+**Mint a Checkout Session, never a Payment Link.** A Payment Link renders PayPal, Link and the two
+wallets as express-checkout buttons, and those do not survive automated clicking — a walk driven from
+a browser tool stalls there and reads as a broken rail. Hosted Checkout renders PayPal as a full-page
+redirect, the same shape that makes a bank redirect work. `pnpm payments mint` produces the right one.
+
+Run each rail on each surface that offers it — 3 for contributions, 3 for Circle, 2 for tickets. Pass
 means `payment_status: paid`, a ledger row for this Session with `processed_at` not null, and the
 target row present (`fund_contributions` / `event_tickets` / `circle_memberships`). Two out of three
 is a failure, and which two tells you where to look.
