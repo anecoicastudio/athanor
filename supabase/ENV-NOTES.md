@@ -35,11 +35,14 @@ Public identifiers, not secrets:
 **The delayed-settlement trap.** No code pins `payment_method_types`, so the
 payment-method configuration is the _sole_ control over which rails reach Checkout. The
 webhook deliberately supports only immediate-notification methods (card + wallets, Link,
-PayPal, Bancontact, EPS…): enabling a delayed rail (SEPA, ACH, Bacs, BECS, ACSS, Pay by
-Bank, BLIK, vouchers, bank transfers) makes `stripe-webhook` 500 **by design** — see
+PayPal): enabling a delayed rail (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, vouchers, bank
+transfers) makes `stripe-webhook` 500 **by design** — see
 `assertSettled` in `functions/stripe-webhook/handlers.ts`, and the two
 `async_payment_*` events are not subscribed. PayPal is synchronous by default — that is
-why it is safe; never ask Stripe Support to switch it.
+why it is safe; never ask Stripe Support to switch it. Bancontact and EPS were verified
+immediate too, and were enabled until 2026-09-07; they are disabled now. BLIK is **not** a
+delayed rail — an earlier revision of this note and of `assertSettled` said it was, and the
+Dashboard reports its payment confirmation as Immediate. It is disabled regardless.
 
 **Two webhook signing secrets, one URL (#702).** A Stripe endpoint's scope is fixed when
 it is created — `connect: false` is «Your account», `connect: true` is «Connected

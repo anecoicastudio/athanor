@@ -33,10 +33,10 @@ const SECRET = 'test-qr-secret';
 const asDb = (f: FakeDb) => f as unknown as Db;
 
 // payment_status: 'paid' is what every payment method enabled on the account reports on
-// checkout.session.completed — card, Bancontact, EPS, Link, wallets, and PayPal (Stripe
-// permits only synchronous funding sources on PayPal unless you ask Support to enable
-// asynchronous ones). Delayed-notification methods report 'unpaid' here; none are enabled,
-// and assertSettled throws rather than trusting that to stay true.
+// checkout.session.completed — card, Link, wallets, and PayPal (Stripe permits only
+// synchronous funding sources on PayPal unless you ask Support to enable asynchronous ones).
+// Delayed-notification methods report 'unpaid' here; none are enabled, and assertSettled
+// throws rather than trusting that to stay true.
 const ticketSession = (over: Record<string, unknown> = {}) =>
   ({
     id: 'cs_1',

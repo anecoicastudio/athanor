@@ -638,15 +638,18 @@ Two things that table is the only way to learn:
   which `pnpm payments check` prints.
 
 The enabled set was narrowed on 2026-09-07 to card, Link, PayPal, Apple Pay and Google Pay; BLIK,
-Bancontact and EPS were disabled and giropay is retired by Stripe. Two card networks read differently
-depending on where you look, and neither is a discrepancy: the Dashboard lists **Cartes Bancaires**
-and **Stripe balance (preview)** as enabled while the payment-method configuration reports them
-`off`, because CB is a card network that rides `card` and Stripe balance is not a configuration field
-at all. `pnpm payments offers` is the authority — it asks Stripe per Session.
+Bancontact and EPS were disabled and giropay is retired by Stripe. Two entries read differently
+depending on where you look: the Dashboard lists **Cartes Bancaires** and **Stripe balance
+(preview)** as enabled, while the payment-method configuration reports `cartes_bancaires` and
+`customer_balance` with a literal `preference: off` — not an unset default. The mechanism behind
+that disagreement is **unverified**; do not write a reason for it here until someone has one. What
+is settled is which list to trust: `pnpm payments offers` asks Stripe per Session, so it answers
+what a buyer is shown, and neither entry appears in any surface's `payment_method_types`.
 
 #### Every offered rail is inside the settlement standard
 
-`assertSettled` fulfils on `checkout.session.completed` and throws on anything not already `paid`, so
+`assertSettled` fulfils on `checkout.session.completed` and throws on anything that is not already
+`paid` or `no_payment_required`, so
 the whole design rests on every reachable method being an **immediate-notification** one. Verified
 against each method's Stripe documentation on 2026-09-07:
 
@@ -661,23 +664,27 @@ Bancontact and EPS were verified immediate too (refundable 730 and 180 days, nei
 Bancontact was walked successfully on a test Payment Link before both were disabled — recorded here
 because if either is ever re-enabled, that evidence still stands.
 
-No delayed rail reaches a buyer, so the fail-closed guard is dormant. One standing condition on that:
-
 > **Correction, 2026-09-07 — BLIK is not a delayed-notification rail.** An earlier revision of this
 > section and of `assertSettled`'s docblock listed it as one, inherited from that docblock's original
 > delayed-rail list. Stripe's Dashboard reports BLIK's payment confirmation as **Immediate**, and no
 > Stripe documentation classifies it as delayed. It was disabled anyway, along with Bancontact and
-> EPS, so nothing turns on it — but the claim was wrong and had been repeated, and the delayed list in
-> `handlers.ts` has been corrected. giropay is not merely disabled: the account offers no toggle for
+> EPS, so nothing turns on it — but the claim was wrong and had been repeated in four places. All
+> four are corrected in the same change: `assertSettled`'s delayed list, `supabase/ENV-NOTES.md`,
+> `docs/PRODUCTION-READINESS.md`'s binding pre-deploy list, and issue #71, whose title was the claim
+> and which is closed as retracted. giropay is not merely disabled: the account offers no toggle for
 > it at all, Stripe having dropped it after the service was discontinued in 2024.
+
+No delayed rail reaches a buyer, so the fail-closed guard is dormant. One standing condition on that:
 
 - **The live-mode configuration is a separate object and has not been checked.** Test and live payment
   methods are configured independently, so nothing above is evidence about live. `pnpm payments` cannot
   answer this one: it dies on any key that is not `sk_test_`, deliberately and with no override, because
   even `offers` _mints_ a Checkout Session before reading the method list back. Read the live
   configuration in the Dashboard instead (Settings → Payment methods), and re-derive the per-surface
-  filtering by hand from the rules above — subscription mode drops the bank redirects, a destination
-  charge drops PayPal. Per §4.2 no live-mode endpoint exists yet, so this is a step in opening payments,
+  filtering by hand from the two rules that do the filtering: **subscription mode drops every bank
+  redirect** (Bancontact, EPS and the rest are unsupported in Checkout subscription mode, and in
+  Subscriptions generally except `send_invoice`), and **a destination charge drops PayPal**. Both
+  matter when reading a live configuration that may still have bank redirects enabled. Per §4.2 no live-mode endpoint exists yet, so this is a step in opening payments,
   not a check that is overdue.
 
 #### Proving a rail, one at a time
@@ -713,7 +720,8 @@ Stripe works.
 **Mint a Checkout Session, never a Payment Link.** A Payment Link renders PayPal, Link and the two
 wallets as express-checkout buttons, and those do not survive automated clicking — a walk driven from
 a browser tool stalls there and reads as a broken rail. Hosted Checkout renders PayPal as a full-page
-redirect, the same shape that makes a bank redirect work. `pnpm payments mint` produces the right one.
+redirect — the same full-page shape that let Bancontact be walked successfully on 2026-09-07,
+before it was disabled. `pnpm payments mint` produces the right one.
 
 Run each rail on each surface that offers it — 3 for contributions, 3 for Circle, 2 for tickets. Pass
 means `payment_status: paid`, a ledger row for this Session with `processed_at` not null, and the

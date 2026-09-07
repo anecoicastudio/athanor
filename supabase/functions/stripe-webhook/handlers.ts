@@ -41,10 +41,11 @@ export type WebhookCtx = {
  * offers` prints the enabled set and each surface's offered set side by side — it is the only
  * honest answer to which rails a buyer sees, and docs/RELEASE-RUNBOOK.md §4.8 is the operator copy.
  *
- * The test account was narrowed on 2026-09-07 to card, Link, PayPal and the two wallets; BLIK,
+ * The TEST account was narrowed on 2026-09-07 to card, Link, PayPal and the two wallets; BLIK,
  * Bancontact and EPS were disabled there and giropay is retired by Stripe. So no rail below is
- * reachable today. That is Dashboard state, not repo state, and CI cannot see it — which is the
- * whole reason this guard exists rather than a comment promising the configuration is right.
+ * reachable in test today. Live is a separate configuration and has not been checked — see
+ * docs/RELEASE-RUNBOOK.md §4.8. All of that is Dashboard state, not repo state, and CI cannot see
+ * it, which is the whole reason this guard exists rather than a comment promising otherwise.
  *
  * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
  * promote/retire machinery. But nothing in this repo selects payment methods — the create-*
