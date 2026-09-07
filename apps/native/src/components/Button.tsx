@@ -46,6 +46,18 @@ import { auraGlow } from '@/lib/glow';
  * component reserves the gutter for any element it is handed and cannot see what that element
  * resolved to. `providerMark()` is written that way for exactly this reason.
  *
+ * The cost of keying the gutter per BUTTON rather than per group, named because it is one: two
+ * stacked pills stretch to the same width, so one with an icon gives its label 64pt less room
+ * than one without. Stacked provider CTAs can therefore reach the wrap point at different text
+ * scales and stand at different heights — «Continua con Google» wraps around 1.4× while
+ * «Continua con Apple» has not. Legible rather than broken (#639's `min-h` is what makes it
+ * grow instead of clip), and the alternative — a gutter the caller reserves across a group —
+ * buys symmetry with an API nothing else here needs.
+ *
+ * `left-6`, not `start-6`: React Native flips `start`/`end` under `I18nManager.isRTL` and never
+ * `left`/`right`, so under an RTL locale the pill would mirror and the mark would not. The
+ * catalogs are IT/EN, so this cannot bite today; it is the line to change if RTL is ever on.
+ *
  * The mark is hidden while `loading` — the spinner has already replaced the label, and a
  * brand mark beside a spinner reads as a second, stalled control.
  */

@@ -32,8 +32,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // costs an app release and a store review to reveal. It is now a remote_config feature flag
 // (#79 ruling, 2026-09-07): the day Apple approves, enabling sign-in is a provider config plus
 // one row in `remote_config` — zero code, no build. `remote_config` is readable by `anon` and
-// `BootGate` (which owns the fetch) is mounted ABOVE `AuthGuard` in `app/_layout.tsx`, so this
-// pre-auth screen renders with the flags already resolved.
+// `BootGate` (which owns the fetch) is mounted ABOVE `AuthGuard` in `app/_layout.tsx`, so no
+// auth gate sits between this pre-auth screen and the flags.
+//
+// USUALLY resolved by the time this renders, not always: `BootGate` holds children only while
+// `resolveBootDecision` answers `waiting`, and it stops answering that once the 3s boot budget
+// elapses (`components/boot/BootGate.tsx`) — a network blip must never strand a new user. So on
+// a slow cold start this screen can mount with the flag still in flight and the Apple CTA
+// therefore hidden, and gain it a second or two later, pushing the Google CTA and the form
+// below it down. Closed-then-open is the safe direction of that race and the block is not
+// gated on `status` for it, because gating would also delay the Google CTA — which is live for
+// real members — behind a fetch it does not need.
 //
 // CLOSED is the default in every direction that matters: the key is absent on both projects
 // today, an absent key reads `undefined`, a failed fetch leaves `useFeatureFlags()` at `{}`,
@@ -80,10 +89,13 @@ export default function WelcomeScreen() {
   // #689: the keyboard no longer covers the viewport (#614), but nothing brought the tapped
   // field INTO it — the password field is last in the column and stayed off screen.
   const reveal = useRevealOnFocus();
-  // Runtime, so `ANY_OAUTH` below is runtime too — computing it at module scope would pin the
-  // divider logic to the compile-time value and leave «oppure con email» separating email from
-  // one button on the day Apple turns on.
   const appleEnabled = useFeatureFlags()[APPLE_FLAG] === true;
+  // `true` in every state today, since `GOOGLE_ENABLED` is a `const true` — the `else` branch
+  // below is unreachable and kept deliberately. It moved out of module scope with the flag not
+  // because the compile-time value would be wrong (it would not: `x || true` is `true` wherever
+  // it is evaluated) but so that the day `GOOGLE_ENABLED` goes false — a provider pulled, a
+  // region gate — the divider follows the flag instead of a constant, and «oppure con email»
+  // never ends up separating the email form from nothing.
   const anyOauth = appleEnabled || GOOGLE_ENABLED;
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>

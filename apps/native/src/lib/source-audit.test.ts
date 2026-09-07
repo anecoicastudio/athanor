@@ -3672,30 +3672,43 @@ describe('the expo-auth-session deep import stays deliberate', () => {
  * an empty state type-checks, lints, renders, and quietly turns an attribution into an icon.
  * That is the failure this section exists for.
  *
- * It is worth a guard on §28's own test: the allowlist is one file (`(auth)/welcome.tsx`)
- * against a findings set that is every future import, so it is an invariant rather than a pin
- * on today's tree. The rule it encodes does not expire — a second OAuth provider is still a
- * mark on its own CTA, on this same screen.
+ * It passes the test §28's docstring sets for a guard of this shape — "a guard whose allowlist
+ * would be longer than its findings is a pin on today's tree, not an invariant". Here the
+ * allowlist is one file (`(auth)/welcome.tsx`) against a findings set that is every future
+ * import, and the rule it encodes does not expire: a second OAuth provider is still a mark on
+ * its own CTA, on this same screen.
  *
- * The scan is deliberately on the IMPORT, not on the component name: a mark reached through an
- * alias or a re-export is the same violation, and every route to one goes through this module
- * specifier. `apps/web` is out of scope by having no OAuth CTA at all — there is no
+ * The scan is on the IMPORT rather than the component name, because a mark reached through an
+ * alias or a re-export is the same violation. It matches the module's PATH SUFFIX, not the `@/`
+ * specifier: `import { GoogleMark } from './provider-marks'` from a sibling in `components/`
+ * contains no `@/…`, and would have walked straight past a specifier match — the guard staying
+ * green over exactly the violation it is written for. Nothing in `eslint.config.js` (bare
+ * `eslint-config-expo`) forbids the relative form, so this cannot lean on convention.
+ *
+ * Test files are excluded, so a future `provider-marks.test.tsx` is not a violation — the rule
+ * is about what the app RENDERS, and a guard that punished unit-testing the component would be
+ * working against itself. `apps/web` is out of scope by having no OAuth CTA at all — there is no
  * `signInWithOAuth` outside `apps/native` — so nothing over there needs a matching guard.
  */
 describe('provider brand marks live only on the provider CTAs (#539)', () => {
-  const MODULE = '@/components/provider-marks';
+  // The trailing quote anchors the end of the specifier; the leading slash lets `@/components/…`
+  // and `./provider-marks` match the same way.
+  const MODULE = "/provider-marks'";
 
   it('is imported by exactly one file, and it is the welcome screen', () => {
     const importers = [
       ...new Set(
         codeLines()
-          .filter(([, text]) => text.includes(MODULE))
+          .filter(([at, text]) => text.includes(MODULE) && !/\.test\.tsx?:\d+$/.test(at))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
-    ].sort();
+    ]
+      .filter((p) => p !== 'components/provider-marks.tsx')
+      .sort();
     expect(
       importers,
-      `${MODULE} holds THIRD-PARTY marks. DESIGN §6's carve-out exempts them from the 20-glyph ` +
+      "components/provider-marks.tsx holds THIRD-PARTY marks. DESIGN §6's carve-out exempts " +
+        'them from the 20-glyph ' +
         "icon rule only as attribution on their own provider's OAuth CTA — a vendor mark used " +
         'as decoration anywhere else is a trademark problem, not a style one. Athanor surfaces ' +
         'take a glyph from `components/glyphs.tsx`.',
