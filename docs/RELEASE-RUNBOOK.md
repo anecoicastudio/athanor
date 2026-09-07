@@ -279,7 +279,9 @@ key, and only to read; `stripe()` refuses to pair the live key with anything but
 `stripe webhook_endpoints list --limit 100` and Dashboard → Developers → Webhooks answer the same
 question by hand. Scope is not a labelled field on the retrieved object: what distinguishes the two
 is `application`, which carries a `ca_…` Connect application id on a «Connected accounts» endpoint
-and `null` on an account one (`connect` exists only on create params). Run it **once per mode**, and note that the mode is never a filter you can see: the Dashboard's
+and `null` on an account one (`connect` exists only on create params).
+
+Run it **once per mode**, and note that the mode is never a filter you can see: the Dashboard's
 test/live toggle hides the other mode's endpoints entirely, and the CLI takes the mode from
 whichever key is configured (`--live` for the live set). That is precisely how a stale endpoint
 survives a review. Record the `we_…` id of anything kept — §4.1's recovery path
