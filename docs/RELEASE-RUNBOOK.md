@@ -708,7 +708,7 @@ The client flag was renamed `fund_contributions_enabled` → `fund_surfaces_enab
 
 > **✅ Applied. Nothing to run.** Production `remote_config` carries `fund_surfaces_enabled` and no `fund_contributions_enabled` row — queried on both projects 2026-09-07 (Management API). This section said the opposite for some weeks, and R-2 carried a matching ⚠; both were stale, and an operator following them at release would have run a no-op `UPDATE` against a key that no longer exists. Kept as the record of what was done, not as a pending step.
 
-The statement that was run, for the record:
+The statement this section prescribed, for the record — a state query proves the end state, not the route to it:
 
 ```sql
 update public.remote_config
