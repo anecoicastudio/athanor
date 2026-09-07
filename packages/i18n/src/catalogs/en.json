@@ -883,6 +883,7 @@
   "ticket.error.eventFree": "This event is free. No ticket needed.",
   "ticket.error.organizerUnverified": "This organizer can't sell tickets yet.",
   "ticket.error.organizerPayouts": "This organizer can't receive payments right now.",
+  "ticket.error.belowMinimum": "This ticket isn't on sale: its price is under the minimum. The organizer needs to fix it.",
   "ticket.error.organizerSelf": "It's your event. You don't need a ticket.",
   "ticket.error.eventEnded": "This event has already ended.",
   "ticket.error.alreadyOwned": "You already have your ticket ✦",

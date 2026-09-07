@@ -186,6 +186,23 @@ describe('eventCreateSchema', () => {
       );
     }
   });
+  // #701 fallout, not #701 itself. events.capacity is `integer` and create_event takes
+  // `p_capacity integer`, so PostgREST casts and an out-of-range value raises 22003 — the SAME
+  // code the floor arms raise. Verified against staging: p_capacity 99999999999 returns
+  // {"code":"22003","message":"value ... is out of range for type integer"}. Without this bound
+  // the composer's 22003 arm answers an overflow with «your price is too low».
+  it('bounds capacity to int4, so the composer 22003 arm cannot be answering an overflow', () => {
+    const base = { ...physical, settlement_ack: false };
+    expect(eventCreateSchema.parse({ ...base, capacity: 2_147_483_647 }).capacity).toBe(
+      2_147_483_647,
+    );
+    expect(eventCreateSchema.safeParse({ ...base, capacity: 2_147_483_648 }).success).toBe(false);
+    expect(eventCreateSchema.safeParse({ ...base, capacity: 99_999_999_999 }).success).toBe(false);
+    // Still nullable and still positive — the bound narrows the top only.
+    expect(eventCreateSchema.parse({ ...base, capacity: null }).capacity).toBeNull();
+    expect(eventCreateSchema.safeParse({ ...base, capacity: 0 }).success).toBe(false);
+  });
+
   // The figure itself, pinned once. Every bound above is written with literals, so this is the
   // only assertion that fails if the constant moves — which is what makes it the one to read.
   it('MIN_PAID_TICKET_CENTS is €5,00 (#701 ruling 2026-09-07)', () => {

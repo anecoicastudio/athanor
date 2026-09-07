@@ -248,8 +248,10 @@ export default function EventCreateScreen() {
         starts_at: startsAt.toISOString(),
         ends_at: null,
         capacity: capacity ? Number(capacity) : null,
-        // Floor 0, named: a ticket may be free (`events.price_cents >= 0`), unlike a fund
-        // contribution, whose €1 minimum is the parser's default (#387).
+        // Floor 0, named: a ticket may be free, unlike a fund contribution, whose €1 minimum is
+        // the parser's default (#387). The column rule is now the BAND `price_cents = 0 or >= 500`
+        // (#701, events_price_min) — 0 stays the right floor HERE because onSubmit has already
+        // refused everything between the two, so what reaches this line is free or legal.
         price_cents: paid && price ? parseEuroToCents(price, 0) : 0,
         currency: 'eur',
         // The boolean is all the client gets to say. `settlement_ack_at` is stamped by
@@ -269,8 +271,11 @@ export default function EventCreateScreen() {
       const code = (e as { code?: unknown } | null)?.code;
       // #701 — 22003 is the floor arm, raised by create_event and by the insert trigger alike so
       // one mapping covers both write paths. The bare events_price_min CHECK raises 23514 instead
-      // and is deliberately NOT mapped: no path in this app updates a price, and nine other CHECKs
+      // and is deliberately NOT mapped: no path in this app updates a price, and twelve other CHECKs
       // on `events` share that code, so an arm on it would mis-describe them.
+      // 22003 is not unique either — PostgREST raises it casting an out-of-int4 p_capacity — which
+      // is why eventCreateSchema bounds capacity (MAX_EVENT_CAPACITY). Remove that and this arm
+      // starts answering overflows with price copy.
       if (code === '22003') return setError(minPriceMessage);
       if (code === '55000') return setError(t('event.create.payout.gate', locale));
       if (code === '42501') return setError(t('event.create.verifyGate', locale));

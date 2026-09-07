@@ -37,6 +37,20 @@ export type EventCategory = z.infer<typeof eventCategorySchema>;
 export const MIN_PAID_TICKET_CENTS = 500;
 
 /**
+ * The largest value `events.capacity` can hold. The column is `integer` and `create_event` takes
+ * `p_capacity integer`, so PostgREST casts the client's number to int4 — and an out-of-range one
+ * raises **22003**, the very code `20260907145152`'s floor arms raise. Verified against staging:
+ * `p_capacity: 99999999999` comes back `{"code":"22003","message":"value ... is out of range for
+ * type integer"}`, indistinguishable by CODE from `paid ticket below the minimum price`.
+ *
+ * So this bound is what keeps `event-create.tsx`'s 22003 arm honest: without it, an organiser who
+ * typed a long enough capacity would be told their PRICE was too low. Closing it here rather than
+ * by string-matching the error message closes the cause instead of the symptom — but the coupling
+ * is real, and removing this bound silently re-opens the mis-mapping.
+ */
+export const MAX_EVENT_CAPACITY = 2_147_483_647;
+
+/**
  * The `price_cents` column, bound once for every schema that declares it — the member read model,
  * the create input and the public read model all reach for THIS rather than re-spelling the band
  * (`trimmedNonBlank`'s precedent in `primitives.ts`). Three copies of one bound is how the third
@@ -128,7 +142,7 @@ export const eventCreateSchema = z
     stream_url: z.string().url().nullable().default(null),
     starts_at: z.string(),
     ends_at: z.string().nullable().default(null),
-    capacity: z.number().int().positive().nullable().default(null),
+    capacity: z.number().int().positive().max(MAX_EVENT_CAPACITY).nullable().default(null),
     price_cents: priceCentsSchema.default(0),
     currency: z
       .string()

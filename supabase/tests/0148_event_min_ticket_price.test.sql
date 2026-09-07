@@ -148,7 +148,7 @@ $$, '22003', null, 'service_role is refused too — every write path, which is w
 -- events_enforce_paid_gate is BEFORE INSERT. Lowering an existing price is therefore invisible to
 -- every arm above, and `events_price_min` is the whole of the enforcement — with its own 23514,
 -- which is exactly why the composer does not map that code to price copy: nothing in this app
--- updates a price, and nine other CHECKs on `events` raise it.
+-- updates a price, and twelve other CHECKs on `events` raise it.
 select lives_ok($$
   insert into public.events (organizer_id, title, category, is_online, stream_url, starts_at,
                              price_cents, settlement_ack_at)

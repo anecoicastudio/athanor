@@ -1,0 +1,84 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * The ticket-checkout guard ladder and the bar that renders its refusals are two files that never
+ * import each other: the server's `{error}` strings are the contract between them (#103), and
+ * `TicketBar`'s ERROR_COPY is the only thing that turns one into a sentence.
+ *
+ * Nothing pinned the pair, and #701 found out what that costs. Its new `ticket below minimum
+ * price` refusal shipped server-side and fell through ERROR_COPY to `ticket.error.payment` —
+ * «the payment didn't go through», about a checkout where no payment was ever attempted and which
+ * nothing the BUYER does can fix. The map's own #104 comment describes that exact defect, because
+ * the payout arm had already been through it once.
+ *
+ * So: every CLIENT-actionable refusal — a 4xx — owes copy. The 500s deliberately do not. A lookup
+ * that failed, a seat claim that broke, a Stripe call that threw: those are «try again», they are
+ * indistinguishable to the person, and `ticket.error.payment` is the honest answer to all of them.
+ * Splitting on the status code is what makes this assertion mean something rather than being a
+ * list someone has to remember to extend.
+ *
+ * ERROR_COPY is not exported, so this reads both files as text — the source-audit idiom this app
+ * uses for every UI guarantee (`environment: 'node'`, nothing renderable is collectable).
+ */
+const SRC = fileURLToPath(new URL('..', import.meta.url).href);
+const LADDER = readFileSync(
+  `${SRC}../../../supabase/functions/create-ticket-checkout/logic.ts`,
+  'utf8',
+);
+const BAR = readFileSync(`${SRC}components/live/TicketBar.tsx`, 'utf8');
+
+/** Every capture-group-1 of a global match, with the `string | undefined` narrowed away. */
+const captures = (source: string, re: RegExp): string[] => [
+  ...new Set([...source.matchAll(re)].map((m) => m[1]).filter((v): v is string => v !== undefined)),
+];
+
+/** `error('some message', 409)` → the message, for 4xx only. */
+const clientRefusals = (source: string): string[] =>
+  captures(source, /\berror\(\s*'([^']+)'\s*,\s*4\d{2}\s*\)/g);
+
+describe('every client-actionable checkout refusal has its own copy (#701)', () => {
+  // Pinned before anything is compared: a regex that silently matched nothing would make the
+  // assertion below `[] ⊆ anything` and leave this file decorative.
+  it('finds the guard ladder and a non-trivial set of 4xx refusals', () => {
+    const found = clientRefusals(LADDER);
+    expect(found.length).toBeGreaterThanOrEqual(8);
+    // Two anchors from opposite ends of the ladder, so a partial extraction is visible.
+    expect(found).toContain('event is free');
+    expect(found).toContain('checkout already open');
+  });
+
+  it('maps every one of them in TicketBar.ERROR_COPY', () => {
+    const unmapped = clientRefusals(LADDER).filter((msg) => !BAR.includes(`'${msg}':`));
+    expect(
+      unmapped,
+      `these refusals reach the buyer as «payment failed», which is false: ${unmapped.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('leaves the 500s unmapped on purpose — they really are «try again»', () => {
+    // The converse assertion. Without it, "map everything" would satisfy the test above and the
+    // distinction this file is built on would quietly stop being a distinction.
+    const failures = captures(LADDER, /\berror\(\s*'([^']+)'\s*,\s*500\s*\)/g);
+    expect(failures.length).toBeGreaterThan(0);
+    for (const msg of failures) {
+      expect(BAR, `${msg} is a 500; it should fall through to ticket.error.payment`).not.toContain(
+        `'${msg}':`,
+      );
+    }
+  });
+
+  it('every mapped key exists in BOTH catalogs', () => {
+    const keys = captures(BAR, /'(ticket\.error\.[A-Za-z]+)'/g);
+    expect(keys.length).toBeGreaterThan(8);
+    for (const lang of ['it', 'en'] as const) {
+      const catalog = JSON.parse(
+        readFileSync(`${SRC}../../../packages/i18n/src/catalogs/${lang}.json`, 'utf8'),
+      ) as Record<string, string>;
+      for (const key of keys) {
+        expect(catalog[key], `${lang}.json has no ${key}`).toBeDefined();
+      }
+    }
+  });
+});

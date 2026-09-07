@@ -1686,3 +1686,38 @@ Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:81-84` — 
 `authenticated` cannot execute `athanor.profiles_birth_date_guard()`. Neither assertion names
 PUBLIC, but `has_function_privilege` counts a PUBLIC grant for every role, so a restored
 `grant … to public` reddens both.
+
+## `20260907145152_events_min_paid_ticket_price.sql:27` — the CHECK-constraint counts are both wrong
+
+The header justifies raising `22003` rather than the CHECK's own `23514` and says:
+
+> `events` carries twelve CHECK constraints, nine of them from its creating migration.
+
+Both numbers are wrong, counted against the tree:
+
+| claim                                 | actual                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| nine from `20260615094844_events.sql` | **eleven** — lines 21, 24, 25, 27, 30, 31, 32, 33, 42, 46, 47 (the `with check` at 85/91 are policies, not constraints) |
+| twelve on the table                   | **thirteen** after this migration; twelve before it, and twelve _other_ than `events_price_min`                         |
+
+`events_description_len` (`20260902084656_event_description.sql:10`) is the twelfth; nothing has
+ever dropped a CHECK from `public.events`. The argument the numbers support is unharmed and in fact
+stronger — the more constraints share `23514`, the worse a bare `code === '23514'` arm in the
+composer would be — so the reasoning stands and only the arithmetic is superseded.
+
+The same "nine" was repeated in three still-editable files and was corrected in place there
+(`apps/native/src/app/(modal)/event-create.tsx`,
+`apps/native/src/lib/event-settlement-disclosure.test.ts`,
+`supabase/tests/0148_event_min_ticket_price.test.sql`); only this migration's copy is frozen.
+
+A second correction to the same sentence: `22003` is **not** unclaimed on this RPC. The check that
+produced that word was made against hand-raised codes only, and PostgreSQL raises `22003` natively
+when PostgREST casts an out-of-int4-range `p_capacity` — verified against staging, where
+`p_capacity: 99999999999` returns `{"code":"22003","message":"value \"99999999999\" is out of range
+for type integer"}` and a sub-floor price returns `{"code":"22003","message":"paid ticket below the
+minimum price"}`. The composer's arm is kept unambiguous by BOUNDING capacity in
+`eventCreateSchema`, not by the code being unique.
+
+Asserted by: `supabase/tests/0148_event_min_ticket_price.test.sql` (the floor's own arms) and
+`packages/schemas/src/event.test.ts` — «capacity is bounded to int4, so the composer's 22003 arm
+cannot be answering an overflow».
