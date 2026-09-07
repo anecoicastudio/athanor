@@ -13,11 +13,16 @@ import { describe, expect, it } from 'vitest';
  * nothing the BUYER does can fix. The map's own #104 comment describes that exact defect, because
  * the payout arm had already been through it once.
  *
- * So: every CLIENT-actionable refusal — a 4xx — owes copy. The 500s deliberately do not. A lookup
- * that failed, a seat claim that broke, a Stripe call that threw: those are «try again», they are
- * indistinguishable to the person, and `ticket.error.payment` is the honest answer to all of them.
- * Splitting on the status code is what makes this assertion mean something rather than being a
- * list someone has to remember to extend.
+ * So: every 4xx owes its own sentence, because a 4xx is a SPECIFIC refusal — the server knows
+ * exactly which gate said no. That is the rule, and it is deliberately not "refusals the buyer can
+ * act on": `ticket below minimum price` and `organizer cannot receive payouts` are both 4xx that
+ * the buyer can do nothing about, and saying so IS the copy's job. A future guard must not be
+ * dropped from the map on the grounds that its subject is the organiser.
+ *
+ * The 500s deliberately get nothing. A lookup that failed, a seat claim that broke, a Stripe call
+ * that threw: those are undifferentiated internal faults, indistinguishable to the person, and
+ * `ticket.error.payment` is the honest answer to all of them. Splitting on the status code is what
+ * makes this a rule rather than a list someone has to remember to extend.
  *
  * ERROR_COPY is not exported, so this reads both files as text — the source-audit idiom this app
  * uses for every UI guarantee (`environment: 'node'`, nothing renderable is collectable).
@@ -41,6 +46,20 @@ const clientRefusals = (source: string): string[] =>
 describe('every client-actionable checkout refusal has its own copy (#701)', () => {
   // Pinned before anything is compared: a regex that silently matched nothing would make the
   // assertion below `[] ⊆ anything` and leave this file decorative.
+  it('accounts for EVERY error() in the ladder, so no guard slips past the regex', () => {
+    // The floor and the anchors below catch a gross extraction failure; they would NOT catch one
+    // guard written as error(`…`, 400) with a template literal, which the message regex cannot
+    // see. This closes that: every error() call in the file must be a single-quoted literal with
+    // a numeric status, so a guard written any other way turns this red instead of vanishing.
+    const allCalls = [...LADDER.matchAll(/\berror\(/g)].length;
+    const literalCalls = [...LADDER.matchAll(/\berror\(\s*'[^']+'\s*,\s*\d{3}\s*\)/g)].length;
+    expect(allCalls).toBeGreaterThan(0);
+    expect(
+      literalCalls,
+      'an error() call is not a single-quoted literal + status; the extraction below cannot see it',
+    ).toBe(allCalls);
+  });
+
   it('finds the guard ladder and a non-trivial set of 4xx refusals', () => {
     const found = clientRefusals(LADDER);
     expect(found.length).toBeGreaterThanOrEqual(8);

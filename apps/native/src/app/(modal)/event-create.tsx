@@ -271,8 +271,8 @@ export default function EventCreateScreen() {
       const code = (e as { code?: unknown } | null)?.code;
       // #701 — 22003 is the floor arm, raised by create_event and by the insert trigger alike so
       // one mapping covers both write paths. The bare events_price_min CHECK raises 23514 instead
-      // and is deliberately NOT mapped: no path in this app updates a price, and twelve other CHECKs
-      // on `events` share that code, so an arm on it would mis-describe them.
+      // and is deliberately NOT mapped: no path in this app updates a price, and every other CHECK on
+      // `events` shares that code, so an arm on it would mis-describe them.
       // 22003 is not unique either — PostgREST raises it casting an out-of-int4 p_capacity — which
       // is why eventCreateSchema bounds capacity (MAX_EVENT_CAPACITY). Remove that and this arm
       // starts answering overflows with price copy.

@@ -110,7 +110,7 @@ describe('the settlement acknowledgement (#437)', () => {
     for (const code of ['22003', '42501', '55000']) {
       expect(s, `no arm for SQLSTATE ${code}`).toContain(`code === '${code}'`);
     }
-    // 23514 is the bare events_price_min CHECK, shared with twelve other CHECKs on `events` and
+    // 23514 is the bare events_price_min CHECK, shared with every other CHECK on `events` and
     // unreachable from this app (nothing here updates a price). An arm on it would mis-describe
     // an online event with no stream_url as a price problem.
     expect(s).not.toContain("code === '23514'");

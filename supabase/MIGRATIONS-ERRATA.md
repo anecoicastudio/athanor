@@ -1705,10 +1705,13 @@ ever dropped a CHECK from `public.events`. The argument the numbers support is u
 stronger — the more constraints share `23514`, the worse a bare `code === '23514'` arm in the
 composer would be — so the reasoning stands and only the arithmetic is superseded.
 
-The same "nine" was repeated in three still-editable files and was corrected in place there
-(`apps/native/src/app/(modal)/event-create.tsx`,
-`apps/native/src/lib/event-settlement-disclosure.test.ts`,
-`supabase/tests/0148_event_min_ticket_price.test.sql`); only this migration's copy is frozen.
+The same "nine" was repeated in three still-editable files. Those now carry **no numeral at all** —
+they say "every other CHECK on `events`" — per CLAUDE.md's _"No count that a command could
+produce"_: pinning thirteen in a test would redden on every legitimate new CHECK, and writing the
+number in prose is how "nine" got there in the first place. The invariant is what the argument
+needs; the count never was. Only this migration's copy is frozen, and the numbers above are a
+snapshot taken at `6164cb2`, kept because a correction record has to say what the wrong number
+should have been.
 
 A second correction to the same sentence: `22003` is **not** unclaimed on this RPC. The check that
 produced that word was made against hand-raised codes only, and PostgreSQL raises `22003` natively
@@ -1718,6 +1721,15 @@ for type integer"}` and a sub-floor price returns `{"code":"22003","message":"pa
 minimum price"}`. The composer's arm is kept unambiguous by BOUNDING capacity in
 `eventCreateSchema`, not by the code being unique.
 
-Asserted by: `supabase/tests/0148_event_min_ticket_price.test.sql` (the floor's own arms) and
-`packages/schemas/src/event.test.ts` — «capacity is bounded to int4, so the composer's 22003 arm
-cannot be answering an overflow».
+Asserted by, for the 22003 correction: `packages/schemas/src/event.test.ts` — «bounds capacity to
+int4, so the composer 22003 arm cannot be answering an overflow», which pins both edges of the
+bound; and `supabase/tests/0148_event_min_ticket_price.test.sql`, which holds the band, both write
+arms and the constraint definition.
+
+The COUNT correction has no test and deliberately gets none. That is the one claim here a test
+would ordinarily hold, and the reason it does not is the rule above: an assertion that
+`public.events` carries exactly thirteen CHECK constraints fails the next time someone adds a
+legitimate one, which is a test that punishes correct work. Removing the numeral from every
+editable copy is what makes the claim unable to rot — there is now nothing left in the tree that
+states a number for this, so nothing left to go stale. This section is the record of what the
+frozen line should have said, not a live claim.
