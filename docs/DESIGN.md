@@ -18,7 +18,7 @@
 
 1. **Calma ma potente.** Minimal, elegant, premium-but-human. No cheap effects. Spirituality is perceived through the esoteric glyph vocabulary and the mandorla, never shouted. The mandala gradient stays the brand mark (logo / animated hero); the cyan _glow_ — the shadow, never the flat framed surface — is reserved for moment-grade events; the rest of the UI stays calm and flat.
 2. **Air is the luxury.** Generous whitespace, few elements per screen, editorial pacing. The reference layouts win through restraint, not decoration.
-3. **Cyan is action + meaning (M0.5).** The `aura` cyan (`#2BD0D2`) is the primary action + meaning color: CTAs, send, compose hints, the ✦ mark, "me" chat bubbles, active chips, live indicators, countdown, lit stars. The discipline moved from a _color_ prohibition to a _glow_ one — reserve the cyan glow — the **shadow** (`auraGlow()`, `apps/native/src/lib/glow.ts`) laid over an `auraSoft`/`auraLine` surface — for moment-grade events (a waiting Momento, a lit star, dream helped, a match). The framed pair **without** a shadow (`border-aura-line bg-aura-soft`) is not a glow: it is the ordinary selected/active surface (a selected `Chip`, the active amount, a filter's on state), any control may take it, and a docblock that refuses it «because rule 4» is wrong (2026-09-07 ruling, §11). A flat cyan CTA is fine; a glowing cyan surface means something happened. (CLAUDE.md non-negotiable rule 4.)
+3. **Cyan is action + meaning (M0.5).** The `aura` cyan (`#2BD0D2`) is the primary action + meaning color: CTAs, send, compose hints, the ✦ mark, "me" chat bubbles, active chips, live indicators, countdown, lit stars. The discipline moved from a _color_ prohibition to a _glow_ one — reserve the cyan glow — the **shadow** (`auraGlow()`, `apps/native/src/lib/glow.ts`) laid over an `auraSoft`/`auraLine` surface — for moment-grade events (a waiting Momento, a lit star, a dream helped — the accepted offer, never the «Aiuta» CTA — a match). The framed pair **without** a shadow (`border-aura-line bg-aura-soft`) is not a glow: it is the ordinary selected/active surface (a selected `Chip`, the active amount, a filter's on state), any control may take it, and a docblock that refuses it «because rule 4» is wrong (2026-09-07 ruling, §11). A flat cyan CTA is fine; a glowing cyan surface means something happened. (CLAUDE.md non-negotiable rule 4.)
 4. **One dark world.** Near-black background canvas everywhere — public reading surfaces and the lived-in app alike: the night sky where stars light up. Moments, chat, profile. The transition in (login, app download, «Hai un Momento» push) is the _varco_ — the gate into a moment.
 5. **Thin lines only.** All illustration is 1px-stroke geometry: concentric circles (the ripples of the moment), vesica shapes, dotted spines, single small stars. Never filled illustrations, never stock photos, never icons-in-colored-circles.
 6. **No vanity metrics rendered.** No follower counts, no public reaction counts (author only). Mockups below comply.
@@ -293,8 +293,8 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 │  │               ◐ il primo cliente (in corso)                    │  │
 │  │               ○ un logo                                        │  │
 │  │                                                                │  │
-│  │              ( Fai accadere questo sogno )       ← aura pill —    │  │
-│  └────────────────────────────────────────────────  a moment ──── ┘  │
+│  │              ( Fai accadere questo sogno )       ← flat light —   │  │
+│  └────────────────────────────────────────────────  no glow (§9) ─ ┘  │
 │                                                                      │
 │   Bio · Missione · Competenze [service design] [branding] [coaching] │
 │   Eventi: 12 partecipati · 2 organizzati                             │
