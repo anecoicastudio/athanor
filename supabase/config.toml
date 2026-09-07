@@ -538,6 +538,9 @@ verify_jwt = false
 [functions.close-cycle]
 verify_jwt = false
 
+[functions.reconcile-payout-accounts]
+verify_jwt = false
+
 [functions.release-fund-payout]
 verify_jwt = false
 

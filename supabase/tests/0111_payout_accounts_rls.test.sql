@@ -1,6 +1,7 @@
 -- #245 — payout_accounts RLS: the Connect Express account cache (ruling #244).
 -- SRW posture: owner reads own; every client write raises 42501 (grant strips writes);
--- only service_role (the stripe-webhook account.updated branch) writes. One row per
+-- only service_role writes: the pointer row from create-payout-onboarding, and the capability
+-- columns from _shared/payout-account-cache.ts (W13's arm, and the #707 reconcile). One row per
 -- profile, one Stripe account per row. Zero Aura from anything here (rule #1).
 begin;
 
@@ -25,7 +26,7 @@ select ok(
 select policies_are('public', 'payout_accounts', array['payout_accounts_select_own'],
   'exactly the owner-select policy');
 
--- seed both accounts (service_role — the sole writer). Flags left to their defaults:
+-- seed both accounts (service_role — the only role that may write here). Flags left to defaults:
 -- the gate #247 reads must fail closed until the webhook says otherwise.
 set local role service_role;
 insert into public.payout_accounts (profile_id, stripe_account_id)

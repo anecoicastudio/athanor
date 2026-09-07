@@ -272,12 +272,60 @@ handler has since outgrown, so reconcile all three against the Dashboard wheneve
 re-taken. Read its "live config" label as _current configuration_, not
 live **mode**: everything in that table is the test-mode sandbox.
 
-**Re-taking it.** `stripe webhook_endpoints list --limit 100`, or Dashboard → Developers → Webhooks.
+**Re-taking it.** `pnpm payments endpoints` is the fastest read — it prints each endpoint's
+**scope**, names the Supabase project its URL points at, and raises a `⚠⚠` when the mode being read
+has no «Connected accounts» endpoint at all. It is the one command in that script permitted a live
+key, and only to read; `stripe()` refuses to pair the live key with anything but a bodyless GET.
+`stripe webhook_endpoints list --limit 100` and Dashboard → Developers → Webhooks answer the same
+question by hand. Scope is not a labelled field on the retrieved object: what distinguishes the two
+is `application`, which carries a `ca_…` Connect application id on a «Connected accounts» endpoint
+and `null` on an account one (`connect` exists only on create params).
+
 Run it **once per mode**, and note that the mode is never a filter you can see: the Dashboard's
 test/live toggle hides the other mode's endpoints entirely, and the CLI takes the mode from
 whichever key is configured (`--live` for the live set). That is precisely how a stale endpoint
 survives a review. Record the `we_…` id of anything kept — §4.1's recovery path
 (`stripe events resend <event_id> --webhook-endpoint=<id>`) needs it.
+
+#### When the cache is already wrong — `reconcile-payout-accounts` (#707)
+
+An endpoint created after an account has already onboarded does not catch up. A connected
+account's `account.updated` is delivered only to a «Connected accounts» endpoint, Stripe refuses
+endpoint-targeted resend for a connected account's events, and `payout_accounts`' capability
+columns are written by nothing else. So a completion event that fired into a window with no
+subscriber is gone, and the row stays wrong forever with **no failure anywhere** — an event that
+was never delivered leaves no row in `stripe_webhook_events`, which is why §4.1's backlog query
+cannot see this and never will.
+
+That happened on 2026-09-06: two organisers onboarded at 17:01 and 17:31 UTC, the connect-scoped
+endpoint was created at 18:31, and one row sat at `payouts_enabled = false` for a day while Stripe
+reported `true`. The organiser sees the Connect-your-account CTA forever and every refetch confirms
+it, because the screen re-reads the same stale table.
+
+`reconcile-payout-accounts` retrieves each account from Stripe and writes the cache through the
+same function the W13 arm uses. It is **internal service-role**, so the secret goes on the
+`apikey` header — never `Authorization`, which the platform parses as a JWT:
+
+```bash
+# every row
+curl -s -X POST "https://<project-ref>.supabase.co/functions/v1/reconcile-payout-accounts" \
+  -H "apikey: $SB_SECRET_KEY" -H 'Content-Type: application/json' -d '{}'
+
+# one account
+curl -s -X POST "https://<project-ref>.supabase.co/functions/v1/reconcile-payout-accounts" \
+  -H "apikey: $SB_SECRET_KEY" -H 'Content-Type: application/json' \
+  -d '{"stripeAccountId":"acct_…"}'
+```
+
+It answers `{checked, corrected, failed, outcomes}`; a `corrected` outcome names the flags on both
+sides, so the log says what moved. A Stripe failure on one account does not abort the rest.
+
+**Run it after** creating a webhook endpoint on an account that already has connected accounts,
+after any period where `stripe-webhook` was failing or its signing secret was unset, and whenever
+an organiser reports being stuck behind the payout CTA. **Nothing schedules it** — a `pg_cron`
+sweep is what would also catch the reverse case, a capability Stripe _revokes_ while the endpoint
+is down, which leaves the cache reading `true` and `release-fund-payout` transferring to an account
+that can no longer receive one. That is a separate decision with a migration behind it.
 
 #### Cutover — swap every `STRIPE_*` variable, not only the webhook secret
 
@@ -678,8 +726,9 @@ No delayed rail reaches a buyer, so the fail-closed guard is dormant. One standi
 
 - **The live-mode configuration is a separate object and has not been checked.** Test and live payment
   methods are configured independently, so nothing above is evidence about live. `pnpm payments` cannot
-  answer this one: it dies on any key that is not `sk_test_`, deliberately and with no override, because
-  even `offers` _mints_ a Checkout Session before reading the method list back. Read the live
+  answer this one: every command in it dies on any key that is not `sk_test_`, because even `offers`
+  _mints_ a Checkout Session before reading the method list back. The single exception is
+  `pnpm payments endpoints` (§4.2), which only reads. Read the live
   configuration in the Dashboard instead (Settings → Payment methods), and re-derive the per-surface
   filtering by hand from the two rules that do the filtering: **subscription mode drops every bank
   redirect** (Bancontact, EPS and the rest are unsupported in Checkout subscription mode, and in
