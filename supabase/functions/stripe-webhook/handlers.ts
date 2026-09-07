@@ -30,11 +30,26 @@ export type WebhookCtx = {
 };
 
 /**
- * Fail-closed settlement gate. Every payment method enabled on the account is an
+ * Fail-closed settlement gate. Every payment method a buyer can actually be SHOWN is an
  * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay, Bancontact,
  * EPS, and PayPal (Stripe permits only synchronous funding sources on PayPal unless you ask
  * Support to enable asynchronous ones). All of them carry the final outcome on
  * checkout.session.completed, so fulfilling there is safe.
+ *
+ * "Shown" is narrower than "enabled", and the gap is not academic: as of 2026-09-07 the test
+ * account's configuration also enables `giropay` and `blik`, and BLIK is a delayed-notification
+ * rail. Neither reaches a buyer today — giropay is retired by Stripe, and BLIK is PLN-only while
+ * every Session actually minted is EUR — so the guard stays dormant. Dormant is not enforced,
+ * though, and the distance is one argument. Only the contribution builder hardcodes EUR; a Circle
+ * Session inherits the Stripe Price's currency (Dashboard state, and the live prices are created
+ * at cutover) but subscription mode drops every bank redirect, BLIK included, so it cannot reach
+ * this guard. The ticket is the surface that can: it takes `event.currency`, which nothing pins to
+ * EUR. The column's check constraint
+ * (`20260615094844_events.sql`) and `packages/schemas/src/event.ts` both accept any three
+ * lowercase letters, and `packages/api/src/events.ts` forwards a non-default currency to
+ * `create_event` on purpose. So a PLN event would offer BLIK, and BLIK would arrive `unpaid` here.
+ * Turning both off in the Dashboard is the fix; `pnpm payments offers` prints the enabled set and
+ * the per-surface offered set side by side, and docs/RELEASE-RUNBOOK.md §4.8 is the operator copy.
  *
  * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
  * promote/retire machinery. But nothing in this repo selects payment methods — the create-*

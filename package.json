@@ -17,7 +17,8 @@
     "deploy:check": "node scripts/deploy-check.mjs",
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs",
     "staging:media": "node scripts/upload-staging-media.mjs",
-    "staging:refresh": "node scripts/staging-refresh.mjs"
+    "staging:refresh": "node scripts/staging-refresh.mjs",
+    "payments": "node scripts/payment-methods.mjs"
   },
   "devDependencies": {
     "prettier": "3.8.4",
