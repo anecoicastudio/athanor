@@ -537,6 +537,13 @@ and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagg
 > Stripe also returns an advisory on every `accounts.create`: _"We recommend building your integration
 > using Accounts v2."_ The current shape uses v1 controller properties, which is correct and supported;
 > migrating is a separate decision, not a launch item.
+>
+> **RESOLVED on the test account, later the same day; still unverified on live (2026-09-07).** Connect
+> was signed up for and `create-payout-onboarding` now succeeds: staging's `payout_accounts` carries two
+> real rows written at 17:01 and 17:31 on 2026-09-06, both with `capabilities.transfers = active`, and a
+> ticket Session carrying `payment_intent_data.transfer_data` mints without error. The blocker above
+> therefore applies to **production only**, which has no key on this machine and cannot be checked from
+> here — re-walk the organiser CTA against live before the release that carries #104.
 
 Since #104 a ticket Checkout Session carries `payment_intent_data.transfer_data.destination` (the
 organiser's connected account) and `payment_intent_data.application_fee_amount` (Athanor's
@@ -594,6 +601,119 @@ between authorisation and settlement, Stripe **skips the transfer** and the fund
 balance, signalled by `charge.updated` with a null `transfer_data`. Nothing here listens for that
 today. The ticket is issued and the organiser is not paid, and only a balance reconciliation would
 show it.
+
+### 4.8 Payment-method coverage — what a buyer is shown, and how each rail is proved (2026-09-07)
+
+Nothing in this repo selects payment methods. `create-ticket-checkout`, `create-contribution-session`
+and `create-circle-checkout` pass neither `payment_method_types` nor `payment_method_configuration` —
+`supabase/functions/stripe-webhook/handlers.ts` says so at `assertSettled`. The **Stripe Dashboard's
+payment-method configuration is the only control**, it is account state rather than repo state, and no
+test in CI can see it. A green pipeline says nothing about which rails a member can pay with.
+
+It is worse than a single unseen switch, because the enabled set is not the offered set. Stripe filters
+per Session by currency, by mode, and by charge shape, and every filter is silent:
+
+```
+pnpm payments offers
+```
+
+mints one throwaway Session per surface with its builder's shape, reads back the
+`payment_method_types` Stripe computed, and expires it. As of 2026-09-07, test mode:
+
+| surface             | Session shape                          | what the buyer is shown                     |
+| ------------------- | -------------------------------------- | ------------------------------------------- |
+| fund contribution   | `mode: payment`, EUR                   | card, Bancontact, EPS, Link, **PayPal**     |
+| Circle              | `mode: subscription`, EUR              | card, Link, **PayPal**                      |
+| event ticket (#104) | `mode: payment` + `transfer_data`, EUR | card, Bancontact, EPS, Link — **no PayPal** |
+
+Three things that table is the only way to learn:
+
+- **PayPal is silently absent on ticket purchases.** PayPal's Connect support is _"Partial — requires
+  manual approval"_, so Stripe drops it from any Session carrying `payment_intent_data.transfer_data`.
+  Nothing errors; the button is simply not drawn. Ask Stripe for Connect approval or accept the gap,
+  but do not discover it from a member's mail.
+- **Bank redirects never reach Circle.** Bancontact and EPS are unsupported in Checkout subscription
+  mode (and in Subscriptions generally except `send_invoice`), so recurring is card, Link, PayPal — and
+  PayPal recurring _"might require approval"_ too, which is the one Circle rail still worth proving.
+- **Apple Pay and Google Pay never appear in `payment_method_types`.** They ride `card` and surface per
+  device. Their absence from the list is not a defect and their presence cannot be inferred from it —
+  the only proof is `payment_method_details.card.wallet.type` on the charge after a real wallet tap,
+  which `pnpm payments check` prints.
+
+#### Every offered rail is inside the settlement standard
+
+`assertSettled` fulfils on `checkout.session.completed` and throws on anything not already `paid`, so
+the whole design rests on every reachable method being an **immediate-notification** one. Verified
+against each method's Stripe documentation on 2026-09-07:
+
+| method             | notification  | refunds     | disputes       |
+| ------------------ | ------------- | ----------- | -------------- |
+| card               | immediate     | yes         | yes            |
+| Apple / Google Pay | = card        | yes         | yes            |
+| Link               | immediate     | yes         | yes            |
+| PayPal             | **immediate** | yes (180 d) | yes            |
+| Bancontact         | **immediate** | yes (730 d) | no chargebacks |
+| EPS                | **immediate** | yes (180 d) | no chargebacks |
+
+No delayed rail reaches a buyer today, so the fail-closed guard is correct and dormant. Two standing
+conditions on that:
+
+- **`blik` and `giropay` are enabled in the configuration and should be turned off, in test and in
+  live.** giropay is retired by Stripe and BLIK is PLN-only, so neither renders for EUR — but BLIK is a
+  delayed-notification rail, which means the day anything here presents PLN it would arrive `unpaid`
+  and start the 5xx spiral §4.1 exists to catch. Dead config that is also a landmine.
+- **The live-mode configuration is a separate object and has not been checked.** Test and live payment
+  methods are configured independently. Run `pnpm payments offers` against the live account, read-only,
+  before the release that opens payments — it is the same walk with a different key.
+
+#### Proving a rail, one at a time
+
+A drawn button proves nothing. Three things fail independently — Stripe's `payment_status`, the
+`stripe_webhook_events` row's `processed_at`, and the row the handler was supposed to write — and a
+rail is verified only when all three hold. Test-mode webhooks already point at staging, so the loop is
+real end to end.
+
+```
+pnpm payments accounts                                     # the connected account for --dest
+pnpm payments mint contribution --profile <uuid> --edition <uuid> --amount 500
+pnpm payments mint ticket --profile <uuid> --event <uuid> --dest acct_…
+pnpm payments mint circle --profile <uuid> --price price_…
+# pay the printed URL in a browser, then
+pnpm payments check cs_test_…
+```
+
+`mint` carries the real `metadata.kind` / `metadata.profile_id`, so the webhook treats the payment as
+genuine and writes to staging. That is the point — a probe that skips the webhook proves only that
+Stripe works.
+
+| rail           | what to do at Checkout                                                                                                                                                  | needs          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| card           | `4242 4242 4242 4242`, any future expiry and CVC                                                                                                                        | —              |
+| card + 3DS     | `4000 0025 0000 3155`, complete the challenge                                                                                                                           | —              |
+| card declined  | `4000 0000 0000 0002` — assert **no** row is written                                                                                                                    | —              |
+| Link           | any email and phone; test-mode verification code `000000`                                                                                                               | —              |
+| PayPal         | test mode redirects to a Stripe-hosted simulator, not real PayPal — authorise there                                                                                     | —              |
+| Bancontact     | Stripe test page → "Authorize test payment"; run again → "Fail test payment"                                                                                            | —              |
+| EPS            | choose a test bank → authorise, then a second run → fail                                                                                                                | —              |
+| **Apple Pay**  | Safari on iPhone or Mac with a real card in Wallet. Test mode does not charge it. Hosted Checkout runs on Stripe's domain, so there is no Apple Pay domain to register. | an iPhone      |
+| **Google Pay** | Chrome signed into a Google account with any card                                                                                                                       | desktop Chrome |
+
+Run each rail on each surface that offers it — 5 for contributions, 4 for tickets, 3 for Circle. Pass
+means `payment_status: paid`, `processed_at` not null, and the target row present
+(`fund_contributions` / `event_tickets` / `circle_memberships`). Two out of three is a failure, and
+which two tells you where to look.
+
+#### The three tests beyond the happy path
+
+- **Refund** — `stripe refunds create --payment-intent pi_…` fires `charge.refunded`. For a ticket read
+  §4.7 first: the flags are not the Dashboard's defaults.
+- **Dispute** — pay with `4000 0000 0000 0259` to fire `charge.dispute.created`. Card only; PayPal
+  disputes cannot be simulated in test mode.
+- **The fail-closed alarm, once.** Enable SEPA in the **test** Dashboard, pay with it, and confirm the
+  webhook answers 500 with `processed_at` left NULL — that is `assertSettled` working. Then disable it
+  and replay the event. Do not leave it enabled: sustained 5xx makes Stripe disable the endpoint, which
+  also kills `charge.refunded` and `charge.dispute.created`, and §4.1 explains why that turns a loud
+  guard into a silent over-count of the public fund ticker.
 
 ## 5. Apple IAP / Stripe Compliance Posture (S-IAP-1 … S-IAP-4)
 
