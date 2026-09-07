@@ -710,9 +710,13 @@ is a failure, and which two tells you where to look.
 
 Read the ledger read carefully, because its two failure shapes have different causes. A row present
 with `processed_at` **NULL** means the handler threw — §4.1's alarm, and the event is queryable and
-retrying. **No row at all** means Stripe never delivered the event: the endpoint is missing, disabled,
-or scoped wrong (§4.2 has the inventory). The first is a code or data problem, the second is Dashboard
-state, and only the second can look identical to "the rail does not work" while the rail is fine.
+retrying. **No row at all** has two causes, both outside the code: either Stripe never delivered the
+event (endpoint missing, disabled, or scoped wrong — §4.2 has the inventory), or it delivered and the
+signature check refused it, which answers 400 and returns _before_ the ledger write, so nothing is
+recorded. A wrong or unset `STRIPE_WEBHOOK_SECRET` is the second one, and §4.2 records it as
+production's deliberate interim state — so at cutover it is the likelier of the two. Check the
+endpoint's recent deliveries in the Dashboard: a 400 there distinguishes them immediately. Only these
+can look identical to "the rail does not work" while the rail is fine.
 
 #### The three tests beyond the happy path
 

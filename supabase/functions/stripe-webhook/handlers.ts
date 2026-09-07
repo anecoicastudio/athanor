@@ -40,8 +40,11 @@ export type WebhookCtx = {
  * account's configuration also enables `giropay` and `blik`, and BLIK is a delayed-notification
  * rail. Neither reaches a buyer today — giropay is retired by Stripe, and BLIK is PLN-only while
  * every Session actually minted is EUR — so the guard stays dormant. Dormant is not enforced,
- * though, and the distance is one argument: contribution and Circle Sessions hardcode EUR, but a
- * ticket takes `event.currency`, which nothing pins to it. The column's check constraint
+ * though, and the distance is one argument. Only the contribution builder hardcodes EUR; a Circle
+ * Session inherits the Stripe Price's currency (Dashboard state, and the live prices are created
+ * at cutover) but subscription mode drops every bank redirect, BLIK included, so it cannot reach
+ * this guard. The ticket is the surface that can: it takes `event.currency`, which nothing pins to
+ * EUR. The column's check constraint
  * (`20260615094844_events.sql`) and `packages/schemas/src/event.ts` both accept any three
  * lowercase letters, and `packages/api/src/events.ts` forwards a non-default currency to
  * `create_event` on purpose. So a PLN event would offer BLIK, and BLIK would arrive `unpaid` here.
