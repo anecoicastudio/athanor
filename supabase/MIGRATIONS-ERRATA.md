@@ -1734,3 +1734,27 @@ editable copy is what makes the claim unable to rot — there is now nothing out
 states a number for this, so nothing left to go stale. The table above states three, and is the
 snapshot this section exists to be. This section is the record of what the
 frozen line should have said, not a live claim.
+
+## Three migrations — "counsel's retention answer (#184)" was answered by the controller, not counsel
+
+Three applied headers hand the erasure retention question to a lawyer:
+
+| migration                                               | lines    | quote                                                                                                          |
+| ------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `20260823073258_gdpr_erasure_partial_status.sql`        | `:7`     | «deleting auth.users is gated on counsel's retention answer (#184)»                                            |
+| `20260815131925_gdpr_fund_erasure_tombstone.sql`        | `:6-7`   | «The retention window for the tombstoned rows is counsel's answer (#184) and is deliberately NOT encoded here» |
+| `20260813163902_messages_user_shape_deleted_sender.sql` | `:20-21` | «a future, counsel-gated decision (#184)»                                                                      |
+
+On 2026-09-07 Marco, as data controller, ruled the question himself and #184 closed without
+counsel being engaged (its closing comment is the ruling): payment rows — `event_tickets`,
+`circle_memberships`, `fund_contributions`, `stripe_webhook_events`, the payout ledger — are
+**pseudonymised and kept 10 years** (art. 2220 c.c.; DPR 600/1973 art. 22), everything else is
+deleted on request, and counterpart conversations are **not** preserved. Read «counsel's answer»
+in all three as «the controller's 2026-09-07 ruling». What the SQL does is unchanged and was
+never wrong: the tombstone still encodes no window, and `auth.users` deletion is still gated —
+now on #107 implementing the ruling and scheduling the job, not on a lawyer.
+
+Asserted by: `supabase/tests/0104_gdpr_fund_erasure.test.sql` (tombstone keeps the money columns,
+loses the identity), `0058_gdpr_erasure_requests_rls.test.sql` (the request table's `partial`
+status and client surface), `0137_gdpr_storage_footprint.test.sql` (bytes deleted on request).
+The 10-year figure has no test yet, deliberately: nothing encodes it until #107's reaper does.
