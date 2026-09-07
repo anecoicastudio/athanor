@@ -1730,6 +1730,7 @@ The COUNT correction has no test and deliberately gets none. That is the one cla
 would ordinarily hold, and the reason it does not is the rule above: an assertion that
 `public.events` carries exactly thirteen CHECK constraints fails the next time someone adds a
 legitimate one, which is a test that punishes correct work. Removing the numeral from every
-editable copy is what makes the claim unable to rot — there is now nothing left in the tree that
-states a number for this, so nothing left to go stale. This section is the record of what the
+editable copy is what makes the claim unable to rot — there is now nothing outside this section that
+states a number for this, so nothing left to go stale. The table above states three, and is the
+snapshot this section exists to be. This section is the record of what the
 frozen line should have said, not a live claim.

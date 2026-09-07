@@ -41,9 +41,9 @@ const captures = (source: string, re: RegExp): string[] => [
 
 /** `error('some message', 409)` → the message, for 4xx only. */
 const clientRefusals = (source: string): string[] =>
-  captures(source, /\berror\(\s*'([^']+)'\s*,\s*4\d{2}\s*\)/g);
+  captures(source, /(?:^|[^.\w])error\(\s*'([^']+)'\s*,\s*4\d{2}\s*\)/g);
 
-describe('every client-actionable checkout refusal has its own copy (#701)', () => {
+describe('every checkout refusal has its own copy (#701)', () => {
   // Pinned before anything is compared: a regex that silently matched nothing would make the
   // assertion below `[] ⊆ anything` and leave this file decorative.
   it('accounts for EVERY error() in the ladder, so no guard slips past the regex', () => {
@@ -51,8 +51,12 @@ describe('every client-actionable checkout refusal has its own copy (#701)', () 
     // guard written as error(`…`, 400) with a template literal, which the message regex cannot
     // see. This closes that: every error() call in the file must be a single-quoted literal with
     // a numeric status, so a guard written any other way turns this red instead of vanishing.
-    const allCalls = [...LADDER.matchAll(/\berror\(/g)].length;
-    const literalCalls = [...LADDER.matchAll(/\berror\(\s*'[^']+'\s*,\s*\d{3}\s*\)/g)].length;
+    // `[^.\w]` rather than `\b`: `console.` ends on a non-word character, so `\b` would count
+    // `console.error(` as a refusal and redden this on a legitimate log line — the same class of
+    // confusing-red that makes people delete guards.
+    const allCalls = [...LADDER.matchAll(/(?:^|[^.\w])error\(/g)].length;
+    const literalCalls = [...LADDER.matchAll(/(?:^|[^.\w])error\(\s*'[^']+'\s*,\s*\d{3}\s*\)/g)]
+      .length;
     expect(allCalls).toBeGreaterThan(0);
     expect(
       literalCalls,
@@ -79,7 +83,7 @@ describe('every client-actionable checkout refusal has its own copy (#701)', () 
   it('leaves the 500s unmapped on purpose — they really are «try again»', () => {
     // The converse assertion. Without it, "map everything" would satisfy the test above and the
     // distinction this file is built on would quietly stop being a distinction.
-    const failures = captures(LADDER, /\berror\(\s*'([^']+)'\s*,\s*500\s*\)/g);
+    const failures = captures(LADDER, /(?:^|[^.\w])error\(\s*'([^']+)'\s*,\s*500\s*\)/g);
     expect(failures.length).toBeGreaterThan(0);
     for (const msg of failures) {
       expect(BAR, `${msg} is a 500; it should fall through to ticket.error.payment`).not.toContain(
