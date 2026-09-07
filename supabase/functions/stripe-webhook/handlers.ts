@@ -31,32 +31,28 @@ export type WebhookCtx = {
 
 /**
  * Fail-closed settlement gate. Every payment method a buyer can actually be SHOWN is an
- * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay, Bancontact,
- * EPS, and PayPal (Stripe permits only synchronous funding sources on PayPal unless you ask
- * Support to enable asynchronous ones). All of them carry the final outcome on
- * checkout.session.completed, so fulfilling there is safe.
+ * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay and PayPal
+ * (Stripe permits only synchronous funding sources on PayPal unless you ask Support to enable
+ * asynchronous ones). All of them carry the final outcome on checkout.session.completed, so
+ * fulfilling there is safe.
  *
- * "Shown" is narrower than "enabled", and the gap is not academic: as of 2026-09-07 the test
- * account's configuration also enables `giropay` and `blik`, and BLIK is a delayed-notification
- * rail. Neither reaches a buyer today — giropay is retired by Stripe, and BLIK is PLN-only while
- * every Session actually minted is EUR — so the guard stays dormant. Dormant is not enforced,
- * though, and the distance is one argument. Only the contribution builder hardcodes EUR; a Circle
- * Session inherits the Stripe Price's currency (Dashboard state, and the live prices are created
- * at cutover) but subscription mode drops every bank redirect, BLIK included, so it cannot reach
- * this guard. The ticket is the surface that can: it takes `event.currency`, which nothing pins to
- * EUR. The column's check constraint
- * (`20260615094844_events.sql`) and `packages/schemas/src/event.ts` both accept any three
- * lowercase letters, and `packages/api/src/events.ts` forwards a non-default currency to
- * `create_event` on purpose. So a PLN event would offer BLIK, and BLIK would arrive `unpaid` here.
- * Turning both off in the Dashboard is the fix; `pnpm payments offers` prints the enabled set and
- * the per-surface offered set side by side, and docs/RELEASE-RUNBOOK.md §4.8 is the operator copy.
+ * "Shown" is narrower than "enabled", and it is the narrower set that matters: Stripe filters the
+ * configuration per Session by currency, by mode and by charge shape, silently. `pnpm payments
+ * offers` prints the enabled set and each surface's offered set side by side — it is the only
+ * honest answer to which rails a buyer sees, and docs/RELEASE-RUNBOOK.md §4.8 is the operator copy.
+ *
+ * The TEST account was narrowed on 2026-09-07 to card, Link, PayPal and the two wallets; BLIK,
+ * Bancontact and EPS were disabled there and giropay is retired by Stripe. So no rail below is
+ * reachable in test today. Live is a separate configuration and has not been checked — see
+ * docs/RELEASE-RUNBOOK.md §4.8. All of that is Dashboard state, not repo state, and CI cannot see
+ * it, which is the whole reason this guard exists rather than a comment promising otherwise.
  *
  * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
  * promote/retire machinery. But nothing in this repo selects payment methods — the create-*
  * builders pass neither payment_method_types nor payment_method_configuration — so the Stripe
  * Dashboard's payment-method configuration is the ONLY control. If someone enables a
- * delayed-notification rail there (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, BLIK, Boleto,
- * OXXO, Konbini, Multibanco, bank transfers), payment_status arrives 'unpaid' and this throws:
+ * delayed-notification rail there (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, Boleto, OXXO,
+ * Konbini, Multibanco, bank transfers), payment_status arrives 'unpaid' and this throws:
  * handleWebhook releases the lease and returns 500, Stripe retries, and the event stays in
  * stripe_webhook_events with processed_at NULL — a standing, queryable alarm. No QR is signed,
  * no money is counted, and the misconfiguration is loud.
