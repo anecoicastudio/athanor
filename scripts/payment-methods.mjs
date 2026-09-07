@@ -3,6 +3,7 @@
 //
 //   pnpm payments offers
 //   pnpm payments accounts
+//   pnpm payments endpoints
 //   pnpm payments mint contribution --profile <uuid> --edition <uuid> [--amount 500]
 //   pnpm payments mint ticket       --profile <uuid> --event <uuid> --dest acct_… [--price 2000 --fee 200]
 //   pnpm payments mint circle       --profile <uuid> --price price_…
@@ -66,13 +67,20 @@ const die = (msg) => {
 // ── credentials ────────────────────────────────────────────────────────────────
 
 /**
- * The Stripe TEST secret key, from $STRIPE_SECRET_KEY or `supabase/.env`.
+ * The Stripe secret key, from $STRIPE_SECRET_KEY or `supabase/.env`.
  *
- * The `sk_test_` assertion is the whole safety model of this file. Every other guard here is
- * about aiming at the right project; this one is about the difference between minting a
- * throwaway Session and charging a member's card. It is not overridable.
+ * The `sk_test_` assertion is the whole safety model of this file: every command here except one
+ * WRITES — it mints Checkout Sessions and expires them — and that is the difference between a
+ * throwaway Session and charging a member's card.
+ *
+ * `allowLive` lifts it for exactly one caller, `endpoints`, and `stripe()` refuses to pair it
+ * with anything but a GET. The webhook-endpoint inventory is the one question whose whole point
+ * is the live account: a signing secret is per endpoint AND per mode, the Dashboard's toggle
+ * hides the other mode's endpoints entirely, and §4.2 of the runbook exists because a stale
+ * endpoint survived exactly that blind spot. A read that cannot create, modify or charge anything
+ * is worth having against live; nothing else here is. Do not widen this.
  */
-function stripeKey() {
+function stripeKey(allowLive = false) {
   const fromEnv = process.env.STRIPE_SECRET_KEY?.trim();
   const envFile = join(REPO_ROOT, 'supabase', '.env');
   const fromFile = existsSync(envFile)
@@ -88,9 +96,9 @@ function stripeKey() {
     die(
       `no Stripe key. Either export STRIPE_SECRET_KEY=sk_test_… or put it in supabase/.env.\nThis is the test-mode key; the live key must never be used with this script.`,
     );
-  if (!key.startsWith('sk_test_'))
+  if (!key.startsWith('sk_test_') && !allowLive)
     die(
-      `refusing: the resolved Stripe key is not sk_test_… . This script mints and expires Checkout\nSessions and is test-mode only. There is no flag to override this.`,
+      `refusing: the resolved Stripe key is not sk_test_… . This script mints and expires Checkout\nSessions and is test-mode only. Only \`endpoints\` accepts a live key, and only to read.`,
     );
   return key;
 }
@@ -120,12 +128,20 @@ This is the operator's own account credential, not a project secret.`);
 
 // ── transports ─────────────────────────────────────────────────────────────────
 
-/** Stripe form-encoded request. `body` is a flat map of already-bracketed Stripe param paths. */
-async function stripe(method, path, body) {
+/**
+ * Stripe form-encoded request. `body` is a flat map of already-bracketed Stripe param paths.
+ *
+ * `opts.allowLive` is honoured only on a GET. That pairing is asserted here rather than trusted
+ * to the call site, so a later edit cannot turn a live-capable read into a live write by adding a
+ * body to it.
+ */
+async function stripe(method, path, body, opts = {}) {
+  if (opts.allowLive && (method !== 'GET' || body))
+    die('refusing: allowLive is for read-only GETs. This call would write.');
   const res = await fetch(`https://api.stripe.com/v1${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${stripeKey()}`,
+      Authorization: `Bearer ${stripeKey(opts.allowLive)}`,
       ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
     },
     body: body ? new URLSearchParams(body).toString() : undefined,
@@ -272,6 +288,58 @@ async function cmdOffers() {
 Apple Pay and Google Pay never appear above: they ride \`card\` and surface per device.
 A method enabled in the configuration but missing from a surface was filtered by Stripe —
 currency, mode, or charge shape. See docs/RELEASE-RUNBOOK.md §4.8.
+`);
+}
+
+/**
+ * The webhook-endpoint inventory (#707, #702) — which endpoints exist, and at which SCOPE.
+ *
+ * Scope is fixed at creation and decides what an endpoint can ever receive: a connected
+ * account's `account.updated` is delivered ONLY to a «Connected accounts» endpoint, and that arm
+ * is the sole writer of the payout_accounts capability cache. On 2026-09-06 an organiser's
+ * completion event fired 49 minutes before such an endpoint existed, so it went nowhere and the
+ * row sat wrong for a day with nothing to show for it — an event that was never delivered leaves
+ * no failure anywhere. This prints the state that mistake was invisible in.
+ *
+ * The mode comes from the key, and it is not a filter you can see: the Dashboard's test/live
+ * toggle hides the other mode's endpoints entirely. Run it once per mode. This is the only
+ * command that accepts a live key, and it only reads — see stripeKey().
+ */
+async function cmdEndpoints() {
+  const { data } = await stripe('GET', '/webhook_endpoints?limit=100', undefined, {
+    allowLive: true,
+  });
+  const live = !stripeKey(true).startsWith('sk_test_');
+  console.log(`\nStripe webhook endpoints — ${live ? 'LIVE' : 'TEST'} mode (read-only)\n`);
+  if (!data.length) console.log('  (none)');
+
+  let connectScoped = 0;
+  for (const e of data) {
+    const scope = e.application || e.connect ? 'Connected accounts' : 'Your account';
+    if (scope === 'Connected accounts') connectScoped += 1;
+    const project = e.url.match(/https:\/\/([a-z]+)\.supabase\.co/)?.[1] ?? '—';
+    const known = { [STAGING_REF]: 'staging', [PRODUCTION_REF]: 'PRODUCTION' }[project];
+    console.log(
+      `  ${e.id}  ${e.status.padEnd(8)} ${scope.padEnd(19)} ${e.enabled_events.length} events`,
+    );
+    console.log(`    ${e.url}`);
+    console.log(
+      `    project: ${known ?? (project === '—' ? 'not a Supabase URL — identify it or delete it' : `${project} (unrecognised ref)`)}`,
+    );
+  }
+
+  if (connectScoped === 0)
+    console.log(`
+  \u26a0\u26a0 NO «Connected accounts» endpoint in this mode. account.updated is delivered nowhere,
+     so payout_accounts capability flags will never be written and every organiser stays
+     unpayable. Create it BEFORE the first onboarding — a completion event that fires with no
+     subscriber is not redeliverable (Stripe refuses endpoint-targeted resend for a connected
+     account's events). See docs/RELEASE-RUNBOOK.md \u00a74.2.`);
+
+  console.log(`
+Scope is fixed at creation and a signing secret is per endpoint AND per mode, so each scope needs
+its own \`whsec_\u2026\` \u2014 STRIPE_WEBHOOK_SECRET and STRIPE_CONNECT_WEBHOOK_SECRET. Run this once per
+mode; the key decides which one you are looking at.
 `);
 }
 
@@ -423,6 +491,7 @@ const usage = () =>
   die(`usage:
   pnpm payments offers
   pnpm payments accounts
+  pnpm payments endpoints
   pnpm payments mint contribution --profile <uuid> --edition <uuid> [--amount 500]
   pnpm payments mint ticket       --profile <uuid> --event <uuid> --dest acct_… [--price 2000 --fee 200]
   pnpm payments mint circle       --profile <uuid> --price price_…
@@ -438,6 +507,9 @@ switch (command) {
     break;
   case 'accounts':
     await cmdAccounts();
+    break;
+  case 'endpoints':
+    await cmdEndpoints();
     break;
   case 'mint':
     await cmdMint(positional[0], flags);

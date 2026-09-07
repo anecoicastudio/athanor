@@ -433,15 +433,55 @@ L51) names the webhook as the table's only writer. The **initial row** is writte
 `{profile_id, stripe_account_id}` pointer at account-creation time — waiting for the first
 `account.updated` event would leave a window in which a retry mints a second Express account
 for the same profile. So the function inserts the pointer row through the service-role client
-(the table's SRW posture is unchanged — clients still have no write path), and the webhook
-remains the only writer of the **state** columns (`charges_enabled`, `payouts_enabled`,
-`onboarded_at`).
+(the table's SRW posture is unchanged — clients still have no write path).
+
+**Amended 2026-09-07 (#707).** This entry previously ended "and the webhook remains the only
+writer of the **state** columns (`charges_enabled`, `payouts_enabled`, `onboarded_at`)". That is
+no longer true either. Those columns are written by exactly one _function_ —
+`handleAccountUpdated`, now in `supabase/functions/_shared/payout-account-cache.ts` — but it has
+two callers: the W13 `account.updated` arm, and `reconcile-payout-accounts`, which retrieves the
+account from Stripe and passes it to the same handler. The reconcile exists because a delivery
+that never happens leaves no trace: on 2026-09-06 an organiser's completion event fired 49
+minutes before the «Connected accounts» endpoint existed, and nothing in the system could notice.
+Stripe is still the sole source of truth for all three columns (rule #6) — the change is that we
+may now _ask_ rather than only being told. Read the invariant as **one writer, two callers**.
 
 Verified behaviour lives in `supabase/functions/create-payout-onboarding/logic.test.ts` (the
 insert carries only the two pointer columns; the 23505 race re-reads the winner) and
 `supabase/functions/stripe-webhook/handlers.test.ts` (W13 — flags both directions,
 `onboarded_at` set-once, unmatched account acked). Client denial is unchanged and stays
 asserted by `supabase/tests/0111_payout_accounts_rls.test.sql`.
+
+---
+
+## `20260906141227_ticket_split_payout_gate.sql:29-31` — "charges_enabled is false on these accounts forever" is false
+
+The comment above `has_payouts_enabled` explains the choice of flag by asserting that because
+`create-payout-onboarding` requests only the `transfers` capability, `charges_enabled` "is false
+on these accounts forever". Both staging connected accounts report `charges_enabled: true` from
+Stripe's own `/v1/accounts`, and their cached rows agree:
+
+| account                 | capabilities             | charges_enabled |
+| ----------------------- | ------------------------ | --------------- |
+| `acct_1UCjRULodilJxQHS` | `{"transfers":"active"}` | `true`          |
+| `acct_1UCjucPuFctf3F8i` | `{"transfers":"active"}` | `true`          |
+
+The _choice_ the comment defends is still right — `payouts_enabled` is the correct flag for this
+gate, and gating on `charges_enabled` would have been wrong for a different reason. What is wrong
+is the reason given. Requesting only `transfers` does not pin `charges_enabled` to false; Stripe
+sets it from the account's own state.
+
+This matters beyond a comment, because one path gates on it: `release-fund-payout` refuses
+`payout account not ready` (409) unless **both** flags are true
+(`supabase/functions/release-fund-payout/logic.ts`). Under the retracted reading that gate could
+never open, which would have made the whole payout rail dead code. It is not — it opens, and it
+opens correctly.
+
+The same claim appears in `packages/api/src/payouts.ts`'s `getMyPayoutAccount` docblock, which is
+corrected in the same change. `charges_enabled` stays out of that function's return type, but for
+the honest reason: nothing in the app should gate on it, so it is parsed and not exposed.
+
+Verified 2026-09-07 against the hosted staging project and Stripe's API.
 
 ---
 

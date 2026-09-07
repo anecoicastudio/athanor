@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { signQrToken } from '../_shared/qr.ts';
+import { handleAccountUpdated } from '../_shared/payout-account-cache.ts';
 
 // Webhook processing extracted from index.ts so it is unit-testable (deno test):
 // index.ts reads env / builds the Stripe + service-role singletons at import time and
@@ -555,48 +556,13 @@ export async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Prom
 }
 
 /**
- * W13 — account.updated: maintain the payout_accounts cache (#245/#246) as Stripe walks the
- * Express account through KYC. Both directions on purpose: Stripe grants AND revokes
- * capabilities (new requirements past their deadline flip payouts_enabled back to false), and
- * #247's transfer gate must fail closed on the revocation, not just open on the grant.
- * Update-only, matched on stripe_account_id: the row is inserted by create-payout-onboarding,
- * so an unmatched id means the account is not ours or the profile was erased and the row
- * cascaded away — recreating it would resurrect a deleted profile's pointer. Ack either way.
- * Idempotent: a redelivery rewrites the same flags, and onboarded_at is guarded set-once.
- *
- * `eventAccountId` is the delivery's top-level `event.account` (#702). Stripe sets it on every
- * connected-account event, and only a «Connected accounts»-scoped endpoint receives one — which
- * is why this arm had never fired. For account.updated it equals `account.id`, so preferring it
- * changes nothing today; it is here because the event, not its data object, is what Stripe
- * guarantees names the account, and an arm keyed on the guarantee survives a re-scope.
+ * W13 — account.updated. The implementation moved to `_shared/payout-account-cache.ts` when #707
+ * gave it a second caller: `reconcile-payout-accounts` retrieves an account from Stripe and
+ * writes the same three columns through the same function, so there is still exactly one writer
+ * of the payout_accounts cache. Re-exported here because W13 is a webhook arm and this file is
+ * where the arm table lives — see the switch below, and handlers.test.ts, which is unchanged.
  */
-export async function handleAccountUpdated(
-  db: Db,
-  account: Stripe.Account,
-  eventAccountId?: string,
-): Promise<void> {
-  const stripeAccountId = eventAccountId ?? account.id;
-  const { error: updErr } = await db
-    .from('payout_accounts')
-    .update({
-      charges_enabled: !!account.charges_enabled,
-      payouts_enabled: !!account.payouts_enabled,
-    })
-    .eq('stripe_account_id', stripeAccountId);
-  if (updErr) throw updErr;
-
-  // onboarded_at means "when onboarding completed", not "last account event": stamp it on the
-  // first event with details_submitted and never move it — the is-null guard makes replays
-  // and later capability events no-ops here.
-  if (account.details_submitted) {
-    const { error: onbErr } = await db
-      .from('payout_accounts')
-      .update({ onboarded_at: new Date().toISOString() })
-      .eq('stripe_account_id', stripeAccountId)
-      .is('onboarded_at', null);
-    if (onbErr) throw onbErr;
-  }
-}
+export { handleAccountUpdated } from '../_shared/payout-account-cache.ts';
 
 /**
  * W14 — transfer.created: RECORD the fund payout the release path requested (#247, rule #6:

@@ -34,10 +34,16 @@ export type MyPayoutAccount = {
  * No row is a legitimate answer, not an error: an organiser who has never opened the onboarding
  * flow simply has none, and that is the state the composer's CTA exists for.
  *
- * `charges_enabled` is read and deliberately not exposed. create-payout-onboarding requests only
- * the `transfers` capability, so that flag never becomes true on these accounts and anything that
- * gated on it would refuse every organiser forever. It stays in the parse so a schema drift is
- * still caught, and out of the return type so nothing can accidentally gate on it.
+ * `charges_enabled` is read and deliberately not exposed — but not for the reason this docblock
+ * used to give. It claimed the flag "never becomes true on these accounts" because
+ * create-payout-onboarding requests only the `transfers` capability; both staging connected
+ * accounts report `charges_enabled: true` from Stripe, so that was simply wrong (see
+ * `supabase/MIGRATIONS-ERRATA.md`, `20260906141227_ticket_split_payout_gate.sql:29-31`). The real
+ * reason is narrower and still holds: nothing in the app should gate on it. A recipient account's
+ * ability to take charges says nothing about an organiser's ability to be paid, which is what
+ * every consumer here actually asks. It stays in the parse so a schema drift is still caught, and
+ * out of the return type so nothing can accidentally gate on it. `release-fund-payout` does read
+ * it, server-side, where the question is different.
  */
 export async function getMyPayoutAccount(client: AthanorClient): Promise<MyPayoutAccount> {
   const { data: userData, error: userErr } = await client.auth.getUser();
