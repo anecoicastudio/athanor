@@ -1,3 +1,22 @@
+import { MIN_PAID_TICKET_CENTS } from '@athanor/schemas';
+
+/**
+ * The floor on a PAID ticket, in minor units (#701, ruling 2026-09-07): `0 or >= 500`. Free stays
+ * legal — it is a band, not a minimum.
+ *
+ * RE-EXPORTED, not declared. The Zod band in `packages/schemas/src/event.ts` has to read it and
+ * `schemas` is the dependency leaf (`core` imports `@athanor/schemas`, never the reverse), so the
+ * declaration lives there and this module makes it reachable beside `DEFAULT_TICKET_FEE_PCT` —
+ * the composer quotes both, and rule 10 wants the ticket-money constants in one place. The
+ * `MIN_CONTRIBUTION_CENTS` re-export in `core/src/fund/amount.ts` is the same shape (#387).
+ *
+ * Why the floor exists: `ticketSplit` below hands Athanor `feePct` percent of the price, and out
+ * of that come Stripe's processing (1,5% + €0,25 on a standard EEA card), the payout fee
+ * (0,25% + €0,10) and €2 per active organiser-month. At the default ten percent those meet near
+ * €4,24 a ticket; under the floor, selling a ticket costs the platform money.
+ */
+export { MIN_PAID_TICKET_CENTS };
+
 /**
  * The default platform commission on a paid ticket, as a percentage of the displayed price.
  *
@@ -43,8 +62,11 @@ export type TicketSplit = {
  * recollection of how marketplaces usually work.
  *
  * Athanor's own net is `applicationFeeCents` less Stripe's processing, which can go negative on a
- * cheap enough ticket. That is a pricing question (a minimum ticket price), not this function's:
- * it computes the split it is asked for.
+ * cheap enough ticket. That is a pricing question, and #701 has since answered it with
+ * `MIN_PAID_TICKET_CENTS` — but the answer is enforced by the schema, the `events_price_min`
+ * CHECK and both write gates, never here. This function still computes the split it is asked for,
+ * sub-floor prices included: it runs AFTER the seat claim, and a refusal at that point would
+ * strand a held seat over a row the write path should never have admitted.
  *
  * ## Rounding and clamping
  *

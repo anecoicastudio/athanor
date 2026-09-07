@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TICKET_FEE_PCT, ticketSplit } from './ticket-split';
+import { DEFAULT_TICKET_FEE_PCT, MIN_PAID_TICKET_CENTS, ticketSplit } from './ticket-split';
 
 /**
  * #104 — the absorbed-fee split for a paid ticket, decided by the 2026-09-06 ruling.
@@ -127,5 +127,24 @@ describe('ticketSplit', () => {
     // The composer quotes this number before an event row exists, so it cannot read `fee_pct`.
     // `ticket-split.mirror.test.ts` pins it against the column default and against the Deno copy.
     expect(DEFAULT_TICKET_FEE_PCT).toBe(10);
+  });
+
+  // #701, ruling 2026-09-07 — the second ticket-money constant, reachable from the same module as
+  // the first so the composer imports both from `@athanor/core`. DECLARED in `@athanor/schemas`
+  // (the Zod band has to read it and `schemas` is the dependency leaf); re-exported here. The
+  // mirror test pins the value across all four homes.
+  it('MIN_PAID_TICKET_CENTS is re-exported here, at the ruled €5,00', () => {
+    expect(MIN_PAID_TICKET_CENTS).toBe(500);
+  });
+
+  // The floor is a pricing decision, not this function's — stated in the docblock, asserted here
+  // so the claim cannot rot into a silent guard. A sub-floor price still splits correctly; what
+  // refuses it is the schema, the CHECK and the two write gates, none of them this.
+  it('splits a sub-floor price anyway — the floor is not enforced here', () => {
+    expect(ticketSplit({ priceCents: 300, feePct: DEFAULT_TICKET_FEE_PCT })).toEqual({
+      priceCents: 300,
+      applicationFeeCents: 30,
+      organiserCents: 270,
+    });
   });
 });

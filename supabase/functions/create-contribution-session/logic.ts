@@ -58,7 +58,19 @@ export function isValidContributionAmount(amountCents: number): boolean {
 }
 
 /**
- * Stripe's EU standard rate for European cards: 1.5% + €0,25. Named constants, one place.
+ * Stripe's standard EEA card rate: 1,5% + €0,25. Named constants, one place.
+ *
+ * The figure is Stripe's **standard EEA consumer card** rate, and only that. Read from
+ * stripe.com/it/pricing on 2026-09-07 rather than recalled, because a rate in a comment is what
+ * someone believed and not what Stripe charges: EEA PREMIUM cards are 2,8% + €0,25, UK cards
+ * 2,5% + €0,25, cards issued outside the EEA 3,15% + €0,25, currency conversion adds 2%, and
+ * non-card methods are priced on their own scale entirely (SEPA Direct Debit is a flat €0,35).
+ *
+ * That bounds the guarantee below rather than the arithmetic: on any of those the real cut is
+ * larger than this constant, so the coverage UNDER-covers and the fund nets slightly less than
+ * the gift. The "overshoot at most one cent" claim holds for standard EEA cards. Nothing here
+ * is wrong for the other cases — it is simply not exact, and the disclosure says the coverage
+ * pays the payment network, never that it pays it to the cent.
  *
  * DUPLICATED, deliberately: `packages/core/src/fund/fees.ts` carries the same two constants
  * and the same formula for the disclosure screen's preview. `supabase/functions` lives

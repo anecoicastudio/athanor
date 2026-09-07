@@ -834,6 +834,7 @@
   "event.create.paid": "A pagamento",
   "event.create.price": "Prezzo",
   "event.create.pricePlaceholder": "0,00",
+  "event.create.price.min": "Un biglietto a pagamento parte da {min}€. Sotto questa cifra, incassare costa più di quanto resta.",
   "event.create.settlement.ack": "Ho letto: ricevo il prezzo del biglietto meno il {pct}% che trattiene Athanor.",
   "event.create.settlement.split": "La divisione è automatica: Stripe trattiene la tua parte al momento del pagamento e te la versa secondo il calendario del tuo conto Stripe.",
   "event.create.settlement.required": "Spunta la casella: è la condizione per pubblicare un evento a pagamento.",

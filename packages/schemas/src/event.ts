@@ -16,6 +16,43 @@ export const eventCategorySchema = z.enum([
 export type EventCategory = z.infer<typeof eventCategorySchema>;
 
 /**
+ * The floor on a PAID ticket, in minor units (#701, ruling 2026-09-07). Free stays free —
+ * this is a band (`0 or >= 500`), never a minimum, and every check that reads it says so.
+ *
+ * Why a floor exists at all: the fee model is absorbed, so Athanor's whole margin on a ticket
+ * is `fee_pct` percent of the price, out of which it pays Stripe's processing (1,5% + €0,25 on
+ * a standard EEA card), the €0,10 + 0,25% payout fee, and €2 per active organiser-month. At the
+ * default ten percent that lands break-even near €4,24; below it every ticket sold costs the
+ * platform money. See `packages/core/src/events/ticket-split.ts` for the split itself.
+ *
+ * DECLARED HERE, not in `packages/core`, because this package is the dependency leaf — `core`
+ * imports `@athanor/schemas` and never the other way round, so a constant a Zod schema must read
+ * cannot live upstream of it. `packages/core/src/events/ticket-split.ts` re-exports it so the
+ * composer still reads both ticket-money constants from `@athanor/core`. Exactly the shape
+ * `MIN_CONTRIBUTION_CENTS` takes (`fund.ts` → `core/src/fund/amount.ts`, #387).
+ *
+ * Mirrored by value into `create-ticket-checkout/logic.ts` and into the `events_price_min` CHECK;
+ * `packages/core/src/events/ticket-split.mirror.test.ts` is the four-way guard.
+ */
+export const MIN_PAID_TICKET_CENTS = 500;
+
+/**
+ * The `price_cents` column, bound once for every schema that declares it — the member read model,
+ * the create input and the public read model all reach for THIS rather than re-spelling the band
+ * (`trimmedNonBlank`'s precedent in `primitives.ts`). Three copies of one bound is how the third
+ * one gets forgotten; `rules/schemas.md` names that failure directly.
+ *
+ * The message is a KEY, not copy: `event-create.tsx` owns the sentence a person reads.
+ */
+export const priceCentsSchema = z
+  .number()
+  .int()
+  .min(0)
+  .refine((cents) => cents === 0 || cents >= MIN_PAID_TICKET_CENTS, {
+    message: 'price_below_minimum',
+  });
+
+/**
  * Read model for an event row. `geo` is intentionally OMITTED — the geography(Point)
  * column is write-only (set server-side via create_event from lat/long) and never
  * selected by the client (list-only browse this slice; no map). `feePct`/`priceCents`/
@@ -35,7 +72,7 @@ export const eventSchema = z.object({
   starts_at: z.string(),
   ends_at: z.string().nullable(),
   capacity: z.number().int().positive().nullable(),
-  price_cents: z.number().int().min(0),
+  price_cents: priceCentsSchema,
   currency: z.string().regex(/^[a-z]{3}$/),
   fee_pct: z.number().min(0).max(100),
   is_athanor_day: z.boolean(),
@@ -92,7 +129,7 @@ export const eventCreateSchema = z
     starts_at: z.string(),
     ends_at: z.string().nullable().default(null),
     capacity: z.number().int().positive().nullable().default(null),
-    price_cents: z.number().int().min(0).default(0),
+    price_cents: priceCentsSchema.default(0),
     currency: z
       .string()
       .regex(/^[a-z]{3}$/)
