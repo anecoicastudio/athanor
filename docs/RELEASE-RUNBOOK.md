@@ -1067,20 +1067,41 @@ and `wrangler kv bulk delete` the rest.
 ### 7.5 Reconciling pre-#107 erasure requests (R-8)
 
 Every request filed before #107 stopped short of the account delete and recorded that as
-`partial` (or, before #515, as `failed`). Nothing re-queues either: the job's claim query filters
-`status = 'requested'`, so a terminal row is never picked up again. The rows are therefore
-unfinished obligations that look finished, and each project has to be reconciled by hand ONCE,
-after that project has the migrations, the function deploy and the Vault pair (§5).
+`partial` (or, before #515, as `failed`). Nothing re-queues a TERMINAL row: since #717 the claim
+predicate reaches `requested` and stale `processing`, and neither `partial` nor `failed` is
+either. The rows are therefore unfinished obligations that look finished, and each project has to
+be reconciled by hand ONCE, after that project has the migrations, the function deploy and the
+Vault pair (§5).
 
-Every step of the job is idempotent, so re-driving a request is just flipping it back:
+**A row stuck on `processing` is NOT one of these, and does not belong in the re-queue below.**
+Since #717 the job claims it back on its own: `claim_erasure_requests` takes every `processing`
+row whose `claimed_at` is older than the lease — or absent, which is what a row stranded before
+that migration looks like — so the nightly pass picks it up without help. Flipping such a row to
+`requested` by hand is worse than leaving it: it hands the same member two open rows, and the
+claim then serves only one of them per pass anyway. Step 1 lists them so you can see they are
+draining, and step 5 says what to do if one is not.
+
+Every step of the job is safe to re-drive: the DB reach is idempotent by construction, the account
+delete cannot run twice because it SET NULLs the request's own subject, and the Stripe cancel
+reads the subscription's status before touching it (#717). So re-driving a terminal request is
+just flipping it back:
 
 ```sql
--- 1. What is outstanding on this project, and whose account still exists.
-select r.id, r.status, r.created_at,
-       (p.id is not null) as account_still_exists
+-- 1. What is outstanding on this project, whose account still exists, and — for a row the job
+--    is meant to be recovering on its own — whether its lease has actually run out.
+--    `lease` reads: 'terminal' the row needs step 2; 'held' a pass is running it right now,
+--    leave it alone; 'reclaimable' the next pass will take it back, do nothing.
+select r.id, r.status, r.created_at, r.claimed_at,
+       (p.id is not null) as account_still_exists,
+       case
+         when r.status <> 'processing' then 'terminal'
+         when r.claimed_at is null then 'reclaimable (no stamp — stranded before #717)'
+         when r.claimed_at < now() - interval '15 minutes' then 'reclaimable (lease expired)'
+         else 'held (a pass is running)'
+       end as lease
   from public.gdpr_erasure_requests r
   left join public.profiles p on p.id = r.profile_id
- where r.status in ('partial', 'failed')
+ where r.status in ('partial', 'failed', 'processing')
  order by r.created_at;
 
 -- 2. Re-queue them — the OLDEST terminal row per member, never all of them. Since #107 a
@@ -1112,6 +1133,15 @@ select public.invoke_erasure_job();
 select status, count(*), count(*) filter (where profile_id is null) as identity_dropped
   from public.gdpr_erasure_requests
  group by status;
+
+-- 5. ONLY if step 1 shows a 'processing' row still 'held' after the isolate is known to be dead
+--    — a deploy mid-pass, a project paused, function logs that stop mid-cascade. This forces the
+--    claim to ignore the lease it would otherwise wait out. Do NOT run it while a pass may still
+--    be live: it hands the running isolate's rows to a second one, which is the double-drive the
+--    lease exists to prevent. Waiting the lease out costs 15 minutes and needs no judgement.
+select * from public.claim_erasure_requests(20, interval '0');
+-- The rows come back already flipped to 'processing' and re-stamped; invoke the job to drive
+-- them, as in step 3.
 ```
 
 Two things to know before running it:

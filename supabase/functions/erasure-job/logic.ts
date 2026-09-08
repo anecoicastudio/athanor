@@ -56,9 +56,32 @@ export type ErasureAuth = {
  * the secret is resolved in index.ts behind the service-role gate like every other one.
  */
 export type ErasureStripe = {
+  /**
+   * The subscription's current status, or **null when Stripe has no such subscription**.
+   *
+   * Read before cancelling, because since #717 a torn-down pass is re-driven and the cancel is
+   * the one step of the cascade that is not idempotent by construction. It sits BEFORE (3c)
+   * nulls `circle_memberships.profile_id`, so an isolate killed between the two leaves the
+   * pointer in place and the next pass reaches the same subscription again. What Stripe does
+   * with a second cancel is not written down in its API reference, and this file is not the
+   * place to guess: the object stays addressable after cancellation («After it's canceled, the
+   * subscription is largely immutable. You can still update its metadata and
+   * cancellation_details» — docs.stripe.com/api/subscriptions/cancel), so asking is cheap and
+   * needs no assumption about an error we have never seen.
+   */
+  getSubscriptionStatus: (subscriptionId: string) => Promise<string | null>;
   /** Cancel immediately. Stripe emits `customer.subscription.deleted`, which the webhook records. */
   cancelSubscription: (subscriptionId: string) => Promise<unknown>;
 };
+
+/**
+ * Statuses that mean the billing is already stopped, so a re-driven pass must NOT cancel again.
+ * `incomplete_expired` is here with `canceled` because it is the other terminal state: the first
+ * invoice never got paid, Stripe closed the subscription itself, and there is nothing left to
+ * cancel. Everything else — including `past_due` and `unpaid` — is a subscription that can still
+ * charge, and those must be cancelled.
+ */
+const SETTLED_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired']);
 
 /**
  * The Storage surface the job needs. BUCKET-AWARE since #573: `remove()` is bucket-scoped, and
@@ -101,6 +124,18 @@ export type ErasureCtx = {
  */
 const DREAM_ID_READ_LIMIT = 500;
 
+/**
+ * How many requests one pass claims.
+ *
+ * Passed to `claim_erasure_requests` rather than left to its default: the batch size is this
+ * loop's business — it bounds how much irreversible work one invocation attempts inside the
+ * edge-function wall clock — while the LEASE is the table's, and is deliberately NOT passed.
+ * Duplicating the lease here would put the number an operator reads in the migration out of step
+ * with the one that runs, and the parameter exists so RELEASE-RUNBOOK §7.5 can override it for a
+ * hand-driven pass, not so this file can restate it.
+ */
+const CLAIM_BATCH = 20;
+
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
   const { db, auth, storage, kv, stripe } = ctx;
 
@@ -118,20 +153,31 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
    */
   let retained = 0;
 
-  const { data: reqs, error } = await db
-    .from('gdpr_erasure_requests')
-    .select('id, profile_id')
-    .eq('status', 'requested')
-    .limit(20);
+  // ATOMIC LEASE CLAIM (#717) — one statement, in the database, flips the rows to 'processing'
+  // and stamps `claimed_at`. What it replaced was a SELECT on `status = 'requested'` followed by
+  // an UPDATE carrying no predicate at all, which had two holes: a pass torn down between them
+  // stranded the row on 'processing' with nothing left to re-queue it, and two overlapping passes
+  // both selected the same twenty rows and both drove the whole cascade.
+  //
+  // The claim is an RPC rather than a PostgREST filter chain because it is a BATCH — the
+  // conditional UPDATE ... RETURNING that decides the winner cannot be expressed here — and
+  // because de-duplicating by member needs a DISTINCT ON that PostgREST has no spelling for.
+  // 20260908130546 carries the predicate and pgTAP (0058) proves it; the assertions below are
+  // this loop's half of the contract, which is that it asks for the batch and writes no status
+  // of its own until the terminal one.
+  const { data: reqs, error } = await db.rpc('claim_erasure_requests', { p_limit: CLAIM_BATCH });
   if (error) return new Response(error.message, { status: 500 });
 
-  for (const erasureReq of reqs ?? []) {
-    await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', erasureReq.id);
-
-    // The subject. Two open requests for one member in one batch would mean driving the second
-    // against a uuid the first already deleted — that is prevented at the source rather than
-    // here: 20260908085513 puts a partial unique index on `profile_id where status = 'requested'`,
-    // so a member can have at most one request open at a time.
+  for (const erasureReq of (reqs ?? []) as { id: string; profile_id: string | null }[]) {
+    // The subject. Two open requests for one member can no longer be driven together: the claim
+    // returns at most one row per member per pass, and holds the member's other rows back while
+    // the lease on this one is live. That matters more than it used to — 20260908085513's unique
+    // index is PARTIAL on `status = 'requested'`, so a stranded 'processing' row never stopped
+    // the member filing a second request beside it.
+    //
+    // Cast because `returns table (id uuid, profile_id uuid)` generates a non-null `profile_id`
+    // (Supabase's generator cannot see that a RETURNING column is nullable), and the column IS
+    // nullable since 20260908073545 — the branch below is live, not dead code.
     const profileId = erasureReq.profile_id;
 
     // A request whose subject is already gone — reachable through the R-8 §7.5 reconcile, which
@@ -386,14 +432,47 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
             erasureReq.id,
           );
         } else {
-          const cancelled = await stripe
-            .cancelSubscription(subscriptionId)
-            .then(() => null)
-            .catch((e: unknown) => e);
-          if (cancelled) {
+          // ASK FIRST (#717). This step is the one part of the cascade that is not idempotent by
+          // construction, and since the lease re-drives a torn-down pass it has to become so.
+          // The window is narrow and real: the cancel runs BEFORE (3c) nulls
+          // `circle_memberships.profile_id`, so an isolate killed between them leaves the row
+          // still pointing at a subscription this pass already cancelled, and the next pass
+          // reads the same pointer. Cancelling twice would then turn a stranded request into a
+          // permanently failing one — `cascadeSafe = false` on every subsequent pass — which is
+          // strictly worse than the bug the lease was added to fix.
+          //
+          // A status we could not READ is not «already cancelled»: it is treated exactly like a
+          // failed cancel, because carrying on would pseudonymise the row and lose the only
+          // pointer to the thing still taking the member's money.
+          const status = await stripe
+            .getSubscriptionStatus(subscriptionId)
+            .then((s) => ({ status: s, error: null as unknown }))
+            .catch((e: unknown) => ({ status: null, error: e ?? new Error('status read failed') }));
+          if (status.error) {
             degraded = true;
             cascadeSafe = false;
-            console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
+            console.error(
+              'erasure-job: subscription status unreadable, billing not stopped',
+              erasureReq.id,
+              status.error,
+            );
+          } else if (status.status !== null && SETTLED_SUBSCRIPTION_STATUSES.has(status.status)) {
+            // Already stopped — by an earlier pass of this same request, by the member through
+            // the portal, or by Stripe itself when the first invoice never settled. Nothing to
+            // do, and NOT a degradation: the obligation this step exists for is met.
+          } else {
+            // `status.status === null` lands here too, and deliberately: Stripe not knowing the
+            // id is a state we have never observed, and attempting the cancel makes it visible
+            // as an error on the row rather than passing silently for «already gone».
+            const cancelled = await stripe
+              .cancelSubscription(subscriptionId)
+              .then(() => null)
+              .catch((e: unknown) => e);
+            if (cancelled) {
+              degraded = true;
+              cascadeSafe = false;
+              console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
+            }
           }
         }
       }
@@ -518,9 +597,13 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //   'partial' stays in the CHECK and is no longer written by this job. It was the honest
     //   label while the cascade stopped at a legal gate that no longer exists; the rows that
     //   carry it are historical and are re-driven by the R-8 procedure, not by this loop. Note
-    //   what no terminal status buys: the claim query filters status='requested', so nothing
-    //   re-queues a 'failed' row on its own. Every step here is idempotent, so re-driving one by
-    //   hand — flip it back to 'requested' — finishes cleanly.
+    //   what no terminal status buys: the claim predicate reaches 'requested' and stale
+    //   'processing' and nothing else, so a TERMINAL row is still never re-queued on its own —
+    //   what #717's lease added is the recovery of a row torn down mid-cascade, not of one this
+    //   loop decided about. Re-driving a terminal row by hand — flip it back to 'requested' —
+    //   still finishes cleanly: the DB reach is idempotent by construction, the account delete
+    //   cannot run twice because (4b) SET NULLs this row's subject, and the Stripe cancel asks
+    //   for the subscription's status before touching it (#717).
   }
 
   return new Response(

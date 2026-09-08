@@ -68,7 +68,18 @@ Deno.serve((req) => {
     // thrown client construction. The client itself is still resolved on first use inside the
     // closure, never at import (#541).
     stripe: stripeConfigured()
-      ? { cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id) }
+      ? {
+          // Retrieved, not cached: the loop needs to know whether THIS subscription is still
+          // billable before it cancels, because since #717 a torn-down pass is re-driven and
+          // may reach the same subscription twice (`erasure-job/logic.ts`, step 3b-bis).
+          // `status` is a plain string on the Stripe object; anything unexpected is handed to
+          // the loop as-is and lands in the «still billable, cancel it» branch.
+          getSubscriptionStatus: (id: string) =>
+            stripeClient()
+              .subscriptions.retrieve(id)
+              .then((s) => (s as { status?: string | null }).status ?? null),
+          cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id),
+        }
       : null,
   });
 });
