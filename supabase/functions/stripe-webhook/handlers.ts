@@ -497,39 +497,56 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
   //
   // `stripe_subscription_id` and `stripe_customer_id` are both UNIQUE, so either identifies at
   // most one row; the subscription is the narrower of the two and is tried first.
-  const bySubscription = await db
-    .from('circle_memberships')
-    .select('id, profile_id, erased_at')
-    .eq('stripe_subscription_id', sub.id)
-    .maybeSingle();
-  if (bySubscription.error) throw bySubscription.error;
-  let existing = bySubscription.data as {
+  type MembershipRow = {
     id: string;
     profile_id: string | null;
     erased_at: string | null;
   } | null;
-  if (!existing) {
+  const resolve = async (): Promise<MembershipRow> => {
+    const bySubscription = await db
+      .from('circle_memberships')
+      .select('id, profile_id, erased_at')
+      .eq('stripe_subscription_id', sub.id)
+      .maybeSingle();
+    if (bySubscription.error) throw bySubscription.error;
+    if (bySubscription.data) return bySubscription.data as MembershipRow;
     const byCustomer = await db
       .from('circle_memberships')
       .select('id, profile_id, erased_at')
       .eq('stripe_customer_id', customerId)
       .maybeSingle();
     if (byCustomer.error) throw byCustomer.error;
-    existing = byCustomer.data as typeof existing;
+    return byCustomer.data as MembershipRow;
+  };
+
+  let existing = await resolve();
+
+  if (!existing) {
+    // Read-then-write, so two deliveries for the same subscription — Stripe routinely sends
+    // `created` and `updated` together — can both miss the resolve above and both reach this
+    // insert. The loser trips `unique (stripe_subscription_id)` or `unique (stripe_customer_id)`:
+    // a 23505 the old single upsert could not produce, and a race this shape introduced.
+    //
+    // Resolving again turns it into the update it should have been. Throwing instead would still
+    // be RECOVERABLE — `stripe_webhook_events` stamps `processed_at` only after success, so
+    // Stripe's retry repairs it — but it would spend a redelivery and log an error for something
+    // that has a correct answer right here.
+    const { error: insertError } = await db
+      .from('circle_memberships')
+      .insert({ ...money, profile_id: profileId });
+    if (!insertError) return;
+    if ((insertError as { code?: string }).code !== '23505') throw insertError;
+    existing = await resolve();
+    // A 23505 with nothing to find afterwards is not this race — do not swallow it.
+    if (!existing) throw insertError;
   }
 
-  if (existing) {
-    // NEVER write `profile_id` back onto a pseudonymised row. Stripe still carries the erased
-    // member's id in `sub.metadata.profile_id` — it has no idea they asked to be forgotten — so
-    // restoring it here would re-attach the identity that #107 removed, on the very webhook the
-    // erasure itself triggers. On a live row the value is already what it would be set to.
-    const patch = existing.erased_at ? money : { ...money, profile_id: profileId };
-    const { error } = await db.from('circle_memberships').update(patch).eq('id', existing.id);
-    if (error) throw error;
-    return;
-  }
-
-  const { error } = await db.from('circle_memberships').insert({ ...money, profile_id: profileId });
+  // NEVER write `profile_id` back onto a pseudonymised row. Stripe still carries the erased
+  // member's id in `sub.metadata.profile_id` — it has no idea they asked to be forgotten — so
+  // restoring it here would re-attach the identity that #107 removed, on the very webhook the
+  // erasure itself triggers. On a live row the value is already what it would be set to.
+  const patch = existing.erased_at ? money : { ...money, profile_id: profileId };
+  const { error } = await db.from('circle_memberships').update(patch).eq('id', existing.id);
   if (error) throw error;
 }
 

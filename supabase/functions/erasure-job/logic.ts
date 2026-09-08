@@ -110,6 +110,13 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   let kvFailed = 0;
   /** Keys the Storage API accepted across every bucket and every request in this run (#573). */
   let storageRemoved = 0;
+  /**
+   * Requests whose account was deliberately NOT deleted because the run left something behind
+   * (#107). Reported because `seen` and a 200 cannot tell an operator apart from a pass that
+   * erased everybody: a project missing the CF_KV trio answers 200 with `seen: 5` and erases
+   * nobody, and R-8's flip condition is «a 200» — this is the number that makes it checkable.
+   */
+  let retained = 0;
 
   const { data: reqs, error } = await db
     .from('gdpr_erasure_requests')
@@ -443,6 +450,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     'done' over residue nobody can locate. Leaving the account standing one more night is
     //     recoverable; deleting the map is not.
     if (!cascadeSafe || degraded) {
+      retained++;
       console.error(
         'erasure-job: account deletion skipped, the run left something behind',
         erasureReq.id,
@@ -464,17 +472,18 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       } else {
         const email = authUser?.data?.user?.email ?? null;
         if (email) {
-          // ILIKE, not EQ, and escaped. `athanor.purge_email_waitlist` folds both sides with
-          // `lower()` (20260620140149:111), so a row stored as `Ada@X.test` is the same waitlist
-          // entry as `ada@x.test` and an `eq` would walk past it. The escape is not optional:
-          // `_` and `%` are LIKE metacharacters and both are legal in a local-part, so an
-          // unescaped `a_b@x.test` would also match `axb@x.test` — deleting a DIFFERENT person's
-          // waitlist row while missing nothing is the failure mode worth spelling out.
-          const pattern = email.replace(/([\\%_])/g, '\\$1');
-          const { error: waitlistError } = await db
-            .from('email_waitlist')
-            .delete()
-            .ilike('email', pattern);
+          // Through an RPC, not a PostgREST filter. The match has to fold case, because
+          // `athanor.purge_email_waitlist` does (20260620140149:111) and a row stored as
+          // `Ada@X.test` is the same entry as the `ada@x.test` GoTrue returns — so `.eq` walks
+          // past it. But `.ilike` cannot be made safe here: **PostgREST rewrites `*` to `%` in a
+          // pattern before Postgres sees it**, with no escape at that layer, and `*` is legal in
+          // a local part. Verified against staging — `ilike.a*b@probe.test` returned
+          // `axb@probe.test` too. Erasing one member would have deleted another member's row.
+          // `gdpr_purge_waitlist_email` (20260908092809) is an equality on `lower()` with no
+          // pattern language anywhere in it.
+          const { error: waitlistError } = await db.rpc('gdpr_purge_waitlist_email', {
+            p_email: email,
+          });
           if (waitlistError) {
             degraded = true;
             console.error('erasure-job: waitlist purge failed', erasureReq.id, waitlistError);
@@ -520,6 +529,9 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       // `configured: false` is the whole point of reporting this: it is true of the
       // deployment, not of a request, so it shows up even on a run that saw nothing (#515).
       kvPurge: { configured: kv !== null, deleted: kvDeleted, failed: kvFailed },
+      // #107 — non-zero means at least one member is still here on purpose. On a healthy
+      // project this is 0 and `seen` is the number erased.
+      retained,
       // #573 — bytes, across every declared bucket. A run that erased members and reports
       // `removed: 0` is the shape of the bug this replaced: the sweep found nothing where the
       // member's photos should have been.

@@ -133,9 +133,15 @@ const NO_PURGE = { configured: true, deleted: 0, failed: 0 };
  * (#573 added `storageRemoved`) does not rewrite sixteen assertions — and so every test still
  * asserts the FULL body, which is what catches a field silently disappearing.
  */
-const body = (seen: number, kvPurge: Record<string, unknown>, storageRemoved = 0) => ({
+const body = (
+  seen: number,
+  kvPurge: Record<string, unknown>,
+  storageRemoved = 0,
+  retained = 0,
+) => ({
   seen,
   kvPurge,
+  retained,
   storageRemoved,
 });
 
@@ -203,20 +209,13 @@ Deno.test("per request: 'processing' → session revoke → the whole cascade �
   assertEquals(c.looked, ['user-1', 'user-2']);
   assertEquals(c.deleted, ['user-1', 'user-2']);
 
-  // (4a) the ONLY PostgREST delete the loop issues: the waitlist row, matched by the address
-  // read from auth.users a moment earlier. The row deletes of the fund reach (#240) happen
-  // inside gdpr_erase_fund_footprint's own transaction, never through this client.
-  const deletes = c.db.calls.filter((k) => k.op === 'delete');
-  assertEquals(
-    deletes.map((k) => [k.table, k.filters]),
-    [
-      ['email_waitlist', [['ilike', 'email', 'erased@example.test']]],
-      ['email_waitlist', [['ilike', 'email', 'erased@example.test']]],
-    ],
-  );
+  // The loop issues NO PostgREST delete at all: the waitlist purge is an RPC (PostgREST rewrites
+  // `*` to `%` in an ilike pattern, so no filter could be made safe), and the fund reach's row
+  // deletes happen inside gdpr_erase_fund_footprint's own transaction, never through this client.
+  assert(!c.db.calls.some((k) => k.op === 'delete'));
 
-  // Four RPCs per request, in order: the fund transaction, the byte sweep (#573), the payment
-  // pseudonymisation and the reference release (#107). All keyed to the erased profile, and
+  // Five RPCs per request, in order: the fund transaction, the byte sweep (#573), the payment
+  // pseudonymisation, the reference release and the waitlist purge (#107). All keyed to the erased profile, and
   // the sweep asks for the capped page.
   const rpcs = c.db.calls.filter((k) => k.op === 'rpc');
   assertEquals(
@@ -226,10 +225,12 @@ Deno.test("per request: 'processing' → session revoke → the whole cascade �
       ['gdpr_storage_footprint', { p_profile_id: 'user-1', p_limit: REMOVE_BATCH }],
       ['gdpr_erase_payment_footprint', { p_profile_id: 'user-1' }],
       ['gdpr_release_profile_references', { p_profile_id: 'user-1' }],
+      ['gdpr_purge_waitlist_email', { p_email: 'erased@example.test' }],
       ['gdpr_erase_fund_footprint', { p_profile_id: 'user-2' }],
       ['gdpr_storage_footprint', { p_profile_id: 'user-2', p_limit: REMOVE_BATCH }],
       ['gdpr_erase_payment_footprint', { p_profile_id: 'user-2' }],
       ['gdpr_release_profile_references', { p_profile_id: 'user-2' }],
+      ['gdpr_purge_waitlist_email', { p_email: 'erased@example.test' }],
     ],
   );
 });
@@ -462,7 +463,7 @@ Deno.test(
     );
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);
-    assertEquals(await res.json(), body(2, NO_PURGE));
+    assertEquals(await res.json(), body(2, NO_PURGE, 0, 2));
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
       ['processing', 'failed', 'processing', 'failed'],
@@ -511,7 +512,7 @@ Deno.test("unconfigured KV is REPORTED, not skipped — 'failed', not 'done'", a
   );
   const res = await processErasureRequests(c);
 
-  assertEquals(await res.json(), body(1, { configured: false, deleted: 0, failed: 1 }));
+  assertEquals(await res.json(), body(1, { configured: false, deleted: 0, failed: 1 }, 0, 1));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -546,7 +547,7 @@ Deno.test('a KV API failure is recorded but never rolls back or masks the DB era
   // pseudonymisation and reference release — a KV outage stops none of them.
   assertEquals(c.db.calls.filter((k) => k.op === 'rpc').length, 5);
   assertEquals(c.removed, [['candidacy-videos', ['user-1/cand-1.mp4']]]);
-  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }, 1));
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }, 1, 1));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -655,7 +656,7 @@ Deno.test('a FULL page of dream ids is a purge gap — a truncated read raises n
 
   assertEquals(c.purged.length, 1);
   assertEquals(c.purged[0].length, 499);
-  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }));
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }, 0, 1));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -690,7 +691,7 @@ Deno.test("a failed dreams read is counted as a purge gap, not as 'no dreams'", 
 
   assertEquals(c.purged, [['/@luna_dev', '/@luna_dev/opengraph-image']]);
   assertEquals(res.status, 200);
-  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }));
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }, 0, 1));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -706,7 +707,7 @@ Deno.test('both key reads failing counts TWO gaps and purges nothing', async () 
   const res = await processErasureRequests(c);
 
   assertEquals(c.purged, []);
-  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 2 }));
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 2 }, 0, 1));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -728,7 +729,7 @@ Deno.test(
     );
     const res = await processErasureRequests(c);
 
-    assertEquals(await res.json(), body(1, { configured: false, deleted: 0, failed: 1 }));
+    assertEquals(await res.json(), body(1, { configured: false, deleted: 0, failed: 1 }, 0, 1));
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
       ['processing', 'failed'],
@@ -757,7 +758,7 @@ Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", 
   const res = await processErasureRequests(c);
   assertEquals(c.purged, []);
   assertEquals(res.status, 200);
-  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }));
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }, 0, 1));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -815,7 +816,7 @@ Deno.test("payment rpc error → the account is NOT deleted, and the row is 'fai
   assertEquals(res.status, 200);
   assertEquals(c.deleted, []);
   assertEquals(c.looked, []); // step (4a) is inside the same gate
-  assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+  assert(!c.db.calls.some((k) => k.columns === 'gdpr_purge_waitlist_email'));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -871,21 +872,23 @@ Deno.test(
     );
     const seenAtDelete: string[] = [];
     c.auth.deleteUser = (id: string) => {
-      seenAtDelete.push(...c.db.calls.filter((k) => k.table === 'email_waitlist').map((k) => k.op));
+      seenAtDelete.push(
+        ...c.db.calls.filter((k) => k.columns === 'gdpr_purge_waitlist_email').map((k) => k.op),
+      );
       c.deleted.push(id);
       return Promise.resolve(null);
     };
     await processErasureRequests(c);
 
     assertEquals(looked, ['user-1']);
-    const waitlist = c.db.calls.filter((k) => k.table === 'email_waitlist');
+    const waitlist = c.db.calls.filter((k) => k.columns === 'gdpr_purge_waitlist_email');
     assertEquals(
-      waitlist.map((k) => [k.op, k.filters]),
-      [['delete', [['ilike', 'email', 'gone@example.test']]]],
+      waitlist.map((k) => k.values),
+      [{ p_email: 'gone@example.test' }],
     );
-    // Ordering is load-bearing in the other direction too: after the auth row is gone there is no
-    // address left to match on.
-    assertEquals(seenAtDelete, ['delete']);
+    // Ordering is load-bearing in the other direction too: after the auth row is gone there is
+    // no address left to match on.
+    assertEquals(seenAtDelete, ['rpc']);
   },
 );
 
@@ -895,7 +898,7 @@ Deno.test("an auth row with no email → nothing to purge, still 'done'", async 
     { getUserById: () => Promise.resolve({ data: { user: { email: null } } }) },
   );
   await processErasureRequests(c);
-  assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+  assert(!c.db.calls.some((k) => k.columns === 'gdpr_purge_waitlist_email'));
   assertEquals(c.deleted, ['user-1']);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
@@ -912,7 +915,7 @@ Deno.test('an unreadable auth row BLOCKS the delete — the address is matched f
     { getUserById: () => Promise.resolve({ data: null, error: { message: 'gotrue down' } }) },
   );
   await processErasureRequests(c);
-  assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+  assert(!c.db.calls.some((k) => k.columns === 'gdpr_purge_waitlist_email'));
   assertEquals(c.deleted, []);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
@@ -939,7 +942,7 @@ Deno.test(
 Deno.test("a failed waitlist delete is recorded — 'failed', and the account STAYS", async () => {
   const c = ctx({
     'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
-    'email_waitlist.delete': [{ error: { message: 'db down' } }],
+    'rpc.gdpr_purge_waitlist_email': [{ error: { message: 'db down' } }],
   });
   await processErasureRequests(c);
   assertEquals(c.deleted, []);
@@ -1035,6 +1038,7 @@ Deno.test("a request with no subject left is 'done', not a nightly 'failed' loop
       { p_profile_id: 'user-2', p_limit: REMOVE_BATCH },
       { p_profile_id: 'user-2' },
       { p_profile_id: 'user-2' },
+      { p_email: 'erased@example.test' },
     ],
   );
   assertEquals(
@@ -1175,18 +1179,20 @@ Deno.test('a failed fund reach SKIPS the payment and reference steps entirely', 
   );
 });
 
-Deno.test('the waitlist match folds case, and escapes the LIKE metacharacters', async () => {
-  // purge_email_waitlist folds both sides with lower() (20260620140149:111), so `eq` would walk
-  // past a row stored as `Ada@X.test`. `_` and `%` are legal in a local part and are LIKE
-  // wildcards, so an unescaped pattern would delete a DIFFERENT person's waitlist row.
+Deno.test('the waitlist address goes to the RPC verbatim — no pattern language', async () => {
+  // The fold has to happen in SQL. `.eq` walks past a row stored as `Ada@X.test`, and `.ilike`
+  // cannot be made safe: PostgREST rewrites `*` to `%` before Postgres sees the pattern and
+  // offers no escape for it, so an address containing `*` — legal in a local part — would have
+  // matched, and deleted, somebody else's row. Verified against staging.
   const c = ctx(
     { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
-    { getUserById: () => Promise.resolve({ data: { user: { email: 'a_b%c@x.test' } } }) },
+    { getUserById: () => Promise.resolve({ data: { user: { email: 'a*b_c%d@x.test' } } }) },
   );
   await processErasureRequests(c);
-  const waitlist = c.db.calls.filter((k) => k.table === 'email_waitlist');
+  const waitlist = c.db.calls.filter((k) => k.columns === 'gdpr_purge_waitlist_email');
   assertEquals(
-    waitlist.map((k) => k.filters),
-    [[['ilike', 'email', 'a\\_b\\%c@x.test']]],
+    waitlist.map((k) => k.values),
+    [{ p_email: 'a*b_c%d@x.test' }],
   );
+  assert(!c.db.calls.some((k) => k.op === 'delete'), 'no PostgREST filter touches the waitlist');
 });

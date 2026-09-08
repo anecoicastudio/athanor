@@ -1796,3 +1796,38 @@ of the 03:11/03:17/03:25 cluster, clear of `purge-waitlist` at 04:00).
 Asserted by: `supabase/functions/erasure-job/sweep-buckets.test.ts`, which pins `exports` as a
 swept bucket and says why — that is the fact the sentence contradicts. No new test: the claim
 being corrected is prose about intent, and the behaviour it misdescribes is already covered.
+
+## `20260908084858_erasure_organiser_events_keep_other_members_records.sql` — the "Known consequence" understates it
+
+The header's closing paragraph (`:41-44`) says:
+
+> a soft-deleted event still resolves for the rows that reference it, so a ticket holder's own
+> history can render an event whose organiser is now the sentinel — a profile with no handle.
+> That is a display question, not a data-loss one
+
+The first clause is wrong and the framing with it. Both SELECT policies on `public.events` gate on
+`deleted_at is null` (`20260615094844_events.sql:72-80`), and every read in `packages/api` goes
+through `from('events')` under RLS. So once the organiser is erased and their events are
+soft-deleted, a ticket holder cannot read the event **at all** — not the organiser's handle, but
+the title, the date and the venue.
+
+What actually survives is what the migration was written to protect, and it is unchanged: the
+`event_tickets` row with its `stripe_payment_id`, `status` and timestamps, the `rsvps` row and the
+`event_attendance` row. The financial record is intact and so is the check-in history; what is
+gone is the description of the occasion.
+
+That trade stands — the alternative was the ON DELETE CASCADE hard-deleting those rows outright,
+which is the defect the migration exists to remove, and the erased member's event text is their
+content, which the controller's ruling says goes. But it is a larger consequence than «a profile
+with no handle», and anyone reading that sentence would have been surprised by a support ticket
+saying «my ticket is there but the event vanished». Read `:41-44` as: the ticket, the RSVP and the
+check-in survive; the event itself becomes unreadable to everyone.
+
+Not fixed in code on purpose. Keeping the event readable would mean either leaving an erased
+member's content served (against the ruling) or a per-event rule about whose rows are attached,
+which is a product decision rather than an erasure one.
+
+Asserted by: `supabase/tests/0149_gdpr_payment_erasure.test.sql` §6b, which asserts the event row
+still EXISTS, is disowned to the sentinel and carries `deleted_at`, and that the ticket, RSVP and
+attendance survive. What it does not assert is readability under RLS — the assertions run as
+superuser, so they see the soft-deleted row. That gap is the reason this entry exists.

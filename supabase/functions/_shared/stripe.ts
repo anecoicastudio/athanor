@@ -99,6 +99,20 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
  * every call fails before the network with an SDK-shaped message and no 401 anywhere to send the
  * operator at the secret. One trim answers all five names.
  */
+/**
+ * Is a Stripe client buildable in this environment at all?
+ *
+ * `stripeClient()` throws on a missing secret, which is right for a caller that needs Stripe to
+ * do its job. The erasure job (#107) needs the other answer: an unconfigured deployment is a
+ * state it RECORDS — an erased member whose subscription it cannot cancel must stop the cascade,
+ * not crash it — so it asks first and carries `null` the way it carries an absent CF_KV trio.
+ *
+ * Same `nonBlank` read as `stripeClient`, so the two can never disagree about what «set» means.
+ */
+export function stripeConfigured(env: EnvPort = denoEnv): boolean {
+  return nonBlank(env, 'STRIPE_SECRET_KEY') !== undefined;
+}
+
 const nonBlank = (env: EnvPort, name: string): string | undefined => {
   const v = env.get(name);
   if (typeof v !== 'string') return undefined;

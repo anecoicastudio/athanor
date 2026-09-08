@@ -739,6 +739,41 @@ Deno.test('handleSubscription never re-attaches the identity to a PSEUDONYMISED 
   assertEquals(values.status, 'canceled');
 });
 
+Deno.test('a concurrent insert (23505) is resolved into an update, not thrown', async () => {
+  // The read-then-write this fix introduced has a race the old single upsert could not produce:
+  // Stripe routinely delivers `created` and `updated` together, both can miss the resolve, and
+  // both reach the insert. The loser trips unique (stripe_subscription_id). Throwing would still
+  // be recoverable — stripe_webhook_events stamps processed_at only on success, so the retry
+  // repairs it — but it spends a redelivery for something with a correct answer right here.
+  const db = makeFakeDb({
+    'circle_memberships.select': [
+      { data: null }, // by subscription: nothing yet
+      { data: null }, // by customer: nothing yet
+      { data: { id: 'm_race', profile_id: 'prof-1', erased_at: null } }, // the winner's row
+      { data: { id: 'm_race', profile_id: 'prof-1', erased_at: null } },
+    ],
+    'circle_memberships.insert': [{ error: { code: '23505', message: 'duplicate key' } }],
+  });
+  await handleSubscription(asDb(db), subscription());
+  const writes = db.calls.filter((c) => c.table === 'circle_memberships' && c.op !== 'select');
+  assertEquals(
+    writes.map((w) => w.op),
+    ['insert', 'update'],
+    'the losing insert is followed by an update, and nothing throws',
+  );
+  assertEquals(writes[1].filters, [['eq', 'id', 'm_race']]);
+});
+
+Deno.test('a 23505 with nothing to find afterwards is NOT swallowed', async () => {
+  // Only the race is recovered. A duplicate that resolves to no row is a different bug, and
+  // swallowing it would turn a loud failure into a webhook that silently records nothing.
+  const db = makeFakeDb({
+    'circle_memberships.select': [{ data: null }, { data: null }, { data: null }, { data: null }],
+    'circle_memberships.insert': [{ error: { code: '23505', message: 'duplicate key' } }],
+  });
+  await assertRejects(() => handleSubscription(asDb(db), subscription()));
+});
+
 Deno.test(
   'handleSubscription falls back to the CUSTOMER id when the subscription id misses',
   async () => {

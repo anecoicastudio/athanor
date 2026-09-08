@@ -30,7 +30,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(79);
+select plan(87);
 
 -- ── 1. schema: both tables can hold a pseudonymised row ──────────────────────────────────
 
@@ -453,6 +453,55 @@ select is(
   (select public.claim_event_seat('49000000-0000-0000-0000-0000000000e4')),
   'claimed', 'control: a genuinely free seat is still claimable');
 reset role;
+
+-- ── 6d. one OPEN request per member ─────────────────────────────────────────────────────
+-- Nothing stopped a member tapping «Richiedi la cancellazione» twice, and both rows were then
+-- claimed by the same batch: the first erased the account, the second ran against a uuid that no
+-- longer existed and recorded `failed` for an erasure that had in fact been fulfilled.
+-- 20260908085513 closes it at the source. The partial predicate matters as much as the index:
+-- terminal rows must pile up freely, or R-8 §7.5 could not re-queue them and a returning member
+-- could never ask again.
+
+select has_index('public', 'gdpr_erasure_requests', 'gdpr_erasure_requests_one_open_per_profile',
+  'the one-open-request index exists');
+select is(
+  (select indexdef from pg_indexes
+    where schemaname = 'public' and indexname = 'gdpr_erasure_requests_one_open_per_profile')
+    like '%WHERE (status = ''requested''::text)%',
+  true, 'and it is PARTIAL on requested — terminal rows are deliberately unconstrained');
+
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000000', '49000000-0000-0000-0000-0000000000ff',
+        'authenticated', 'authenticated', 'f@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+
+select lives_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id) values ('49000000-0000-0000-0000-0000000000ff') $$,
+  'a member files an erasure request');
+select throws_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id) values ('49000000-0000-0000-0000-0000000000ff') $$,
+  '23505', null,
+  'a SECOND open request is refused — packages/api reads this as success, not as a failure');
+
+-- Terminal rows are unconstrained, which is what keeps §7.5 runnable and lets a member who
+-- comes back ask again.
+select lives_ok(
+  $$ update public.gdpr_erasure_requests set status = 'failed'
+      where profile_id = '49000000-0000-0000-0000-0000000000ff' $$,
+  'the open request reaches a terminal status');
+select lives_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id, status)
+     values ('49000000-0000-0000-0000-0000000000ff', 'failed') $$,
+  'two TERMINAL rows for one member coexist — the index is partial for exactly this');
+select lives_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id) values ('49000000-0000-0000-0000-0000000000ff') $$,
+  'and a fresh open request is allowed once nothing is open');
+
+-- A completed request has profile_id NULL (20260908073545), and NULLs are distinct in a unique
+-- index — so the accountability traces never collide with each other however many there are.
+select lives_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id, status) values (null, 'done'),
+                                                                        (null, 'done') $$,
+  'many subject-less completed requests coexist: NULLs are distinct');
 
 -- ── 7. the nightly schedule ──────────────────────────────────────────────────────────────
 

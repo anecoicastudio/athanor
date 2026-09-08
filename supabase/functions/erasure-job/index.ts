@@ -30,7 +30,7 @@
 // inline here: nothing in the suite ever executes this file, so an inline port is a contract no
 // test can reach (#542).
 import { requireServiceRole } from '../_shared/auth.ts';
-import { stripeClient } from '../_shared/stripe.ts';
+import { stripeClient, stripeConfigured } from '../_shared/stripe.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { cloudflareKvFromEnv } from './kv.ts';
 import { processErasureRequests } from './logic.ts';
@@ -63,9 +63,12 @@ Deno.serve((req) => {
     // every other env read here, and null when the trio is absent. The loop records that null
     // rather than skipping on it (#515); it never resolves the env itself.
     kv: cloudflareKvFromEnv(),
-    // Resolved on first use inside the closure, never at import: #541's rule, and here it also
-    // means a deployment with no STRIPE_SECRET_KEY only throws for a member who actually has a
-    // subscription — which the loop records rather than swallows.
-    stripe: { cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id) },
+    // Null when STRIPE_SECRET_KEY is absent, exactly as `kv` is null without the CF_KV trio:
+    // the loop must be able to RECORD an unconfigured deployment rather than discover it as a
+    // thrown client construction. The client itself is still resolved on first use inside the
+    // closure, never at import (#541).
+    stripe: stripeConfigured()
+      ? { cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id) }
+      : null,
   });
 });
