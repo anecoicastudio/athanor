@@ -106,6 +106,20 @@ const nonBlank = (env: EnvPort, name: string): string | undefined => {
   return trimmed === '' ? undefined : trimmed;
 };
 
+/**
+ * Is a Stripe client buildable in this environment at all?
+ *
+ * `stripeClient()` throws on a missing secret, which is right for a caller that needs Stripe to
+ * do its job. The erasure job (#107) needs the other answer: an unconfigured deployment is a
+ * state it RECORDS — an erased member whose subscription it cannot cancel must stop the cascade,
+ * not crash it — so it asks first and carries `null` the way it carries an absent CF_KV trio.
+ *
+ * Same `nonBlank` read as `stripeClient`, so the two can never disagree about what «set» means.
+ */
+export function stripeConfigured(env: EnvPort = denoEnv): boolean {
+  return nonBlank(env, 'STRIPE_SECRET_KEY') !== undefined;
+}
+
 /** The two Circle Price ids, by plan. `undefined` where the variable is unset or blank. */
 export type CirclePriceIds = { monthly?: string; annual?: string };
 

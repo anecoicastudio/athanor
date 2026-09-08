@@ -58,11 +58,17 @@ select is(
   (select count(*)::int from public.aura_events),
   0, 'erasure path writes zero Aura (rule #1)');
 
--- ── #515: 'partial' — a processed request that stopped at the legal gate ────────────────────
--- The job runs irreversible work (session revoke, fund footprint erasure) and then stops,
--- because deleting the account is gated on #184. It used to record that as 'failed', which is
--- the one thing it is not: nothing failed. These assert the value exists, that the service role
--- can write it, and — the half that actually protects anyone — that a client still cannot.
+-- ── #515: 'partial' — the status the job no longer writes ───────────────────────────────────
+-- It was added because the job ran irreversible work (session revoke, fund footprint erasure)
+-- and then stopped at the legal gate, and recording that as 'failed' was the one thing it was
+-- not: nothing had failed. #107 removed the gate — the cascade completes and a clean pass ends
+-- 'done' — so the job now writes only 'done' or 'failed', and 'partial' survives for the rows
+-- written before that, which R-8 §7.5 re-drives by hand.
+--
+-- The value therefore stays in the CHECK, and these still matter: a status the job stopped
+-- writing must not become a status a CLIENT can write, and the rows carrying it must stay
+-- readable. These assert the value exists, that the service role can write it, and — the half
+-- that actually protects anyone — that a client still cannot.
 select lives_ok(
   $$ update public.gdpr_erasure_requests set status = 'partial'
      where profile_id = current_setting('test.a')::uuid $$,

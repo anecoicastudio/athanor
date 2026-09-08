@@ -1539,7 +1539,7 @@
   "account.delete.row": "Delete account",
   "account.delete.title": "Delete your account",
   "account.delete.body": "We close your session on every device right away and record your deletion request. There is no going back from here.",
-  "account.delete.deferred": "The deletion is not immediate. Your candidacies and your votes are removed, and your fund contributions lose every link to your name. Your profile, your dream and your messages are removed after a review. Data the law requires us to keep stays for the required time.",
+  "account.delete.deferred": "The deletion is not immediate: we run it every night. Your candidacies and your votes are removed, and your fund contributions lose every link to your name. Your profile, your dream and your messages are usually removed within a day. Data the law requires us to keep stays for the required time, without your name.",
   "account.delete.confirmField": "Type DELETE to confirm",
   "account.delete.confirmWord": "DELETE",
   "account.delete.exportFirst": "Want to save your data first? Download everything.",

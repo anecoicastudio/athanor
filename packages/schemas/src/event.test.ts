@@ -329,6 +329,7 @@ describe('ticketSchema', () => {
     qr_token: 'signed.token',
     status: 'paid',
     expires_at: null,
+    erased_at: null,
     created_at: '2026-06-16T10:00:00.000Z',
     updated_at: '2026-06-16T10:00:00.000Z',
   };
@@ -351,6 +352,20 @@ describe('ticketSchema', () => {
 
   it('rejects an unknown status', () => {
     expect(() => ticketSchema.parse({ ...valid, status: 'gifted' })).toThrow();
+  });
+
+  // #107 — a GDPR-pseudonymised row: the money stays, the identity and the door credential go.
+  // The schema has to admit it, because the row is still in the table for ten years.
+  it('parses a pseudonymised ticket — no buyer, no QR, the money intact', () => {
+    const parsed = ticketSchema.parse({
+      ...valid,
+      user_id: null,
+      qr_token: null,
+      erased_at: '2026-09-08T03:47:00.000Z',
+    });
+    expect(parsed.user_id).toBeNull();
+    expect(parsed.stripe_payment_id).toBe('pi_123');
+    expect(parsed.erased_at).toBe('2026-09-08T03:47:00.000Z');
   });
 });
 

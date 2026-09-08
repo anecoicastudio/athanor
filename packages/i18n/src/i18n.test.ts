@@ -581,13 +581,19 @@ describe('translation completeness', () => {
   });
 });
 
-describe('delete-account copy says what the job defers (#515)', () => {
+describe('delete-account copy says what the job defers (#515, #107)', () => {
   /**
-   * The erasure job is legal-gated (#184/#107): at the tap it revokes sessions and erases the
-   * fund footprint, and it does NOT delete the account. The old copy said «cancelleremo il tuo
-   * profilo» and «Elimina definitivamente», and the toast said the account *will be* deleted —
-   * three promises of a completion nothing delivers. Pinned by name, like the settlement block
-   * above: a count cannot say which promise came back.
+   * The copy's job is to promise exactly what the erasure job delivers, and what that is has
+   * changed twice. Originally it said «cancelleremo il tuo profilo» and «Elimina
+   * definitivamente» and the toast said the account *will be* deleted — three promises of a
+   * completion nothing delivered, because the account cascade was commented out behind a legal
+   * gate. #515 replaced them with a deferral «dopo una verifica».
+   *
+   * #107 removed the gate: the controller ruled the retention question on 2026-09-07 (#184) and
+   * the job now runs nightly and reaches `done`. So «after a review» became false in a NEW way —
+   * there is no review, there is a cron at 03:47 — and the deferral now names the wait it
+   * actually is. Pinned by name, like the settlement block above: a count cannot say which
+   * promise came back.
    */
   const DELETE_KEYS: readonly MessageKey[] = [
     'account.delete.body',
@@ -606,17 +612,37 @@ describe('delete-account copy says what the job defers (#515)', () => {
   test('the deferred line names the wait, in both locales', () => {
     // The one thing this line exists to say: the erasure does not happen at the tap. If a
     // rewrite drops that, the screen is back to promising a completion the job cannot deliver.
-    expect(it['account.delete.deferred']).toMatch(/non è immediata|dopo una verifica/i);
-    expect(en['account.delete.deferred']).toMatch(/not immediate|after a review/i);
+    expect(it['account.delete.deferred']).toMatch(/non è immediata/i);
+    expect(en['account.delete.deferred']).toMatch(/not immediate/i);
+  });
+
+  test('the wait it names is the nightly job, not a review that no longer happens', () => {
+    // #107 — «dopo una verifica» / «after a review» described the legal gate. There is no gate
+    // and no review; there is a cron job at 03:47 UTC. Both halves are asserted, because
+    // dropping the old phrase without naming the new wait leaves the line vaguer than the
+    // product now is.
+    expect(it['account.delete.deferred']).toMatch(/ogni notte/i);
+    expect(en['account.delete.deferred']).toMatch(/every night/i);
+    expect(it['account.delete.deferred']).not.toMatch(/dopo una verifica/i);
+    expect(en['account.delete.deferred']).not.toMatch(/after a review/i);
+  });
+
+  test('the one-day figure is hedged, because several things legitimately delay it', () => {
+    // A pass claims at most 20 requests, a step that fails lands the row on a terminal `failed`
+    // that nothing re-queues, and on a project without the Vault pair the wrapper is a silent
+    // no-op. «Entro un giorno» flat is a promise the job does not always keep; «di norma» is the
+    // difference between a normal case and a guarantee.
+    expect(it['account.delete.deferred']).toMatch(/di norma/i);
+    expect(en['account.delete.deferred']).toMatch(/usually/i);
   });
 
   /**
    * The dream is the sharpest test of the split. `gdpr_erase_fund_footprint` (#240) removes
-   * candidacies, votes and the fund footprint; the `dreams` row goes only with the auth.users
-   * cascade, which is still commented out behind the legal gate. So the dream belongs in the
-   * DEFERRED half and must never be claimed in the immediate one — the first rewrite of this
-   * copy put it in `body` next to «questo accade subito», which is the same false promise
-   * #515 exists to remove, in a new sentence.
+   * candidacies, votes and the fund footprint at the tap; the `dreams` row goes only with the
+   * auth.users cascade, which since #107 runs on the nightly pass rather than never — later
+   * either way. So the dream belongs in the DEFERRED half and must never be claimed in the
+   * immediate one — the first rewrite of this copy put it in `body` next to «questo accade
+   * subito», which is the same false promise #515 exists to remove, in a new sentence.
    */
   test('the dream is promised in the deferred half only, never in the immediate one', () => {
     expect(it['account.delete.body']).not.toMatch(/sogno/i);
@@ -628,8 +654,9 @@ describe('delete-account copy says what the job defers (#515)', () => {
   test('nothing claims the account is already gone, or the erasure already running', () => {
     // «definitivamente» / «permanently» and «verrà eliminato» / «will be deleted» are the exact
     // words that made the original promise. «è iniziata» / «has started» is the one the first
-    // rewrite reached for: at the tap the request is recorded and nothing server-side has run —
-    // the job is a nightly cron, and PRODUCTION-READINESS keeps it deliberately unscheduled.
+    // rewrite reached for, and it is still wrong after #107: at the tap the request is recorded
+    // and nothing server-side has run. The job is a nightly cron (03:47 UTC) — scheduled now,
+    // but not running because somebody tapped.
     expect(it['account.delete.cta']).not.toMatch(/definitivamente/i);
     expect(en['account.delete.cta']).not.toMatch(/permanently|forever/i);
     expect(it['account.delete.toast']).not.toMatch(/verrà eliminat|è stato eliminat|è iniziata/i);

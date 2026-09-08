@@ -198,7 +198,11 @@ Deno.test(
         data: [{ price: { recurring: { interval: 'month' } }, current_period_end: 1760000000 }],
       },
     } as unknown as Stripe.Subscription);
-    const values = dbB.calls[0].values as Record<string, unknown>;
+    // The WRITE, not calls[0]: since #107 handleSubscription resolves the row by its Stripe ids
+    // first (two selects), so that a GDPR-pseudonymised membership can still record a
+    // cancellation instead of tripping unique (stripe_customer_id) on every retry.
+    const write = dbB.calls.filter((c) => c.table === 'circle_memberships' && c.op !== 'select')[0];
+    const values = write.values as Record<string, unknown>;
     assertEquals(values.profile_id, PROFILE, 'the membership must be cached against the payer');
   },
 );

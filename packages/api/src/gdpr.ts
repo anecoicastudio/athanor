@@ -43,5 +43,9 @@ export async function requestErasure(client: AthanorClient): Promise<void> {
   if (!profile_id) throw new Error('not authenticated');
   const payload = gdprRequestInsertSchema.parse({ profile_id });
   const { error } = await client.from('gdpr_erasure_requests').insert(payload);
-  if (error) throw error;
+  // 23505 is the one open request per member (#107, gdpr_erasure_requests_one_open_per_profile)
+  // and it is a SUCCESS here: the member asked to be erased, and a request is already on file
+  // waiting for tonight's job. Surfacing it would tell somebody who has just typed ELIMINA that
+  // their deletion failed, which is both frightening and false. Every other error still throws.
+  if (error && error.code !== '23505') throw error;
 }

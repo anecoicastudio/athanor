@@ -133,8 +133,10 @@ sessions still open». The _mechanism_ is deterministic and verified: a UUID in 
 bearer is a 401, every time, and #542's staged proof recorded a request landing `failed` for
 exactly that reason.
 
-What is not verified is the scale. `erasure-job` is deployed but **unscheduled** and behind the
-legal gate, staging's `gdpr_erasure_requests` is empty, and production was not queried — so how
+What is not verified is the scale. When this was written `erasure-job` was deployed but
+**unscheduled** and behind the legal gate (#107 scheduled it on 2026-09-08, which changes the
+scale going forward and nothing about the record below), staging's `gdpr_erasure_requests` was
+empty, and production was not queried — so how
 many live erasures actually ran, if any, is unknown. Read «every live erasure» as the
 counterfactual it is: every erasure that ran, or would have run, took this path. The header
 should not be read as a record of an observed production incident.
@@ -1751,10 +1753,81 @@ counsel being engaged (its closing comment is the ruling): payment rows — `eve
 **pseudonymised and kept 10 years** (art. 2220 c.c.; DPR 600/1973 art. 22), everything else is
 deleted on request, and counterpart conversations are **not** preserved. Read «counsel's answer»
 in all three as «the controller's 2026-09-07 ruling». What the SQL does is unchanged and was
-never wrong: the tombstone still encodes no window, and `auth.users` deletion is still gated —
-now on #107 implementing the ruling and scheduling the job, not on a lawyer.
+never wrong: the tombstone still encodes no window, and `auth.users` deletion was gated on #107
+implementing the ruling rather than on a lawyer. **#107 landed on 2026-09-08** (`20260908071656`,
+`20260908071807`, `20260908073545`, `20260908074427`): the deletion happens, the job is scheduled,
+and a clean pass ends `done`. The one thing to carry forward from these headers is that
+20260815131925's tombstone-reassignment pattern is NOT what the payment tables use — their unique
+indexes make a single sentinel impossible from the second erased member onward, so they null the
+identity and stamp `erased_at` instead. 20260908071656's header has the argument.
 
 Asserted by: `supabase/tests/0104_gdpr_fund_erasure.test.sql` (tombstone keeps the money columns,
 loses the identity), `0058_gdpr_erasure_requests_rls.test.sql` (the request table's `partial`
 status and client surface), `0137_gdpr_storage_footprint.test.sql` (bytes deleted on request).
-The 10-year figure has no test yet, deliberately: nothing encodes it until #107's reaper does.
+The 10-year figure still has no test, and #107 did not add one: it ships the pseudonymisation and
+the `erased_at` stamp the window will be measured from, and leaves the reaper that finally drops
+those rows to **#715**. Nothing in the schema encodes ten years, so there is still no number to
+assert — `erased_at` is the fact, the window is not. #715 also carries the decision #107 did not
+make: `fund_contributions` was pseudonymised by #240 before `erased_at` existed and therefore has
+no clock at all, so it cannot be aged without a column and a backfill ruling.
+
+## `20260908071807_schedule_erasure_nightly.sql` — the export-then-erase rider is backwards
+
+The schedule comment (`:67`) justifies 03:47 partly like this:
+
+> After gdpr-export-nightly on purpose: a member who requested an export and then an erasure gets
+> the archive built before the account it describes goes away.
+
+The first half is right and the second is not. `gdpr-export-nightly` runs at 03:25 and writes the
+archive into the `exports` bucket; `erasure-job` runs 22 minutes later and its storage sweep covers
+**every declared bucket, `exports` included** (`gdpr_storage_footprint`, `20260827110034`, and
+`erasure-job/sweep-buckets.test.ts` names `exports` deliberately). So the archive is built and then
+deleted in the same night. The member does not get it.
+
+That behaviour is **correct** and is not being changed: a member who asks to be erased has asked
+for their exported copy to go too, and leaving a downloadable archive of an erased account sitting
+in a bucket is the residue #573 exists to remove. Only the sentence is wrong. Read `:67` as: the
+ordering exists so the export job is not still writing into a folder the sweep is walking — not as
+a promise that the member receives the archive.
+
+The 03:47 slot itself is unaffected, and so is every other reason the comment gives for it (clear
+of the 03:11/03:17/03:25 cluster, clear of `purge-waitlist` at 04:00).
+
+Asserted by: `supabase/functions/erasure-job/sweep-buckets.test.ts`, which pins `exports` as a
+swept bucket and says why — that is the fact the sentence contradicts. No new test: the claim
+being corrected is prose about intent, and the behaviour it misdescribes is already covered.
+
+## `20260908084858_erasure_organiser_events_keep_other_members_records.sql` — the "Known consequence" understates it
+
+The header's closing paragraph (`:41-44`) says:
+
+> a soft-deleted event still resolves for the rows that reference it, so a ticket holder's own
+> history can render an event whose organiser is now the sentinel — a profile with no handle.
+> That is a display question, not a data-loss one
+
+The first clause is wrong and the framing with it. Both SELECT policies on `public.events` gate on
+`deleted_at is null` (`20260615094844_events.sql:72-80`), and every read in `packages/api` goes
+through `from('events')` under RLS. So once the organiser is erased and their events are
+soft-deleted, a ticket holder cannot read the event **at all** — not the organiser's handle, but
+the title, the date and the venue.
+
+What actually survives is what the migration was written to protect, and it is unchanged: the
+`event_tickets` row with its `stripe_payment_id`, `status` and timestamps, the `rsvps` row and the
+`event_attendance` row. The financial record is intact and so is the check-in history; what is
+gone is the description of the occasion.
+
+That trade stands — the alternative was the ON DELETE CASCADE hard-deleting those rows outright,
+which is the defect the migration exists to remove, and the erased member's event text is their
+content, which the controller's ruling says goes. But it is a larger consequence than «a profile
+with no handle», and anyone reading that sentence would have been surprised by a support ticket
+saying «my ticket is there but the event vanished». Read `:41-44` as: the ticket, the RSVP and the
+check-in survive; the event itself becomes unreadable to everyone.
+
+Not fixed in code on purpose. Keeping the event readable would mean either leaving an erased
+member's content served (against the ruling) or a per-event rule about whose rows are attached,
+which is a product decision rather than an erasure one.
+
+Asserted by: `supabase/tests/0149_gdpr_payment_erasure.test.sql` §6b, which asserts the event row
+still EXISTS, is disowned to the sentinel and carries `deleted_at`, and that the ticket, RSVP and
+attendance survive. What it does not assert is readability under RLS — the assertions run as
+superuser, so they see the soft-deleted row. That gap is the reason this entry exists.

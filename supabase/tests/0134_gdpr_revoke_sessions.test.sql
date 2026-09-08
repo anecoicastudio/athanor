@@ -3,8 +3,9 @@
 -- auth-js `admin.signOut(profileId, 'global')`, a call that takes «A valid, logged-in JWT» and
 -- sends its first argument as the Authorization bearer; GoTrue 401s on a profile id every time,
 -- so the loop recorded a failed step and the erasure landed `failed` with the member's sessions
--- still open — on every request that took this path (how many did is unknown: the job is
--- deployed but unscheduled behind the legal gate). No admin surface revokes by id — auth-js has
+-- still open — on every request that took this path (how many did is unknown: when #542 was found
+-- the job was deployed but unscheduled behind the legal gate; #107 has since scheduled it). No
+-- admin surface revokes by id — auth-js has
 -- getUserById / updateUserById / deleteUser (plus factor and passkey deletes) and GoTrue's
 -- /admin router registers no session route — so 20260825074614 puts the revoke where they live:
 -- public.gdpr_revoke_sessions(uuid), running GoTrue's own global-logout statement.
