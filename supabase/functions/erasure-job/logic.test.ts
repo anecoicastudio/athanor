@@ -5,7 +5,7 @@
 // reference release (#107: gdpr_erase_payment_footprint + gdpr_release_profile_references) →
 // waitlist purge + account delete → 'done'.
 //
-// 'done' is new. Until #107 the clean outcome was 'done', because the account cascade stayed
+// 'done' is new. Until #107 the clean outcome was 'partial', because the account cascade stayed
 // commented behind a legal gate; the controller ruled that question on 2026-09-07 (#184) and the
 // gate is gone. 'done' is now historical — the loop writes 'done' or 'failed' and nothing
 // else — and 'failed' still means a step actually failed, which now includes the deliberate skip
@@ -18,7 +18,7 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import type { KvPurgeResult } from './kv.ts';
-import { type ErasureCtx, processErasureRequests } from './logic.ts';
+import { type ErasureCtx, type ErasureStripe, processErasureRequests } from './logic.ts';
 import { MAX_ROUNDS, REMOVE_BATCH } from './sweep.ts';
 
 type Ctx = ErasureCtx & {
@@ -32,10 +32,15 @@ type Ctx = ErasureCtx & {
   looked: string[];
   /** profile ids handed to auth.deleteUser — the irreversible call (#107, step 4b) */
   deleted: string[];
+  /** subscription ids handed to the Stripe port (#107, step 3b-bis) */
+  cancelled: string[];
 };
 
 /** No CF_KV_* trio configured — the case #515 forbids treating as a silent skip. */
 const NO_KV = Symbol('unconfigured');
+
+/** No STRIPE_SECRET_KEY on this deployment — the same doctrine, one surface over (#107). */
+const NO_STRIPE = Symbol('stripe unconfigured');
 
 const ctx = (
   script: Record<string, FakeResult[]> = {},
@@ -46,6 +51,8 @@ const ctx = (
     purge?: KvPurgeResult | Promise<KvPurgeResult> | typeof NO_KV;
     getUserById?: ErasureCtx['auth']['getUserById'];
     deleteUser?: ErasureCtx['auth']['deleteUser'];
+    /** a cancel implementation, or NO_STRIPE to inject `stripe: null` */
+    cancelSubscription?: ErasureStripe['cancelSubscription'] | typeof NO_STRIPE;
   } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
@@ -54,6 +61,7 @@ const ctx = (
   const purged: string[][] = [];
   const looked: string[] = [];
   const deleted: string[] = [];
+  const cancelled: string[] = [];
   return {
     db,
     auth: {
@@ -97,11 +105,23 @@ const ctx = (
               );
             },
           },
+    stripe:
+      overrides.cancelSubscription === NO_STRIPE
+        ? null
+        : {
+            cancelSubscription:
+              (overrides.cancelSubscription as ErasureStripe['cancelSubscription'] | undefined) ??
+              ((id: string) => {
+                cancelled.push(id);
+                return Promise.resolve({});
+              }),
+          },
     revoked,
     removed,
     purged,
     looked,
     deleted,
+    cancelled,
   } as unknown as Ctx;
 };
 
@@ -190,8 +210,8 @@ Deno.test("per request: 'processing' → session revoke → the whole cascade �
   assertEquals(
     deletes.map((k) => [k.table, k.filters]),
     [
-      ['email_waitlist', [['eq', 'email', 'erased@example.test']]],
-      ['email_waitlist', [['eq', 'email', 'erased@example.test']]],
+      ['email_waitlist', [['ilike', 'email', 'erased@example.test']]],
+      ['email_waitlist', [['ilike', 'email', 'erased@example.test']]],
     ],
   );
 
@@ -861,7 +881,7 @@ Deno.test(
     const waitlist = c.db.calls.filter((k) => k.table === 'email_waitlist');
     assertEquals(
       waitlist.map((k) => [k.op, k.filters]),
-      [['delete', [['eq', 'email', 'gone@example.test']]]],
+      [['delete', [['ilike', 'email', 'gone@example.test']]]],
     );
     // Ordering is load-bearing in the other direction too: after the auth row is gone there is no
     // address left to match on.
@@ -883,18 +903,32 @@ Deno.test("an auth row with no email → nothing to purge, still 'done'", async 
   );
 });
 
+Deno.test('an unreadable auth row BLOCKS the delete — the address is matched from it', async () => {
+  // Reversed by #107's review. The waitlist row is matched against auth.users.email, and (4b)
+  // is what removes auth.users: delete first and the row we were asked to erase becomes
+  // unfindable. One more night with the account standing is recoverable; that is not.
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { getUserById: () => Promise.resolve({ data: null, error: { message: 'gotrue down' } }) },
+  );
+  await processErasureRequests(c);
+  assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
 Deno.test(
-  'an unreadable auth row degrades the run but never holds the account hostage',
+  'a getUserById rejection is swallowed the same way, and blocks the delete too',
   async () => {
-    // A stale waitlist row is an address the member gave us separately. Blocking the account
-    // deletion over it would leave the far larger obligation unmet for the sake of the smaller.
     const c = ctx(
       { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
-      { getUserById: () => Promise.resolve({ data: null, error: { message: 'gotrue down' } }) },
+      { getUserById: () => Promise.reject(new Error('network')) },
     );
     await processErasureRequests(c);
-    assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
-    assertEquals(c.deleted, ['user-1']);
+    assertEquals(c.deleted, []);
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
       ['processing', 'failed'],
@@ -902,26 +936,13 @@ Deno.test(
   },
 );
 
-Deno.test('a getUserById rejection is swallowed the same way, and still deletes', async () => {
-  const c = ctx(
-    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
-    { getUserById: () => Promise.reject(new Error('network')) },
-  );
-  await processErasureRequests(c);
-  assertEquals(c.deleted, ['user-1']);
-  assertEquals(
-    statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'failed'],
-  );
-});
-
-Deno.test("a failed waitlist delete is recorded — 'failed', account still deleted", async () => {
+Deno.test("a failed waitlist delete is recorded — 'failed', and the account STAYS", async () => {
   const c = ctx({
     'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
     'email_waitlist.delete': [{ error: { message: 'db down' } }],
   });
   await processErasureRequests(c);
-  assertEquals(c.deleted, ['user-1']);
+  assertEquals(c.deleted, []);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
@@ -962,23 +983,29 @@ Deno.test('a deleteUser rejection is swallowed and the batch continues', async (
   );
 });
 
-Deno.test('an unconfigured KV purge degrades the run but does NOT block the delete', async () => {
-  // The one asymmetry worth stating: a cache the member's page is still readable from is a real
-  // failure ('failed'), but it is not a reason to leave the account itself standing.
-  const c = ctx(
-    {
-      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
-      'profiles.select': [{ data: { handle: 'ariel' } }],
-    },
-    { purge: NO_KV },
-  );
-  await processErasureRequests(c);
-  assertEquals(c.deleted, ['user-1']);
-  assertEquals(
-    statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'failed'],
-  );
-});
+Deno.test(
+  'an unconfigured KV purge blocks the delete — the uid is the only key input',
+  async () => {
+    // Reversed by #107's review, and this is the sharpest case for it. The KV keys and the storage
+    // sweep are both derived from the member's uid, and (4b) SET NULLs that uid off the request row
+    // (20260908073545). Deleting the account over a failed purge destroys the only handle that
+    // could ever find the cached pages again — and the R-8 §7.5 re-drive would then mark the row
+    // 'done' over residue nobody can locate.
+    const c = ctx(
+      {
+        'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'profiles.select': [{ data: { handle: 'ariel' } }],
+      },
+      { purge: NO_KV },
+    );
+    await processErasureRequests(c);
+    assertEquals(c.deleted, []);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed'],
+    );
+  },
+);
 
 Deno.test("a request with no subject left is 'done', not a nightly 'failed' loop", async () => {
   // Reachable through the R-8 §7.5 reconcile only: 20260908073545 made profile_id ON DELETE SET
@@ -1013,5 +1040,153 @@ Deno.test("a request with no subject left is 'done', not a nightly 'failed' loop
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'done', 'processing', 'done'],
+  );
+});
+
+// ── #107 review: the billing does not stop by itself ──────────────────────────────────────
+//
+// Pseudonymising `circle_memberships` removes OUR record of who was subscribed. Stripe keeps
+// charging the card monthly for an account that no longer exists, with no portal to cancel from
+// and no row that points at the person — the worst outcome available, and one the member cannot
+// fix themselves. So the cancellation runs before the pseudonymisation, and a failure to cancel
+// stops the erasure rather than completing it.
+
+Deno.test('the subscription is cancelled at Stripe BEFORE the row is pseudonymised', async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+  });
+  const rpcsAtCancel: string[] = [];
+  c.stripe = {
+    cancelSubscription: (id: string) => {
+      rpcsAtCancel.push(
+        ...c.db.calls.filter((k) => k.op === 'rpc').map((k) => k.columns as string),
+      );
+      c.cancelled.push(id);
+      return Promise.resolve({});
+    },
+  };
+
+  await processErasureRequests(c);
+  assertEquals(c.cancelled, ['sub_erased']);
+  assert(
+    !rpcsAtCancel.includes('gdpr_erase_payment_footprint'),
+    'cancelling AFTER the pseudonymisation would mean cancelling a row we can no longer trace',
+  );
+  assertEquals(c.deleted, ['user-1']);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'done'],
+  );
+});
+
+Deno.test(
+  'a member with no subscription is not a failure and calls Stripe not at all',
+  async () => {
+    const c = ctx({
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'circle_memberships.select': [{ data: null }],
+    });
+    await processErasureRequests(c);
+    assertEquals(c.cancelled, []);
+    assertEquals(c.deleted, ['user-1']);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'done'],
+    );
+  },
+);
+
+Deno.test('an unconfigured Stripe blocks the erasure of a subscribed member', async () => {
+  // Same doctrine as the KV trio: unconfigured is a state to REPORT. Finishing the erasure here
+  // would leave a charge nobody can trace, refund, or stop.
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+    },
+    { cancelSubscription: NO_STRIPE },
+  );
+  await processErasureRequests(c);
+  assertEquals(c.deleted, []);
+  assert(
+    !c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'),
+    'the row must not be pseudonymised while the subscription it names is still live',
+  );
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('a Stripe cancel that rejects stops the cascade where it stands', async () => {
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+    },
+    { cancelSubscription: () => Promise.reject(new Error('stripe down')) },
+  );
+  await processErasureRequests(c);
+  assertEquals(c.deleted, []);
+  assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test(
+  'an unreadable membership row stops the cascade — unread is not «no subscription»',
+  async () => {
+    const c = ctx({
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'circle_memberships.select': [{ error: { message: 'db down' } }],
+    });
+    await processErasureRequests(c);
+    assertEquals(c.cancelled, []);
+    assertEquals(c.deleted, []);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed'],
+    );
+  },
+);
+
+// ── #107 review: a failed fund reach must stop the money steps, not just the delete ───────
+
+Deno.test('a failed fund reach SKIPS the payment and reference steps entirely', async () => {
+  // Running them anyway left a live, re-signable account whose tickets no longer scan and whose
+  // Circle subscription is still billing — half-erasing a member who is still here.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.gdpr_erase_fund_footprint': [{ error: { message: 'deadlock' } }],
+  });
+  await processErasureRequests(c);
+
+  const rpcs = c.db.calls.filter((k) => k.op === 'rpc').map((k) => k.columns);
+  assertEquals(rpcs, ['gdpr_erase_fund_footprint']);
+  assert(!c.db.calls.some((k) => k.table === 'circle_memberships'));
+  assertEquals(c.cancelled, []);
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('the waitlist match folds case, and escapes the LIKE metacharacters', async () => {
+  // purge_email_waitlist folds both sides with lower() (20260620140149:111), so `eq` would walk
+  // past a row stored as `Ada@X.test`. `_` and `%` are legal in a local part and are LIKE
+  // wildcards, so an unescaped pattern would delete a DIFFERENT person's waitlist row.
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { getUserById: () => Promise.resolve({ data: { user: { email: 'a_b%c@x.test' } } }) },
+  );
+  await processErasureRequests(c);
+  const waitlist = c.db.calls.filter((k) => k.table === 'email_waitlist');
+  assertEquals(
+    waitlist.map((k) => k.filters),
+    [[['ilike', 'email', 'a\\_b\\%c@x.test']]],
   );
 });

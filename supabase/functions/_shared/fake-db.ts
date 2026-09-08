@@ -89,6 +89,10 @@ export function makeFakeDb(script: Record<string, FakeResult[]> = {}) {
       gt: filter('gt'),
       gte: filter('gte'),
       in: filter('in'),
+      // Case-insensitive equality when the pattern carries no wildcard — the erasure job's
+      // waitlist purge (#107) uses it because purge_email_waitlist folds both sides with lower().
+      ilike: filter('ilike'),
+      like: filter('like'),
       not(col: string, operator: string, val: unknown) {
         call.filters.push(['not', col, operator, val]);
         return b;

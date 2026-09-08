@@ -404,7 +404,13 @@ async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
   // carrying this payment intent, so nothing here can reach them. A re-buy is safe for the same
   // reason — the row now carries the NEW payment intent, so a late redelivery of the old
   // refund matches nothing and cannot cancel the ticket that replaced it.
-  for (const t of (ticketRows ?? []) as { user_id: string; event_id: string }[]) {
+  for (const t of (ticketRows ?? []) as { user_id: string | null; event_id: string }[]) {
+    // A GDPR-pseudonymised ticket has no buyer (#107): `user_id` is NULL, and PostgREST would
+    // serialise `.eq('user_id', null)` as `user_id=eq.null`, which Postgres rejects as `22P02`
+    // — thrown AFTER the ticket's own status flip has already committed, so every redelivery of
+    // this refund or dispute fails forever on a row that is otherwise finished. There is nothing
+    // to cancel either: the erased member's RSVP went with their profiles cascade.
+    if (!t.user_id) continue;
     const { error: rsvpErr } = await db
       .from('rsvps')
       .update({ status: 'cancelled' })
@@ -468,22 +474,62 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
 
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
-  // profile_id is UNIQUE → upsert keeps one membership per profile. founding_member is NOT touched here
-  // (cosmetic; default false; award path is out of M8 scope).
-  const { error } = await db.from('circle_memberships').upsert(
-    {
-      profile_id: profileId,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: sub.id,
-      plan,
-      status: mapSubStatus(sub.status),
-      current_period_end: currentPeriodEnd,
-      // #511 — written through verbatim so the app can tell «renews on» from «ends on».
-      // Stripe flips it back to false on an un-cancel via this same event, so no extra branch.
-      cancel_at_period_end: sub.cancel_at_period_end,
-    },
-    { onConflict: 'profile_id' },
-  );
+  // Money fields only. `profile_id` is deliberately NOT in here — see the two branches below.
+  // founding_member is not touched either (cosmetic; default false; award path is out of M8).
+  const money = {
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    plan,
+    status: mapSubStatus(sub.status),
+    current_period_end: currentPeriodEnd,
+    // #511 — written through verbatim so the app can tell «renews on» from «ends on».
+    // Stripe flips it back to false on an un-cancel via this same event, so no extra branch.
+    cancel_at_period_end: sub.cancel_at_period_end,
+  };
+
+  // Resolve the row by its STRIPE ids first, and only then by the profile. This used to be a
+  // single `upsert(..., { onConflict: 'profile_id' })`, which breaks the moment a member is
+  // GDPR-erased (#107): the row survives with `profile_id` NULL, so nothing conflicts on
+  // `profile_id`, PostgREST attempts an INSERT, and it trips `unique (stripe_customer_id)` —
+  // a 23505 thrown on every retry, forever, for an event Stripe will keep redelivering. The
+  // erasure job cancels the subscription on the way out, so the FIRST event this endpoint sees
+  // after an erasure is precisely the one that can never be recorded.
+  //
+  // `stripe_subscription_id` and `stripe_customer_id` are both UNIQUE, so either identifies at
+  // most one row; the subscription is the narrower of the two and is tried first.
+  const bySubscription = await db
+    .from('circle_memberships')
+    .select('id, profile_id, erased_at')
+    .eq('stripe_subscription_id', sub.id)
+    .maybeSingle();
+  if (bySubscription.error) throw bySubscription.error;
+  let existing = bySubscription.data as {
+    id: string;
+    profile_id: string | null;
+    erased_at: string | null;
+  } | null;
+  if (!existing) {
+    const byCustomer = await db
+      .from('circle_memberships')
+      .select('id, profile_id, erased_at')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle();
+    if (byCustomer.error) throw byCustomer.error;
+    existing = byCustomer.data as typeof existing;
+  }
+
+  if (existing) {
+    // NEVER write `profile_id` back onto a pseudonymised row. Stripe still carries the erased
+    // member's id in `sub.metadata.profile_id` — it has no idea they asked to be forgotten — so
+    // restoring it here would re-attach the identity that #107 removed, on the very webhook the
+    // erasure itself triggers. On a live row the value is already what it would be set to.
+    const patch = existing.erased_at ? money : { ...money, profile_id: profileId };
+    const { error } = await db.from('circle_memberships').update(patch).eq('id', existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await db.from('circle_memberships').insert({ ...money, profile_id: profileId });
   if (error) throw error;
 }
 

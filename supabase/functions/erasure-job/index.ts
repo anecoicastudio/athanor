@@ -13,6 +13,8 @@
 //       incremental cache outlives the rows it renders and a deploy strands rather than
 //       replaces its entries, so erasure sweeps every build prefix (#515, ./kv.ts). Runs after
 //       (3) and before (4) because it needs the handle, which (4) cascades away,
+//   (3b-bis) CANCEL the Circle subscription at Stripe (#107) — before (3c) hides who was being
+//       billed. Pseudonymising the row stops us knowing; it does not stop Stripe charging,
 //   (3c) PSEUDONYMIZE event_tickets + circle_memberships (#107, the controller's 2026-09-07
 //       ruling in #184): identity nulled, erased_at stamped, money columns and Stripe ids kept.
 //       Both identity columns are ON DELETE CASCADE, so this MUST precede (4b) — otherwise the
@@ -28,6 +30,7 @@
 // inline here: nothing in the suite ever executes this file, so an inline port is a contract no
 // test can reach (#542).
 import { requireServiceRole } from '../_shared/auth.ts';
+import { stripeClient } from '../_shared/stripe.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { cloudflareKvFromEnv } from './kv.ts';
 import { processErasureRequests } from './logic.ts';
@@ -60,5 +63,9 @@ Deno.serve((req) => {
     // every other env read here, and null when the trio is absent. The loop records that null
     // rather than skipping on it (#515); it never resolves the env itself.
     kv: cloudflareKvFromEnv(),
+    // Resolved on first use inside the closure, never at import: #541's rule, and here it also
+    // means a deployment with no STRIPE_SECRET_KEY only throws for a member who actually has a
+    // subscription — which the loop records rather than swallows.
+    stripe: { cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id) },
   });
 });

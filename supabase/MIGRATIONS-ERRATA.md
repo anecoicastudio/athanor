@@ -1770,3 +1770,29 @@ those rows to **#715**. Nothing in the schema encodes ten years, so there is sti
 assert — `erased_at` is the fact, the window is not. #715 also carries the decision #107 did not
 make: `fund_contributions` was pseudonymised by #240 before `erased_at` existed and therefore has
 no clock at all, so it cannot be aged without a column and a backfill ruling.
+
+## `20260908071807_schedule_erasure_nightly.sql` — the export-then-erase rider is backwards
+
+The schedule comment (`:67`) justifies 03:47 partly like this:
+
+> After gdpr-export-nightly on purpose: a member who requested an export and then an erasure gets
+> the archive built before the account it describes goes away.
+
+The first half is right and the second is not. `gdpr-export-nightly` runs at 03:25 and writes the
+archive into the `exports` bucket; `erasure-job` runs 22 minutes later and its storage sweep covers
+**every declared bucket, `exports` included** (`gdpr_storage_footprint`, `20260827110034`, and
+`erasure-job/sweep-buckets.test.ts` names `exports` deliberately). So the archive is built and then
+deleted in the same night. The member does not get it.
+
+That behaviour is **correct** and is not being changed: a member who asks to be erased has asked
+for their exported copy to go too, and leaving a downloadable archive of an erased account sitting
+in a bucket is the residue #573 exists to remove. Only the sentence is wrong. Read `:67` as: the
+ordering exists so the export job is not still writing into a folder the sweep is walking — not as
+a promise that the member receives the archive.
+
+The 03:47 slot itself is unaffected, and so is every other reason the comment gives for it (clear
+of the 03:11/03:17/03:25 cluster, clear of `purge-waitlist` at 04:00).
+
+Asserted by: `supabase/functions/erasure-job/sweep-buckets.test.ts`, which pins `exports` as a
+swept bucket and says why — that is the fact the sentence contradicts. No new test: the claim
+being corrected is prose about intent, and the behaviour it misdescribes is already covered.

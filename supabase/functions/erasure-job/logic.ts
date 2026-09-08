@@ -45,6 +45,22 @@ export type ErasureAuth = {
 };
 
 /**
+ * The Stripe surface the cascade needs: cancel the erased member's Circle subscription.
+ *
+ * Pseudonymising `circle_memberships` hides who the subscriber was; it does not stop Stripe
+ * charging them. Without this the erased member keeps being billed monthly for an account that
+ * no longer exists, with no portal to cancel from and no row that can be traced back to them —
+ * the worst possible combination, and one they cannot fix themselves.
+ *
+ * A port rather than a direct call so the loop stays testable without a Stripe fixture, and so
+ * the secret is resolved in index.ts behind the service-role gate like every other one.
+ */
+export type ErasureStripe = {
+  /** Cancel immediately. Stripe emits `customer.subscription.deleted`, which the webhook records. */
+  cancelSubscription: (subscriptionId: string) => Promise<unknown>;
+};
+
+/**
  * The Storage surface the job needs. BUCKET-AWARE since #573: `remove()` is bucket-scoped, and
  * the sweep below reaches every declared bucket, so index.ts can no longer pre-bind one
  * (`db.storage.from('candidacy-videos')` was the whole erasure's storage reach).
@@ -64,6 +80,13 @@ export type ErasureCtx = {
    * is the one thing #468/#492 say must never be a silent skip.
    */
   kv: ErasureKv | null;
+  /**
+   * Cancels the erased member's Circle subscription, or **null when STRIPE_SECRET_KEY is absent
+   * from this deployment's env**. Null is carried rather than resolved in the loop for the same
+   * reason `kv` is: an unconfigured deployment must be a state the run can RECORD, not a step it
+   * skips. Billing that outlives an erasure is not something to discover from a chargeback.
+   */
+  stripe: ErasureStripe | null;
 };
 
 /**
@@ -79,7 +102,7 @@ export type ErasureCtx = {
 const DREAM_ID_READ_LIMIT = 500;
 
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
-  const { db, auth, storage, kv } = ctx;
+  const { db, auth, storage, kv, stripe } = ctx;
 
   // Reported whatever happens below, including on a zero-request run: a smoke invocation of
   // this function is then enough to see that the deployment cannot purge (#515).
@@ -98,14 +121,16 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   for (const erasureReq of reqs ?? []) {
     await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', erasureReq.id);
 
-    // A request whose subject is already gone. Reachable only through the R-8 §7.5 reconcile:
-    // 20260908073545 made `profile_id` ON DELETE SET NULL so a completed request survives the
-    // account it erased, which means a pre-#107 row re-queued by hand can arrive here with no
-    // subject at all. Without this branch every step below hands `null` to an RPC and to GoTrue,
-    // and an errored port lands the row on 'failed' — so the one procedure that exists to finish
-    // these rows would instead loop them nightly. Nothing is left to erase and nothing can fail:
-    // it is done, and saying so is what stops the loop.
-    if (!erasureReq.profile_id) {
+    // The subject. Two open requests for one member in one batch would mean driving the second
+    // against a uuid the first already deleted — that is prevented at the source rather than
+    // here: 20260908085513 puts a partial unique index on `profile_id where status = 'requested'`,
+    // so a member can have at most one request open at a time.
+    const profileId = erasureReq.profile_id;
+
+    // A request whose subject is already gone — reachable through the R-8 §7.5 reconcile, which
+    // re-queues rows written before #107, and whose `profile_id` the account cascade has since
+    // SET NULL (20260908073545). The account is gone, so the request is met.
+    if (!profileId) {
       await db.from('gdpr_erasure_requests').update({ status: 'done' }).eq('id', erasureReq.id);
       continue;
     }
@@ -116,12 +141,16 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // this stays false.
     let degraded = false;
     // #107 — a SECOND flag, and it is not a duplicate of `degraded`. `degraded` decides what the
-    // row says afterwards; this decides whether step (4b) is allowed to run at all, and the
+    // row says afterwards; this decides whether the rest of the cascade may run at all, and the
     // difference is destructive. `event_tickets.user_id` and `circle_memberships.profile_id` are
     // ON DELETE CASCADE, so deleting the account before (3c) has nulled them does not fail — it
-    // silently DELETES the financial records the controller's ruling retains for ten years. A KV
-    // outage must not block the account deletion; a failed pseudonymisation must.
-    let deletionSafe = true;
+    // silently DELETES the financial records the controller's ruling retains for ten years.
+    //
+    // It is cleared by the fund reach failing, and it stops (3b-bis)/(3c)/(3d) as well as (4).
+    // Running the money steps after the fund reach failed was its own defect: it left a LIVE,
+    // re-signable account whose tickets no longer scan and whose Circle subscription is still
+    // billing, which is worse than either finishing or stopping.
+    let cascadeSafe = true;
 
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
     //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
@@ -130,8 +159,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     Revoking nothing is NOT a failure: a member who was never signed in on any device has
     //     no session to revoke, and ./revoke.ts reports that as success (a count, not an error).
     const revokeResult = await auth
-      .revokeSessions(erasureReq.profile_id)
-      .catch(() => ({ error: new Error('session revoke rejected') }));
+      .revokeSessions(profileId)
+      .catch((e: unknown) => ({ error: e ?? new Error('session revoke rejected') }));
     if (revokeResult?.error) degraded = true;
 
     // (3) fund-table reach — LIVE (#240). One atomic DB transaction (gdpr_erase_fund_footprint,
@@ -148,13 +177,13 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     migrations are append-only, and 0104 pins that manifest as the fund reach's own
     //     contract.
     const { error: fundError } = await db.rpc('gdpr_erase_fund_footprint', {
-      p_profile_id: erasureReq.profile_id,
+      p_profile_id: profileId,
     });
     if (fundError) {
       degraded = true; // nothing irreversible ran for this request — that is a real failure
       // fund_contributions.profile_id is ON DELETE RESTRICT (#378), so (4b) would fail anyway —
       // but say it here rather than leave it to be discovered as a 23503.
-      deletionSafe = false;
+      cascadeSafe = false;
     } else {
       // (3a) BYTES — every bucket, not just candidacy-videos (#573). gdpr_storage_footprint
       //     (20260827110034) lists the member's `{uid}/` folder across all seven declared
@@ -181,11 +210,11 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     it by narrowing the sweep.
       const sweep = await sweepMemberStorage(
         {
-          list: (profileId, limit) =>
-            db.rpc('gdpr_storage_footprint', { p_profile_id: profileId, p_limit: limit }),
+          list: (pid, limit) =>
+            db.rpc('gdpr_storage_footprint', { p_profile_id: pid, p_limit: limit }),
           remove: storage.remove,
         },
-        erasureReq.profile_id,
+        profileId,
       );
       if (sweep.failed || !sweep.exhausted) degraded = true;
       storageRemoved += sweep.removed;
@@ -208,7 +237,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     handle paths and the dream paths together costs one listing instead of two.
     const [{ data: profile, error: profileError }, { data: dreamRows, error: dreamsError }] =
       await Promise.all([
-        db.from('profiles').select('handle').eq('id', erasureReq.profile_id).maybeSingle(),
+        db.from('profiles').select('handle').eq('id', profileId).maybeSingle(),
         // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
         // filters describe what the page serves TODAY, and this is about what KV cached
         // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
@@ -217,7 +246,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         db
           .from('dreams')
           .select('id')
-          .eq('profile_id', erasureReq.profile_id)
+          .eq('profile_id', profileId)
           // Ordered so the page is deterministic, bounded so a truncated one is detectable.
           .order('id', { ascending: true })
           .limit(DREAM_ID_READ_LIMIT),
@@ -306,53 +335,116 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // The remaining case — both reads succeeded, no handle and no dreams — is genuinely clean:
     // the member never had a public URL, so nothing was ever cached under one.
 
-    // (3c) the retained payment tables — LIVE since #107, implementing the controller's
-    //     2026-09-07 ruling (#184's closing comment): event_tickets and circle_memberships are
-    //     PSEUDONYMISED, never deleted. gdpr_erase_payment_footprint (20260908071656) nulls the
-    //     identity (and the ticket's qr_token, a bearer credential rather than a money fact),
-    //     stamps erased_at, and keeps every amount, Stripe id and timestamp.
-    //
-    //     Why this must run BEFORE (4b) rather than being merely tidy: both identity columns are
-    //     ON DELETE CASCADE, so deleting the account first does not raise — it deletes the
-    //     financial records the ruling retains for ten years. That is why the failure below sets
-    //     deletionSafe, and why (4) is skipped rather than attempted when it does.
-    //
-    //     Chat is NOT on this list, by design: conversations.participant_a/b are ON DELETE
-    //     CASCADE, so (4b) erases the member's conversations and their messages outright, and
-    //     messages.sender_id's SET NULL no longer aborts that cascade (#336, 20260813163902).
-    //     The ruling confirmed it — counterpart conversations are not preserved.
-    const { error: paymentError } = await db.rpc('gdpr_erase_payment_footprint', {
-      p_profile_id: erasureReq.profile_id,
-    });
-    if (paymentError) {
-      degraded = true;
-      deletionSafe = false;
-      console.error('erasure-job: payment pseudonymisation failed', erasureReq.id, paymentError);
+    if (!cascadeSafe) {
+      // The fund reach failed, so nothing below may run. Skipping (3c)/(3d) is not tidiness:
+      // pseudonymising the money and releasing the references on an account that then STAYS
+      // (because (4) is skipped too) leaves a live, re-signable member whose tickets no longer
+      // scan and whose Circle subscription is still billing. Half-erasing a member who is still
+      // here is worse than either finishing or stopping.
+      console.error('erasure-job: cascade halted before the money steps', erasureReq.id);
+    } else {
+      // (3b-bis) STOP THE BILLING, before anything hides who was being billed.
+      //     Pseudonymising `circle_memberships` removes our record of the subscriber; it does
+      //     nothing whatever to Stripe, which goes on charging the card monthly for an account
+      //     that no longer exists, with no portal to cancel from and no row left that points at
+      //     the person. So the cancellation goes FIRST — before (3c) nulls `profile_id`, and long
+      //     before (4b) — and Stripe's own `customer.subscription.deleted` writes the outcome
+      //     back through the webhook, which is the only writer of money state (rule 6).
+      //
+      //     Read from the row rather than from Stripe: `stripe_subscription_id` is the cache of
+      //     the id we were given, and if it is absent there is nothing to cancel.
+      const { data: subRow, error: subReadError } = await db
+        .from('circle_memberships')
+        .select('stripe_subscription_id')
+        .eq('profile_id', profileId)
+        .maybeSingle();
+      const subscriptionId =
+        (subRow as { stripe_subscription_id?: string | null } | null)?.stripe_subscription_id ??
+        null;
+      if (subReadError) {
+        // Unread is not «no subscription». Carrying on would pseudonymise the row and lose the
+        // only pointer to the thing still taking the member's money.
+        degraded = true;
+        cascadeSafe = false;
+        console.error('erasure-job: membership unreadable, billing not stopped', erasureReq.id);
+      } else if (subscriptionId) {
+        if (!stripe) {
+          // Same doctrine as the KV trio: unconfigured is a state to REPORT, never a step to
+          // skip. A deployment with no STRIPE_SECRET_KEY cannot stop the billing, and finishing
+          // the erasure anyway would leave a charge nobody can trace or refund.
+          degraded = true;
+          cascadeSafe = false;
+          console.error(
+            'erasure-job: Stripe unconfigured, subscription not cancelled',
+            erasureReq.id,
+          );
+        } else {
+          const cancelled = await stripe
+            .cancelSubscription(subscriptionId)
+            .then(() => null)
+            .catch((e: unknown) => e);
+          if (cancelled) {
+            degraded = true;
+            cascadeSafe = false;
+            console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
+          }
+        }
+      }
     }
 
-    // (3d) the three references that make (4b) raise 23503 — every FK to profiles is CASCADE or
-    //     SET NULL except four, and NO ACTION on a row that is going away is an error rather than
-    //     a no-op. gdpr_release_profile_references (20260908071656) reassigns the two that are
-    //     ANOTHER member's record (event_attendance.scanned_by, audit_log.actor_id) to the
-    //     tombstone sentinel and deletes the member's own invites. Without it, `done` is
-    //     unreachable for anyone who ever ran an event or moderated a report — which is most of
-    //     the people whose erasure matters most.
-    const { error: refError } = await db.rpc('gdpr_release_profile_references', {
-      p_profile_id: erasureReq.profile_id,
-    });
-    if (refError) {
-      degraded = true;
-      // Not a money risk like (3c) — a leftover reference makes (4b) FAIL rather than destroy
-      // anything — but attempting the delete anyway would only turn a named error into a 23503.
-      deletionSafe = false;
-      console.error('erasure-job: reference release failed', erasureReq.id, refError);
+    if (cascadeSafe) {
+      // (3c) the retained payment tables — LIVE since #107, implementing the controller's
+      //     2026-09-07 ruling (#184's closing comment): event_tickets and circle_memberships are
+      //     PSEUDONYMISED, never deleted. gdpr_erase_payment_footprint (20260908071656) nulls the
+      //     identity (and the ticket's qr_token, a bearer credential rather than a money fact),
+      //     stamps erased_at, and keeps every amount, Stripe id and timestamp.
+      //
+      //     Why this must run BEFORE (4b) rather than being merely tidy: both identity columns
+      //     are ON DELETE CASCADE, so deleting the account first does not raise — it deletes the
+      //     financial records the ruling retains for ten years.
+      //
+      //     Chat is NOT on this list, by design: conversations.participant_a/b are ON DELETE
+      //     CASCADE, so (4b) erases the member's conversations and their messages outright, and
+      //     messages.sender_id's SET NULL no longer aborts that cascade (#336, 20260813163902).
+      //     The ruling confirmed it — counterpart conversations are not preserved.
+      const { error: paymentError } = await db.rpc('gdpr_erase_payment_footprint', {
+        p_profile_id: profileId,
+      });
+      if (paymentError) {
+        degraded = true;
+        cascadeSafe = false;
+        console.error('erasure-job: payment pseudonymisation failed', erasureReq.id, paymentError);
+      }
+
+      // (3d) the references that make (4b) raise 23503, and the one that makes it DESTROY.
+      //     gdpr_release_profile_references reassigns event_attendance.scanned_by and
+      //     audit_log.actor_id to the tombstone sentinel, disowns and soft-deletes the member's
+      //     events — `events.organizer_id` is ON DELETE CASCADE and `event_tickets`, `rsvps` and
+      //     `event_attendance` all hang off `events`, so an organiser's account delete would
+      //     otherwise hard-delete every ticket every OTHER member bought from them
+      //     (20260908084858) — and deletes the member's invites. Without it, `done` is
+      //     unreachable for anyone who ever ran an event or moderated a report.
+      const { error: refError } = await db.rpc('gdpr_release_profile_references', {
+        p_profile_id: profileId,
+      });
+      if (refError) {
+        degraded = true;
+        cascadeSafe = false;
+        console.error('erasure-job: reference release failed', erasureReq.id, refError);
+      }
     }
 
-    if (!deletionSafe) {
-      // Deliberately not attempted. The row lands 'failed' below, which is honest: the account
-      // still exists and the obligation is unmet.
+    // (4) runs only on a run with NOTHING left behind — `degraded` included, not just
+    //     `cascadeSafe`. That is wider than it first looks and it is deliberate: the storage
+    //     sweep and the KV purge both key on the member's uid, and (4b) SET NULLs the uid off
+    //     this very request row (20260908073545). Deleting the account after a failed sweep
+    //     therefore destroys the only handle that could ever find the bytes again — the request
+    //     is left saying 'failed' with no subject, and the R-8 §7.5 re-drive can only mark it
+    //     'done' over residue nobody can locate. Leaving the account standing one more night is
+    //     recoverable; deleting the map is not.
+    if (!cascadeSafe || degraded) {
       console.error(
-        'erasure-job: account deletion skipped, retained rows are not safe yet',
+        'erasure-job: account deletion skipped, the run left something behind',
         erasureReq.id,
       );
     } else {
@@ -361,22 +453,28 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     address left to match on. The 540-day default purge (purge_email_waitlist) still
       //     stands for everyone else; this is the on-request half of the ruling's item 5.
       //
-      //     A read failure here is degrading but NOT deletion-blocking: a stale waitlist row is
-      //     an address the member gave us separately, and holding the account hostage to it
-      //     would leave the far larger obligation unmet over the far smaller one.
-      const authUser = await auth
-        .getUserById(erasureReq.profile_id)
-        .catch((e) => ({ data: null, error: e }));
+      //     A failure here blocks (4b), for the same reason a failed sweep does: the address is
+      //     matched from `auth.users`, and (4b) is what removes it. Delete first and the waitlist
+      //     row becomes unfindable — an address we were asked to erase, kept, with nothing left
+      //     to match it against.
+      const authUser = await auth.getUserById(profileId).catch((e) => ({ data: null, error: e }));
       if (authUser?.error) {
         degraded = true;
         console.error('erasure-job: auth user unreadable, waitlist not purged', erasureReq.id);
       } else {
         const email = authUser?.data?.user?.email ?? null;
         if (email) {
+          // ILIKE, not EQ, and escaped. `athanor.purge_email_waitlist` folds both sides with
+          // `lower()` (20260620140149:111), so a row stored as `Ada@X.test` is the same waitlist
+          // entry as `ada@x.test` and an `eq` would walk past it. The escape is not optional:
+          // `_` and `%` are LIKE metacharacters and both are legal in a local-part, so an
+          // unescaped `a_b@x.test` would also match `axb@x.test` — deleting a DIFFERENT person's
+          // waitlist row while missing nothing is the failure mode worth spelling out.
+          const pattern = email.replace(/([\\%_])/g, '\\$1');
           const { error: waitlistError } = await db
             .from('email_waitlist')
             .delete()
-            .eq('email', email);
+            .ilike('email', pattern);
           if (waitlistError) {
             degraded = true;
             console.error('erasure-job: waitlist purge failed', erasureReq.id, waitlistError);
@@ -387,13 +485,14 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       // (4b) the irreversible one: delete auth.users, which cascades profiles and with it every
       //     ON DELETE CASCADE row the member owns — dreams, posts, moments, conversations, the
       //     profile itself. Everything above exists so that this line destroys only what the
-      //     ruling says to destroy.
-      const deleteResult = await auth
-        .deleteUser(erasureReq.profile_id)
-        .catch(() => ({ error: new Error('account delete rejected') }));
-      if (deleteResult?.error) {
-        degraded = true;
-        console.error('erasure-job: account delete failed', erasureReq.id, deleteResult.error);
+      //     ruling says to destroy — and the `degraded` re-check is what keeps (4a)'s own
+      //     failure from being overtaken by it.
+      if (!degraded) {
+        const deleteResult = await auth.deleteUser(profileId).catch((e: unknown) => ({ error: e }));
+        if (deleteResult?.error) {
+          degraded = true;
+          console.error('erasure-job: account delete failed', erasureReq.id, deleteResult.error);
+        }
       }
     }
 

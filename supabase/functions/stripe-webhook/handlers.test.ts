@@ -627,13 +627,26 @@ Deno.test('handleSubscription throws without profile_id metadata', async () => {
   );
 });
 
-Deno.test('handleSubscription upserts one membership per profile with derived fields', async () => {
+/**
+ * The membership WRITE, past the two lookups that now precede it (#107).
+ *
+ * `handleSubscription` used to be a single upsert on `onConflict: 'profile_id'`. That breaks the
+ * moment a member is GDPR-erased: the row survives with `profile_id` NULL, nothing conflicts, and
+ * the INSERT trips `unique (stripe_customer_id)` — a 23505 on every retry of an event Stripe
+ * redelivers forever. It now resolves the row by its Stripe ids first, so the write is no longer
+ * `calls[0]`.
+ */
+const membershipWrite = (db: FakeDb) =>
+  db.calls.filter((c) => c.table === 'circle_memberships' && c.op !== 'select')[0];
+
+Deno.test('handleSubscription writes one membership per profile with derived fields', async () => {
   const db = makeFakeDb();
   await handleSubscription(asDb(db), subscription());
-  const [call] = db.calls;
+  const call = membershipWrite(db);
   assertEquals(call.table, 'circle_memberships');
-  assertEquals(call.options, { onConflict: 'profile_id' });
+  assertEquals(call.op, 'insert'); // no existing row in this fake → insert, not update
   const values = call.values as Record<string, unknown>;
+  assertEquals(values.profile_id, 'prof-1');
   assertEquals(values.plan, 'monthly');
   assertEquals(values.status, 'active');
   assertEquals(values.stripe_customer_id, 'cus_1');
@@ -658,7 +671,7 @@ Deno.test(
         current_period_end: 1770000000,
       }),
     );
-    const values = db.calls[0].values as Record<string, unknown>;
+    const values = membershipWrite(db).values as Record<string, unknown>;
     assertEquals(values.plan, 'annual');
     assertEquals(values.status, 'canceled'); // unpaid → canceled via mapSubStatus
     assertEquals(values.stripe_customer_id, 'cus_2');
@@ -674,7 +687,7 @@ Deno.test(
   async () => {
     const db = makeFakeDb();
     await handleSubscription(asDb(db), subscription({ cancel_at_period_end: true }));
-    const values = db.calls[0].values as Record<string, unknown>;
+    const values = membershipWrite(db).values as Record<string, unknown>;
     assertEquals(values.status, 'active'); // still a member for the period already paid for
     assertEquals(values.cancel_at_period_end, true);
   },
@@ -685,8 +698,65 @@ Deno.test(
 Deno.test('handleSubscription writes an un-cancel back through', async () => {
   const db = makeFakeDb();
   await handleSubscription(asDb(db), subscription({ cancel_at_period_end: false }));
-  assertEquals((db.calls[0].values as Record<string, unknown>).cancel_at_period_end, false);
+  assertEquals((membershipWrite(db).values as Record<string, unknown>).cancel_at_period_end, false);
 });
+
+// ── #107: the erased-member path, which the old upsert could not survive ──────────────────
+
+Deno.test(
+  'handleSubscription UPDATES a row found by subscription id, never re-inserting',
+  async () => {
+    // The lookup is what stops the 23505: with a row already carrying this customer id, an INSERT
+    // would trip unique (stripe_customer_id) and 500 on every redelivery.
+    const db = makeFakeDb({
+      'circle_memberships.select': [{ data: { id: 'm_1', profile_id: 'prof-1', erased_at: null } }],
+    });
+    await handleSubscription(asDb(db), subscription());
+    const call = membershipWrite(db);
+    assertEquals(call.op, 'update');
+    assertEquals(call.filters, [['eq', 'id', 'm_1']]);
+    // A live row still has its identity restated — the value is what it already was.
+    assertEquals((call.values as Record<string, unknown>).profile_id, 'prof-1');
+  },
+);
+
+Deno.test('handleSubscription never re-attaches the identity to a PSEUDONYMISED row', async () => {
+  // Stripe still carries the erased member's id in sub.metadata.profile_id — it has no idea they
+  // asked to be forgotten — and the cancellation the erasure job itself triggers is the very
+  // event that arrives here. Writing profile_id back would undo #107's erasure on the way out.
+  const db = makeFakeDb({
+    'circle_memberships.select': [
+      { data: { id: 'm_1', profile_id: null, erased_at: '2026-09-08T03:47:00Z' } },
+    ],
+  });
+  await handleSubscription(asDb(db), subscription({ status: 'canceled' }));
+  const call = membershipWrite(db);
+  assertEquals(call.op, 'update');
+  assertEquals(call.filters, [['eq', 'id', 'm_1']]);
+  const values = call.values as Record<string, unknown>;
+  assert(!('profile_id' in values), 'an erased row must not have its identity written back');
+  // The cancellation still lands — that is the whole point of recording it.
+  assertEquals(values.status, 'canceled');
+});
+
+Deno.test(
+  'handleSubscription falls back to the CUSTOMER id when the subscription id misses',
+  async () => {
+    // A first-ever `customer.subscription.created` carries a subscription id our row has never
+    // seen, but the customer row may already exist from an earlier subscription.
+    const db = makeFakeDb({
+      'circle_memberships.select': [
+        { data: null },
+        { data: { id: 'm_9', profile_id: 'prof-1', erased_at: null } },
+      ],
+    });
+    await handleSubscription(asDb(db), subscription());
+    const selects = db.calls.filter((c) => c.table === 'circle_memberships' && c.op === 'select');
+    assertEquals(selects[0].filters, [['eq', 'stripe_subscription_id', 'sub_1']]);
+    assertEquals(selects[1].filters, [['eq', 'stripe_customer_id', 'cus_1']]);
+    assertEquals(membershipWrite(db).filters, [['eq', 'id', 'm_9']]);
+  },
+);
 
 // ── W8 handleInvoiceFailed ───────────────────────────────────────────────────
 

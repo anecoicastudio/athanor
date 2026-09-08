@@ -627,6 +627,15 @@ describe('delete-account copy says what the job defers (#515, #107)', () => {
     expect(en['account.delete.deferred']).not.toMatch(/after a review/i);
   });
 
+  test('the one-day figure is hedged, because several things legitimately delay it', () => {
+    // A pass claims at most 20 requests, a step that fails lands the row on a terminal `failed`
+    // that nothing re-queues, and on a project without the Vault pair the wrapper is a silent
+    // no-op. «Entro un giorno» flat is a promise the job does not always keep; «di norma» is the
+    // difference between a normal case and a guarantee.
+    expect(it['account.delete.deferred']).toMatch(/di norma/i);
+    expect(en['account.delete.deferred']).toMatch(/usually/i);
+  });
+
   /**
    * The dream is the sharpest test of the split. `gdpr_erase_fund_footprint` (#240) removes
    * candidacies, votes and the fund footprint at the tap; the `dreams` row goes only with the

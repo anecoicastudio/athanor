@@ -1539,7 +1539,7 @@
   "account.delete.row": "Elimina account",
   "account.delete.title": "Elimina il tuo account",
   "account.delete.body": "Chiudiamo subito la tua sessione su ogni dispositivo e registriamo la tua richiesta di cancellazione. Da qui non si torna indietro.",
-  "account.delete.deferred": "La cancellazione non è immediata: la eseguiamo ogni notte. Le tue candidature e i tuoi voti vengono rimossi e i tuoi contributi al fondo perdono ogni legame con il tuo nome. Il profilo, il tuo sogno e i messaggi vengono rimossi entro un giorno. I dati che la legge ci obbliga a conservare restano per il tempo richiesto, senza il tuo nome.",
+  "account.delete.deferred": "La cancellazione non è immediata: la eseguiamo ogni notte. Le tue candidature e i tuoi voti vengono rimossi e i tuoi contributi al fondo perdono ogni legame con il tuo nome. Il profilo, il tuo sogno e i messaggi vengono rimossi di norma entro un giorno. I dati che la legge ci obbliga a conservare restano per il tempo richiesto, senza il tuo nome.",
   "account.delete.confirmField": "Scrivi ELIMINA per confermare",
   "account.delete.confirmWord": "ELIMINA",
   "account.delete.exportFirst": "Vuoi prima salvare i tuoi dati? Scarica tutto.",

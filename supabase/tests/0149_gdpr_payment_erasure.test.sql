@@ -30,7 +30,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(74);
+select plan(79);
 
 -- ── 1. schema: both tables can hold a pseudonymised row ──────────────────────────────────
 
@@ -141,6 +141,8 @@ values ('00000000-0000-0000-0000-000000000000', '49000000-0000-0000-0000-0000000
 insert into public.event_tickets (id, user_id, event_id, stripe_payment_id, qr_token, status)
 values ('49000000-0000-0000-0000-000000000013', '49000000-0000-0000-0000-0000000000dd',
         '49000000-0000-0000-0000-0000000000e1', 'pi_0149_d', 'qr_0149_d', 'paid');
+insert into public.rsvps (user_id, event_id, status)
+values ('49000000-0000-0000-0000-0000000000dd', '49000000-0000-0000-0000-0000000000e1', 'going');
 
 insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at, price_cents)
 values ('49000000-0000-0000-0000-0000000000e2', '49000000-0000-0000-0000-0000000000dd',
@@ -323,42 +325,72 @@ select is(
   (select stripe_customer_id from public.circle_memberships where stripe_subscription_id = 'sub_0149_a'),
   'cus_0149_a', 'and so does the membership');
 
--- ── 6b. the OTHER cascade: a third party's erasure must not delete retained tickets ──────
--- events.organizer_id → profiles is ON DELETE CASCADE and event_tickets.event_id → events is
--- too, so erasing the ORGANISER used to delete every ticket every other member bought for their
--- events — retained, pseudonymised ones included. 20260908074427 detaches exactly those before
--- the cascade reads them, and leaves live tickets to cascade exactly as they did.
-
-select ok(not has_function_privilege('anon', 'public.detach_retained_tickets_from_event()', 'execute'),
-  'anon cannot execute the detach trigger function (#409 — trigger functions grant EXECUTE to nobody)');
-select ok(not has_function_privilege('authenticated', 'public.detach_retained_tickets_from_event()', 'execute'),
-  'authenticated cannot either');
+-- ── 6b. a third party's erasure must not destroy anybody else's records ─────────────────
+-- `events.organizer_id → profiles` is ON DELETE CASCADE, and `event_tickets`, `rsvps` and
+-- `event_attendance` all hang off `events` by CASCADE too. So erasing an ORGANISER used to
+-- hard-delete every ticket every other member had bought from them, their RSVPs and their
+-- check-ins — live rows belonging to people who have erased nothing. Latent until #107, because
+-- the account delete was commented out; nightly from #107 onward.
+--
+-- 20260908084858 disowns the events to the sentinel (so the cascade has nothing to walk) AND
+-- soft-deletes them (so the erased member's own content stops being served). C organises e1,
+-- on which A and B hold retained tickets, D holds a LIVE paid ticket and an RSVP, and A's
+-- check-in record sits against B's ticket.
 
 select is(
   (select count(*)::int from public.event_tickets
     where event_id = '49000000-0000-0000-0000-0000000000e1'),
   3, 'before: two retained tickets and one live one hang off the organiser''s event');
 
+-- The job runs the release for every erased member; C is no different. Without it the delete
+-- raises 23503 on their own events' NO ACTION siblings — and, before 20260908084858, succeeded
+-- and took everyone else's rows with it.
+select lives_ok(
+  $$ select public.gdpr_release_profile_references('49000000-0000-0000-0000-0000000000cc') $$,
+  'the organiser''s references are released, exactly as the job does it');
 select lives_ok(
   $$ delete from auth.users where id = '49000000-0000-0000-0000-0000000000cc' $$,
   'the organiser erases their own account');
+
+-- The event SURVIVES, disowned and hidden. Hard-deleting it is what took everything else with it.
 select is(
   (select count(*)::int from public.events where id = '49000000-0000-0000-0000-0000000000e1'),
-  0, 'their event cascaded away, as it always has');
-
+  1, 'the organiser''s event is NOT hard-deleted — that cascade is the whole defect');
 select is(
-  (select stripe_payment_id from public.event_tickets where id = '49000000-0000-0000-0000-000000000011'),
-  'pi_0149_a', 'A''s RETAINED ticket survived somebody else''s erasure');
+  (select organizer_id from public.events where id = '49000000-0000-0000-0000-0000000000e1'),
+  public.gdpr_tombstone_profile_id(),
+  'it is disowned to the sentinel, so nothing still points at the erased profile');
+select isnt(
+  (select deleted_at from public.events where id = '49000000-0000-0000-0000-0000000000e1'),
+  null,
+  'and soft-deleted: the erased member''s own event content stops being served');
+
+-- The three record types the cascade used to take. D erased nothing and loses nothing.
 select is(
   (select count(*)::int from public.event_tickets
-    where id = '49000000-0000-0000-0000-000000000011' and event_id is null),
-  1, 'detached rather than deleted — the money row keeps everything but the dead event link');
+    where id = '49000000-0000-0000-0000-000000000013' and user_id = '49000000-0000-0000-0000-0000000000dd'),
+  1, 'D''s LIVE paid ticket survives another member''s erasure — with its buyer');
+select is(
+  (select stripe_payment_id from public.event_tickets where id = '49000000-0000-0000-0000-000000000013'),
+  'pi_0149_d', 'and its money, which the ruling retains for ten years whoever else leaves');
+select is(
+  (select count(*)::int from public.rsvps
+    where user_id = '49000000-0000-0000-0000-0000000000dd'
+      and event_id = '49000000-0000-0000-0000-0000000000e1'),
+  1, 'D''s RSVP survives too');
+select is(
+  (select count(*)::int from public.event_attendance
+    where ticket_id = '49000000-0000-0000-0000-000000000012'),
+  1, 'and the check-in record against B''s ticket');
+
+-- The retained pair keep their event link, because the event was never deleted.
+select is(
+  (select event_id from public.event_tickets where id = '49000000-0000-0000-0000-000000000011'),
+  '49000000-0000-0000-0000-0000000000e1'::uuid,
+  'A''s retained ticket keeps its event — nothing was deleted, so nothing needed detaching');
 select is(
   (select stripe_payment_id from public.event_tickets where id = '49000000-0000-0000-0000-000000000012'),
-  'pi_0149_b', 'and so did B''s');
-select is(
-  (select count(*)::int from public.event_tickets where id = '49000000-0000-0000-0000-000000000013'),
-  0, 'D''s LIVE ticket cascaded away untouched by the trigger — behaviour is unchanged for live rows');
+  'pi_0149_b', 'and B''s keeps its money');
 
 -- And it has to fire for the role that actually deletes: the erasure job's service-role client.
 -- `revoke execute … from public, anon, authenticated` has taken service_role's EXECUTE with it
@@ -379,6 +411,48 @@ select is(
 select is(
   (select stripe_payment_id from public.event_tickets where id = '49000000-0000-0000-0000-000000000014'),
   'pi_0149_a2', 'with its money — the detach is not a soft delete');
+
+-- ── 6c. an erased buyer still occupies their seat ────────────────────────────────────────
+-- `claim_event_seat` excludes the CALLER's own row from the capacity count so a re-claim is not
+-- double-counted, and it did that with `user_id <> v_uid`. Once 20260908071656 made `user_id`
+-- nullable, `null <> v_uid` evaluated to NULL rather than true, so every pseudonymised ticket
+-- dropped OUT of the count while `event_seats_taken` — which has no caller to exclude — went on
+-- counting it. The event read as having a free seat it did not have, and sold it: one seat over
+-- capacity per erased buyer. 20260908084859 uses the null-aware `is distinct from`.
+
+insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000000', '49000000-0000-0000-0000-0000000000ee',
+        'authenticated', 'authenticated', 'e@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+
+-- Capacity ONE, and the single seat is already held by a ticket whose buyer has been erased.
+insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at, price_cents, capacity)
+values ('49000000-0000-0000-0000-0000000000e3', '49000000-0000-0000-0000-0000000000dd',
+        'Cerchio pieno', 'networking', false, 'Cascina Cuccagna',
+        extensions.st_point(9.2, 45.45)::extensions.geography, now() + interval '30 days', 0, 1);
+insert into public.event_tickets (id, user_id, event_id, stripe_payment_id, status, erased_at)
+values ('49000000-0000-0000-0000-000000000015', null,
+        '49000000-0000-0000-0000-0000000000e3', 'pi_0149_ghost', 'paid', now());
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"49000000-0000-0000-0000-0000000000ee","role":"authenticated"}';
+select is(
+  (select public.claim_event_seat('49000000-0000-0000-0000-0000000000e3')),
+  'sold_out',
+  'an erased buyer still holds their seat — `<>` dropped the NULL row and oversold the event');
+reset role;
+
+-- Control: the same call on an event with a free seat still claims it, so the assertion above is
+-- about the NULL row and not about the function having stopped working.
+insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at, price_cents, capacity)
+values ('49000000-0000-0000-0000-0000000000e4', '49000000-0000-0000-0000-0000000000dd',
+        'Cerchio libero', 'networking', false, 'Cascina Cuccagna',
+        extensions.st_point(9.2, 45.45)::extensions.geography, now() + interval '30 days', 0, 1);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"49000000-0000-0000-0000-0000000000ee","role":"authenticated"}';
+select is(
+  (select public.claim_event_seat('49000000-0000-0000-0000-0000000000e4')),
+  'claimed', 'control: a genuinely free seat is still claimable');
+reset role;
 
 -- ── 7. the nightly schedule ──────────────────────────────────────────────────────────────
 
