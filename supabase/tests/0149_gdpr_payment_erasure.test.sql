@@ -30,7 +30,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(87);
+select plan(100);
 
 -- ── 1. schema: both tables can hold a pseudonymised row ──────────────────────────────────
 
@@ -67,6 +67,8 @@ select has_function('public', 'gdpr_erase_payment_footprint', array['uuid'],
   'gdpr_erase_payment_footprint exists');
 select has_function('public', 'gdpr_release_profile_references', array['uuid'],
   'gdpr_release_profile_references exists');
+select has_function('public', 'gdpr_purge_waitlist_email', array['text'],
+  'gdpr_purge_waitlist_email exists');
 
 -- INVOKER, following gdpr_erase_fund_footprint (20260815131925:71) and the 20260821082216
 -- correction: the only caller is the erasure-job's service-role client, which already holds
@@ -86,6 +88,13 @@ select is(
 select is(
   (select proconfig from pg_proc where oid = 'public.gdpr_release_profile_references(uuid)'::regprocedure),
   array['search_path=""'], 'gdpr_release_profile_references locks search_path to empty');
+select ok(
+  (select not p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'gdpr_purge_waitlist_email'),
+  'gdpr_purge_waitlist_email is SECURITY INVOKER');
+select is(
+  (select proconfig from pg_proc where oid = 'public.gdpr_purge_waitlist_email(text)'::regprocedure),
+  array['search_path=""'], 'gdpr_purge_waitlist_email locks search_path to empty');
 
 -- PostgreSQL grants EXECUTE to PUBLIC on every new function and the pg_default_acl 'f' row adds
 -- anon and authenticated (#409), so these four are what the migration's revoke buys.
@@ -101,6 +110,12 @@ select ok(has_function_privilege('service_role', 'public.gdpr_erase_payment_foot
   'service_role — the job''s client — can pseudonymise');
 select ok(has_function_privilege('service_role', 'public.gdpr_release_profile_references(uuid)', 'execute'),
   'service_role can release references');
+select ok(not has_function_privilege('anon', 'public.gdpr_purge_waitlist_email(text)', 'execute'),
+  'anon cannot delete waitlist rows by address');
+select ok(not has_function_privilege('authenticated', 'public.gdpr_purge_waitlist_email(text)', 'execute'),
+  'authenticated cannot either — an address is all it takes, and anyone can guess one');
+select ok(has_function_privilege('service_role', 'public.gdpr_purge_waitlist_email(text)', 'execute'),
+  'service_role can purge the waitlist');
 
 -- ── 3. fixture: two members, one shared event — the case a sentinel cannot express ───────
 -- A (…aa) and B (…bb) both hold a ticket to event …e1 and both hold a Circle membership.
@@ -502,6 +517,44 @@ select lives_ok(
   $$ insert into public.gdpr_erasure_requests (profile_id, status) values (null, 'done'),
                                                                         (null, 'done') $$,
   'many subject-less completed requests coexist: NULLs are distinct');
+
+-- ── 6e. the waitlist purge matches ONE address, folded, with no pattern language ─────────
+-- The whole reason 20260908092809 exists. The match has to fold case, because
+-- athanor.purge_email_waitlist does (20260620140149:111) and a row stored as `Ada@X.test` is the
+-- same entry as the `ada@x.test` GoTrue returns. But it must not become a PATTERN match:
+-- PostgREST rewrites `*` to `%` in an ilike value before Postgres sees it, with no escape at
+-- that layer, and `*` is legal unquoted in a local part (RFC 5322 atext). Probed against staging
+-- before the fix — `GET /email_waitlist?email=ilike.a*b@probe.test` returned `axb@probe.test`
+-- too — so erasing one member would have deleted another member's row.
+--
+-- A behaviour test, not a read of the function body: a later `create or replace` reverting to a
+-- pattern match is exactly the regression this has to catch, and it would leave the catalog
+-- assertions above perfectly green.
+
+insert into public.email_waitlist (email) values
+  ('a*b@0149.test'), ('axb@0149.test'), ('ADA@0149.Test'), ('other@0149.test');
+
+select is(
+  (select public.gdpr_purge_waitlist_email('a*b@0149.test')), 1,
+  'the star address deletes exactly its own row');
+select is(
+  (select count(*)::int from public.email_waitlist where email = 'axb@0149.test'), 1,
+  'and `axb@` — which `*` as a wildcard WOULD have matched — is still there');
+select is(
+  (select public.gdpr_purge_waitlist_email('ada@0149.test')), 1,
+  'the match folds case, the way purge_email_waitlist does');
+select is(
+  (select count(*)::int from public.email_waitlist where email like '%@0149.test'), 2,
+  'the two untouched fixtures — `axb@` and `other@` — are both still standing');
+select is(
+  (select public.gdpr_purge_waitlist_email('nobody@0149.test')), 0,
+  'an address on no waitlist row deletes nothing and is not an error');
+select is(
+  (select public.gdpr_purge_waitlist_email('   ')), 0,
+  'a blank address is a no-op — never a bare delete');
+select is(
+  (select public.gdpr_purge_waitlist_email(null)), 0,
+  'and so is NULL');
 
 -- ── 7. the nightly schedule ──────────────────────────────────────────────────────────────
 

@@ -99,6 +99,13 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
  * every call fails before the network with an SDK-shaped message and no 401 anywhere to send the
  * operator at the secret. One trim answers all five names.
  */
+const nonBlank = (env: EnvPort, name: string): string | undefined => {
+  const v = env.get(name);
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
 /**
  * Is a Stripe client buildable in this environment at all?
  *
@@ -112,13 +119,6 @@ export function stripeClient(env: EnvPort = denoEnv): Stripe {
 export function stripeConfigured(env: EnvPort = denoEnv): boolean {
   return nonBlank(env, 'STRIPE_SECRET_KEY') !== undefined;
 }
-
-const nonBlank = (env: EnvPort, name: string): string | undefined => {
-  const v = env.get(name);
-  if (typeof v !== 'string') return undefined;
-  const trimmed = v.trim();
-  return trimmed === '' ? undefined : trimmed;
-};
 
 /** The two Circle Price ids, by plan. `undefined` where the variable is unset or blank. */
 export type CirclePriceIds = { monthly?: string; annual?: string };
