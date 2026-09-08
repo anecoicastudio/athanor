@@ -1,4 +1,7 @@
-// erasure-job (11 §3.9 8b) — service-role, over gdpr_erasure_requests status='requested'.
+// erasure-job (11 §3.9 8b) — service-role, over gdpr_erasure_requests. Since #717 the batch is
+// claimed by claim_erasure_requests under a lease: every 'requested' row plus every
+// 'processing' row whose claim has gone stale, so a pass torn down mid-cascade is picked up
+// again instead of stranding its request.
 // Runs nightly at 03:47 UTC under pg_cron (erasure-nightly, 20260908071807), which posts here
 // through invoke_erasure_job() with the key on the `apikey` header.
 // Cascade order is SECURITY-CRITICAL (10 §5.4):
@@ -68,7 +71,22 @@ Deno.serve((req) => {
     // thrown client construction. The client itself is still resolved on first use inside the
     // closure, never at import (#541).
     stripe: stripeConfigured()
-      ? { cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id) }
+      ? {
+          // Retrieved, not cached: the loop needs to know whether THIS subscription is still
+          // billable before it cancels, because since #717 a torn-down pass is re-driven and
+          // may reach the same subscription twice (`erasure-job/logic.ts`, step 3b-bis).
+          // `status` is a plain string on the Stripe object; anything unexpected is handed to
+          // the loop as-is and lands in the «still billable, cancel it» branch. A retrieve that
+          // REJECTS is left to reject — it reaches the loop as a failure and stops the cascade,
+          // which is what the pre-#717 code did with a failing cancel. Mapping some class of
+          // Stripe error to «no subscription» would need to know which errors Stripe raises for
+          // an id it does not have, and nothing here has established that.
+          getSubscriptionStatus: (id: string) =>
+            stripeClient()
+              .subscriptions.retrieve(id)
+              .then((s) => (s as { status?: string | null }).status ?? null),
+          cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id),
+        }
       : null,
   });
 });

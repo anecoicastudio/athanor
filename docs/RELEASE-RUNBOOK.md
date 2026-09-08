@@ -1067,20 +1067,41 @@ and `wrangler kv bulk delete` the rest.
 ### 7.5 Reconciling pre-#107 erasure requests (R-8)
 
 Every request filed before #107 stopped short of the account delete and recorded that as
-`partial` (or, before #515, as `failed`). Nothing re-queues either: the job's claim query filters
-`status = 'requested'`, so a terminal row is never picked up again. The rows are therefore
-unfinished obligations that look finished, and each project has to be reconciled by hand ONCE,
-after that project has the migrations, the function deploy and the Vault pair (§5).
+`partial` (or, before #515, as `failed`). Nothing re-queues a TERMINAL row: since #717 the claim
+predicate reaches `requested` and stale `processing`, and neither `partial` nor `failed` is
+either. The rows are therefore unfinished obligations that look finished, and each project has to
+be reconciled by hand ONCE, after that project has the migrations, the function deploy and the
+Vault pair (§5).
 
-Every step of the job is idempotent, so re-driving a request is just flipping it back:
+**A row stuck on `processing` is NOT one of these, and does not belong in the re-queue below.**
+Since #717 the job claims it back on its own: `claim_erasure_requests` takes every `processing`
+row whose `claimed_at` is older than the lease — or absent, which is what a row stranded before
+that migration looks like — so the nightly pass picks it up without help. Flipping such a row to
+`requested` by hand is worse than leaving it: it hands the same member two open rows, and the
+claim then serves only one of them per pass anyway. Step 1 lists them so you can see they are
+draining, and step 5 says what to do if one is not.
+
+Every step of the job is safe to re-drive: the DB reach is idempotent by construction, the account
+delete cannot run twice because it SET NULLs the request's own subject, and the Stripe cancel
+reads the subscription's status before touching it (#717). So re-driving a terminal request is
+just flipping it back:
 
 ```sql
--- 1. What is outstanding on this project, and whose account still exists.
-select r.id, r.status, r.created_at,
-       (p.id is not null) as account_still_exists
+-- 1. What is outstanding on this project, whose account still exists, and — for a row the job
+--    is meant to be recovering on its own — whether its lease has actually run out.
+--    `lease` reads: 'terminal' the row needs step 2; 'held' a pass is running it right now,
+--    leave it alone; 'reclaimable' the next pass will take it back, do nothing.
+select r.id, r.status, r.created_at, r.claimed_at,
+       (p.id is not null) as account_still_exists,
+       case
+         when r.status <> 'processing' then 'terminal'
+         when r.claimed_at is null then 'reclaimable (no stamp — stranded before #717)'
+         when r.claimed_at < now() - interval '15 minutes' then 'reclaimable (lease expired)'
+         else 'held (a pass is running)'
+       end as lease
   from public.gdpr_erasure_requests r
   left join public.profiles p on p.id = r.profile_id
- where r.status in ('partial', 'failed')
+ where r.status in ('partial', 'failed', 'processing')
  order by r.created_at;
 
 -- 2. Re-queue them — the OLDEST terminal row per member, never all of them. Since #107 a
@@ -1112,7 +1133,38 @@ select public.invoke_erasure_job();
 select status, count(*), count(*) filter (where profile_id is null) as identity_dropped
   from public.gdpr_erasure_requests
  group by status;
+
+-- 5. ONLY if step 1 shows a 'processing' row still 'held' after the isolate is known to be dead
+--    — a deploy mid-pass, a project paused, function logs that stop mid-cascade. RELEASING the
+--    lease is nulling the stamp: the claim predicate treats a 'processing' row with no
+--    claimed_at as infinitely stale, so the very next pass takes it.
+--
+--    Do NOT reach for `claim_erasure_requests(20, interval '0')` here. It would re-stamp the
+--    rows with a FRESH claimed_at, and the job invoked in step 3 asks for the default
+--    15-minute lease — so the rows you just "released" are the ones it skips, and step 1 goes
+--    back to reading 'held' with nothing running. The zero lease belongs to the pgTAP tests,
+--    which pass their own interval on purpose.
+--
+--    And do not run this while a pass may still be live: handing a running isolate's rows to a
+--    second one is the double-drive the lease exists to prevent. Waiting the lease out costs
+--    15 minutes and needs no judgement.
+update public.gdpr_erasure_requests
+   set claimed_at = null
+ where status = 'processing'
+   and id = '<the id from step 1>';
+-- Then step 3 again. The pass claims the row, stamps it fresh, and drives it.
 ```
+
+One symptom worth naming, because it looks like this section's problem and is not: **every**
+request sitting on `processing`, re-claimed nightly, never reaching a terminal status, with
+`erasure-job: lease lost before the terminal write` in the function logs on every pass. That is not
+a stranded queue — it is the lease FENCE rejecting its own writes. The loop fences its terminal
+update on the `claimed_at` the claim handed back (#717), so if that value ever stopped surviving
+the round trip out of `claim_erasure_requests` and back in as a filter, no request could ever leave
+`processing` and the nightly pass would re-drive each one for ever. Releasing the lease will not
+help and neither will re-queueing; the fix is in the code, not here. Verified working on staging on
+2026-09-08 — a request seeded in the stranded shape was claimed, driven, and written to `done`
+through the fence — so this is a regression to recognise, not a state to expect.
 
 Two things to know before running it:
 

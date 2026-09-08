@@ -1831,3 +1831,47 @@ Asserted by: `supabase/tests/0149_gdpr_payment_erasure.test.sql` §6b, which ass
 still EXISTS, is disowned to the sentinel and carries `deleted_at`, and that the ticket, RSVP and
 attendance survive. What it does not assert is readability under RLS — the assertions run as
 superuser, so they see the soft-deleted row. That gap is the reason this entry exists.
+
+## `20260908130546_gdpr_erasure_claim_lease.sql` — the "disjoint set" claim, and where the lock sat
+
+The function comment it writes (`:135`) ends:
+
+> Service-role only; idempotent in the sense that matters, which is that a second concurrent call
+> returns a disjoint set.
+
+That was not true of the function as this migration created it. `pg_try_advisory_xact_lock` sat in
+the `WHERE` of the query carrying `order by … limit p_limit`, so it was evaluated at the scan node,
+**below** the limit — the first call took an advisory lock for every eligible member in the table,
+not for the twenty it claimed. An overlapping second call therefore returned **nothing**, not the
+rest of the queue. On a backlog the same placement took one lock per candidate row in a single
+transaction, which is how `out of shared memory / increase max_locks_per_transaction` is reached —
+the claim would have 500'd exactly when the queue was longest.
+
+The inline comment at `:100-107` is wrong in the same way where it says the lock is "held only for
+the length of this statement, which is why the lease check above is still the thing guarding the
+cascade". The second half stands; the first understates the cost, because the length of the
+statement is not the problem — the NUMBER of locks taken within it is.
+
+Both were corrected the same day by `20260908133119_gdpr_erasure_claim_lease_fences.sql`, which
+moves the lock into the de-duplication step (above the limit, so at most `p_limit` locks are ever
+held), pins that placement with `as materialized`, and REPLACES the function comment — a comment on
+a live object, unlike this file. Read `:135` and `:100-107` as describing an intent that the SQL
+underneath them did not implement.
+
+Asserted by: nothing, and deliberately. pgTAP is one connection and one transaction, and
+`pg_try_advisory_xact_lock` is re-entrant within a transaction, so the guard cannot be exercised
+from `supabase/tests/`. `0058`'s claim section says so in place rather than implying a coverage it
+does not have; what it does assert is the lease predicate and the per-member exclusion the lock
+protects.
+
+## `20260908130546_gdpr_erasure_claim_lease.sql` — `p_lease => interval '0'` is not the ops override
+
+The same comment offers the parameter as the way to force a re-claim by hand, and
+`RELEASE-RUNBOOK.md` §7.5 was written to match. It does not work: the claim re-stamps every row it
+returns with a fresh `claimed_at`, and the job invoked next asks for the default 15-minute lease —
+so a zero-lease "release" is precisely the thing that hides those rows from the pass meant to serve
+them, for fifteen minutes.
+
+Releasing a lease by hand is nulling the stamp (`update … set claimed_at = null`), which the claim
+predicate reads as infinitely stale. §7.5 step 5 now says that, and `0058` asserts both halves —
+that a fresh stamp holds the row, and that nulling it hands the row to the very next claim.

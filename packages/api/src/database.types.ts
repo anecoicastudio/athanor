@@ -1551,6 +1551,7 @@ export type Database = {
       }
       gdpr_erasure_requests: {
         Row: {
+          claimed_at: string | null
           created_at: string
           id: string
           profile_id: string | null
@@ -1558,6 +1559,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          claimed_at?: string | null
           created_at?: string
           id?: string
           profile_id?: string | null
@@ -1565,6 +1567,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          claimed_at?: string | null
           created_at?: string
           id?: string
           profile_id?: string | null
@@ -3318,6 +3321,14 @@ export type Database = {
         Args: { p_candidacy_id: string; p_edition_id: string }
         Returns: undefined
       }
+      claim_erasure_requests: {
+        Args: { p_lease?: string; p_limit?: number }
+        Returns: {
+          claimed_at: string
+          id: string
+          profile_id: string
+        }[]
+      }
       claim_event_seat: { Args: { p_event_id: string }; Returns: string }
       close_cycle: {
         Args: {
@@ -3459,6 +3470,7 @@ export type Database = {
         Args: { p_profile_id: string }
         Returns: undefined
       }
+      gdpr_purge_waitlist_email: { Args: { p_email: string }; Returns: number }
       gdpr_release_profile_references: {
         Args: { p_profile_id: string }
         Returns: undefined
