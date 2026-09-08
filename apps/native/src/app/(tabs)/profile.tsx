@@ -123,83 +123,119 @@ function ProfileEditor({
     setTimeout(() => setSaved(false), 2500);
   };
 
+  /**
+   * The tail both branches carry (#720). It used to sit inside the tab's own `ScrollView`,
+   * below the view/edit ternary, so one copy served both modes. Edit mode now brings its own
+   * scroll container — the «Annulla» row has to be a sticky child of the SAME ScrollView the
+   * form scrolls in, which the tab cannot own from out here — so the tail travels as a slot
+   * instead of being duplicated into `ProfileEditForm`.
+   *
+   * All three, not just the flashes: `saved` is only ever true with `editing` false today
+   * (`onSaved` clears the mode and sets the flag together), so dropping it from the edit branch
+   * would be invisible almost always — and wrong in the one window where it is not, a member
+   * tapping «Modifica» again inside the 2.5s. A slot that carries the whole tail cannot drift
+   * from the branch it mirrors.
+   *
+   * A fragment, so the three stay direct flex children of whichever content container receives
+   * them and keep the `gap-8` rhythm. It is one child for `stickyHeaderIndices` accounting
+   * (`React.Children.toArray` does not descend into fragments), which is why it may only ever
+   * be appended LAST — see `ProfileEditForm`.
+   *
+   * One knowing cost. These used to sit BELOW the ternary, in a ScrollView that survived the
+   * mode change, so they stayed mounted across it; now they live inside whichever branch is
+   * rendered and remount when it flips. `MomentFlash` holds the episode it has already played
+   * as local state, so a remount lets one replay: a star grant is held for 2800ms and the
+   * flash plays out in ~700ms, so leaving edit mode inside that window shows the celebration a
+   * second time. Cosmetic, and only reachable through `starFlash` — `flashMilestoneId` clears
+   * at 700ms. Accepted rather than fixed: every alternative is worse. Hoisting the flashes out
+   * of the branch moves them out of the scroll content in VIEW mode too, and lifting
+   * `playedOut` into this screen would undo the reason #691 put it inside the component.
+   */
+  const tail = (
+    <>
+      {saved ? <Text className="text-sm text-success">{t('profile.saved', locale)}</Text> : null}
+
+      {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
+      <MomentFlash flash={dream.flashMilestoneId} locale={locale} />
+
+      {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
+      The matching toast fires through the global host (#117). */}
+      <MomentFlash flash={starFlash} locale={locale} />
+    </>
+  );
+
   return (
     // #614 beyond-the-issue: that issue's out-of-scope note read this screen as a
     // top-anchored search field, which it is not. `ProfileEditForm`'s name/bio/mission fields sit well down the scroll,
     // so it had the same defect and takes the same primitive, outside `Screen`.
     <KeyboardAvoiding>
       <Screen>
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-8 px-5 pb-12 pt-4"
-          keyboardShouldPersistTaps="handled"
-        >
-          {!editing ? (
-            <>
-              {/* Header row: share + edit toggle — sized to the 24px icon scale
-              (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. gap-6 (24px)
-              keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
-              side, so anything under 22px overlaps and taps cross-fire. */}
-              <View className="flex-row items-center justify-end gap-6">
-                {shareMessage != null && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('profile.share.label', locale)}
-                    hitSlop={HIT_SLOP}
-                    onPress={() => void shareProfile()}
-                  >
-                    <Text className="text-2xl text-aura">✦</Text>
-                  </Pressable>
-                )}
+        {/* The branch is ABOVE the scroll container, not inside it (#720). Edit mode owns its
+            own `ScrollView` so that its «Annulla» can be that view's sticky child; this one is
+            the view mode's alone, and DESIGN §6's «one scroll axis per screen» holds because
+            the two are branch-exclusive — closed here before the editor is ever mounted, never
+            nested. `source-audit.test.ts` §39 pins that ordering. */}
+        {!editing ? (
+          <ScrollView
+            className="flex-1"
+            contentContainerClassName="gap-8 px-5 pb-12 pt-4"
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header row: share + edit toggle — sized to the 24px icon scale
+            (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. gap-6 (24px)
+            keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
+            side, so anything under 22px overlaps and taps cross-fire. */}
+            <View className="flex-row items-center justify-end gap-6">
+              {shareMessage != null && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('settings.title', locale)}
+                  accessibilityLabel={t('profile.share.label', locale)}
                   hitSlop={HIT_SLOP}
-                  onPress={() => router.push('/(modal)/settings')}
+                  onPress={() => void shareProfile()}
                 >
-                  <SettingsIcon size={24} color={semantic.faint} />
+                  <Text className="text-2xl text-aura">✦</Text>
                 </Pressable>
-                <Pressable
-                  onPress={() => setEditing(true)}
-                  accessibilityRole="button"
-                  hitSlop={HIT_SLOP}
-                >
-                  <Text className="text-base font-semibold text-faint">
-                    {t('profile.edit', locale)}
-                  </Text>
-                </Pressable>
-              </View>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.title', locale)}
+                hitSlop={HIT_SLOP}
+                onPress={() => router.push('/(modal)/settings')}
+              >
+                <SettingsIcon size={24} color={semantic.faint} />
+              </Pressable>
+              <Pressable
+                onPress={() => setEditing(true)}
+                accessibilityRole="button"
+                hitSlop={HIT_SLOP}
+              >
+                <Text className="text-base font-semibold text-faint">
+                  {t('profile.edit', locale)}
+                </Text>
+              </Pressable>
+            </View>
 
-              <ProfileView
-                userId={userId}
-                profile={profile}
-                locale={locale}
-                hasDream={dream.dreamText != null}
-                dreamSlot={<DreamSection locale={locale} dream={dream} />}
-              />
-            </>
-          ) : (
-            <ProfileEditForm
+            <ProfileView
               userId={userId}
               profile={profile}
-              dreamText={dream.dreamText}
-              refreshProfile={refreshProfile}
-              onSaved={onSaved}
-              onCancel={() => setEditing(false)}
+              locale={locale}
+              hasDream={dream.dreamText != null}
+              dreamSlot={<DreamSection locale={locale} dream={dream} />}
             />
-          )}
 
-          {saved ? (
-            <Text className="text-sm text-success">{t('profile.saved', locale)}</Text>
-          ) : null}
-
-          {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
-          <MomentFlash flash={dream.flashMilestoneId} locale={locale} />
-
-          {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
-          The matching toast fires through the global host (#117). */}
-          <MomentFlash flash={starFlash} locale={locale} />
-        </ScrollView>
+            {tail}
+          </ScrollView>
+        ) : (
+          <ProfileEditForm
+            userId={userId}
+            profile={profile}
+            dreamText={dream.dreamText}
+            refreshProfile={refreshProfile}
+            onSaved={onSaved}
+            onCancel={() => setEditing(false)}
+            tailSlot={tail}
+          />
+        )}
       </Screen>
     </KeyboardAvoiding>
   );
