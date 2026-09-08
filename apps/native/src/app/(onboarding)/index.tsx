@@ -373,7 +373,10 @@ export default function OnboardingScreen() {
               {step === 3 ? (
                 <View className="gap-4">
                   <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
-                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                  <Text
+                    accessibilityRole="header"
+                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
+                  >
                     {t('onboarding.dream.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>

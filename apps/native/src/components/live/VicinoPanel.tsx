@@ -23,7 +23,11 @@ import { supabase } from '@/lib/supabase';
 import { EventRow } from './EventRow';
 import { PanelError } from './PanelError';
 
-/** Athanor-Days promo card — glow-framed (aura-soft) header above the nearby list. */
+/**
+ * Athanor-Days promo card above the nearby list. The `aura-soft`/`aura-line` frame carries NO
+ * shadow, so it is not a glow — it is the ordinary accented surface (§2.3, ruled 2026-09-07),
+ * marking this as the panel's one lifted block while claiming that nothing has happened.
+ */
 function AthanorDaysCard({
   locale,
   notified,
@@ -36,7 +40,11 @@ function AthanorDaysCard({
   return (
     <View className="gap-2 rounded-hero border border-aura-line bg-aura-soft p-5">
       <SectionLabel tone="aura">{t('live.athanorDays.label', locale)}</SectionLabel>
-      <Text className="text-[17px] font-semibold text-foreground">
+      {/* Borderline under §10 and decided here: the eyebrow is the product's name, this line is
+          the display title, so the title takes the header. `CalendarPanel` lands on the other
+          half of the same rule — its month label is the group's only text, so there the eyebrow
+          is the heading. Two panels, opposite halves, both correct. */}
+      <Text accessibilityRole="header" className="text-[17px] font-semibold text-foreground">
         {t('live.athanorDays.title', locale)}
       </Text>
       <Text className="text-[14px] text-ink-2">{t('live.athanorDays.body', locale)}</Text>

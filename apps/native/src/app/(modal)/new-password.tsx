@@ -93,7 +93,10 @@ export default function NewPasswordScreen() {
         >
           <View className="mt-6 gap-3">
             <SectionLabel tone="aura">{t('auth.newPassword.eyebrow', locale)}</SectionLabel>
-            <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+            <Text
+              accessibilityRole="header"
+              className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+            >
               {t('auth.newPassword.display', locale)}
             </Text>
             <Text className="text-[15px] leading-[22px] text-muted-foreground">

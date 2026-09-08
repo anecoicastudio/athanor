@@ -290,7 +290,10 @@ export default function WelcomeScreen() {
               flat cyan text, which rule #4 allows; it is the glow that is reserved. */
             <View className="mt-6 gap-4">
               <SectionLabel tone="aura">{t('auth.confirm.eyebrow', locale)}</SectionLabel>
-              <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+              <Text
+                accessibilityRole="header"
+                className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+              >
                 {t('auth.confirm.title', locale)}
               </Text>
 
@@ -324,7 +327,10 @@ export default function WelcomeScreen() {
             <>
               <View className="mt-6 gap-2">
                 <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
-                <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+                <Text
+                  accessibilityRole="header"
+                  className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+                >
                   {copy('display')}
                 </Text>
                 <Text className="text-sm text-muted-foreground">{copy('sub')}</Text>

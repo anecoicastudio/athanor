@@ -18,17 +18,17 @@ import { cn, Text } from '@/tw';
  * not something to rely on for a size.
  *
  * `heading` puts the label in the VoiceOver rotor (#635). OPT-IN, not the default, and that is a
- * finding rather than caution: of the 108 call sites this component has, ~30 are not headings at
- * all. It is the form-field label over a single input (`Field.tsx:10` documents that role), the
- * category badge beside a post (`feed/FeedPost.tsx:24`), the «oppure con email» divider between
- * two rules (`(auth)/welcome.tsx`), and the eyebrow above a display title that is the real
- * heading. Defaulting to `header` would have announced every one of those as a section.
+ * finding rather than caution: many of this component's call sites are not headings at all. It is
+ * the form-field label over a single input (`Field.tsx:10` documents that role), the category
+ * badge beside a post (`feed/FeedPost.tsx:24`), the «oppure con email» divider between two rules
+ * (`(auth)/welcome.tsx`), and the eyebrow above a display title that is the real heading.
+ * Defaulting to `header` would have announced every one of those as a section.
  *
- * So the mechanism lands here and the roster is filled in where the answer is not a judgement
- * call — the grouped-list section headers, where the label IS the group. The largest remaining
- * class is the ~15 eyebrow-above-a-title sites, where the fix is arguably to make the TITLE the
- * header and leave the eyebrow alone; that is a DESIGN.md ruling, not a code change, and it is
- * called out in the PR rather than decided here.
+ * Which half a site falls in is now settled rather than a judgement call (DESIGN.md §10, ruled
+ * 2026-09-07, #651): where an eyebrow sits above a display title, the TITLE carries
+ * `accessibilityRole="header"` and the eyebrow carries nothing — the rotor lands on «Controlla la
+ * tua email», not on «QUASI FATTO». Pass `heading` only where the label IS the section's text: a
+ * grouped-list section header, a card label. One heading per block, never two.
  */
 const TONE = {
   faint: 'text-faint',
