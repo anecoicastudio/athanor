@@ -26,7 +26,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(69);
+select plan(72);
 
 -- ── 1. schema: both tables can hold a pseudonymised row ──────────────────────────────────
 
@@ -127,12 +127,21 @@ values
   ('49000000-0000-0000-0000-000000000012', '49000000-0000-0000-0000-0000000000bb',
    '49000000-0000-0000-0000-0000000000e1', 'pi_0149_b', 'qr_0149_b', 'paid');
 
+insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at, price_cents)
+values ('49000000-0000-0000-0000-0000000000e2', '49000000-0000-0000-0000-0000000000cc',
+        'Cerchio di prova due', 'networking', false, 'Cascina Cuccagna',
+        extensions.st_point(9.2, 45.45)::extensions.geography, now() + interval '20 days', 0);
+
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '49000000-0000-0000-0000-0000000000dd',
         'authenticated', 'authenticated', 'd@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 insert into public.event_tickets (id, user_id, event_id, stripe_payment_id, qr_token, status)
 values ('49000000-0000-0000-0000-000000000013', '49000000-0000-0000-0000-0000000000dd',
         '49000000-0000-0000-0000-0000000000e1', 'pi_0149_d', 'qr_0149_d', 'paid');
+
+insert into public.event_tickets (id, user_id, event_id, stripe_payment_id, qr_token, status)
+values ('49000000-0000-0000-0000-000000000014', '49000000-0000-0000-0000-0000000000aa',
+        '49000000-0000-0000-0000-0000000000e2', 'pi_0149_a2', 'qr_0149_a2', 'paid');
 
 insert into public.circle_memberships (profile_id, stripe_customer_id, stripe_subscription_id, plan, status)
 values
@@ -333,6 +342,23 @@ select is(
 select is(
   (select count(*)::int from public.event_tickets where id = '49000000-0000-0000-0000-000000000013'),
   0, 'D''s LIVE ticket cascaded away untouched by the trigger — behaviour is unchanged for live rows');
+
+-- And it has to fire for the role that actually deletes: the erasure job's service-role client.
+-- `revoke execute … from public, anon, authenticated` has taken service_role's EXECUTE with it
+-- before in this repo, and a trigger that silently stops firing is a retention hole, not a 42501
+-- somebody notices. Asserted with a REAL delete under the role, not by reading a privilege.
+select ok(
+  not has_function_privilege('authenticated', 'public.detach_retained_tickets_from_event()', 'execute'),
+  'sanity: the revoke is in force for a client role');
+set local role service_role;
+select lives_ok(
+  $$ delete from public.events where id = '49000000-0000-0000-0000-0000000000e2' $$,
+  'service_role — the job''s own client — can delete an event, revoke and all');
+reset role;
+select is(
+  (select count(*)::int from public.event_tickets
+    where id = '49000000-0000-0000-0000-000000000014' and event_id is null),
+  1, 'and the trigger still fired for it: A''s second retained ticket is detached, not deleted');
 
 -- ── 7. the nightly schedule ──────────────────────────────────────────────────────────────
 
