@@ -26,9 +26,12 @@ import { useReferralCode } from '@/hooks/use-referral-code';
  * own referral share the same way. That the card outlives the flag is a real inconsistency, but
  * it predates #242 and hiding the copy is a product call, not this one's.
  *
- * Styling stays as it shipped: `aura-soft` + `aura-line`, no `auraGlow` — the framed pair with
- * no shadow is the ordinary accent surface (§2.3, ruled 2026-09-07), so the card claims no
- * moment. The CTA is `primary`, not `light` — DESIGN §9 reserves the cyan-fill button for moment
+ * Styling stays as it shipped: `aura-soft` + `aura-line`, no `auraGlow` — with no shadow the
+ * framed pair is not a glow, so the card claims no moment (§2.3, ruled 2026-09-07). §2.3 names
+ * that pair the selected/active surface of a control; this is a static card, and it keeps the
+ * frame to read as promoted rather than as something that just happened.
+ *
+ * The CTA is `primary`, not `light` — DESIGN §9 reserves the cyan-fill button for moment
  * actions (accept a Momento, contribute; offering help is NOT one, ruled 2026-09-07), and
  * sharing is not one either. Rule #4 would permit a flat cyan CTA; §9 is the narrower of the
  * two, so it wins.

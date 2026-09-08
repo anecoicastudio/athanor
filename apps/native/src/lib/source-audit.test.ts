@@ -2586,7 +2586,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:405':
+    'app/(onboarding)/index.tsx:417':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
@@ -2698,8 +2698,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
         ).length,
       0,
     );
-    // A scanner that finds nothing passes the header assertion above. 28 today (#651 wired
-    // the ten eyebrow+title screens; the floor stays at 10, which is a floor and not a count).
+    // A scanner that finds nothing passes the header assertion above. 33 today (#651 wired
+    // the eyebrow+title screens; the floor stays at 10, which is a floor and not a count).
     expect(total, 'no header Text found at all — the walk is broken, not the tree').toBeGreaterThan(
       10,
     );

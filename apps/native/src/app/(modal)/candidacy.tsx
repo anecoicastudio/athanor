@@ -394,7 +394,10 @@ function WizardForm({
           {/* Step content — vertically centred */}
           <View className="grow justify-center">
             <SectionLabel>{t(active.label, locale)}</SectionLabel>
-            <Text className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground">
+            <Text
+              accessibilityRole="header"
+              className="mt-3 text-[25px] font-bold tracking-[-0.02em] text-foreground"
+            >
               {t(active.question, locale)}
             </Text>
             <Text className="mt-2 text-muted-foreground">{t(active.sub, locale)}</Text>

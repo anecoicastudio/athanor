@@ -34,10 +34,12 @@ import { Screen } from '@/components/Screen';
  * The sheet navigates back to /search with updated auraMin/city/star params → this screen
  * re-derives `filters` from useLocalSearchParams and re-runs the query automatically.
  *
- * Rule #4: NO glow on this screen — nothing here is a moment. Cyan appears only as the SearchBar
- * focus ring (in the component) and highlighted match text (in ResultRow). The framed
- * `auraSoft`/`auraLine` pair would be allowed — without a shadow it is just the active surface
- * (§2.3, ruled 2026-09-07) — and is still unused, because a results list has no selected state
+ * Rule #4: NO glow on this screen — nothing here is a moment. Cyan is flat wherever it appears:
+ * the matched spans in `ResultRow`, the dot on the filters pill once a filter is set, and the
+ * loading `ActivityIndicator`. (Not the SearchBar's focus ring — that is `foreground` per §9's
+ * Input row, which this docblock claimed wrongly for as long as it has existed.) The framed
+ * `auraSoft`/`auraLine` pair would be allowed too, since without a shadow it is only the active
+ * surface (§2.3, ruled 2026-09-07); it goes unused because a results list has no selected state
  * to draw.
  */
 

@@ -25,8 +25,10 @@ import { PanelError } from './PanelError';
 
 /**
  * Athanor-Days promo card above the nearby list. The `aura-soft`/`aura-line` frame carries NO
- * shadow, so it is not a glow — it is the ordinary accented surface (§2.3, ruled 2026-09-07),
- * marking this as the panel's one lifted block while claiming that nothing has happened.
+ * shadow, so whatever else it is it is not a glow and claims no moment (§2.3, ruled 2026-09-07).
+ * §2.3 names that pair the ordinary selected/active surface ANY CONTROL may take; this is a
+ * static card rather than a control, and it keeps the frame — decided at the site — because it
+ * marks the panel's one promoted block.
  */
 function AthanorDaysCard({
   locale,
@@ -149,7 +151,10 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   const header = (
     <View className="gap-4 px-5 pb-2">
       <AthanorDaysCard locale={locale} notified={notified} onNotify={() => void onNotify()} />
-      <SectionLabel>
+      {/* The other half of §10: this label is the nearby list's only text, so IT is the
+          heading — the same shape as `CalendarPanel`'s month. The card above it is a separate
+          block with a title of its own. */}
+      <SectionLabel heading>
         {city ? t('live.vicino.section', locale, { city }) : t('live.vicino.sectionNoCity', locale)}
       </SectionLabel>
     </View>
@@ -162,8 +167,9 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
         <ScrollView contentContainerClassName="pb-12">
           {header}
           <View className="items-center px-5 pt-8">
-            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
-                moment-grade surface (rule #4) on a permission ask (#119).
+            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced put the panel's
+                loudest surface on a permission ask (#119). Not a rule #4 breach: with no shadow
+                that pair is not a glow (§2.3, ruled 2026-09-07). It was a weight problem.
                 Blocked keeps the subject line (it names the permission, which the shared body
                 does not) and adds `permission.blocked.body` + the Settings route — the shared
                 blocked copy per the candidacy precedent; the calendar's bespoke key is the

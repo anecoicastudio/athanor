@@ -10,10 +10,10 @@ import type { Notification } from '@athanor/schemas';
  *
  * `accentClass`: NativeWind token class for the ndot circle background.
  * `moment` is the only celebratory (cyan `aura-soft`) accent at TYPE level. Not a rule #4
- * question — a fill with no shadow is the ordinary accent surface (§2.3, ruled 2026-09-07) — but
- * a list where every row is accented has no accent, so exactly one type earns it. All other
- * types use the neutral `raise-2` fill. One TEMPLATE overrides its type's
- * neutral accent (`notif.tpl.helpConfirmed`); see NOTIF_VISUAL_BY_TEMPLATE for why.
+ * question — with no shadow the fill is not a glow and claims no moment (§2.3, ruled
+ * 2026-09-07) — but a list where every row is accented has no accent, so exactly one type
+ * earns it. All other types use the neutral `raise-2` fill. One TEMPLATE overrides its
+ * type's neutral accent (`notif.tpl.helpConfirmed`); see NOTIF_VISUAL_BY_TEMPLATE for why.
  *
  * Glyph substitutions (plan used non-existent named glyphs; Unicode equivalents used):
  *  sun      → ✦  (the spark — the project's signature mark)
