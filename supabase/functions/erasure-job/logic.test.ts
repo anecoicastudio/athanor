@@ -184,10 +184,39 @@ Deno.test('#717: the claim is the RPC, asks for the batch, and passes no lease',
   const claims = c.db.calls.filter((k) => k.op === 'rpc' && k.columns === 'claim_erasure_requests');
   assertEquals(claims.length, 1);
   // p_limit is this loop's bound on one pass. p_lease is DELIBERATELY absent: the lease is the
-  // table's, defaulted in 20260908130546, and restating it here would let the number an operator
+  // table's, defaulted in 20260908133119, and restating it here would let the number an operator
   // reads in the migration drift from the one that runs.
   assertEquals(claims[0].values, { p_limit: 20 });
   assert(!c.db.calls.some((k) => k.table === 'gdpr_erasure_requests' && k.op === 'select'));
+});
+
+Deno.test('#717: a rejected fence is REPORTED, not swallowed', async () => {
+  // The fence's whole value is that a lost lease becomes visible: PostgREST answers a no-op
+  // update with success, so without the .select() and this warning a pass that wrote nothing
+  // would be indistinguishable from one that finished. An empty array is the rejection —
+  // `data: null` is the fake's default and means the script said nothing, which is why the loop
+  // tests for an ARRAY rather than for falsiness.
+  const warned: unknown[][] = [];
+  const realWarn = console.warn;
+  console.warn = (...args: unknown[]) => warned.push(args);
+  try {
+    const c = ctx({
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: null, claimed_at: 'lease-req-1' }] },
+      ],
+      'gdpr_erasure_requests.update': [{ data: [] }],
+    });
+    const res = await processErasureRequests(c);
+    // The pass still succeeds — the work is done and the row belongs to another pass now.
+    assertEquals(res.status, 200);
+    assertEquals(await res.json(), body(1, NO_PURGE));
+  } finally {
+    console.warn = realWarn;
+  }
+  assertEquals(warned.length, 1);
+  assertEquals(warned[0][0], 'erasure-job: lease lost before the terminal write');
+  assertEquals(warned[0][1], 'req-1');
+  assertEquals(warned[0][2], 'done');
 });
 
 Deno.test('#717: the no-subject shortcut is fenced on the lease too', async () => {

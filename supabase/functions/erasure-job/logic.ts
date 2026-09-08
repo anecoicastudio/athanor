@@ -206,9 +206,9 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   // The claim is an RPC rather than a PostgREST filter chain because it is a BATCH — the
   // conditional UPDATE ... RETURNING that decides the winner cannot be expressed here — and
   // because de-duplicating by member needs a DISTINCT ON that PostgREST has no spelling for.
-  // 20260908130546 carries the predicate and pgTAP (0058) proves it; the assertions below are
-  // this loop's half of the contract, which is that it asks for the batch and writes no status
-  // of its own until the terminal one.
+  // 20260908130546 introduced the predicate and 20260908133119 is the version that runs it;
+  // pgTAP (0058) proves it. The assertions below are this loop's half of the contract, which is
+  // that it asks for the batch and writes no status of its own until the terminal one.
   const { data: reqs, error } = await db.rpc('claim_erasure_requests', { p_limit: CLAIM_BATCH });
   if (error) return new Response(error.message, { status: 500 });
 
@@ -222,9 +222,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // index is PARTIAL on `status = 'requested'`, so a stranded 'processing' row never stopped
     // the member filing a second request beside it.
     //
-    // Cast because `returns table (id uuid, profile_id uuid)` generates a non-null `profile_id`
-    // (Supabase's generator cannot see that a RETURNING column is nullable), and the column IS
-    // nullable since 20260908073545 — the branch below is live, not dead code.
+    // Cast because `returns table (id uuid, profile_id uuid, claimed_at timestamptz)` generates a
+    // non-null `profile_id` (Supabase's generator cannot see that a RETURNING column is
+    // nullable), and the column IS nullable since 20260908073545 — the branch below is live,
+    // not dead code.
     const profileId = erasureReq.profile_id;
 
     // A request whose subject is already gone — reachable through the R-8 §7.5 reconcile, which

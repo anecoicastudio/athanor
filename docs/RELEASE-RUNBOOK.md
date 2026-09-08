@@ -1155,6 +1155,17 @@ update public.gdpr_erasure_requests
 -- Then step 3 again. The pass claims the row, stamps it fresh, and drives it.
 ```
 
+One symptom worth naming, because it looks like this section's problem and is not: **every**
+request sitting on `processing`, re-claimed nightly, never reaching a terminal status, with
+`erasure-job: lease lost before the terminal write` in the function logs on every pass. That is not
+a stranded queue — it is the lease FENCE rejecting its own writes. The loop fences its terminal
+update on the `claimed_at` the claim handed back (#717), so if that value ever stopped surviving
+the round trip out of `claim_erasure_requests` and back in as a filter, no request could ever leave
+`processing` and the nightly pass would re-drive each one for ever. Releasing the lease will not
+help and neither will re-queueing; the fix is in the code, not here. Verified working on staging on
+2026-09-08 — a request seeded in the stranded shape was claimed, driven, and written to `done`
+through the fence — so this is a regression to recognise, not a state to expect.
+
 Two things to know before running it:
 
 - **A `partial` row whose account no longer exists is already reconciled by the schema.**
