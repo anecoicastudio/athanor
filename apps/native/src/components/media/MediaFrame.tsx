@@ -81,8 +81,10 @@ type Props = {
  * `kind` picks the copy and nothing else, because the two can disagree: a video Momento's tile
  * draws a *thumbnail*, so what renders is an image while what the member is missing is a video.
  *
- * No glow anywhere here: `aura`, `auraSoft` and `auraLine` mean a moment happened (rule #4), and
- * media failing to load is the opposite of that.
+ * No glow and no cyan anywhere here. What rule #4 reserves for moments is the GLOW — `auraGlow()`
+ * laid over an `auraSoft`/`auraLine` surface (§2.3, ruled 2026-09-07); the framed pair on its own
+ * only marks something active, and a frame standing in for media that failed to load is neither
+ * active nor a moment. It stays the quietest thing on the screen.
  */
 export function MediaFrame({
   url,

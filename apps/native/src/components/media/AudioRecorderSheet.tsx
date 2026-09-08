@@ -61,8 +61,10 @@ const POLL_MS = 250;
  *
  * `MediaSheet` states the principle for this whole family: attaching media is not itself a
  * moment. The timer is `text-aura` because a live indicator and a countdown are both on the
- * flat-cyan list, and it is tabular so the digits do not jitter as they climb. No `auraSoft`,
- * no `auraLine`, no shadow — nothing has happened yet.
+ * flat-cyan list, and it is tabular so the digits do not jitter as they climb. No shadow, which
+ * is the half rule #4 actually reserves — nothing has happened yet. No `auraSoft`/`auraLine`
+ * either, though that pair alone would be allowed (§2.3, ruled 2026-09-07): the sheet has no
+ * selected or active state to mark.
  */
 export function AudioRecorderSheet({
   visible,

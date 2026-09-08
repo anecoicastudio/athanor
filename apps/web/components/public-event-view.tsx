@@ -87,6 +87,10 @@ export function PublicEventView({
         ) : null}
       </dl>
 
+      {/* Athanor Day banner. Decided at the site under DESIGN §2.3 (ruled 2026-09-07): the
+          framed pair with no shadow is the ordinary accent surface, not a glow, so it stays —
+          even though a static <p> is not a control. It accents the one attribute that changes
+          what this page is, and carries no shadow, so it claims no moment. */}
       {event.is_athanor_day ? (
         <p className="rounded-2xl border border-aura-line bg-aura-soft p-4 text-sm text-aura">
           {t('event.athanorDay.banner', locale)}

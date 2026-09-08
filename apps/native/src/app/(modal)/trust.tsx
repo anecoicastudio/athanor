@@ -152,7 +152,9 @@ export default function TrustScreen() {
                 {t('trust.identity.desc', locale)}
               </Text>
             </View>
-            {/* status chip — verified lights cyan (moment-grade, rule #4); others neutral */}
+            {/* status chip — verified takes the framed cyan pair, which is the ordinary
+                active/selected surface and not a glow (§2.3, ruled 2026-09-07); others
+                neutral */}
             <View
               className={
                 verifyState === 'verified'

@@ -19,9 +19,12 @@ import { auraGlow } from '@/lib/glow';
  *
  * `outline` is the quiet secondary — a hairline over `raise`, foreground label. It had been
  * copy-pasted verbatim into `[handle].tsx`, `+not-found.tsx` and `auth-callback.tsx`, and
- * again (at `h-[52px]`) for the two OAuth buttons on `welcome.tsx`. It is NOT a moment
- * surface: the framed cyan pill (`border-aura-line bg-aura-soft`) stays reserved for
- * moment-grade events, and "go home" is not one.
+ * again (at `h-[52px]`) for the two OAuth buttons on `welcome.tsx`. It stays hairline-over-raise
+ * for HIERARCHY, not because rule #4 forbids the alternative: the framed cyan pill
+ * (`border-aura-line bg-aura-soft`) carries no shadow, so it is the ordinary active surface and
+ * any control may take it (§2.3, ruled 2026-09-07). This is simply the variant that has to read
+ * quieter than whatever it sits beside, and cyan reads as the screen's action — "go home" is
+ * not it.
  *
  * `loading` swaps the label for a spinner in the variant's own ink and marks the control
  * busy for assistive tech. It implies `disabled`, so a press cannot be queued behind a

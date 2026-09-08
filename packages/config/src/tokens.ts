@@ -36,8 +36,8 @@ export const semantic = {
   raise: 'rgba(255,255,255,0.04)', // a lifted surface (card/list)
   raise2: 'rgba(255,255,255,0.065)', // higher surface (chips, quiet buttons)
   hair: 'rgba(176,158,222,0.10)', // translucent violet hairline
-  auraSoft: 'rgba(43,208,210,0.10)', // moment fill / active accent chip
-  auraLine: 'rgba(43,208,210,0.40)', // moment / accent 1px inset border
+  auraSoft: 'rgba(43,208,210,0.10)', // active/selected fill; a moment only under auraGlow()
+  auraLine: 'rgba(43,208,210,0.40)', // active/selected 1px inset border
   onAura: '#04222a', // text inverted on a cyan fill
   // text on an error-colored surface. A dark rose ink, mirroring onAura's "near-black tinted
   // with the accent's own hue" — 4.93:1 on `error`. Was #F0EDF7 (identical to `foreground`),

@@ -105,7 +105,10 @@ export default function ForgotPasswordScreen() {
               flight. `success` mark, no ✦, no glow. */
             <View className="mt-6 gap-4">
               <SectionLabel tone="aura">{t('auth.forgot.sent.eyebrow', locale)}</SectionLabel>
-              <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+              <Text
+                accessibilityRole="header"
+                className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+              >
                 {t('auth.forgot.sent.title', locale)}
               </Text>
 
@@ -137,7 +140,10 @@ export default function ForgotPasswordScreen() {
             <>
               <View className="mt-6 gap-3">
                 <SectionLabel tone="aura">{t('auth.forgot.eyebrow', locale)}</SectionLabel>
-                <Text className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
+                <Text
+                  accessibilityRole="header"
+                  className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+                >
                   {t('auth.forgot.display', locale)}
                 </Text>
                 <Text className="text-[15px] leading-[22px] text-muted-foreground">

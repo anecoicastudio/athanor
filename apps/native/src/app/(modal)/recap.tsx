@@ -134,7 +134,14 @@ export default function RecapScreen() {
           <View className="mt-6">
             <Card>
               <SectionLabel tone="aura">{t('recap.next.label' as MessageKey, locale)}</SectionLabel>
-              <Text className="text-[15px] font-semibold text-foreground">
+              {/* Borderline under §10 and decided here: at 15px this is small for a display
+                  title, but «{star} — {gap}» IS the block's title and «Prossima stella» is the
+                  generic label over it, so the title takes the header. The screen's own h1 sits
+                  on ModalHeader — a Card is a different block, so this is not two for one. */}
+              <Text
+                accessibilityRole="header"
+                className="text-[15px] font-semibold text-foreground"
+              >
                 {t('recap.next.title' as MessageKey, locale, { star: starName, gap: gapStr })}
               </Text>
               <Text className="text-[13px] text-muted-foreground">
