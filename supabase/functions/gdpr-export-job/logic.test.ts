@@ -7,15 +7,19 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import {
   assembleArchive,
+  CLAIM_BATCH,
   EXPORT_SPEC,
   type ExportJobCtx,
   type ExportStorage,
   processExportJobs,
+  SERVABLE_WINDOW_MS,
   SIGNED_TTL_SECONDS,
 } from './logic.ts';
 
 const JOB = 'job-1';
 const REQUESTER = 'user-1';
+/** The lease stamp claim_export_jobs handed back — every status write must fence on it (#721). */
+const CLAIMED = '2026-09-08T03:47:00.000Z';
 
 // ── the completeness pin (#129) ──────────────────────────────────────────────
 // Independent literal mirror of EXPORT_SPEC: (archive key, table, expected filter shape).
@@ -127,12 +131,20 @@ type Ctx = ExportJobCtx & {
   signs: { path: string; ttl: number }[];
 };
 
+/** A claim row as claim_export_jobs returns it; `ageMs` back-dates created_at for the window fence. */
+const claimRow = (ageMs = 0) => ({
+  id: JOB,
+  profile_id: REQUESTER,
+  created_at: new Date(Date.now() - ageMs).toISOString(),
+  claimed_at: CLAIMED,
+});
+
 const ctx = (
   script: Record<string, FakeResult[]> = {},
   storage: Partial<ExportStorage> = {},
 ): Ctx => {
   const db = makeFakeDb({
-    'gdpr_export_jobs.select': [{ data: [{ id: JOB, profile_id: REQUESTER }] }],
+    'rpc.claim_export_jobs': [{ data: [claimRow()] }],
     ...script,
   });
   const uploads: Ctx['uploads'] = [];
@@ -162,6 +174,23 @@ const statusUpdates = (db: FakeDb) =>
   db.calls
     .filter((c) => c.table === 'gdpr_export_jobs' && c.op === 'update')
     .map((c) => ({ values: c.values as Record<string, unknown>, filters: c.filters }));
+
+/**
+ * Every status write is fenced on the id AND on the stamp the claim handed back, and asks for the
+ * row back so a rejected write is visible (#721). A write missing the stamp would land on a job a
+ * later pass has already re-claimed.
+ */
+const assertFenced = (db: FakeDb) => {
+  const updates = db.calls.filter((c) => c.table === 'gdpr_export_jobs' && c.op === 'update');
+  assert(updates.length > 0, 'there is a status write to fence');
+  for (const u of updates) {
+    assertEquals(u.filters, [
+      ['eq', 'id', JOB],
+      ['eq', 'claimed_at', CLAIMED],
+    ]);
+    assertEquals(u.columns, 'id', 'and asks for the row back, so a lost lease is not silent');
+  }
+};
 
 // ── completeness: EXPORT_SPEC ⇄ the literal mirror ───────────────────────────
 
@@ -241,13 +270,21 @@ Deno.test(
     });
     await processExportJobs(c);
 
-    // claim: status='requested', batched
-    const claim = c.db.calls.find(
-      (call) => call.table === 'gdpr_export_jobs' && call.op === 'select' && call.columns !== '*',
-    );
+    // claim: the atomic RPC (#721), never a select-then-update. The predicate itself is the
+    // database's and 0057 proves it; this loop's half of the contract is that it ASKS.
+    const claim = c.db.calls.find((call) => call.op === 'rpc');
     assert(claim);
-    assertEquals(claim.filters, [['eq', 'status', 'requested']]);
-    assertEquals(claim.modifiers, [['limit', 50]]);
+    assertEquals(claim.columns, 'claim_export_jobs');
+    assertEquals(claim.values, { p_limit: CLAIM_BATCH });
+    // The only gdpr_export_jobs SELECT left is the archive's own section (`select('*')`, the
+    // member's export history). The queue read the claim replaced was the narrow-column one.
+    assertEquals(
+      c.db.calls.filter(
+        (call) => call.table === 'gdpr_export_jobs' && call.op === 'select' && call.columns !== '*',
+      ).length,
+      0,
+      'the loop never reads the queue itself — the claim is the only way in',
+    );
 
     // own-data (10 §5.3): each section filtered by the requester's id via ITS pinned shape.
     for (const [key, expected] of Object.entries(EXPECTED_SECTIONS)) {
@@ -379,17 +416,96 @@ Deno.test("upload failure → job requeued (status back to 'requested'), never '
   const res = await processExportJobs(c);
 
   const updates = statusUpdates(c.db);
+  // One write, not two: the claim already flipped the row to 'processing' in the database (#721).
   assertEquals(
     updates.map((u) => u.values.status),
-    ['processing', 'requested'],
+    ['requested'],
   );
-  assert(
-    updates.every((u) => u.filters.some(([f, col, v]) => f === 'eq' && col === 'id' && v === JOB)),
-  );
+  assertFenced(c.db);
   assertEquals(c.signs.length, 0); // never signs a URL for a failed upload
 
   // the run itself still reports the batch it saw (retry happens next cron run)
-  assertEquals(await res.json(), { processed: 1 });
+  assertEquals(await res.json(), { processed: 1, failed: 0 });
+});
+
+// ── #721: the failure statuses, and the shapes that used to strand a member ──
+
+Deno.test("signing returns no url → requeued, never 'ready' with a null download_url", async () => {
+  const c = ctx({}, { createSignedUrl: () => Promise.resolve({ data: null }) });
+  const res = await processExportJobs(c);
+
+  const updates = statusUpdates(c.db);
+  assertEquals(
+    updates.map((u) => u.values.status),
+    ['requested'],
+    "a 'ready' row with no url reads as neither pending nor ready on the screen — the member is " +
+      'told nothing and the row is terminal',
+  );
+  assertEquals(updates[0].values.download_url, undefined);
+  assertFenced(c.db);
+  assertEquals(await res.json(), { processed: 1, failed: 0 });
+});
+
+Deno.test(
+  "past the servable window → 'failed' before any work, because the 30-day cap would reject 'ready'",
+  async () => {
+    // One millisecond past 30 days − SIGNED_TTL: the expiry this job would write can no longer
+    // satisfy `expires_at <= created_at + interval '30 days'`, so the terminal write would raise
+    // 23514 and — before #721 — be discarded, leaving the row to be re-claimed every night.
+    const c = ctx({ 'rpc.claim_export_jobs': [{ data: [claimRow(SERVABLE_WINDOW_MS + 1)] }] });
+    const res = await processExportJobs(c);
+
+    assertEquals(c.uploads.length, 0, 'no archive is built for a job that cannot be handed over');
+    assertEquals(c.signs.length, 0);
+    const updates = statusUpdates(c.db);
+    assertEquals(
+      updates.map((u) => u.values.status),
+      ['failed'],
+    );
+    assertEquals(updates[0].values.download_url, undefined);
+    assertFenced(c.db);
+    assertEquals(await res.json(), { processed: 1, failed: 1 });
+  },
+);
+
+Deno.test('just inside the servable window → still served', async () => {
+  const c = ctx({ 'rpc.claim_export_jobs': [{ data: [claimRow(SERVABLE_WINDOW_MS - 60_000)] }] });
+  const res = await processExportJobs(c);
+
+  assertEquals(c.uploads.length, 1);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['ready'],
+  );
+  assertEquals(await res.json(), { processed: 1, failed: 0 });
+});
+
+Deno.test(
+  "a section read error → 'failed', archive withheld: a short archive must not read as «you have none»",
+  async () => {
+    const c = ctx({ 'messages.select': [{ error: { message: 'statement timeout' } }] });
+    const res = await processExportJobs(c);
+
+    assertEquals(c.uploads.length, 0, 'nothing is uploaded, so no partial archive can be signed');
+    assertEquals(c.signs.length, 0);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['failed'],
+    );
+    assertFenced(c.db);
+    assertEquals(await res.json(), { processed: 1, failed: 1 });
+  },
+);
+
+Deno.test('the lease lost before the terminal write is survivable, not fatal', async () => {
+  // PostgREST answers a no-op update with success and an EMPTY row array — the fence rejected the
+  // write because a later pass re-claimed the row. The pass must finish its batch anyway.
+  const c = ctx({ 'gdpr_export_jobs.update': [{ data: [] }] });
+  const res = await processExportJobs(c);
+
+  assertEquals(c.uploads.length, 1, 'the work still happened; only the write was rejected');
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { processed: 1, failed: 0 });
 });
 
 // ── happy path ───────────────────────────────────────────────────────────────
@@ -400,7 +516,7 @@ Deno.test(
     const c = ctx();
     const res = await processExportJobs(c);
     assertEquals(res.status, 200);
-    assertEquals(await res.json(), { processed: 1 });
+    assertEquals(await res.json(), { processed: 1, failed: 0 });
 
     assertEquals(c.uploads.length, 1);
     assertEquals(c.uploads[0].path, `${REQUESTER}/${JOB}.json`);
@@ -414,16 +530,17 @@ Deno.test(
     const updates = statusUpdates(c.db);
     assertEquals(
       updates.map((u) => u.values.status),
-      ['processing', 'ready'],
+      ['ready'],
     );
-    const ready = updates[1].values;
+    const ready = updates[0].values;
     assertEquals(ready.download_url, 'https://signed.example/x');
     assert(typeof ready.expires_at === 'string' && !Number.isNaN(Date.parse(ready.expires_at)));
+    assertFenced(c.db);
   },
 );
 
 Deno.test('claim error → 500 with the pg message; no job touched', async () => {
-  const c = ctx({ 'gdpr_export_jobs.select': [{ error: { message: 'boom' } }] });
+  const c = ctx({ 'rpc.claim_export_jobs': [{ error: { message: 'boom' } }] });
   const res = await processExportJobs(c);
   assertEquals(res.status, 500);
   assertEquals(await res.text(), 'boom');
@@ -432,7 +549,7 @@ Deno.test('claim error → 500 with the pg message; no job touched', async () =>
 });
 
 Deno.test('empty batch → processed 0', async () => {
-  const c = ctx({ 'gdpr_export_jobs.select': [{ data: [] }] });
+  const c = ctx({ 'rpc.claim_export_jobs': [{ data: [] }] });
   const res = await processExportJobs(c);
-  assertEquals(await res.json(), { processed: 0 });
+  assertEquals(await res.json(), { processed: 0, failed: 0 });
 });

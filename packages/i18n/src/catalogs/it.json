@@ -1535,6 +1535,7 @@
   "gdpr.export.ready": "I tuoi dati sono pronti.",
   "gdpr.export.download": "Scarica",
   "gdpr.export.toast": "Richiesta ricevuta — ti avvisiamo quando è pronto",
+  "gdpr.export.failed": "Non siamo riusciti a preparare il tuo archivio. Richiedilo di nuovo.",
   "gdpr.export.linkError": "Impossibile aprire il link. Riprova.",
   "account.delete.row": "Elimina account",
   "account.delete.title": "Elimina il tuo account",

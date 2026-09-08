@@ -7,6 +7,34 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 export const SIGNED_TTL_SECONDS = 72 * 60 * 60; // 72h (≤30d GDPR cap; target far sooner — 10 §5)
 
+/**
+ * How long after it was requested a job can still be SERVED.
+ *
+ * `gdpr_export_jobs` carries `check (expires_at <= created_at + interval '30 days')`
+ * (20260620140149:16) and every 'ready' write signs its link for SIGNED_TTL_SECONDS. So once a job
+ * is older than 30 days minus that TTL, the terminal write cannot satisfy the constraint and
+ * raises 23514 — and that is precisely the population the #721 stale-claim re-drive reaches. Left
+ * unfenced, the lease would convert a job stuck on 'processing' into one re-claimed, rebuilt,
+ * re-uploaded and rejected every night for ever, with nothing in the logs. Such a job is filed
+ * 'failed' instead, before any work is done, and the member re-requests.
+ */
+export const SERVABLE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000 - SIGNED_TTL_SECONDS * 1000;
+
+/**
+ * How many jobs one pass CLAIMS.
+ *
+ * Sized to what a pass can finish rather than to the queue: each job runs the whole EXPORT_SPEC
+ * (~45 sections, the `via` ones serially after the batch), an upload and a signing round trip,
+ * against a 400 s wall clock (150 s free — https://supabase.com/docs/guides/functions/limits).
+ * The old bound of 50 was a candidate count, not a capacity, and now that the claim STAMPS every
+ * row it takes, over-claiming is worse than it was: a row claimed and never reached is held by
+ * its own lease for 15 minutes and then waits for the next nightly pass, so a batch the isolate
+ * cannot finish delays exactly the jobs it pretended to take. Passed rather than left to the
+ * function's default because the batch size is this loop's business; the LEASE is the table's and
+ * is deliberately NOT passed, so the number an operator reads in the migration is the one running.
+ */
+export const CLAIM_BATCH = 10;
+
 /** The `exports` bucket surface the job needs — index wires db.storage.from('exports'). */
 export type ExportStorage = {
   upload: (
@@ -14,10 +42,12 @@ export type ExportStorage = {
     body: string,
     opts: { contentType: string; upsert: boolean },
   ) => Promise<{ error: unknown }>;
+  // `error` rides along so a signing failure can say WHY in the logs. The loop branches on the
+  // url being absent, not on the error, because the Storage client can answer with neither.
   createSignedUrl: (
     path: string,
     ttlSeconds: number,
-  ) => Promise<{ data: { signedUrl: string } | null }>;
+  ) => Promise<{ data: { signedUrl: string } | null; error?: unknown }>;
 };
 
 export type ExportJobCtx = {
@@ -26,7 +56,11 @@ export type ExportJobCtx = {
   storage: ExportStorage;
 };
 
-type QueryResult = { data: unknown };
+// `error` is read, not decoration: a section whose query fails resolves `data: null`, which
+// assembleArchive defaults to null/[] — indistinguishable from «this member has none». An archive
+// that silently omits a member's messages is a worse answer to an Art. 15 request than no archive
+// at all, so the loop withholds it and files the job 'failed' (#721).
+type QueryResult = { data: unknown; error?: unknown };
 
 /**
  * One archive section per table carrying the requester's personal data (Art. 15/20; 10 §5.3).
@@ -236,20 +270,117 @@ async function collectOwnData(
   return results;
 }
 
+/** One row of `claim_export_jobs` — the job, its subject, its age, and the lease stamp we hold. */
+type ExportClaim = { id: string; profile_id: string; created_at: string; claimed_at: string };
+
+/** The first section whose query errored, or null — see QueryResult. */
+function firstSectionError(
+  results: Record<string, QueryResult>,
+): { key: string; error: unknown } | null {
+  for (const spec of EXPORT_SPEC) {
+    const error = results[spec.key]?.error;
+    if (error) return { key: spec.key, error };
+  }
+  return null;
+}
+
+/**
+ * Write a job's status, but ONLY while this pass still holds the lease it was claimed under.
+ *
+ * The fence is `erasure-job`'s (`logic.ts:159-181`, #717) and it is not decoration. A pass can
+ * outlive its lease — an unusually long assembly, or an operator releasing the lease by hand
+ * (RELEASE-RUNBOOK §7.6) — and a later pass then re-claims the row and starts building it. Without
+ * the guard this pass's write lands on that row: 'ready' with a URL for an archive the second pass
+ * is still uploading, or a requeue that takes the row OUT of 'processing' while it is being
+ * worked. PostgREST answers a no-op update with success, so the `.select()` is what makes the lost
+ * lease visible at all.
+ *
+ * `claimed_at` is deliberately not cleared, on any path: the column's contract
+ * (20260908152740) is that it is set by the claim and never cleared, so a requeued row carries
+ * the stamp of the pass that gave up on it — harmless, because the claim's 'requested' arm does
+ * not read the stamp, and honest about what last touched the row.
+ */
+async function writeStatus(
+  db: SupabaseClient,
+  jobId: string,
+  claimedAt: string,
+  status: 'ready' | 'requested' | 'failed',
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  const { data, error } = await db
+    .from('gdpr_export_jobs')
+    .update({ status, ...extra })
+    .eq('id', jobId)
+    .eq('claimed_at', claimedAt)
+    .select('id');
+  if (error) {
+    console.error('gdpr-export-job: status write failed', jobId, status, error);
+  } else if (Array.isArray(data) && data.length === 0) {
+    // An EMPTY array, not a falsy `data`: with `.select()` PostgREST answers a successful update
+    // with a row array, so `[]` is positive evidence the fence rejected the write, while a null
+    // with no error is evidence of nothing. Not an error we can act on — the row belongs to
+    // someone else now — but it guarantees a duplicate pass over this job, so it must not be
+    // silent.
+    console.warn('gdpr-export-job: lease lost before the status write', jobId, status);
+  }
+}
+
 export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
   const { db, storage } = ctx;
 
-  const { data: jobs, error } = await db
-    .from('gdpr_export_jobs')
-    .select('id, profile_id')
-    .eq('status', 'requested')
-    .limit(50);
+  // ATOMIC LEASE CLAIM (#721) — one statement, in the database, flips the rows to 'processing'
+  // and stamps `claimed_at`. What it replaced was a SELECT on `status = 'requested'` followed by
+  // an UPDATE carrying no predicate at all, which had two holes: a pass torn down between them
+  // stranded the row on 'processing' with nothing left to re-queue it, and two overlapping passes
+  // both built, uploaded and signed the same archives.
+  //
+  // The claim is an RPC rather than a PostgREST filter chain because the conditional
+  // UPDATE ... RETURNING that decides the winner cannot be expressed here. 20260908152740 holds
+  // the predicate; 0057 proves it. The assertions below are this loop's half of the contract,
+  // which is that it asks for the batch and fences every status write on the stamp it got back.
+  const { data: jobs, error } = await db.rpc('claim_export_jobs', { p_limit: CLAIM_BATCH });
   if (error) return new Response(error.message, { status: 500 });
 
-  for (const job of jobs ?? []) {
-    await db.from('gdpr_export_jobs').update({ status: 'processing' }).eq('id', job.id);
+  const claims = (jobs ?? []) as ExportClaim[];
+  /** Jobs this pass filed terminal-failed, reported so a smoke invocation can see them (#515). */
+  let failed = 0;
+
+  for (const job of claims) {
+    // OUR stamp. Every status write below fences on it, so a pass whose lease expired mid-run
+    // cannot write over a row a later pass has already re-claimed (20260908152740).
+    const claimed = job.claimed_at;
+
+    // Past the servable window: no signed link this job could carry would satisfy the 30-day
+    // expiry cap, so building the archive would only end in a discarded 23514. Fail it before any
+    // work — the member's retry is one tap and produces a job that CAN be served.
+    if (Date.now() - Date.parse(job.created_at) > SERVABLE_WINDOW_MS) {
+      console.warn(
+        'gdpr-export-job: past the servable window, filed failed',
+        job.id,
+        job.created_at,
+      );
+      await writeStatus(db, job.id, claimed, 'failed');
+      failed++;
+      continue;
+    }
 
     const results = await collectOwnData(db, job.profile_id);
+    const sectionError = firstSectionError(results);
+    if (sectionError) {
+      // Withheld, not shipped short: an archive missing a section reads as «you have none of
+      // this», and the member has no way to tell. Terminal, because the alternative is a nightly
+      // silent rebuild the member is never told about.
+      console.error(
+        'gdpr-export-job: section read failed, archive withheld',
+        job.id,
+        sectionError.key,
+        sectionError.error,
+      );
+      await writeStatus(db, job.id, claimed, 'failed');
+      failed++;
+      continue;
+    }
+
     const archive = assembleArchive(new Date().toISOString(), results);
 
     const path = `${job.profile_id}/${job.id}.json`;
@@ -258,26 +389,37 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
       upsert: true,
     });
     if (up.error) {
-      await db.from('gdpr_export_jobs').update({ status: 'requested' }).eq('id', job.id); // retry next run
+      // Retryable, and idempotent to retry: the key is deterministic and the upload upserts, so
+      // the next pass overwrites rather than accumulating. The servable-window fence above is what
+      // stops this retrying for ever.
+      console.error('gdpr-export-job: upload failed, requeued', job.id, up.error);
+      await writeStatus(db, job.id, claimed, 'requested');
       continue;
     }
 
     const signed = await storage.createSignedUrl(path, SIGNED_TTL_SECONDS);
+    const signedUrl = signed.data?.signedUrl ?? null;
+    if (!signedUrl) {
+      // Same policy as a failed upload, and the reason this branch exists at all: writing 'ready'
+      // with a null download_url produced a row the screen reads as neither pending nor ready, so
+      // the member was told nothing and the row was terminal — a second stranding shape.
+      console.error('gdpr-export-job: signing returned no url, requeued', job.id, signed.error);
+      await writeStatus(db, job.id, claimed, 'requested');
+      continue;
+    }
+
     const expiresAt = new Date(Date.now() + SIGNED_TTL_SECONDS * 1000).toISOString();
 
     // status → 'ready' fires gdpr_export_jobs_notify_ready (20260813162227): the in-app
-    // «your archive is ready» notification reaches the member through the guarded fan-out.
-    await db
-      .from('gdpr_export_jobs')
-      .update({
-        status: 'ready',
-        download_url: signed.data?.signedUrl ?? null,
-        expires_at: expiresAt,
-      })
-      .eq('id', job.id);
+    // «your archive is ready» notification reaches the member through the guarded fan-out. The
+    // trigger guards on `old.status is distinct from 'ready'`, so a re-claimed job notifies once.
+    await writeStatus(db, job.id, claimed, 'ready', {
+      download_url: signedUrl,
+      expires_at: expiresAt,
+    });
   }
 
-  return new Response(JSON.stringify({ processed: jobs?.length ?? 0 }), {
+  return new Response(JSON.stringify({ processed: claims.length, failed }), {
     headers: { 'content-type': 'application/json' },
   });
 }

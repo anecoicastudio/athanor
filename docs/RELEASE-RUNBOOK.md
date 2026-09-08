@@ -1182,6 +1182,100 @@ Two things to know before running it:
 Staging was reconciled on 2026-09-08 in the #107 lane: two requests, both `done`, both with the
 identity dropped. Production is **not** reconciled — it runs at the release that carries #107.
 
+---
+
+### 7.6 Stranded and failed export jobs (#721)
+
+`gdpr-export-job` claimed its batch the way `erasure-job` did before #717 — a SELECT on
+`status = 'requested'` followed by an UPDATE with no predicate — so a pass torn down mid-run left
+its rows on `processing` with nothing to re-queue them, and the member's archive never arrived.
+Since #721 the batch is taken by `claim_export_jobs` under a 15-minute lease, and a job that
+cannot be served is filed `failed` rather than looped.
+
+Two facts shape everything below. **`failed` is terminal and the member's to undo** — the claim
+predicate does not reach it, and the export screen shows «Non siamo riusciti a preparare il tuo
+archivio. Richiedilo di nuovo.» with the ordinary request button, which files a NEW row. And **a
+job older than 30 days minus the 72h signed-link TTL cannot be served at all**: `expires_at <=
+created_at + interval '30 days'` leaves no room for the link, so the loop files those `failed`
+before building anything. That is the fence which stops the lease turning a stranded job into one
+rebuilt and rejected every night.
+
+Both projects held **zero** `gdpr_export_jobs` rows on 2026-09-08, so nothing needs reconciling
+today; this section is what to do when that stops being true.
+
+```sql
+-- 1. The queue, and which 'processing' rows are actually held. A row whose lease is live belongs
+--    to a pass that may still be running; a stale one is the next claim's, with no action needed.
+select status,
+       count(*) as n,
+       count(*) filter (where status = 'processing'
+                        and claimed_at >= now() - interval '15 minutes') as lease_live,
+       count(*) filter (where status = 'processing'
+                        and (claimed_at is null or claimed_at < now() - interval '15 minutes'))
+         as reclaimable,
+       count(*) filter (where status = 'ready' and download_url is null) as ready_without_url,
+       min(created_at) as oldest
+  from public.gdpr_export_jobs
+ group by status
+ order by status;
+
+-- 2. `ready` WITH NO URL is the pre-#721 signing failure: the loop wrote 'ready' whatever
+--    createSignedUrl returned, and the screen reads such a row as neither pending nor ready, so
+--    the member was told nothing and the row was terminal. The code no longer produces it (a
+--    signing failure requeues). File any legacy row 'failed' so the member is asked to try again.
+update public.gdpr_export_jobs
+   set status = 'failed'
+ where status = 'ready'
+   and download_url is null;
+
+-- 3. Drive a pass now rather than waiting for 03:25. There is no invoke_export_job() wrapper —
+--    gdpr-export-nightly is operator-created — so this is the cron's own command, with the
+--    project ref substituted. It resolves the key through Vault, and presents it on `apikey`,
+--    which is the only header the platform will not try to parse as a JWT.
+select net.http_post(
+  url := 'https://<project-ref>.supabase.co/functions/v1/gdpr-export-job',
+  headers := athanor.edge_auth_headers(athanor.runtime_setting('notification_fanout_key')),
+  body := '{}'::jsonb,
+  timeout_milliseconds := 5000);
+
+-- 4. A few seconds later, step 1 again. One pass claims at most CLAIM_BATCH (10) jobs, so a
+--    backlog takes several — and each one re-stamps the rows it takes, so an immediate second
+--    invocation claims NOTHING until those leases lapse. Wait the 15 minutes, or use step 5 for a
+--    row you know is dead.
+--    A row on 'failed' is not a queue to drain: read the function logs before doing anything. The
+--    loop logs «past the servable window», «section read failed, archive withheld», «upload
+--    failed, requeued» or «signing returned no url, requeued» and those are four different
+--    problems.
+
+-- 5. ONLY if step 1 shows a 'processing' row still held after the isolate is known to be dead —
+--    a deploy mid-pass, a project paused, function logs that stop mid-run. RELEASING the lease is
+--    nulling the stamp: the claim predicate treats a 'processing' row with no claimed_at as
+--    infinitely stale, so the very next pass takes it.
+--
+--    Do NOT reach for `claim_export_jobs(10, interval '0')` here. It would re-stamp the rows with
+--    a FRESH claimed_at, and the pass invoked in step 3 asks for the default 15-minute lease —
+--    so the rows you just "released" are the ones it skips. The zero lease belongs to the pgTAP
+--    tests, which pass their own interval on purpose.
+--
+--    And do not run this while a pass may still be live: two isolates uploading one archive is
+--    harmless (the upload upserts on {profile_id}/{job.id}.json), but the second one's 'ready'
+--    write is fenced out and logs «lease lost before the status write», which then looks like a
+--    fault. Waiting the lease out costs 15 minutes and needs no judgement.
+update public.gdpr_export_jobs
+   set claimed_at = null
+ where status = 'processing'
+   and id = '<the id from step 1>';
+-- Then step 3 again.
+```
+
+One symptom worth naming, because it looks like this section's problem and is not: **every** job
+re-claimed nightly, never reaching a terminal status, with `gdpr-export-job: lease lost before the
+status write` in the function logs on every pass. That is not a stranded queue — it is the lease
+FENCE rejecting its own writes, the same regression shape §7.5 records for erasure. Every status
+write fences on the `claimed_at` the claim handed back, so if that value ever stopped surviving the
+round trip out of `claim_export_jobs` and back in as a filter, no job could leave `processing`.
+Releasing leases will not help; the fix is in the code, not here.
+
 ## 8. Acceptance Gates (G1–G7)
 
 Full gate definitions live in `10-m10-launch.md` §10. Summary for go/no-go sign-off:

@@ -29,6 +29,9 @@ export default function DataExportScreen() {
   const status = job.data?.status ?? null;
   const pending = status === 'requested' || status === 'processing';
   const ready = status === 'ready' && !!job.data?.download_url;
+  // Terminal (#721): the archive could not be produced or handed over. The retry is the ordinary
+  // request button below, which files a NEW job — a failed one is never re-claimed.
+  const failed = status === 'failed';
 
   const request = useMutation({
     mutationFn: () => requestExport(supabase),
@@ -51,6 +54,14 @@ export default function DataExportScreen() {
           <View className="rounded-card border border-hair bg-raise p-5">
             <Text className="text-[14px] leading-relaxed text-muted-foreground">
               {t('gdpr.export.processing', locale)}
+            </Text>
+          </View>
+        ) : null}
+
+        {failed ? (
+          <View className="rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[14px] leading-relaxed text-muted-foreground">
+              {t('gdpr.export.failed', locale)}
             </Text>
           </View>
         ) : null}

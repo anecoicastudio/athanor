@@ -4,7 +4,8 @@ import type { AthanorClient } from './client';
 /**
  * The caller's most recent data-export job (RLS scopes to own; the profile_latest index orders it).
  * Returns null when the user has never requested an export. The app reads status off this:
- * requested|processing → "preparing"; ready → show the signed download_url.
+ * requested|processing → "preparing"; ready → show the signed download_url; failed → say so and
+ * offer the request button again (#721), which files a fresh row rather than reviving this one.
  */
 export async function getLatestExportJob(client: AthanorClient): Promise<GdprExportJob | null> {
   const { data, error } = await client
@@ -20,8 +21,10 @@ export async function getLatestExportJob(client: AthanorClient): Promise<GdprExp
 
 /**
  * Request a data export. Inserts a row pinned to status='requested' (RLS WITH CHECK enforces
- * profile_id = auth.uid(), status='requested', null url/expiry). The gdpr-export-job (service_role)
- * assembles the archive and sets ready + the signed URL — never the client.
+ * profile_id = auth.uid(), status='requested', null url/expiry, and since #721 a null claimed_at:
+ * the lease stamp is not a client's to write). The gdpr-export-job (service_role) assembles the
+ * archive and sets ready + the signed URL — never the client. This is also the retry after a
+ * 'failed' job: a new row, because a terminal one is never re-claimed.
  */
 export async function requestExport(client: AthanorClient): Promise<void> {
   const { data: auth } = await client.auth.getUser();

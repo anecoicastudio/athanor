@@ -1593,6 +1593,7 @@ export type Database = {
       }
       gdpr_export_jobs: {
         Row: {
+          claimed_at: string | null
           created_at: string
           download_url: string | null
           expires_at: string | null
@@ -1602,6 +1603,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          claimed_at?: string | null
           created_at?: string
           download_url?: string | null
           expires_at?: string | null
@@ -1611,6 +1613,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          claimed_at?: string | null
           created_at?: string
           download_url?: string | null
           expires_at?: string | null
@@ -3330,6 +3333,15 @@ export type Database = {
         }[]
       }
       claim_event_seat: { Args: { p_event_id: string }; Returns: string }
+      claim_export_jobs: {
+        Args: { p_lease?: string; p_limit?: number }
+        Returns: {
+          claimed_at: string
+          created_at: string
+          id: string
+          profile_id: string
+        }[]
+      }
       close_cycle: {
         Args: {
           p_cost_fee_statement: string
