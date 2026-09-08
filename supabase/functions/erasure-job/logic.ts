@@ -6,8 +6,8 @@ import { sweepMemberStorage, type SweepStorage } from './sweep.ts';
 // (deno test): index.ts keeps the transport shell (requireServiceRole, client + auth
 // + storage port wiring) and injects everything here (repo convention: DI over mocks).
 // Auth and storage arrive as capability ports because the fake db has no .auth or
-// .storage namespace. The auth port exposes ONLY revokeSessions — getUserById/deleteUser
-// join it when the legal-gated cascade below goes live.
+// .storage namespace. Since #107 the auth port carries all three GoTrue calls the
+// cascade needs: revokeSessions, getUserById and deleteUser.
 
 export type ErasureAuth = {
   /**
@@ -24,6 +24,24 @@ export type ErasureAuth = {
    * that only catches would record a run whose sessions are still live as a clean one.
    */
   revokeSessions: (profileId: string) => Promise<{ error?: unknown } | null>;
+  /**
+   * The subject's auth row, read for ONE field: the email the waitlist is purged by (step 4a).
+   * It has to be read before deleteUser — afterwards there is nothing left to read it from —
+   * and it is the only place in this job that touches an address.
+   *
+   * Same two failure shapes as every other port here: a rejection and a resolved `{ error }`.
+   */
+  getUserById: (
+    profileId: string,
+  ) => Promise<{ data?: { user?: { email?: string | null } | null } | null; error?: unknown }>;
+  /**
+   * Delete the auth.users row — the irreversible one. Cascades profiles and, through it, every
+   * ON DELETE CASCADE row the member owns. MUST run after the payment tables are pseudonymised:
+   * `event_tickets.user_id` and `circle_memberships.profile_id` are themselves ON DELETE CASCADE,
+   * so on a profile that still owns them this call DELETES the financial records the controller's
+   * ruling retains, rather than merely failing.
+   */
+  deleteUser: (profileId: string) => Promise<{ error?: unknown } | null>;
 };
 
 /**
@@ -34,7 +52,7 @@ export type ErasureAuth = {
 export type ErasureStorage = SweepStorage;
 
 export type ErasureCtx = {
-  /** service role — owns the request status column (+ the gated cascade, when live) */
+  /** service role — owns the request status column and every RPC in the cascade */
   db: SupabaseClient;
   auth: ErasureAuth;
   storage: ErasureStorage;
@@ -82,9 +100,16 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
 
     // #515 — every step below is best-effort so one dead dependency cannot stall the batch, but
     // «swallowed» must not mean «unrecorded»: a step that errored is what separates the terminal
-    // 'failed' from 'partial'. 'partial' claims the run did everything it could and stopped only
-    // at the legal gate; that claim is only true while this stays false.
+    // 'failed' from 'done'. 'done' claims the request is fulfilled; that claim is only true while
+    // this stays false.
     let degraded = false;
+    // #107 — a SECOND flag, and it is not a duplicate of `degraded`. `degraded` decides what the
+    // row says afterwards; this decides whether step (4b) is allowed to run at all, and the
+    // difference is destructive. `event_tickets.user_id` and `circle_memberships.profile_id` are
+    // ON DELETE CASCADE, so deleting the account before (3c) has nulled them does not fail — it
+    // silently DELETES the financial records the controller's ruling retains for ten years. A KV
+    // outage must not block the account deletion; a failed pseudonymisation must.
+    let deletionSafe = true;
 
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
     //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
@@ -115,6 +140,9 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     });
     if (fundError) {
       degraded = true; // nothing irreversible ran for this request — that is a real failure
+      // fund_contributions.profile_id is ON DELETE RESTRICT (#378), so (4b) would fail anyway —
+      // but say it here rather than leave it to be discovered as a 23503.
+      deletionSafe = false;
     } else {
       // (3a) BYTES — every bucket, not just candidacy-videos (#573). gdpr_storage_footprint
       //     (20260827110034) lists the member's `{uid}/` folder across all seven declared
@@ -129,15 +157,16 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     later. For candidacy-videos the gate buys consistency outright: the same transaction
       //     deletes the dream_candidacies rows whose video_url names those keys, so the rows and
       //     their bytes go together or neither goes. For the other six buckets it buys nothing of
-      //     the kind — (4b) below is still commented behind the legal gate, so the member's posts,
-      //     moments, story segments, messages and profile row all survive this run, now pointing
-      //     at bytes that are gone. Other members see dead signed URLs where the photos were.
+      //     the kind — it only decides whether the bytes go a few milliseconds before their rows
+      //     or not at all.
       //
-      //     That is the deliberate side of the trade. Art. 17 is about the bytes: a broken image
-      //     on someone else's feed is a rendering defect, an erased member's photograph still
-      //     sitting in a bucket is the compliance failure #573 was filed for. The row half is
-      //     #107's job (gated on #184), and until it lands a processed erasure leaves that seam
-      //     visible. Do NOT close it by narrowing the sweep.
+      //     Since #107 the seam this used to leave is closed on a clean run: (4b) below deletes
+      //     the account in the same pass, so the rows that pointed at these bytes go too. It is
+      //     still visible on a DEGRADED run — bytes gone, rows kept, dead signed URLs on other
+      //     members' feeds — and that trade stays deliberate. Art. 17 is about the bytes: a broken
+      //     image on someone else's feed is a rendering defect, an erased member's photograph
+      //     still sitting in a bucket is the compliance failure #573 was filed for. Do NOT close
+      //     it by narrowing the sweep.
       const sweep = await sweepMemberStorage(
         {
           list: (profileId, limit) =>
@@ -159,8 +188,9 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //
     //     Ordering: BOTH key inputs are read HERE, before (4b) below. The keys are hashes of
     //     /@handle and /dream/<id>, and (4b) cascades the profiles row away — which takes the
-    //     dreams rows with it — so once the legal gate opens, a purge attempted after it has
-    //     no key input left at all.
+    //     dreams rows with it — so a purge attempted after it would have no key input at all.
+    //     Since #107 that delete happens in this same pass, so the ordering is load-bearing
+    //     rather than merely careful.
     //
     //     One sweep, not two: purgePaths lists the whole namespace per call, so handing it the
     //     handle paths and the dream paths together costs one listing instead of two.
@@ -264,45 +294,113 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // The remaining case — both reads succeeded, no handle and no dreams — is genuinely clean:
     // the member never had a public URL, so nothing was ever cached under one.
 
-    // (3-gated) TODO(legal-gate): the remaining pseudonymize-before-(4) tables — confirm the
-    //     retention window with counsel (#184; 10 §5 line 383, same gate as the fund PRD §13 Q1).
-    //     Do NOT proceed to (4) while any of these still points at the profile:
-    //       event_tickets       — user_id FK (NOT profile_id — 20260615232924)
-    //       circle_memberships  — profile_id FK
-    //     Chat is NOT on this list by design: conversations.participant_a/b are ON DELETE
-    //     CASCADE, so (4b) erases the member's conversations and their messages outright;
-    //     messages.sender_id's SET NULL no longer aborts that cascade since the
-    //     messages_user_shape widening (#336, 20260813163902). If counsel instead decides
-    //     to preserve counterpart conversations, that becomes a schema change here.
-    //     The retention window itself is deliberately not encoded anywhere yet — nothing in
-    //     this job deletes a retained money row, so there is no number to invent (#184).
+    // (3c) the retained payment tables — LIVE since #107, implementing the controller's
+    //     2026-09-07 ruling (#184's closing comment): event_tickets and circle_memberships are
+    //     PSEUDONYMISED, never deleted. gdpr_erase_payment_footprint (20260908071656) nulls the
+    //     identity (and the ticket's qr_token, a bearer credential rather than a money fact),
+    //     stamps erased_at, and keeps every amount, Stripe id and timestamp.
+    //
+    //     Why this must run BEFORE (4b) rather than being merely tidy: both identity columns are
+    //     ON DELETE CASCADE, so deleting the account first does not raise — it deletes the
+    //     financial records the ruling retains for ten years. That is why the failure below sets
+    //     deletionSafe, and why (4) is skipped rather than attempted when it does.
+    //
+    //     Chat is NOT on this list, by design: conversations.participant_a/b are ON DELETE
+    //     CASCADE, so (4b) erases the member's conversations and their messages outright, and
+    //     messages.sender_id's SET NULL no longer aborts that cascade (#336, 20260813163902).
+    //     The ruling confirmed it — counterpart conversations are not preserved.
+    const { error: paymentError } = await db.rpc('gdpr_erase_payment_footprint', {
+      p_profile_id: erasureReq.profile_id,
+    });
+    if (paymentError) {
+      degraded = true;
+      deletionSafe = false;
+      console.error('erasure-job: payment pseudonymisation failed', erasureReq.id, paymentError);
+    }
 
-    // (2)+(4) DEPLOY-GATED: delete auth.users (cascades profiles + on-delete-cascade content), then
-    //     purge waitlist by email. Left commented until the legal gate clears so a stray run can't hard-delete.
-    //
-    // Step (4a) — purge waitlist by the erased user's email (fetch from auth.users before deletion):
-    // const { data: authUser } = await db.auth.admin.getUserById(erasureReq.profile_id);
-    // if (authUser?.user?.email) {
-    //   await db.from('email_waitlist').delete().eq('email', authUser.user.email);
-    // }
-    //
-    // Step (4b) — delete auth.users row; cascades → profiles → all FK on-delete-cascade content:
-    // await db.auth.admin.deleteUser(erasureReq.profile_id);
+    // (3d) the three references that make (4b) raise 23503 — every FK to profiles is CASCADE or
+    //     SET NULL except four, and NO ACTION on a row that is going away is an error rather than
+    //     a no-op. gdpr_release_profile_references (20260908071656) reassigns the two that are
+    //     ANOTHER member's record (event_attendance.scanned_by, audit_log.actor_id) to the
+    //     tombstone sentinel and deletes the member's own invites. Without it, `done` is
+    //     unreachable for anyone who ever ran an event or moderated a report — which is most of
+    //     the people whose erasure matters most.
+    const { error: refError } = await db.rpc('gdpr_release_profile_references', {
+      p_profile_id: erasureReq.profile_id,
+    });
+    if (refError) {
+      degraded = true;
+      // Not a money risk like (3c) — a leftover reference makes (4b) FAIL rather than destroy
+      // anything — but attempting the delete anyway would only turn a named error into a 23503.
+      deletionSafe = false;
+      console.error('erasure-job: reference release failed', erasureReq.id, refError);
+    }
+
+    if (!deletionSafe) {
+      // Deliberately not attempted. The row lands 'failed' below, which is honest: the account
+      // still exists and the obligation is unmet.
+      console.error(
+        'erasure-job: account deletion skipped, retained rows are not safe yet',
+        erasureReq.id,
+      );
+    } else {
+      // (4a) purge the waitlist by the erased member's email — read from auth.users while it
+      //     still exists. Ordering with (4b) is the whole point: after the delete there is no
+      //     address left to match on. The 540-day default purge (purge_email_waitlist) still
+      //     stands for everyone else; this is the on-request half of the ruling's item 5.
+      //
+      //     A read failure here is degrading but NOT deletion-blocking: a stale waitlist row is
+      //     an address the member gave us separately, and holding the account hostage to it
+      //     would leave the far larger obligation unmet over the far smaller one.
+      const authUser = await auth
+        .getUserById(erasureReq.profile_id)
+        .catch((e) => ({ data: null, error: e }));
+      if (authUser?.error) {
+        degraded = true;
+        console.error('erasure-job: auth user unreadable, waitlist not purged', erasureReq.id);
+      } else {
+        const email = authUser?.data?.user?.email ?? null;
+        if (email) {
+          const { error: waitlistError } = await db
+            .from('email_waitlist')
+            .delete()
+            .eq('email', email);
+          if (waitlistError) {
+            degraded = true;
+            console.error('erasure-job: waitlist purge failed', erasureReq.id, waitlistError);
+          }
+        }
+      }
+
+      // (4b) the irreversible one: delete auth.users, which cascades profiles and with it every
+      //     ON DELETE CASCADE row the member owns — dreams, posts, moments, conversations, the
+      //     profile itself. Everything above exists so that this line destroys only what the
+      //     ruling says to destroy.
+      const deleteResult = await auth
+        .deleteUser(erasureReq.profile_id)
+        .catch(() => ({ error: new Error('account delete rejected') }));
+      if (deleteResult?.error) {
+        degraded = true;
+        console.error('erasure-job: account delete failed', erasureReq.id, deleteResult.error);
+      }
+    }
 
     await db
       .from('gdpr_erasure_requests')
-      .update({ status: degraded ? 'failed' : 'partial' })
+      .update({ status: degraded ? 'failed' : 'done' })
       .eq('id', erasureReq.id);
-    // ^ never 'done' while legal-gated: the fund reach above ran, but the account itself is NOT
-    //   erased, and 'done' would report a partial erasure as complete. It is not 'failed'
-    //   either unless something actually failed (#515) — the run below the gate did real,
-    //   irreversible work, and calling that a failure misleads whoever reads the row next.
-    //   Note what neither status buys: the claim query filters status='requested', so a
-    //   terminal row is never picked up again. Every step here is idempotent, but nothing
-    //   re-queues a 'failed' one — re-driving it is a manual act until #107 lands.
-    //   Flip the clean branch to status='done' only when (3-gated) + (4) go live (#107, gated
-    //   on #184). Every step above is idempotent, so re-running a request after that flip
-    //   finishes cleanly.
+    // ^ 'done' since #107: a clean pass revokes the sessions, pseudonymises the retained money
+    //   rows, deletes the bytes, purges the cache and deletes the account, which is the whole of
+    //   what Article 17 asks. 'failed' means a step actually failed (#515) — including a
+    //   deliberate skip of (4) above, because an account that still exists is an unmet
+    //   obligation however good the reason.
+    //
+    //   'partial' stays in the CHECK and is no longer written by this job. It was the honest
+    //   label while the cascade stopped at a legal gate that no longer exists; the rows that
+    //   carry it are historical and are re-driven by the R-8 procedure, not by this loop. Note
+    //   what no terminal status buys: the claim query filters status='requested', so nothing
+    //   re-queues a 'failed' row on its own. Every step here is idempotent, so re-driving one by
+    //   hand — flip it back to 'requested' — finishes cleanly.
   }
 
   return new Response(

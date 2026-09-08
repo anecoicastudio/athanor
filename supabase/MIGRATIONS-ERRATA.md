@@ -133,8 +133,10 @@ sessions still open». The _mechanism_ is deterministic and verified: a UUID in 
 bearer is a 401, every time, and #542's staged proof recorded a request landing `failed` for
 exactly that reason.
 
-What is not verified is the scale. `erasure-job` is deployed but **unscheduled** and behind the
-legal gate, staging's `gdpr_erasure_requests` is empty, and production was not queried — so how
+What is not verified is the scale. When this was written `erasure-job` was deployed but
+**unscheduled** and behind the legal gate (#107 scheduled it on 2026-09-08, which changes the
+scale going forward and nothing about the record below), staging's `gdpr_erasure_requests` was
+empty, and production was not queried — so how
 many live erasures actually ran, if any, is unknown. Read «every live erasure» as the
 counterfactual it is: every erasure that ran, or would have run, took this path. The header
 should not be read as a record of an observed production incident.
@@ -1751,10 +1753,18 @@ counsel being engaged (its closing comment is the ruling): payment rows — `eve
 **pseudonymised and kept 10 years** (art. 2220 c.c.; DPR 600/1973 art. 22), everything else is
 deleted on request, and counterpart conversations are **not** preserved. Read «counsel's answer»
 in all three as «the controller's 2026-09-07 ruling». What the SQL does is unchanged and was
-never wrong: the tombstone still encodes no window, and `auth.users` deletion is still gated —
-now on #107 implementing the ruling and scheduling the job, not on a lawyer.
+never wrong: the tombstone still encodes no window, and `auth.users` deletion was gated on #107
+implementing the ruling rather than on a lawyer. **#107 landed on 2026-09-08** (`20260908071656`,
+`20260908071807`, `20260908073545`, `20260908074427`): the deletion happens, the job is scheduled,
+and a clean pass ends `done`. The one thing to carry forward from these headers is that
+20260815131925's tombstone-reassignment pattern is NOT what the payment tables use — their unique
+indexes make a single sentinel impossible from the second erased member onward, so they null the
+identity and stamp `erased_at` instead. 20260908071656's header has the argument.
 
 Asserted by: `supabase/tests/0104_gdpr_fund_erasure.test.sql` (tombstone keeps the money columns,
 loses the identity), `0058_gdpr_erasure_requests_rls.test.sql` (the request table's `partial`
 status and client surface), `0137_gdpr_storage_footprint.test.sql` (bytes deleted on request).
-The 10-year figure has no test yet, deliberately: nothing encodes it until #107's reaper does.
+The 10-year figure still has no test, and #107 did not add one: it ships the pseudonymisation and
+the `erased_at` stamp the window will be measured from, and leaves the reaper that finally drops
+those rows to a follow-up. Nothing in the schema encodes ten years, so there is still no number to
+assert — `erased_at` is the fact, the window is not.

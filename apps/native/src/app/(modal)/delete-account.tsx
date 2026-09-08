@@ -21,8 +21,10 @@ import { Screen } from '@/components/Screen';
  * only requests. Destructive `danger` CTA, no glow (rule #4).
  *
  * The copy is split in two on purpose (#515): `body` is what the job does at once and cannot
- * undo, `deferred` is what waits on the legal gate. Keep it that way — collapsing them back
- * into one paragraph is how the screen came to promise a deletion that does not happen yet.
+ * undo, `deferred` is what waits for the nightly job. Keep it that way — collapsing them back
+ * into one paragraph is how the screen came to promise, at the tap, a deletion that happens
+ * later. Since #107 «later» is a night rather than never, and the copy says so; the split is
+ * still the point, because the tap itself still deletes nothing but the session.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -62,11 +64,11 @@ export default function DeleteAccountScreen() {
           {t('account.delete.body', locale)}
         </Text>
 
-        {/* #515 — what the job does NOT do at the tap. The account cascade is legal-gated
-            (#184/#107), so the previous copy («cancelleremo il tuo profilo… definitivamente»)
-            promised a completion the job cannot deliver. Kept as its own line rather than
-            folded into the body: the two halves say different things — one is irreversible
-            and immediate, the other is neither. */}
+        {/* #515 — what the job does NOT do at the tap. The account cascade runs on the nightly
+            erasure job (#107, 03:47 UTC), not here, so the original copy («cancelleremo il tuo
+            profilo… definitivamente») promised at the tap a completion that arrives later. Kept
+            as its own line rather than folded into the body: the two halves say different things
+            — one is irreversible and immediate, the other is irreversible and not. */}
         <Text className="text-[14px] leading-relaxed text-muted-foreground">
           {t('account.delete.deferred', locale)}
         </Text>

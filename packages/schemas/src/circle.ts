@@ -9,7 +9,8 @@ export type CircleStatus = z.infer<typeof circleStatusSchema>;
 /** Read-own model of the SRW circle_memberships cache. No client insert/update shape exists (rule #6). */
 export const circleMembershipSchema = z.object({
   id: z.string().uuid(),
-  profile_id: z.string().uuid(),
+  /** NULL on a GDPR-pseudonymised row (#107) — see `ticketSchema.user_id` for why not a sentinel. */
+  profile_id: z.string().uuid().nullable(),
   stripe_customer_id: z.string(),
   stripe_subscription_id: z.string().nullish(),
   plan: circlePlanSchema,
@@ -18,6 +19,8 @@ export const circleMembershipSchema = z.object({
   /** true = cancelled, access ends at current_period_end instead of renewing (#511). */
   cancel_at_period_end: z.boolean(),
   founding_member: z.boolean(),
+  /** When a GDPR erasure pseudonymised this row (#107); NULL on a live membership. */
+  erased_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

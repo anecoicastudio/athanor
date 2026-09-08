@@ -376,10 +376,11 @@ export type Database = {
           cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
+          erased_at: string | null
           founding_member: boolean
           id: string
           plan: string
-          profile_id: string
+          profile_id: string | null
           status: string
           stripe_customer_id: string
           stripe_subscription_id: string | null
@@ -389,10 +390,11 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          erased_at?: string | null
           founding_member?: boolean
           id?: string
           plan: string
-          profile_id: string
+          profile_id?: string | null
           status: string
           stripe_customer_id: string
           stripe_subscription_id?: string | null
@@ -402,10 +404,11 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          erased_at?: string | null
           founding_member?: boolean
           id?: string
           plan?: string
-          profile_id?: string
+          profile_id?: string | null
           status?: string
           stripe_customer_id?: string
           stripe_subscription_id?: string | null
@@ -1016,36 +1019,39 @@ export type Database = {
       event_tickets: {
         Row: {
           created_at: string
-          event_id: string
+          erased_at: string | null
+          event_id: string | null
           expires_at: string | null
           id: string
           qr_token: string | null
           status: string
           stripe_payment_id: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
-          event_id: string
+          erased_at?: string | null
+          event_id?: string | null
           expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
           stripe_payment_id?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
-          event_id?: string
+          erased_at?: string | null
+          event_id?: string | null
           expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
           stripe_payment_id?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1547,21 +1553,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          profile_id: string
+          profile_id: string | null
           status: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
-          profile_id: string
+          profile_id?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
-          profile_id?: string
+          profile_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -3449,6 +3455,14 @@ export type Database = {
           name: string
         }[]
       }
+      gdpr_erase_payment_footprint: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
+      gdpr_release_profile_references: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
       gdpr_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
       gdpr_storage_footprint: {
         Args: { p_limit?: number; p_profile_id: string }
@@ -3546,6 +3560,7 @@ export type Database = {
       }
       has_payouts_enabled: { Args: { uid: string }; Returns: boolean }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_erasure_job: { Args: never; Returns: undefined }
       invoke_fund_settle_sweep: { Args: never; Returns: undefined }
       invoke_post_media_reaper: { Args: never; Returns: undefined }
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }

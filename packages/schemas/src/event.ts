@@ -217,13 +217,27 @@ export type TicketStatus = z.infer<typeof ticketStatusSchema>;
  */
 export const ticketSchema = z.object({
   id: z.string().uuid(),
-  user_id: z.string().uuid(),
-  event_id: z.string().uuid(),
+  /**
+   * NULL on a GDPR-pseudonymised row (#107, 20260908071656): the ruling keeps the money and
+   * drops the identity, and NULL — rather than a tombstone id — is what lets many erased rows
+   * coexist under the unchanged `unique (user_id, event_id)`. A client never sees one: the
+   * SELECT policy is `auth.uid() = user_id`, which no NULL row satisfies.
+   */
+  user_id: z.string().uuid().nullable(),
+  /**
+   * NULL only on a pseudonymised row whose event was later deleted (#107, 20260908074427): the
+   * organiser's own erasure cascades their events away, and a retained ticket is detached rather
+   * than deleted so one member's Article 17 request cannot destroy another member's money row.
+   */
+  event_id: z.string().uuid().nullable(),
   stripe_payment_id: z.string().nullable(),
+  /** Cleared with the identity on erasure — a bearer credential, not a financial fact. */
   qr_token: z.string().nullable(),
   status: ticketStatusSchema,
   /** Seat-hold TTL while status=pending (#105); NULL on paid/checked_in/refunded rows. */
   expires_at: z.string().nullable(),
+  /** When a GDPR erasure pseudonymised this row (#107); NULL on a live ticket. */
+  erased_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

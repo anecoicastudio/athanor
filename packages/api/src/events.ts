@@ -584,7 +584,7 @@ export async function getMyTicket(
   const { data, error } = await client
     .from('event_tickets')
     .select(
-      'id,user_id,event_id,stripe_payment_id,qr_token,status,expires_at,created_at,updated_at',
+      'id,user_id,event_id,stripe_payment_id,qr_token,status,expires_at,erased_at,created_at,updated_at',
     )
     .eq('event_id', eventId)
     .eq('user_id', userId)

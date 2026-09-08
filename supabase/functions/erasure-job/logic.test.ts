@@ -1,13 +1,20 @@
 // deno test supabase/functions/erasure-job/ — runs in CI (edge job) and locally.
-// Characterization tests for the legal-gated erasure loop: claim → 'processing' →
-// session revoke → fund reach (#240: gdpr_erase_fund_footprint rpc) → byte sweep across
-// every declared bucket (#573: gdpr_storage_footprint + ./sweep.ts) → 'partial'
-// (intentionally NOT 'done' — the account cascade stays commented until the legal gate
-// clears, and a partial erasure must never report complete; #515 gave that stop-short its
-// own status, so 'failed' now means a step actually failed). All db I/O through injected
-// fakes; auth and storage are recorded capability ports (no .auth / .storage on the fake db
-// — DI over mocks). The sweep's own round loop is pinned in ./sweep.test.ts and its bucket
-// list in ./sweep-buckets.test.ts; what is asserted here is the loop's use of it.
+// Characterization tests for the erasure loop: claim → 'processing' → session revoke → fund
+// reach (#240: gdpr_erase_fund_footprint rpc) → byte sweep across every declared bucket
+// (#573: gdpr_storage_footprint + ./sweep.ts) → KV purge (#515) → payment pseudonymisation and
+// reference release (#107: gdpr_erase_payment_footprint + gdpr_release_profile_references) →
+// waitlist purge + account delete → 'done'.
+//
+// 'done' is new. Until #107 the clean outcome was 'done', because the account cascade stayed
+// commented behind a legal gate; the controller ruled that question on 2026-09-07 (#184) and the
+// gate is gone. 'done' is now historical — the loop writes 'done' or 'failed' and nothing
+// else — and 'failed' still means a step actually failed, which now includes the deliberate skip
+// of the account delete when the money rows are not safe to cascade.
+//
+// All db I/O through injected fakes; auth and storage are recorded capability ports (no .auth /
+// .storage on the fake db — DI over mocks). The sweep's own round loop is pinned in
+// ./sweep.test.ts and its bucket list in ./sweep-buckets.test.ts; what is asserted here is the
+// loop's use of it.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
 import type { KvPurgeResult } from './kv.ts';
@@ -21,6 +28,10 @@ type Ctx = ErasureCtx & {
   removed: [string, string[]][];
   /** paths handed to the KV purge port, one entry per request that reached it */
   purged: string[][];
+  /** profile ids handed to auth.getUserById (#107, step 4a) */
+  looked: string[];
+  /** profile ids handed to auth.deleteUser — the irreversible call (#107, step 4b) */
+  deleted: string[];
 };
 
 /** No CF_KV_* trio configured — the case #515 forbids treating as a silent skip. */
@@ -33,12 +44,16 @@ const ctx = (
     remove?: ErasureCtx['storage']['remove'];
     /** a purge result to return, or NO_KV to inject `kv: null` */
     purge?: KvPurgeResult | Promise<KvPurgeResult> | typeof NO_KV;
+    getUserById?: ErasureCtx['auth']['getUserById'];
+    deleteUser?: ErasureCtx['auth']['deleteUser'];
   } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
   const revoked: string[] = [];
   const removed: [string, string[]][] = [];
   const purged: string[][] = [];
+  const looked: string[] = [];
+  const deleted: string[] = [];
   return {
     db,
     auth: {
@@ -46,6 +61,20 @@ const ctx = (
         overrides.revokeSessions ??
         ((id) => {
           revoked.push(id);
+          return Promise.resolve(null);
+        }),
+      // Default: an auth row with an address, so the waitlist purge has something to run on.
+      // The email is the same on every fake user; a test that cares passes its own port.
+      getUserById:
+        overrides.getUserById ??
+        ((id) => {
+          looked.push(id);
+          return Promise.resolve({ data: { user: { email: 'erased@example.test' } } });
+        }),
+      deleteUser:
+        overrides.deleteUser ??
+        ((id) => {
+          deleted.push(id);
           return Promise.resolve(null);
         }),
     },
@@ -71,6 +100,8 @@ const ctx = (
     revoked,
     removed,
     purged,
+    looked,
+    deleted,
   } as unknown as Ctx;
 };
 
@@ -113,66 +144,75 @@ Deno.test('claim error → 500 with the pg message', async () => {
   assertEquals(c.revoked.length, 0);
 });
 
-Deno.test(
-  "per request: 'processing' → session revoke → 'partial' (legal-gated, never 'done')",
-  async () => {
-    const c = ctx({
-      'gdpr_erasure_requests.select': [
-        {
-          data: [
-            { id: 'req-1', profile_id: 'user-1' },
-            { id: 'req-2', profile_id: 'user-2' },
-          ],
-        },
-      ],
-    });
-    const res = await processErasureRequests(c);
-    assertEquals(res.status, 200);
-    assertEquals(await res.json(), body(2, NO_PURGE));
+Deno.test("per request: 'processing' → session revoke → the whole cascade → 'done'", async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [
+      {
+        data: [
+          { id: 'req-1', profile_id: 'user-1' },
+          { id: 'req-2', profile_id: 'user-2' },
+        ],
+      },
+    ],
+  });
+  const res = await processErasureRequests(c);
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), body(2, NO_PURGE));
 
-    // (1) sessions revoked for EACH request, by profile id, before the terminal status.
-    assertEquals(c.revoked, ['user-1', 'user-2']);
+  // (1) sessions revoked for EACH request, by profile id, before the terminal status.
+  assertEquals(c.revoked, ['user-1', 'user-2']);
 
-    // requested→processing→failed per request, each update keyed to its own id.
-    const updates = statusUpdates(c.db);
-    assertEquals(
-      updates.map((u) => u.values),
-      [
-        { status: 'processing' },
-        { status: 'partial' },
-        { status: 'processing' },
-        { status: 'partial' },
-      ],
-    );
-    assertEquals(
-      updates.map((u) => u.filters),
-      [
-        [['eq', 'id', 'req-1']],
-        [['eq', 'id', 'req-1']],
-        [['eq', 'id', 'req-2']],
-        [['eq', 'id', 'req-2']],
-      ],
-    );
+  // requested→processing→done per request, each update keyed to its own id.
+  const updates = statusUpdates(c.db);
+  assertEquals(
+    updates.map((u) => u.values),
+    [{ status: 'processing' }, { status: 'done' }, { status: 'processing' }, { status: 'done' }],
+  );
+  assertEquals(
+    updates.map((u) => u.filters),
+    [
+      [['eq', 'id', 'req-1']],
+      [['eq', 'id', 'req-1']],
+      [['eq', 'id', 'req-2']],
+      [['eq', 'id', 'req-2']],
+    ],
+  );
 
-    // the ACCOUNT cascade is NOT performed while legal-gated: no PostgREST deletes anywhere.
-    // (The fund reach (#240) is the gdpr_erase_fund_footprint rpc, asserted below — its row
-    // deletes happen inside that DB transaction, never through this client.)
-    assert(!c.db.calls.some((k) => k.op === 'delete'));
+  // (4) the account cascade, once per request and through the auth port — never a PostgREST
+  // delete against `profiles`, which would leave the auth.users row behind.
+  assertEquals(c.looked, ['user-1', 'user-2']);
+  assertEquals(c.deleted, ['user-1', 'user-2']);
 
-    // Two RPCs per request, in order: the fund transaction, then the byte sweep (#573).
-    // Both keyed to the erased profile, and the sweep asks for the capped page.
-    const rpcs = c.db.calls.filter((k) => k.op === 'rpc');
-    assertEquals(
-      rpcs.map((k) => [k.columns, k.values]),
-      [
-        ['gdpr_erase_fund_footprint', { p_profile_id: 'user-1' }],
-        ['gdpr_storage_footprint', { p_profile_id: 'user-1', p_limit: REMOVE_BATCH }],
-        ['gdpr_erase_fund_footprint', { p_profile_id: 'user-2' }],
-        ['gdpr_storage_footprint', { p_profile_id: 'user-2', p_limit: REMOVE_BATCH }],
-      ],
-    );
-  },
-);
+  // (4a) the ONLY PostgREST delete the loop issues: the waitlist row, matched by the address
+  // read from auth.users a moment earlier. The row deletes of the fund reach (#240) happen
+  // inside gdpr_erase_fund_footprint's own transaction, never through this client.
+  const deletes = c.db.calls.filter((k) => k.op === 'delete');
+  assertEquals(
+    deletes.map((k) => [k.table, k.filters]),
+    [
+      ['email_waitlist', [['eq', 'email', 'erased@example.test']]],
+      ['email_waitlist', [['eq', 'email', 'erased@example.test']]],
+    ],
+  );
+
+  // Four RPCs per request, in order: the fund transaction, the byte sweep (#573), the payment
+  // pseudonymisation and the reference release (#107). All keyed to the erased profile, and
+  // the sweep asks for the capped page.
+  const rpcs = c.db.calls.filter((k) => k.op === 'rpc');
+  assertEquals(
+    rpcs.map((k) => [k.columns, k.values]),
+    [
+      ['gdpr_erase_fund_footprint', { p_profile_id: 'user-1' }],
+      ['gdpr_storage_footprint', { p_profile_id: 'user-1', p_limit: REMOVE_BATCH }],
+      ['gdpr_erase_payment_footprint', { p_profile_id: 'user-1' }],
+      ['gdpr_release_profile_references', { p_profile_id: 'user-1' }],
+      ['gdpr_erase_fund_footprint', { p_profile_id: 'user-2' }],
+      ['gdpr_storage_footprint', { p_profile_id: 'user-2', p_limit: REMOVE_BATCH }],
+      ['gdpr_erase_payment_footprint', { p_profile_id: 'user-2' }],
+      ['gdpr_release_profile_references', { p_profile_id: 'user-2' }],
+    ],
+  );
+});
 
 // ── #573: the byte sweep reaches EVERY bucket, not just candidacy-videos ──────────────────
 
@@ -206,10 +246,10 @@ Deno.test('the sweep removes from every bucket the manifest names, one call each
   ]);
   // five keys, reported — a run that erased a member and reports 0 is the old bug's signature.
   assertEquals(await res.json(), body(1, NO_PURGE, 5));
-  // still legal-gated: the request lands on 'partial', never 'done'.
+  // a clean pass, so the request lands on 'done'.
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'partial'],
+    ['processing', 'done'],
   );
 });
 
@@ -237,7 +277,7 @@ Deno.test('an empty sweep manifest → no storage call at all', async () => {
   assertEquals(c.removed, []);
 });
 
-Deno.test("a sweep that never drains lands the request on 'failed', not 'partial'", async () => {
+Deno.test("a sweep that never drains lands the request on 'failed', not 'done'", async () => {
   // The Storage API answering 200 is not proof a byte is gone. sweep.ts burns its round budget
   // re-listing, and the loop must treat "not exhausted" as a failure — a member's photos still
   // in the bucket is not "did everything it could".
@@ -268,9 +308,9 @@ Deno.test("a sweep manifest read that ERRORS is 'failed', never an empty folder"
   );
 });
 
-// #515 — the two outcomes are now distinguishable: req-1's fund reach errored, so nothing
-// irreversible ran for it and 'failed' is the truth; req-2 did everything it could and stopped
-// at the legal gate, which is 'partial'. Before this, both said 'failed'.
+// #515/#107 — the two outcomes are distinguishable: req-1's fund reach errored, so nothing
+// irreversible ran for it and 'failed' is the truth; req-2 completed the whole cascade, which is
+// 'done'. Before #515 both said 'failed'; before #107 the clean one said 'partial'.
 Deno.test("fund reach rpc error → no byte sweep, that request lands on 'failed'", async () => {
   const c = ctx({
     'gdpr_erasure_requests.select': [
@@ -298,7 +338,7 @@ Deno.test("fund reach rpc error → no byte sweep, that request lands on 'failed
   assertEquals(c.removed, [['candidacy-videos', ['user-2/cand-2.mp4']]]);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'failed', 'processing', 'partial'],
+    ['processing', 'failed', 'processing', 'done'],
   );
 });
 
@@ -325,8 +365,8 @@ Deno.test(
     const res = await processErasureRequests(c);
     assertEquals(res.status, 200);
     // both requests still reach a terminal status despite the dead Storage API — and it is
-    // 'failed', not 'partial': the member's bytes are still in the bucket, so this run did NOT
-    // do everything it set out to do. 'partial' is reserved for a clean stop at the legal gate.
+    // 'failed', not 'done': the member's bytes are still in the bucket, so this run did NOT
+    // do everything it set out to do. 'done' is reserved for a pass with nothing left behind.
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
       ['processing', 'failed', 'processing', 'failed'],
@@ -336,8 +376,8 @@ Deno.test(
 
 // The revoke reports a dead dependency BOTH ways too, and the resolved one is the COMMON one:
 // a failed RPC resolves with { error } rather than throwing. A run that left the member's
-// tokens live must never pass for a clean 'partial'.
-Deno.test("a revoke resolving with an error is recorded — 'failed', not 'partial'", async () => {
+// tokens live must never pass for a clean 'done'.
+Deno.test("a revoke resolving with an error is recorded — 'failed', not 'done'", async () => {
   const c = ctx(
     { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
     { revokeSessions: () => Promise.resolve({ error: { message: 'permission denied' } }) },
@@ -352,7 +392,7 @@ Deno.test("a revoke resolving with an error is recorded — 'failed', not 'parti
 // The success shape is { data: <count>, error: null } — an OBJECT with an error key present
 // and falsy. Guard against a truthiness check on the wrapper instead of on .error. `data: 0`
 // is the session-less member, and that is a clean run, not a step that failed.
-Deno.test("a revoke resolving { error: null } is a success — 'partial'", async () => {
+Deno.test("a revoke resolving { error: null } is a success — 'done'", async () => {
   const c = ctx(
     { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
     { revokeSessions: () => Promise.resolve({ data: 0, error: null }) },
@@ -360,35 +400,32 @@ Deno.test("a revoke resolving { error: null } is a success — 'partial'", async
   await processErasureRequests(c);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'partial'],
+    ['processing', 'done'],
   );
 });
 
 // storage.remove reports a dead bucket BOTH ways: a rejected promise and a resolved
 // { error }. The second shape was previously ignored outright, which would have let a run
-// that left the bytes in place claim 'partial'.
-Deno.test(
-  "storage.remove returning an error is recorded too — 'failed', not 'partial'",
-  async () => {
-    const c = ctx(
-      {
-        'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
-        'rpc.gdpr_storage_footprint': [
-          { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
-        ],
-      },
-      { remove: () => Promise.resolve({ error: { message: 'bucket gone' } }) },
-    );
-    await processErasureRequests(c);
-    assertEquals(
-      statusUpdates(c.db).map((u) => u.values.status),
-      ['processing', 'failed'],
-    );
-  },
-);
+// that left the bytes in place claim 'done'.
+Deno.test("storage.remove returning an error is recorded too — 'failed', not 'done'", async () => {
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.gdpr_storage_footprint': [
+        { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
+      ],
+    },
+    { remove: () => Promise.resolve({ error: { message: 'bucket gone' } }) },
+  );
+  await processErasureRequests(c);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
 
 Deno.test(
-  "a revoke rejection is swallowed but recorded — 'failed', not 'partial', loop continues",
+  "a revoke rejection is swallowed but recorded — 'failed', not 'done', loop continues",
   async () => {
     const c = ctx(
       {
@@ -417,9 +454,9 @@ Deno.test(
 // apps/web caches the profile page and its OG card in KV, and a deploy strands rather than
 // replaces those entries, so they outlive every row erased above (RELEASE-RUNBOOK §7.4).
 // What is pinned here is the loop's contract with ./kv.ts — which paths it asks for, when a
-// purge outcome may flip 'partial' to 'failed', and that a KV outage never masks the DB work.
+// purge outcome may flip 'done' to 'failed', and that a KV outage never masks the DB work.
 
-Deno.test('purges BOTH public paths for the erased handle, and stays on partial', async () => {
+Deno.test("purges BOTH public paths for the erased handle, and stays on 'done'", async () => {
   const c = ctx({
     'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
     'profiles.select': [{ data: { handle: 'luna_dev' } }],
@@ -431,7 +468,7 @@ Deno.test('purges BOTH public paths for the erased handle, and stays on partial'
   assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 0 }));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'partial'],
+    ['processing', 'done'],
   );
 
   // the handle is read from profiles, keyed to the erased id, BEFORE (4b) would cascade it away.
@@ -442,9 +479,9 @@ Deno.test('purges BOTH public paths for the erased handle, and stays on partial'
   assertEquals(read.terminal, 'maybeSingle');
 });
 
-Deno.test("unconfigured KV is REPORTED, not skipped — 'failed', not 'partial'", async () => {
+Deno.test("unconfigured KV is REPORTED, not skipped — 'failed', not 'done'", async () => {
   // #468/#492: a missing CF_KV_* trio must never look like a clean run. The member's card is
-  // still servable from KV, so 'partial' — "did everything it could" — would be a lie.
+  // still servable from KV, so 'done' — "did everything it could" — would be a lie.
   const c = ctx(
     {
       'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
@@ -485,8 +522,9 @@ Deno.test('a KV API failure is recorded but never rolls back or masks the DB era
   // The irreversible DB work still happened and is still reported as having happened —
   // a Cloudflare outage must not turn a completed cascade into a 500 or a rollback.
   assertEquals(res.status, 200);
-  // three RPCs: the fund transaction, then the sweep's two listing rounds.
-  assertEquals(c.db.calls.filter((k) => k.op === 'rpc').length, 3);
+  // five RPCs: the fund transaction, the sweep's two listing rounds, then #107's payment
+  // pseudonymisation and reference release — a KV outage stops none of them.
+  assertEquals(c.db.calls.filter((k) => k.op === 'rpc').length, 5);
   assertEquals(c.removed, [['candidacy-videos', ['user-1/cand-1.mp4']]]);
   assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }, 1));
   assertEquals(
@@ -509,12 +547,12 @@ Deno.test('a purge that finds nothing is clean — most members were never prere
   assertEquals(await res.json(), body(1, NO_PURGE));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'partial'],
+    ['processing', 'done'],
   );
 });
 
 Deno.test(
-  'a member with no handle had no public URL — nothing to purge, still partial',
+  "a member with no handle had no public URL — nothing to purge, still 'done'",
   async () => {
     const c = ctx({
       'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
@@ -525,7 +563,7 @@ Deno.test(
     assertEquals(await res.json(), body(1, NO_PURGE));
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
-      ['processing', 'partial'],
+      ['processing', 'done'],
     );
   },
 );
@@ -547,7 +585,7 @@ Deno.test("purges the subject's dream pages alongside the profile pair, in ONE s
   assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 0 }));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['processing', 'partial'],
+    ['processing', 'done'],
   );
 });
 
@@ -700,6 +738,242 @@ Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", 
   assertEquals(c.purged, []);
   assertEquals(res.status, 200);
   assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+// ── #107: the payment reach, the reference release, and the account delete ────────────────
+//
+// The half that was commented out behind the legal gate. What these pin is less "the calls
+// happen" than "the calls happen in an order that cannot destroy a retained money row":
+// event_tickets.user_id and circle_memberships.profile_id are ON DELETE CASCADE, so deleting the
+// account before the pseudonymisation has nulled them does not raise — it deletes ten years of
+// financial records. Every gate below exists for that one failure mode.
+
+Deno.test(
+  'the pseudonymisation and the reference release both precede the account delete',
+  async () => {
+    const c = ctx({
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    });
+    // Snapshot what the DB has been asked for AT THE MOMENT the irreversible call is made. The
+    // two ports record independently, so plain call lists cannot show one happening before the
+    // other — and the ordering is the whole safety property.
+    const rpcsAtDelete: string[] = [];
+    c.auth.deleteUser = (id: string) => {
+      rpcsAtDelete.push(
+        ...c.db.calls.filter((k) => k.op === 'rpc').map((k) => k.columns as string),
+      );
+      c.deleted.push(id);
+      return Promise.resolve(null);
+    };
+
+    const res = await processErasureRequests(c);
+    assertEquals(res.status, 200);
+    assertEquals(c.deleted, ['user-1']);
+    assert(
+      rpcsAtDelete.includes('gdpr_erase_payment_footprint'),
+      'the money rows must already be pseudonymised when the cascade fires',
+    );
+    assert(
+      rpcsAtDelete.includes('gdpr_release_profile_references'),
+      'the blocking references must already be released when the cascade fires',
+    );
+  },
+);
+
+Deno.test("payment rpc error → the account is NOT deleted, and the row is 'failed'", async () => {
+  // The guard that matters most. Attempting the delete here would not fail — it would cascade
+  // event_tickets and circle_memberships away, which is the opposite of what the ruling says.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.gdpr_erase_payment_footprint': [{ error: { message: 'deadlock' } }],
+  });
+  const res = await processErasureRequests(c);
+  assertEquals(res.status, 200);
+  assertEquals(c.deleted, []);
+  assertEquals(c.looked, []); // step (4a) is inside the same gate
+  assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test(
+  "reference release error → the account is NOT deleted, and the row is 'failed'",
+  async () => {
+    // Not a money risk — a leftover NO ACTION reference makes the delete FAIL rather than destroy
+    // anything — but attempting it would only turn a named error into an anonymous 23503.
+    const c = ctx({
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.gdpr_release_profile_references': [{ error: { message: '23503' } }],
+    });
+    const res = await processErasureRequests(c);
+    assertEquals(res.status, 200);
+    assertEquals(c.deleted, []);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed'],
+    );
+  },
+);
+
+Deno.test('a failed fund reach also blocks the account delete', async () => {
+  // fund_contributions.profile_id is ON DELETE RESTRICT (#378), so the delete would raise —
+  // but the loop says so up front rather than leaving it to be discovered as a 23503.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.gdpr_erase_fund_footprint': [{ error: { message: 'boom' } }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test(
+  'the waitlist is purged by the address read from auth.users, before the delete',
+  async () => {
+    const looked: string[] = [];
+    const c = ctx(
+      { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+      {
+        getUserById: (id: string) => {
+          looked.push(id);
+          return Promise.resolve({ data: { user: { email: 'gone@example.test' } } });
+        },
+      },
+    );
+    const seenAtDelete: string[] = [];
+    c.auth.deleteUser = (id: string) => {
+      seenAtDelete.push(...c.db.calls.filter((k) => k.table === 'email_waitlist').map((k) => k.op));
+      c.deleted.push(id);
+      return Promise.resolve(null);
+    };
+    await processErasureRequests(c);
+
+    assertEquals(looked, ['user-1']);
+    const waitlist = c.db.calls.filter((k) => k.table === 'email_waitlist');
+    assertEquals(
+      waitlist.map((k) => [k.op, k.filters]),
+      [['delete', [['eq', 'email', 'gone@example.test']]]],
+    );
+    // Ordering is load-bearing in the other direction too: after the auth row is gone there is no
+    // address left to match on.
+    assertEquals(seenAtDelete, ['delete']);
+  },
+);
+
+Deno.test("an auth row with no email → nothing to purge, still 'done'", async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { getUserById: () => Promise.resolve({ data: { user: { email: null } } }) },
+  );
+  await processErasureRequests(c);
+  assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+  assertEquals(c.deleted, ['user-1']);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'done'],
+  );
+});
+
+Deno.test(
+  'an unreadable auth row degrades the run but never holds the account hostage',
+  async () => {
+    // A stale waitlist row is an address the member gave us separately. Blocking the account
+    // deletion over it would leave the far larger obligation unmet for the sake of the smaller.
+    const c = ctx(
+      { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+      { getUserById: () => Promise.resolve({ data: null, error: { message: 'gotrue down' } }) },
+    );
+    await processErasureRequests(c);
+    assert(!c.db.calls.some((k) => k.table === 'email_waitlist'));
+    assertEquals(c.deleted, ['user-1']);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['processing', 'failed'],
+    );
+  },
+);
+
+Deno.test('a getUserById rejection is swallowed the same way, and still deletes', async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { getUserById: () => Promise.reject(new Error('network')) },
+  );
+  await processErasureRequests(c);
+  assertEquals(c.deleted, ['user-1']);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test("a failed waitlist delete is recorded — 'failed', account still deleted", async () => {
+  const c = ctx({
+    'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'email_waitlist.delete': [{ error: { message: 'db down' } }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.deleted, ['user-1']);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test("a deleteUser resolving with an error is recorded — 'failed'", async () => {
+  const c = ctx(
+    { 'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    { deleteUser: () => Promise.resolve({ error: { message: 'still referenced' } }) },
+  );
+  await processErasureRequests(c);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed'],
+  );
+});
+
+Deno.test('a deleteUser rejection is swallowed and the batch continues', async () => {
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [
+        {
+          data: [
+            { id: 'req-1', profile_id: 'user-1' },
+            { id: 'req-2', profile_id: 'user-2' },
+          ],
+        },
+      ],
+    },
+    { deleteUser: () => Promise.reject(new Error('gotrue down')) },
+  );
+  const res = await processErasureRequests(c);
+  assertEquals(res.status, 200);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'failed', 'processing', 'failed'],
+  );
+});
+
+Deno.test('an unconfigured KV purge degrades the run but does NOT block the delete', async () => {
+  // The one asymmetry worth stating: a cache the member's page is still readable from is a real
+  // failure ('failed'), but it is not a reason to leave the account itself standing.
+  const c = ctx(
+    {
+      'gdpr_erasure_requests.select': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'profiles.select': [{ data: { handle: 'ariel' } }],
+    },
+    { purge: NO_KV },
+  );
+  await processErasureRequests(c);
+  assertEquals(c.deleted, ['user-1']);
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
     ['processing', 'failed'],
