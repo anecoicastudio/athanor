@@ -98,6 +98,18 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   for (const erasureReq of reqs ?? []) {
     await db.from('gdpr_erasure_requests').update({ status: 'processing' }).eq('id', erasureReq.id);
 
+    // A request whose subject is already gone. Reachable only through the R-8 §7.5 reconcile:
+    // 20260908073545 made `profile_id` ON DELETE SET NULL so a completed request survives the
+    // account it erased, which means a pre-#107 row re-queued by hand can arrive here with no
+    // subject at all. Without this branch every step below hands `null` to an RPC and to GoTrue,
+    // and an errored port lands the row on 'failed' — so the one procedure that exists to finish
+    // these rows would instead loop them nightly. Nothing is left to erase and nothing can fail:
+    // it is done, and saying so is what stops the loop.
+    if (!erasureReq.profile_id) {
+      await db.from('gdpr_erasure_requests').update({ status: 'done' }).eq('id', erasureReq.id);
+      continue;
+    }
+
     // #515 — every step below is best-effort so one dead dependency cannot stall the batch, but
     // «swallowed» must not mean «unrecorded»: a step that errored is what separates the terminal
     // 'failed' from 'done'. 'done' claims the request is fulfilled; that claim is only true while

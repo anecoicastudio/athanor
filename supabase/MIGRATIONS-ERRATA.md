@@ -1766,5 +1766,7 @@ loses the identity), `0058_gdpr_erasure_requests_rls.test.sql` (the request tabl
 status and client surface), `0137_gdpr_storage_footprint.test.sql` (bytes deleted on request).
 The 10-year figure still has no test, and #107 did not add one: it ships the pseudonymisation and
 the `erased_at` stamp the window will be measured from, and leaves the reaper that finally drops
-those rows to a follow-up. Nothing in the schema encodes ten years, so there is still no number to
-assert — `erased_at` is the fact, the window is not.
+those rows to **#715**. Nothing in the schema encodes ten years, so there is still no number to
+assert — `erased_at` is the fact, the window is not. #715 also carries the decision #107 did not
+make: `fund_contributions` was pseudonymised by #240 before `erased_at` existed and therefore has
+no clock at all, so it cannot be aged without a column and a backfill ruling.

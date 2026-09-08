@@ -21,12 +21,16 @@
 --
 -- The nightly schedule is §7. The edge function's own loop is deno-tested (erasure-job/
 -- logic.test.ts); what SQL owns, and what this file asserts, is the two RPCs and the cron job.
+--
+-- NOT asserted here, because nothing implements it: the ten-year window itself. `erased_at` is
+-- the clock the reaper will read and #715 is the reaper; until it lands, no row is ever dropped
+-- and there is no number in the schema to test.
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(72);
+select plan(74);
 
 -- ── 1. schema: both tables can hold a pseudonymised row ──────────────────────────────────
 
@@ -127,17 +131,21 @@ values
   ('49000000-0000-0000-0000-000000000012', '49000000-0000-0000-0000-0000000000bb',
    '49000000-0000-0000-0000-0000000000e1', 'pi_0149_b', 'qr_0149_b', 'paid');
 
-insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at, price_cents)
-values ('49000000-0000-0000-0000-0000000000e2', '49000000-0000-0000-0000-0000000000cc',
-        'Cerchio di prova due', 'networking', false, 'Cascina Cuccagna',
-        extensions.st_point(9.2, 45.45)::extensions.geography, now() + interval '20 days', 0);
-
+-- D holds a LIVE ticket to C's event, and organises a SECOND event of their own. D outlives
+-- every erasure in this file, which is the point: §6b's service_role arm deletes e2, and an e2
+-- organised by C would already have cascaded away with C's account — the delete would match no
+-- rows and prove nothing.
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '49000000-0000-0000-0000-0000000000dd',
         'authenticated', 'authenticated', 'd@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 insert into public.event_tickets (id, user_id, event_id, stripe_payment_id, qr_token, status)
 values ('49000000-0000-0000-0000-000000000013', '49000000-0000-0000-0000-0000000000dd',
         '49000000-0000-0000-0000-0000000000e1', 'pi_0149_d', 'qr_0149_d', 'paid');
+
+insert into public.events (id, organizer_id, title, category, is_online, venue, geo, starts_at, price_cents)
+values ('49000000-0000-0000-0000-0000000000e2', '49000000-0000-0000-0000-0000000000dd',
+        'Cerchio di prova due', 'networking', false, 'Cascina Cuccagna',
+        extensions.st_point(9.2, 45.45)::extensions.geography, now() + interval '20 days', 0);
 
 insert into public.event_tickets (id, user_id, event_id, stripe_payment_id, qr_token, status)
 values ('49000000-0000-0000-0000-000000000014', '49000000-0000-0000-0000-0000000000aa',
@@ -160,9 +168,15 @@ insert into public.audit_log (report_id, actor_id, action, reason)
 values ('49000000-0000-0000-0000-0000000000f1', '49000000-0000-0000-0000-0000000000aa',
         'dismiss', 'fixture');
 
+-- Two invites carrying A's referral code. The second is deliberately inviter'd by D, because
+-- the FK that blocks the account delete is `invites.code → profiles.referral_code`, NOT
+-- `inviter_id`: a release that deletes by `inviter_id` alone leaves this row and the 23503 with
+-- it. The two columns coincide for every row the app writes today; nothing enforces that.
 insert into public.invites (inviter_id, code, invitee_id, activated_at)
 values ('49000000-0000-0000-0000-0000000000aa', 'AAAA1111',
-        '49000000-0000-0000-0000-0000000000cc', now());
+        '49000000-0000-0000-0000-0000000000cc', now()),
+       ('49000000-0000-0000-0000-0000000000dd', 'AAAA1111',
+        '49000000-0000-0000-0000-0000000000bb', now());
 
 -- A's own erasure request — the row the job claims, and the row that has to still be there
 -- when the job writes 'done' onto it (§6).
@@ -242,6 +256,9 @@ select lives_ok(
 
 -- ── 6. the references, then the account delete for real ──────────────────────────────────
 
+select is(
+  (select count(*)::int from public.invites where code = 'AAAA1111'),
+  2, 'both invites carrying A''s code are present before the release');
 select throws_ok(
   $$ delete from auth.users where id = '49000000-0000-0000-0000-0000000000aa' $$,
   '23503', null,
@@ -262,7 +279,7 @@ select is(
   'the moderation trail survives with a pseudonymised actor — NULL there means «a system action»');
 select is(
   (select count(*)::int from public.invites where code = 'AAAA1111'),
-  0, 'A''s own referral activations are deleted');
+  0, 'every invite carrying A''s referral code is deleted — by code, not merely by inviter_id');
 select lives_ok(
   $$ select public.gdpr_release_profile_references('49000000-0000-0000-0000-0000000000aa') $$,
   'the release is idempotent too');
@@ -347,9 +364,9 @@ select is(
 -- `revoke execute … from public, anon, authenticated` has taken service_role's EXECUTE with it
 -- before in this repo, and a trigger that silently stops firing is a retention hole, not a 42501
 -- somebody notices. Asserted with a REAL delete under the role, not by reading a privilege.
-select ok(
-  not has_function_privilege('authenticated', 'public.detach_retained_tickets_from_event()', 'execute'),
-  'sanity: the revoke is in force for a client role');
+select is(
+  (select count(*)::int from public.events where id = '49000000-0000-0000-0000-0000000000e2'),
+  1, 'D''s event is still standing — so the delete below is a real one, not a zero-row no-op');
 set local role service_role;
 select lives_ok(
   $$ delete from public.events where id = '49000000-0000-0000-0000-0000000000e2' $$,
@@ -359,6 +376,9 @@ select is(
   (select count(*)::int from public.event_tickets
     where id = '49000000-0000-0000-0000-000000000014' and event_id is null),
   1, 'and the trigger still fired for it: A''s second retained ticket is detached, not deleted');
+select is(
+  (select stripe_payment_id from public.event_tickets where id = '49000000-0000-0000-0000-000000000014'),
+  'pi_0149_a2', 'with its money — the detach is not a soft delete');
 
 -- ── 7. the nightly schedule ──────────────────────────────────────────────────────────────
 

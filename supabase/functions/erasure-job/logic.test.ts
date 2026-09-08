@@ -979,3 +979,39 @@ Deno.test('an unconfigured KV purge degrades the run but does NOT block the dele
     ['processing', 'failed'],
   );
 });
+
+Deno.test("a request with no subject left is 'done', not a nightly 'failed' loop", async () => {
+  // Reachable through the R-8 §7.5 reconcile only: 20260908073545 made profile_id ON DELETE SET
+  // NULL, so a pre-#107 row re-queued by hand arrives with the account already gone. Every port
+  // below would be handed `null`, and an errored port means 'failed' — the reconcile would turn
+  // a stalled row into a looping one. Nothing to erase, nothing to fail.
+  const c = ctx({
+    'gdpr_erasure_requests.select': [
+      {
+        data: [
+          { id: 'req-1', profile_id: null },
+          { id: 'req-2', profile_id: 'user-2' },
+        ],
+      },
+    ],
+  });
+  const res = await processErasureRequests(c);
+  assertEquals(res.status, 200);
+
+  // req-1 never touched a port; req-2 in the same batch ran the whole cascade.
+  assertEquals(c.revoked, ['user-2']);
+  assertEquals(c.deleted, ['user-2']);
+  assertEquals(
+    c.db.calls.filter((k) => k.op === 'rpc').map((k) => k.values),
+    [
+      { p_profile_id: 'user-2' },
+      { p_profile_id: 'user-2', p_limit: REMOVE_BATCH },
+      { p_profile_id: 'user-2' },
+      { p_profile_id: 'user-2' },
+    ],
+  );
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['processing', 'done', 'processing', 'done'],
+  );
+});
