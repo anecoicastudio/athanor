@@ -190,11 +190,34 @@ Deno.test('#717: the claim is the RPC, asks for the batch, and passes no lease',
   assert(!c.db.calls.some((k) => k.table === 'gdpr_erasure_requests' && k.op === 'select'));
 });
 
+Deno.test('#717: the no-subject shortcut is fenced on the lease too', async () => {
+  // The cheapest path through the loop is the one most likely to be written without the guard:
+  // a request whose account is already gone writes 'done' and continues, and that write can land
+  // on a row a later pass owns exactly as the long one can.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: null, claimed_at: 'lease-req-1' }] },
+    ],
+  });
+  await processErasureRequests(c);
+  const updates = statusUpdates(c.db);
+  assertEquals(
+    updates.map((u) => u.values),
+    [{ status: 'done' }],
+  );
+  assertEquals(updates[0].filters, [
+    ['eq', 'id', 'req-1'],
+    ['eq', 'claimed_at', 'lease-req-1'],
+  ]);
+});
+
 Deno.test('#717: the loop writes no status of its own before the terminal one', async () => {
   // The claim already returned these rows as 'processing'. A pass that wrote it again would be
   // writing over a lease it does not own — and on a re-claimed row, over another pass's stamp.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
   });
   await processErasureRequests(c);
   assertEquals(
@@ -216,8 +239,8 @@ Deno.test('per request: session revoke → the whole cascade → the one termina
     'rpc.claim_erasure_requests': [
       {
         data: [
-          { id: 'req-1', profile_id: 'user-1' },
-          { id: 'req-2', profile_id: 'user-2' },
+          { id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' },
+          { id: 'req-2', profile_id: 'user-2', claimed_at: 'lease-req-2' },
         ],
       },
     ],
@@ -238,9 +261,21 @@ Deno.test('per request: session revoke → the whole cascade → the one termina
     updates.map((u) => u.values),
     [{ status: 'done' }, { status: 'done' }],
   );
+  // …and it is FENCED on the lease the claim handed back (#717). Without the second filter, a
+  // pass whose lease expired mid-cascade writes its terminal status over a row a later pass has
+  // already re-claimed, taking it out of 'processing' while that pass is still working it.
   assertEquals(
     updates.map((u) => u.filters),
-    [[['eq', 'id', 'req-1']], [['eq', 'id', 'req-2']]],
+    [
+      [
+        ['eq', 'id', 'req-1'],
+        ['eq', 'claimed_at', 'lease-req-1'],
+      ],
+      [
+        ['eq', 'id', 'req-2'],
+        ['eq', 'claimed_at', 'lease-req-2'],
+      ],
+    ],
   );
 
   // (4) the account cascade, once per request and through the auth port — never a PostgREST
@@ -281,7 +316,9 @@ Deno.test('the sweep removes from every bucket the manifest names, one call each
   // images and post media all sat in buckets the loop never touched, because the storage port
   // was pre-bound to candidacy-videos.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_storage_footprint': [
       {
         data: [
@@ -318,7 +355,9 @@ Deno.test('the fund manifest is NOT removed a second time — the sweep owns the
   // the sweep derives the same rows from the same table for every bucket, so consuming it here
   // would be a dead Storage round trip per request.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_erase_fund_footprint': [
       { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
     ],
@@ -330,7 +369,9 @@ Deno.test('the fund manifest is NOT removed a second time — the sweep owns the
 
 Deno.test('an empty sweep manifest → no storage call at all', async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_storage_footprint': [{ data: [] }],
   });
   await processErasureRequests(c);
@@ -342,7 +383,9 @@ Deno.test("a sweep that never drains lands the request on 'failed', not 'done'",
   // re-listing, and the loop must treat "not exhausted" as a failure — a member's photos still
   // in the bucket is not "did everything it could".
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_storage_footprint': Array.from({ length: MAX_ROUNDS }, () => ({
       data: [{ bucket_id: 'moments', name: 'user-1/mom-1.jpg' }],
     })),
@@ -357,7 +400,9 @@ Deno.test("a sweep that never drains lands the request on 'failed', not 'done'",
 
 Deno.test("a sweep manifest read that ERRORS is 'failed', never an empty folder", async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_storage_footprint': [{ error: { message: 'db down' } }],
   });
   await processErasureRequests(c);
@@ -376,8 +421,8 @@ Deno.test("fund reach rpc error → no byte sweep, that request lands on 'failed
     'rpc.claim_erasure_requests': [
       {
         data: [
-          { id: 'req-1', profile_id: 'user-1' },
-          { id: 'req-2', profile_id: 'user-2' },
+          { id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' },
+          { id: 'req-2', profile_id: 'user-2', claimed_at: 'lease-req-2' },
         ],
       },
     ],
@@ -410,8 +455,8 @@ Deno.test(
         'rpc.claim_erasure_requests': [
           {
             data: [
-              { id: 'req-1', profile_id: 'user-1' },
-              { id: 'req-2', profile_id: 'user-2' },
+              { id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' },
+              { id: 'req-2', profile_id: 'user-2', claimed_at: 'lease-req-2' },
             ],
           },
         ],
@@ -439,7 +484,11 @@ Deno.test(
 // tokens live must never pass for a clean 'done'.
 Deno.test("a revoke resolving with an error is recorded — 'failed', not 'done'", async () => {
   const c = ctx(
-    { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+    },
     { revokeSessions: () => Promise.resolve({ error: { message: 'permission denied' } }) },
   );
   await processErasureRequests(c);
@@ -454,7 +503,11 @@ Deno.test("a revoke resolving with an error is recorded — 'failed', not 'done'
 // is the session-less member, and that is a clean run, not a step that failed.
 Deno.test("a revoke resolving { error: null } is a success — 'done'", async () => {
   const c = ctx(
-    { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+    },
     { revokeSessions: () => Promise.resolve({ data: 0, error: null }) },
   );
   await processErasureRequests(c);
@@ -470,7 +523,9 @@ Deno.test("a revoke resolving { error: null } is a success — 'done'", async ()
 Deno.test("storage.remove returning an error is recorded too — 'failed', not 'done'", async () => {
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'rpc.gdpr_storage_footprint': [
         { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
       ],
@@ -492,8 +547,8 @@ Deno.test(
         'rpc.claim_erasure_requests': [
           {
             data: [
-              { id: 'req-1', profile_id: 'user-1' },
-              { id: 'req-2', profile_id: 'user-2' },
+              { id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' },
+              { id: 'req-2', profile_id: 'user-2', claimed_at: 'lease-req-2' },
             ],
           },
         ],
@@ -518,7 +573,9 @@ Deno.test(
 
 Deno.test("purges BOTH public paths for the erased handle, and stays on 'done'", async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ data: { handle: 'luna_dev' } }],
   });
   const res = await processErasureRequests(c);
@@ -544,7 +601,9 @@ Deno.test("unconfigured KV is REPORTED, not skipped — 'failed', not 'done'", a
   // still servable from KV, so 'done' — "did everything it could" — would be a lie.
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'profiles.select': [{ data: { handle: 'luna_dev' } }],
     },
     { purge: NO_KV },
@@ -568,7 +627,9 @@ Deno.test('unconfigured KV shows in the response even on a run that saw nothing'
 Deno.test('a KV API failure is recorded but never rolls back or masks the DB erasure', async () => {
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'profiles.select': [{ data: { handle: 'luna_dev' } }],
       'rpc.gdpr_storage_footprint': [
         { data: [{ bucket_id: 'candidacy-videos', name: 'user-1/cand-1.mp4' }] },
@@ -598,7 +659,9 @@ Deno.test('a purge that finds nothing is clean — most members were never prere
   // ordinary outcome and must not read as a failed erasure.
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'profiles.select': [{ data: { handle: 'luna_dev' } }],
     },
     { purge: { deleted: 0, scanned: 132 } },
@@ -615,7 +678,9 @@ Deno.test(
   "a member with no handle had no public URL — nothing to purge, still 'done'",
   async () => {
     const c = ctx({
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'profiles.select': [{ data: { handle: null } }],
     });
     const res = await processErasureRequests(c);
@@ -633,7 +698,9 @@ Deno.test("purges the subject's dream pages alongside the profile pair, in ONE s
   // dream has never deleted its cached copy. One purgePaths call, because the sweep lists the
   // whole namespace per call — two calls would list it twice for one member.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ data: { handle: 'luna_dev' } }],
     'dreams.select': [{ data: [{ id: 'dream-1' }, { id: 'dream-2' }] }],
   });
@@ -657,7 +724,9 @@ Deno.test(
     // cached yesterday. Filtering here would leave the text of an archived dream readable by
     // key, forever, under a dead build prefix.
     const c = ctx({
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'profiles.select': [{ data: { handle: 'luna_dev' } }],
       'dreams.select': [{ data: [{ id: 'dream-1' }] }],
     });
@@ -687,7 +756,9 @@ Deno.test('a FULL page of dream ids is a purge gap — a truncated read raises n
     i === 7 ? { id: null } : { id: `dream-${i}` },
   );
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ data: { handle: null } }],
     'dreams.select': [{ data: ids }],
   });
@@ -707,7 +778,9 @@ Deno.test('a member with dreams but no handle still gets the dream pages purged'
   // visibility gates anything, so «no handle» here means the column is null — and it must not
   // skip the dream half, whose keys have nothing to do with the handle.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ data: { handle: null } }],
     'dreams.select': [{ data: [{ id: 'dream-1' }] }],
   });
@@ -722,7 +795,9 @@ Deno.test("a failed dreams read is counted as a purge gap, not as 'no dreams'", 
   // the same code with the same empty list, and only one of them is a clean sweep. The handle
   // half still runs — a gap in one input must not abandon the other.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ data: { handle: 'luna_dev' } }],
     'dreams.select': [{ error: { message: 'db down' } }],
   });
@@ -739,7 +814,9 @@ Deno.test("a failed dreams read is counted as a purge gap, not as 'no dreams'", 
 
 Deno.test('both key reads failing counts TWO gaps and purges nothing', async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ error: { message: 'db down' } }],
     'dreams.select': [{ error: { message: 'db down' } }],
   });
@@ -760,7 +837,9 @@ Deno.test(
     // and no way to purge them, which is exactly the state #468/#492 forbid skipping silently.
     const c = ctx(
       {
-        'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
         'profiles.select': [{ data: { handle: null } }],
         'dreams.select': [{ data: [{ id: 'dream-1' }] }],
       },
@@ -778,7 +857,9 @@ Deno.test(
 
 Deno.test('a row with no id is dropped rather than hashed into /dream/undefined', async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ data: { handle: null } }],
     'dreams.select': [{ data: [{ id: null }, { id: 'dream-1' }] }],
   });
@@ -791,7 +872,9 @@ Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", 
   // A read that FAILED and a member who never had a handle reach the same code with the same
   // `handle === null`, and they must not report the same way: this one is a real gap.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'profiles.select': [{ error: { message: 'db down' } }],
   });
   const res = await processErasureRequests(c);
@@ -816,7 +899,9 @@ Deno.test(
   'the pseudonymisation and the reference release both precede the account delete',
   async () => {
     const c = ctx({
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
     });
     // Snapshot what the DB has been asked for AT THE MOMENT the irreversible call is made. The
     // two ports record independently, so plain call lists cannot show one happening before the
@@ -846,7 +931,9 @@ Deno.test("payment rpc error → the account is NOT deleted, and the row is 'fai
   // The guard that matters most. Attempting the delete here would not fail — it would cascade
   // event_tickets and circle_memberships away, which is the opposite of what the ruling says.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_erase_payment_footprint': [{ error: { message: 'deadlock' } }],
   });
   const res = await processErasureRequests(c);
@@ -866,7 +953,9 @@ Deno.test(
     // Not a money risk — a leftover NO ACTION reference makes the delete FAIL rather than destroy
     // anything — but attempting it would only turn a named error into an anonymous 23503.
     const c = ctx({
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'rpc.gdpr_release_profile_references': [{ error: { message: '23503' } }],
     });
     const res = await processErasureRequests(c);
@@ -883,7 +972,9 @@ Deno.test('a failed fund reach also blocks the account delete', async () => {
   // fund_contributions.profile_id is ON DELETE RESTRICT (#378), so the delete would raise —
   // but the loop says so up front rather than leaving it to be discovered as a 23503.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_erase_fund_footprint': [{ error: { message: 'boom' } }],
   });
   await processErasureRequests(c);
@@ -899,7 +990,11 @@ Deno.test(
   async () => {
     const looked: string[] = [];
     const c = ctx(
-      { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+      },
       {
         getUserById: (id: string) => {
           looked.push(id);
@@ -931,7 +1026,11 @@ Deno.test(
 
 Deno.test("an auth row with no email → nothing to purge, still 'done'", async () => {
   const c = ctx(
-    { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+    },
     { getUserById: () => Promise.resolve({ data: { user: { email: null } } }) },
   );
   await processErasureRequests(c);
@@ -948,7 +1047,11 @@ Deno.test('an unreadable auth row BLOCKS the delete — the address is matched f
   // is what removes auth.users: delete first and the row we were asked to erase becomes
   // unfindable. One more night with the account standing is recoverable; that is not.
   const c = ctx(
-    { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+    },
     { getUserById: () => Promise.resolve({ data: null, error: { message: 'gotrue down' } }) },
   );
   await processErasureRequests(c);
@@ -964,7 +1067,11 @@ Deno.test(
   'a getUserById rejection is swallowed the same way, and blocks the delete too',
   async () => {
     const c = ctx(
-      { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+      },
       { getUserById: () => Promise.reject(new Error('network')) },
     );
     await processErasureRequests(c);
@@ -978,7 +1085,9 @@ Deno.test(
 
 Deno.test("a failed waitlist delete is recorded — 'failed', and the account STAYS", async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_purge_waitlist_email': [{ error: { message: 'db down' } }],
   });
   await processErasureRequests(c);
@@ -991,7 +1100,11 @@ Deno.test("a failed waitlist delete is recorded — 'failed', and the account ST
 
 Deno.test("a deleteUser resolving with an error is recorded — 'failed'", async () => {
   const c = ctx(
-    { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+    },
     { deleteUser: () => Promise.resolve({ error: { message: 'still referenced' } }) },
   );
   await processErasureRequests(c);
@@ -1007,8 +1120,8 @@ Deno.test('a deleteUser rejection is swallowed and the batch continues', async (
       'rpc.claim_erasure_requests': [
         {
           data: [
-            { id: 'req-1', profile_id: 'user-1' },
-            { id: 'req-2', profile_id: 'user-2' },
+            { id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' },
+            { id: 'req-2', profile_id: 'user-2', claimed_at: 'lease-req-2' },
           ],
         },
       ],
@@ -1033,7 +1146,9 @@ Deno.test(
     // 'done' over residue nobody can locate.
     const c = ctx(
       {
-        'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
         'profiles.select': [{ data: { handle: 'ariel' } }],
       },
       { purge: NO_KV },
@@ -1056,8 +1171,8 @@ Deno.test("a request with no subject left is 'done', not a nightly 'failed' loop
     'rpc.claim_erasure_requests': [
       {
         data: [
-          { id: 'req-1', profile_id: null },
-          { id: 'req-2', profile_id: 'user-2' },
+          { id: 'req-1', profile_id: null, claimed_at: 'lease-req-1' },
+          { id: 'req-2', profile_id: 'user-2', claimed_at: 'lease-req-2' },
         ],
       },
     ],
@@ -1094,7 +1209,9 @@ Deno.test("a request with no subject left is 'done', not a nightly 'failed' loop
 
 Deno.test('the subscription is cancelled at Stripe BEFORE the row is pseudonymised', async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
   });
   const rpcsAtCancel: string[] = [];
@@ -1124,7 +1241,9 @@ Deno.test(
   'a member with no subscription is not a failure and calls Stripe not at all',
   async () => {
     const c = ctx({
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'circle_memberships.select': [{ data: null }],
     });
     await processErasureRequests(c);
@@ -1142,7 +1261,9 @@ Deno.test('an unconfigured Stripe blocks the erasure of a subscribed member', as
   // would leave a charge nobody can trace, refund, or stop.
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
     },
     { cancelSubscription: NO_STRIPE },
@@ -1162,7 +1283,9 @@ Deno.test('an unconfigured Stripe blocks the erasure of a subscribed member', as
 Deno.test('a Stripe cancel that rejects stops the cascade where it stands', async () => {
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
     },
     { cancelSubscription: () => Promise.reject(new Error('stripe down')) },
@@ -1180,7 +1303,9 @@ Deno.test(
   'an unreadable membership row stops the cascade — unread is not «no subscription»',
   async () => {
     const c = ctx({
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'circle_memberships.select': [{ error: { message: 'db down' } }],
     });
     await processErasureRequests(c);
@@ -1204,7 +1329,9 @@ Deno.test(
   async () => {
     const c = ctx(
       {
-        'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
         'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
       },
       { getSubscriptionStatus: () => Promise.resolve('canceled') },
@@ -1223,7 +1350,9 @@ Deno.test(
 Deno.test('#717: incomplete_expired counts as settled too — Stripe closed it itself', async () => {
   const c = ctx(
     {
-      'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
       'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
     },
     { getSubscriptionStatus: () => Promise.resolve('incomplete_expired') },
@@ -1243,7 +1372,9 @@ Deno.test(
     // «already stopped». Only the two terminal statuses are.
     const c = ctx(
       {
-        'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
         'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
       },
       { getSubscriptionStatus: () => Promise.resolve('past_due') },
@@ -1259,7 +1390,9 @@ Deno.test(
 
 Deno.test('#717: the status is read BEFORE the cancel, not alongside it', async () => {
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
   });
   await processErasureRequests(c);
@@ -1274,7 +1407,9 @@ Deno.test(
     // lose the only pointer to the thing still taking the member's money.
     const c = ctx(
       {
-        'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
         'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
       },
       { getSubscriptionStatus: () => Promise.reject(new Error('stripe down')) },
@@ -1295,7 +1430,9 @@ Deno.test(
   async () => {
     const c = ctx(
       {
-        'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
         'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
       },
       { getSubscriptionStatus: () => Promise.resolve(null) },
@@ -1311,7 +1448,9 @@ Deno.test('a failed fund reach SKIPS the payment and reference steps entirely', 
   // Running them anyway left a live, re-signable account whose tickets no longer scan and whose
   // Circle subscription is still billing — half-erasing a member who is still here.
   const c = ctx({
-    'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }],
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
     'rpc.gdpr_erase_fund_footprint': [{ error: { message: 'deadlock' } }],
   });
   await processErasureRequests(c);
@@ -1333,7 +1472,11 @@ Deno.test('the waitlist address goes to the RPC verbatim — no pattern language
   // offers no escape for it, so an address containing `*` — legal in a local part — would have
   // matched, and deleted, somebody else's row. Verified against staging.
   const c = ctx(
-    { 'rpc.claim_erasure_requests': [{ data: [{ id: 'req-1', profile_id: 'user-1' }] }] },
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+    },
     { getUserById: () => Promise.resolve({ data: { user: { email: 'a*b_c%d@x.test' } } }) },
   );
   await processErasureRequests(c);

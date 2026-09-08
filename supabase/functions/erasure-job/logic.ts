@@ -57,17 +57,20 @@ export type ErasureAuth = {
  */
 export type ErasureStripe = {
   /**
-   * The subscription's current status, or **null when Stripe has no such subscription**.
+   * The subscription's `status` as Stripe reports it, or null if the retrieved object carried
+   * none. A retrieve that FAILS — for any reason, an id Stripe does not know included — rejects;
+   * it is not reported as null. Nothing here claims to know which errors Stripe raises, because
+   * this port has no way to find out and a docblock asserting vendor behaviour is what somebody
+   * believed, not what the vendor does (#709).
    *
    * Read before cancelling, because since #717 a torn-down pass is re-driven and the cancel is
    * the one step of the cascade that is not idempotent by construction. It sits BEFORE (3c)
    * nulls `circle_memberships.profile_id`, so an isolate killed between the two leaves the
-   * pointer in place and the next pass reaches the same subscription again. What Stripe does
-   * with a second cancel is not written down in its API reference, and this file is not the
-   * place to guess: the object stays addressable after cancellation («After it's canceled, the
-   * subscription is largely immutable. You can still update its metadata and
-   * cancellation_details» — docs.stripe.com/api/subscriptions/cancel), so asking is cheap and
-   * needs no assumption about an error we have never seen.
+   * pointer in place and the next pass reaches the same subscription again. Asking first needs
+   * no assumption about a second cancel, and the object stays addressable after cancellation
+   * («After it's canceled, the subscription is largely immutable. You can still update its
+   * metadata and cancellation_details» — docs.stripe.com/api/subscriptions/cancel), so the
+   * question can always be asked.
    */
   getSubscriptionStatus: (subscriptionId: string) => Promise<string | null>;
   /** Cancel immediately. Stripe emits `customer.subscription.deleted`, which the webhook records. */
@@ -125,16 +128,57 @@ export type ErasureCtx = {
 const DREAM_ID_READ_LIMIT = 500;
 
 /**
- * How many requests one pass claims.
+ * How many requests one pass CONSIDERS.
  *
- * Passed to `claim_erasure_requests` rather than left to its default: the batch size is this
- * loop's business — it bounds how much irreversible work one invocation attempts inside the
- * edge-function wall clock — while the LEASE is the table's, and is deliberately NOT passed.
- * Duplicating the lease here would put the number an operator reads in the migration out of step
- * with the one that runs, and the parameter exists so RELEASE-RUNBOOK §7.5 can override it for a
- * hand-driven pass, not so this file can restate it.
+ * A ceiling, not a target: `claim_erasure_requests` bounds its candidate set by this and then
+ * de-duplicates by member, so a batch holding two rows for one person yields fewer claims than
+ * the number here — and `seen` in the response below is the post-de-duplication count. That is
+ * the right way round: the bound exists to cap how much irreversible work one invocation attempts
+ * inside the edge-function wall clock, and capping candidates caps the locks taken with them.
+ *
+ * Passed rather than left to the function's default because the batch size is this loop's
+ * business; the LEASE is the table's and is deliberately NOT passed, so the number an operator
+ * reads in 20260908133119 is the number that runs.
  */
 const CLAIM_BATCH = 20;
+
+/** One row of `claim_erasure_requests` — the request, its subject, and the lease stamp we hold. */
+type ErasureClaim = { id: string; profile_id: string | null; claimed_at: string };
+
+/**
+ * Write a request's terminal status, but ONLY while this pass still holds the lease it was
+ * claimed under.
+ *
+ * The fence is `stripe-webhook`'s (`handlers.ts:933-938`) and it is not decoration. A pass can
+ * outlive its lease — an unusually long cascade, or an operator releasing the lease by hand
+ * (RELEASE-RUNBOOK §7.5) — and a later pass then re-claims the row and starts working it. Without
+ * the guard this pass's 'done' or 'failed' lands on that row, taking it OUT of 'processing' while
+ * the second pass is still inside the cascade, and neither side can tell. PostgREST answers a
+ * no-op update with success, so the `.select()` is what makes the lost lease visible at all.
+ */
+async function writeTerminalStatus(
+  db: SupabaseClient,
+  requestId: string,
+  claimedAt: string,
+  status: 'done' | 'failed',
+): Promise<void> {
+  const { data, error } = await db
+    .from('gdpr_erasure_requests')
+    .update({ status })
+    .eq('id', requestId)
+    .eq('claimed_at', claimedAt)
+    .select('id');
+  if (error) {
+    console.error('erasure-job: terminal status write failed', requestId, status, error);
+  } else if (Array.isArray(data) && data.length === 0) {
+    // An EMPTY array, not a falsy `data`: with `.select()` PostgREST answers a successful update
+    // with a row array, so `[]` is positive evidence the fence rejected the write, while a null
+    // with no error is evidence of nothing. Not an error we can act on — the work is done and the
+    // row belongs to someone else now — but it guarantees a duplicate pass over this request, so
+    // it must not be silent.
+    console.warn('erasure-job: lease lost before the terminal write', requestId, status);
+  }
+}
 
 export async function processErasureRequests(ctx: ErasureCtx): Promise<Response> {
   const { db, auth, storage, kv, stripe } = ctx;
@@ -168,7 +212,10 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
   const { data: reqs, error } = await db.rpc('claim_erasure_requests', { p_limit: CLAIM_BATCH });
   if (error) return new Response(error.message, { status: 500 });
 
-  for (const erasureReq of (reqs ?? []) as { id: string; profile_id: string | null }[]) {
+  for (const erasureReq of (reqs ?? []) as ErasureClaim[]) {
+    // OUR stamp. Every status write below fences on it, so a pass whose lease expired mid-cascade
+    // cannot write over a row a later pass has already re-claimed (20260908133119).
+    const claimed = erasureReq.claimed_at;
     // The subject. Two open requests for one member can no longer be driven together: the claim
     // returns at most one row per member per pass, and holds the member's other rows back while
     // the lease on this one is live. That matters more than it used to — 20260908085513's unique
@@ -184,7 +231,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // re-queues rows written before #107, and whose `profile_id` the account cascade has since
     // SET NULL (20260908073545). The account is gone, so the request is met.
     if (!profileId) {
-      await db.from('gdpr_erasure_requests').update({ status: 'done' }).eq('id', erasureReq.id);
+      await writeTerminalStatus(db, erasureReq.id, claimed, 'done');
       continue;
     }
 
@@ -584,10 +631,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
-    await db
-      .from('gdpr_erasure_requests')
-      .update({ status: degraded ? 'failed' : 'done' })
-      .eq('id', erasureReq.id);
+    await writeTerminalStatus(db, erasureReq.id, claimed, degraded ? 'failed' : 'done');
     // ^ 'done' since #107: a clean pass revokes the sessions, pseudonymises the retained money
     //   rows, deletes the bytes, purges the cache and deletes the account, which is the whole of
     //   what Article 17 asks. 'failed' means a step actually failed (#515) — including a

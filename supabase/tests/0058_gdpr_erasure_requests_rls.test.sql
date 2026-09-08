@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(33);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -18,6 +18,7 @@ values
 --   auth.users is not writable by service_role, and that section runs as service_role.
 select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.c', '33333333-3333-3333-3333-333333333333', false);
 
 select has_table('public', 'gdpr_erasure_requests', 'table exists');
 select ok(
@@ -173,12 +174,15 @@ select is(
   (select status from public.gdpr_erasure_requests where id = 'e0000000-0000-0000-0000-0000000000e2'),
   'requested', 'the sibling it declined is untouched, not silently consumed');
 
--- THE point of the whole change: a second claim, overlapping the first, gets nothing. Asserted
--- by claiming twice rather than by re-reading the predicate — two passes racing is the failure
--- mode, and only running it twice can show it.
+-- A second claim gets nothing — including the SIBLING of the row the first one took, which is
+-- the case the lease predicate alone has to carry. What this does NOT show is the concurrency
+-- guard: pgTAP is one connection and one transaction, `pg_try_advisory_xact_lock` is re-entrant
+-- within a transaction, and `now()` does not advance inside one. The zero below is the lease
+-- predicate doing its job. The advisory lock is unprovable from here and is asserted instead by
+-- 20260908133119's reasoning plus the `not exists` clause this exercises.
 select is(
   (select count(*)::int from public.claim_erasure_requests(20, interval '15 minutes')),
-  0, 'a second overlapping claim takes NOTHING — including the sibling of a live claim');
+  0, 'a second sequential claim takes NOTHING — the live claim and its sibling are both held');
 
 -- p_lease is the ops override RELEASE-RUNBOOK §7.5 uses when the isolate is known to be dead.
 update public.gdpr_erasure_requests set claimed_at = now() - interval '40 minutes'
@@ -186,6 +190,40 @@ update public.gdpr_erasure_requests set claimed_at = now() - interval '40 minute
 select is(
   (select count(*)::int from public.claim_erasure_requests(1, interval '15 minutes')),
   1, 'p_limit bounds the batch');
+
+-- Releasing the lease by hand is nulling the stamp — the procedure RELEASE-RUNBOOK §7.5 step 5
+-- prescribes, and the reason it prescribes that rather than a zero-lease re-claim, which would
+-- re-stamp the row and hide it from the pass the operator invokes next.
+-- Two halves, or the assertion proves nothing: by this point D's stamp has been aged by the
+-- p_limit step above, so a claim would reach it anyway. Make it LIVE first, show it is held,
+-- then release it and show the very next claim takes it.
+update public.gdpr_erasure_requests set claimed_at = now()
+ where id = 'd0000000-0000-0000-0000-0000000000d1';
+select is(
+  (select count(*)::int from public.claim_erasure_requests(20, interval '15 minutes')
+    where id = 'd0000000-0000-0000-0000-0000000000d1'),
+  0, 'a fresh stamp holds the row against the claim');
+update public.gdpr_erasure_requests set claimed_at = null
+ where id = 'd0000000-0000-0000-0000-0000000000d1';
+select is(
+  (select count(*)::int from public.claim_erasure_requests(20, interval '15 minutes')
+    where id = 'd0000000-0000-0000-0000-0000000000d1'),
+  1, 'nulling claimed_at releases the lease: the next pass takes the row at once');
+
+-- #717 review: the lease stamp is not a client's to write. The table grant is table-level, so
+-- the new column inherited the INSERT privilege authenticated already had; 20260908133119 closes
+-- it in the policy instead of with a column ACL, because 0121 pins how many tables carry one.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', current_setting('test.c'), true);
+select throws_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id, claimed_at)
+     values (current_setting('test.c')::uuid, now()) $$,
+  '42501', null, 'a client cannot supply its own lease stamp');
+select lives_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id)
+     values (current_setting('test.c')::uuid) $$,
+  'and the ordinary request, with no stamp, still goes in');
+set local role service_role;
 
 -- Asserted as a PRIVILEGE, not as a denied call: a behaviour test passes for the wrong reason
 -- the moment something else happens to reject the statement, and 20260620140149's own header

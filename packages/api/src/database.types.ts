@@ -3324,6 +3324,7 @@ export type Database = {
       claim_erasure_requests: {
         Args: { p_lease?: string; p_limit?: number }
         Returns: {
+          claimed_at: string
           id: string
           profile_id: string
         }[]

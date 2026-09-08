@@ -1135,13 +1135,24 @@ select status, count(*), count(*) filter (where profile_id is null) as identity_
  group by status;
 
 -- 5. ONLY if step 1 shows a 'processing' row still 'held' after the isolate is known to be dead
---    — a deploy mid-pass, a project paused, function logs that stop mid-cascade. This forces the
---    claim to ignore the lease it would otherwise wait out. Do NOT run it while a pass may still
---    be live: it hands the running isolate's rows to a second one, which is the double-drive the
---    lease exists to prevent. Waiting the lease out costs 15 minutes and needs no judgement.
-select * from public.claim_erasure_requests(20, interval '0');
--- The rows come back already flipped to 'processing' and re-stamped; invoke the job to drive
--- them, as in step 3.
+--    — a deploy mid-pass, a project paused, function logs that stop mid-cascade. RELEASING the
+--    lease is nulling the stamp: the claim predicate treats a 'processing' row with no
+--    claimed_at as infinitely stale, so the very next pass takes it.
+--
+--    Do NOT reach for `claim_erasure_requests(20, interval '0')` here. It would re-stamp the
+--    rows with a FRESH claimed_at, and the job invoked in step 3 asks for the default
+--    15-minute lease — so the rows you just "released" are the ones it skips, and step 1 goes
+--    back to reading 'held' with nothing running. The zero lease belongs to the pgTAP tests,
+--    which pass their own interval on purpose.
+--
+--    And do not run this while a pass may still be live: handing a running isolate's rows to a
+--    second one is the double-drive the lease exists to prevent. Waiting the lease out costs
+--    15 minutes and needs no judgement.
+update public.gdpr_erasure_requests
+   set claimed_at = null
+ where status = 'processing'
+   and id = '<the id from step 1>';
+-- Then step 3 again. The pass claims the row, stamps it fresh, and drives it.
 ```
 
 Two things to know before running it:
