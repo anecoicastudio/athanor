@@ -44,8 +44,9 @@ describe('semantic tokens', () => {
   });
 
   test('the aura-derived translucents are the same cyan', () => {
-    // auraSoft/auraLine are the glow surfaces. If aura moves and these do not, the glow
-    // desaturates against its own CTA and nobody notices until a screenshot.
+    // auraSoft/auraLine are the framed active surface, and the surface auraGlow() lays its
+    // shadow over — the pair alone is not the glow (§2.3, ruled 2026-09-07). If aura moves and
+    // these do not, both desaturate against their own CTA and nobody notices until a screenshot.
     const cyan = '43,208,210';
     expect(semantic.auraSoft.startsWith(`rgba(${cyan},`)).toBe(true);
     expect(semantic.auraLine.startsWith(`rgba(${cyan},`)).toBe(true);

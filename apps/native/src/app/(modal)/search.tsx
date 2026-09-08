@@ -34,9 +34,11 @@ import { Screen } from '@/components/Screen';
  * The sheet navigates back to /search with updated auraMin/city/star params → this screen
  * re-derives `filters` from useLocalSearchParams and re-runs the query automatically.
  *
- * Rule #4: NO glow on this screen. Only aura cyan is the SearchBar focus ring (in the
- * component) and highlighted match text (in ResultRow). No cyan fills, no auraSoft/auraLine
- * surfaces.
+ * Rule #4: NO glow on this screen — nothing here is a moment. Cyan appears only as the SearchBar
+ * focus ring (in the component) and highlighted match text (in ResultRow). The framed
+ * `auraSoft`/`auraLine` pair would be allowed — without a shadow it is just the active surface
+ * (§2.3, ruled 2026-09-07) — and is still unused, because a results list has no selected state
+ * to draw.
  */
 
 type GroupSection = {

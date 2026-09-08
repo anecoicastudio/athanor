@@ -48,9 +48,10 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  * #111. Adding a fourth setting on one key would only deepen it.
  *
  * The retry is `Button variant="ghost"`, NOT the `border-aura-line bg-aura-soft` pill that
- * `favor.tsx:122-127` and `costellazioni.tsx:43-48` use. That pill is the framed cyan surface
- * rule #4 reserves for moment-grade events, and #119 already counts nine copies of it as a
- * defect. A failed fetch is not a moment.
+ * `favor.tsx` and `costellazioni.tsx` use. Rule #4 permits that pill on any control — without a
+ * shadow it is the ordinary active surface (§2.3, ruled 2026-09-07) — so the reason here is
+ * weight, not permission: a failed fetch should not be the loudest block on the home screen.
+ * The defect #119 (closed) counted was the hand-rolled copies of it.
  *
  * Rule #1 is untouched: this reads the ledger and never writes it.
  */

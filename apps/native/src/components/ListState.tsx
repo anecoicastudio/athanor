@@ -59,8 +59,10 @@ const DEFAULT_PADDING = 'px-8 pt-24';
  *
  * The retry is `Button variant="ghost"`, which is what `payments`, `my-events`, `aura`,
  * `aura/ledger` and `recap` already use. Deliberately NOT the `border-aura-line bg-aura-soft`
- * pill the other error branches hand-rolled: rule #4 reserves that framed cyan surface for
- * moment-grade events, and a failed fetch is the opposite of a moment.
+ * pill the other error branches hand-rolled — not because rule #4 reserves that surface (the
+ * framed pair without a shadow is the ordinary active one, §2.3, ruled 2026-09-07) but because
+ * an error state is the one place the eye should be pulled by the message, not by the control
+ * under it.
  *
  * `idle` and `ready` render nothing. `idle` is the disabled query — a screen waiting on a
  * hydrating session says nothing rather than asserting emptiness — and `ready` means the
