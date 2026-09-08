@@ -1,4 +1,6 @@
-// gdpr-export-job (11 §3.9 8a) — service-role, nightly pg_cron over gdpr_export_jobs status='requested'.
+// gdpr-export-job (11 §3.9 8a) — service-role, nightly pg_cron over gdpr_export_jobs. Since #721
+// the batch is taken by claim_export_jobs under a lease, so a pass torn down mid-run no longer
+// strands its rows, and a job that cannot be served is filed 'failed' rather than looping.
 // Assembles the user's archive (every EXPORT_SPEC section in ./logic.ts — profile through
 // gdpr_erasure_requests), uploads to the private `exports` bucket, signs a time-limited URL
 // (72h — 10 §5 open decision), and sets status='ready' + download_url + expires_at; that update

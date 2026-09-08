@@ -32,8 +32,18 @@ describe('gdprExportJobSchema', () => {
   it('rejects an unknown status', () => {
     expect(() => gdprExportJobSchema.parse({ ...validRow, status: 'deleted' })).toThrow();
   });
-  it('lists exactly the three statuses', () => {
-    expect(GDPR_EXPORT_STATUSES).toEqual(['requested', 'processing', 'ready']);
+  it('lists exactly the four statuses', () => {
+    expect(GDPR_EXPORT_STATUSES).toEqual(['requested', 'processing', 'ready', 'failed']);
+  });
+
+  it("parses a 'failed' row, which carries no url and no expiry (#721)", () => {
+    const failed = gdprExportJobSchema.parse({
+      ...validRow,
+      status: 'failed',
+      download_url: null,
+      expires_at: null,
+    });
+    expect(failed.status).toBe('failed');
   });
 });
 

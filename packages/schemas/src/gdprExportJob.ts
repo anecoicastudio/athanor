@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
-// Mirrors supabase/migrations/<ts>_m9_gdpr_export_erasure.sql · gdpr_export_jobs (06 §2.14).
+// Mirrors supabase/migrations/<ts>_m9_gdpr_export_erasure.sql · gdpr_export_jobs (06 §2.14),
+// widened to four values by <ts>_gdpr_export_claim_lease.sql (#721).
 // GATED: owner requests (status='requested'), backend job sets processing/ready + signed url.
-export const GDPR_EXPORT_STATUSES = ['requested', 'processing', 'ready'] as const;
+// 'failed' is terminal and the backend's alone: the job can no longer be handed over at all,
+// because the 30-day expiry cap leaves no room for a signed link. Everything transient — a
+// section read that errored, a failed upload, a failed signing — goes back to 'requested' and is
+// retried, and ages into 'failed' only if it keeps failing. The member's retry is a NEW
+// 'requested' row, never a status write — the claim predicate does not reach a terminal row.
+export const GDPR_EXPORT_STATUSES = ['requested', 'processing', 'ready', 'failed'] as const;
 export const gdprExportStatus = z.enum(GDPR_EXPORT_STATUSES);
 export type GdprExportStatus = z.infer<typeof gdprExportStatus>;
 

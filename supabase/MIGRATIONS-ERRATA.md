@@ -1875,3 +1875,52 @@ them, for fifteen minutes.
 Releasing a lease by hand is nulling the stamp (`update … set claimed_at = null`), which the claim
 predicate reads as infinitely stale. §7.5 step 5 now says that, and `0058` asserts both halves —
 that a fresh stamp holds the row, and that nulling it hands the row to the very next claim.
+
+## `20260908152740_gdpr_export_claim_lease.sql` — the pre-#721 UPDATE did have a predicate
+
+The header opens (`:2-3`):
+
+> a SELECT on `status = 'requested'` followed by an UPDATE carrying no
+> predicate at all.
+
+The second half is wrong, and it is wrong in the direction that overstates the defect. The claim
+this migration replaced read
+
+```ts
+await db.from('gdpr_export_jobs').update({ status: 'processing' }).eq('id', job.id);
+```
+
+— predicated on the row id. What it had no predicate on was **`status`**: nothing re-checked that
+the row was still `'requested'` at the moment of the write, which is what made the pair
+non-atomic and what let a second overlapping pass claim rows the first already held. #721's body
+says exactly that («an UPDATE with **no predicate on `status`**»); the sentence here was carried
+over from the erasure lane's wording without being re-read against this function's source, and
+was caught in the same PR's review.
+
+Read `:2-3` as: «a SELECT on `status = 'requested'` followed by an UPDATE predicated on the row id
+alone, with nothing re-checking the row was still `'requested'`.» The editable copies of the same
+sentence — `supabase/functions/gdpr-export-job/logic.ts`, `supabase/tests/0057_gdpr_export_jobs_rls.test.sql`
+and `docs/RELEASE-RUNBOOK.md` §7.6 — were corrected in place rather than through this file.
+
+Asserted by: nothing, and it needs nothing. The sentence describes code that no longer exists, so
+there is no behaviour a test could hold; the correction exists so the next reader does not conclude
+that the old loop could flip a `ready` row, which it could not.
+
+## `20260908152740_gdpr_export_claim_lease.sql` — `claimed_at` is cleared, by one hand
+
+The `claimed_at` column comment (`:51`) says the stamp is
+
+> Set by claim_export_jobs together with the 'processing' status and never cleared
+
+The loop never clears it — that half is true and deliberate, so a requeued row carries the stamp of
+the pass that gave up on it. But an OPERATOR does: releasing a stuck lease by hand is
+`update … set claimed_at = null` (`docs/RELEASE-RUNBOOK.md` §7.6 step 6), which is the whole reason
+the predicate treats a NULL stamp on a `'processing'` row as infinitely stale rather than as never
+stale. The next sentence of the same comment reads that NULL as meaning only «the row predates the
+lease», which is one of its two meanings.
+
+Read `:51` as: «never cleared by the job — a released lease is the one thing that nulls it.»
+
+Asserted by: `supabase/tests/0057_gdpr_export_jobs_rls.test.sql`, whose last claim-lease pair shows
+a fresh stamp holding a row against the claim and then shows the very next claim taking it once the
+stamp is nulled — the release procedure, exercised.
