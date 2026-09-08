@@ -174,6 +174,18 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
       body: () => 'Your archive is ready. Download it from Settings → Your data.',
     },
   },
+  // #721: the other terminal outcome. No cause in the copy — a member cannot act on «section read
+  // failed», and the one thing they CAN do is ask again, which the export screen's button does.
+  'notif.tpl.gdprExportFailed': {
+    it: {
+      title: 'I tuoi dati',
+      body: () => 'Non siamo riusciti a preparare il tuo archivio. Richiedilo di nuovo.',
+    },
+    en: {
+      title: 'Your data',
+      body: () => "We couldn't prepare your archive. Ask for it again.",
+    },
+  },
   // #127 — the fund's broadcasts. Titles mirror notif.type.fundMilestone; bodies mirror the
   // five notif.tpl.fund* keys. The *LastDay pair exists because `t()` has no plural support and
   // «Mancano 1 giorni» is not Italian, so the 1-day slot writes the number into the sentence.

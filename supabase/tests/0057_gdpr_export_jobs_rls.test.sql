@@ -91,8 +91,9 @@ update public.gdpr_export_jobs set status = 'requested'
  where profile_id = current_setting('test.a')::uuid;
 
 -- ── #721: the claim lease ───────────────────────────────────────────────────────────────────
--- The claim used to be a SELECT on `status = 'requested'` followed by an UPDATE carrying no
--- predicate at all. A pass torn down between them left the row on 'processing' with nothing in the
+-- The claim used to be a SELECT on `status = 'requested'` followed by an UPDATE predicated on the
+-- row id alone, with nothing re-checking the row was still 'requested'. A pass torn down between
+-- them left the row on 'processing' with nothing in the
 -- world still driving it; two overlapping passes both built, uploaded and signed the same archive.
 --
 -- claim_export_jobs (20260908152740) replaces both statements with one. These assert the PREDICATE

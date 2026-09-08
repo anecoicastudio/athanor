@@ -1187,14 +1187,16 @@ identity dropped. Production is **not** reconciled — it runs at the release th
 ### 7.6 Stranded and failed export jobs (#721)
 
 `gdpr-export-job` claimed its batch the way `erasure-job` did before #717 — a SELECT on
-`status = 'requested'` followed by an UPDATE with no predicate — so a pass torn down mid-run left
+`status = 'requested'` followed by an UPDATE predicated on the row id alone, with nothing
+re-checking the row was still `requested` — so a pass torn down mid-run left
 its rows on `processing` with nothing to re-queue them, and the member's archive never arrived.
 Since #721 the batch is taken by `claim_export_jobs` under a 15-minute lease, and a job that
 cannot be served is filed `failed` rather than looped.
 
 Two facts shape everything below. **`failed` is terminal and the member's to undo** — the claim
-predicate does not reach it, and the export screen shows «Non siamo riusciti a preparare il tuo
-archivio. Richiedilo di nuovo.» with the ordinary request button, which files a NEW row. And **a
+predicate does not reach it; the member is notified (`notif.tpl.gdprExportFailed`, routed to the
+export screen) and that screen shows «Non siamo riusciti a preparare il tuo archivio. Richiedilo di
+nuovo.» with the ordinary request button, which files a NEW row. And **a
 job older than 30 days minus the 72h signed-link TTL cannot be served at all**: `expires_at <=
 created_at + interval '30 days'` leaves no room for the link, so the loop files those `failed`
 before building anything. That is the fence which stops the lease turning a stranded job into one
@@ -1220,34 +1222,54 @@ select status,
  order by status;
 
 -- 2. `ready` WITH NO URL is the pre-#721 signing failure: the loop wrote 'ready' whatever
---    createSignedUrl returned, and the screen reads such a row as neither pending nor ready, so
---    the member was told nothing and the row was terminal. The code no longer produces it (a
+--    createSignedUrl returned, so the #129 producer told the member their archive was ready and
+--    the screen then showed them no link, on a terminal row. The code no longer produces it (a
 --    signing failure requeues). File any legacy row 'failed' so the member is asked to try again.
+--
+--    THIS NOTIFIES. The producer's failed arm (20260908155128) fires per row this statement
+--    touches, so each affected member gets «Non siamo riusciti a preparare il tuo archivio» —
+--    which is the point, but do it deliberately and not at 03:00.
 update public.gdpr_export_jobs
    set status = 'failed'
  where status = 'ready'
    and download_url is null;
 
 -- 3. Drive a pass now rather than waiting for 03:25. There is no invoke_export_job() wrapper —
---    gdpr-export-nightly is operator-created — so this is the cron's own command, with the
---    project ref substituted. It resolves the key through Vault, and presents it on `apikey`,
---    which is the only header the platform will not try to parse as a JWT.
+--    gdpr-export-nightly is operator-created — so READ THE JOB'S OWN COMMAND and run that, rather
+--    than trusting the paste below: a hand-created job can carry a baked-in header instead of a
+--    Vault lookup (20260808074301:18-20), and the two projects need not agree.
+select command from cron.job where jobname = 'gdpr-export-nightly';
+
+--    On both projects on 2026-09-08 that command was the Vault-resolving form, which is what the
+--    snippet below reproduces. `athanor.edge_auth_headers` presents the secret on `apikey`, the
+--    one header the platform will not try to parse as a JWT.
 select net.http_post(
   url := 'https://<project-ref>.supabase.co/functions/v1/gdpr-export-job',
   headers := athanor.edge_auth_headers(athanor.runtime_setting('notification_fanout_key')),
   body := '{}'::jsonb,
-  timeout_milliseconds := 5000);
+  timeout_milliseconds := 5000) as request_id;
 
--- 4. A few seconds later, step 1 again. One pass claims at most CLAIM_BATCH (10) jobs, so a
+-- 4. READ THE RESPONSE. pg_net is fire-and-forget: `net.http_post` returns a request id whatever
+--    happens next, so a 401 looks exactly like a pass. If the Vault name is missing or rotated,
+--    `athanor.runtime_setting` returns NULL, edge_auth_headers builds null header values, and the
+--    function refuses — with nothing to see here. This is the only thing that tells the two apart.
+select status_code, content
+  from net._http_response
+ where id = <the request_id from step 3>;
+--    A pass answers 200 with {"processed":N,"failed":M}.
+
+-- 5. A few seconds later, step 1 again. One pass claims at most CLAIM_BATCH (10) jobs, so a
 --    backlog takes several — and each one re-stamps the rows it takes, so an immediate second
---    invocation claims NOTHING until those leases lapse. Wait the 15 minutes, or use step 5 for a
+--    invocation claims NOTHING until those leases lapse. Wait the 15 minutes, or use step 6 for a
 --    row you know is dead.
---    A row on 'failed' is not a queue to drain: read the function logs before doing anything. The
---    loop logs «past the servable window», «section read failed, archive withheld», «upload
---    failed, requeued» or «signing returned no url, requeued» and those are four different
---    problems.
+--    A row on 'failed' is not a queue to drain — it is terminal and the member has been told, so
+--    there is nothing to re-drive; what it is worth is reading the logs to learn WHY. Only the
+--    servable window files 'failed'; «section read failed, archive withheld and requeued»,
+--    «upload failed, requeued» and «signing returned no url, requeued» all leave the job on
+--    'requested' for the next pass, and a job that keeps hitting one of those is the thing that
+--    eventually ages out into 'failed'.
 
--- 5. ONLY if step 1 shows a 'processing' row still held after the isolate is known to be dead —
+-- 6. ONLY if step 1 shows a 'processing' row still held after the isolate is known to be dead —
 --    a deploy mid-pass, a project paused, function logs that stop mid-run. RELEASING the lease is
 --    nulling the stamp: the claim predicate treats a 'processing' row with no claimed_at as
 --    infinitely stale, so the very next pass takes it.
@@ -1265,7 +1287,7 @@ update public.gdpr_export_jobs
    set claimed_at = null
  where status = 'processing'
    and id = '<the id from step 1>';
--- Then step 3 again.
+-- Then steps 3-4 again.
 ```
 
 One symptom worth naming, because it looks like this section's problem and is not: **every** job

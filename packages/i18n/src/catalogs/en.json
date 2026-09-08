@@ -1078,6 +1078,7 @@
   "notif.tpl.helpConfirmed": "{name} confirmed your help. Your Aura grows ✦",
   "notif.tpl.warn": "We upheld a report: {reason}. Pause and think it over.",
   "notif.tpl.gdprExport": "Your archive is ready. Download it from Settings → Your data.",
+  "notif.tpl.gdprExportFailed": "We couldn't prepare your archive. Ask for it again.",
   "notif.tpl.reportQueue": "{count} reports are waiting for you.",
   "notif.tpl.reportQueueOne": "One report is waiting for you.",
   "notif.lead.help": "Your help",

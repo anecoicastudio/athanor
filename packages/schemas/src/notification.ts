@@ -92,6 +92,9 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'notif.tpl.warn',
   // #129: gdpr_export_jobs status→ready — no params; the row routes to Settings → Data Export.
   'notif.tpl.gdprExport',
+  // #721: the same job's other terminal outcome. Same type and the same entity_ref, so it
+  // routes to the same screen — which is where the request button that retries it lives.
+  'notif.tpl.gdprExportFailed',
   // #127, all five on type 'fundMilestone'. The split is grammatical, not semantic: `t()` does
   // plain {name} interpolation with no plural support, so «Mancano {days} giorni» cannot serve
   // the 1-day slot — «Mancano 1 giorni» is not Italian. Hence a *Countdown key for the plural

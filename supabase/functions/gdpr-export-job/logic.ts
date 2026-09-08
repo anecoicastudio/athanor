@@ -59,7 +59,7 @@ export type ExportJobCtx = {
 // `error` is read, not decoration: a section whose query fails resolves `data: null`, which
 // assembleArchive defaults to null/[] — indistinguishable from «this member has none». An archive
 // that silently omits a member's messages is a worse answer to an Art. 15 request than no archive
-// at all, so the loop withholds it and files the job 'failed' (#721).
+// at all, so the loop withholds it and requeues the job (#721).
 type QueryResult = { data: unknown; error?: unknown };
 
 /**
@@ -330,7 +330,8 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
 
   // ATOMIC LEASE CLAIM (#721) — one statement, in the database, flips the rows to 'processing'
   // and stamps `claimed_at`. What it replaced was a SELECT on `status = 'requested'` followed by
-  // an UPDATE carrying no predicate at all, which had two holes: a pass torn down between them
+  // an UPDATE predicated on the row id alone — nothing re-checked that the row was still
+  // 'requested' — which had two holes: a pass torn down between them
   // stranded the row on 'processing' with nothing left to re-queue it, and two overlapping passes
   // both built, uploaded and signed the same archives.
   //
@@ -353,7 +354,12 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
     // Past the servable window: no signed link this job could carry would satisfy the 30-day
     // expiry cap, so building the archive would only end in a discarded 23514. Fail it before any
     // work — the member's retry is one tap and produces a job that CAN be served.
-    if (Date.now() - Date.parse(job.created_at) > SERVABLE_WINDOW_MS) {
+    //
+    // An unparseable created_at fails CLOSED. `NaN > SERVABLE_WINDOW_MS` is false, so an
+    // unguarded comparison would wave such a job THROUGH the one fence that exists to stop it
+    // being rebuilt and rejected every night — the unsafe direction, and silent.
+    const ageMs = Date.now() - Date.parse(job.created_at);
+    if (!Number.isFinite(ageMs) || ageMs > SERVABLE_WINDOW_MS) {
       console.warn(
         'gdpr-export-job: past the servable window, filed failed',
         job.id,
@@ -367,17 +373,22 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
     const results = await collectOwnData(db, job.profile_id);
     const sectionError = firstSectionError(results);
     if (sectionError) {
-      // Withheld, not shipped short: an archive missing a section reads as «you have none of
-      // this», and the member has no way to tell. Terminal, because the alternative is a nightly
-      // silent rebuild the member is never told about.
+      // Withheld, not shipped short: an archive missing a section reads to the member as «you
+      // have none of this», and nothing on the screen could tell them otherwise.
+      //
+      // Requeued rather than failed, and the distinction is the member's Art. 15 request. A
+      // statement timeout on `messages` for a heavy account is as transient as a failed upload
+      // and is retried the same way; nothing has been uploaded at this point, so retrying cannot
+      // publish a partial archive. What stops it retrying for ever is the servable-window fence
+      // above: a read that keeps failing eventually ages the job out and files it 'failed', which
+      // is the point where the member is told and asked to try again.
       console.error(
-        'gdpr-export-job: section read failed, archive withheld',
+        'gdpr-export-job: section read failed, archive withheld and requeued',
         job.id,
         sectionError.key,
         sectionError.error,
       );
-      await writeStatus(db, job.id, claimed, 'failed');
-      failed++;
+      await writeStatus(db, job.id, claimed, 'requested');
       continue;
     }
 
@@ -401,8 +412,10 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
     const signedUrl = signed.data?.signedUrl ?? null;
     if (!signedUrl) {
       // Same policy as a failed upload, and the reason this branch exists at all: writing 'ready'
-      // with a null download_url produced a row the screen reads as neither pending nor ready, so
-      // the member was told nothing and the row was terminal — a second stranding shape.
+      // with a null download_url produced a row the screen reads as neither pending nor ready —
+      // while the #129 producer, which guards on the status alone and never reads download_url,
+      // told the member their archive was ready. They opened the screen and found no link, on a
+      // row nothing would ever pick up again. Worse than silence, not milder.
       console.error('gdpr-export-job: signing returned no url, requeued', job.id, signed.error);
       await writeStatus(db, job.id, claimed, 'requested');
       continue;

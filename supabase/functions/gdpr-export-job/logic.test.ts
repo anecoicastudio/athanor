@@ -438,8 +438,8 @@ Deno.test("signing returns no url → requeued, never 'ready' with a null downlo
   assertEquals(
     updates.map((u) => u.values.status),
     ['requested'],
-    "a 'ready' row with no url reads as neither pending nor ready on the screen — the member is " +
-      'told nothing and the row is terminal',
+    "a 'ready' row with no url notifies the member that their archive is ready (#129 guards on " +
+      'the status alone) and then shows them no link, on a terminal row',
   );
   assertEquals(updates[0].values.download_url, undefined);
   assertFenced(c.db);
@@ -481,7 +481,7 @@ Deno.test('just inside the servable window → still served', async () => {
 });
 
 Deno.test(
-  "a section read error → 'failed', archive withheld: a short archive must not read as «you have none»",
+  'a section read error → requeued, archive withheld: a short archive must not read as «you have none»',
   async () => {
     const c = ctx({ 'messages.select': [{ error: { message: 'statement timeout' } }] });
     const res = await processExportJobs(c);
@@ -490,12 +490,32 @@ Deno.test(
     assertEquals(c.signs.length, 0);
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
-      ['failed'],
+      ['requested'],
+      'a statement timeout on one section is as transient as a failed upload — failing the job ' +
+        'here would burn the Art. 15 request the member is waiting on',
     );
     assertFenced(c.db);
-    assertEquals(await res.json(), { processed: 1, failed: 1 });
+    assertEquals(await res.json(), { processed: 1, failed: 0 });
   },
 );
+
+Deno.test('an unparseable created_at fails CLOSED, not open', async () => {
+  // `NaN > SERVABLE_WINDOW_MS` is false, so an unguarded comparison waves the job THROUGH the one
+  // fence that stops it being rebuilt and rejected every night.
+  const c = ctx({
+    'rpc.claim_export_jobs': [
+      { data: [{ id: JOB, profile_id: REQUESTER, created_at: 'not a date', claimed_at: CLAIMED }] },
+    ],
+  });
+  const res = await processExportJobs(c);
+
+  assertEquals(c.uploads.length, 0);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assertEquals(await res.json(), { processed: 1, failed: 1 });
+});
 
 Deno.test('the lease lost before the terminal write is survivable, not fatal', async () => {
   // PostgREST answers a no-op update with success and an EMPTY row array — the fence rejected the

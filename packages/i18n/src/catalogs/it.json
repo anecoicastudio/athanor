@@ -1078,6 +1078,7 @@
   "notif.tpl.helpConfirmed": "{name} ha confermato il tuo aiuto. La tua Aura cresce ✦",
   "notif.tpl.warn": "Abbiamo confermato una segnalazione: {reason}. Fermati e ripensaci.",
   "notif.tpl.gdprExport": "Il tuo archivio è pronto. Scaricalo da Impostazioni → I tuoi dati.",
+  "notif.tpl.gdprExportFailed": "Non siamo riusciti a preparare il tuo archivio. Richiedilo di nuovo.",
   "notif.tpl.reportQueue": "{count} segnalazioni aspettano il tuo sguardo.",
   "notif.tpl.reportQueueOne": "Una segnalazione aspetta il tuo sguardo.",
   "notif.lead.help": "Il tuo aiuto",
