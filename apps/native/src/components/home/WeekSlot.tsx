@@ -47,10 +47,17 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  * while this screen and the sheet set none; that divergence predates this change and belongs with
  * #111. Adding a fourth setting on one key would only deepen it.
  *
- * The retry is `Button variant="ghost"`, NOT the `border-aura-line bg-aura-soft` pill that
- * `favor.tsx:122-127` and `costellazioni.tsx:43-48` use. That pill is the framed cyan surface
- * rule #4 reserves for moment-grade events, and #119 already counts nine copies of it as a
- * defect. A failed fetch is not a moment.
+ * The retry is `Button variant="ghost"`, NOT a `border-aura-line bg-aura-soft` pill. Rule #4
+ * permits that pair on any control — without a shadow it is the ordinary selected/active surface
+ * (§2.3, ruled 2026-09-07), which is how `Chip` draws a selected chip and `AmountRow` the active
+ * amount — so the reason here is weight, not permission: a failed fetch should not be the
+ * loudest block on the home screen. The defect #119 (closed) counted was the hand-rolled copies
+ * of the pill. (This docblock used to cite `favor.tsx` and `costellazioni.tsx` as two of them,
+ * with line numbers. That was true when written and has rotted since: the #119 sweep took those
+ * pills out — `6c8e092` for the error branches, `4e47f8d` for the empty ones — and the ranges
+ * then drifted onto unrelated code. `costellazioni` has no framed pair left at all, and
+ * `favor`'s only surviving one is its done-card, which carries `auraGlow(1)` and so is a real
+ * glow rather than the plain pair.)
  *
  * Rule #1 is untouched: this reads the ledger and never writes it.
  */

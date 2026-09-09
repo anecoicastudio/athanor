@@ -310,7 +310,7 @@ export default function CircleScreen() {
           <SectionLabel tone="aura">{t('circle.eyebrow', locale)}</SectionLabel>
 
           {/* Headline */}
-          <Text className="text-[22px] font-bold text-foreground">
+          <Text accessibilityRole="header" className="text-[22px] font-bold text-foreground">
             {t('circle.headline', locale)}
           </Text>
 

@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(8);
+select plan(12);
 
 -- fixture: one member with a requested export job (profile via handle_new_user)
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -62,6 +62,34 @@ select lives_ok(
             expires_at = now() + interval '72 hours'
       where id = current_setting('test.job')::uuid $$,
   'processing->ready runs clean (guarded no-op enqueue)');
+
+-- (C2) #721: the OTHER terminal outcome reaches the member too. Before this the producer fired
+-- only on 'ready', so a member whose archive never arrived was told nothing and had to reopen the
+-- screen to find out. Same type and entity_ref, different template key.
+select lives_ok(
+  $$ update public.gdpr_export_jobs set status = 'failed'
+      where id = current_setting('test.job')::uuid $$,
+  'ready->failed runs clean (guarded no-op enqueue)');
+-- Asserted on the FUNCTION rather than on a row, because the fan-out is unresolved here and
+-- enqueue_notification writes nothing (D): what must be true is that the 'failed' arm exists and
+-- names the right template.
+select matches(
+  pg_get_functiondef('athanor.notify_gdpr_export_ready()'::regprocedure),
+  'notif\.tpl\.gdprExportFailed',
+  'the producer carries a failed arm with its own template key');
+select matches(
+  pg_get_functiondef('athanor.notify_gdpr_export_ready()'::regprocedure),
+  'old\.status is distinct from ''failed''',
+  'and guards it on the TRANSITION, so the lease''s repeated writes cannot re-notify');
+-- Both assertions above read the function body, and a body assertion passes for the wrong reason
+-- the moment the TRIGGER stops reaching it: a `when (new.status = 'ready')` added to the trigger
+-- would make the failed arm dead code with the mirror still green. Asserted as the absence of a
+-- qual rather than by matching the triggerdef text, which would have the same weakness.
+select is(
+  (select tgqual from pg_trigger
+    where tgrelid = 'public.gdpr_export_jobs'::regclass
+      and tgname = 'gdpr_export_jobs_notify_ready'),
+  null, 'and the trigger carries no WHEN, so both arms are actually reachable');
 
 -- (D) fan-out unresolved => enqueue returned before net.http_post; nothing wrote notifications
 select is(

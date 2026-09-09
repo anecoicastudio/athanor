@@ -59,10 +59,11 @@ Deno.test(
   'ticket metadata minted by create-ticket-checkout is readable by the webhook',
   async () => {
     const params = buildTicketSessionParams(
-      { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur' },
+      { id: 'evt-9', title: 'Rito', price_cents: 700, currency: 'eur', fee_pct: 10 },
       PROFILE,
       APP,
       CREATED * 1000, // injected clock (ms) — only expires_at derives from it here
+      'acct_organiser_9', // #104 destination; this test is about metadata, not the split
     );
     const db = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
     // If the producer ever renames a metadata key, handleTicketPaid throws 'missing metadata'
@@ -197,7 +198,11 @@ Deno.test(
         data: [{ price: { recurring: { interval: 'month' } }, current_period_end: 1760000000 }],
       },
     } as unknown as Stripe.Subscription);
-    const values = dbB.calls[0].values as Record<string, unknown>;
+    // The WRITE, not calls[0]: since #107 handleSubscription resolves the row by its Stripe ids
+    // first (two selects), so that a GDPR-pseudonymised membership can still record a
+    // cancellation instead of tripping unique (stripe_customer_id) on every retry.
+    const write = dbB.calls.filter((c) => c.table === 'circle_memberships' && c.op !== 'select')[0];
+    const values = write.values as Record<string, unknown>;
     assertEquals(values.profile_id, PROFILE, 'the membership must be cached against the payer');
   },
 );

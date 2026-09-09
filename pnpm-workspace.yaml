@@ -13,5 +13,19 @@ allowBuilds:
   # pnpm's dep-status check fails and every `opennextjs-cloudflare build` aborts
   # with "Command failed with exit code 1: pnpm install" — including in CI.
   workerd: true
+# pnpm's release-age exemptions for SDK 57 packages published the same day they were
+# installed (2026-09-09). Transient: sweep the list at the next SDK move, as the SDK 57
+# upgrade did for the SDK 54 one.
+minimumReleaseAgeExclude:
+  - '@expo/cli@57.0.23'
+  - '@expo/metro-file-map@57.0.3'
+  - babel-preset-expo@57.0.11
+  - expo-modules-core@57.0.17
+  - expo-modules-jsi@57.1.0
+  - expo@57.0.21
+  - '@expo/ui@57.0.17'
+  - expo-calendar@57.0.3
+  - expo-glass-effect@57.0.2
+  - expo-router@57.0.20
 overrides:
   lightningcss: 1.30.1

@@ -89,17 +89,17 @@
 
 ## 4. Release Runbook (R-1 … R-9)
 
-| ID  | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Status                                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R-1 | **Env / secrets** — `EXPO_PUBLIC_*` only in the app bundle (Foundation §2 — no service key in the client). Secrets (Sentry DSN, EAS submit credentials, APNs/FCM keys, Supabase anon key) in EAS secrets + Supabase vault + Cloudflare Workers secrets. Verify no secret in the JS bundle (grep the export).                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`                                | After `eas build`, download the `.app`/`.apk`, unzip, and `grep -ri "service_role\|sb_secret_\|sentry_dsn\|sk_live"` over the extracted JS bundle. Any hit is a release blocker. `.env.example` must be kept current. Stripe's own variables move from test mode to live mode at the same release: §4.2 lists the endpoint inventory and every Stripe variable that has to move with them.                                                                                                                                                                          |
-| R-2 | **Feature flags** — `useFeatureFlags()` reads the `remote_config` table at boot. Four well-known flag keys gate Fase-1 features. Remote-toggleable without a store build.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `✅ code`                               | `apps/native/src/hooks/use-remote-config.ts` exports `useFeatureFlags()`. Current flags and their defaults: `fund_surfaces_enabled` (default OFF — client visibility for fund surfaces; the legal gate is `fund_editions.contributions_enabled`, PRD §4.11), `prime_stelle_enabled` (default OFF — launch cohort gate). See §6 for how to flip flags as service_role. ⚠ Production `remote_config` still carries the flag under its pre-rename key — run the §6.5 rename at the next release.                                                                       |
-| R-3 | **Rollback** — JS-only regression: republish the previous `expo-updates` build via `eas update`. Native regression: halt phased release (App Store Connect phased-release pause; Play staged-rollout halt) and expedite a new store build.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `⬜ ops`                                | Document who can trigger each path and how. Rehearse OTA rollback before launch (publish a known-good update, confirm devices pick it up within the `staleTime` window).                                                                                                                                                                                                                                                                                                                                                                                            |
-| R-4 | **Monitoring (Sentry)** — Sentry project live (B-3); alerts on crash-free-sessions drop, new-issue spikes, and release-health regression. `mcp__sentry__*` tools available in this environment for querying issues during incident response. Dashboards: crash-free %, slow-frames, cold-start.                                                                                                                                                                                                                                                                                                                                                                                                                                               | `⬜ ops`                                | Configure Sentry project, DSN, release-health alerts, and dashboard before widening rollout. The Stripe webhook backlog is **not** covered by Sentry: it is the manual query in §4.1, run on go/no-go day and daily through launch week (#474).                                                                                                                                                                                                                                                                                                                     |
-| R-5 | **Versioning** — Settings version footer reads `Constants.expoConfig.version` (never hardcoded). `app.json` semver + `eas.json` `autoIncrement` for native build numbers. OTA update id available in debug/support info. `app.json version`, `package.json`, and the store version must be aligned per release.                                                                                                                                                                                                                                                                                                                                                                                                                               | `✅ code`                               | `apps/native/src/app/(modal)/settings.tsx` reads `Constants.expoConfig?.version` and renders via `t('settings.version', locale, { version })`.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| R-6 | **CI gates green before tagging** — `typecheck · lint · core unit ≥90% · schemas contract · pgTAP (incl. "client cannot write score") · edge-fn deno test`. Stop quality-gate (typecheck+lint), literal-hex hook, migration append-only hook pass. `athanor-reviewer` run on the release diff (CLAUDE.md). **No _mobile_ e2e gate exists**: `apps/web` came back in merge `34ff635` and CI runs its Playwright smoke again as the `web e2e (Playwright)` job, but the Maestro flows of B-8 were never authored — until B-8 lands, the mobile happy path is a manual pass, not a CI gate.                                                                                                                                                      | `🔁 verify`                             | Run the full CI suite on the release branch. Confirm `athanor-reviewer` returns PASS with zero Blockers.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| R-7 | **EAS Build on release tag** — production profile builds both platforms; uploads Sentry symbols/source maps; submits via `eas submit`. Runtime-version policy set so native changes force a store build while JS-only fixes ship OTA.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `⬜ ops`                                | Configure `eas.json` production profile with `sentry-cli` upload step, correct `runtimeVersion` policy, and submit credentials. Tag the release commit and trigger the EAS build. **Not true today (2026-08-19):** the `base` profile disables the upload for every profile, production included — deliberate while `SENTRY_AUTH_TOKEN`/org/project are unset on EAS, reversed by deleting that one key. #466.                                                                                                                                                      |
-| R-8 | **GDPR / data-residency final check** — Supabase EU/Frankfurt region confirmed (project `kwzeiqvrnnaagccyoose`, Frankfurt); consent captured at signup (M9); self-serve export + ≤30-day erasure wired (M9 `gdpr-export-job` + `erasure-job` edge functions, both deployed); **`erasure-job` requires `20260827110034` on the target project before it is deployed there** — since #573 it calls `gdpr_storage_footprint` to delete the member's stored bytes from every declared bucket rather than candidacy-videos alone, and against a project missing that function every request answers `PGRST202`, lands on the terminal `failed`, and is never re-queued; privacy-policy URL live (S-11); no third-party tracker in the build (B-4). | `✅ code` (`⬜ ops` for the legal gate) | Supabase EU region ✅. M9 consent + GDPR export/erasure slices are shipped. **Do not assert the deploy from memory — run `pnpm deploy:check` (§4.3), which reads both hosted projects and fails if any repo edge function is undeployed.** As of 2026-08-26 it reports `gdpr-export-job` v8 and `erasure-job` v10 ACTIVE on production. The erasure cascade is **legal-gated**: its retention-gated steps stay commented in `erasure-job/logic.ts` until counsel clears the retention window, so requests queue without erasing. Clear that gate before going live. |
-| R-9 | **Go / no-go** — gates G1–G7 green; Prime Stelle cohort list ready; staged-rollout % set; rollback rehearsed; sign-off recorded.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `⬜ ops`                                | Review §10 (acceptance gates G1–G7) line by line. No submission until every gate is green. Record sign-off with date and approver.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ID  | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Status                                             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-1 | **Env / secrets** — `EXPO_PUBLIC_*` only in the app bundle (Foundation §2 — no service key in the client). Secrets (Sentry DSN, EAS submit credentials, APNs/FCM keys, Supabase anon key) in EAS secrets + Supabase vault + Cloudflare Workers secrets. Verify no secret in the JS bundle (grep the export).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `⬜ ops`                                           | After `eas build`, download the `.app`/`.apk`, unzip, and `grep -ri "service_role\|sb_secret_\|sentry_dsn\|sk_live"` over the extracted JS bundle. Any hit is a release blocker. `.env.example` must be kept current. Stripe's own variables move from test mode to live mode at the same release: §4.2 lists the endpoint inventory and every Stripe variable that has to move with them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| R-2 | **Feature flags** — `useFeatureFlags()` reads the `remote_config` table at boot. Five well-known keys, three of them feature flags, gate Fase-1 features and the Apple sign-in CTA. Remote-toggleable without a store build.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `✅ code`                                          | `apps/native/src/hooks/use-remote-config.ts` exports `useFeatureFlags()`. Current flags and their defaults: `fund_surfaces_enabled` (default OFF — client visibility for fund surfaces; the legal gate is `fund_editions.contributions_enabled`, PRD §4.11), `prime_stelle_enabled` (default OFF — launch cohort gate), `apple_signin_enabled` (default OFF — reveals the «Continua con Apple» CTA on `(auth)/welcome.tsx`; #79). See §6 for how to flip flags as service_role. ✅ The §6.5 rename is **done** — production carries `fund_surfaces_enabled`, verified 2026-09-07; the old ⚠ here said otherwise and was stale.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| R-3 | **Rollback** — JS-only regression: republish the previous `expo-updates` build via `eas update`. Native regression: halt phased release (App Store Connect phased-release pause; Play staged-rollout halt) and expedite a new store build.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `⬜ ops`                                           | Document who can trigger each path and how. Rehearse OTA rollback before launch (publish a known-good update, confirm devices pick it up within the `staleTime` window).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| R-4 | **Monitoring (Sentry)** — Sentry project live (B-3); alerts on crash-free-sessions drop, new-issue spikes, and release-health regression. `mcp__sentry__*` tools available in this environment for querying issues during incident response. Dashboards: crash-free %, slow-frames, cold-start.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `⬜ ops`                                           | Configure Sentry project, DSN, release-health alerts, and dashboard before widening rollout. The Stripe webhook backlog is **not** covered by Sentry: it is the manual query in §4.1, run on go/no-go day and daily through launch week (#474).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| R-5 | **Versioning** — Settings version footer reads `Constants.expoConfig.version` (never hardcoded). `app.json` semver + `eas.json` `autoIncrement` for native build numbers. OTA update id available in debug/support info. `app.json version`, `package.json`, and the store version must be aligned per release.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `✅ code`                                          | `apps/native/src/app/(modal)/settings.tsx` reads `Constants.expoConfig?.version` and renders via `t('settings.version', locale, { version })`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| R-6 | **CI gates green before tagging** — `typecheck · lint · core unit ≥90% · schemas contract · pgTAP (incl. "client cannot write score") · edge-fn deno test`. Stop quality-gate (typecheck+lint), literal-hex hook, migration append-only hook pass. `athanor-reviewer` run on the release diff (CLAUDE.md). **No _mobile_ e2e gate exists**: `apps/web` came back in merge `34ff635` and CI runs its Playwright smoke again as the `web e2e (Playwright)` job, but the Maestro flows of B-8 were never authored — until B-8 lands, the mobile happy path is a manual pass, not a CI gate.                                                                                                                                                                                                                                                            | `🔁 verify`                                        | Run the full CI suite on the release branch. Confirm `athanor-reviewer` returns PASS with zero Blockers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| R-7 | **EAS Build on release tag** — production profile builds both platforms; uploads Sentry symbols/source maps; submits via `eas submit`. Runtime-version policy set so native changes force a store build while JS-only fixes ship OTA.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `⬜ ops`                                           | Configure `eas.json` production profile with `sentry-cli` upload step, correct `runtimeVersion` policy, and submit credentials. Tag the release commit and trigger the EAS build. **Not true today (2026-08-19):** the `base` profile disables the upload for every profile, production included — deliberate while `SENTRY_AUTH_TOKEN`/org/project are unset on EAS, reversed by deleting that one key. #466.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| R-8 | **GDPR / data-residency final check** — Supabase EU/Frankfurt region confirmed (project `kwzeiqvrnnaagccyoose`, Frankfurt); consent captured at signup (M9); self-serve export + ≤30-day erasure wired (M9 `gdpr-export-job` + `erasure-job` edge functions, both deployed); **`erasure-job` requires `20260827110034`, `20260908071656` and `20260908073545` on the target project before it is deployed there, and the `app.settings.erasure_job_url` / `_key` Vault pair before the cron does anything** — it calls `gdpr_storage_footprint` (#573), `gdpr_erase_payment_footprint` and `gdpr_release_profile_references` (#107), and against a project missing any of them every request answers `PGRST202`, lands on the terminal `failed`, and is never re-queued; privacy-policy URL live (S-11); no third-party tracker in the build (B-4). | `🟡 partial` (code done, production rider not run) | Supabase EU region ✅. M9 consent + GDPR export/erasure slices are shipped, and since **#107** the erasure cascade is complete and **scheduled**: `erasure-nightly` at 03:47 UTC (`20260908071807`) posts to `erasure-job`, which pseudonymises the retained payment rows, releases the blocking references, purges the waitlist and deletes the account — a clean pass now ends `done`. **Do not assert the deploy from memory — run `pnpm deploy:check` (§4.3), which reads both hosted projects and fails if any repo edge function is undeployed.** Two riders gate this on each project: the **migrations before the function deploy** (see §4.4 — `20260827110034`, `20260908071656` and `20260908073545` are all called by the job, and a missing one is a `PGRST202` on the terminal `failed`), and then the **`app.settings.erasure_job_url` / `_key` Vault pair** (§5) — until that pair exists the wrapper no-ops and nothing runs. The retention question was **ruled by the controller on 2026-09-07** (#184: payment rows are pseudonymised and kept 10 years, everything else is deleted on request); the 10-year reaper that finally drops the pseudonymised rows is **#715**, and it has landed (`20260909085841`): the `gdpr-retention-reap` cron job runs daily at 04:53 UTC, in pure SQL, and needs **no Vault pair and no function deploy** — the migration alone arms it. It deletes from `event_tickets`, `circle_memberships` and `fund_contributions` only where `erased_at` is older than `gdpr_retention_window()` (`interval '10 years'`), and never touches a row whose `erased_at` is NULL however old. **Nothing can age out anywhere before 2036-08-15** — the first erasure ran 2026-08-15 — so on both projects this job is a no-op scan for the next decade, which is exactly why it has to be correct now rather than watched later. See §5. Reconcile any pre-#107 `partial` / `failed` rows with the procedure in §7.5. **This row stays `🟡` until the §5 rider has run on PRODUCTION, and that is deliberate: the wrapper is a silent no-op without the Vault pair, so a project that skips the rider erases nothing and says nothing — while the shipped app copy («la eseguiamo ogni notte» / «we run it every night») is already telling members it does. The gate is here because nothing else fails loudly.** Flip to `✅ ops` only after `select public.invoke_erasure_job();` on production has returned a `200` in `net._http_response` **whose body reads `"retained":0`**. A 200 alone does not prove the job erased anybody — a project missing the `CF_KV_*` trio answers 200 with every request `failed` and every account still standing, which is exactly the state this row exists to catch. |
+| R-9 | **Go / no-go** — gates G1–G7 green; Prime Stelle cohort list ready; staged-rollout % set; rollback rehearsed; sign-off recorded.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `⬜ ops`                                           | Review §10 (acceptance gates G1–G7) line by line. No submission until every gate is green. Record sign-off with date and approver.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ### 4.1 Webhook backlog — the daily `processed_at IS NULL` check (#474, ruling 2026-08-21)
 
@@ -216,8 +216,8 @@ but nothing recorded **where each one pointed, or in which mode** — which is w
 Dashboard hunt across two modes plus a SQL query against production to establish something a lookup
 should have answered in a line.
 
-**The rule.** Every Stripe webhook endpoint is attributable to exactly one Supabase project and one
-mode, and **production is only ever reachable from a live-mode endpoint**. An endpoint nobody can
+**The rule.** Every Stripe webhook endpoint is attributable to exactly one Supabase project, one
+mode and one **scope**, and **production is only ever reachable from a live-mode endpoint**. An endpoint nobody can
 attribute gets deleted, not left. The reason is that a signing secret is per-endpoint _and_
 per-mode: a test-mode `whsec_…` can never verify a live event, and the reverse — a production
 project holding a test-mode secret — is the shape #473 took. Production verified staging's test
@@ -233,26 +233,109 @@ on staging.
 | a **Vercel** URL                  | unknown — origin unidentified    | present. Stale by definition, since `apps/web` runs on Cloudflare Workers; possibly the upstream's (`kaira-app`). **Identify it or delete it before the live swap** — an unattributed endpoint must not be carried into live mode. |
 | anything live-mode                | at cutover, one per live project | none — no live-mode account or endpoint exists yet                                                                                                                                                                                 |
 
+#### Scope is a third axis, and the inventory above did not have it (2026-09-06, #702)
+
+An endpoint's **scope** is fixed when it is created — Workbench's **Events from**, the API's
+`connect` parameter — and it decides which events reach it at all:
+
+- **Your account** (`connect: false`) — Checkout, Billing, Identity, charges, transfers. Everything
+  `stripe-webhook` handled until #702.
+- **Connected accounts** (`connect: true`) — a connected account's v1 `account.updated`, and every
+  other event a connected account raises. These carry a top-level `account` field naming it.
+
+A connected account's `account.updated` is delivered **only** to the second kind. Both endpoints in
+the inventory above are the first kind, so W13 — the arm that maintains `payout_accounts`, and
+therefore the only thing that can open #247's transfer gate — had never fired once: correct code,
+no event. Staging proved it on 2026-09-06: 17 rows in `stripe_webhook_events`, **zero** of type
+`account.updated`, and both real `acct_1UCj…` accounts sitting all-false with `onboarded_at` NULL.
+
+A signing secret is **per endpoint**, so a second scope is a second endpoint AND a second secret.
+Four are needed in all, and each needs its own `whsec_…`:
+
+| Project                           | Scope              | Variable                        | State on 2026-09-06                               |
+| --------------------------------- | ------------------ | ------------------------------- | ------------------------------------------------- |
+| staging `eralyiwkfrpqsawivegz`    | Your account       | `STRIPE_WEBHOOK_SECRET`         | exists (the endpoint in the inventory above)      |
+| staging `eralyiwkfrpqsawivegz`    | Connected accounts | `STRIPE_CONNECT_WEBHOOK_SECRET` | **to create** — Dashboard endpoint + secret (#80) |
+| production `kwzeiqvrnnaagccyoose` | Your account       | `STRIPE_WEBHOOK_SECRET`         | at cutover, live mode — the table below           |
+| production `kwzeiqvrnnaagccyoose` | Connected accounts | `STRIPE_CONNECT_WEBHOOK_SECRET` | at cutover, live mode — the table below           |
+
+Both endpoints point at the same URL (`/functions/v1/stripe-webhook`); the function verifies a
+delivery against each secret it holds and skips the ones it does not
+(`functions/_shared/stripe.ts`, `webhookSigningSecrets` / `verifyWithAnySecret`). Neither secret is
+boot-fatal — an unset one costs only its own scope's events, exactly the 400 an unset
+`STRIPE_WEBHOOK_SECRET` has always meant, and the function warns once per cold start naming what is
+missing. So the deploy may precede the secret; only the events wait.
+
 Recorded `we_…` ids live in `supabase/ENV-NOTES.md`, under **Stripe reference**. That table predates
 #473, lists two destinations, mentions no Vercel endpoint and records an event count of 10 that the
 handler has since outgrown, so reconcile all three against the Dashboard whenever this inventory is
 re-taken. Read its "live config" label as _current configuration_, not
 live **mode**: everything in that table is the test-mode sandbox.
 
-**Re-taking it.** `stripe webhook_endpoints list --limit 100`, or Dashboard → Developers → Webhooks.
+**Re-taking it.** `pnpm payments endpoints` is the fastest read — it prints each endpoint's
+**scope**, names the Supabase project its URL points at, and raises a `⚠⚠` when the mode being read
+has no «Connected accounts» endpoint at all. It is the one command in that script permitted a live
+key, and only to read; `stripe()` refuses to pair the live key with anything but a bodyless GET.
+`stripe webhook_endpoints list --limit 100` and Dashboard → Developers → Webhooks answer the same
+question by hand. Scope is not a labelled field on the retrieved object: what distinguishes the two
+is `application`, which carries a `ca_…` Connect application id on a «Connected accounts» endpoint
+and `null` on an account one (`connect` exists only on create params).
+
 Run it **once per mode**, and note that the mode is never a filter you can see: the Dashboard's
 test/live toggle hides the other mode's endpoints entirely, and the CLI takes the mode from
 whichever key is configured (`--live` for the live set). That is precisely how a stale endpoint
 survives a review. Record the `we_…` id of anything kept — §4.1's recovery path
 (`stripe events resend <event_id> --webhook-endpoint=<id>`) needs it.
 
+#### When the cache is already wrong — `reconcile-payout-accounts` (#707)
+
+An endpoint created after an account has already onboarded does not catch up. A connected
+account's `account.updated` is delivered only to a «Connected accounts» endpoint, Stripe refuses
+endpoint-targeted resend for a connected account's events, and `payout_accounts`' capability
+columns are written by nothing else. So a completion event that fired into a window with no
+subscriber is gone, and the row stays wrong forever with **no failure anywhere** — an event that
+was never delivered leaves no row in `stripe_webhook_events`, which is why §4.1's backlog query
+cannot see this and never will.
+
+That happened on 2026-09-06: two organisers onboarded at 17:01 and 17:31 UTC, the connect-scoped
+endpoint was created at 18:31, and one row sat at `payouts_enabled = false` for a day while Stripe
+reported `true`. The organiser sees the Connect-your-account CTA forever and every refetch confirms
+it, because the screen re-reads the same stale table.
+
+`reconcile-payout-accounts` retrieves each account from Stripe and writes the cache through the
+same function the W13 arm uses. It is **internal service-role**, so the secret goes on the
+`apikey` header — never `Authorization`, which the platform parses as a JWT:
+
+```bash
+# every row
+curl -s -X POST "https://<project-ref>.supabase.co/functions/v1/reconcile-payout-accounts" \
+  -H "apikey: $SB_SECRET_KEY" -H 'Content-Type: application/json' -d '{}'
+
+# one account
+curl -s -X POST "https://<project-ref>.supabase.co/functions/v1/reconcile-payout-accounts" \
+  -H "apikey: $SB_SECRET_KEY" -H 'Content-Type: application/json' \
+  -d '{"stripeAccountId":"acct_…"}'
+```
+
+It answers `{checked, corrected, failed, outcomes}`; a `corrected` outcome names the flags on both
+sides, so the log says what moved. A Stripe failure on one account does not abort the rest.
+
+**Run it after** creating a webhook endpoint on an account that already has connected accounts,
+after any period where `stripe-webhook` was failing or its signing secret was unset, and whenever
+an organiser reports being stuck behind the payout CTA. **Nothing schedules it** — a `pg_cron`
+sweep is what would also catch the reverse case, a capability Stripe _revokes_ while the endpoint
+is down, which leaves the cache reading `true` and `release-fund-payout` transferring to an account
+that can no longer receive one. That is a separate decision with a migration behind it.
+
 #### Cutover — swap every `STRIPE_*` variable, not only the webhook secret
 
 Production's edge-function env is still test-mode. `STRIPE_WEBHOOK_SECRET` is **unset** as of
 2026-08-24 (#473 step 2), which fails closed: no secret, no signature verification, 400, nothing
-written. The other three still carry **test-mode** values — inert for webhooks, but a checkout
-function invoked on production would mint test-mode sessions against live members. The swap is
-therefore all four together, or none.
+written. `STRIPE_CONNECT_WEBHOOK_SECRET` is unset there too and fails closed the same way — it is
+the newest of the five (#702) and has never held a production value in any mode. The other three
+still carry **test-mode** values — inert for webhooks, but a checkout function invoked on
+production would mint test-mode sessions against live members. The swap is therefore all five
+together, or none.
 
 A **half** swap is now visible to members rather than merely wrong (#644). Since the Circle join
 CTA renders only once `get-circle-prices` has returned a live amount, a production holding a
@@ -262,14 +345,15 @@ silently, until the ids are swapped too. That is a feature of the fix, not a reg
 alternative was quoting a price nobody could be charged. It does mean the price ids are no
 longer the low-stakes member of this table.
 
-| Variable                      | Read at                                                                                                                                         | Live value                                    |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `STRIPE_SECRET_KEY`           | `supabase/functions/_shared/stripe.ts:48`                                                                                                       | the live-mode secret key, or a restricted key |
-| `STRIPE_WEBHOOK_SECRET`       | `supabase/functions/stripe-webhook/index.ts:8`                                                                                                  | the new live endpoint's signing secret        |
-| `STRIPE_PRICE_CIRCLE_MONTHLY` | `supabase/functions/_shared/stripe.ts:95` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`  | `supabase/functions/_shared/stripe.ts:96` (same resolver)                                                                                       | the live-mode price id                        |
+| Variable                        | Read at                                                                                                                                          | Live value                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`             | `supabase/functions/_shared/stripe.ts:52`                                                                                                        | the live-mode secret key, or a restricted key                 |
+| `STRIPE_WEBHOOK_SECRET`         | `supabase/functions/_shared/stripe.ts:154` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:13`)                                   | the new live **Your account** endpoint's signing secret       |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | `supabase/functions/_shared/stripe.ts:155` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
+| `STRIPE_PRICE_CIRCLE_MONTHLY`   | `supabase/functions/_shared/stripe.ts:124` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`    | `supabase/functions/_shared/stripe.ts:125` (same resolver)                                                                                       | the live-mode price id                                        |
 
-Those four are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
+Those five are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
 constant (`supabase/functions/_shared/stripe.ts:19`), deliberately, so that it cannot be set
 per-environment and must move in lockstep with the Dashboard webhook endpoint —
@@ -282,8 +366,9 @@ exists to prevent. `STRIPE_FEE_BPS`
 and `STRIPE_FEE_FIXED_CENTS` are named constants in `packages/core` (`src/fund/fees.ts`), which is
 where rule 10 requires them; they describe Stripe's pricing, not Athanor's configuration, and
 nothing about the cutover moves them. `STRIPE_IDENTITY_WEBHOOK_SECRET` appears in the backend spec
-and was never implemented — Identity rides `stripe-webhook` on the W9/W10 arms, under the one
-signing secret above.
+and was never implemented — Identity rides `stripe-webhook` on the W9/W10 arms, under the
+**platform** signing secret above (Identity sessions belong to the platform account, not to a
+connected one, so they arrive on the «Your account» endpoint).
 
 **Order, and it matters.**
 
@@ -292,8 +377,9 @@ signing secret above.
    endpoint, on the same budget §4.1 describes. That check reads deployed function versions and
    Vault secret _names_; it cannot read edge-function env values, so it can never tell you whether
    the swap below has happened. Nothing automated can — which is why this is a written step.
-2. **Create the live-mode endpoint**, at the pinned API version and with the required enabled
-   events. Both already have a home in §5 and are not restated here: the **Webhook endpoint API
+2. **Create the live-mode endpoints — plural, one per scope** (#702), at the pinned API version
+   and with the required enabled events. `account.updated` belongs on the **Connected accounts**
+   one and is delivered nowhere else; everything else belongs on **Your account**. Both already have a home in §5 and are not restated here: the **Webhook endpoint API
    version** rider for the version, the **Payout transfer deploy config** rider (#247) for
    `transfer.created` / `transfer.reversed`, and the **Payout onboarding deploy config** rider
    (#246) for `account.updated`. Read the last one whole, and the **Stripe https return pages**
@@ -410,10 +496,13 @@ and passes it through.
 **The reverse dependency inverts the rule, so read which way it points before deploying.** When a
 function starts depending on a _migration_ — calling an RPC that migration creates — the migration
 must land first, and a deploy in the documented order breaks it. `erasure-job` is the live case
-(#573): since `20260827110034` it calls `gdpr_storage_footprint`, and against a project missing
-that function every request answers `PGRST202` **after** the fund transaction has already run, so
-the request lands on the terminal `failed` that nothing re-queues. R-8 (§4) carries the same note
-as a checklist line.
+and it now has **three** of these, not one: since `20260827110034` it calls `gdpr_storage_footprint`
+(#573), and since `20260908071656` it also calls `gdpr_erase_payment_footprint` and
+`gdpr_release_profile_references` (#107). Against a project missing any of them the request answers
+`PGRST202` **after** the fund transaction has already run, so it lands on the terminal `failed` that
+nothing re-queues. `20260908073545` is a fourth dependency of a different kind — without it the
+account cascade deletes the request row itself and the job's `done` write silently matches nothing.
+R-8 (§4) carries the same note as a checklist line.
 
 ```bash
 supabase db push                           # the RPC exists …
@@ -473,6 +562,246 @@ Check `supabase/.temp/linked-project.json` reads `athanor` (production) before t
 verify with `select column_name from information_schema.columns where table_name = 'profiles'
 and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagging.
 
+### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06)
+
+> **⛔ BLOCKING on production only — Connect is not signed up for there (found 2026-09-06 while shipping #104; resolved on the test account the same day, see the closing note).**
+> Invoking `create-payout-onboarding` against **staging** with a real organiser JWT returns 500, and the
+> function log carries Stripe's reason verbatim:
+>
+> > `You can only create new accounts if you've signed up for Connect, which you can do at https://dashboard.stripe.com/connect.`
+> > — `accounts.create`, `req_Ha8fVQKCd3RRsI`, staging, 2026-09-06
+>
+> This is **Dashboard state, not repo state**, and it is pre-existing rather than new: until #104 nothing
+> in `apps/` or `packages/` invoked that function, so it had never been called and the condition had
+> never surfaced. It was recorded as unverifiable in #104's issue check on the same day.
+>
+> The consequence is total for paid events, and it chains: no Connect → `accounts.create` fails → no
+> `payout_accounts` row can ever reach `payouts_enabled` → `has_payouts_enabled` is false for everyone →
+> **`create_event` refuses every paid event with 55000**, and `create-ticket-checkout` refuses every
+> purchase with 403. Free events, RSVPs, Circle, Identity and the fund rail are all untouched.
+>
+> **Sign up for Connect on the staging account first and re-walk the CTA there, then on production
+> before the release that carries #104.** The fund rail's payout path (#247) has the same dependency and
+> the same blocker, so this unblocks both. Nothing in the repo can detect or work around it — treat a
+> green CI and a green pgTAP run as saying nothing about this.
+>
+> Stripe also returns an advisory on every `accounts.create`: _"We recommend building your integration
+> using Accounts v2."_ The current shape uses v1 controller properties, which is correct and supported;
+> migrating is a separate decision, not a launch item.
+>
+> **RESOLVED on the test account, later the same day; still unverified on live (2026-09-07).** Connect
+> was signed up for and `create-payout-onboarding` now succeeds: staging's `payout_accounts` carries two
+> real rows written at 17:01 and 17:31 on 2026-09-06, both with `capabilities.transfers = active`, and a
+> ticket Session carrying `payment_intent_data.transfer_data` mints without error. The blocker above
+> therefore applies to **production only**, which has no key on this machine and cannot be checked from
+> here — re-walk the organiser CTA against live before the release that carries #104.
+
+Since #104 a ticket Checkout Session carries `payment_intent_data.transfer_data.destination` (the
+organiser's connected account) and `payment_intent_data.application_fee_amount` (Athanor's
+`events.fee_pct`, default 10%). Stripe splits the money at payment time. Nothing in this repo
+initiates a refund — there is no `refunds.create` anywhere — so refunds stay **Dashboard-issued**,
+and that is exactly why this section exists: the Dashboard's defaults are wrong for this charge
+shape, and getting them wrong costs real money in a direction nobody notices for a month.
+
+**Read this before refunding a ticket.**
+
+#### What Stripe does by default, and why it is wrong here
+
+> "When refunding a charge that has a `transfer_data[destination]`, by default the destination
+> account keeps the funds that were transferred to it, leaving the platform account to cover the
+> negative balance from the refund."
+> — docs.stripe.com/connect/destination-charges, "Issue refunds"
+
+So a plain refund of a €15 ticket takes €15 out of Athanor's balance and leaves €13,50 sitting with
+the organiser. Athanor eats the whole ticket, not its commission.
+
+#### The two flags
+
+| flag                     | default | what to use, and why                                                                                                                                                                                                                                                                                                  |
+| ------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reverse_transfer`       | `false` | **Always `true` for a ticket.** Pulls the organiser's share back to cover the refund. A full refund reverses the whole transfer; a partial refund reverses proportionally. Without it Athanor funds the organiser's refund out of its own balance.                                                                    |
+| `refund_application_fee` | `false` | **Leave `false`** unless the refund is Athanor's fault (a platform outage, a duplicate charge we caused). `false` keeps the commission on a sale that was made and then unwound; `true` hands it to the organiser. Either way the buyer is made whole — this flag only moves money between Athanor and the organiser. |
+
+Stripe's own constraint, worth knowing before the Dashboard argues with you: _"If you refund the
+application fee for a destination charge, you must also reverse the transfer."_ `refund_application_fee: true` without `reverse_transfer: true` is rejected.
+
+In the Dashboard the two appear as checkboxes on the refund dialog for a Connect charge. If they
+are not offered, the charge is not a destination charge — stop and find out why before refunding.
+
+Neither flag returns Stripe's **processing fee**, which is not refunded on a refund. Athanor is out
+that amount on every refunded ticket regardless of the flags, because the platform is the one that
+paid it (`controller.fees.payer: 'application'` on these accounts).
+
+#### Disputes
+
+> "For destination charges, with or without `on_behalf_of`, Stripe debits dispute amounts and fees
+> from your platform account."
+
+The organiser is not touched automatically. Recovering their share is a **manual transfer
+reversal**, from the Dashboard's Transfers view or the transfer-reversal API. If the dispute is
+later won, transferring the money back to the organiser needs Athanor's balance to cover it.
+
+There is no dispute-recovery automation and no `charge.dispute.created` arm that reverses a
+transfer. W12 revokes the buyer's ticket; the money side is an operator act. **If ticket volume
+makes that unsustainable, that is a new issue, not a thing to improvise during an incident.**
+
+#### One more asymmetry worth knowing
+
+For delayed payment methods (SEPA), if the destination account loses its `transfers` capability
+between authorisation and settlement, Stripe **skips the transfer** and the funds stay in Athanor's
+balance, signalled by `charge.updated` with a null `transfer_data`. Nothing here listens for that
+today. The ticket is issued and the organiser is not paid, and only a balance reconciliation would
+show it.
+
+### 4.8 Payment-method coverage — what a buyer is shown, and how each rail is proved (2026-09-07)
+
+Nothing in this repo selects payment methods. `create-ticket-checkout`, `create-contribution-session`
+and `create-circle-checkout` pass neither `payment_method_types` nor `payment_method_configuration` —
+`supabase/functions/stripe-webhook/handlers.ts` says so at `assertSettled`. The **Stripe Dashboard's
+payment-method configuration is the only control**, it is account state rather than repo state, and no
+test in CI can see it. A green pipeline says nothing about which rails a member can pay with.
+
+It is worse than a single unseen switch, because the enabled set is not the offered set. Stripe filters
+per Session by currency, by mode, and by charge shape, and every filter is silent:
+
+```
+pnpm payments offers
+```
+
+mints one throwaway Session per surface with its builder's shape, reads back the
+`payment_method_types` Stripe computed, and expires it. As of 2026-09-07, test mode:
+
+| surface             | Session shape                          | what the buyer is shown |
+| ------------------- | -------------------------------------- | ----------------------- |
+| fund contribution   | `mode: payment`, EUR                   | card, Link, **PayPal**  |
+| Circle              | `mode: subscription`, EUR              | card, Link, **PayPal**  |
+| event ticket (#104) | `mode: payment` + `transfer_data`, EUR | card, Link — no PayPal  |
+
+Two things that table is the only way to learn:
+
+- **PayPal is silently absent on ticket purchases.** PayPal's Connect support is _"Partial — requires
+  manual approval"_, so Stripe drops it from any Session carrying `payment_intent_data.transfer_data`.
+  Nothing errors; the button is simply not drawn. Ask Stripe for Connect approval or accept the gap,
+  but do not discover it from a member's mail.
+- **Apple Pay and Google Pay never appear in `payment_method_types`.** They ride `card` and surface per
+  device. Their absence from the list is not a defect and their presence cannot be inferred from it —
+  the only proof is `payment_method_details.card.wallet.type` on the charge after a real wallet tap,
+  which `pnpm payments check` prints.
+
+The enabled set was narrowed on 2026-09-07 to card, Link, PayPal, Apple Pay and Google Pay; BLIK,
+Bancontact and EPS were disabled and giropay is retired by Stripe. Two entries read differently
+depending on where you look: the Dashboard lists **Cartes Bancaires** and **Stripe balance
+(preview)** as enabled, while the payment-method configuration reports `cartes_bancaires` and
+`customer_balance` with a literal `preference: off` — not an unset default. The mechanism behind
+that disagreement is **unverified**; do not write a reason for it here until someone has one. What
+is settled is which list to trust: `pnpm payments offers` asks Stripe per Session, so it answers
+what a buyer is shown, and neither entry appears in any surface's `payment_method_types`.
+
+#### Every offered rail is inside the settlement standard
+
+`assertSettled` fulfils on `checkout.session.completed` and throws on anything that is not already
+`paid` or `no_payment_required`, so
+the whole design rests on every reachable method being an **immediate-notification** one. Verified
+against each method's Stripe documentation on 2026-09-07:
+
+| method             | notification  | refunds     | disputes |
+| ------------------ | ------------- | ----------- | -------- |
+| card               | immediate     | yes         | yes      |
+| Apple / Google Pay | = card        | yes         | yes      |
+| Link               | immediate     | yes         | yes      |
+| PayPal             | **immediate** | yes (180 d) | yes      |
+
+Bancontact and EPS were verified immediate too (refundable 730 and 180 days, neither disputable) and
+Bancontact was walked successfully on a test Payment Link before both were disabled — recorded here
+because if either is ever re-enabled, that evidence still stands.
+
+> **Correction, 2026-09-07 — BLIK is not a delayed-notification rail.** An earlier revision of this
+> section and of `assertSettled`'s docblock listed it as one, inherited from that docblock's original
+> delayed-rail list. Stripe's Dashboard reports BLIK's payment confirmation as **Immediate**, and no
+> Stripe documentation classifies it as delayed. It was disabled anyway, along with Bancontact and
+> EPS, so nothing turns on it — but the claim was wrong and had been repeated in four places. All
+> four are corrected in the same change: `assertSettled`'s delayed list, `supabase/ENV-NOTES.md`,
+> `docs/PRODUCTION-READINESS.md`'s binding pre-deploy list, and issue #71, whose title was the claim
+> and which is closed as retracted. giropay is not merely disabled: the account offers no toggle for
+> it at all, Stripe having dropped it after the service was discontinued in 2024.
+
+No delayed rail reaches a buyer, so the fail-closed guard is dormant. One standing condition on that:
+
+- **The live-mode configuration is a separate object and has not been checked.** Test and live payment
+  methods are configured independently, so nothing above is evidence about live. `pnpm payments` cannot
+  answer this one: every command in it dies on any key that is not `sk_test_`, because even `offers`
+  _mints_ a Checkout Session before reading the method list back. The single exception is
+  `pnpm payments endpoints` (§4.2), which only reads. Read the live
+  configuration in the Dashboard instead (Settings → Payment methods), and re-derive the per-surface
+  filtering by hand from the two rules that do the filtering: **subscription mode drops every bank
+  redirect** (Bancontact, EPS and the rest are unsupported in Checkout subscription mode, and in
+  Subscriptions generally except `send_invoice`), and **a destination charge drops PayPal**. Both
+  matter when reading a live configuration that may still have bank redirects enabled. Per §4.2 no live-mode endpoint exists yet, so this is a step in opening payments,
+  not a check that is overdue.
+
+#### Proving a rail, one at a time
+
+A drawn button proves nothing. Three things fail independently — Stripe's `payment_status`, the
+`stripe_webhook_events` row's `processed_at`, and the row the handler was supposed to write — and a
+rail is verified only when all three hold. Test-mode webhooks already point at staging, so the loop is
+real end to end.
+
+```
+pnpm payments accounts                                     # the connected account for --dest
+pnpm payments mint contribution --profile <uuid> --edition <uuid> --amount 500
+pnpm payments mint ticket --profile <uuid> --event <uuid> --dest acct_…
+pnpm payments mint circle --profile <uuid> --price price_…
+# pay the printed URL in a browser, then
+pnpm payments check cs_test_…
+```
+
+`mint` carries the real `metadata.kind` / `metadata.profile_id`, so the webhook treats the payment as
+genuine and writes to staging. That is the point — a probe that skips the webhook proves only that
+Stripe works.
+
+| rail           | what to do at Checkout                                                                                                                                                  | needs          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| card           | `4242 4242 4242 4242`, any future expiry and CVC                                                                                                                        | —              |
+| card + 3DS     | `4000 0025 0000 3155`, complete the challenge                                                                                                                           | —              |
+| card declined  | `4000 0000 0000 0002` — assert **no** row is written                                                                                                                    | —              |
+| Link           | any email and phone; test-mode verification code `000000`                                                                                                               | —              |
+| PayPal         | test mode redirects to a Stripe-hosted simulator, not real PayPal — authorise there                                                                                     | —              |
+| **Apple Pay**  | Safari on iPhone or Mac with a real card in Wallet. Test mode does not charge it. Hosted Checkout runs on Stripe's domain, so there is no Apple Pay domain to register. | an iPhone      |
+| **Google Pay** | Chrome signed into a Google account with any card                                                                                                                       | desktop Chrome |
+
+**Mint a Checkout Session, never a Payment Link.** A Payment Link renders PayPal, Link and the two
+wallets as express-checkout buttons, and those do not survive automated clicking — a walk driven from
+a browser tool stalls there and reads as a broken rail. Hosted Checkout renders PayPal as a full-page
+redirect — the same full-page shape that let Bancontact be walked successfully on 2026-09-07,
+before it was disabled. `pnpm payments mint` produces the right one.
+
+Run each rail on each surface that offers it — 3 for contributions, 3 for Circle, 2 for tickets. Pass
+means `payment_status: paid`, a ledger row for this Session with `processed_at` not null, and the
+target row present (`fund_contributions` / `event_tickets` / `circle_memberships`). Two out of three
+is a failure, and which two tells you where to look.
+
+Read the ledger read carefully, because its two failure shapes have different causes. A row present
+with `processed_at` **NULL** means the handler threw — §4.1's alarm, and the event is queryable and
+retrying. **No row at all** has two causes, both outside the code: either Stripe never delivered the
+event (endpoint missing, disabled, or scoped wrong — §4.2 has the inventory), or it delivered and the
+signature check refused it, which answers 400 and returns _before_ the ledger write, so nothing is
+recorded. A wrong or unset `STRIPE_WEBHOOK_SECRET` is the second one, and §4.2 records it as
+production's deliberate interim state — so at cutover it is the likelier of the two. Check the
+endpoint's recent deliveries in the Dashboard: a 400 there distinguishes them immediately. Only these
+can look identical to "the rail does not work" while the rail is fine.
+
+#### The three tests beyond the happy path
+
+- **Refund** — `stripe refunds create --payment-intent pi_…` fires `charge.refunded`. For a ticket read
+  §4.7 first: the flags are not the Dashboard's defaults.
+- **Dispute** — pay with `4000 0000 0000 0259` to fire `charge.dispute.created`. Card only; PayPal
+  disputes cannot be simulated in test mode.
+- **The fail-closed alarm, once.** Enable SEPA in the **test** Dashboard, pay with it, and confirm the
+  webhook answers 500 with `processed_at` left NULL — that is `assertSettled` working. Then disable it
+  and replay the event. Do not leave it enabled: sustained 5xx makes Stripe disable the endpoint, which
+  also kills `charge.refunded` and `charge.dispute.created`, and §4.1 explains why that turns a loud
+  guard into a silent over-count of the public fund ticker.
+
 ## 5. Apple IAP / Stripe Compliance Posture (S-IAP-1 … S-IAP-4)
 
 Spec ref: `10-m10-launch.md` §7.
@@ -496,11 +825,15 @@ Spec ref: `10-m10-launch.md` §7.
 
 > **Post-media bytes reaper deploy config (2026-08-28, #589):** a NEW `pg_cron` job, `reap-post-media-bytes` (daily 04:29 UTC), calls `invoke_post_media_reaper()`. It frees the bytes `publish_post` deliberately leaves behind — objects in `post-media` that no `post_media` row references from `storage_path` **or** `thumb_path`: a previous set's tail positions, the old key at a position whose kind changed (poster included), and the bytes of a draft the member abandoned after the upload but before the write. Deploy the function and create the Vault pair on the project: `select vault.create_secret('https://<ref>.supabase.co/functions/v1/post-media-reaper', 'app.settings.post_media_reaper_url')` and `select vault.create_secret('sb_secret_…', 'app.settings.post_media_reaper_key')` — NOT `alter database … set` (42501 hosted); same pattern as the story-segment reaper above. Until both exist the job is a quiet no-op with no error loop. A soft-deleted post keeps its rows and therefore its bytes, on purpose — freeing those is a separate, irreversible decision, and `refresh-staging.sql` revives seeded posts in place without re-uploading. **Verify** within ~6 h of a pass, and never by reading `net._http_response`'s newest row (the table is shared with every other caller and pg_net purges it after its ttl): `select id, created, status_code, timed_out, content from net._http_response where content like '%"reaped"%' or timed_out order by id desc limit 3` → expect `200 {"reaped":N,"unremoved":0,"rounds":R,"exhausted":true}`; or fire `select public.invoke_post_media_reaper();` by hand and run the same query a few seconds later. `select * from public.post_media_reap_candidates(1000)` is empty only right after a pass. A populated bucket on first deploy drains ≤ 5000 objects a night (`exhausted:false` until done): a backlog, not a failure. **Staging has the function deployed (2026-08-28) but NOT the Vault pair yet, and production has neither** — the migration is inert on both until the rider runs. The first hand-invocation on staging reaped 2 objects (15 MB) of the 7 in that bucket, which is the defect this closes, measured.
 
+> **Erasure job schedule + deploy config (2026-09-08, #107):** a NEW `pg_cron` job, `erasure-nightly` (daily 03:47 UTC), calls `invoke_erasure_job()`. It is the job that finally fulfils an Article 17 request end to end — pseudonymise the retained payment rows, release the references that made the account undeletable, purge the waitlist, delete the account — and a clean pass ends `done` rather than `partial`. Order matters and it is the reverse of the usual one (§4.4): **push the migrations first**, because the job calls three RPCs that migrations create (`gdpr_storage_footprint`, `gdpr_erase_payment_footprint`, `gdpr_release_profile_references`) and a project missing one answers `PGRST202` **after** the fund transaction has already run. Then deploy the function, then create the Vault pair: `select vault.create_secret('https://<ref>.supabase.co/functions/v1/erasure-job', 'app.settings.erasure_job_url')` and `select vault.create_secret('sb_secret_…', 'app.settings.erasure_job_key')` — NOT `alter database … set` (42501 hosted); same pattern as the reapers above. Until both secrets exist the wrapper is a quiet no-op with no error loop, so the migration can land ahead of the rider. **Verify** by firing `select public.invoke_erasure_job();` by hand and reading the response a few seconds later — never the newest row of `net._http_response`, which is shared with every other caller and purged after its ttl: `select id, created, status_code, timed_out, content from net._http_response where content like '%"kvPurge"%' or timed_out order by id desc limit 3` → expect `200 {"seen":N,"kvPurge":{"configured":true,…},"storageRemoved":M}`. `configured:false` there is the one thing to act on, and since #107's review it is worse than it reads: it means the `CF_KV_*` trio (§7.2) is missing on that project, so every request with a handle lands `failed` **and its account is deliberately not deleted**. A degraded pass erases nobody. The job blocks the delete on ANY step having left something behind — a missing KV trio, an unexhausted storage sweep, a failed session revoke, an unreadable auth row — because the storage and KV sweeps both key on the member's uid and the account delete SET NULLs that uid off the request row, so deleting after a failed sweep destroys the only handle that could ever find the residue. Read the response's `retained` counter, not just the 200: non-zero means members are still here on purpose. **Staging has the migrations, the function (2026-09-08) and the Vault pair; production has none of the three yet** — the whole rider runs at the next release.
+
+> **Retention reaper (2026-09-09, #715):** a second NEW `pg_cron` job, `gdpr-retention-reap` (daily 04:53 UTC, `20260909085841`), and unlike every reaper above it is **pure SQL** — it calls `public.gdpr_retention_reap()` directly, so there is no edge function to deploy, no `app.settings.*` Vault pair to create, and nothing to rotate. Pushing the migration is the whole rider. It is the second half of the controller's 2026-09-07 ruling (#184): erasure pseudonymises the payment rows and keeps them ten years (art. 2220 c.c.; DPR 600/1973 art. 22), and this drops them when that obligation expires. The window lives in exactly one place, `public.gdpr_retention_window()`, and changing it means a new migration. **The first date on which anything can age out is 2036-08-15** — production's oldest erasure ran 2026-08-15 — so until then a pass deletes nothing on either project and `select * from public.gdpr_retention_reap();` returns three zero counts. That is the expected result, not a failure. **Verify with the read-only probe, never by calling the reaper** — `gdpr_retention_reap()` mutates, and using a deleting function as a health check is how a probe becomes an incident: `select 'fund_contributions' t, count(*) from public.fund_contributions where profile_id = public.gdpr_tombstone_profile_id() and erased_at < now() - public.gdpr_retention_window() union all select 'event_tickets', count(*) from public.event_tickets where erased_at < now() - public.gdpr_retention_window() and user_id is null union all select 'circle_memberships', count(*) from public.circle_memberships where erased_at < now() - public.gdpr_retention_window() and profile_id is null;` → three zeros until 2036. Confirm the job is armed separately with `select jobname, schedule from cron.job where jobname = 'gdpr-retention-reap';` → one row, `53 4 * * *`. Nothing persists a per-pass record: the counts are the function's return value, so when the job first does real work, capture them from a manual run rather than expecting an audit row (the repo's other reapers log nothing either). Two things to know before the decade turns: the job also carries the deleted cents into `fund_editions.reaped_cents` so `recompute_fund_aggregate` keeps the historic `raised_cents` whole, and deleting a reaped `event_tickets` row cascades its `event_attendance` check-in away by design (`supabase/tests/0150_gdpr_retention_reaper.test.sql` §6 asserts both). Nothing here is gated on the erasure rider above: if the Vault pair is never created, nothing is ever pseudonymised, and the reaper correctly finds nothing to reap.
+
 > **Moderation queue alert deploy config (2026-08-31, #602):** a NEW `pg_cron` job, `report-queue-alert-sweep` (every 15 minutes), calls `public.report_queue_alert_sweep()`. Unlike the three riders above it needs **no edge-function deploy and no new Vault pair** — it reuses `athanor.enqueue_notification`, so the only secrets it touches are `app.settings.notification_fanout_url` / `_key`, which both projects already carry (§7.2; re-confirmed on production 2026-08-31, both present). Nothing to run at release. The one prerequisite is not a secret but an account: the sweep derives its recipients from `auth.users.raw_app_meta_data->>'role' = 'admin'`, so **an admin with a `profiles` row must exist on the project** — production has exactly one and it does have a profile (checked 2026-08-31). What that account did NOT have on the same date is a push token: `push_enabled = true` but zero rows in `push_tokens`, and `push-dispatch` treats zero tokens as a silent no-op. Until Marco signs into the app on a device as the admin account, the alert lands as an in-app notification row and the phone stays quiet — which is the half of #602's acceptance line that no migration can deliver. **Verify** after the first release that carries this migration: `select jobname, schedule from cron.job where jobname = 'report-queue-alert-sweep'` returns one row, then file a report on production and check `select count(*) from public.notifications where type = 'reportQueue'` within a quarter hour. A second unresolved report does NOT produce a second notification unless it arrives after the first was announced — the sweep is keyed on `athanor.report_alert_sends`, one row per (report, watcher), so a re-announcement is a bug and a silent quarter hour on an already-announced queue is the design.
 
-> **Payout onboarding deploy config (2026-08-15, #246):** the Dashboard webhook endpoint's enabled events must include **`account.updated`** (the W13 arm maintains `payout_accounts`; without the event the capability flags never flip and #247's transfer gate never opens). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
+> **Payout onboarding deploy config (2026-08-15, #246; corrected 2026-09-06, #702):** `account.updated` must be enabled on a webhook endpoint whose **scope** is «Connected accounts», not merely enabled somewhere. Enabling it on the «Your account» endpoint achieves nothing at all: a connected account's v1 `account.updated` is delivered only to a Connect-scoped endpoint, so the W13 arm that maintains `payout_accounts` never runs, the capability flags never flip, and #247's transfer gate never opens. That is what this rider said for three weeks and what actually happened — staging had the event enabled and had never received one. So: a **second** Dashboard endpoint per project, scope «Connected accounts», pointing at the same `/functions/v1/stripe-webhook` URL, with its own signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET` (§4.2's scope table). And `create-payout-onboarding` needs two edge-function secrets before it answers anything but `payout onboarding not configured`: `PAYOUT_ONBOARDING_RETURN_URL` and `PAYOUT_ONBOARDING_REFRESH_URL` — **HTTPS URLs**, not `athanor://` deep links; Stripe Account Links reject non-HTTPS in live mode, which is why these are env-configured instead of riding `APP_DEEPLINK_BASE`. Connect must be enabled on the Stripe account (Express platform profile) — Dashboard state, not repo state.
 
-> **Stripe https return pages (2026-08-18, #418):** the pages those two URLs point at now exist — `apps/web` serves `/app/payout/return`, `/app/payout/refresh` and `/app/verify`, each forwarding to the `athanor://` scheme. Three edge-function secrets go with them, and **all three must be set only after `apps/web` is live in production**, i.e. after the `dev → main` release that carries those routes — set earlier, Stripe redirects members to a 404. Values: `PAYOUT_ONBOARDING_RETURN_URL=https://www.athanor.world/app/payout/return`, `PAYOUT_ONBOARDING_REFRESH_URL=https://www.athanor.world/app/payout/refresh`, and `IDENTITY_RETURN_BASE=https://www.athanor.world/app/` (a **base**, trailing slash included — `create-verification-session` appends `verify?status=complete`). `IDENTITY_RETURN_BASE` is optional: unset, Identity simply sends no `return_url`, which is what shipped in #417 and costs nothing (webhook W9 carries the flip). Do **not** repoint `APP_DEEPLINK_BASE` at the https base to achieve the same thing — four Checkout-based functions read it and need the `athanor://` scheme for `openAuthSessionAsync` to close the sheet.
+> **Stripe https return pages (2026-08-18, #418):** the pages those two URLs point at now exist — `apps/web` serves `/app/payout/return`, `/app/payout/refresh` and `/app/verify`, each forwarding to the `athanor://` scheme. Three edge-function secrets go with them, and **all three must be set only after `apps/web` is live in production**, i.e. after the `dev → main` release that carries those routes — set earlier, Stripe redirects members to a 404. Values: `PAYOUT_ONBOARDING_RETURN_URL=https://www.athanor.world/app/payout/return`, `PAYOUT_ONBOARDING_REFRESH_URL=https://www.athanor.world/app/payout/refresh`, and `IDENTITY_RETURN_BASE=https://www.athanor.world/app/` (a **base**, trailing slash included — `create-verification-session` appends `verify?status=complete`). `IDENTITY_RETURN_BASE` is optional: unset, Identity simply sends no `return_url`, which is what shipped in #417 and costs nothing (webhook W9 carries the flip). Do **not** repoint `APP_DEEPLINK_BASE` at the https base to achieve the same thing — four Checkout-based functions read it and need the `athanor://` scheme for `openAuthSessionAsync` to close the sheet. **Since #104 the `PAYOUT_ONBOARDING_*` pair is BLOCKING for paid events, not merely pending.** Until #104 no client invoked `create-payout-onboarding` at all, so an unset pair was a dead function nobody could reach; the composer now offers organisers a Connect-your-account CTA, and with either URL unset that CTA returns `payout onboarding not configured` (500) — which means no organiser can ever publish a paid event, because the creation gate requires `payouts_enabled` and only this flow can set it.
 
 ---
 
@@ -510,12 +843,13 @@ The `remote_config` table (backend `00` §7a) is the team's remote kill-switch s
 
 ### 6.1 Well-known keys and value shapes
 
-| `key`                   | `value` shape                                  | Example                                  | Backs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------- | ---------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `min_app_version`       | `{ "ios": "<semver>", "android": "<semver>" }` | `{ "ios": "1.0.0", "android": "1.0.0" }` | `BootGate` force-update screen (frontend `12` §10.1). App shows a non-dismissible update prompt when the installed version is below the declared minimum.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `maintenance_mode`      | `{ "enabled": <bool>, "eta": <string\|null> }` | `{ "enabled": false, "eta": null }`      | `BootGate` maintenance screen (frontend `12` §10.2). When `enabled = true` the app shows a maintenance screen to all users.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `fund_surfaces_enabled` | `{ "enabled": <bool> }`                        | `{ "enabled": false }`                   | The authoritative legal gate is `fund_editions.contributions_enabled`; this flag is **client visibility only** — the boot-time kill-switch that hides fund surfaces app-wide instantly without a store build. Both the edition column and this flag must be `true` before a contribution surface renders (R-2). Also gates the Settings → **Pagamenti** receipts screen (`(modal)/payments.tsx`, P4.4) — flag OFF keeps the row on its «presto» toast. On flip-ON, smoke the receipts screen: row opens the list, empty state renders, a contribution row appears after a test checkout. Default **OFF** until counsel clears (PRD §4.11). |
-| `prime_stelle_enabled`  | `{ "enabled": <bool> }`                        | `{ "enabled": false }`                   | Gates the «Le Prime Stelle» launch card on Home (PS-4, §3.6). Flip ON when the Prime Stelle founding cohort is ready to onboard. Default **OFF** until cohort list is prepared (R-9).                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `key`                   | `value` shape                                  | Example                                  | Backs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | ---------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `min_app_version`       | `{ "ios": "<semver>", "android": "<semver>" }` | `{ "ios": "1.0.0", "android": "1.0.0" }` | `BootGate` force-update screen (frontend `12` §10.1). App shows a non-dismissible update prompt when the installed version is below the declared minimum.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `maintenance_mode`      | `{ "enabled": <bool>, "eta": <string\|null> }` | `{ "enabled": false, "eta": null }`      | `BootGate` maintenance screen (frontend `12` §10.2). When `enabled = true` the app shows a maintenance screen to all users.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `fund_surfaces_enabled` | `{ "enabled": <bool> }`                        | `{ "enabled": false }`                   | The authoritative legal gate is `fund_editions.contributions_enabled`; this flag is **client visibility only** — the boot-time kill-switch that hides fund surfaces app-wide instantly without a store build. Both the edition column and this flag must be `true` before a contribution surface renders (R-2). Also gates the Settings → **Pagamenti** receipts screen (`(modal)/payments.tsx`, P4.4) — flag OFF keeps the row on its «presto» toast. On flip-ON, smoke the receipts screen: row opens the list, empty state renders, a contribution row appears after a test checkout. Default **OFF** until counsel clears (PRD §4.11).                                                                                          |
+| `prime_stelle_enabled`  | `{ "enabled": <bool> }`                        | `{ "enabled": false }`                   | Gates the «Le Prime Stelle» launch card on Home (PS-4, §3.6). Flip ON when the Prime Stelle founding cohort is ready to onboard. Default **OFF** until cohort list is prepared (R-9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `apple_signin_enabled`  | `{ "enabled": <bool> }`                        | `{ "enabled": false }`                   | Reveals the «Continua con Apple» CTA on `(auth)/welcome.tsx` (#79). Default **OFF**, and there is no row on either project today — an absent key reads `undefined` and the CTA stays hidden, which is the point: the flag exists so that enabling Apple sign-in the day the developer account is approved (#95) is a provider config plus this row, with no app release. **Flip ON only after** the Supabase Apple provider is configured on that same project (Services ID + key) — the flag is environment-blind, so on a project whose provider is off the CTA renders and the round trip can only come back an error. Order: provider first, then this flag on staging, then an Expo Go walk, then the same pair on production. |
 
 > **Value-shape constraint:** the `remote_config_value_shape` CHECK constraint in the DB rejects malformed writes (missing `ios`/`android` keys for `min_app_version`; non-boolean `enabled` for all other keys). A bad service_role write raises `23514` (check_violation) — the constraint protects against fat-fingered kill-switch edits.
 
@@ -551,18 +885,21 @@ on conflict (key) do update set value = excluded.value;
 
 ### 6.3 Seeding initial rows before launch
 
-Before going live, seed the four well-known keys with their default values:
+Before going live, seed the five well-known keys with their default values:
 
 ```sql
 insert into public.remote_config (key, value) values
   ('min_app_version',           '{"ios": "1.0.0", "android": "1.0.0"}'),
   ('maintenance_mode',          '{"enabled": false, "eta": null}'),
   ('fund_surfaces_enabled',     '{"enabled": false}'),
-  ('prime_stelle_enabled',       '{"enabled": false}')
+  ('prime_stelle_enabled',       '{"enabled": false}'),
+  ('apple_signin_enabled',      '{"enabled": false}')
 on conflict (key) do nothing;
 ```
 
 Run once as `service_role` on the hosted project before the first EAS submission.
+
+> **The seed files carry four of these five, not all five.** `supabase/seed.sql` and `supabase/staging-seed/seed-staging.sql` deliberately omit `apple_signin_enabled`: the Apple provider is not configured on either project, so a seeded row — even `{"enabled": false}` — would only be a row waiting to be flipped ON before the credential it needs exists. The app needs no row at all to fail closed (an absent key reads `undefined`), so the key is created at enable time by the §6.1 sequence. Do not "fix" the seeds to match this block without configuring the provider first.
 
 ### 6.4 Server-side version backstop (edge functions)
 
@@ -576,9 +913,13 @@ The client gate is skippable by definition (a modified or offline client renders
 
 The internal (service-role) functions and `stripe-webhook` are deliberately not gated. That set is not listed here: it is every `'internal'` and `'webhook'` row of the same posture table, and the six names this line used to carry had fallen to fewer than half of them without anyone noticing (#674).
 
-### 6.5 One-time key rename at the next release (issue #223, D48)
+### 6.5 One-time key rename — DONE (issue #223, D48)
 
-The client flag was renamed `fund_contributions_enabled` → `fund_surfaces_enabled` (2026-08-15): the name now says what it does — client visibility for fund surfaces — instead of implying it is the legal contributions gate (that gate is `fund_editions.contributions_enabled`). Code, seeds, and the **staging** row are already renamed. **Production `remote_config` still carries the old key.** As part of the next release, run as `service_role` on production (`kwzeiqvrnnaagccyoose`):
+The client flag was renamed `fund_contributions_enabled` → `fund_surfaces_enabled` (2026-08-15): the name now says what it does — client visibility for fund surfaces — instead of implying it is the legal contributions gate (that gate is `fund_editions.contributions_enabled`).
+
+> **✅ Applied. Nothing to run.** Production `remote_config` carries `fund_surfaces_enabled` and no `fund_contributions_enabled` row — queried on both projects 2026-09-07 (Management API). This section said the opposite for some weeks, and R-2 carried a matching ⚠; both were stale, and an operator following them at release would have run a no-op `UPDATE` against a key that no longer exists. Kept as the record of what was done, not as a pending step.
+
+The statement this section prescribed, for the record — a state query proves the end state, not the route to it:
 
 ```sql
 update public.remote_config
@@ -586,7 +927,7 @@ set key = 'fund_surfaces_enabled'
 where key = 'fund_contributions_enabled';
 ```
 
-`UPDATE` rather than delete+insert: `created_at` is preserved and the touch trigger stamps `updated_at` with the rename. Until this runs, app builds carrying the rename find no `fund_surfaces_enabled` row and fail closed (fund surfaces hidden) — safe, since the flag stays OFF until counsel clears anyway.
+`UPDATE` rather than delete+insert: `created_at` is preserved and the touch trigger stamps `updated_at` with the rename. Before it ran, app builds carrying the rename found no `fund_surfaces_enabled` row and failed closed (fund surfaces hidden) — which is why it was safe to leave pending. Production's row reads `{"enabled": false}` today; the flag stays OFF until counsel clears (PRD §4.11), and that is a separate decision from the rename.
 
 - **Prime Stelle launch:** insert/flip the `prime_stelle_enabled` row in hosted `remote_config` to `{"enabled": true}` (§6.2) when the founding cohort is ready — `seed.sql` is local-only; a missing row fail-closes (card hidden).
 - **Founding cohort:** grant badges via service-role SQL — `update public.profiles set founding_member = true where id in (…);` — cosmetic only, zero Aura; clients cannot write the column.
@@ -694,10 +1035,11 @@ and page HTML stay readable _by key_ indefinitely. Measured before any sweep exi
 — and an orphan from a dead prefix still returned the full prerendered profile page for a handle
 that no longer exists in the production database at all. That measurement is what the erasure
 sweep below was built for. The sweep is deployed and credentialed on production now (2026-08-24,
-#515), so a _processed_ erasure purges those keys — but `erasure-job` is still **unscheduled**
-(no migration schedules it; R-8 says requests queue without erasing, and
-`supabase/MIGRATIONS-ERRATA.md` says the same), so a request nobody has run leaves the
-residue exactly as before. Nothing expires a key either way: outside a processed erasure the
+#515), so a _processed_ erasure purges those keys — and since #107 the job is **scheduled**
+(`erasure-nightly`, 03:47 UTC, `20260908071807`), so on a project that has run the §5 rider a
+request is processed within a day rather than never. On a project that has not, the wrapper
+no-ops and a request nobody has run leaves the residue exactly as before. Nothing expires a key
+either way: outside a processed erasure the
 only thing that clears a dead prefix is the manual sweep in this section, so the inventory
 otherwise only grows. Two consequences:
 
@@ -723,6 +1065,240 @@ To sweep dead prefixes by hand, list the namespace, keep the prefix matching the
 and `wrangler kv bulk delete` the rest.
 
 ---
+
+### 7.5 Reconciling pre-#107 erasure requests (R-8)
+
+Every request filed before #107 stopped short of the account delete and recorded that as
+`partial` (or, before #515, as `failed`). Nothing re-queues a TERMINAL row: since #717 the claim
+predicate reaches `requested` and stale `processing`, and neither `partial` nor `failed` is
+either. The rows are therefore unfinished obligations that look finished, and each project has to
+be reconciled by hand ONCE, after that project has the migrations, the function deploy and the
+Vault pair (§5).
+
+**A row stuck on `processing` is NOT one of these, and does not belong in the re-queue below.**
+Since #717 the job claims it back on its own: `claim_erasure_requests` takes every `processing`
+row whose `claimed_at` is older than the lease — or absent, which is what a row stranded before
+that migration looks like — so the nightly pass picks it up without help. Flipping such a row to
+`requested` by hand is worse than leaving it: it hands the same member two open rows, and the
+claim then serves only one of them per pass anyway. Step 1 lists them so you can see they are
+draining, and step 5 says what to do if one is not.
+
+Every step of the job is safe to re-drive: the DB reach is idempotent by construction, the account
+delete cannot run twice because it SET NULLs the request's own subject, and the Stripe cancel
+reads the subscription's status before touching it (#717). So re-driving a terminal request is
+just flipping it back:
+
+```sql
+-- 1. What is outstanding on this project, whose account still exists, and — for a row the job
+--    is meant to be recovering on its own — whether its lease has actually run out.
+--    `lease` reads: 'terminal' the row needs step 2; 'held' a pass is running it right now,
+--    leave it alone; 'reclaimable' the next pass will take it back, do nothing.
+select r.id, r.status, r.created_at, r.claimed_at,
+       (p.id is not null) as account_still_exists,
+       case
+         when r.status <> 'processing' then 'terminal'
+         when r.claimed_at is null then 'reclaimable (no stamp — stranded before #717)'
+         when r.claimed_at < now() - interval '15 minutes' then 'reclaimable (lease expired)'
+         else 'held (a pass is running)'
+       end as lease
+  from public.gdpr_erasure_requests r
+  left join public.profiles p on p.id = r.profile_id
+ where r.status in ('partial', 'failed', 'processing')
+ order by r.created_at;
+
+-- 2. Re-queue them — the OLDEST terminal row per member, never all of them. Since #107 a
+--    partial unique index allows one 'requested' row per member
+--    (gdpr_erasure_requests_one_open_per_profile), so a blanket UPDATE over two terminal rows
+--    sharing a profile_id aborts the whole statement with 23505. Rows whose subject is already
+--    NULL are re-queued freely: NULLs are distinct, and the loop marks them done without work.
+update public.gdpr_erasure_requests r
+   set status = 'requested'
+ where r.status in ('partial', 'failed')
+   and (
+     r.profile_id is null
+     or not exists (
+       select 1 from public.gdpr_erasure_requests other
+        where other.profile_id = r.profile_id
+          and other.status in ('partial', 'failed')
+          and (other.created_at, other.id) < (r.created_at, r.id)
+     )
+   );
+
+-- 3. Drive a pass now rather than waiting for 03:47.
+select public.invoke_erasure_job();
+
+-- 4. A few seconds later: every row should read 'done', with profile_id NULL. Repeat steps 2-4
+--    while step 1 still lists anything: one pass re-queues one row per member, so a member with
+--    several historical rows takes several passes.
+--    A row back on 'failed' is a real failure — read the function logs before re-driving it,
+--    because re-queueing a genuinely failing request just loops it nightly.
+select status, count(*), count(*) filter (where profile_id is null) as identity_dropped
+  from public.gdpr_erasure_requests
+ group by status;
+
+-- 5. ONLY if step 1 shows a 'processing' row still 'held' after the isolate is known to be dead
+--    — a deploy mid-pass, a project paused, function logs that stop mid-cascade. RELEASING the
+--    lease is nulling the stamp: the claim predicate treats a 'processing' row with no
+--    claimed_at as infinitely stale, so the very next pass takes it.
+--
+--    Do NOT reach for `claim_erasure_requests(20, interval '0')` here. It would re-stamp the
+--    rows with a FRESH claimed_at, and the job invoked in step 3 asks for the default
+--    15-minute lease — so the rows you just "released" are the ones it skips, and step 1 goes
+--    back to reading 'held' with nothing running. The zero lease belongs to the pgTAP tests,
+--    which pass their own interval on purpose.
+--
+--    And do not run this while a pass may still be live: handing a running isolate's rows to a
+--    second one is the double-drive the lease exists to prevent. Waiting the lease out costs
+--    15 minutes and needs no judgement.
+update public.gdpr_erasure_requests
+   set claimed_at = null
+ where status = 'processing'
+   and id = '<the id from step 1>';
+-- Then step 3 again. The pass claims the row, stamps it fresh, and drives it.
+```
+
+One symptom worth naming, because it looks like this section's problem and is not: **every**
+request sitting on `processing`, re-claimed nightly, never reaching a terminal status, with
+`erasure-job: lease lost before the terminal write` in the function logs on every pass. That is not
+a stranded queue — it is the lease FENCE rejecting its own writes. The loop fences its terminal
+update on the `claimed_at` the claim handed back (#717), so if that value ever stopped surviving
+the round trip out of `claim_erasure_requests` and back in as a filter, no request could ever leave
+`processing` and the nightly pass would re-drive each one for ever. Releasing the lease will not
+help and neither will re-queueing; the fix is in the code, not here. Verified working on staging on
+2026-09-08 — a request seeded in the stranded shape was claimed, driven, and written to `done`
+through the fence — so this is a regression to recognise, not a state to expect.
+
+Two things to know before running it:
+
+- **A `partial` row whose account no longer exists is already reconciled by the schema.**
+  `20260908073545` made `profile_id` `ON DELETE SET NULL`, so a NULL there means the account is
+  gone. Re-queueing such a row is safe: the loop recognises a request with no subject and marks it
+  `done` without touching a single port (`erasure-job/logic.ts`, and `logic.test.ts` pins it).
+  Without that branch the null would have reached GoTrue, errored, and landed the row back on
+  `failed` — this procedure would have turned stalled rows into nightly looping ones. `done` there
+  means «nothing left to do», not «work performed».
+- **Never run step 2 against production before the §5 rider exists on production.** Without the
+  Vault pair `invoke_erasure_job()` no-ops, and you will have moved a set of rows from a status
+  that says «stopped short» to one that says «waiting», with nothing coming to serve them.
+
+Staging was reconciled on 2026-09-08 in the #107 lane: two requests, both `done`, both with the
+identity dropped. Production is **not** reconciled — it runs at the release that carries #107.
+
+---
+
+### 7.6 Stranded and failed export jobs (#721)
+
+`gdpr-export-job` claimed its batch the way `erasure-job` did before #717 — a SELECT on
+`status = 'requested'` followed by an UPDATE predicated on the row id alone, with nothing
+re-checking the row was still `requested` — so a pass torn down mid-run left
+its rows on `processing` with nothing to re-queue them, and the member's archive never arrived.
+Since #721 the batch is taken by `claim_export_jobs` under a 15-minute lease, and a job that
+cannot be served is filed `failed` rather than looped.
+
+Two facts shape everything below. **`failed` is terminal and the member's to undo** — the claim
+predicate does not reach it; the member is notified (`notif.tpl.gdprExportFailed`, routed to the
+export screen) and that screen shows «Non siamo riusciti a preparare il tuo archivio. Richiedilo di
+nuovo.» with the ordinary request button, which files a NEW row. And **a
+job older than 30 days minus the 72h signed-link TTL cannot be served at all**: `expires_at <=
+created_at + interval '30 days'` leaves no room for the link, so the loop files those `failed`
+before building anything. That is the fence which stops the lease turning a stranded job into one
+rebuilt and rejected every night.
+
+Both projects held **zero** `gdpr_export_jobs` rows on 2026-09-08, so nothing needs reconciling
+today; this section is what to do when that stops being true.
+
+```sql
+-- 1. The queue, and which 'processing' rows are actually held. A row whose lease is live belongs
+--    to a pass that may still be running; a stale one is the next claim's, with no action needed.
+select status,
+       count(*) as n,
+       count(*) filter (where status = 'processing'
+                        and claimed_at >= now() - interval '15 minutes') as lease_live,
+       count(*) filter (where status = 'processing'
+                        and (claimed_at is null or claimed_at < now() - interval '15 minutes'))
+         as reclaimable,
+       count(*) filter (where status = 'ready' and download_url is null) as ready_without_url,
+       min(created_at) as oldest
+  from public.gdpr_export_jobs
+ group by status
+ order by status;
+
+-- 2. `ready` WITH NO URL is the pre-#721 signing failure: the loop wrote 'ready' whatever
+--    createSignedUrl returned, so the #129 producer told the member their archive was ready and
+--    the screen then showed them no link, on a terminal row. The code no longer produces it (a
+--    signing failure requeues). File any legacy row 'failed' so the member is asked to try again.
+--
+--    THIS NOTIFIES. The producer's failed arm (20260908155128) fires per row this statement
+--    touches, so each affected member gets «Non siamo riusciti a preparare il tuo archivio» —
+--    which is the point, but do it deliberately and not at 03:00.
+update public.gdpr_export_jobs
+   set status = 'failed'
+ where status = 'ready'
+   and download_url is null;
+
+-- 3. Drive a pass now rather than waiting for 03:25. There is no invoke_export_job() wrapper —
+--    gdpr-export-nightly is operator-created — so READ THE JOB'S OWN COMMAND and run that, rather
+--    than trusting the paste below: a hand-created job can carry a baked-in header instead of a
+--    Vault lookup (20260808074301:18-20), and the two projects need not agree.
+select command from cron.job where jobname = 'gdpr-export-nightly';
+
+--    On both projects on 2026-09-08 that command was the Vault-resolving form, which is what the
+--    snippet below reproduces. `athanor.edge_auth_headers` presents the secret on `apikey`, the
+--    one header the platform will not try to parse as a JWT.
+select net.http_post(
+  url := 'https://<project-ref>.supabase.co/functions/v1/gdpr-export-job',
+  headers := athanor.edge_auth_headers(athanor.runtime_setting('notification_fanout_key')),
+  body := '{}'::jsonb,
+  timeout_milliseconds := 5000) as request_id;
+
+-- 4. READ THE RESPONSE. pg_net is fire-and-forget: `net.http_post` returns a request id whatever
+--    happens next, so a 401 looks exactly like a pass. If the Vault name is missing or rotated,
+--    `athanor.runtime_setting` returns NULL, edge_auth_headers builds null header values, and the
+--    function refuses — with nothing to see here. This is the only thing that tells the two apart.
+select status_code, content
+  from net._http_response
+ where id = <the request_id from step 3>;
+--    A pass answers 200 with {"processed":N,"failed":M}.
+
+-- 5. A few seconds later, step 1 again. One pass claims at most CLAIM_BATCH (10) jobs, so a
+--    backlog takes several — and each one re-stamps the rows it takes, so an immediate second
+--    invocation claims NOTHING until those leases lapse. Wait the 15 minutes, or use step 6 for a
+--    row you know is dead.
+--    A row on 'failed' is not a queue to drain — it is terminal and the member has been told, so
+--    there is nothing to re-drive; what it is worth is reading the logs to learn WHY. Only the
+--    servable window files 'failed'; «section read failed, archive withheld and requeued»,
+--    «upload failed, requeued» and «signing returned no url, requeued» all leave the job on
+--    'requested' for the next pass, and a job that keeps hitting one of those is the thing that
+--    eventually ages out into 'failed'.
+
+-- 6. ONLY if step 1 shows a 'processing' row still held after the isolate is known to be dead —
+--    a deploy mid-pass, a project paused, function logs that stop mid-run. RELEASING the lease is
+--    nulling the stamp: the claim predicate treats a 'processing' row with no claimed_at as
+--    infinitely stale, so the very next pass takes it.
+--
+--    Do NOT reach for `claim_export_jobs(10, interval '0')` here. It would re-stamp the rows with
+--    a FRESH claimed_at, and the pass invoked in step 3 asks for the default 15-minute lease —
+--    so the rows you just "released" are the ones it skips. The zero lease belongs to the pgTAP
+--    tests, which pass their own interval on purpose.
+--
+--    And do not run this while a pass may still be live: two isolates uploading one archive is
+--    harmless (the upload upserts on {profile_id}/{job.id}.json), but the second one's 'ready'
+--    write is fenced out and logs «lease lost before the status write», which then looks like a
+--    fault. Waiting the lease out costs 15 minutes and needs no judgement.
+update public.gdpr_export_jobs
+   set claimed_at = null
+ where status = 'processing'
+   and id = '<the id from step 1>';
+-- Then steps 3-4 again.
+```
+
+One symptom worth naming, because it looks like this section's problem and is not: **every** job
+re-claimed nightly, never reaching a terminal status, with `gdpr-export-job: lease lost before the
+status write` in the function logs on every pass. That is not a stranded queue — it is the lease
+FENCE rejecting its own writes, the same regression shape §7.5 records for erasure. Every status
+write fences on the `claimed_at` the claim handed back, so if that value ever stopped surviving the
+round trip out of `claim_export_jobs` and back in as a filter, no job could leave `processing`.
+Releasing leases will not help; the fix is in the code, not here.
 
 ## 8. Acceptance Gates (G1–G7)
 

@@ -23,6 +23,13 @@ values
 update public.profiles set identity_verified = true
   where id = '11111111-1111-1111-1111-111111111111';
 
+-- #104 added a third arm to both gates: a paid event's organiser must also have
+-- payout_accounts.payouts_enabled. A gets one so every lives_ok below still passes for the reason
+-- this file is about; B deliberately does not, and does not need one — the identity arm refuses B
+-- first, which is the order both gates declare. 0147 owns the payout arm's own refusals.
+insert into public.payout_accounts (profile_id, stripe_account_id, payouts_enabled)
+  values ('11111111-1111-1111-1111-111111111111', 'acct_test_0125', true);
+
 -- ── the column ────────────────────────────────────────────────────────────────────────────────
 select has_column('public', 'events', 'settlement_ack_at', 'events.settlement_ack_at exists');
 select col_type_is('public', 'events', 'settlement_ack_at', 'timestamp with time zone',

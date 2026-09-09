@@ -235,7 +235,10 @@ export default function OnboardingScreen() {
               {step === 0 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
-                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                  <Text
+                    accessibilityRole="header"
+                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
+                  >
                     {t('onboarding.identity.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">
@@ -264,7 +267,10 @@ export default function OnboardingScreen() {
               {step === 1 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
-                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                  <Text
+                    accessibilityRole="header"
+                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
+                  >
                     {t('onboarding.birth.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">{t('onboarding.birth.sub', locale)}</Text>
@@ -351,7 +357,10 @@ export default function OnboardingScreen() {
               {step === 2 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
-                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                  <Text
+                    accessibilityRole="header"
+                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
+                  >
                     {t('onboarding.seeking.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">
@@ -373,7 +382,10 @@ export default function OnboardingScreen() {
               {step === 3 ? (
                 <View className="gap-4">
                   <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
-                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                  <Text
+                    accessibilityRole="header"
+                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
+                  >
                     {t('onboarding.dream.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
@@ -392,7 +404,10 @@ export default function OnboardingScreen() {
               {step === 4 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
-                  <Text className="text-[30px] font-bold tracking-[-0.02em] text-foreground">
+                  <Text
+                    accessibilityRole="header"
+                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
+                  >
                     {t('onboarding.face.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">{t('onboarding.face.sub', locale)}</Text>

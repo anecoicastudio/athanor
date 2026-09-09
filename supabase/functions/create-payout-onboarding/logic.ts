@@ -16,7 +16,9 @@ export type PayoutOnboardingCtx = {
   /**
    * service-role client for the payout_accounts INSERT — #245 grants clients no write path
    * on purpose (the SRW posture), so the initial row cannot ride the caller's RLS. The
-   * capability flags stay the webhook's job; this function only ever writes the pointer row.
+   * capability flags are written elsewhere — one function, `_shared/payout-account-cache.ts`,
+   * with two callers: the W13 arm and reconcile-payout-accounts (#707). This function only
+   * ever writes the pointer row.
    */
   admin: SupabaseClient;
   /** stripe.accounts.create — Connect Express via controller properties (ruling #244) */
@@ -90,8 +92,9 @@ export function buildPayoutLinkParams(
  * gate first (verified identity on both sides of every economic transaction), deliberately
  * NOT winner-gated: onboarding moves no money, the winner gate binds at #247's transfer path.
  * The capability flags (charges_enabled/payouts_enabled/onboarded_at) are written by the
- * stripe-webhook account.updated arm, never here (rule #6 — account state is a cache of
- * Stripe webhooks). Returns only the hosted URL; no Stripe object reaches the client.
+ * `_shared/payout-account-cache.ts` — the W13 arm and the #707 reconcile — never here (rule #6:
+ * account state is a cache of Stripe webhooks). Returns only the hosted URL; no Stripe object
+ * reaches the client.
  */
 export async function createPayoutOnboarding(
   ctx: PayoutOnboardingCtx,

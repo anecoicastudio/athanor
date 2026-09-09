@@ -376,10 +376,11 @@ export type Database = {
           cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
+          erased_at: string | null
           founding_member: boolean
           id: string
           plan: string
-          profile_id: string
+          profile_id: string | null
           status: string
           stripe_customer_id: string
           stripe_subscription_id: string | null
@@ -389,10 +390,11 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          erased_at?: string | null
           founding_member?: boolean
           id?: string
           plan: string
-          profile_id: string
+          profile_id?: string | null
           status: string
           stripe_customer_id: string
           stripe_subscription_id?: string | null
@@ -402,10 +404,11 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          erased_at?: string | null
           founding_member?: boolean
           id?: string
           plan?: string
-          profile_id?: string
+          profile_id?: string | null
           status?: string
           stripe_customer_id?: string
           stripe_subscription_id?: string | null
@@ -1016,36 +1019,39 @@ export type Database = {
       event_tickets: {
         Row: {
           created_at: string
-          event_id: string
+          erased_at: string | null
+          event_id: string | null
           expires_at: string | null
           id: string
           qr_token: string | null
           status: string
           stripe_payment_id: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
-          event_id: string
+          erased_at?: string | null
+          event_id?: string | null
           expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
           stripe_payment_id?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
-          event_id?: string
+          erased_at?: string | null
+          event_id?: string | null
           expires_at?: string | null
           id?: string
           qr_token?: string | null
           status?: string
           stripe_payment_id?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1280,6 +1286,7 @@ export type Database = {
           created_at: string
           currency: string
           edition_id: string
+          erased_at: string | null
           id: string
           profile_id: string
           status: string
@@ -1294,6 +1301,7 @@ export type Database = {
           created_at?: string
           currency?: string
           edition_id: string
+          erased_at?: string | null
           id?: string
           profile_id: string
           status?: string
@@ -1308,6 +1316,7 @@ export type Database = {
           created_at?: string
           currency?: string
           edition_id?: string
+          erased_at?: string | null
           id?: string
           profile_id?: string
           status?: string
@@ -1397,6 +1406,7 @@ export type Database = {
           min_funding_cents: number
           min_voters: number
           phase: string
+          reaped_cents: number
           split_pct: number
           target_at: string
           updated_at: string
@@ -1421,6 +1431,7 @@ export type Database = {
           min_funding_cents: number
           min_voters: number
           phase?: string
+          reaped_cents?: number
           split_pct: number
           target_at: string
           updated_at?: string
@@ -1445,6 +1456,7 @@ export type Database = {
           min_funding_cents?: number
           min_voters?: number
           phase?: string
+          reaped_cents?: number
           split_pct?: number
           target_at?: string
           updated_at?: string
@@ -1545,23 +1557,26 @@ export type Database = {
       }
       gdpr_erasure_requests: {
         Row: {
+          claimed_at: string | null
           created_at: string
           id: string
-          profile_id: string
+          profile_id: string | null
           status: string
           updated_at: string
         }
         Insert: {
+          claimed_at?: string | null
           created_at?: string
           id?: string
-          profile_id: string
+          profile_id?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
+          claimed_at?: string | null
           created_at?: string
           id?: string
-          profile_id?: string
+          profile_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1584,6 +1599,7 @@ export type Database = {
       }
       gdpr_export_jobs: {
         Row: {
+          claimed_at: string | null
           created_at: string
           download_url: string | null
           expires_at: string | null
@@ -1593,6 +1609,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          claimed_at?: string | null
           created_at?: string
           download_url?: string | null
           expires_at?: string | null
@@ -1602,6 +1619,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          claimed_at?: string | null
           created_at?: string
           download_url?: string | null
           expires_at?: string | null
@@ -3312,7 +3330,24 @@ export type Database = {
         Args: { p_candidacy_id: string; p_edition_id: string }
         Returns: undefined
       }
+      claim_erasure_requests: {
+        Args: { p_lease?: string; p_limit?: number }
+        Returns: {
+          claimed_at: string
+          id: string
+          profile_id: string
+        }[]
+      }
       claim_event_seat: { Args: { p_event_id: string }; Returns: string }
+      claim_export_jobs: {
+        Args: { p_lease?: string; p_limit?: number }
+        Returns: {
+          claimed_at: string
+          created_at: string
+          id: string
+          profile_id: string
+        }[]
+      }
       close_cycle: {
         Args: {
           p_cost_fee_statement: string
@@ -3449,6 +3484,23 @@ export type Database = {
           name: string
         }[]
       }
+      gdpr_erase_payment_footprint: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
+      gdpr_purge_waitlist_email: { Args: { p_email: string }; Returns: number }
+      gdpr_release_profile_references: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
+      gdpr_retention_reap: {
+        Args: never
+        Returns: {
+          reaped_table: string
+          rows_deleted: number
+        }[]
+      }
+      gdpr_retention_window: { Args: never; Returns: string }
       gdpr_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
       gdpr_storage_footprint: {
         Args: { p_limit?: number; p_profile_id: string }
@@ -3544,7 +3596,9 @@ export type Database = {
           zodiac_sign: string
         }[]
       }
+      has_payouts_enabled: { Args: { uid: string }; Returns: boolean }
       inject_ice_breakers: { Args: { conv_id: string }; Returns: undefined }
+      invoke_erasure_job: { Args: never; Returns: undefined }
       invoke_fund_settle_sweep: { Args: never; Returns: undefined }
       invoke_post_media_reaper: { Args: never; Returns: undefined }
       invoke_push_receipt_sweep: { Args: never; Returns: undefined }
@@ -3572,6 +3626,10 @@ export type Database = {
         }[]
       }
       live_window_sweep: { Args: never; Returns: undefined }
+      organizer_payout_destination: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
       owns_dream: { Args: { p_dream_id: string }; Returns: boolean }
       owns_help_milestone: {
         Args: { p_milestone_id: string }

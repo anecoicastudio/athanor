@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { semantic } from '@athanor/config';
-import { Pressable, Text, cn } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { auraGlow } from '@/lib/glow';
 
 /**
@@ -18,14 +19,52 @@ import { auraGlow } from '@/lib/glow';
  *
  * `outline` is the quiet secondary — a hairline over `raise`, foreground label. It had been
  * copy-pasted verbatim into `[handle].tsx`, `+not-found.tsx` and `auth-callback.tsx`, and
- * again (at `h-[52px]`) for the two OAuth buttons on `welcome.tsx`. It is NOT a moment
- * surface: the framed cyan pill (`border-aura-line bg-aura-soft`) stays reserved for
- * moment-grade events, and "go home" is not one.
+ * again (at `h-[52px]`) for the two OAuth buttons on `welcome.tsx`. It stays hairline-over-raise
+ * for HIERARCHY, not because rule #4 forbids the alternative: the framed cyan pill
+ * (`border-aura-line bg-aura-soft`) carries no shadow, so it is the ordinary active surface and
+ * any control may take it (§2.3, ruled 2026-09-07). This is simply the variant that has to read
+ * quieter than whatever it sits beside, and cyan reads as the screen's action — "go home" is
+ * not it.
  *
  * `loading` swaps the label for a spinner in the variant's own ink and marks the control
  * busy for assistive tech. It implies `disabled`, so a press cannot be queued behind a
  * request that is already in flight — that is why `welcome.tsx` forked this component three
  * times rather than using it.
+ *
+ * `icon` is an optional leading slot (#539), today used only by the two OAuth provider CTAs
+ * for their vendor brand marks. It is ABSOLUTELY POSITIONED in a reserved left gutter rather
+ * than laid out in a row with the label, and that is the whole design:
+ *
+ *   - a row would centre the [mark · label] PAIR, moving the label's optical centre right by
+ *     half the mark's width — visible as a wobble against the email CTA directly below it on
+ *     `welcome.tsx`, which has no icon. The gutter is mirrored on the right, so the label
+ *     stays centred in the pill exactly as it is today;
+ *   - the mark cannot collide with a long label, because the label's box starts after the
+ *     gutter rather than merely being pushed by it;
+ *   - #639's wrap geometry is untouched — the container keeps `min-h` and its column axis, so
+ *     a label that wraps at AX sizes still grows the pill, and the mark stays vertically
+ *     centred against the taller pill for free (`bottom-0 top-0 justify-center`).
+ *
+ * A caller that renders nothing must pass `null`, not an element that returns null: this
+ * component reserves the gutter for any element it is handed and cannot see what that element
+ * resolved to. `providerMark()` is written that way for exactly this reason.
+ *
+ * The cost of keying the gutter per BUTTON rather than per group, named because it is one: two
+ * stacked pills stretch to the same width, so one with an icon gives its label 56px less room
+ * on device / 64px on the web build than one without — `rem` inlines at 14 on native and 16 in
+ * a browser (§11's 2026-08-30 row), so a number here has to say which build it came from.
+ * Stacked provider CTAs can therefore reach the wrap point at different text scales and stand
+ * at different heights — «Continua con Google» wraps around 1.4× while «Continua con Apple»
+ * has not. Legible rather than broken (#639's `min-h` is what makes it
+ * grow instead of clip), and the alternative — a gutter the caller reserves across a group —
+ * buys symmetry with an API nothing else here needs.
+ *
+ * `left-6`, not `start-6`: React Native flips `start`/`end` under `I18nManager.isRTL` and never
+ * `left`/`right`, so under an RTL locale the pill would mirror and the mark would not. The
+ * catalogs are IT/EN, so this cannot bite today; it is the line to change if RTL is ever on.
+ *
+ * The mark is hidden while `loading` — the spinner has already replaced the label, and a
+ * brand mark beside a spinner reads as a second, stalled control.
  */
 type Variant = 'primary' | 'ghost' | 'light' | 'danger' | 'outline';
 
@@ -48,6 +87,7 @@ export function Button({
   disabled = false,
   loading = false,
   glow = false,
+  icon = null,
   accessibilityLabel,
 }: {
   label: string;
@@ -57,10 +97,18 @@ export function Button({
   /** Spinner in place of the label. Implies `disabled` — a busy control is not pressable. */
   loading?: boolean;
   glow?: boolean;
+  /**
+   * Leading mark, in a reserved gutter that leaves the label centred. Decorative only — the
+   * control is named by `accessibilityLabel ?? label`, so the node must hide itself from
+   * assistive tech. Pass `null`, never an element that renders null (see the docblock).
+   */
+  icon?: ReactNode;
   accessibilityLabel?: string;
 }) {
   const { container, text, ink } = VARIANT_CLASSES[variant];
   const inert = disabled || loading;
+  // Hidden while busy, so the gutter is reserved only when something is actually drawn in it.
+  const mark = loading ? null : icon;
   return (
     <Pressable
       className={cn(
@@ -70,7 +118,10 @@ export function Button({
         // clipping inside it. `py` is what a wrapped label breathes on; at the default size
         // the 52pt floor still wins, so nothing moves. DESIGN §9 measures the pill, and a
         // floor still measures it.
-        'min-h-[52px] items-center justify-center rounded-full px-6 py-3',
+        'min-h-[52px] items-center justify-center rounded-full py-3',
+        // The gutter is keyed on `icon`, not on what is currently drawn, so the padding does
+        // not change when `loading` swaps the mark out from under a fixed-width pill.
+        icon ? 'px-14' : 'px-6',
         container,
         inert && 'opacity-40',
       )}
@@ -81,6 +132,12 @@ export function Button({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inert, busy: loading }}
     >
+      {mark ? (
+        // `left-6` puts the mark where a no-icon label would have started, inside the gutter
+        // `px-14` reserves on both sides (49px device / 56px web). It tracks `px-6` step for
+        // step, so the mirrored-gutter property holds on both builds without a second number.
+        <View className="absolute bottom-0 left-6 top-0 justify-center">{mark}</View>
+      ) : null}
       {loading ? (
         <ActivityIndicator color={ink} />
       ) : (

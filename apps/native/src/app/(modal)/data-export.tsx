@@ -12,9 +12,11 @@ import { MODAL_A11Y } from '@/lib/a11y';
 import { Screen } from '@/components/Screen';
 
 /**
- * GDPR data export (09 §3.5.1). Request → processing → ready. The archive is assembled server-side
- * by the gdpr-export-job; when it flips to ready the member gets a gdprExport notification (#129)
- * that routes back here, where the time-limited signed link is served. Neutral chrome, flat cyan
+ * GDPR data export (09 §3.5.1). Request → processing → ready, or → failed (#721), which is
+ * terminal and re-requestable from the same button. The archive is assembled server-side
+ * by the gdpr-export-job; BOTH terminal outcomes send a gdprExport notification that routes back
+ * here — ready (#129), where the time-limited signed link is served, and failed (#721), where the
+ * request button is the retry. Neutral chrome, flat cyan
  * CTA — no glow (rule #4).
  */
 export default function DataExportScreen() {
@@ -29,6 +31,9 @@ export default function DataExportScreen() {
   const status = job.data?.status ?? null;
   const pending = status === 'requested' || status === 'processing';
   const ready = status === 'ready' && !!job.data?.download_url;
+  // Terminal (#721): the archive could not be produced or handed over. The retry is the ordinary
+  // request button below, which files a NEW job — a failed one is never re-claimed.
+  const failed = status === 'failed';
 
   const request = useMutation({
     mutationFn: () => requestExport(supabase),
@@ -51,6 +56,14 @@ export default function DataExportScreen() {
           <View className="rounded-card border border-hair bg-raise p-5">
             <Text className="text-[14px] leading-relaxed text-muted-foreground">
               {t('gdpr.export.processing', locale)}
+            </Text>
+          </View>
+        ) : null}
+
+        {failed ? (
+          <View className="rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[14px] leading-relaxed text-muted-foreground">
+              {t('gdpr.export.failed', locale)}
             </Text>
           </View>
         ) : null}

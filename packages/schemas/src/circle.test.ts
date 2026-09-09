@@ -21,6 +21,7 @@ describe('circle schemas', () => {
       current_period_end: '2026-12-31T00:00:00Z',
       cancel_at_period_end: false,
       founding_member: true,
+      erased_at: null,
       created_at: '2026-06-18T00:00:00Z',
       updated_at: '2026-06-18T00:00:00Z',
     };
@@ -41,6 +42,7 @@ describe('circle schemas', () => {
       current_period_end: '2026-12-31T00:00:00Z',
       cancel_at_period_end: true,
       founding_member: false,
+      erased_at: null,
       created_at: '2026-06-18T00:00:00Z',
       updated_at: '2026-06-18T00:00:00Z',
     };
@@ -60,10 +62,31 @@ describe('circle schemas', () => {
       current_period_end: '2026-12-31T00:00:00Z',
       cancel_at_period_end: false,
       founding_member: true,
+      erased_at: null,
       created_at: '2026-06-18T00:00:00Z',
       updated_at: '2026-06-18T00:00:00Z',
     };
     expect(() => circleMembershipSchema.parse(row)).toThrow();
+  });
+
+  // #107 — the pseudonymised shape: the membership outlives the member by ten years.
+  test('parses a pseudonymised membership — no member, the Stripe ids intact', () => {
+    const parsed = circleMembershipSchema.parse({
+      id: '00000000-0000-0000-0000-000000000001',
+      profile_id: null,
+      stripe_customer_id: 'cus_x',
+      stripe_subscription_id: 'sub_x',
+      plan: 'monthly',
+      status: 'canceled',
+      current_period_end: '2026-12-31T00:00:00Z',
+      cancel_at_period_end: false,
+      founding_member: false,
+      erased_at: '2026-09-08T03:47:00Z',
+      created_at: '2026-06-18T00:00:00Z',
+      updated_at: '2026-06-18T00:00:00Z',
+    });
+    expect(parsed.profile_id).toBeNull();
+    expect(parsed.stripe_customer_id).toBe('cus_x');
   });
 
   test('rejects an unknown plan', () => {

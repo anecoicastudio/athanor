@@ -41,6 +41,7 @@ export const POSTURE: Record<string, Posture> = {
   'notification-fan-out': 'internal',
   'post-media-reaper': 'internal',
   'push-dispatch': 'internal',
+  'reconcile-payout-accounts': 'internal',
   'release-fund-payout': 'internal',
   'score-engine': 'internal',
   'story-segment-reaper': 'internal',

@@ -114,7 +114,7 @@ export default function FavorScreen() {
           style={auraGlow(1)}
         >
           <SectionLabel tone="aura">{t('favor.done.eyebrow', locale)}</SectionLabel>
-          <Text className="text-center text-2xl text-foreground">
+          <Text accessibilityRole="header" className="text-center text-2xl text-foreground">
             {t('favor.done.title', locale, { name })}
           </Text>
           <Text className="text-center text-[14px] text-faint">{t('favor.done.sub', locale)}</Text>

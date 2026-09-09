@@ -6,7 +6,9 @@ import { Button } from '@/components/Button';
  * Empty-state motif per DESIGN §9: the ✦ spark glyph (spark vocabulary) over a quiet line
  * of guidance, plus the spec's third element — one ghost action — as an optional slot.
  * Muted so it reads as absence, not a moment: the action is always `Button variant="ghost"`,
- * never the framed cyan surface (rule #4 reserves that for moment-grade events).
+ * never a framed cyan pill. Rule #4 does not forbid that pair — with no shadow it is not a glow
+ * (§2.3, ruled 2026-09-07) — but an empty state should be the quietest block on a screen, not
+ * the loudest.
  *
  * `body` is the optional second line several screens have (`*.emptyBody` keys) — a slot, so
  * callers stop string-concatenating keys with newlines.

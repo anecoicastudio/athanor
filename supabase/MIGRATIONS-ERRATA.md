@@ -133,8 +133,10 @@ sessions still open». The _mechanism_ is deterministic and verified: a UUID in 
 bearer is a 401, every time, and #542's staged proof recorded a request landing `failed` for
 exactly that reason.
 
-What is not verified is the scale. `erasure-job` is deployed but **unscheduled** and behind the
-legal gate, staging's `gdpr_erasure_requests` is empty, and production was not queried — so how
+What is not verified is the scale. When this was written `erasure-job` was deployed but
+**unscheduled** and behind the legal gate (#107 scheduled it on 2026-09-08, which changes the
+scale going forward and nothing about the record below), staging's `gdpr_erasure_requests` was
+empty, and production was not queried — so how
 many live erasures actually ran, if any, is unknown. Read «every live erasure» as the
 counterfactual it is: every erasure that ran, or would have run, took this path. The header
 should not be read as a record of an observed production incident.
@@ -433,15 +435,64 @@ L51) names the webhook as the table's only writer. The **initial row** is writte
 `{profile_id, stripe_account_id}` pointer at account-creation time — waiting for the first
 `account.updated` event would leave a window in which a retry mints a second Express account
 for the same profile. So the function inserts the pointer row through the service-role client
-(the table's SRW posture is unchanged — clients still have no write path), and the webhook
-remains the only writer of the **state** columns (`charges_enabled`, `payouts_enabled`,
-`onboarded_at`).
+(the table's SRW posture is unchanged — clients still have no write path).
+
+**Amended 2026-09-07 (#707).** This entry previously ended "and the webhook remains the only
+writer of the **state** columns (`charges_enabled`, `payouts_enabled`, `onboarded_at`)". That is
+no longer true either. Those columns are written by exactly one _function_ —
+`handleAccountUpdated`, now in `supabase/functions/_shared/payout-account-cache.ts` — but it has
+two callers: the W13 `account.updated` arm, and `reconcile-payout-accounts`, which retrieves the
+account from Stripe and passes it to the same handler. The reconcile exists because a delivery
+that never happens leaves no trace: on 2026-09-06 an organiser's completion event fired 49
+minutes before the «Connected accounts» endpoint existed, and nothing in the system could notice.
+Stripe is still the sole source of truth for all three columns (rule #6) — the change is that we
+may now _ask_ rather than only being told. Read the invariant as **one writer, two callers**.
 
 Verified behaviour lives in `supabase/functions/create-payout-onboarding/logic.test.ts` (the
 insert carries only the two pointer columns; the 23505 race re-reads the winner) and
 `supabase/functions/stripe-webhook/handlers.test.ts` (W13 — flags both directions,
 `onboarded_at` set-once, unmatched account acked). Client denial is unchanged and stays
 asserted by `supabase/tests/0111_payout_accounts_rls.test.sql`.
+
+---
+
+## `20260906141227_ticket_split_payout_gate.sql:29-33` — "charges_enabled is false on these accounts forever", and "maintained only by W13", are both false
+
+The comment above `has_payouts_enabled` explains the choice of flag by asserting that because
+`create-payout-onboarding` requests only the `transfers` capability, `charges_enabled` "is false
+on these accounts forever". Both staging connected accounts report `charges_enabled: true` from
+Stripe's own `/v1/accounts`, and their cached rows agree:
+
+| account                 | capabilities             | charges_enabled |
+| ----------------------- | ------------------------ | --------------- |
+| `acct_1UCjRULodilJxQHS` | `{"transfers":"active"}` | `true`          |
+| `acct_1UCjucPuFctf3F8i` | `{"transfers":"active"}` | `true`          |
+
+The _choice_ the comment defends is still right — `payouts_enabled` is the correct flag for this
+gate, and gating on `charges_enabled` would have been wrong for a different reason. What is wrong
+is the reason given. Requesting only `transfers` does not pin `charges_enabled` to false; Stripe
+sets it from the account's own state.
+
+This matters beyond a comment, because one path gates on it: `release-fund-payout` refuses
+`payout account not ready` (409) unless **both** flags are true
+(`supabase/functions/release-fund-payout/logic.ts`). Under the retracted reading that gate could
+never open, which would have made the whole payout rail dead code. It is not — it opens, and it
+opens correctly.
+
+The same claim appears in `packages/api/src/payouts.ts`'s `getMyPayoutAccount` docblock, which is
+corrected in the same change. `charges_enabled` stays out of that function's return type, but for
+the honest reason: nothing in the app should gate on it, so it is parsed and not exposed.
+
+The next two lines (`:32-33`) say the flag "is maintained only by stripe-webhook's
+`account.updated` arm (W13)". That ended with #707. It is still maintained by exactly one
+_function_ — `handleAccountUpdated`, in `supabase/functions/_shared/payout-account-cache.ts` — but
+that function now has two callers: the W13 arm, and `reconcile-payout-accounts`, which retrieves
+the account from Stripe and hands it to the same writer. Read it as **one writer, two callers**;
+the amended `20260815205504_payout_accounts.sql` entry above says the same thing from the table's
+side. What has not changed is that Stripe is the source of truth and no client may write these
+columns — `supabase/tests/0111_payout_accounts_rls.test.sql` still asserts the denial.
+
+Verified 2026-09-07 against the hosted staging project and Stripe's API.
 
 ---
 
@@ -1551,3 +1602,478 @@ EXECUTE on the generation function**.
 Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql` — the function-ACL block
 asserts EXECUTE for both `authenticated` and `service_role`, and the fixture itself is a
 `service_role` UPDATE on `profiles`.
+
+## `20260906141227_ticket_split_payout_gate.sql`
+
+The header's rationale for moving the refusal to creation time reads:
+
+> Stripe rejects a destination whose transfers capability is not active
+
+and the `has_payouts_enabled` block adds "payouts_enabled rather than charges_enabled". Both
+sentences are true about Stripe and about the choice between the two cached flags, but read
+together they imply the gate tests the capability Stripe actually enforces. **It does not.**
+
+What Stripe enforces at `checkout.sessions.create` is whether the destination account's
+`transfers` capability is `active`. What both functions in this migration read is
+`payout_accounts.payouts_enabled`, which is the only relevant flag `stripe-webhook`'s W13 arm
+caches (`handleAccountUpdated` writes `charges_enabled`, `payouts_enabled` and `onboarded_at`,
+and never `capabilities.transfers.status`). The two move together in practice, so the gate is a
+close proxy — not the exact condition, and the migration does not say so.
+
+The residual is narrow and money-safe. An account whose `transfers` capability lapses while
+`payouts_enabled` has not yet flipped passes both the creation gate and
+`organizer_payout_destination`, and is then refused by Stripe instead — _after_ `claim_event_seat`
+has held a seat, so the buyer sees the generic payment error rather than the specific one, and the
+seat is released by the existing catch. No charge is created on that path.
+
+Closing it properly means caching `capabilities.transfers` in W13 and gating on that. It was
+deliberately not done here: the 2026-09-06 ruling on #104 named `payouts_enabled`, and widening the
+cache is its own change with its own webhook test surface.
+
+`payouts_enabled` over `charges_enabled` is separately correct and is not what this entry
+corrects — `create-payout-onboarding` requests only the `transfers` capability, so
+`charges_enabled` never becomes true on these accounts and a gate on it would refuse every
+organiser permanently.
+
+### A second, smaller overstatement in the same header
+
+`organizer_payout_destination`'s comment says the event-keyed shape scopes the disclosure "to
+organisers of live paid events, which is exactly the set whose account a buyer is about to be sent
+to anyway". The second clause overstates it: any `authenticated` member can call the function with
+any readable paid event's id **without buying anything**, so the real exposure is every payable
+organiser of every readable paid event, not only the ones a given caller is mid-checkout on.
+
+The decision the comment defends is still the right one and is not being reversed here — a
+uid-keyed twin would let a member enumerate every organiser's Stripe account id with no event
+involved, and the service-role alternative is asserted against in
+`supabase/functions/_shared/auth-posture.test.ts` (`SERVICE_ROLE_ALLOWED` does not and must not
+contain `create-ticket-checkout`). Only the prose is loose.
+
+Asserted by: `supabase/tests/0147_ticket_payout_gate.test.sql` — which pins the behaviour that
+exists (the flag, the coalesce-to-false on a missing row, both write paths, and the order against
+the identity arm), and deliberately asserts nothing about `capabilities.transfers`, because nothing
+in the schema knows it. Operational half: `docs/RELEASE-RUNBOOK.md` §4.7.
+
+## `20260905165133_profiles_birth_date_zodiac.sql:139-140` — 0121 never sees the function this revoke protects
+
+The comment above the trigger function's revoke reads:
+
+> A trigger function is born EXECUTE-able by PUBLIC and both client roles (#409 — the default
+> ACL was never narrowed for functions); 0121 demands the revoke.
+
+The first clause stands. The second names a witness that cannot see this function.
+`0121_grant_catalog_sweep.test.sql` builds `actual_function_acl` under `n.nspname = 'public'`
+(`:399-409`) and its trigger-function rule reads only from that view (`:415-419`), so
+`athanor.profiles_birth_date_guard()` sits outside the sweep entirely — a restored PUBLIC execute
+on it would leave 0121 green. That the rule is written as a rule rather than a list is what makes
+the mistake easy: it does cover every trigger function this schema does not have yet, in `public`
+only.
+
+This is the same limit already recorded above for `20260902153060`, and the migrations that state
+it correctly say so out loud — «`athanor` is outside 0121's function-EXECUTE block (which covers
+`public`)» (`20260824070529:301`, `20260824071839:123`, `20260824072554:125`), «0121's function-ACL
+sweep is scoped to schema `public`, so this function owes it no row» (`20260818114947:77-80`), and
+«this revoke is convention and review, not something CI catches» (`20260817165404:94-95`). Those
+five are the pattern; this header and `20260902153060`'s are the two that drifted from it.
+
+The revoke is correct and still required; only the reason given for it is wrong. Read the clause as
+«…and a trigger function must not carry EXECUTE for PUBLIC or the client roles
+(rules/supabase-db.md), which for an `athanor`-schema function no catalog sweep asserts — so the
+revoke is the only guard, and this migration's own test is the only witness».
+
+It does not supersede the other correction to this file: §1's `service_role` claim is corrected
+under the `20260905170330…` heading above, which is a different sentence.
+
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:81-84` — `anon` and
+`authenticated` cannot execute `athanor.profiles_birth_date_guard()`. Neither assertion names
+PUBLIC, but `has_function_privilege` counts a PUBLIC grant for every role, so a restored
+`grant … to public` reddens both.
+
+## `20260907145152_events_min_paid_ticket_price.sql:27` — the CHECK-constraint counts are both wrong
+
+The header justifies raising `22003` rather than the CHECK's own `23514` and says:
+
+> `events` carries twelve CHECK constraints, nine of them from its creating migration.
+
+Both numbers are wrong, counted against the tree:
+
+| claim                                 | actual                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| nine from `20260615094844_events.sql` | **eleven** — lines 21, 24, 25, 27, 30, 31, 32, 33, 42, 46, 47 (the `with check` at 85/91 are policies, not constraints) |
+| twelve on the table                   | **thirteen** after this migration; twelve before it, and twelve _other_ than `events_price_min`                         |
+
+`events_description_len` (`20260902084656_event_description.sql:10`) is the twelfth; nothing has
+ever dropped a CHECK from `public.events`. The argument the numbers support is unharmed and in fact
+stronger — the more constraints share `23514`, the worse a bare `code === '23514'` arm in the
+composer would be — so the reasoning stands and only the arithmetic is superseded.
+
+The same "nine" was repeated in three still-editable files. Those now carry **no numeral at all** —
+they say "every other CHECK on `events`" — per CLAUDE.md's _"No count that a command could
+produce"_: pinning thirteen in a test would redden on every legitimate new CHECK, and writing the
+number in prose is how "nine" got there in the first place. The invariant is what the argument
+needs; the count never was. Only this migration's copy is frozen, and the numbers above are a
+snapshot taken at `6164cb2`, kept because a correction record has to say what the wrong number
+should have been.
+
+A second correction to the same sentence: `22003` is **not** unclaimed on this RPC. The check that
+produced that word was made against hand-raised codes only, and PostgreSQL raises `22003` natively
+when PostgREST casts an out-of-int4-range `p_capacity` — verified against staging, where
+`p_capacity: 99999999999` returns `{"code":"22003","message":"value \"99999999999\" is out of range
+for type integer"}` and a sub-floor price returns `{"code":"22003","message":"paid ticket below the
+minimum price"}`. The composer's arm is kept unambiguous by BOUNDING capacity in
+`eventCreateSchema`, not by the code being unique.
+
+Asserted by, for the 22003 correction: `packages/schemas/src/event.test.ts` — «bounds capacity to
+int4, so the composer 22003 arm cannot be answering an overflow», which pins both edges of the
+bound; and `supabase/tests/0148_event_min_ticket_price.test.sql`, which holds the band, both write
+arms and the constraint definition.
+
+The COUNT correction has no test and deliberately gets none. That is the one claim here a test
+would ordinarily hold, and the reason it does not is the rule above: an assertion that
+`public.events` carries exactly thirteen CHECK constraints fails the next time someone adds a
+legitimate one, which is a test that punishes correct work. Removing the numeral from every
+editable copy is what makes the claim unable to rot — there is now nothing outside this section that
+states a number for this, so nothing left to go stale. The table above states three, and is the
+snapshot this section exists to be. This section is the record of what the
+frozen line should have said, not a live claim.
+
+## Three migrations — "counsel's retention answer (#184)" was answered by the controller, not counsel
+
+Three applied headers hand the erasure retention question to a lawyer:
+
+| migration                                               | lines    | quote                                                                                                          |
+| ------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `20260823073258_gdpr_erasure_partial_status.sql`        | `:7`     | «deleting auth.users is gated on counsel's retention answer (#184)»                                            |
+| `20260815131925_gdpr_fund_erasure_tombstone.sql`        | `:6-7`   | «The retention window for the tombstoned rows is counsel's answer (#184) and is deliberately NOT encoded here» |
+| `20260813163902_messages_user_shape_deleted_sender.sql` | `:20-21` | «a future, counsel-gated decision (#184)»                                                                      |
+
+On 2026-09-07 Marco, as data controller, ruled the question himself and #184 closed without
+counsel being engaged (its closing comment is the ruling): payment rows — `event_tickets`,
+`circle_memberships`, `fund_contributions`, `stripe_webhook_events`, the payout ledger — are
+**pseudonymised and kept 10 years** (art. 2220 c.c.; DPR 600/1973 art. 22), everything else is
+deleted on request, and counterpart conversations are **not** preserved. Read «counsel's answer»
+in all three as «the controller's 2026-09-07 ruling». What the SQL does is unchanged and was
+never wrong: the tombstone still encodes no window, and `auth.users` deletion was gated on #107
+implementing the ruling rather than on a lawyer. **#107 landed on 2026-09-08** (`20260908071656`,
+`20260908071807`, `20260908073545`, `20260908074427`): the deletion happens, the job is scheduled,
+and a clean pass ends `done`. The one thing to carry forward from these headers is that
+20260815131925's tombstone-reassignment pattern is NOT what the payment tables use — their unique
+indexes make a single sentinel impossible from the second erased member onward, so they null the
+identity and stamp `erased_at` instead. 20260908071656's header has the argument.
+
+Asserted by: `supabase/tests/0104_gdpr_fund_erasure.test.sql` (tombstone keeps the money columns,
+loses the identity), `0058_gdpr_erasure_requests_rls.test.sql` (the request table's `partial`
+status and client surface), `0137_gdpr_storage_footprint.test.sql` (bytes deleted on request).
+The 10-year figure still has no test, and #107 did not add one: it ships the pseudonymisation and
+the `erased_at` stamp the window will be measured from, and leaves the reaper that finally drops
+those rows to **#715**. Nothing in the schema encodes ten years, so there is still no number to
+assert — `erased_at` is the fact, the window is not. #715 also carries the decision #107 did not
+make: `fund_contributions` was pseudonymised by #240 before `erased_at` existed and therefore has
+no clock at all, so it cannot be aged without a column and a backfill ruling.
+
+## `20260908071807_schedule_erasure_nightly.sql` — the export-then-erase rider is backwards
+
+The schedule comment (`:67`) justifies 03:47 partly like this:
+
+> After gdpr-export-nightly on purpose: a member who requested an export and then an erasure gets
+> the archive built before the account it describes goes away.
+
+The first half is right and the second is not. `gdpr-export-nightly` runs at 03:25 and writes the
+archive into the `exports` bucket; `erasure-job` runs 22 minutes later and its storage sweep covers
+**every declared bucket, `exports` included** (`gdpr_storage_footprint`, `20260827110034`, and
+`erasure-job/sweep-buckets.test.ts` names `exports` deliberately). So the archive is built and then
+deleted in the same night. The member does not get it.
+
+That behaviour is **correct** and is not being changed: a member who asks to be erased has asked
+for their exported copy to go too, and leaving a downloadable archive of an erased account sitting
+in a bucket is the residue #573 exists to remove. Only the sentence is wrong. Read `:67` as: the
+ordering exists so the export job is not still writing into a folder the sweep is walking — not as
+a promise that the member receives the archive.
+
+The 03:47 slot itself is unaffected, and so is every other reason the comment gives for it (clear
+of the 03:11/03:17/03:25 cluster, clear of `purge-waitlist` at 04:00).
+
+Asserted by: `supabase/functions/erasure-job/sweep-buckets.test.ts`, which pins `exports` as a
+swept bucket and says why — that is the fact the sentence contradicts. No new test: the claim
+being corrected is prose about intent, and the behaviour it misdescribes is already covered.
+
+## `20260908084858_erasure_organiser_events_keep_other_members_records.sql` — the "Known consequence" understates it
+
+The header's closing paragraph (`:41-44`) says:
+
+> a soft-deleted event still resolves for the rows that reference it, so a ticket holder's own
+> history can render an event whose organiser is now the sentinel — a profile with no handle.
+> That is a display question, not a data-loss one
+
+The first clause is wrong and the framing with it. Both SELECT policies on `public.events` gate on
+`deleted_at is null` (`20260615094844_events.sql:72-80`), and every read in `packages/api` goes
+through `from('events')` under RLS. So once the organiser is erased and their events are
+soft-deleted, a ticket holder cannot read the event **at all** — not the organiser's handle, but
+the title, the date and the venue.
+
+What actually survives is what the migration was written to protect, and it is unchanged: the
+`event_tickets` row with its `stripe_payment_id`, `status` and timestamps, the `rsvps` row and the
+`event_attendance` row. The financial record is intact and so is the check-in history; what is
+gone is the description of the occasion.
+
+That trade stands — the alternative was the ON DELETE CASCADE hard-deleting those rows outright,
+which is the defect the migration exists to remove, and the erased member's event text is their
+content, which the controller's ruling says goes. But it is a larger consequence than «a profile
+with no handle», and anyone reading that sentence would have been surprised by a support ticket
+saying «my ticket is there but the event vanished». Read `:41-44` as: the ticket, the RSVP and the
+check-in survive; the event itself becomes unreadable to everyone.
+
+Not fixed in code on purpose. Keeping the event readable would mean either leaving an erased
+member's content served (against the ruling) or a per-event rule about whose rows are attached,
+which is a product decision rather than an erasure one.
+
+Asserted by: `supabase/tests/0149_gdpr_payment_erasure.test.sql` §6b, which asserts the event row
+still EXISTS, is disowned to the sentinel and carries `deleted_at`, and that the ticket, RSVP and
+attendance survive. What it does not assert is readability under RLS — the assertions run as
+superuser, so they see the soft-deleted row. That gap is the reason this entry exists.
+
+## `20260908130546_gdpr_erasure_claim_lease.sql` — the "disjoint set" claim, and where the lock sat
+
+The function comment it writes (`:135`) ends:
+
+> Service-role only; idempotent in the sense that matters, which is that a second concurrent call
+> returns a disjoint set.
+
+That was not true of the function as this migration created it. `pg_try_advisory_xact_lock` sat in
+the `WHERE` of the query carrying `order by … limit p_limit`, so it was evaluated at the scan node,
+**below** the limit — the first call took an advisory lock for every eligible member in the table,
+not for the twenty it claimed. An overlapping second call therefore returned **nothing**, not the
+rest of the queue. On a backlog the same placement took one lock per candidate row in a single
+transaction, which is how `out of shared memory / increase max_locks_per_transaction` is reached —
+the claim would have 500'd exactly when the queue was longest.
+
+The inline comment at `:100-107` is wrong in the same way where it says the lock is "held only for
+the length of this statement, which is why the lease check above is still the thing guarding the
+cascade". The second half stands; the first understates the cost, because the length of the
+statement is not the problem — the NUMBER of locks taken within it is.
+
+Both were corrected the same day by `20260908133119_gdpr_erasure_claim_lease_fences.sql`, which
+moves the lock into the de-duplication step (above the limit, so at most `p_limit` locks are ever
+held), pins that placement with `as materialized`, and REPLACES the function comment — a comment on
+a live object, unlike this file. Read `:135` and `:100-107` as describing an intent that the SQL
+underneath them did not implement.
+
+Asserted by: nothing, and deliberately. pgTAP is one connection and one transaction, and
+`pg_try_advisory_xact_lock` is re-entrant within a transaction, so the guard cannot be exercised
+from `supabase/tests/`. `0058`'s claim section says so in place rather than implying a coverage it
+does not have; what it does assert is the lease predicate and the per-member exclusion the lock
+protects.
+
+## `20260908130546_gdpr_erasure_claim_lease.sql` — `p_lease => interval '0'` is not the ops override
+
+The same comment offers the parameter as the way to force a re-claim by hand, and
+`RELEASE-RUNBOOK.md` §7.5 was written to match. It does not work: the claim re-stamps every row it
+returns with a fresh `claimed_at`, and the job invoked next asks for the default 15-minute lease —
+so a zero-lease "release" is precisely the thing that hides those rows from the pass meant to serve
+them, for fifteen minutes.
+
+Releasing a lease by hand is nulling the stamp (`update … set claimed_at = null`), which the claim
+predicate reads as infinitely stale. §7.5 step 5 now says that, and `0058` asserts both halves —
+that a fresh stamp holds the row, and that nulling it hands the row to the very next claim.
+
+## `20260908152740_gdpr_export_claim_lease.sql` — the pre-#721 UPDATE did have a predicate
+
+The header opens (`:2-3`):
+
+> a SELECT on `status = 'requested'` followed by an UPDATE carrying no
+> predicate at all.
+
+The second half is wrong, and it is wrong in the direction that overstates the defect. The claim
+this migration replaced read
+
+```ts
+await db.from('gdpr_export_jobs').update({ status: 'processing' }).eq('id', job.id);
+```
+
+— predicated on the row id. What it had no predicate on was **`status`**: nothing re-checked that
+the row was still `'requested'` at the moment of the write, which is what made the pair
+non-atomic and what let a second overlapping pass claim rows the first already held. #721's body
+says exactly that («an UPDATE with **no predicate on `status`**»); the sentence here was carried
+over from the erasure lane's wording without being re-read against this function's source, and
+was caught in the same PR's review.
+
+Read `:2-3` as: «a SELECT on `status = 'requested'` followed by an UPDATE predicated on the row id
+alone, with nothing re-checking the row was still `'requested'`.» The editable copies of the same
+sentence — `supabase/functions/gdpr-export-job/logic.ts`, `supabase/tests/0057_gdpr_export_jobs_rls.test.sql`
+and `docs/RELEASE-RUNBOOK.md` §7.6 — were corrected in place rather than through this file.
+
+Asserted by: nothing, and it needs nothing. The sentence describes code that no longer exists, so
+there is no behaviour a test could hold; the correction exists so the next reader does not conclude
+that the old loop could flip a `ready` row, which it could not.
+
+## `20260908152740_gdpr_export_claim_lease.sql` — `claimed_at` is cleared, by one hand
+
+The `claimed_at` column comment (`:51`) says the stamp is
+
+> Set by claim_export_jobs together with the 'processing' status and never cleared
+
+The loop never clears it — that half is true and deliberate, so a requeued row carries the stamp of
+the pass that gave up on it. But an OPERATOR does: releasing a stuck lease by hand is
+`update … set claimed_at = null` (`docs/RELEASE-RUNBOOK.md` §7.6 step 6), which is the whole reason
+the predicate treats a NULL stamp on a `'processing'` row as infinitely stale rather than as never
+stale. The next sentence of the same comment reads that NULL as meaning only «the row predates the
+lease», which is one of its two meanings.
+
+Read `:51` as: «never cleared by the job — a released lease is the one thing that nulls it.»
+
+Asserted by: `supabase/tests/0057_gdpr_export_jobs_rls.test.sql`, whose last claim-lease pair shows
+a fresh stamp holding a row against the claim and then shows the very next claim taking it once the
+stamp is nulled — the release procedure, exercised.
+
+## Three migrations — "nothing here encodes a window" is now false, and #715 is why
+
+Three applied headers say, correctly at the time, that no retention window exists in the schema:
+
+| migration                                          | lines        | quote                                                                                                                    |
+| -------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `20260815131925_gdpr_fund_erasure_tombstone.sql`   | `:6-8`       | «is deliberately NOT encoded here — nothing in this migration deletes a money row, so no window number exists to invent» |
+| `20260908071656_gdpr_payment_pseudonymisation.sql` | `:8-9`       | «the 10-year reaper … is a follow-up. Nothing here encodes a window, so there is still no number to invent»              |
+| this file, the entry above                         | `:1769-1770` | «Nothing in the schema encodes ten years, so there is still no number to assert»                                         |
+
+`20260909085841_gdpr_retention_reaper.sql` (#715) encodes it. The number now lives in exactly one
+place — `public.gdpr_retention_window()`, returning `interval '10 years'` — and the reaper, the
+tests and any future caller read it from there rather than spelling it again. Read all three as:
+«no window was encoded **until 20260909085841**».
+
+Two things in those headers stayed true and one did not:
+
+- **True.** The tombstone itself still encodes no window, and `erased_at` is still the fact while
+  the window is a separate decision. Nothing about the pseudonymisation changed.
+- **True.** The reaper never touches a row whose `erased_at` is NULL, however old. A live payment
+  record is untouchable, which is the property the window exists to bound.
+- **Superseded.** `20260815131925`'s premise that «nothing in this migration deletes a money row»
+  no longer describes the table's lifecycle: rows in `fund_contributions` are now deleted, ten
+  years after erasure, by `gdpr_retention_reap()`. The migration's own SQL is unchanged — it is
+  the surrounding claim that has aged.
+
+The entry above also records a decision as outstanding that has since been made: «`#715` carries
+the decision `#107` did not make: `fund_contributions` … has no clock at all, so it cannot be aged
+without a column and a backfill ruling». Marco ruled it on 2026-09-09 — `fund_contributions` gains
+`erased_at`, backfilled from `updated_at` for rows already pointing at the tombstone, because the
+touch trigger stamped the reassignment. Read `:1770-1772` as answered, not open.
+
+One caveat on that backfill, recorded because the ruling's stated premise is not exactly true:
+«no later write moves a tombstoned row» is contradicted by `reverseContribution`
+(`supabase/functions/stripe-webhook/handlers.ts:342-360`), which matches on
+`stripe_payment_intent_id` + `status = 'succeeded'` with no tombstone guard, so a refund or dispute
+arriving after an erasure moves `updated_at` again. The error is one-way — it can only push a
+backfilled `erased_at` later, never earlier — so the backfill over-retains at worst. On a ten-year
+legal floor that is the safe side; under-retention would have been the violation. Verified on
+staging when the migration applied: both tombstoned rows backfilled to `2026-09-08 07:50:35`, the
+erasure instant, not to the backfill's own clock.
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` — §1 asserts the window BY VALUE
+(`interval '10 years'`) and that no other `public` function spells it, so a second copy fails the
+suite; §4 asserts a row inside the window survives, a row outside it does not, and a row with a
+NULL `erased_at` survives at twelve years old; §6b asserts `gdpr_erase_fund_footprint` now stamps
+`erased_at`, without which every row erased after this migration would never age out.
+
+## `20260909085841_gdpr_retention_reaper.sql` — "the total IS the rows" was not the whole reader list
+
+The header's §"The one real consequence" (`:88-105`) justifies patching one function:
+
+> There is no cached per-edition counter to keep in step — the total IS the rows.
+
+True about caches, and misleading about readers. Queried against staging rather than recalled,
+**five** live functions derive a per-edition total straight from `fund_contributions`, and only one
+of them was patched by this migration:
+
+| function                   | what it computes          | phase it requires              | sees a reaped edition? |
+| -------------------------- | ------------------------- | ------------------------------ | ---------------------- |
+| `recompute_fund_aggregate` | the public ticker         | none — callable any time       | **yes**, patched here  |
+| `enter_announcement`       | the FUND-42 snapshot      | `voting`                       | no                     |
+| `declare_winner`           | the FUND-42 floor         | `voting` / `announcement`      | no                     |
+| `close_cycle`              | the closure carry         | `announcement` / `realization` | no                     |
+| `rollover_voided`          | the FUND-45 carry-forward | **`closed`**                   | **yes**, missed        |
+
+An edition holding reaped rows is necessarily closed — a contribution is reapable only ten years
+after its owner's erasure — so the three middle rows are unreachable, and their phase guards raise
+`P0001` rather than silently reading a short pool. `rollover_voided` is the one that bites: it
+_requires_ `phase = 'closed'`, computes `carried_in_cents + v_raised`, and hands the result to a
+successor cycle. A voided edition rolled over after any of its contributions aged out would carry
+forward **less money than was raised**, in the direction of paying a future winner short. Nothing
+bounds how late a rollover may happen; `already rolled over` guards double-carrying, not elapsed
+time.
+
+Fixed in code by `20260909093945_gdpr_retention_reaper_review_fixes.sql`, which adds
+`+ v_edition.reaped_cents` to that one expression and leaves the other three alone deliberately —
+re-typing three money functions to close a path that needs a decade-old open cycle would add more
+transcription risk than it removes.
+
+Read `:88-105` as: «`recompute_fund_aggregate` and `rollover_voided` are the two readers that can
+see a reaped edition; the other three are excluded by their phase guards.»
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` §8 — three `throws_ok` calls pin
+the phase guards on the unreachable three (so the exclusion is a property, not a comment), and a
+source pin on `rollover_voided` catches a future re-sign that drops the carry term.
+
+## `20260909085841_gdpr_retention_reaper.sql` — the backfill overwrites the column it reads
+
+`:165`'s backfill is `update public.fund_contributions set erased_at = updated_at where …`. The
+table carries `fund_contributions_touch_updated_at` (BEFORE UPDATE, unconditional), so the same
+statement that copies `updated_at` into `erased_at` then sets `updated_at := now()`.
+
+The copy itself is correct — the trigger fires after the SET list is evaluated, so `erased_at`
+receives the pre-update value. Verified on staging at apply time: both tombstoned rows hold
+`erased_at = 2026-09-08 07:50:35.594932+00`, the erasure instant, while `updated_at` reads
+`2026-09-09 09:10:11`, the migration's own clock.
+
+What is gone is the ability to re-derive or audit the stamp afterwards: `erased_at` is now the only
+copy of that timestamp, so the caveat recorded in the entry above — that `reverseContribution`
+(`supabase/functions/stripe-webhook/handlers.ts:342-360`) can move `updated_at` past the true
+erasure instant, making a backfilled `erased_at` over-retain — is no longer detectable on a
+backfilled row. It was arguably never detectable, since `updated_at` is a single mutable column
+that a refund overwrites in place, but after the backfill it is certainly not.
+
+Read `:165` as: on any row this backfill touched, `updated_at` is the migration's timestamp and
+carries no erasure meaning; `erased_at` is the fact. The error direction is one-way and safe —
+over-retention on a legal floor, never under-retention.
+
+Asserted by: nothing, and deliberately — there is no pre-backfill value left to assert against.
+`0150` §6b covers the path that matters going forward: every erasure from now on stamps
+`erased_at` directly at the erasure instant, so no derivation is involved.
+
+## `20260909085841_gdpr_retention_reaper.sql` — two column comments that outrun their SQL
+
+Both are on `fund_editions.reaped_cents` (`:242`), and both are the shape this file exists for.
+
+> Monotonically increasing. … Never decremented; written only by `gdpr_retention_reap()`.
+
+**Neither half is enforced.** The SQL at `:238-239` adds exactly one constraint,
+`check (reaped_cents >= 0)`. Nothing refuses a decrement, and nothing restricts the writer:
+`service_role` holds `grant all on table public.fund_editions` (`20260617212319:30`), and every
+`SECURITY DEFINER` function in the schema runs as the owner. So the sentence describes an
+intention and a convention, not a guarantee.
+
+It was left unenforced on purpose rather than by oversight. A `BEFORE UPDATE` trigger refusing
+`new.reaped_cents < old.reaped_cents` would bind `service_role` too, and the column stays `0` on
+both projects until 2036 — so the trigger's only certain effect for the next decade would be to
+remove an operator's ability to correct a bad carry. The client roles, which are the ones that
+matter, already cannot write it: `0150` §2 pins `not has_column_privilege(anon|authenticated,
+'reaped_cents', 'update')`.
+
+Read `:242` as: «intended to be monotonic, and written by `gdpr_retention_reap()` alone; the SQL
+enforces only `>= 0`, and no client role can write it at all.»
+
+A second, smaller overstatement in the same migration, at `:136-137`:
+
+> IMMUTABLE and argument-free so it inlines into the predicate
+
+`gdpr_retention_reap()` evaluates the window ONCE into `v_cutoff` (`:306`) and every DELETE
+compares against that plpgsql variable, so `gdpr_retention_window()` never appears in a `WHERE`
+clause. `IMMUTABLE` is still the correct marking — it lets any caller fold the call to a constant,
+and is what would keep it usable in an index predicate or a generated column — but the stated
+reason describes code that was not written. The partial indexes are used because the DELETEs test
+`erased_at is not null`, not because of anything the marking does.
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` §2, which pins the whole read
+and write surface of both new columns (`has_column_privilege` for `anon` and `authenticated` on
+`fund_editions.reaped_cents` and `fund_contributions.erased_at`) rather than leaving it inherited,
+and whose `volatility_is` message now states the real reason for `IMMUTABLE`. Monotonicity itself
+is asserted only in the weak form the SQL supports: §5's second pass shows the carry is additive
+and does not double.

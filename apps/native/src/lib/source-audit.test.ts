@@ -269,10 +269,27 @@ describe('@stripe/stripe-react-native stays absent', () => {
  * `*.test.ts(x)` is excluded: `contrast.test.ts` is built out of hex fixtures by design, and
  * a test file is not app code. `global.css` is the token mirror and is covered by
  * `tokens-mirror.test.ts` instead.
+ *
+ * ## The one exempt file (#539)
+ *
+ * `components/provider-marks.tsx` carries four literal hex values and is allowed to. They are
+ * Google's brand colours, not ours: DESIGN §6's third-party carve-out requires a vendor's mark
+ * to ship in its mandated form — full colour, unmodified — and explicitly forbids recolouring
+ * it to `currentColor` or to anything else. Routing those four through `@athanor/config` would
+ * not satisfy rule #4 either; it would only hide a vendor's colour inside our token table,
+ * which `tokens-mirror.test.ts` would then have to mirror into `global.css` as if it were a
+ * brand colour of ours.
+ *
+ * The exemption is by PATH and it is bounded on the other side: one file against four literals,
+ * and `provider-marks-mirror.test.ts` asserts that the file's hex set equals the vendor asset's
+ * hex set exactly — so the carve-out cannot become a place to park a colour. A second exempt
+ * path is not a thing to add; a second vendor mark is transcribed into this same file.
  */
+const VENDOR_MARKS = `${SRC}components/provider-marks.tsx`;
+
 describe('no literal hex colours in app code', () => {
   it('every hex in the tree is inside a comment', () => {
-    const hits = FILES.filter((p) => !isTest(p)).flatMap((p) => {
+    const hits = FILES.filter((p) => !isTest(p) && p !== VENDOR_MARKS).flatMap((p) => {
       const stripped = stripComments(read(p)).split('\n');
       return stripped
         .map((t, i) => [`${rel(p)}:${i + 1}`, t] as const)
@@ -280,6 +297,17 @@ describe('no literal hex colours in app code', () => {
         .map(([where, t]) => `${where}  ${t.trim()}`);
     });
     expect(hits, 'use a token from @athanor/config or a Tailwind class').toEqual([]);
+  });
+
+  it('the one exempt path still names a file', () => {
+    // A rename would turn the exemption into a filter that matches nothing. That direction is
+    // loud (the renamed file's four vendor hexes fail the assertion above), but the message
+    // would send the next reader hunting for a rule violation instead of a stale path.
+    expect(
+      FILES.includes(VENDOR_MARKS),
+      'the literal-hex exemption points at components/provider-marks.tsx and that file is gone. ' +
+        'If the vendor marks moved, move this path with them (#539).',
+    ).toBe(true);
   });
 });
 
@@ -2558,7 +2586,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:402':
+    'app/(onboarding)/index.tsx:417':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
@@ -2670,7 +2698,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
         ).length,
       0,
     );
-    // A scanner that finds nothing passes the header assertion above. 18 today.
+    // A scanner that finds nothing passes the header assertion above. 33 today (#651 wired
+    // the eyebrow+title screens; the floor stays at 10, which is a floor and not a count).
     expect(total, 'no header Text found at all — the walk is broken, not the tree').toBeGreaterThan(
       10,
     );
@@ -3630,5 +3659,255 @@ describe('the expo-auth-session deep import stays deliberate', () => {
       'build/QueryParams resolves but no longer exports getQueryParams — oauth.ts would read ' +
         '`undefined` at the OAuth callback with no type error.',
     ).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 38 — a third-party brand mark appears on its own provider's CTA and nowhere else (#539)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §6's carve-out is two clauses, and only the first one is self-enforcing. "A vendor's
+ * mark ships unmodified" is held by `provider-marks-mirror.test.ts`. "…and appears ONLY on that
+ * provider's OAuth CTA" is held by nothing at all — a Google "G" pasted onto a settings row or
+ * an empty state type-checks, lints, renders, and quietly turns an attribution into an icon.
+ * That is the failure this section exists for.
+ *
+ * It passes the test §28's docstring sets for a guard of this shape — "a guard whose allowlist
+ * would be longer than its findings is a pin on today's tree, not an invariant". Here the
+ * allowlist is one file (`(auth)/welcome.tsx`) against a findings set that is every future
+ * import, and the rule it encodes does not expire: a second OAuth provider is still a mark on
+ * its own CTA, on this same screen.
+ *
+ * The scan is on the IMPORT rather than the component name, because a mark reached through an
+ * alias or a re-export is the same violation. It matches the module's PATH SUFFIX, not the `@/`
+ * specifier: `import { GoogleMark } from './provider-marks'` from a sibling in `components/`
+ * contains no `@/…`, and would have walked straight past a specifier match — the guard staying
+ * green over exactly the violation it is written for. Nothing in `eslint.config.js` (bare
+ * `eslint-config-expo`) forbids the relative form, so this cannot lean on convention.
+ *
+ * Test files are excluded, so a future `provider-marks.test.tsx` is not a violation — the rule
+ * is about what the app RENDERS, and a guard that punished unit-testing the component would be
+ * working against itself. `apps/web` is out of scope by having no OAuth CTA at all — there is no
+ * `signInWithOAuth` outside `apps/native` — so nothing over there needs a matching guard.
+ */
+describe('provider brand marks live only on the provider CTAs (#539)', () => {
+  // The closing quote anchors the end of the specifier; the leading slash lets `@/components/…`
+  // and `./provider-marks` match the same way; the optional extension covers
+  // `'…/provider-marks.tsx'`, which resolves just as well and would otherwise slip past. Either
+  // quote character, so this does not silently depend on `.prettierrc`'s `singleQuote`.
+  const MODULE = /\/provider-marks(\.tsx)?['"]/;
+
+  it('is imported by exactly one file, and it is the welcome screen', () => {
+    const importers = [
+      ...new Set(
+        codeLines()
+          .filter(([at, text]) => MODULE.test(text) && !/\.test\.tsx?:\d+$/.test(at))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ]
+      .filter((p) => p !== 'components/provider-marks.tsx')
+      .sort();
+    expect(
+      importers,
+      "components/provider-marks.tsx holds THIRD-PARTY marks. DESIGN §6's carve-out exempts " +
+        'them from the 20-glyph ' +
+        "icon rule only as attribution on their own provider's OAuth CTA — a vendor mark used " +
+        'as decoration anywhere else is a trademark problem, not a style one. Athanor surfaces ' +
+        'take a glyph from `components/glyphs.tsx`.',
+    ).toEqual(['app/(auth)/welcome.tsx']);
+  });
+
+  it('the welcome screen asks for a mark on each provider CTA', () => {
+    // The other direction: dropping `icon={providerMark(…)}` would leave the guard above green
+    // over a screen that renders no mark at all, which is #539 silently un-shipping itself.
+    const screen = stripComments(read(`${SRC}app/(auth)/welcome.tsx`));
+    for (const provider of ['apple', 'google']) {
+      expect(
+        screen.includes(`icon={providerMark('${provider}')}`),
+        `the ${provider} CTA on welcome.tsx no longer passes its brand mark (#539).`,
+      ).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 39 — the profile editor's way out is PINNED, and the two scroll axes never nest (#720)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * #659 put an «Annulla» at the head of the profile editor and §33 pins it there — but the head
+ * of ELEVEN sections is still a place you scroll away from, so the control that exists to cost
+ * one tap went back to costing a full scroll the moment a member moved. #720 pins it: the form
+ * took ownership of the scroll container it used to borrow from `(tabs)/profile.tsx`, and the
+ * row is that container's sticky child.
+ *
+ * §33 cannot see any of this, and the reason is worth stating: it asserts POSITION IN SOURCE
+ * ORDER — `<Pressable` and `confirmDiscard(` both appear before the first `<Section>`. Every one
+ * of its assertions stays green with the `ScrollView` deleted, with `stickyHeaderIndices` gone,
+ * with the row rendered under a condition, or with the fill stripped off it. Source order is not
+ * the same claim as "index 0 of a sticky list", and the difference is the whole of #720.
+ *
+ * Four things are pinned here, each of which fails silently on its own:
+ *
+ * 1. **The editor owns exactly one `ScrollView`, and it is sticky at [0].** Exactly one, because
+ *    `[0]` is meaningless without knowing which view it indexes — a second one would make this
+ *    section's other assertions ambiguous rather than wrong, which is worse.
+ * 2. **Nothing renders between that `ScrollView` and the row.** This is the real content of
+ *    "index 0", and there are two ways to break it, which fail differently.
+ *
+ *    An EXTRA child above the row — `{banner}`, a header, `{tailSlot}` moved up — takes index 0
+ *    whenever it renders, and the row is simply not pinned. That happens on both platforms and
+ *    the expo-web walk would catch it. What makes it worth a guard anyway is how quiet it is:
+ *    the form still scrolls, «Annulla» still works, it just stops sticking, and nothing errors.
+ *
+ *    The row made CONDITIONAL is the device-only one, and it is the reason this section names
+ *    the platforms at all. React Native reads children through `React.Children.toArray`, which
+ *    DROPS `null` and `false`, so on the renders where the row is absent the next child slides
+ *    into index 0 and the photo section pins itself. react-native-web uses `React.Children.map`
+ *    and keeps the empty slot, so the pin merely goes missing there — the expo-web walk sees
+ *    nothing wrong, and the defect is real only on a phone.
+ * 3. **The row carries an opaque fill.** Both platforms wrap a sticky child in a transparent box
+ *    of their own, so without `bg-background` on the row the form scrolls visibly THROUGH the
+ *    pinned control. Renders, lints, type-checks; just looks broken.
+ * 4. **`keyboardShouldPersistTaps="handled"` survived the move.** The prop was on the tab's
+ *    `ScrollView`; a move that drops it means the first tap on the pinned «Annulla» with the
+ *    keyboard up only dismisses the keyboard — a control that visibly does nothing, which is
+ *    exactly the complaint #720 was filed about.
+ *
+ * Plus the invariant on the other side of the move: `(tabs)/profile.tsx` must CLOSE its own
+ * `ScrollView` before it mounts the editor. Nesting them is DESIGN §6's «one scroll axis per
+ * screen» broken, and a nested pair does not throw — it scrolls, badly, in two places.
+ *
+ * Text-level, like every section here. It does not prove the row RENDERS pinned; that needs a
+ * browser, and PR #720's expo-web walk is where it was proved once. What this stops is the
+ * silent regression afterwards.
+ */
+describe('the profile editor pins its way out, and no screen nests two scroll axes (#720)', () => {
+  const EDITOR = `${SRC}components/profile/ProfileEditForm.tsx`;
+  const TAB = `${SRC}app/(tabs)/profile.tsx`;
+
+  it('finds both files it is walking', () => {
+    for (const p of [EDITOR, TAB]) {
+      expect(
+        FILES.includes(p),
+        `${rel(p)} has moved — this section is vacuous until the path is fixed (#720).`,
+      ).toBe(true);
+    }
+  });
+
+  it('the editor scrolls in exactly one ScrollView, sticky at index 0', () => {
+    const code = stripComments(read(EDITOR));
+    const opens = code.match(/<ScrollView\b/g) ?? [];
+    expect(
+      opens.length,
+      'ProfileEditForm should own exactly ONE ScrollView (#720). Two make the sticky index ' +
+        'below ambiguous: `stickyHeaderIndices={[0]}` names a child of one particular view, ' +
+        'and this section can no longer say which.',
+    ).toBe(1);
+    expect(
+      /stickyHeaderIndices=\{\[0\]\}/.test(code),
+      'the profile editor no longer pins its «Annulla» (#720). The row is at the head of ' +
+        'eleven sections, so without `stickyHeaderIndices={[0]}` on the ScrollView it scrolls ' +
+        'out of reach and the one-tap exit #659 shipped costs a full scroll again.',
+    ).toBe(true);
+    expect(
+      /keyboardShouldPersistTaps="handled"/.test(code),
+      'the profile editor\'s ScrollView lost `keyboardShouldPersistTaps="handled"` (#720). ' +
+        'It came across from the tab with the rest of the props: without it the first tap on ' +
+        'the pinned «Annulla» while a field has focus only dismisses the keyboard, so the ' +
+        'control reads as dead exactly when a member is most likely to reach for it.',
+    ).toBe(true);
+  });
+
+  it('the pinned row is the ScrollView’s first child, and it is opaque', () => {
+    const code = stripComments(read(EDITOR));
+    // From the end of the opening tag, not its start: the tag's own props contain `{[0]}` and
+    // would otherwise be scanned as though they were children.
+    const openEnd = code.indexOf('>', code.indexOf('<ScrollView')) + 1;
+    const press = code.indexOf('<Pressable', openEnd);
+    expect(press, 'no <Pressable> inside the profile editor’s ScrollView (#720).').toBeGreaterThan(
+      openEnd,
+    );
+
+    // Everything the renderer would count as a child before reaching the row. One tag — the
+    // row's own <View> — is the pass; anything else has taken index 0.
+    //
+    // `openEnd` walks to the first `>` after `<ScrollView`, which is that tag's own close only
+    // while none of its props contain one. They do not today. An arrow-function prop
+    // (`onScroll={(e) => …}`) would break that assumption — but loudly: it drags the remainder
+    // of the tag into `before`, and while the element count below survives it (dragged-in prop
+    // text holds no `<Tag`), the expression-child assertion after it does not. Verified by
+    // injection, message and all. A false red is the safe direction here; a false green is not
+    // available.
+    const before = code.slice(openEnd, press);
+    const tags = before.match(/<[A-Za-z]/g) ?? [];
+    expect(
+      tags.length,
+      'something now renders between the profile editor’s ScrollView and its «Annulla» row ' +
+        `(found ${tags.length} elements where only the row's <View> belongs) (#720).\n` +
+        'Index 0 is the pin. Any child above the row takes it, and the only symptom is that ' +
+        '«Annulla» quietly stops sticking — the form still scrolls and the control still ' +
+        'works, so nothing errors and nothing looks broken until you scroll. Put new content ' +
+        'BELOW the row, or move the sticky index with it deliberately.',
+    ).toBe(1);
+
+    // The row's own opening tag, from its `<` to the first `>` that closes it.
+    const rowStart = before.lastIndexOf('<View');
+
+    // A tag count alone is not the claim. A child written as a bare EXPRESSION — `{tailSlot}`,
+    // `{banner}`, `{saved ? … : null}` — contains no `<Tag` and would leave the count at one
+    // while taking index 0. This PR introduces `tailSlot` as a movable slot, so that is a live
+    // hazard rather than a hypothetical. Nothing but whitespace may precede the row; comments
+    // are allowed, because `stripComments` blanks a `{/* … */}` down to its braces.
+    expect(
+      /^[\s{}]*$/.test(before.slice(0, rowStart)),
+      'an expression child now renders between the profile editor’s ScrollView and its ' +
+        '«Annulla» row (#720). It carries no `<Tag`, so the element count above cannot see it, ' +
+        'but the renderer counts it: it takes index 0 and the row stops being pinned. ' +
+        // Collapsed: `stripComments` blanks a JSX comment to its braces around a wall of
+        // spaces, which would otherwise bury the offending expression in the message.
+        `Found: ${JSON.stringify(before.slice(0, rowStart).replace(/\s+/g, ' ').trim()).slice(0, 160)}`,
+    ).toBe(true);
+    const rowTag = before.slice(rowStart, before.indexOf('>', rowStart) + 1);
+    expect(
+      /\bbg-background\b/.test(rowTag),
+      'the profile editor’s pinned «Annulla» row has no opaque fill (#720).\n' +
+        'Native and react-native-web both wrap a sticky child in a TRANSPARENT box of their ' +
+        'own, so the fill has to be on the row itself: without it the eleven sections scroll ' +
+        `visibly through the pinned control. Row tag as found: ${rowTag}`,
+    ).toBe(true);
+  });
+
+  it('the Profilo tab closes its own scroll axis before mounting the editor', () => {
+    const code = stripComments(read(TAB));
+    const close = code.indexOf('</ScrollView>');
+    const editor = code.indexOf('<ProfileEditForm');
+
+    // Exactly one, and the ordering assertion below is only worth anything WITH this. With two,
+    // `indexOf` finds the first close tag — view mode's — and it precedes `<ProfileEditForm`
+    // however deeply the editor is nested inside the second, so the ordering passes green over
+    // exactly the nesting this test is named for.
+    expect(
+      (code.match(/<ScrollView\b/g) ?? []).length,
+      'the Profilo tab should own exactly ONE ScrollView (#720) — view mode’s. A second one ' +
+        'is how the editor gets re-nested inside a scroll axis it is meant to replace.',
+    ).toBe(1);
+    expect(
+      close,
+      'the Profilo tab has no ScrollView at all — this walk is broken (#720).',
+    ).toBeGreaterThan(-1);
+    expect(
+      editor,
+      'the Profilo tab no longer mounts ProfileEditForm — this walk is broken, not the tree.',
+    ).toBeGreaterThan(-1);
+    expect(
+      close,
+      'the Profilo tab mounts ProfileEditForm INSIDE its own ScrollView (#720).\n' +
+        'The editor brings its own scroll container so that its «Annulla» can be that ' +
+        'container’s sticky child; nested inside the tab’s, the pin has an outer axis to slide ' +
+        'along and DESIGN §6’s «one scroll axis per screen» is broken. The two are meant to be ' +
+        'branch-exclusive — view mode’s ScrollView closed before edit mode is ever mounted.',
+    ).toBeLessThan(editor);
   });
 });

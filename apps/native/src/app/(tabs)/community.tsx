@@ -258,8 +258,10 @@ export default function CommunityScreen() {
         )}
         ListEmptyComponent={
           <View className="items-center px-5 pt-16">
-            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced spent the
-                moment-grade surface (rule #4) on an empty feed (#119). */}
+            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced put the loudest
+                surface on the screen on an empty feed (#119). Not a rule #4 breach: with no
+                shadow that pair is not a glow (§2.3, ruled 2026-09-07). It was a weight
+                problem. */}
             <EmptyState action={{ label: emptyCta, onPress: () => router.push(COMPOSE_HREF) }}>
               {emptyTitle}
             </EmptyState>

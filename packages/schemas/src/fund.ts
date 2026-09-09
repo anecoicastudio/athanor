@@ -57,6 +57,10 @@ export const fundEditionSchema = z.object({
   // #220: when the winner confirmed deliverability at confirmed_pool_cents — NULL until
   // record_winner_decision('confirm'); stays NULL on a decline (closure_reason says so).
   winner_confirmed_at: z.string().nullable(),
+  // #715: cents the 10-year retention reaper has deleted from this edition, so that
+  // recompute_fund_aggregate can add them back and raised_cents keeps every cent once the rows
+  // themselves are gone. Monotonically increasing; 0 until something ages out (not before 2036).
+  reaped_cents: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -123,6 +127,12 @@ export const fundContributionSchema = z.object({
   // reports its outcome on checkout.session.completed) · succeeded = settled, the only status
   // the aggregate counts · refunded = reversed after settling (refund or dispute).
   status: z.enum(['pending', 'succeeded', 'refunded']),
+  /**
+   * When a GDPR erasure pseudonymised this row (#715); NULL on a live contribution. The clock the
+   * 10-year retention reaper reads — `gdpr_retention_reap()` drops the row once this is older than
+   * `gdpr_retention_window()`, and never touches a row where this is NULL, however old.
+   */
+  erased_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

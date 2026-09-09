@@ -24,6 +24,13 @@ values
 -- one would be modelling an impossible world (0125 owns the refusals themselves).
 update public.profiles set identity_verified = true
   where id = '11111111-1111-1111-1111-111111111111';
+-- #104 added a third arm to events_enforce_paid_gate: a paid event's organiser must have a
+-- payout_accounts row with payouts_enabled, because the ticket Session's transfer destination is
+-- that connected account. Same reasoning as the identity flag above — a paid event by an organiser
+-- who cannot be paid is a row that can no longer exist, so a fixture that made one would model an
+-- impossible world. 0147 owns the refusals themselves.
+insert into public.payout_accounts (profile_id, stripe_account_id, payouts_enabled)
+  values ('11111111-1111-1111-1111-111111111111', 'acct_test_0025', true);
 set local role service_role;
 insert into public.events (id, organizer_id, title, category, is_online, stream_url, starts_at, price_cents, settlement_ack_at)
   values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','11111111-1111-1111-1111-111111111111',

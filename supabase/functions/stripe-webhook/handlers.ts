@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { signQrToken } from '../_shared/qr.ts';
+import { handleAccountUpdated } from '../_shared/payout-account-cache.ts';
 
 // Webhook processing extracted from index.ts so it is unit-testable (deno test):
 // index.ts reads env / builds the Stripe + service-role singletons at import time and
@@ -30,18 +31,29 @@ export type WebhookCtx = {
 };
 
 /**
- * Fail-closed settlement gate. Every payment method enabled on the account is an
- * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay, Bancontact,
- * EPS, and PayPal (Stripe permits only synchronous funding sources on PayPal unless you ask
- * Support to enable asynchronous ones). All of them carry the final outcome on
- * checkout.session.completed, so fulfilling there is safe.
+ * Fail-closed settlement gate. Every payment method a buyer can actually be SHOWN is an
+ * immediate-notification method — card, Cartes Bancaires, Link, Apple/Google Pay and PayPal
+ * (Stripe permits only synchronous funding sources on PayPal unless you ask Support to enable
+ * asynchronous ones). All of them carry the final outcome on checkout.session.completed, so
+ * fulfilling there is safe.
+ *
+ * "Shown" is narrower than "enabled", and it is the narrower set that matters: Stripe filters the
+ * configuration per Session by currency, by mode and by charge shape, silently. `pnpm payments
+ * offers` prints the enabled set and each surface's offered set side by side — it is the only
+ * honest answer to which rails a buyer sees, and docs/RELEASE-RUNBOOK.md §4.8 is the operator copy.
+ *
+ * The TEST account was narrowed on 2026-09-07 to card, Link, PayPal and the two wallets; BLIK,
+ * Bancontact and EPS were disabled there and giropay is retired by Stripe. So no rail below is
+ * reachable in test today. Live is a separate configuration and has not been checked — see
+ * docs/RELEASE-RUNBOOK.md §4.8. All of that is Dashboard state, not repo state, and CI cannot see
+ * it, which is the whole reason this guard exists rather than a comment promising otherwise.
  *
  * Delayed settlement is deliberately unsupported: no `pending` rows, no async_payment_*
  * promote/retire machinery. But nothing in this repo selects payment methods — the create-*
  * builders pass neither payment_method_types nor payment_method_configuration — so the Stripe
  * Dashboard's payment-method configuration is the ONLY control. If someone enables a
- * delayed-notification rail there (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, BLIK, Boleto,
- * OXXO, Konbini, Multibanco, bank transfers), payment_status arrives 'unpaid' and this throws:
+ * delayed-notification rail there (SEPA, ACH, Bacs, BECS, ACSS, Pay by Bank, Boleto, OXXO,
+ * Konbini, Multibanco, bank transfers), payment_status arrives 'unpaid' and this throws:
  * handleWebhook releases the lease and returns 500, Stripe retries, and the event stays in
  * stripe_webhook_events with processed_at NULL — a standing, queryable alarm. No QR is signed,
  * no money is counted, and the misconfiguration is loud.
@@ -392,7 +404,13 @@ async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
   // carrying this payment intent, so nothing here can reach them. A re-buy is safe for the same
   // reason — the row now carries the NEW payment intent, so a late redelivery of the old
   // refund matches nothing and cannot cancel the ticket that replaced it.
-  for (const t of (ticketRows ?? []) as { user_id: string; event_id: string }[]) {
+  for (const t of (ticketRows ?? []) as { user_id: string | null; event_id: string }[]) {
+    // A GDPR-pseudonymised ticket has no buyer (#107): `user_id` is NULL, and PostgREST would
+    // serialise `.eq('user_id', null)` as `user_id=eq.null`, which Postgres rejects as `22P02`
+    // — thrown AFTER the ticket's own status flip has already committed, so every redelivery of
+    // this refund or dispute fails forever on a row that is otherwise finished. There is nothing
+    // to cancel either: the erased member's RSVP went with their profiles cascade.
+    if (!t.user_id) continue;
     const { error: rsvpErr } = await db
       .from('rsvps')
       .update({ status: 'cancelled' })
@@ -456,22 +474,79 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
 
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
-  // profile_id is UNIQUE → upsert keeps one membership per profile. founding_member is NOT touched here
-  // (cosmetic; default false; award path is out of M8 scope).
-  const { error } = await db.from('circle_memberships').upsert(
-    {
-      profile_id: profileId,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: sub.id,
-      plan,
-      status: mapSubStatus(sub.status),
-      current_period_end: currentPeriodEnd,
-      // #511 — written through verbatim so the app can tell «renews on» from «ends on».
-      // Stripe flips it back to false on an un-cancel via this same event, so no extra branch.
-      cancel_at_period_end: sub.cancel_at_period_end,
-    },
-    { onConflict: 'profile_id' },
-  );
+  // Money fields only. `profile_id` is deliberately NOT in here — see the two branches below.
+  // founding_member is not touched either (cosmetic; default false; award path is out of M8).
+  const money = {
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    plan,
+    status: mapSubStatus(sub.status),
+    current_period_end: currentPeriodEnd,
+    // #511 — written through verbatim so the app can tell «renews on» from «ends on».
+    // Stripe flips it back to false on an un-cancel via this same event, so no extra branch.
+    cancel_at_period_end: sub.cancel_at_period_end,
+  };
+
+  // Resolve the row by its STRIPE ids first, and only then by the profile. This used to be a
+  // single `upsert(..., { onConflict: 'profile_id' })`, which breaks the moment a member is
+  // GDPR-erased (#107): the row survives with `profile_id` NULL, so nothing conflicts on
+  // `profile_id`, PostgREST attempts an INSERT, and it trips `unique (stripe_customer_id)` —
+  // a 23505 thrown on every retry, forever, for an event Stripe will keep redelivering. The
+  // erasure job cancels the subscription on the way out, so the FIRST event this endpoint sees
+  // after an erasure is precisely the one that can never be recorded.
+  //
+  // `stripe_subscription_id` and `stripe_customer_id` are both UNIQUE, so either identifies at
+  // most one row; the subscription is the narrower of the two and is tried first.
+  type MembershipRow = {
+    id: string;
+    profile_id: string | null;
+    erased_at: string | null;
+  } | null;
+  const resolve = async (): Promise<MembershipRow> => {
+    const bySubscription = await db
+      .from('circle_memberships')
+      .select('id, profile_id, erased_at')
+      .eq('stripe_subscription_id', sub.id)
+      .maybeSingle();
+    if (bySubscription.error) throw bySubscription.error;
+    if (bySubscription.data) return bySubscription.data as MembershipRow;
+    const byCustomer = await db
+      .from('circle_memberships')
+      .select('id, profile_id, erased_at')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle();
+    if (byCustomer.error) throw byCustomer.error;
+    return byCustomer.data as MembershipRow;
+  };
+
+  let existing = await resolve();
+
+  if (!existing) {
+    // Read-then-write, so two deliveries for the same subscription — Stripe routinely sends
+    // `created` and `updated` together — can both miss the resolve above and both reach this
+    // insert. The loser trips `unique (stripe_subscription_id)` or `unique (stripe_customer_id)`:
+    // a 23505 the old single upsert could not produce, and a race this shape introduced.
+    //
+    // Resolving again turns it into the update it should have been. Throwing instead would still
+    // be RECOVERABLE — `stripe_webhook_events` stamps `processed_at` only after success, so
+    // Stripe's retry repairs it — but it would spend a redelivery and log an error for something
+    // that has a correct answer right here.
+    const { error: insertError } = await db
+      .from('circle_memberships')
+      .insert({ ...money, profile_id: profileId });
+    if (!insertError) return;
+    if ((insertError as { code?: string }).code !== '23505') throw insertError;
+    existing = await resolve();
+    // A 23505 with nothing to find afterwards is not this race — do not swallow it.
+    if (!existing) throw insertError;
+  }
+
+  // NEVER write `profile_id` back onto a pseudonymised row. Stripe still carries the erased
+  // member's id in `sub.metadata.profile_id` — it has no idea they asked to be forgotten — so
+  // restoring it here would re-attach the identity that #107 removed, on the very webhook the
+  // erasure itself triggers. On a live row the value is already what it would be set to.
+  const patch = existing.erased_at ? money : { ...money, profile_id: profileId };
+  const { error } = await db.from('circle_memberships').update(patch).eq('id', existing.id);
   if (error) throw error;
 }
 
@@ -544,37 +619,13 @@ export async function handleInvoiceFailed(db: Db, invoice: Stripe.Invoice): Prom
 }
 
 /**
- * W13 — account.updated: maintain the payout_accounts cache (#245/#246) as Stripe walks the
- * Express account through KYC. Both directions on purpose: Stripe grants AND revokes
- * capabilities (new requirements past their deadline flip payouts_enabled back to false), and
- * #247's transfer gate must fail closed on the revocation, not just open on the grant.
- * Update-only, matched on stripe_account_id: the row is inserted by create-payout-onboarding,
- * so an unmatched id means the account is not ours or the profile was erased and the row
- * cascaded away — recreating it would resurrect a deleted profile's pointer. Ack either way.
- * Idempotent: a redelivery rewrites the same flags, and onboarded_at is guarded set-once.
+ * W13 — account.updated. The implementation moved to `_shared/payout-account-cache.ts` when #707
+ * gave it a second caller: `reconcile-payout-accounts` retrieves an account from Stripe and
+ * writes the same three columns through the same function, so there is still exactly one writer
+ * of the payout_accounts cache. Re-exported here because W13 is a webhook arm and this file is
+ * where the arm table lives — see the switch below, and handlers.test.ts, which is unchanged.
  */
-export async function handleAccountUpdated(db: Db, account: Stripe.Account): Promise<void> {
-  const { error: updErr } = await db
-    .from('payout_accounts')
-    .update({
-      charges_enabled: !!account.charges_enabled,
-      payouts_enabled: !!account.payouts_enabled,
-    })
-    .eq('stripe_account_id', account.id);
-  if (updErr) throw updErr;
-
-  // onboarded_at means "when onboarding completed", not "last account event": stamp it on the
-  // first event with details_submitted and never move it — the is-null guard makes replays
-  // and later capability events no-ops here.
-  if (account.details_submitted) {
-    const { error: onbErr } = await db
-      .from('payout_accounts')
-      .update({ onboarded_at: new Date().toISOString() })
-      .eq('stripe_account_id', account.id)
-      .is('onboarded_at', null);
-    if (onbErr) throw onbErr;
-  }
-}
+export { handleAccountUpdated } from '../_shared/payout-account-cache.ts';
 
 /**
  * W14 — transfer.created: RECORD the fund payout the release path requested (#247, rule #6:
@@ -669,11 +720,38 @@ export async function handleTransferReversed(db: Db, transfer: Stripe.Transfer):
   }
 }
 
+/**
+ * The event types this function handles on a «Connected accounts»-scoped delivery (#702).
+ *
+ * Exactly one today: W13. A new Connect arm — `account.external_account.updated`, `payout.failed`
+ * — is one entry here plus its case, and it will not route until it is listed. That is the point:
+ * the allowlist is in the repo and tested, not in a Dashboard checkbox nobody diffs.
+ */
+export const CONNECT_SCOPED_TYPES: ReadonlySet<string> = new Set(['account.updated']);
+
 export async function processEvent(
   ctx: Pick<WebhookCtx, 'db' | 'qrSecret' | 'retrieveSubscription'>,
   event: Stripe.Event,
 ): Promise<void> {
   const { db } = ctx;
+
+  // SCOPE PARTITION (#702). Since this function verifies a second signing secret, deliveries from
+  // the «Connected accounts» endpoint are accepted too — and they land in the same switch. What
+  // keeps a connected account's events off the platform arms must not be the Dashboard's
+  // enabled-event list on endpoint #2, because both endpoints point at this one URL and copying
+  // that list across is the obvious operator shortcut. Two things go wrong if it is copied: the
+  // async_payment_* arm THROWS by design, and sustained 5xx is what gets an endpoint disabled —
+  // silencing account.updated again, the exact #702 symptom; and handleTransferCreated
+  // authenticates a fund payout on metadata alone, so a connected account's transfer.* would
+  // reach fund_payout_ledger. Ack anything else instead, as `default` already does for an
+  // unhandled type: the ledger row is written and processed_at stamped, so it stays queryable.
+  //
+  // `event.account` is the discriminator because Stripe sets it on connected-account events only
+  // («The connected account that originates the event»), and only a Connect-scoped endpoint
+  // receives one. A destination charge and its transfer are platform-owned objects delivered to
+  // «Your account», so they carry no `account` and are untouched here.
+  if (event.account && !CONNECT_SCOPED_TYPES.has(event.type)) return;
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -733,8 +811,9 @@ export async function processEvent(
       return;
     }
     case 'account.updated': {
-      // W13 — Connect Express account state (payout_accounts cache).
-      await handleAccountUpdated(db, event.data.object as Stripe.Account);
+      // W13 — Connect Express account state (payout_accounts cache). Delivered only to a
+      // «Connected accounts»-scoped endpoint, which is what carries event.account (#702).
+      await handleAccountUpdated(db, event.data.object as Stripe.Account, event.account);
       return;
     }
     case 'transfer.created': {

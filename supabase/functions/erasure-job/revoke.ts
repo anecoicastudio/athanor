@@ -7,14 +7,17 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 // `db.auth.admin.signOut(profileId, 'global')`, a call that takes «A valid, logged-in JWT» and
 // sends its first argument as the `Authorization` bearer. GoTrue 401s on that, deterministically,
 // so the loop recorded a failed step and the erasure landed `failed` with the sessions still
-// open — on every request that took this path, however many actually did (the job is deployed
-// but unscheduled behind the legal gate). The unit suite stayed green throughout, because the
-// port was mocked at precisely that boundary.
+// open — on every request that took this path, however many actually did (when #542 was found the
+// job was deployed but unscheduled behind the legal gate, so the scale is unknowable; #107 has
+// since scheduled it). The unit suite stayed green throughout, because the port was mocked at
+// precisely that boundary.
 //
 // There is no by-id admin call to move to: auth-js exposes getUserById / updateUserById /
 // deleteUser (plus MFA-factor and passkey deletes) and GoTrue's `/admin` router registers no
-// session route at all. deleteUser would cascade the sessions away, but that is the legal-gated
-// step (4) — the step that may not run yet — so step (1) has to stand alone. The revoke
+// session route at all. deleteUser would cascade the sessions away, but it is step (4) and step
+// (1) must precede it: a token minted before the delete stays valid for its remaining lifetime,
+// so revoking afterwards is revoking too late. That was true when (4) was commented out and it is
+// still true now that #107 runs it — step (1) has to stand alone either way. The revoke
 // therefore goes where the sessions live: `public.gdpr_revoke_sessions` (20260825074614), a
 // SECURITY DEFINER function running GoTrue's own global-logout statement.
 

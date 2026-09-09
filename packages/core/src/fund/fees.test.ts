@@ -19,7 +19,7 @@ const stripeFeeOn = (chargedCents: number): number =>
   Math.round((chargedCents * STRIPE_FEE_BPS) / 10_000) + STRIPE_FEE_FIXED_CENTS;
 
 describe('the published Stripe rate constants (rule #10)', () => {
-  it('is 1.5% + €0,25, the EU standard-card rate the disclosure quotes', () => {
+  it('is 1,5% + €0,25, the standard EEA card rate the disclosure quotes', () => {
     expect(STRIPE_FEE_BPS).toBe(150);
     expect(STRIPE_FEE_FIXED_CENTS).toBe(25);
   });

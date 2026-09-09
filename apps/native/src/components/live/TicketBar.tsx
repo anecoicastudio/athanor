@@ -30,6 +30,15 @@ const ERROR_COPY: Record<string, MessageKey> = {
   'event not found': 'ticket.error.notFound',
   'event is free': 'ticket.error.eventFree',
   'organizer not verified': 'ticket.error.organizerUnverified',
+  // #104 — the organiser has no connected account that can receive the split, or Stripe has
+  // revoked it. Unmapped this fell through to 'payment failed', which is false: no payment was
+  // attempted, and nothing the buyer does can fix it.
+  'organizer cannot receive payouts': 'ticket.error.organizerPayouts',
+  // #701 — the checkout belt for an event priced under the floor. Near-unreachable (the CHECK and
+  // both write gates refuse such a row at creation), but mapped for the same reason the payout arm
+  // above is: unmapped it degrades to 'payment failed', which is false twice over — no payment was
+  // attempted, and nothing the BUYER can do fixes it. The copy says whose problem it is.
+  'ticket below minimum price': 'ticket.error.belowMinimum',
   'organizer cannot buy': 'ticket.error.organizerSelf',
   'event ended': 'ticket.error.eventEnded',
   'ticket already owned': 'ticket.error.alreadyOwned',

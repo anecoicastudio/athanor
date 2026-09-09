@@ -274,14 +274,19 @@ describe('fund pre-payment disclosure (FUND-18, #235)', () => {
 
 describe('organiser settlement disclosure (#437, #104)', () => {
   /**
-   * #104 deferred Stripe Connect past launch on one condition: organisers are TOLD, before they
-   * list a paid event, that settlement is manual and on what cadence. These three keys are that
-   * condition. Pinned by name rather than by count — a count says nothing about which key went
-   * missing, and this block's whole job is that a specific promise stays on screen.
+   * #437 put this disclosure on screen because settlement was manual and Athanor took nothing.
+   * The 2026-09-06 ruling on #104 changed both halves: the ticket Checkout Session is now a Stripe
+   * DESTINATION CHARGE, so the split happens automatically at payment time, and Athanor retains
+   * `events.fee_pct` percent of the price as the `application_fee_amount`.
+   *
+   * This block used to forbid a percentage and require the words "14 days" and "by hand". All three
+   * are now false, so the assertions were rewritten rather than deleted: the disclosure is a legal
+   * acknowledgement under CRD 2011/83/EU, and what it must do is describe the money accurately.
+   * The pins below are the new promise, stated the same way — by name, so a missing key says which.
    */
   const SETTLEMENT_KEYS: readonly MessageKey[] = [
     'event.create.settlement.ack',
-    'event.create.settlement.manual',
+    'event.create.settlement.split',
     'event.create.settlement.required',
   ];
 
@@ -292,31 +297,89 @@ describe('organiser settlement disclosure (#437, #104)', () => {
     expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
   });
 
-  test('the acknowledgement names the cadence as a figure, in both locales', () => {
-    // Same principle as the fund coverage label above: the consent is the number. «Ti paghiamo
-    // dopo l'evento» is not a cadence, it is a mood — and the 14 days is the half of #104's
-    // condition that a court would read.
-    expect(it['event.create.settlement.ack']).toContain('14');
-    expect(en['event.create.settlement.ack']).toContain('14');
-  });
-
-  test('the acknowledgement names the deduction and promises no percentage', () => {
-    // Ruling 3 on #437: the organiser receives the price MINUS the processing costs. «You receive
-    // the full price» and «0% commission» are both forbidden — #104 introduces a platform fee
-    // later, and a promise made now becomes a change of terms then.
-    expect(it['event.create.settlement.ack'].toLowerCase()).toContain('meno');
-    expect(en['event.create.settlement.ack'].toLowerCase()).toContain('minus');
+  test('the acknowledgement names the rate as a placeholder, never as a literal', () => {
+    // The rate is `{pct}`, filled from DEFAULT_TICKET_FEE_PCT, which ticket-split.mirror.test.ts
+    // pins against the events.fee_pct column default. A hardcoded «10%» would read identically and
+    // drift silently the first time the column default moved — which is the whole failure this
+    // disclosure cannot afford, because a percentage in a consent box is a term, not a label.
+    for (const [name, catalog] of [
+      ['it', it],
+      ['en', en],
+    ] as const) {
+      expect(catalog['event.create.settlement.ack'], `${name} must name {pct}%`).toContain(
+        '{pct}%',
+      );
+    }
+    // The literal ban stays across ALL THREE keys, exactly as the version this replaces applied it.
+    // Only the reason changed: it used to mean "promise no commission at all", and now means "the
+    // one place a rate may appear is the placeholder". Narrowing it to `.ack` would leave `.split`
+    // and `.required` free to hardcode «10%» beside an interpolated one and drift silently from
+    // events.fee_pct — the very failure the placeholder exists to prevent.
     for (const key of SETTLEMENT_KEYS) {
-      expect(it[key], `it.${key} promises a percentage`).not.toMatch(/\d\s*%/);
-      expect(en[key], `en.${key} promises a percentage`).not.toMatch(/\d\s*%/);
+      expect(it[key], `it.${key} hardcodes a percentage`).not.toMatch(/\d\s*%/);
+      expect(en[key], `en.${key} hardcodes a percentage`).not.toMatch(/\d\s*%/);
     }
   });
 
-  test('the copy says settlement is done by hand', () => {
-    // The disclosure exists because settlement is manual. Copy that stated only the cadence would
-    // read as an automated payout that happens to be slow, which is the opposite of the fact.
-    expect(it['event.create.settlement.manual'].toLowerCase()).toContain('a mano');
-    expect(en['event.create.settlement.manual'].toLowerCase()).toContain('by hand');
+  test('the acknowledgement names the deduction, in both locales', () => {
+    // «Ricevi il prezzo del biglietto» on its own would be false: a share is withheld, and the
+    // consent is that share. The word that carries it is asserted, not the sentence.
+    expect(it['event.create.settlement.ack'].toLowerCase()).toContain('meno');
+    expect(en['event.create.settlement.ack'].toLowerCase()).toContain('minus');
+  });
+
+  test('no settlement key claims the organiser pays the processing fee', () => {
+    // The load-bearing one, and the reason this block was rewritten rather than relaxed. On a
+    // destination charge Stripe credits the connected account the FULL amount and transfers the
+    // application fee back to the platform, which then pays the processing out of it — the
+    // organiser receives price minus fee, exactly. The old copy promised "minus the payment
+    // processing costs", which was already imprecise and is now simply wrong, and the accounts
+    // agree: create-payout-onboarding sets controller.fees.payer to 'application'.
+    for (const key of SETTLEMENT_KEYS) {
+      expect(
+        it[key].toLowerCase(),
+        `it.${key} still charges the organiser for processing`,
+      ).not.toContain('elaborazione');
+      expect(
+        en[key].toLowerCase(),
+        `en.${key} still charges the organiser for processing`,
+      ).not.toContain('processing');
+    }
+  });
+
+  test('the copy says the split is automatic, and promises no manual cadence', () => {
+    // Settlement is no longer something a person does afterwards, so copy naming a hand-made
+    // transfer or a 14-day window would describe a process that does not exist. Both were pinned
+    // by the previous version of this block; both are now pinned as absent.
+    expect(it['event.create.settlement.split'].toLowerCase()).toContain('automatica');
+    expect(en['event.create.settlement.split'].toLowerCase()).toContain('automatic');
+    for (const key of SETTLEMENT_KEYS) {
+      expect(it[key].toLowerCase(), `it.${key} still promises manual settlement`).not.toContain(
+        'a mano',
+      );
+      expect(en[key].toLowerCase(), `en.${key} still promises manual settlement`).not.toContain(
+        'by hand',
+      );
+      expect(it[key], `it.${key} still promises a 14-day cadence`).not.toContain('14');
+      expect(en[key], `en.${key} still promises a 14-day cadence`).not.toContain('14');
+    }
+  });
+
+  test('the payout CTA copy names the missing step in both catalogs', () => {
+    // The gate refuses with 55000 and the composer has to say what to do about it. Copy that only
+    // said "you cannot publish" would leave an organiser with a refusal and no next action.
+    for (const key of [
+      'event.create.payout.gate',
+      'event.create.payout.cta',
+      'event.create.payout.opening',
+      'event.create.payout.pending',
+      'event.create.payout.error',
+    ] as const) {
+      expect(it[key], `it.${key}`).toBeTypeOf('string');
+      expect(en[key], `en.${key}`).toBeTypeOf('string');
+      expect(it[key].trim().length, `it.${key} is blank`).toBeGreaterThan(0);
+      expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -518,13 +581,19 @@ describe('translation completeness', () => {
   });
 });
 
-describe('delete-account copy says what the job defers (#515)', () => {
+describe('delete-account copy says what the job defers (#515, #107)', () => {
   /**
-   * The erasure job is legal-gated (#184/#107): at the tap it revokes sessions and erases the
-   * fund footprint, and it does NOT delete the account. The old copy said «cancelleremo il tuo
-   * profilo» and «Elimina definitivamente», and the toast said the account *will be* deleted —
-   * three promises of a completion nothing delivers. Pinned by name, like the settlement block
-   * above: a count cannot say which promise came back.
+   * The copy's job is to promise exactly what the erasure job delivers, and what that is has
+   * changed twice. Originally it said «cancelleremo il tuo profilo» and «Elimina
+   * definitivamente» and the toast said the account *will be* deleted — three promises of a
+   * completion nothing delivered, because the account cascade was commented out behind a legal
+   * gate. #515 replaced them with a deferral «dopo una verifica».
+   *
+   * #107 removed the gate: the controller ruled the retention question on 2026-09-07 (#184) and
+   * the job now runs nightly and reaches `done`. So «after a review» became false in a NEW way —
+   * there is no review, there is a cron at 03:47 — and the deferral now names the wait it
+   * actually is. Pinned by name, like the settlement block above: a count cannot say which
+   * promise came back.
    */
   const DELETE_KEYS: readonly MessageKey[] = [
     'account.delete.body',
@@ -543,17 +612,37 @@ describe('delete-account copy says what the job defers (#515)', () => {
   test('the deferred line names the wait, in both locales', () => {
     // The one thing this line exists to say: the erasure does not happen at the tap. If a
     // rewrite drops that, the screen is back to promising a completion the job cannot deliver.
-    expect(it['account.delete.deferred']).toMatch(/non è immediata|dopo una verifica/i);
-    expect(en['account.delete.deferred']).toMatch(/not immediate|after a review/i);
+    expect(it['account.delete.deferred']).toMatch(/non è immediata/i);
+    expect(en['account.delete.deferred']).toMatch(/not immediate/i);
+  });
+
+  test('the wait it names is the nightly job, not a review that no longer happens', () => {
+    // #107 — «dopo una verifica» / «after a review» described the legal gate. There is no gate
+    // and no review; there is a cron job at 03:47 UTC. Both halves are asserted, because
+    // dropping the old phrase without naming the new wait leaves the line vaguer than the
+    // product now is.
+    expect(it['account.delete.deferred']).toMatch(/ogni notte/i);
+    expect(en['account.delete.deferred']).toMatch(/every night/i);
+    expect(it['account.delete.deferred']).not.toMatch(/dopo una verifica/i);
+    expect(en['account.delete.deferred']).not.toMatch(/after a review/i);
+  });
+
+  test('the one-day figure is hedged, because several things legitimately delay it', () => {
+    // A pass claims at most 20 requests, a step that fails lands the row on a terminal `failed`
+    // that nothing re-queues, and on a project without the Vault pair the wrapper is a silent
+    // no-op. «Entro un giorno» flat is a promise the job does not always keep; «di norma» is the
+    // difference between a normal case and a guarantee.
+    expect(it['account.delete.deferred']).toMatch(/di norma/i);
+    expect(en['account.delete.deferred']).toMatch(/usually/i);
   });
 
   /**
    * The dream is the sharpest test of the split. `gdpr_erase_fund_footprint` (#240) removes
-   * candidacies, votes and the fund footprint; the `dreams` row goes only with the auth.users
-   * cascade, which is still commented out behind the legal gate. So the dream belongs in the
-   * DEFERRED half and must never be claimed in the immediate one — the first rewrite of this
-   * copy put it in `body` next to «questo accade subito», which is the same false promise
-   * #515 exists to remove, in a new sentence.
+   * candidacies, votes and the fund footprint at the tap; the `dreams` row goes only with the
+   * auth.users cascade, which since #107 runs on the nightly pass rather than never — later
+   * either way. So the dream belongs in the DEFERRED half and must never be claimed in the
+   * immediate one — the first rewrite of this copy put it in `body` next to «questo accade
+   * subito», which is the same false promise #515 exists to remove, in a new sentence.
    */
   test('the dream is promised in the deferred half only, never in the immediate one', () => {
     expect(it['account.delete.body']).not.toMatch(/sogno/i);
@@ -565,8 +654,9 @@ describe('delete-account copy says what the job defers (#515)', () => {
   test('nothing claims the account is already gone, or the erasure already running', () => {
     // «definitivamente» / «permanently» and «verrà eliminato» / «will be deleted» are the exact
     // words that made the original promise. «è iniziata» / «has started» is the one the first
-    // rewrite reached for: at the tap the request is recorded and nothing server-side has run —
-    // the job is a nightly cron, and PRODUCTION-READINESS keeps it deliberately unscheduled.
+    // rewrite reached for, and it is still wrong after #107: at the tap the request is recorded
+    // and nothing server-side has run. The job is a nightly cron (03:47 UTC) — scheduled now,
+    // but not running because somebody tapped.
     expect(it['account.delete.cta']).not.toMatch(/definitivamente/i);
     expect(en['account.delete.cta']).not.toMatch(/permanently|forever/i);
     expect(it['account.delete.toast']).not.toMatch(/verrà eliminat|è stato eliminat|è iniziata/i);

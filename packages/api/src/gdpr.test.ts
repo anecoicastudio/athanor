@@ -110,6 +110,23 @@ describe('requestErasure', () => {
     await expect(requestErasure(client)).rejects.toThrow('rls denied');
   });
 
+  // #107 — one OPEN request per member is a partial unique index
+  // (gdpr_erasure_requests_one_open_per_profile, 20260908085513), so a second tap raises 23505.
+  // That is not a failure to report: the member asked to be erased and a request is already on
+  // file waiting for tonight's job. Telling somebody who has just typed ELIMINA that their
+  // deletion failed would be both frightening and false.
+  it('treats the duplicate-request 23505 as success, because the request is already on file', async () => {
+    const { client } = insertStub({ id: ME }, { code: '23505', message: 'duplicate key' });
+    await expect(requestErasure(client)).resolves.toBeUndefined();
+  });
+
+  // The narrow arm has to stay narrow: every other insert error still throws, or a broken RLS
+  // policy would read to the member as a deletion quietly accepted.
+  it('still throws on any OTHER insert error', async () => {
+    const { client } = insertStub({ id: ME }, { code: '42501', message: 'rls denied' });
+    await expect(requestErasure(client)).rejects.toThrow('rls denied');
+  });
+
   // The parse is the write boundary (#274): a session whose id is not a uuid (impossible from
   // Supabase auth, possible from a bug) throws before any network call, for both GDPR enqueues.
   it('rejects a malformed session id before inserting', async () => {

@@ -12,6 +12,7 @@ import {
   type Db,
   type WebhookCtx,
   assertSettled,
+  CONNECT_SCOPED_TYPES,
   handleAccountUpdated,
   handleChargeRefunded,
   handleContribution,
@@ -32,10 +33,10 @@ const SECRET = 'test-qr-secret';
 const asDb = (f: FakeDb) => f as unknown as Db;
 
 // payment_status: 'paid' is what every payment method enabled on the account reports on
-// checkout.session.completed — card, Bancontact, EPS, Link, wallets, and PayPal (Stripe
-// permits only synchronous funding sources on PayPal unless you ask Support to enable
-// asynchronous ones). Delayed-notification methods report 'unpaid' here; none are enabled,
-// and assertSettled throws rather than trusting that to stay true.
+// checkout.session.completed — card, Link, wallets, and PayPal (Stripe permits only
+// synchronous funding sources on PayPal unless you ask Support to enable asynchronous ones).
+// Delayed-notification methods report 'unpaid' here; none are enabled, and assertSettled
+// throws rather than trusting that to stay true.
 const ticketSession = (over: Record<string, unknown> = {}) =>
   ({
     id: 'cs_1',
@@ -72,8 +73,8 @@ const subscription = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as unknown as Stripe.Subscription;
 
-const stripeEvent = (type: string, object: unknown, id = 'evt_1') =>
-  ({ id, type, data: { object } }) as unknown as Stripe.Event;
+const stripeEvent = (type: string, object: unknown, id = 'evt_1', account?: string) =>
+  ({ id, type, data: { object }, ...(account ? { account } : {}) }) as unknown as Stripe.Event;
 
 // ── mapSubStatus (pure) ──────────────────────────────────────────────────────
 
@@ -626,13 +627,26 @@ Deno.test('handleSubscription throws without profile_id metadata', async () => {
   );
 });
 
-Deno.test('handleSubscription upserts one membership per profile with derived fields', async () => {
+/**
+ * The membership WRITE, past the two lookups that now precede it (#107).
+ *
+ * `handleSubscription` used to be a single upsert on `onConflict: 'profile_id'`. That breaks the
+ * moment a member is GDPR-erased: the row survives with `profile_id` NULL, nothing conflicts, and
+ * the INSERT trips `unique (stripe_customer_id)` — a 23505 on every retry of an event Stripe
+ * redelivers forever. It now resolves the row by its Stripe ids first, so the write is no longer
+ * `calls[0]`.
+ */
+const membershipWrite = (db: FakeDb) =>
+  db.calls.filter((c) => c.table === 'circle_memberships' && c.op !== 'select')[0];
+
+Deno.test('handleSubscription writes one membership per profile with derived fields', async () => {
   const db = makeFakeDb();
   await handleSubscription(asDb(db), subscription());
-  const [call] = db.calls;
+  const call = membershipWrite(db);
   assertEquals(call.table, 'circle_memberships');
-  assertEquals(call.options, { onConflict: 'profile_id' });
+  assertEquals(call.op, 'insert'); // no existing row in this fake → insert, not update
   const values = call.values as Record<string, unknown>;
+  assertEquals(values.profile_id, 'prof-1');
   assertEquals(values.plan, 'monthly');
   assertEquals(values.status, 'active');
   assertEquals(values.stripe_customer_id, 'cus_1');
@@ -657,7 +671,7 @@ Deno.test(
         current_period_end: 1770000000,
       }),
     );
-    const values = db.calls[0].values as Record<string, unknown>;
+    const values = membershipWrite(db).values as Record<string, unknown>;
     assertEquals(values.plan, 'annual');
     assertEquals(values.status, 'canceled'); // unpaid → canceled via mapSubStatus
     assertEquals(values.stripe_customer_id, 'cus_2');
@@ -673,7 +687,7 @@ Deno.test(
   async () => {
     const db = makeFakeDb();
     await handleSubscription(asDb(db), subscription({ cancel_at_period_end: true }));
-    const values = db.calls[0].values as Record<string, unknown>;
+    const values = membershipWrite(db).values as Record<string, unknown>;
     assertEquals(values.status, 'active'); // still a member for the period already paid for
     assertEquals(values.cancel_at_period_end, true);
   },
@@ -684,8 +698,100 @@ Deno.test(
 Deno.test('handleSubscription writes an un-cancel back through', async () => {
   const db = makeFakeDb();
   await handleSubscription(asDb(db), subscription({ cancel_at_period_end: false }));
-  assertEquals((db.calls[0].values as Record<string, unknown>).cancel_at_period_end, false);
+  assertEquals((membershipWrite(db).values as Record<string, unknown>).cancel_at_period_end, false);
 });
+
+// ── #107: the erased-member path, which the old upsert could not survive ──────────────────
+
+Deno.test(
+  'handleSubscription UPDATES a row found by subscription id, never re-inserting',
+  async () => {
+    // The lookup is what stops the 23505: with a row already carrying this customer id, an INSERT
+    // would trip unique (stripe_customer_id) and 500 on every redelivery.
+    const db = makeFakeDb({
+      'circle_memberships.select': [{ data: { id: 'm_1', profile_id: 'prof-1', erased_at: null } }],
+    });
+    await handleSubscription(asDb(db), subscription());
+    const call = membershipWrite(db);
+    assertEquals(call.op, 'update');
+    assertEquals(call.filters, [['eq', 'id', 'm_1']]);
+    // A live row still has its identity restated — the value is what it already was.
+    assertEquals((call.values as Record<string, unknown>).profile_id, 'prof-1');
+  },
+);
+
+Deno.test('handleSubscription never re-attaches the identity to a PSEUDONYMISED row', async () => {
+  // Stripe still carries the erased member's id in sub.metadata.profile_id — it has no idea they
+  // asked to be forgotten — and the cancellation the erasure job itself triggers is the very
+  // event that arrives here. Writing profile_id back would undo #107's erasure on the way out.
+  const db = makeFakeDb({
+    'circle_memberships.select': [
+      { data: { id: 'm_1', profile_id: null, erased_at: '2026-09-08T03:47:00Z' } },
+    ],
+  });
+  await handleSubscription(asDb(db), subscription({ status: 'canceled' }));
+  const call = membershipWrite(db);
+  assertEquals(call.op, 'update');
+  assertEquals(call.filters, [['eq', 'id', 'm_1']]);
+  const values = call.values as Record<string, unknown>;
+  assert(!('profile_id' in values), 'an erased row must not have its identity written back');
+  // The cancellation still lands — that is the whole point of recording it.
+  assertEquals(values.status, 'canceled');
+});
+
+Deno.test('a concurrent insert (23505) is resolved into an update, not thrown', async () => {
+  // The read-then-write this fix introduced has a race the old single upsert could not produce:
+  // Stripe routinely delivers `created` and `updated` together, both can miss the resolve, and
+  // both reach the insert. The loser trips unique (stripe_subscription_id). Throwing would still
+  // be recoverable — stripe_webhook_events stamps processed_at only on success, so the retry
+  // repairs it — but it spends a redelivery for something with a correct answer right here.
+  const db = makeFakeDb({
+    'circle_memberships.select': [
+      { data: null }, // by subscription: nothing yet
+      { data: null }, // by customer: nothing yet
+      { data: { id: 'm_race', profile_id: 'prof-1', erased_at: null } }, // the winner's row
+      { data: { id: 'm_race', profile_id: 'prof-1', erased_at: null } },
+    ],
+    'circle_memberships.insert': [{ error: { code: '23505', message: 'duplicate key' } }],
+  });
+  await handleSubscription(asDb(db), subscription());
+  const writes = db.calls.filter((c) => c.table === 'circle_memberships' && c.op !== 'select');
+  assertEquals(
+    writes.map((w) => w.op),
+    ['insert', 'update'],
+    'the losing insert is followed by an update, and nothing throws',
+  );
+  assertEquals(writes[1].filters, [['eq', 'id', 'm_race']]);
+});
+
+Deno.test('a 23505 with nothing to find afterwards is NOT swallowed', async () => {
+  // Only the race is recovered. A duplicate that resolves to no row is a different bug, and
+  // swallowing it would turn a loud failure into a webhook that silently records nothing.
+  const db = makeFakeDb({
+    'circle_memberships.select': [{ data: null }, { data: null }, { data: null }, { data: null }],
+    'circle_memberships.insert': [{ error: { code: '23505', message: 'duplicate key' } }],
+  });
+  await assertRejects(() => handleSubscription(asDb(db), subscription()));
+});
+
+Deno.test(
+  'handleSubscription falls back to the CUSTOMER id when the subscription id misses',
+  async () => {
+    // A first-ever `customer.subscription.created` carries a subscription id our row has never
+    // seen, but the customer row may already exist from an earlier subscription.
+    const db = makeFakeDb({
+      'circle_memberships.select': [
+        { data: null },
+        { data: { id: 'm_9', profile_id: 'prof-1', erased_at: null } },
+      ],
+    });
+    await handleSubscription(asDb(db), subscription());
+    const selects = db.calls.filter((c) => c.table === 'circle_memberships' && c.op === 'select');
+    assertEquals(selects[0].filters, [['eq', 'stripe_subscription_id', 'sub_1']]);
+    assertEquals(selects[1].filters, [['eq', 'stripe_customer_id', 'cus_1']]);
+    assertEquals(membershipWrite(db).filters, [['eq', 'id', 'm_9']]);
+  },
+);
 
 // ── W8 handleInvoiceFailed ───────────────────────────────────────────────────
 
@@ -873,6 +979,75 @@ Deno.test(
     assertEquals(db.calls.length, 1);
   },
 );
+
+Deno.test(
+  'handleAccountUpdated keys on the event account id when the delivery carries one',
+  async () => {
+    // #702: a «Connected accounts»-scoped delivery names its account at the EVENT's top level.
+    // That id, not data.object.id, is what Stripe guarantees identifies the connected account.
+    const db = makeFakeDb();
+    await handleAccountUpdated(
+      asDb(db),
+      connectAccount({ id: 'acct_from_object', payouts_enabled: true, details_submitted: true }),
+      'acct_from_event',
+    );
+    const [flags, onboarded] = db.calls;
+    assertEquals(flags.filters, [['eq', 'stripe_account_id', 'acct_from_event']]);
+    assertEquals(flags.values, { charges_enabled: false, payouts_enabled: true });
+    assertEquals(onboarded.filters, [
+      ['eq', 'stripe_account_id', 'acct_from_event'],
+      ['is', 'onboarded_at', null],
+    ]);
+  },
+);
+
+Deno.test('handleAccountUpdated falls back to data.object.id with no event account', async () => {
+  // The «Your account» shape, and every existing caller: no top-level account, so the object's
+  // own id is the key. For account.updated the two agree — the fallback is what keeps that true.
+  const db = makeFakeDb();
+  await handleAccountUpdated(asDb(db), connectAccount({ id: 'acct_from_object' }), undefined);
+  assertEquals(db.calls[0].filters, [['eq', 'stripe_account_id', 'acct_from_object']]);
+});
+
+Deno.test('processEvent W13 flips the flags from a Connected-accounts-scoped payload', async () => {
+  // End to end through the arm, in the shape Stripe actually delivers once the second endpoint
+  // exists: top-level `account` set, capabilities granted, onboarding complete.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent(
+      'account.updated',
+      connectAccount({
+        id: 'acct_connected',
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+      }),
+      'evt_connect',
+      'acct_connected',
+    ),
+  );
+  const [flags, onboarded] = db.calls;
+  assertEquals(flags.table, 'payout_accounts');
+  assertEquals(flags.values, { charges_enabled: true, payouts_enabled: true });
+  assertEquals(flags.filters, [['eq', 'stripe_account_id', 'acct_connected']]);
+  assert(
+    typeof (onboarded.values as Record<string, unknown>).onboarded_at === 'string',
+    'onboarded_at must be stamped when details_submitted',
+  );
+});
+
+Deno.test('processEvent W13 still works on a payload with no top-level account', async () => {
+  // Nothing about the arm may depend on the new field being present — a redelivery of an older
+  // event, or a Stripe re-scope, must land on the same row.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('account.updated', connectAccount({ id: 'acct_plain', payouts_enabled: true })),
+  );
+  assertEquals(db.calls[0].values, { charges_enabled: false, payouts_enabled: true });
+  assertEquals(db.calls[0].filters, [['eq', 'stripe_account_id', 'acct_plain']]);
+});
 
 Deno.test('handleAccountUpdated throws on a failed write (Stripe must retry)', async () => {
   for (const script of [
@@ -1103,6 +1278,67 @@ Deno.test('processEvent routes each event type to the right table', async () => 
     await processEvent(routingCtx(db), stripeEvent(type, object));
     assertEquals(db.calls[0]?.table, table, `${type} should write ${table}`);
   }
+});
+
+// ── scope partition: a Connect-scoped delivery reaches W13 and nothing else (#702) ──
+
+Deno.test(
+  'processEvent acks a connected-account delivery of a platform type, writing nothing',
+  async () => {
+    // Both endpoints post to the same URL, so the ONLY thing keeping endpoint #2's deliveries off
+    // the platform arms must be this partition — never the Dashboard's enabled-event list, which an
+    // operator copies across in one click. Each of these would otherwise do real damage.
+    for (const [type, object] of [
+      ['checkout.session.completed', ticketSession()],
+      ['charge.refunded', { payment_intent: 'pi_c1' }],
+      ['charge.dispute.created', { payment_intent: 'pi_c1' }],
+      ['customer.subscription.updated', subscription()],
+      ['transfer.created', fundTransfer()],
+      ['transfer.reversed', fundTransfer({ amount_reversed: 4000 })],
+      ['identity.verification_session.verified', { id: 'vs_1', metadata: { profile_id: 'p' } }],
+    ] as [string, unknown][]) {
+      const db = makeFakeDb();
+      await processEvent(routingCtx(db), stripeEvent(type, object, 'evt_1', 'acct_connected'));
+      assertEquals(db.calls.length, 0, `${type} from a connected account must write nothing`);
+    }
+  },
+);
+
+Deno.test('processEvent does not THROW on a connected-account async_payment delivery', async () => {
+  // The arm that matters most. assertSettled's sibling throws by design so a delayed-settlement
+  // misconfiguration is loud — but a 5xx storm is what gets an endpoint DISABLED, which would
+  // silence account.updated again: #702, reintroduced by its own fix. Acked here instead.
+  for (const type of [
+    'checkout.session.async_payment_succeeded',
+    'checkout.session.async_payment_failed',
+  ]) {
+    const db = makeFakeDb();
+    await processEvent(routingCtx(db), stripeEvent(type, ticketSession(), 'evt_1', 'acct_x'));
+    assertEquals(db.calls.length, 0);
+  }
+  // …and still throws on the platform endpoint, where it means what it always meant.
+  await assertRejects(() =>
+    processEvent(
+      routingCtx(makeFakeDb()),
+      stripeEvent('checkout.session.async_payment_succeeded', ticketSession()),
+    ),
+  );
+});
+
+Deno.test('processEvent routes the one allowlisted type from a connected account', async () => {
+  // The partition must not swallow what the Connect endpoint exists to deliver.
+  const db = makeFakeDb();
+  await processEvent(
+    routingCtx(db),
+    stripeEvent('account.updated', connectAccount({ id: 'acct_c' }), 'evt_1', 'acct_c'),
+  );
+  assertEquals(db.calls[0]?.table, 'payout_accounts');
+});
+
+Deno.test('CONNECT_SCOPED_TYPES is the allowlist, and account.updated is on it', () => {
+  // Pinned by name: growing the Connect surface (#701's account.external_account.updated,
+  // payout.failed) is a deliberate edit here plus a case, never an unnoticed Dashboard change.
+  assertEquals([...CONNECT_SCOPED_TYPES], ['account.updated']);
 });
 
 Deno.test('processEvent W11 reconcile retrieves the subscription from checkout', async () => {
