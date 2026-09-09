@@ -25,7 +25,17 @@
 --      `gdpr_erase_fund_footprint` ever stops stamping it, every row erased from then on becomes
 --      immortal and the reaper stays green while reaping nothing.
 --
+--   7. AND THE STAMP ALONE IS NEVER ENOUGH. §4's last pair is past the window but still holds an
+--      identity. The reaper refuses both — the counterpart of the fund arm's tombstone test
+--      (20260909093945). Unreachable through the erasure function, which is the point: the job
+--      runs unattended for a decade before it first deletes anything, and «the stamp is set but
+--      the identity is still here» is precisely the corruption nobody would be watching for.
+--
 -- §7 is the schedule. §2 is the grant/definer/volatility surface for the two new functions.
+-- §8 covers the four OTHER functions that derive the same per-edition total from
+-- `fund_contributions` and never see `reaped_cents`: three are refused by their phase guards on a
+-- closed edition (asserted, not assumed), and `rollover_voided` — which requires phase = 'closed'
+-- and is therefore genuinely reachable — carries the term.
 --
 -- Nothing in production can age out before 2036-08-15 (the first erasure ran 2026-08-15), so
 -- every fixture below sets `erased_at` explicitly. There is no frozen-clock helper in this repo;
@@ -42,7 +52,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(56);
+select plan(62);
 
 -- ── 1. the window: one home, and the number is ten years ─────────────────────────────────
 select has_function('public', 'gdpr_retention_window', '{}'::name[],
@@ -59,14 +69,20 @@ select is(
   array['search_path=""'], 'gdpr_retention_window locks search_path to empty');
 
 -- The number must not be spelled twice. Two copies drift, and only one gets the next ruling.
+-- Matched on the INTERVAL LITERAL, not on the prose "10 years": a body comment that happens to
+-- say «kept 10 years» is documentation, not a second copy of the constant, and failing on it
+-- would make a doc edit look like a policy violation. Extension-owned functions are excluded the
+-- way 0121 excludes them, so an extension installed into `public` on a hosted project cannot fail
+-- this while CI's from-zero replay stays green.
 select is(
   (select count(*)::int from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname <> 'gdpr_retention_window'
-     and p.prosrc like '%10 years%'),
+     and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+     and p.prosrc like '%interval ''10 years''%'),
   0,
-  'no other public function spells the window — gdpr_retention_window() is the only copy in the schema');
+  'no other public function hard-codes the window interval — gdpr_retention_window() is the only copy in the schema');
 
 -- ── 2. the new surface: grants, definer posture, search_path, indexes ─────────────────────
 select has_function('public', 'gdpr_retention_reap', '{}'::name[], 'gdpr_retention_reap() exists');
@@ -180,7 +196,13 @@ values
   ('50000000-0000-0000-0000-000000000102', null, '50000000-0000-0000-0000-0000000000e1',
    'pi_reap_young', null, 'paid', now() - interval '9 years'),
   ('50000000-0000-0000-0000-000000000103', '50000000-0000-0000-0000-0000000000cc',
-   '50000000-0000-0000-0000-0000000000e1', 'pi_reap_live', 'qr_reap_live', 'paid', null);
+   '50000000-0000-0000-0000-0000000000e1', 'pi_reap_live', 'qr_reap_live', 'paid', null),
+  -- CORRUPT: past the window AND still carrying an identity. Unreachable through the erasure
+  -- function, which nulls user_id in the same statement that stamps erased_at — which is exactly
+  -- why the reaper must refuse it rather than trust the stamp.
+  ('50000000-0000-0000-0000-000000000104', '50000000-0000-0000-0000-0000000000aa',
+   '50000000-0000-0000-0000-0000000000e1', 'pi_reap_corrupt', 'qr_reap_corrupt', 'paid',
+   now() - interval '11 years');
 
 -- Check-ins on the OLD (to be reaped) and the LIVE ticket, both scanned by the organiser C.
 insert into public.event_attendance (ticket_id, event_id, scanned_by)
@@ -198,7 +220,10 @@ values
   ('50000000-0000-0000-0000-000000000202', null, 'cus_reap_young', 'sub_reap_young',
    'annual', 'canceled', now() - interval '9 years'),
   ('50000000-0000-0000-0000-000000000203', '50000000-0000-0000-0000-0000000000aa',
-   'cus_reap_live', 'sub_reap_live', 'monthly', 'active', null);
+   'cus_reap_live', 'sub_reap_live', 'monthly', 'active', null),
+  -- CORRUPT, same shape: an old stamp on a row whose profile_id is still there.
+  ('50000000-0000-0000-0000-000000000204', '50000000-0000-0000-0000-0000000000cc',
+   'cus_reap_corrupt', 'sub_reap_corrupt', 'annual', 'canceled', now() - interval '11 years');
 
 -- The pool BEFORE anything is reaped: 700 + 900 + 1300 + 100 = 3000. The refunded 400 is not
 -- counted. This is the number §5 asserts is still true once two of those rows no longer exist.
@@ -260,6 +285,16 @@ select isnt_empty(
 select isnt_empty(
   $$select 1 from public.circle_memberships where id = '50000000-0000-0000-0000-000000000203'$$,
   'a LIVE membership survives');
+
+-- The stamp alone is never enough. These two rows are past the window but still hold an
+-- identity, and the reaper refuses them — the counterpart of the fund arm's tombstone test, and
+-- the guard that stands between a corrupted erased_at and a paying member's records.
+select isnt_empty(
+  $$select 1 from public.event_tickets where id = '50000000-0000-0000-0000-000000000104'$$,
+  'a ticket past the window but still holding user_id SURVIVES — an old stamp does not license deleting an identified row');
+select isnt_empty(
+  $$select 1 from public.circle_memberships where id = '50000000-0000-0000-0000-000000000204'$$,
+  'a membership past the window but still holding profile_id SURVIVES');
 
 -- ── 5. every cent raised stays raised ─────────────────────────────────────────────────────
 -- The carry is written in the SAME statement as the delete, so it is already correct here — no
@@ -370,6 +405,41 @@ select ok(
   (select command from cron.job where jobname = 'gdpr-retention-reap')
     not like '%sb\_secret\_%',
   'no secret is baked into the cron command');
+
+
+-- ── 8. the OTHER readers of the same per-edition total ────────────────────────────────────
+-- `raised_cents` is not the only figure derived live from `fund_contributions`. Four more
+-- functions sum the same rows, and none of them adds `reaped_cents`. Three are safe because they
+-- refuse unless the edition is in a LIVE phase, and an edition holding reaped rows is necessarily
+-- closed — a contribution is reapable only ten years after its owner's erasure. Those three
+-- guards are asserted here rather than described in a comment, because the comment is what a
+-- future change would trust. The fixture edition is `closed`, so each call is refused.
+select throws_ok(
+  $$select public.enter_announcement('50000000-0000-0000-0000-0000000000ed')$$,
+  'P0001', 'announcement out of phase',
+  'enter_announcement refuses a closed edition — so it can never read a reaped pool');
+select throws_ok(
+  $$select public.declare_winner('50000000-0000-0000-0000-0000000000ed')$$,
+  'P0001', 'declaration out of phase',
+  'declare_winner refuses a closed edition');
+select throws_ok(
+  $$select public.close_cycle('50000000-0000-0000-0000-0000000000ed', 'realized', 'evidence',
+      now() + interval '30 days', 5000000, 100000, 5, 3, 10, 'costs', 'none')$$,
+  'P0001', 'closure out of phase',
+  'close_cycle refuses an already-closed edition');
+
+-- `rollover_voided` is the exception: it REQUIRES phase = 'closed', which is exactly a reaped
+-- edition's state, so it is the one other reader that had to be patched (20260909093945). Pinned
+-- on its source rather than driven, because a real rollover creates a SUCCESSOR cycle and
+-- `fund_editions_one_active` makes that impossible while any other cycle is open — the function
+-- refuses with «another cycle is open» before the arithmetic is reached. The behaviour is covered
+-- by the fund rollover suite; what this pins is that the carry term is not quietly dropped by a
+-- future re-sign.
+select ok(
+  (select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'rollover_voided')
+    like '%v_edition.reaped_cents%',
+  'rollover_voided adds fund_editions.reaped_cents to the carry — without it a late rollover carries forward less than was raised');
 
 select * from finish();
 rollback;

@@ -1972,3 +1972,68 @@ Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` — §1 assert
 suite; §4 asserts a row inside the window survives, a row outside it does not, and a row with a
 NULL `erased_at` survives at twelve years old; §6b asserts `gdpr_erase_fund_footprint` now stamps
 `erased_at`, without which every row erased after this migration would never age out.
+
+## `20260909085841_gdpr_retention_reaper.sql` — "the total IS the rows" was not the whole reader list
+
+The header's §"The one real consequence" (`:88-105`) justifies patching one function:
+
+> There is no cached per-edition counter to keep in step — the total IS the rows.
+
+True about caches, and misleading about readers. Queried against staging rather than recalled,
+**five** live functions derive a per-edition total straight from `fund_contributions`, and only one
+of them was patched by this migration:
+
+| function                   | what it computes          | phase it requires              | sees a reaped edition? |
+| -------------------------- | ------------------------- | ------------------------------ | ---------------------- |
+| `recompute_fund_aggregate` | the public ticker         | none — callable any time       | **yes**, patched here  |
+| `enter_announcement`       | the FUND-42 snapshot      | `voting`                       | no                     |
+| `declare_winner`           | the FUND-42 floor         | `voting` / `announcement`      | no                     |
+| `close_cycle`              | the closure carry         | `announcement` / `realization` | no                     |
+| `rollover_voided`          | the FUND-45 carry-forward | **`closed`**                   | **yes**, missed        |
+
+An edition holding reaped rows is necessarily closed — a contribution is reapable only ten years
+after its owner's erasure — so the three middle rows are unreachable, and their phase guards raise
+`P0001` rather than silently reading a short pool. `rollover_voided` is the one that bites: it
+_requires_ `phase = 'closed'`, computes `carried_in_cents + v_raised`, and hands the result to a
+successor cycle. A voided edition rolled over after any of its contributions aged out would carry
+forward **less money than was raised**, in the direction of paying a future winner short. Nothing
+bounds how late a rollover may happen; `already rolled over` guards double-carrying, not elapsed
+time.
+
+Fixed in code by `20260909093945_gdpr_retention_reaper_review_fixes.sql`, which adds
+`+ v_edition.reaped_cents` to that one expression and leaves the other three alone deliberately —
+re-typing three money functions to close a path that needs a decade-old open cycle would add more
+transcription risk than it removes.
+
+Read `:88-105` as: «`recompute_fund_aggregate` and `rollover_voided` are the two readers that can
+see a reaped edition; the other three are excluded by their phase guards.»
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` §8 — three `throws_ok` calls pin
+the phase guards on the unreachable three (so the exclusion is a property, not a comment), and a
+source pin on `rollover_voided` catches a future re-sign that drops the carry term.
+
+## `20260909085841_gdpr_retention_reaper.sql` — the backfill overwrites the column it reads
+
+`:165`'s backfill is `update public.fund_contributions set erased_at = updated_at where …`. The
+table carries `fund_contributions_touch_updated_at` (BEFORE UPDATE, unconditional), so the same
+statement that copies `updated_at` into `erased_at` then sets `updated_at := now()`.
+
+The copy itself is correct — the trigger fires after the SET list is evaluated, so `erased_at`
+receives the pre-update value. Verified on staging at apply time: both tombstoned rows hold
+`erased_at = 2026-09-08 07:50:35.594932+00`, the erasure instant, while `updated_at` reads
+`2026-09-09 09:10:11`, the migration's own clock.
+
+What is gone is the ability to re-derive or audit the stamp afterwards: `erased_at` is now the only
+copy of that timestamp, so the caveat recorded in the entry above — that `reverseContribution`
+(`supabase/functions/stripe-webhook/handlers.ts:342-360`) can move `updated_at` past the true
+erasure instant, making a backfilled `erased_at` over-retain — is no longer detectable on a
+backfilled row. It was arguably never detectable, since `updated_at` is a single mutable column
+that a refund overwrites in place, but after the backfill it is certainly not.
+
+Read `:165` as: on any row this backfill touched, `updated_at` is the migration's timestamp and
+carries no erasure meaning; `erased_at` is the fact. The error direction is one-way and safe —
+over-retention on a legal floor, never under-retention.
+
+Asserted by: nothing, and deliberately — there is no pre-backfill value left to assert against.
+`0150` §6b covers the path that matters going forward: every erasure from now on stamps
+`erased_at` directly at the erasure instant, so no derivation is involved.
