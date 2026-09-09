@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { updateProfile } from '@athanor/api';
 import { IDENTITY_TAGS, MAX_SKILLS, PROFESSIONS, SEEKING_TAGS, SKILLS } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
@@ -37,6 +37,7 @@ export function ProfileEditForm({
   refreshProfile,
   onSaved,
   onCancel,
+  tailSlot,
 }: {
   userId: string;
   profile: Profile;
@@ -44,6 +45,13 @@ export function ProfileEditForm({
   refreshProfile: () => Promise<void>;
   onSaved: () => void;
   onCancel: () => void;
+  /**
+   * The Profilo tab's shared tail — «Salvato», the two `MomentFlash`. It belongs to the tab,
+   * not to this form, but this form owns the scroll container in edit mode, so it has to be
+   * handed in rather than rendered out there (#720). Appended LAST and never first: the
+   * sticky index below counts children from 0.
+   */
+  tailSlot?: ReactNode;
 }) {
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [avatarPath, setAvatarPath] = useState<string | null>(profile.avatar_path);
@@ -185,353 +193,410 @@ export function ProfileEditForm({
 
   return (
     <>
-      {/* The way out, at the top (#659).
+      {/* Edit mode owns its scroll container (#720). It used to scroll inside the tab's
+          `ScrollView`, which is why the «Annulla» below could not be pinned from here: a sticky
+          header belongs to the scroll view it is a CHILD of, and that one was two components
+          away. The tab keeps a `ScrollView` of its own for view mode and closes it before this
+          component is ever mounted, so DESIGN §6's «one scroll axis per screen» still holds —
+          branch-exclusive, never nested. `source-audit.test.ts` §39 pins both halves.
 
-          The parent unmounts its own share/settings/edit row while editing
-          (`(tabs)/profile.tsx`), so before this the only exit was the ghost «Annulla» at the
-          foot of ELEVEN sections — photo, name, bio, mission, identity, seeking, profession,
-          skills, city, dream, language. An accidental tap on «Modifica» cost a full scroll
-          each way, which is the whole of #659.
+          The tab's three props came across verbatim rather than being re-chosen — `className`,
+          `contentContainerClassName` and `keyboardShouldPersistTaps`; `stickyHeaderIndices` is the
+          only one that is new here. What is inside them carries the weight: `gap-8` is the only
+          thing spacing the eleven sections, `pb-12` is #163's one shared trailing value, `px-5` is
+          DESIGN §6's 20pt gutter, `pt-4` is the breathing room above the row at rest, `flex-1` is
+          what bounds the scroll, and `keyboardShouldPersistTaps="handled"` is what lets a tap on
+          the pinned «Annulla» reach it while the keyboard is up instead of only dismissing the
+          keyboard.
 
-          Routed through the same `confirmDiscard` as that button, never a bare `onCancel`: a
-          clean draft leaves in one tap with no dialog, a dirty one still gets #636's confirm,
-          and the two exits cannot drift apart. `disabled={saving}` mirrors it too —
-          `shouldGuardExit` stands down while a write is in flight, so an enabled control here
-          would unmount the form mid-save.
+          `stickyHeaderIndices={[0]}` is the first use of THAT PROP in the app, not the first
+          sticky header: the Aura ledger has pinned its day headings since the M6 slice through
+          `SectionList`'s `stickySectionHeadersEnabled`, and its header carries the same
+          `bg-background` for the same reason (`app/(modal)/aura/ledger.tsx`). The prop is what is
+          new, because a plain `ScrollView` has no sections to derive the indices from — hence the
+          DESIGN §11 row of 2026-09-08.
 
-          A real box rather than `HIT_SLOP`, and the literal `[44px]` (#638): a spacing step is
-          3.5px on device, so `h-11` would measure 38.5pt there while passing the web walk.
-          Text «Annulla» rather than a `‹`: DESIGN §6 reserves the chevron for pushed screens
-          and sheets via `ModalHeader`, and a tab root has nothing to pop — this leaves a mode,
-          not a screen.
+          Index 0 is the «Annulla» row and nothing else may take that slot, and the two platforms
+          fail differently, so both cases matter. An EXTRA child above the row (`{banner}`,
+          `{tailSlot}` moved up) takes the pin on both, and is visible on web. The row made
+          CONDITIONAL is the device-only one: React Native reads the children through
+          `React.Children.toArray`, which DROPS a `null`, so the photo section slides into index 0
+          on the renders where the row is absent — while react-native-web uses `React.Children.map`
+          and keeps the empty slot, so the expo-web walk passes over it. Keep the row
+          unconditional, keep `{tailSlot}` last, and put anything new BELOW the row.
+          `source-audit.test.ts` §39 pins both halves. */}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-8 px-5 pb-12 pt-4"
+        keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={[0]}
+      >
+        {/* The way out, at the top (#659).
 
-          The row wrapper is load-bearing, not decoration. This fragment's children are the
-          direct children of the parent's `ScrollView` content, which aligns them stretch, so
-          without `flex-row` the Pressable would span the full width and turn the whole strip
-          into a 44pt discard target. */}
-      <View className="flex-row items-center">
-        <Pressable
-          accessibilityRole="button"
-          disabled={saving}
-          onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
-          className="min-h-[44px] min-w-[44px] justify-center"
-        >
-          <Text className="text-base font-semibold text-faint">{t('profile.cancel', locale)}</Text>
-        </Pressable>
-      </View>
+            The parent unmounts its own share/settings/edit row while editing
+            (`(tabs)/profile.tsx`), so before this the only exit was the ghost «Annulla» at the
+            foot of ELEVEN sections — photo, name, bio, mission, identity, seeking, profession,
+            skills, city, dream, language. An accidental tap on «Modifica» cost a full scroll
+            each way, which is the whole of #659.
 
-      {/* Identità — name + photo (#76). Still not inside a <Section>: the block-level control
-          below writes the ONE identity facet (#251) for both fields together, not a per-field
-          eye. 'public' (the default) keeps the /@handle link resolving for anyone; 'members'
-          kills the public shell — a knowingly dead link. 'private' is deliberately not offered:
-          members always see name and photo (the facet gates anon only, profile.ts docblock),
-          so a «Solo io» chip here would promise a setting that does not exist. */}
-      <View className="gap-3">
-        <SectionLabel>{t('profile.photo.label', locale)}</SectionLabel>
-        <View className="flex-row items-center gap-4">
-          <Avatar
-            handle={profile.handle}
-            displayName={displayName}
-            avatarPath={avatarPath}
-            previewUri={pendingAvatar}
-            size={72}
-          />
-          <View className="flex-1 gap-1.5">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('profile.photo.a11y', locale)}
-              disabled={avatar.status === 'uploading'}
-              onPress={() => setSheetOpen(true)}
-              className="min-h-[44px] justify-center"
-            >
-              <Text className="text-[14px] font-semibold text-aura">
-                {avatarPath || pendingAvatar
-                  ? t('profile.photo.change', locale)
-                  : t('profile.photo.add', locale)}
-              </Text>
-            </Pressable>
-            {avatarPath || pendingAvatar ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setPendingAvatar(null);
-                  setAvatarPath(null);
-                }}
-                className="min-h-[44px] justify-center"
-              >
-                <Text className="text-[13px] text-muted-foreground">
-                  {t('profile.photo.remove', locale)}
-                </Text>
-              </Pressable>
-            ) : null}
-            {avatar.status === 'uploading' ? (
-              <Text className="text-[13px] text-faint">{t('profile.photo.uploading', locale)}</Text>
-            ) : null}
-            {avatar.status === 'error' ? (
-              <Text className="text-[13px] text-error">{t('profile.photo.error', locale)}</Text>
-            ) : null}
-          </View>
+            Routed through the same `confirmDiscard` as that button, never a bare `onCancel`: a
+            clean draft leaves in one tap with no dialog, a dirty one still gets #636's confirm,
+            and the two exits cannot drift apart. `disabled={saving}` mirrors it too —
+            `shouldGuardExit` stands down while a write is in flight, so an enabled control here
+            would unmount the form mid-save.
+
+            A real box rather than `HIT_SLOP`, and the literal `[44px]` (#638): a spacing step is
+            3.5px on device, so `h-11` would measure 38.5pt there while passing the web walk.
+            Text «Annulla» rather than a `‹`: DESIGN §6 reserves the chevron for pushed screens
+            and sheets via `ModalHeader`, and a tab root has nothing to pop — this leaves a mode,
+            not a screen.
+
+            The row wrapper is load-bearing, not decoration, and since #720 it also carries the
+            pin. These are the direct children of THIS component's `ScrollView` content — no
+            longer the parent's — which aligns them stretch, so without `flex-row` the Pressable
+            would span the full width and turn the whole strip into a 44pt discard target.
+            `bg-background` is the other half: without a fill the eleven sections scroll visibly
+            THROUGH the pinned control. It has to sit here, on the row, and not be left to the
+            wrapper each platform adds around a sticky child, because neither wrapper inherits it.
+            react-native-web's is a bare `position: sticky` View — measured transparent,
+            `rgba(0, 0, 0, 0)`. Native's `ScrollViewStickyHeader` copies `child.props.style` onto
+            the wrapper and hands the child `{flex: 1}` instead, and `child.props.style` is
+            `undefined` here because a `src/tw` component carries `className`, not `style` — the
+            class resolves inside `useCssElement`, below the point the wrapper reads. So the fill
+            stays on the row on both. The container's `px-5` is what makes it span the full content
+            width, with no gutter left over for anything to show through beside it. */}
+        <View className="flex-row items-center bg-background">
+          <Pressable
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
+            className="min-h-[44px] min-w-[44px] justify-center"
+          >
+            <Text className="text-base font-semibold text-faint">
+              {t('profile.cancel', locale)}
+            </Text>
+          </Pressable>
         </View>
 
-        <SectionLabel>{t('profile.name.label', locale)}</SectionLabel>
-        <Field
-          maxLength={60}
-          placeholder={t('profile.name.empty', locale)}
-          value={displayName}
-          onChangeText={setDisplayName}
-        />
-        <Text className="text-[13px] text-muted-foreground">{t('profile.name.hint', locale)}</Text>
+        {/* Identità — name + photo (#76). Still not inside a <Section>: the block-level control
+            below writes the ONE identity facet (#251) for both fields together, not a per-field
+            eye. 'public' (the default) keeps the /@handle link resolving for anyone; 'members'
+            kills the public shell — a knowingly dead link. 'private' is deliberately not offered:
+            members always see name and photo (the facet gates anon only, profile.ts docblock),
+            so a «Solo io» chip here would promise a setting that does not exist. */}
+        <View className="gap-3">
+          <SectionLabel>{t('profile.photo.label', locale)}</SectionLabel>
+          <View className="flex-row items-center gap-4">
+            <Avatar
+              handle={profile.handle}
+              displayName={displayName}
+              avatarPath={avatarPath}
+              previewUri={pendingAvatar}
+              size={72}
+            />
+            <View className="flex-1 gap-1.5">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('profile.photo.a11y', locale)}
+                disabled={avatar.status === 'uploading'}
+                onPress={() => setSheetOpen(true)}
+                className="min-h-[44px] justify-center"
+              >
+                <Text className="text-[14px] font-semibold text-aura">
+                  {avatarPath || pendingAvatar
+                    ? t('profile.photo.change', locale)
+                    : t('profile.photo.add', locale)}
+                </Text>
+              </Pressable>
+              {avatarPath || pendingAvatar ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setPendingAvatar(null);
+                    setAvatarPath(null);
+                  }}
+                  className="min-h-[44px] justify-center"
+                >
+                  <Text className="text-[13px] text-muted-foreground">
+                    {t('profile.photo.remove', locale)}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {avatar.status === 'uploading' ? (
+                <Text className="text-[13px] text-faint">
+                  {t('profile.photo.uploading', locale)}
+                </Text>
+              ) : null}
+              {avatar.status === 'error' ? (
+                <Text className="text-[13px] text-error">{t('profile.photo.error', locale)}</Text>
+              ) : null}
+            </View>
+          </View>
 
-        {/* The identity facet (#251): one control for the whole block, same visual grammar as
-            Section's chip row. An absent key means the DEFAULT — public — never 'members'
-            (the row policy coalesces the same way), and a stray 'private' value normalises to
-            the members chip: anon-dark either way. */}
-        <View className="flex-row items-center justify-between gap-3">
-          <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
-          <View
-            className="flex-row gap-1.5"
-            accessibilityRole="radiogroup"
-            accessibilityLabel={t('profile.visibility.label', locale)}
-          >
-            {(['public', 'members'] as const).map((opt) => (
+          <SectionLabel>{t('profile.name.label', locale)}</SectionLabel>
+          <Field
+            maxLength={60}
+            placeholder={t('profile.name.empty', locale)}
+            value={displayName}
+            onChangeText={setDisplayName}
+          />
+          <Text className="text-[13px] text-muted-foreground">
+            {t('profile.name.hint', locale)}
+          </Text>
+
+          {/* The identity facet (#251): one control for the whole block, same visual grammar as
+              Section's chip row. An absent key means the DEFAULT — public — never 'members'
+              (the row policy coalesces the same way), and a stray 'private' value normalises to
+              the members chip: anon-dark either way. */}
+          <View className="flex-row items-center justify-between gap-3">
+            <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
+            <View
+              className="flex-row gap-1.5"
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('profile.visibility.label', locale)}
+            >
+              {(['public', 'members'] as const).map((opt) => (
+                <Chip
+                  key={opt}
+                  role="radio"
+                  small
+                  label={t(`visibility.${opt}`, locale)}
+                  selected={
+                    ((visibility.identity ?? 'public') === 'public' ? 'public' : 'members') === opt
+                  }
+                  onPress={() => setVis('identity', opt)}
+                />
+              ))}
+            </View>
+          </View>
+          <Text className="text-[13px] leading-snug text-muted-foreground">
+            {t('profile.shell.hint', locale)}
+          </Text>
+        </View>
+
+        {/* Bio */}
+        <Section
+          label={t('profile.bio.label', locale)}
+          field="bio"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          <Field
+            multiline
+            maxLength={500}
+            placeholder={t('profile.bio.empty', locale)}
+            value={bio}
+            onChangeText={setBio}
+          />
+        </Section>
+
+        {/* La mia missione — free text like bio, the member's own words (#149) */}
+        <Section
+          label={t('profile.mission.label', locale)}
+          field="mission"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          <Field
+            multiline
+            maxLength={500}
+            placeholder={t('profile.mission.empty', locale)}
+            value={mission}
+            onChangeText={setMission}
+          />
+        </Section>
+
+        {/* Chi sei */}
+        <Section
+          label={t('profile.identity.label', locale)}
+          field="identity_tags"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          <View className="flex-row flex-wrap gap-3">
+            {IDENTITY_TAGS.map((tag) => (
               <Chip
-                key={opt}
-                role="radio"
-                small
-                label={t(`visibility.${opt}`, locale)}
-                selected={
-                  ((visibility.identity ?? 'public') === 'public' ? 'public' : 'members') === opt
-                }
-                onPress={() => setVis('identity', opt)}
+                key={tag}
+                label={tagLabel('tag.identity', tag)}
+                selected={identity.includes(tag)}
+                onPress={() => setIdentity(toggleTag(identity, tag))}
               />
             ))}
           </View>
-        </View>
-        <Text className="text-[13px] leading-snug text-muted-foreground">
-          {t('profile.shell.hint', locale)}
-        </Text>
-      </View>
+        </Section>
 
-      {/* Bio */}
-      <Section
-        label={t('profile.bio.label', locale)}
-        field="bio"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <Field
-          multiline
-          maxLength={500}
-          placeholder={t('profile.bio.empty', locale)}
-          value={bio}
-          onChangeText={setBio}
-        />
-      </Section>
-
-      {/* La mia missione — free text like bio, the member's own words (#149) */}
-      <Section
-        label={t('profile.mission.label', locale)}
-        field="mission"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <Field
-          multiline
-          maxLength={500}
-          placeholder={t('profile.mission.empty', locale)}
-          value={mission}
-          onChangeText={setMission}
-        />
-      </Section>
-
-      {/* Chi sei */}
-      <Section
-        label={t('profile.identity.label', locale)}
-        field="identity_tags"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <View className="flex-row flex-wrap gap-3">
-          {IDENTITY_TAGS.map((tag) => (
-            <Chip
-              key={tag}
-              label={tagLabel('tag.identity', tag)}
-              selected={identity.includes(tag)}
-              onPress={() => setIdentity(toggleTag(identity, tag))}
-            />
-          ))}
-        </View>
-      </Section>
-
-      {/* Cosa cerchi */}
-      <Section
-        label={t('profile.seeking.label', locale)}
-        field="seeking"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <View className="flex-row flex-wrap gap-3">
-          {SEEKING_TAGS.map((tag) => (
-            <Chip
-              key={tag}
-              label={tagLabel('tag.seeking', tag)}
-              selected={seeking.includes(tag)}
-              onPress={() => setSeeking(toggleTag(seeking, tag))}
-            />
-          ))}
-        </View>
-        {/* The condition is the PAIR, not either field — don't "simplify" it.
-            Affinity sums shared + seek_hit + offer_hit; offer_hit intersects the
-            recipient's identity_tags with the candidate's `seeking`, and the two
-            fields are masked by independent predicates. Hiding identity_tags
-            alone leaves offer_hit live and the member keeps matching. Only both
-            private reaches affinity 0. Pinned by persona E in
-            supabase/tests/0073_visibility_followups.test.sql. Lives under the
-            second of the two so both chip rows are already on screen.
-
-            The copy says "matched", not "you won't appear". Both original
-            reasons have since been closed — the deck recomputes and re-masks its
-            affinity terms on every read (get_momenti_deck, #273 D; the purge
-            trigger that used to DELETE the pending proposals on the flip is
-            retired) and «Ti potrebbe interessare» gained the predicate
-            (get_momenti_suggestion) — but "matched" is still the
-            accurate claim: accepted and passed rows deliberately survive, so the
-            member does not vanish from every surface. Keep the weaker promise.
-            Labels are interpolated from the same keys the chips render, so a
-            renamed label can't leave the sentence quoting something that no
-            longer exists. */}
-        {(visibility.identity_tags ?? 'members') === 'private' &&
-        (visibility.seeking ?? 'members') === 'private' ? (
-          <Text className="text-[13px] leading-snug text-muted-foreground">
-            {t('profile.visibility.tagsPrivateHint', locale, {
-              identity: t('profile.identity.label', locale),
-              seeking: t('profile.seeking.label', locale),
-              private: t('visibility.private', locale),
-            })}
-          </Text>
-        ) : null}
-      </Section>
-
-      {/* Professione — single curated key: tapping the selected chip clears it (#149) */}
-      <Section
-        label={t('profile.profession.label', locale)}
-        field="profession"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <View className="flex-row flex-wrap gap-3">
-          {PROFESSIONS.map((key) => (
-            <Chip
-              key={key}
-              label={tagLabel('tag.profession', key)}
-              selected={profession === key}
-              onPress={() => setProfession(profession === key ? null : key)}
-            />
-          ))}
-        </View>
-      </Section>
-
-      {/* Competenze — curated multi-select, capped at MAX_SKILLS (#149) */}
-      <Section
-        label={t('profile.skills.label', locale)}
-        field="skills"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <View className="flex-row flex-wrap gap-3">
-          {SKILLS.map((key) => (
-            <Chip
-              key={key}
-              label={tagLabel('tag.skill', key)}
-              selected={skills.includes(key)}
-              onPress={() => toggleSkill(key)}
-            />
-          ))}
-        </View>
-        <Text className="text-[13px] text-muted-foreground">
-          {t('profile.skills.hint', locale)}
-        </Text>
-      </Section>
-
-      {/* Città — typed-text search, approximate by design (#149) */}
-      <Section
-        label={t('profile.city.label', locale)}
-        field="city"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        <CityPicker
-          city={city}
+        {/* Cosa cerchi */}
+        <Section
+          label={t('profile.seeking.label', locale)}
+          field="seeking"
+          editing
+          visibility={visibility}
+          setVis={setVis}
           locale={locale}
-          onChange={(nextCity, geohash) => {
-            setCity(nextCity);
-            setCityGeohash(geohash);
-          }}
-        />
-      </Section>
+        >
+          <View className="flex-row flex-wrap gap-3">
+            {SEEKING_TAGS.map((tag) => (
+              <Chip
+                key={tag}
+                label={tagLabel('tag.seeking', tag)}
+                selected={seeking.includes(tag)}
+                onPress={() => setSeeking(toggleTag(seeking, tag))}
+              />
+            ))}
+          </View>
+          {/* The condition is the PAIR, not either field — don't "simplify" it.
+              Affinity sums shared + seek_hit + offer_hit; offer_hit intersects the
+              recipient's identity_tags with the candidate's `seeking`, and the two
+              fields are masked by independent predicates. Hiding identity_tags
+              alone leaves offer_hit live and the member keeps matching. Only both
+              private reaches affinity 0. Pinned by persona E in
+              supabase/tests/0073_visibility_followups.test.sql. Lives under the
+              second of the two so both chip rows are already on screen.
 
-      {/* Il mio sogno — visibility only; the text lives in the dream editor.
-          The 'dream' key gates dreams + dream_milestones reads (M10 RLS) and
-          keeps a private dreamer out of the Momenti deck (matcher gate). */}
-      <Section
-        label={t('dream.ownLabel', locale)}
-        field="dream"
-        editing
-        visibility={visibility}
-        setVis={setVis}
-        locale={locale}
-      >
-        {dreamText ? (
-          <DreamQuote text={dreamText} />
-        ) : (
-          <EmptyState>{t('dream.empty.title', locale)}</EmptyState>
-        )}
-        {/* «Solo io» costs more than privacy: the matcher drops a private-dream
-            member as a candidate, so they stop being proposed to anyone. Shown
-            only on that choice — a standing line would be noise on the others. */}
-        {(visibility.dream ?? 'members') === 'private' ? (
-          <Text className="text-[13px] leading-snug text-muted-foreground">
-            {t('dream.visibility.privateHint', locale)}
+              The copy says "matched", not "you won't appear". Both original
+              reasons have since been closed — the deck recomputes and re-masks its
+              affinity terms on every read (get_momenti_deck, #273 D; the purge
+              trigger that used to DELETE the pending proposals on the flip is
+              retired) and «Ti potrebbe interessare» gained the predicate
+              (get_momenti_suggestion) — but "matched" is still the
+              accurate claim: accepted and passed rows deliberately survive, so the
+              member does not vanish from every surface. Keep the weaker promise.
+              Labels are interpolated from the same keys the chips render, so a
+              renamed label can't leave the sentence quoting something that no
+              longer exists. */}
+          {(visibility.identity_tags ?? 'members') === 'private' &&
+          (visibility.seeking ?? 'members') === 'private' ? (
+            <Text className="text-[13px] leading-snug text-muted-foreground">
+              {t('profile.visibility.tagsPrivateHint', locale, {
+                identity: t('profile.identity.label', locale),
+                seeking: t('profile.seeking.label', locale),
+                private: t('visibility.private', locale),
+              })}
+            </Text>
+          ) : null}
+        </Section>
+
+        {/* Professione — single curated key: tapping the selected chip clears it (#149) */}
+        <Section
+          label={t('profile.profession.label', locale)}
+          field="profession"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          <View className="flex-row flex-wrap gap-3">
+            {PROFESSIONS.map((key) => (
+              <Chip
+                key={key}
+                label={tagLabel('tag.profession', key)}
+                selected={profession === key}
+                onPress={() => setProfession(profession === key ? null : key)}
+              />
+            ))}
+          </View>
+        </Section>
+
+        {/* Competenze — curated multi-select, capped at MAX_SKILLS (#149) */}
+        <Section
+          label={t('profile.skills.label', locale)}
+          field="skills"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          <View className="flex-row flex-wrap gap-3">
+            {SKILLS.map((key) => (
+              <Chip
+                key={key}
+                label={tagLabel('tag.skill', key)}
+                selected={skills.includes(key)}
+                onPress={() => toggleSkill(key)}
+              />
+            ))}
+          </View>
+          <Text className="text-[13px] text-muted-foreground">
+            {t('profile.skills.hint', locale)}
           </Text>
-        ) : null}
-      </Section>
+        </Section>
 
-      {/* Lingua + actions */}
-      <View className="gap-3">
-        <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
-        <LocaleChips value={locale} onChange={setLocale} />
-
-        {error ? <Text className="text-sm text-error">{error}</Text> : null}
-
-        <View className="flex-row items-center gap-4">
-          <Button
-            label={t('profile.save', locale)}
-            variant="primary"
-            disabled={saving}
-            onPress={save}
+        {/* Città — typed-text search, approximate by design (#149) */}
+        <Section
+          label={t('profile.city.label', locale)}
+          field="city"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          <CityPicker
+            city={city}
+            locale={locale}
+            onChange={(nextCity, geohash) => {
+              setCity(nextCity);
+              setCityGeohash(geohash);
+            }}
           />
-          <Button
-            label={t('profile.cancel', locale)}
-            variant="ghost"
-            disabled={saving}
-            onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
-          />
+        </Section>
+
+        {/* Il mio sogno — visibility only; the text lives in the dream editor.
+            The 'dream' key gates dreams + dream_milestones reads (M10 RLS) and
+            keeps a private dreamer out of the Momenti deck (matcher gate). */}
+        <Section
+          label={t('dream.ownLabel', locale)}
+          field="dream"
+          editing
+          visibility={visibility}
+          setVis={setVis}
+          locale={locale}
+        >
+          {dreamText ? (
+            <DreamQuote text={dreamText} />
+          ) : (
+            <EmptyState>{t('dream.empty.title', locale)}</EmptyState>
+          )}
+          {/* «Solo io» costs more than privacy: the matcher drops a private-dream
+              member as a candidate, so they stop being proposed to anyone. Shown
+              only on that choice — a standing line would be noise on the others. */}
+          {(visibility.dream ?? 'members') === 'private' ? (
+            <Text className="text-[13px] leading-snug text-muted-foreground">
+              {t('dream.visibility.privateHint', locale)}
+            </Text>
+          ) : null}
+        </Section>
+
+        {/* Lingua + actions */}
+        <View className="gap-3">
+          <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
+          <LocaleChips value={locale} onChange={setLocale} />
+
+          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+
+          <View className="flex-row items-center gap-4">
+            <Button
+              label={t('profile.save', locale)}
+              variant="primary"
+              disabled={saving}
+              onPress={save}
+            />
+            <Button
+              label={t('profile.cancel', locale)}
+              variant="ghost"
+              disabled={saving}
+              onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
+            />
+          </View>
         </View>
-      </View>
+
+        {tailSlot}
+      </ScrollView>
 
       {/* Kept mounted, never conditionally rendered: on iOS the picker is launched from the
           Modal's onDismiss, and an unmount kills the queued launch (MediaSheet's docblock). */}
