@@ -1924,3 +1924,156 @@ Read `:51` as: «never cleared by the job — a released lease is the one thing 
 Asserted by: `supabase/tests/0057_gdpr_export_jobs_rls.test.sql`, whose last claim-lease pair shows
 a fresh stamp holding a row against the claim and then shows the very next claim taking it once the
 stamp is nulled — the release procedure, exercised.
+
+## Three migrations — "nothing here encodes a window" is now false, and #715 is why
+
+Three applied headers say, correctly at the time, that no retention window exists in the schema:
+
+| migration                                          | lines        | quote                                                                                                                    |
+| -------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `20260815131925_gdpr_fund_erasure_tombstone.sql`   | `:6-8`       | «is deliberately NOT encoded here — nothing in this migration deletes a money row, so no window number exists to invent» |
+| `20260908071656_gdpr_payment_pseudonymisation.sql` | `:8-9`       | «the 10-year reaper … is a follow-up. Nothing here encodes a window, so there is still no number to invent»              |
+| this file, the entry above                         | `:1769-1770` | «Nothing in the schema encodes ten years, so there is still no number to assert»                                         |
+
+`20260909085841_gdpr_retention_reaper.sql` (#715) encodes it. The number now lives in exactly one
+place — `public.gdpr_retention_window()`, returning `interval '10 years'` — and the reaper, the
+tests and any future caller read it from there rather than spelling it again. Read all three as:
+«no window was encoded **until 20260909085841**».
+
+Two things in those headers stayed true and one did not:
+
+- **True.** The tombstone itself still encodes no window, and `erased_at` is still the fact while
+  the window is a separate decision. Nothing about the pseudonymisation changed.
+- **True.** The reaper never touches a row whose `erased_at` is NULL, however old. A live payment
+  record is untouchable, which is the property the window exists to bound.
+- **Superseded.** `20260815131925`'s premise that «nothing in this migration deletes a money row»
+  no longer describes the table's lifecycle: rows in `fund_contributions` are now deleted, ten
+  years after erasure, by `gdpr_retention_reap()`. The migration's own SQL is unchanged — it is
+  the surrounding claim that has aged.
+
+The entry above also records a decision as outstanding that has since been made: «`#715` carries
+the decision `#107` did not make: `fund_contributions` … has no clock at all, so it cannot be aged
+without a column and a backfill ruling». Marco ruled it on 2026-09-09 — `fund_contributions` gains
+`erased_at`, backfilled from `updated_at` for rows already pointing at the tombstone, because the
+touch trigger stamped the reassignment. Read `:1770-1772` as answered, not open.
+
+One caveat on that backfill, recorded because the ruling's stated premise is not exactly true:
+«no later write moves a tombstoned row» is contradicted by `reverseContribution`
+(`supabase/functions/stripe-webhook/handlers.ts:342-360`), which matches on
+`stripe_payment_intent_id` + `status = 'succeeded'` with no tombstone guard, so a refund or dispute
+arriving after an erasure moves `updated_at` again. The error is one-way — it can only push a
+backfilled `erased_at` later, never earlier — so the backfill over-retains at worst. On a ten-year
+legal floor that is the safe side; under-retention would have been the violation. Verified on
+staging when the migration applied: both tombstoned rows backfilled to `2026-09-08 07:50:35`, the
+erasure instant, not to the backfill's own clock.
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` — §1 asserts the window BY VALUE
+(`interval '10 years'`) and that no other `public` function spells it, so a second copy fails the
+suite; §4 asserts a row inside the window survives, a row outside it does not, and a row with a
+NULL `erased_at` survives at twelve years old; §6b asserts `gdpr_erase_fund_footprint` now stamps
+`erased_at`, without which every row erased after this migration would never age out.
+
+## `20260909085841_gdpr_retention_reaper.sql` — "the total IS the rows" was not the whole reader list
+
+The header's §"The one real consequence" (`:88-105`) justifies patching one function:
+
+> There is no cached per-edition counter to keep in step — the total IS the rows.
+
+True about caches, and misleading about readers. Queried against staging rather than recalled,
+**five** live functions derive a per-edition total straight from `fund_contributions`, and only one
+of them was patched by this migration:
+
+| function                   | what it computes          | phase it requires              | sees a reaped edition? |
+| -------------------------- | ------------------------- | ------------------------------ | ---------------------- |
+| `recompute_fund_aggregate` | the public ticker         | none — callable any time       | **yes**, patched here  |
+| `enter_announcement`       | the FUND-42 snapshot      | `voting`                       | no                     |
+| `declare_winner`           | the FUND-42 floor         | `voting` / `announcement`      | no                     |
+| `close_cycle`              | the closure carry         | `announcement` / `realization` | no                     |
+| `rollover_voided`          | the FUND-45 carry-forward | **`closed`**                   | **yes**, missed        |
+
+An edition holding reaped rows is necessarily closed — a contribution is reapable only ten years
+after its owner's erasure — so the three middle rows are unreachable, and their phase guards raise
+`P0001` rather than silently reading a short pool. `rollover_voided` is the one that bites: it
+_requires_ `phase = 'closed'`, computes `carried_in_cents + v_raised`, and hands the result to a
+successor cycle. A voided edition rolled over after any of its contributions aged out would carry
+forward **less money than was raised**, in the direction of paying a future winner short. Nothing
+bounds how late a rollover may happen; `already rolled over` guards double-carrying, not elapsed
+time.
+
+Fixed in code by `20260909093945_gdpr_retention_reaper_review_fixes.sql`, which adds
+`+ v_edition.reaped_cents` to that one expression and leaves the other three alone deliberately —
+re-typing three money functions to close a path that needs a decade-old open cycle would add more
+transcription risk than it removes.
+
+Read `:88-105` as: «`recompute_fund_aggregate` and `rollover_voided` are the two readers that can
+see a reaped edition; the other three are excluded by their phase guards.»
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` §8 — three `throws_ok` calls pin
+the phase guards on the unreachable three (so the exclusion is a property, not a comment), and a
+source pin on `rollover_voided` catches a future re-sign that drops the carry term.
+
+## `20260909085841_gdpr_retention_reaper.sql` — the backfill overwrites the column it reads
+
+`:165`'s backfill is `update public.fund_contributions set erased_at = updated_at where …`. The
+table carries `fund_contributions_touch_updated_at` (BEFORE UPDATE, unconditional), so the same
+statement that copies `updated_at` into `erased_at` then sets `updated_at := now()`.
+
+The copy itself is correct — the trigger fires after the SET list is evaluated, so `erased_at`
+receives the pre-update value. Verified on staging at apply time: both tombstoned rows hold
+`erased_at = 2026-09-08 07:50:35.594932+00`, the erasure instant, while `updated_at` reads
+`2026-09-09 09:10:11`, the migration's own clock.
+
+What is gone is the ability to re-derive or audit the stamp afterwards: `erased_at` is now the only
+copy of that timestamp, so the caveat recorded in the entry above — that `reverseContribution`
+(`supabase/functions/stripe-webhook/handlers.ts:342-360`) can move `updated_at` past the true
+erasure instant, making a backfilled `erased_at` over-retain — is no longer detectable on a
+backfilled row. It was arguably never detectable, since `updated_at` is a single mutable column
+that a refund overwrites in place, but after the backfill it is certainly not.
+
+Read `:165` as: on any row this backfill touched, `updated_at` is the migration's timestamp and
+carries no erasure meaning; `erased_at` is the fact. The error direction is one-way and safe —
+over-retention on a legal floor, never under-retention.
+
+Asserted by: nothing, and deliberately — there is no pre-backfill value left to assert against.
+`0150` §6b covers the path that matters going forward: every erasure from now on stamps
+`erased_at` directly at the erasure instant, so no derivation is involved.
+
+## `20260909085841_gdpr_retention_reaper.sql` — two column comments that outrun their SQL
+
+Both are on `fund_editions.reaped_cents` (`:242`), and both are the shape this file exists for.
+
+> Monotonically increasing. … Never decremented; written only by `gdpr_retention_reap()`.
+
+**Neither half is enforced.** The SQL at `:238-239` adds exactly one constraint,
+`check (reaped_cents >= 0)`. Nothing refuses a decrement, and nothing restricts the writer:
+`service_role` holds `grant all on table public.fund_editions` (`20260617212319:30`), and every
+`SECURITY DEFINER` function in the schema runs as the owner. So the sentence describes an
+intention and a convention, not a guarantee.
+
+It was left unenforced on purpose rather than by oversight. A `BEFORE UPDATE` trigger refusing
+`new.reaped_cents < old.reaped_cents` would bind `service_role` too, and the column stays `0` on
+both projects until 2036 — so the trigger's only certain effect for the next decade would be to
+remove an operator's ability to correct a bad carry. The client roles, which are the ones that
+matter, already cannot write it: `0150` §2 pins `not has_column_privilege(anon|authenticated,
+'reaped_cents', 'update')`.
+
+Read `:242` as: «intended to be monotonic, and written by `gdpr_retention_reap()` alone; the SQL
+enforces only `>= 0`, and no client role can write it at all.»
+
+A second, smaller overstatement in the same migration, at `:136-137`:
+
+> IMMUTABLE and argument-free so it inlines into the predicate
+
+`gdpr_retention_reap()` evaluates the window ONCE into `v_cutoff` (`:306`) and every DELETE
+compares against that plpgsql variable, so `gdpr_retention_window()` never appears in a `WHERE`
+clause. `IMMUTABLE` is still the correct marking — it lets any caller fold the call to a constant,
+and is what would keep it usable in an index predicate or a generated column — but the stated
+reason describes code that was not written. The partial indexes are used because the DELETEs test
+`erased_at is not null`, not because of anything the marking does.
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` §2, which pins the whole read
+and write surface of both new columns (`has_column_privilege` for `anon` and `authenticated` on
+`fund_editions.reaped_cents` and `fund_contributions.erased_at`) rather than leaving it inherited,
+and whose `volatility_is` message now states the real reason for `IMMUTABLE`. Monotonicity itself
+is asserted only in the weak form the SQL supports: §5's second pass shows the carry is additive
+and does not double.

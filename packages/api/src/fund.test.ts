@@ -120,6 +120,9 @@ const ROW = {
   stripe_checkout_session_id: 'cs_test_1',
   stripe_payment_intent_id: null,
   status: 'succeeded',
+  // #715: the retention clock. NULL is a live contribution — a member reading their own
+  // contributions never sees anything else, since an erased row is no longer theirs.
+  erased_at: null,
   created_at: '2026-07-01T10:00:00Z',
   updated_at: '2026-07-01T10:00:00Z',
 };

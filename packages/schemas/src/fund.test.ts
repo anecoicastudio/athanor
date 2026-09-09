@@ -29,6 +29,7 @@ const validEdition = {
   carried_in_cents: 0,
   carried_from_edition_id: null,
   winner_confirmed_at: null,
+  reaped_cents: 0,
   created_at: '2026-06-17T00:00:00.000Z',
   updated_at: '2026-06-17T00:00:00.000Z',
 };
@@ -141,6 +142,31 @@ describe('fundEditionSchema', () => {
     expect(
       fundEditionSchema.safeParse({ ...validEdition, winner_confirmed_at: 1746187200 }).success,
     ).toBe(false);
+  });
+
+  // #715 — the retention reaper's carry. `raised_cents` is a live SUM over fund_contributions,
+  // so once the reaper deletes a decade-old row the total would drop the next time anything
+  // recomputed that edition. `reaped_cents` is what keeps it whole, which makes it money: a
+  // schema that let it through as null, negative or fractional would corrupt a public figure.
+  it('accepts reaped_cents at zero and above', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, reaped_cents: 0 }).success).toBe(true);
+    expect(fundEditionSchema.safeParse({ ...validEdition, reaped_cents: 700 }).success).toBe(true);
+  });
+
+  it('rejects a negative reaped_cents — the carry only ever grows', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, reaped_cents: -1 }).success).toBe(false);
+  });
+
+  it('rejects a fractional reaped_cents — cents are integers', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, reaped_cents: 1.5 }).success).toBe(false);
+  });
+
+  it('rejects a null or missing reaped_cents — the column is NOT NULL, and arithmetic on a null carry would zero a historic total', () => {
+    expect(fundEditionSchema.safeParse({ ...validEdition, reaped_cents: null }).success).toBe(
+      false,
+    );
+    const { reaped_cents: _omitted, ...withoutCarry } = validEdition;
+    expect(fundEditionSchema.safeParse(withoutCarry).success).toBe(false);
   });
 });
 
@@ -266,6 +292,7 @@ describe('fundContributionSchema', () => {
       stripe_checkout_session_id: 'cs_1',
       stripe_payment_intent_id: 'pi_1',
       status: 'succeeded',
+      erased_at: null,
       created_at: '2026-06-18T00:00:00Z',
       updated_at: '2026-06-18T00:00:00Z',
     });
@@ -309,6 +336,40 @@ describe('fundContributionSchema', () => {
   it('rejects a null profile_id', () => {
     expect(fundContributionRow({ profile_id: null }).success).toBe(false);
   });
+
+  // #715 — the clock the 10-year retention reaper reads. NULL means a LIVE contribution and is
+  // the state that makes a row untouchable at any age, so the distinction between "absent" and
+  // "explicitly null" has to survive: a `.nullish()` here would let a row with no clock at all
+  // parse as an erased one.
+  it('accepts a null erased_at — a live contribution has no retention clock', () => {
+    expect(fundContributionRow({ erased_at: null }).success).toBe(true);
+  });
+
+  it('accepts a stamped erased_at', () => {
+    expect(fundContributionRow({ erased_at: '2026-09-08T07:50:35.594Z' }).success).toBe(true);
+  });
+
+  it('rejects a non-string erased_at', () => {
+    expect(fundContributionRow({ erased_at: 1757316635 }).success).toBe(false);
+  });
+
+  it('rejects a missing erased_at — nullable, never optional', () => {
+    const r = fundContributionSchema.safeParse({
+      id: '00000000-0000-0000-0000-0000000000c1',
+      edition_id: '00000000-0000-0000-0000-0000000000ed',
+      profile_id: '11111111-1111-1111-1111-111111111111',
+      amount_cents: 500,
+      coverage_cents: 0,
+      charged_cents: 500,
+      currency: 'eur',
+      stripe_checkout_session_id: 'cs_1',
+      stripe_payment_intent_id: 'pi_1',
+      status: 'succeeded',
+      created_at: '2026-06-18T00:00:00Z',
+      updated_at: '2026-06-18T00:00:00Z',
+    });
+    expect(r.success).toBe(false);
+  });
 });
 
 /** A valid contribution row with `over` applied — keeps the enum cases to one line each. */
@@ -324,6 +385,7 @@ function fundContributionRow(over: Record<string, unknown>) {
     stripe_checkout_session_id: 'cs_1',
     stripe_payment_intent_id: 'pi_1',
     status: 'succeeded',
+    erased_at: null,
     created_at: '2026-06-18T00:00:00Z',
     updated_at: '2026-06-18T00:00:00Z',
     ...over,

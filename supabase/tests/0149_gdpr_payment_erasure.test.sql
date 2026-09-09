@@ -22,9 +22,11 @@
 -- The nightly schedule is §7. The edge function's own loop is deno-tested (erasure-job/
 -- logic.test.ts); what SQL owns, and what this file asserts, is the two RPCs and the cron job.
 --
--- NOT asserted here, because nothing implements it: the ten-year window itself. `erased_at` is
--- the clock the reaper will read and #715 is the reaper; until it lands, no row is ever dropped
--- and there is no number in the schema to test.
+-- The ten-year window itself is NOT asserted here, and no longer for want of an implementation:
+-- #715 landed on 2026-09-09 (`20260909085841`). `erased_at` is the clock it reads, the number
+-- lives in `public.gdpr_retention_window()`, and `0150_gdpr_retention_reaper.test.sql` asserts it
+-- by value along with the reaper's behaviour on both sides of the boundary. What this file owns
+-- is unchanged: the pseudonymisation that stamps the clock. What reads it is 0150's.
 
 begin;
 

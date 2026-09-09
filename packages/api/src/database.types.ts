@@ -1286,6 +1286,7 @@ export type Database = {
           created_at: string
           currency: string
           edition_id: string
+          erased_at: string | null
           id: string
           profile_id: string
           status: string
@@ -1300,6 +1301,7 @@ export type Database = {
           created_at?: string
           currency?: string
           edition_id: string
+          erased_at?: string | null
           id?: string
           profile_id: string
           status?: string
@@ -1314,6 +1316,7 @@ export type Database = {
           created_at?: string
           currency?: string
           edition_id?: string
+          erased_at?: string | null
           id?: string
           profile_id?: string
           status?: string
@@ -1403,6 +1406,7 @@ export type Database = {
           min_funding_cents: number
           min_voters: number
           phase: string
+          reaped_cents: number
           split_pct: number
           target_at: string
           updated_at: string
@@ -1427,6 +1431,7 @@ export type Database = {
           min_funding_cents: number
           min_voters: number
           phase?: string
+          reaped_cents?: number
           split_pct: number
           target_at: string
           updated_at?: string
@@ -1451,6 +1456,7 @@ export type Database = {
           min_funding_cents?: number
           min_voters?: number
           phase?: string
+          reaped_cents?: number
           split_pct?: number
           target_at?: string
           updated_at?: string
@@ -3487,6 +3493,14 @@ export type Database = {
         Args: { p_profile_id: string }
         Returns: undefined
       }
+      gdpr_retention_reap: {
+        Args: never
+        Returns: {
+          reaped_table: string
+          rows_deleted: number
+        }[]
+      }
+      gdpr_retention_window: { Args: never; Returns: string }
       gdpr_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
       gdpr_storage_footprint: {
         Args: { p_limit?: number; p_profile_id: string }
