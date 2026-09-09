@@ -1924,3 +1924,51 @@ Read `:51` as: «never cleared by the job — a released lease is the one thing 
 Asserted by: `supabase/tests/0057_gdpr_export_jobs_rls.test.sql`, whose last claim-lease pair shows
 a fresh stamp holding a row against the claim and then shows the very next claim taking it once the
 stamp is nulled — the release procedure, exercised.
+
+## Three migrations — "nothing here encodes a window" is now false, and #715 is why
+
+Three applied headers say, correctly at the time, that no retention window exists in the schema:
+
+| migration                                          | lines        | quote                                                                                                                    |
+| -------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `20260815131925_gdpr_fund_erasure_tombstone.sql`   | `:6-8`       | «is deliberately NOT encoded here — nothing in this migration deletes a money row, so no window number exists to invent» |
+| `20260908071656_gdpr_payment_pseudonymisation.sql` | `:8-9`       | «the 10-year reaper … is a follow-up. Nothing here encodes a window, so there is still no number to invent»              |
+| this file, the entry above                         | `:1769-1770` | «Nothing in the schema encodes ten years, so there is still no number to assert»                                         |
+
+`20260909085841_gdpr_retention_reaper.sql` (#715) encodes it. The number now lives in exactly one
+place — `public.gdpr_retention_window()`, returning `interval '10 years'` — and the reaper, the
+tests and any future caller read it from there rather than spelling it again. Read all three as:
+«no window was encoded **until 20260909085841**».
+
+Two things in those headers stayed true and one did not:
+
+- **True.** The tombstone itself still encodes no window, and `erased_at` is still the fact while
+  the window is a separate decision. Nothing about the pseudonymisation changed.
+- **True.** The reaper never touches a row whose `erased_at` is NULL, however old. A live payment
+  record is untouchable, which is the property the window exists to bound.
+- **Superseded.** `20260815131925`'s premise that «nothing in this migration deletes a money row»
+  no longer describes the table's lifecycle: rows in `fund_contributions` are now deleted, ten
+  years after erasure, by `gdpr_retention_reap()`. The migration's own SQL is unchanged — it is
+  the surrounding claim that has aged.
+
+The entry above also records a decision as outstanding that has since been made: «`#715` carries
+the decision `#107` did not make: `fund_contributions` … has no clock at all, so it cannot be aged
+without a column and a backfill ruling». Marco ruled it on 2026-09-09 — `fund_contributions` gains
+`erased_at`, backfilled from `updated_at` for rows already pointing at the tombstone, because the
+touch trigger stamped the reassignment. Read `:1770-1772` as answered, not open.
+
+One caveat on that backfill, recorded because the ruling's stated premise is not exactly true:
+«no later write moves a tombstoned row» is contradicted by `reverseContribution`
+(`supabase/functions/stripe-webhook/handlers.ts:342-360`), which matches on
+`stripe_payment_intent_id` + `status = 'succeeded'` with no tombstone guard, so a refund or dispute
+arriving after an erasure moves `updated_at` again. The error is one-way — it can only push a
+backfilled `erased_at` later, never earlier — so the backfill over-retains at worst. On a ten-year
+legal floor that is the safe side; under-retention would have been the violation. Verified on
+staging when the migration applied: both tombstoned rows backfilled to `2026-09-08 07:50:35`, the
+erasure instant, not to the backfill's own clock.
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` — §1 asserts the window BY VALUE
+(`interval '10 years'`) and that no other `public` function spells it, so a second copy fails the
+suite; §4 asserts a row inside the window survives, a row outside it does not, and a row with a
+NULL `erased_at` survives at twelve years old; §6b asserts `gdpr_erase_fund_footprint` now stamps
+`erased_at`, without which every row erased after this migration would never age out.
