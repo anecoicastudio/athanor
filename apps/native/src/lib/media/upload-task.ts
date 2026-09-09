@@ -47,7 +47,7 @@ import type { UploadHandle, Uploader, UploadResponse } from './upload-transport'
  * buy only its two iOS options, `LSSupportsOpeningDocumentsInPlace` / `UIFileSharingEnabled`,
  * neither of which this seam wants.
  *
- * None of that is new here. `expo@57.0.20` lists `expo-file-system ~57.0.6` in its OWN
+ * None of that is new here. `expo@57.0.21` lists `expo-file-system ~57.0.6` in its OWN
  * dependencies, so the module was autolinked and the plugin applied before this file existed;
  * putting it in `apps/native/package.json` pins the version the import resolves against and adds
  * no native module and no permission. Whether a Play-bound manifest should carry two storage
