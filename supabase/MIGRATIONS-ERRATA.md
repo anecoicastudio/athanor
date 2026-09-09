@@ -2037,3 +2037,43 @@ over-retention on a legal floor, never under-retention.
 Asserted by: nothing, and deliberately — there is no pre-backfill value left to assert against.
 `0150` §6b covers the path that matters going forward: every erasure from now on stamps
 `erased_at` directly at the erasure instant, so no derivation is involved.
+
+## `20260909085841_gdpr_retention_reaper.sql` — two column comments that outrun their SQL
+
+Both are on `fund_editions.reaped_cents` (`:242`), and both are the shape this file exists for.
+
+> Monotonically increasing. … Never decremented; written only by `gdpr_retention_reap()`.
+
+**Neither half is enforced.** The SQL at `:238-239` adds exactly one constraint,
+`check (reaped_cents >= 0)`. Nothing refuses a decrement, and nothing restricts the writer:
+`service_role` holds `grant all on table public.fund_editions` (`20260617212319:30`), and every
+`SECURITY DEFINER` function in the schema runs as the owner. So the sentence describes an
+intention and a convention, not a guarantee.
+
+It was left unenforced on purpose rather than by oversight. A `BEFORE UPDATE` trigger refusing
+`new.reaped_cents < old.reaped_cents` would bind `service_role` too, and the column stays `0` on
+both projects until 2036 — so the trigger's only certain effect for the next decade would be to
+remove an operator's ability to correct a bad carry. The client roles, which are the ones that
+matter, already cannot write it: `0150` §2 pins `not has_column_privilege(anon|authenticated,
+'reaped_cents', 'update')`.
+
+Read `:242` as: «intended to be monotonic, and written by `gdpr_retention_reap()` alone; the SQL
+enforces only `>= 0`, and no client role can write it at all.»
+
+A second, smaller overstatement in the same migration, at `:136-137`:
+
+> IMMUTABLE and argument-free so it inlines into the predicate
+
+`gdpr_retention_reap()` evaluates the window ONCE into `v_cutoff` (`:306`) and every DELETE
+compares against that plpgsql variable, so `gdpr_retention_window()` never appears in a `WHERE`
+clause. `IMMUTABLE` is still the correct marking — it lets any caller fold the call to a constant,
+and is what would keep it usable in an index predicate or a generated column — but the stated
+reason describes code that was not written. The partial indexes are used because the DELETEs test
+`erased_at is not null`, not because of anything the marking does.
+
+Asserted by: `supabase/tests/0150_gdpr_retention_reaper.test.sql` §2, which pins the whole read
+and write surface of both new columns (`has_column_privilege` for `anon` and `authenticated` on
+`fund_editions.reaped_cents` and `fund_contributions.erased_at`) rather than leaving it inherited,
+and whose `volatility_is` message now states the real reason for `IMMUTABLE`. Monotonicity itself
+is asserted only in the weak form the SQL supports: §5's second pass shows the carry is additive
+and does not double.

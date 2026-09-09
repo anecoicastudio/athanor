@@ -52,7 +52,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(62);
+select plan(69);
 
 -- ── 1. the window: one home, and the number is ten years ─────────────────────────────────
 select has_function('public', 'gdpr_retention_window', '{}'::name[],
@@ -61,8 +61,12 @@ select is(
   public.gdpr_retention_window(),
   interval '10 years',
   'the window is TEN YEARS — art. 2220 c.c. and DPR 600/1973 art. 22, per the controller ruling on #184');
+-- IMMUTABLE is right, but not because it inlines into a predicate: the reaper evaluates the
+-- window ONCE into v_cutoff and every DELETE compares against that plpgsql variable, so the
+-- function never appears in a WHERE clause. The marking is what lets a caller fold it into a
+-- constant and keeps it usable in an index predicate or a generated column later.
 select volatility_is('public', 'gdpr_retention_window', '{}'::name[], 'immutable',
-  'gdpr_retention_window is IMMUTABLE so it inlines into the reaper''s predicate and the partial indexes stay usable');
+  'gdpr_retention_window is IMMUTABLE — a retention floor is a constant, and the marking lets any caller fold it');
 select is(
   (select proconfig from pg_proc
     where oid = 'public.gdpr_retention_window()'::regprocedure),
@@ -113,6 +117,28 @@ select col_is_null('public', 'fund_contributions', 'erased_at',
 select has_column('public', 'fund_editions', 'reaped_cents', 'fund_editions carries reaped_cents');
 select col_not_null('public', 'fund_editions', 'reaped_cents',
   'reaped_cents is NOT NULL — arithmetic on a NULL carry would silently zero a historic total');
+
+-- The read surface of both new columns, declared rather than inherited (rules/supabase-db.md:
+-- "an explicit grant is reviewable, a default is not"). `fund_editions` is the public cycle
+-- record — anon reads it for the heartbeat — so `reaped_cents` is world-readable BY DESIGN,
+-- alongside carried_in_cents and confirmed_pool_cents. It leaks nothing: it is an unattributed
+-- sum over contributions whose owners no longer exist, and every cent in it was already inside
+-- the raised_cents anon could read before the reap.
+select ok(has_column_privilege('anon', 'public.fund_editions', 'reaped_cents', 'select'),
+  'anon reads fund_editions.reaped_cents — deliberate, the table is the public cycle record');
+select ok(has_column_privilege('authenticated', 'public.fund_editions', 'reaped_cents', 'select'),
+  'authenticated reads fund_editions.reaped_cents');
+select ok(not has_column_privilege('anon', 'public.fund_editions', 'reaped_cents', 'update'),
+  'anon cannot write the carry — it is the reaper''s column, and a client-writable one would let a caller inflate a historic total');
+select ok(not has_column_privilege('authenticated', 'public.fund_editions', 'reaped_cents', 'update'),
+  'authenticated cannot write the carry either');
+
+-- `fund_contributions` is owner-scoped, and erased_at inherits that: no anon grant at all, and
+-- the authenticated grant is then narrowed to the member's own rows by fund_contributions_select_own.
+select ok(not has_column_privilege('anon', 'public.fund_contributions', 'erased_at', 'select'),
+  'anon cannot read fund_contributions.erased_at — the table carries no anon grant');
+select ok(has_column_privilege('authenticated', 'public.fund_contributions', 'erased_at', 'select'),
+  'authenticated reads erased_at at the grant level; fund_contributions_select_own narrows it to their own rows');
 
 -- Partial, because the reaped population is a rounding error beside the live one and will be for
 -- years. Without these the nightly pass is three seq scans that find nothing.
@@ -440,6 +466,15 @@ select ok(
     where n.nspname = 'public' and p.proname = 'rollover_voided')
     like '%v_edition.reaped_cents%',
   'rollover_voided adds fund_editions.reaped_cents to the carry — without it a late rollover carries forward less than was raised');
+
+-- 20260909093945 re-signed this function from `pg_get_functiondef` output, which omits the
+-- `security invoker` keyword because INVOKER is the default. Behaviour is unchanged, but the
+-- marker every other fund function carries is now absent from the source — so the posture is
+-- pinned here instead, the way 0104:61-67 pins gdpr_erase_fund_footprint and
+-- recompute_fund_aggregate. A future re-sign that makes this DEFINER goes red.
+select isnt_definer('public', 'rollover_voided',
+  array['uuid','timestamptz','bigint','bigint','integer','integer','integer','text','text'],
+  'rollover_voided is still SECURITY INVOKER — the 20260909093945 re-sign dropped the explicit keyword, not the posture');
 
 select * from finish();
 rollback;
