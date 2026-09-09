@@ -51,3 +51,7 @@ overrides:
   js-yaml: 4.3.2
   shell-quote: 1.9.0
   'postcss@8': 8.5.23
+  # sharp is the one entry that overrides an EXACT pin, not a range: next@16.3.4 already
+  # wants ^0.35.4, but miniflare (the preview runtime) pins 0.35.2 exactly, so the
+  # lockfile kept both until this line. Preview walk covers it.
+  sharp: 0.35.4
