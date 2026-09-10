@@ -231,7 +231,7 @@
   "auth.error.weakPassword": "Password too weak. Use at least 8 characters, with an uppercase letter, a lowercase letter and a number.",
   "auth.error.providerDisabled": "Sign-in with {provider} isn't switched on yet.",
   "auth.error.oauthFailed": "Sign-in with {provider} didn't go through. Try again.",
-  "auth.error.suspended": "Your account is suspended. You can't sign in for now.",
+  "auth.error.suspended": "This account is suspended or being deleted. You can't sign in.",
   "moderation.suspended.title": "Your account is suspended until {date}.",
   "moderation.suspended.body": "For now you can read, but not write or take part.",
   "moderation.banned.title": "Your account is suspended permanently.",

@@ -7,9 +7,10 @@ import type { MessageKey } from '@athanor/i18n';
  */
 export function authErrorKey(err: { code?: string; status?: number }): MessageKey {
   if (err.code === 'invalid_credentials') return 'auth.error.invalidCredentials';
-  // GoTrue closes sign-in with the same code for a timed suspension and a permanent
-  // ban (moderation-enforce sets ban_duration for both, #106/#312), and its error
-  // carries no end date — the in-session SuspendedNotice is where the date renders.
+  // GoTrue closes sign-in with the same code for a timed suspension, a permanent ban
+  // (moderation-enforce sets ban_duration for both, #106/#312) and, since #733, a member's
+  // own erasure request; its error carries no cause and no end date, so the copy names all
+  // three without promising a return — the in-session SuspendedNotice is where a date renders.
   if (err.code === 'user_banned') return 'auth.error.suspended';
   if (err.code === 'user_already_exists' || err.code === 'email_exists')
     return 'auth.error.emailTaken';
@@ -32,5 +33,9 @@ export function authErrorKey(err: { code?: string; status?: number }): MessageKe
 export function oauthErrorKey(message: string): MessageKey {
   if (/provider is not enabled|unsupported provider/i.test(message))
     return 'auth.error.providerDisabled';
+  // The callback carries `error_code=user_banned` (oauth.ts returns errorCode as the message)
+  // or the description «User is banned». Same closed door as the password path (#733):
+  // «try again» would be an invitation to retry forever.
+  if (/user_banned|user is banned/i.test(message)) return 'auth.error.suspended';
   return 'auth.error.oauthFailed';
 }
