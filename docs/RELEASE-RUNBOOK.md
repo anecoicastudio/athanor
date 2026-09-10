@@ -562,7 +562,7 @@ Check `supabase/.temp/linked-project.json` reads `athanor` (production) before t
 verify with `select column_name from information_schema.columns where table_name = 'profiles'
 and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagging.
 
-### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06)
+### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06) — and the fund rail, which is not
 
 > **⛔ BLOCKING on production only — Connect is not signed up for there (found 2026-09-06 while shipping #104; resolved on the test account the same day, see the closing note).**
 > Invoking `create-payout-onboarding` against **staging** with a real organiser JWT returns 500, and the
@@ -660,8 +660,10 @@ apply and the Dashboard will not offer them. What the operator has to get right 
 **amount**, and nothing in code checks it. `reverseContribution` (`stripe-webhook/handlers.ts`,
 shared by W4 `charge.refunded` and W12 `charge.dispute.created`) flips the row to `refunded` whole
 and un-counts `amount_cents` from the public ticker; it reads neither `amount_refunded` nor the
-partial/full distinction, so the ticker stays exact whatever was refunded — and the payer's money
-is entirely what you type into the refund dialog.
+partial/full distinction. The ticker therefore stays exact in the two cases the code was written
+for — the gift alone, or the entire charge — and **understates the pool on any smaller partial**:
+refund €5 of a €25 gift and the whole €25 leaves the public total. The payer's money is entirely
+what you type into the refund dialog.
 
 **Refund exactly `fund_contributions.amount_cents` — the gift — as a partial refund.** Never the
 charge total. The payer consented to that line before ticking the box
@@ -671,11 +673,12 @@ coverage would cost the fund money it never held.
 
 How to read the figures without arithmetic: an uncovered contribution is a single line item
 («Dai Vita al Tuo Sogno — contributo») and `amount_cents` equals the charge; a covered one is
-**two line items** on the Checkout Session — the gift and «copertura costi di pagamento» — and the
+**two line items** on the Checkout Session — «Dai Vita al Tuo Sogno — contributo» and «Dai Vita al
+Tuo Sogno — copertura costi di pagamento» — and the
 Session's metadata carries `gift_cents` and `coverage_cents` as strings. The row's `charged_cents`
 is the generated sum and equals Stripe's `amount_total`. Refund the first line item's amount. The
 only case that refunds the whole charge is a duplicate or a platform fault, and then the coverage
-goes back too because the payer never chose it.
+goes back too because the charge itself should never have happened.
 
 `apps/native/src/lib/fund-disclosure.test.ts` pins the consent line outside the tick conditional,
 so it cannot silently become visible only after consent. This step exists because the promise
