@@ -38,10 +38,10 @@
 --   connections / conversations / messages — never destroyed by decay; deleting or
 --     restoring them would destroy tester history.
 --   GoTrue-side ban state              — NO LONGER in this list (#733): §8 clears
---     auth.users.banned_until too. This file runs as postgres, the owner of the DEFINER
---     that writes the column, so SQL can reach it after all — the old note predates
---     20260910130552. A persona's erasure requests go first, or the nightly erasure job
---     would delete the persona and the sticky trigger would re-raise the ban.
+--     auth.users.banned_until too. The old note («SQL cannot reach it») was simply wrong:
+--     this file runs as postgres, which has always held UPDATE on auth.users. A persona's
+--     erasure requests go first, or the nightly erasure job would delete the persona and
+--     the #733 sticky trigger would re-raise the ban.
 --   fund_editions.target_at            — NO LONGER in this list, and neither half of the
 --     old reason survives (#127). It was «cosmetic, and nothing gates on it: annual.tsx's
 --     CountdownGrid and DreamHeroCard are its only readers». public.fund_countdown_sweep()
@@ -315,7 +315,7 @@ begin
   -- and an erasure request would let tonight's job delete the persona). Order matters:
   -- the request rows first — while one exists the #733 sticky trigger re-raises the
   -- GoTrue ban — then the profiles half, then the GoTrue half, which this file CAN
-  -- write: it runs as postgres, owner of the DEFINER behind 20260910130552.
+  -- write: it runs as postgres, which holds UPDATE on auth.users.
   delete from public.gdpr_erasure_requests r
    where r.profile_id = any(v_personas);
   get diagnostics v_erasure = row_count;

@@ -13,10 +13,13 @@
 --   5. A SECOND REQUEST CANNOT MOVE THE CLOCK: the one-open-request index rejects it and
 --      banned_until is byte-identical before and after.
 --   6. THE SHAPE: both triggers exist with the tgtype they claim (AFTER ROW INSERT|UPDATE with a
---      WHEN clause; BEFORE ROW UPDATE), both functions are DEFINER with a locked search_path,
---      and no client role can EXECUTE either (#409).
+--      WHEN clause; BEFORE ROW UPDATE on exactly the banned_until column), both functions are
+--      DEFINER with a locked search_path, and no client role can EXECUTE either (#409).
+--   7. ONE PREDICATE (20260910134453): a legacy-shaped row inserted straight as `failed` — the
+--      pre-#107 population §7.5 reconciles — bans and closes the Data API exactly like a fresh
+--      request, so no member can hold an open request and keep sign-in.
 begin;
-select plan(25);
+select plan(30);
 
 -- ── fixture ─────────────────────────────────────────────────────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -26,7 +29,9 @@ values
   ('00000000-0000-0000-0000-000000000000', '73300000-0000-0000-0000-0000000000bb',
    'authenticated', 'authenticated', 'suspended-first@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000', '73300000-0000-0000-0000-0000000000cc',
-   'authenticated', 'authenticated', 'data-api@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+   'authenticated', 'authenticated', 'data-api@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '73300000-0000-0000-0000-0000000000dd',
+   'authenticated', 'authenticated', 'legacy-failed@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 
 -- ── 6. shape ────────────────────────────────────────────────────────────────────────────────
 select has_trigger('public', 'gdpr_erasure_requests', 'gdpr_erasure_request_bans_signin',
@@ -38,14 +43,22 @@ select is(
      and t.tgname = 'gdpr_erasure_request_bans_signin'),
   21, 'it is AFTER · ROW · INSERT OR UPDATE (tgtype 1+4+16) — the re-queue path fires it too');
 select ok(
-  (select pg_get_triggerdef(t.oid) like '%WHEN ((new.status = ''requested''::text))%'
+  (select t.tgqual is not null from pg_trigger t where t.tgname = 'gdpr_erasure_request_bans_signin'),
+  'and it carries a WHEN clause');
+select ok(
+  (select pg_get_triggerdef(t.oid) like '%WHEN ((new.status <> ''done''::text))%'
      from pg_trigger t where t.tgname = 'gdpr_erasure_request_bans_signin'),
-  'and it fires only when the new status is requested');
+  'and it fires whenever the new status is not done — the same predicate as the sticky trigger and is_active()');
 select is(
   (select t.tgtype::int from pg_trigger t join pg_class c on c.oid = t.tgrelid
     join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'auth' and c.relname = 'users' and t.tgname = 'gdpr_erasure_ban_sticky'),
   19, 'the sticky trigger is BEFORE · ROW · UPDATE on auth.users (tgtype 1+2+16)');
+select is(
+  (select t.tgattr::text from pg_trigger t where t.tgname = 'gdpr_erasure_ban_sticky'),
+  (select a.attnum::text from pg_attribute a
+    where a.attrelid = 'auth.users'::regclass and a.attname = 'banned_until'),
+  'and it is OF banned_until alone — widening it would fire on every GoTrue sign-in write');
 select is_definer('public', 'gdpr_ban_on_erasure_request', array[]::text[],
   'the request trigger function is SECURITY DEFINER — service_role holds no UPDATE on auth.users');
 select is_definer('public', 'gdpr_keep_erasure_ban', array[]::text[],
@@ -134,6 +147,14 @@ select ok(
   (select banned_until > now() + interval '99 years'
    from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
   'a failed row is still an open obligation: the ban stays sticky until the row is done or gone');
+update public.gdpr_erasure_requests set status = 'partial'
+ where profile_id = '73300000-0000-0000-0000-0000000000aa';
+update auth.users set banned_until = null
+ where id = '73300000-0000-0000-0000-0000000000aa';
+select ok(
+  (select banned_until > now() + interval '99 years'
+   from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
+  'and so is a partial row — status <> done is the whole predicate');
 update public.gdpr_erasure_requests set status = 'requested'
  where profile_id = '73300000-0000-0000-0000-0000000000aa';
 
@@ -148,6 +169,18 @@ select is(athanor.is_active(), false,
 reset role;
 select has_index('public', 'gdpr_erasure_requests', 'gdpr_erasure_requests_open_by_profile',
   'the open-request lookup is indexed — is_active() runs on every social write');
+
+-- ── 7. one predicate: a legacy-shaped failed row bans and closes the Data API ──────────────
+insert into public.gdpr_erasure_requests (profile_id, status)
+values ('73300000-0000-0000-0000-0000000000dd', 'failed');
+select ok(
+  (select banned_until > now() + interval '99 years'
+   from auth.users where id = '73300000-0000-0000-0000-0000000000dd'),
+  'a row inserted straight as failed (the pre-#107 shape) bans — no status keeps sign-in open');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"73300000-0000-0000-0000-0000000000dd","role":"authenticated"}';
+select is(athanor.is_active(), false, 'and the Data API is closed to that member as well — the two halves agree');
+reset role;
 
 -- ── 5. a second request cannot move the clock ──────────────────────────────────────────────
 select set_config('test.before',
@@ -172,15 +205,17 @@ select is(
   (select count(*)::int from public.gdpr_erasure_requests
     where profile_id in ('73300000-0000-0000-0000-0000000000aa',
                          '73300000-0000-0000-0000-0000000000bb',
-                         '73300000-0000-0000-0000-0000000000cc')),
-  3, 'exactly the three requests exist');
+                         '73300000-0000-0000-0000-0000000000cc',
+                         '73300000-0000-0000-0000-0000000000dd')),
+  4, 'exactly the four requests exist');
 select is(
   (select count(*)::int from auth.users
     where id in ('73300000-0000-0000-0000-0000000000aa',
                  '73300000-0000-0000-0000-0000000000bb',
-                 '73300000-0000-0000-0000-0000000000cc')
+                 '73300000-0000-0000-0000-0000000000cc',
+                 '73300000-0000-0000-0000-0000000000dd')
       and banned_until > now() + interval '99 years'),
-  3, 'all three fixture members carry the erasure ban at the end');
+  4, 'all four fixture members carry the erasure ban at the end');
 
 select * from finish();
 rollback;

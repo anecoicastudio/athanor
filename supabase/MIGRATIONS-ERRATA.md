@@ -2077,3 +2077,41 @@ and write surface of both new columns (`has_column_privilege` for `anon` and `au
 and whose `volatility_is` message now states the real reason for `IMMUTABLE`. Monotonicity itself
 is asserted only in the weak form the SQL supports: §5's second pass shows the carry is additive
 and does not double.
+
+## `20260910130552_gdpr_erasure_request_bans_signin.sql` — "AFTER INSERT" and the bare NULL lift were both overtaken the same day
+
+Two sentences in the header describe a mechanism that lasted two migrations.
+
+> Shape: an AFTER INSERT trigger on the request table sets auth.users.banned_until …
+
+`20260910132434` recreated the trigger as `AFTER INSERT OR UPDATE OF status WHEN
+(new.status = 'requested')`, and `20260910134453` widened the WHEN to `new.status <> 'done'`, so
+the §7.5 re-queue (`update … set status = 'requested'`) and a legacy-shaped row inserted straight
+as `failed` both fire it. The header's shape describes the first of three states.
+
+> … if an operator ever withdraws one by hand (RELEASE-RUNBOOK §7.5), the ban has to be cleared
+> in the same act: `update auth.users set banned_until = null where id = …`.
+
+**A bare NULL is a silent no-op while the request row exists.** `20260910132434` added
+`gdpr_erasure_ban_sticky`, a `BEFORE UPDATE OF banned_until` trigger on `auth.users` that
+re-raises the erasure ban whenever the member has a request that is not `done` — proven on
+staging on 2026-09-10 against GoTrue's own admin API (`ban_duration: 60s` and `none` both left the
+column a century out). Withdrawal is two statements in this order: delete the request row, then
+re-derive `banned_until` from `profiles.banned_at` / `suspended_until`. RELEASE-RUNBOOK §7.5 has
+the rule.
+
+The same stickiness overtakes one older column comment, `20260813045347:38-39` on
+`profiles.banned_at`:
+
+> Permanent — lifting is an operator action (clear this AND GoTrue `ban_duration 'none'`)
+
+For a member with an open erasure request the `'none'` half is re-raised, and a suspension
+resolved against such a member records a `suspended_until` date that the GoTrue ban will
+outlive. Neither is a defect — the member asked to be erased — but the panel and
+`SuspendedNotice` render the suspension's date, so read that date as "what moderation wrote",
+not "when sign-in returns".
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` — the tgtype 21
+and the `<> 'done'` WHEN clause (§6), a 7-day overwrite and a bare NULL both re-raised while the
+row is open and NULL sticking only once it is `done` (§3), and a legacy-shaped `failed` insert
+banning (§7).

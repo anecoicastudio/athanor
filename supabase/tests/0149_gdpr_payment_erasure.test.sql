@@ -499,8 +499,8 @@ select throws_ok(
   '23505', null,
   'a SECOND open request is refused — packages/api reads this as success, not as a failure');
 
--- Terminal rows are unconstrained, which is what keeps §7.5 runnable and lets a member who
--- comes back ask again.
+-- Terminal rows are unconstrained, which is what keeps §7.5 runnable. (Since #733 a member
+-- with any non-done row cannot sign in to ask again; the re-queue is the operator's, §7.5.)
 select lives_ok(
   $$ update public.gdpr_erasure_requests set status = 'failed'
       where profile_id = '49000000-0000-0000-0000-0000000000ff' $$,

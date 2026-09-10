@@ -33,9 +33,11 @@ export function authErrorKey(err: { code?: string; status?: number }): MessageKe
 export function oauthErrorKey(message: string): MessageKey {
   if (/provider is not enabled|unsupported provider/i.test(message))
     return 'auth.error.providerDisabled';
-  // The callback carries `error_code=user_banned` (oauth.ts returns errorCode as the message)
-  // or the description «User is banned». Same closed door as the password path (#733):
-  // «try again» would be an invitation to retry forever.
+  // GoTrue redirects with snake_case `error_code=user_banned` and `error_description=User is
+  // banned`; expo-auth-session's QueryParams surfaces only camelCase `errorCode`, so oauth.ts
+  // hands back the description, and the second alternative is the one that matches. Both are
+  // kept so a GoTrue that starts emitting the code still lands here. Same closed door as the
+  // password path (#733): «try again» would be an invitation to retry forever.
   if (/user_banned|user is banned/i.test(message)) return 'auth.error.suspended';
   return 'auth.error.oauthFailed';
 }

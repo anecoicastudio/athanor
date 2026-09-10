@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
@@ -32,14 +32,6 @@ export default function DeleteAccountScreen() {
   const locale = useLocale();
   const [confirm, setConfirm] = useState('');
   const { showToast } = useToast();
-  const signOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Clear the pending sign-out timer on unmount so it can't fire on a dead component.
-  useEffect(
-    () => () => {
-      if (signOutTimer.current) clearTimeout(signOutTimer.current);
-    },
-    [],
-  );
 
   const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
@@ -49,7 +41,13 @@ export default function DeleteAccountScreen() {
     onSuccess: () => {
       showToast(t('account.delete.toast', locale), 'success');
       // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
-      signOutTimer.current = setTimeout(() => {
+      // Deliberately NOT cancelled on unmount (#733). It used to be, «so it can't fire on a dead
+      // component» — but endSession lives in the auth context, not in this screen, and
+      // cancelling it meant that backing out of the modal inside the 700 ms kept a session alive
+      // on an account whose request has already banned it: refresh would fail and every write
+      // would be denied, behind a UI that still looked signed in. The timer only ever ends the
+      // session; letting it fire after unmount is the point.
+      setTimeout(() => {
         endSession().catch(() => undefined);
       }, 700);
     },
