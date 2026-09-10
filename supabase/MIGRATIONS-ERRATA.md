@@ -2182,8 +2182,8 @@ but read the sentence as a convention, not a mechanism.
 
 Found on 2026-09-10 while `20260910142855` restated the revoke for `gdpr_ban_on_erasure_request()`
 after `20260910140902`'s replacement. That file's own header (`:6-7`) says the convention is
-"followed by every other create-or-replace of a trigger function", which overstates it — 29 of the
-34 replacements in the tree restate; the four above do not. Both files are applied and append-only;
+"followed by every other create-or-replace of a trigger function", which overstates it — the four
+replacements above do not, and they are enough to carry the point. Both files are applied and append-only;
 this entry is the correction for both.
 
 Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — no trigger function grants
