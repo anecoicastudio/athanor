@@ -1,6 +1,6 @@
 -- #733 — a pending erasure request bans sign-in at once (20260910130552), and the ban is
 -- sticky, reaches the re-queue path and closes the Data API (20260910132434, 20260910134453,
--- 20260910140902). The claims:
+-- 20260910140902, 20260910142855). The claims:
 --
 --   1. THE REQUEST BANS. A member's own insert into gdpr_erasure_requests — through RLS, as
 --      `authenticated` — leaves auth.users.banned_until ~100 years out. Before it: NULL.
@@ -8,7 +8,11 @@
 --      ban (the member had a 1-hour suspension; after the request they have the erasure ban).
 --   3. IT IS STICKY: while the request is not done, a later write that shortens or clears
 --      banned_until — a 7-day suspension, a bare NULL — is re-raised; once the row is done the
---      column is the operator's again, and a re-queue (`status = 'requested'`) bans afresh.
+--      column is the operator's again, and only a row coming back from done bans afresh — the
+--      real §7.5 re-queue (partial → requested) finds the ban the sticky trigger never let go.
+--   3b. THE CLAIM TAKES NO LOCK (20260910140902): the requested → processing step leaves
+--      auth.users' ctid unchanged — no tuple version, so no row lock in the reverse order of
+--      deleteUser's.
 --   4. IT CLOSES THE DATA API: athanor.is_active() is false for the member from the request,
 --      which is what every restrictive write policy composes (0091).
 --   5. A SECOND REQUEST CANNOT MOVE THE CLOCK: the one-open-request index rejects it and

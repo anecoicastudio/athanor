@@ -2088,7 +2088,7 @@ went through on the same day.
 `20260910132434` recreated the trigger as `AFTER INSERT OR UPDATE OF status WHEN
 (new.status = 'requested')`, and `20260910134453` widened the WHEN to `new.status <> 'done'`, so
 the §7.5 re-queue (`update … set status = 'requested'`) and a legacy-shaped row inserted straight
-as `failed` both fire it. The header's shape describes the first of three states.
+as `failed` both fire it. The header's shape describes the first of four states.
 
 > … if an operator ever withdraws one by hand (RELEASE-RUNBOOK §7.5), the ban has to be cleared
 > in the same act: `update auth.users set banned_until = null where id = …`.
@@ -2163,3 +2163,29 @@ request row first (RELEASE-RUNBOOK §7.5), then lift. Cross-referenced from the
 Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — a 7-day
 overwrite and a bare NULL both re-raised while the request is open, NULL sticking only once the
 row is `done`.
+
+## `20260823130236` — "the revoke does not survive `create or replace`" is false, and this repo proves it
+
+Lines `:102-104`:
+
+> The revoke does not survive `create or replace`ing a function that already had it, but state
+> it again rather than rely on that
+
+PostgreSQL's documented behaviour is the opposite — `CREATE OR REPLACE FUNCTION` leaves
+ownership and privileges untouched — and the schema carries its own proof:
+`fund_editions_ballot_open_check()` was created and revoked in `20260815090015`, replaced in
+`20260815164035` with no restatement, and never re-revoked since; `0121_grant_catalog_sweep`'s
+dynamic sweep over every trigger function is green. Three more replacements never restate either
+(`handle_new_user` in `20260707083401` and `20260707093739`, `fund_payout_ledger_within_basis`
+in `20260816073905`). Keep restating it — it costs one line and spares the reader this paragraph —
+but read the sentence as a convention, not a mechanism.
+
+Found on 2026-09-10 while `20260910142855` restated the revoke for `gdpr_ban_on_erasure_request()`
+after `20260910140902`'s replacement. That file's own header (`:6-7`) says the convention is
+"followed by every other create-or-replace of a trigger function", which overstates it — 29 of the
+34 replacements in the tree restate; the four above do not. Both files are applied and append-only;
+this entry is the correction for both.
+
+Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — no trigger function grants
+EXECUTE to `public`, `anon` or `authenticated`, evaluated against the live catalogue on every run,
+restated or not.
