@@ -2080,7 +2080,8 @@ and does not double.
 
 ## `20260910130552_gdpr_erasure_request_bans_signin.sql` — "AFTER INSERT" and the bare NULL lift were both overtaken the same day
 
-Two sentences in the header (`:10` and `:26`) describe a mechanism that lasted two migrations.
+Two sentences in the header (`:10` and `:26`) describe the first of four states the mechanism
+went through on the same day.
 
 > Shape: an AFTER INSERT trigger on the request table sets auth.users.banned_until …
 
@@ -2125,8 +2126,27 @@ Header `:16-17` and the trigger at `:59-62`:
 `20260910134453` widened the clause to `new.status <> 'done'` so a legacy-shaped `failed` row bans
 too, and `20260910140902` moved the UPDATE-side discrimination into the function body (only a row
 coming back from `done` writes `auth.users`; the nightly claim takes no lock). Read the predicate
-as: **a request row that is not `done` means the auth user is banned**, asserted by
-`supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §6 and §7.
+as: **a request row that is not `done` means the auth user is banned**.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §6 (the WHEN clause
+text) and §7 (a legacy-shaped `failed` insert bans and closes the Data API).
+
+## `20260910134453_gdpr_erasure_ban_any_open_status.sql` — "re-asserts the same value at every step" lasted one migration
+
+Header `:12-14`:
+
+> Idempotent (GREATEST), so a row walking requested → processing → failed → requested re-asserts
+> the same value at every step
+
+`20260910140902` put a guard in the function body: on UPDATE, only a row coming back from `done`
+writes `auth.users`. The claim, the terminal flips and a `partial`/`failed` re-queue take an early
+return and no `auth.users` lock — the ban they find is the one the insert (or `134453`'s own
+backfill) wrote and the sticky trigger has held since. The invariant the header states is
+unchanged; the mechanism that keeps it is no longer this trigger on those steps.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — the claim
+transition writes no `auth.users` tuple (`ctid` unchanged), and the `partial → requested`
+re-queue leaves the ban a century out.
 
 ## `20260813045347_moderation_suspend_ban.sql` — `banned_at`'s lift instruction is a no-op while an erasure request is open
 
@@ -2139,3 +2159,7 @@ member has an erasure request that is not `done`, so `'none'` is silently undone
 timed suspension against such a member records a `suspended_until` the ban outlives. Withdraw the
 request row first (RELEASE-RUNBOOK §7.5), then lift. Cross-referenced from the
 `20260910130552` entry above; recorded under its own heading so the index answers for this file.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — a 7-day
+overwrite and a bare NULL both re-raised while the request is open, NULL sticking only once the
+row is `done`.

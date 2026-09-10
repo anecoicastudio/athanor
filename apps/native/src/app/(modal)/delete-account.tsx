@@ -41,12 +41,13 @@ export default function DeleteAccountScreen() {
     mutationFn: () => requestErasure(supabase),
     onSuccess: () => {
       showToast(t('account.delete.toast', locale), 'success');
-      // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
-      // Immediately, not on a timer (#733). The 700 ms setTimeout this used to be was cancelled
-      // on unmount and skipped when the app was backgrounded, and either left a session alive
-      // on an account whose request has already banned it: refresh would fail and every write
-      // would be denied, behind a UI that still looked signed in. ToastProvider sits in the root
-      // layout above the router, so the toast survives the AuthGuard's route to welcome.
+      // Immediate sign-out (#733); the AuthGuard replaces the route with (onboarding) on a null
+      // session. This used to be a 700 ms setTimeout like settings.tsx still has — cancelled on
+      // unmount, and merely throttled until resume while the app was backgrounded — and either
+      // way it could leave a session alive on an account whose request has already banned it:
+      // refresh would fail and every write would be denied, behind a UI that still looked
+      // signed in. ToastProvider sits in the root layout above the router, so the toast survives
+      // the redirect.
       endSession().catch(() => undefined);
     },
     onError: () => showToast(t('profile.error', locale)),

@@ -20,7 +20,7 @@
 --      pre-#107 population §7.5 reconciles — bans and closes the Data API exactly like a fresh
 --      request, so no member can hold an open request and keep sign-in.
 begin;
-select plan(31);
+select plan(32);
 
 -- ── fixture ─────────────────────────────────────────────────────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -46,10 +46,6 @@ select is(
 select ok(
   (select t.tgqual is not null from pg_trigger t where t.tgname = 'gdpr_erasure_request_bans_signin'),
   'and it carries a WHEN clause');
-select ok(
-  (select pg_get_functiondef('public.gdpr_ban_on_erasure_request()'::regprocedure)
-     like '%tg_op = ''UPDATE'' and old.status <> ''done''%'),
-  'on UPDATE the body writes auth.users only for a row coming back from done — the nightly claim takes no auth.users lock (20260910140902; a source pin, because one connection cannot observe the lock)');
 select ok(
   (select pg_get_triggerdef(t.oid) like '%WHEN ((new.status <> ''done''::text))%'
      from pg_trigger t where t.tgname = 'gdpr_erasure_request_bans_signin'),
@@ -143,7 +139,7 @@ update public.gdpr_erasure_requests set status = 'requested'
 select ok(
   (select banned_until > now() + interval '99 years'
    from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
-  'the §7.5 re-queue (status back to requested) bans afresh — the UPDATE OF status path');
+  'a row coming back from done bans afresh — the one UPDATE the body guard admits (20260910140902); a partial/failed re-queue takes the early return, because the sticky trigger never let the ban go');
 update public.gdpr_erasure_requests set status = 'failed'
  where profile_id = '73300000-0000-0000-0000-0000000000aa';
 update auth.users set banned_until = null
@@ -159,7 +155,26 @@ update auth.users set banned_until = null
 select ok(
   (select banned_until > now() + interval '99 years'
    from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
-  'and so is a partial row — status <> done is the whole predicate (the status flip itself re-bans under the widened WHEN; the NULL write is what isolates the sticky path)');
+  'and so is a partial row — status <> done is the whole predicate (the failed → partial flip writes nothing under the body guard; the NULL write is what shows the sticky trigger holding it)');
+update public.gdpr_erasure_requests set status = 'requested'
+ where profile_id = '73300000-0000-0000-0000-0000000000aa';
+select ok(
+  (select banned_until > now() + interval '99 years'
+   from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
+  'the real §7.5 re-queue (partial → requested) leaves the ban a century out — held by the sticky trigger, not re-written');
+
+-- The claim transition must write NO auth.users tuple (20260910140902): a write would take the
+-- row lock in the reverse order of deleteUser. One connection cannot see a lock, but every UPDATE
+-- makes a new tuple version, HOT included, and Postgres never skips an UPDATE whose new value
+-- equals the old — so an unchanged ctid is the proof, where a value comparison could not be.
+select set_config('test.ctid',
+  (select ctid::text from auth.users where id = '73300000-0000-0000-0000-0000000000aa'), true);
+update public.gdpr_erasure_requests set status = 'processing'
+ where profile_id = '73300000-0000-0000-0000-0000000000aa';
+select is(
+  (select ctid::text from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
+  current_setting('test.ctid', true),
+  'the claim transition (requested → processing) wrote no auth.users tuple — no row version, no row lock');
 update public.gdpr_erasure_requests set status = 'requested'
  where profile_id = '73300000-0000-0000-0000-0000000000aa';
 
