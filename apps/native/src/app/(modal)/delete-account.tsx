@@ -23,8 +23,9 @@ import { Screen } from '@/components/Screen';
  * The copy is split in two on purpose (#515): `body` is what the job does at once and cannot
  * undo, `deferred` is what waits for the nightly job. Keep it that way — collapsing them back
  * into one paragraph is how the screen came to promise, at the tap, a deletion that happens
- * later. Since #107 «later» is a night rather than never, and the copy says so; the split is
- * still the point, because the tap itself still deletes nothing but the session.
+ * later. Since #107 «later» is a night rather than never, and since #733 the tap also bans
+ * sign-in in the same transaction as the request; the copy says both. The split is still the
+ * point: what the tap does at once (session, sign-in) versus what the job does at night.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -41,15 +42,12 @@ export default function DeleteAccountScreen() {
     onSuccess: () => {
       showToast(t('account.delete.toast', locale), 'success');
       // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
-      // Deliberately NOT cancelled on unmount (#733). It used to be, «so it can't fire on a dead
-      // component» — but endSession lives in the auth context, not in this screen, and
-      // cancelling it meant that backing out of the modal inside the 700 ms kept a session alive
+      // Immediately, not on a timer (#733). The 700 ms setTimeout this used to be was cancelled
+      // on unmount and skipped when the app was backgrounded, and either left a session alive
       // on an account whose request has already banned it: refresh would fail and every write
-      // would be denied, behind a UI that still looked signed in. The timer only ever ends the
-      // session; letting it fire after unmount is the point.
-      setTimeout(() => {
-        endSession().catch(() => undefined);
-      }, 700);
+      // would be denied, behind a UI that still looked signed in. ToastProvider sits in the root
+      // layout above the router, so the toast survives the AuthGuard's route to welcome.
+      endSession().catch(() => undefined);
     },
     onError: () => showToast(t('profile.error', locale)),
   });
@@ -97,7 +95,7 @@ export default function DeleteAccountScreen() {
         <Button
           variant="danger"
           label={t('account.delete.cta', locale)}
-          disabled={!matched || erase.isPending}
+          disabled={!matched || erase.isPending || erase.isSuccess}
           onPress={() => erase.mutate()}
         />
       </ScrollView>

@@ -2080,7 +2080,7 @@ and does not double.
 
 ## `20260910130552_gdpr_erasure_request_bans_signin.sql` — "AFTER INSERT" and the bare NULL lift were both overtaken the same day
 
-Two sentences in the header describe a mechanism that lasted two migrations.
+Two sentences in the header (`:10` and `:26`) describe a mechanism that lasted two migrations.
 
 > Shape: an AFTER INSERT trigger on the request table sets auth.users.banned_until …
 
@@ -2115,3 +2115,27 @@ Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` —
 and the `<> 'done'` WHEN clause (§6), a 7-day overwrite and a bare NULL both re-raised while the
 row is open and NULL sticking only once it is `done` (§3), and a legacy-shaped `failed` insert
 banning (§7).
+
+## `20260910132434_gdpr_erasure_ban_sticky_backfill_and_data_api.sql` — its WHEN clause lasted one migration
+
+Header `:16-17` and the trigger at `:59-62`:
+
+> The request trigger becomes INSERT OR UPDATE OF status WHEN new.status = 'requested'
+
+`20260910134453` widened the clause to `new.status <> 'done'` so a legacy-shaped `failed` row bans
+too, and `20260910140902` moved the UPDATE-side discrimination into the function body (only a row
+coming back from `done` writes `auth.users`; the nightly claim takes no lock). Read the predicate
+as: **a request row that is not `done` means the auth user is banned**, asserted by
+`supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §6 and §7.
+
+## `20260813045347_moderation_suspend_ban.sql` — `banned_at`'s lift instruction is a no-op while an erasure request is open
+
+Column comment `:38-39` on `profiles.banned_at`:
+
+> Permanent — lifting is an operator action (clear this AND GoTrue `ban_duration 'none'`)
+
+Since `20260910132434` the GoTrue half is re-raised by `gdpr_erasure_ban_sticky` whenever the
+member has an erasure request that is not `done`, so `'none'` is silently undone for them, and a
+timed suspension against such a member records a `suspended_until` the ban outlives. Withdraw the
+request row first (RELEASE-RUNBOOK §7.5), then lift. Cross-referenced from the
+`20260910130552` entry above; recorded under its own heading so the index answers for this file.

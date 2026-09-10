@@ -1,5 +1,6 @@
 -- #733 — a pending erasure request bans sign-in at once (20260910130552), and the ban is
--- sticky, reaches the re-queue path and closes the Data API (20260910132434). Six claims:
+-- sticky, reaches the re-queue path and closes the Data API (20260910132434, 20260910134453,
+-- 20260910140902). The claims:
 --
 --   1. THE REQUEST BANS. A member's own insert into gdpr_erasure_requests — through RLS, as
 --      `authenticated` — leaves auth.users.banned_until ~100 years out. Before it: NULL.
@@ -19,7 +20,7 @@
 --      pre-#107 population §7.5 reconciles — bans and closes the Data API exactly like a fresh
 --      request, so no member can hold an open request and keep sign-in.
 begin;
-select plan(30);
+select plan(31);
 
 -- ── fixture ─────────────────────────────────────────────────────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -45,6 +46,10 @@ select is(
 select ok(
   (select t.tgqual is not null from pg_trigger t where t.tgname = 'gdpr_erasure_request_bans_signin'),
   'and it carries a WHEN clause');
+select ok(
+  (select pg_get_functiondef('public.gdpr_ban_on_erasure_request()'::regprocedure)
+     like '%tg_op = ''UPDATE'' and old.status <> ''done''%'),
+  'on UPDATE the body writes auth.users only for a row coming back from done — the nightly claim takes no auth.users lock (20260910140902; a source pin, because one connection cannot observe the lock)');
 select ok(
   (select pg_get_triggerdef(t.oid) like '%WHEN ((new.status <> ''done''::text))%'
      from pg_trigger t where t.tgname = 'gdpr_erasure_request_bans_signin'),
@@ -154,7 +159,7 @@ update auth.users set banned_until = null
 select ok(
   (select banned_until > now() + interval '99 years'
    from auth.users where id = '73300000-0000-0000-0000-0000000000aa'),
-  'and so is a partial row — status <> done is the whole predicate');
+  'and so is a partial row — status <> done is the whole predicate (the status flip itself re-bans under the widened WHEN; the NULL write is what isolates the sticky path)');
 update public.gdpr_erasure_requests set status = 'requested'
  where profile_id = '73300000-0000-0000-0000-0000000000aa';
 
