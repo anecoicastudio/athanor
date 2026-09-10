@@ -75,11 +75,13 @@
 
 ### App Review Information — reviewer notes (paste into App Store Connect, English)
 
+**Paste only once `apple_signin_enabled` is ON in production's `remote_config` and the Apple provider is configured (#79).** Google ships unconditionally; with the flag OFF the sign-in sentence below is false to Apple, and 4.8 would be the rejection.
+
 > Athanor is an Italian community app. The demo account is set to Italian; switch the device language to English for the English copy — every screen is localised.
 >
 > **Sign-in.** Use the demo email and password above. Sign in with Apple and Google are also offered on the welcome screen.
 >
-> **Circle (membership) on iOS.** There is no subscribe or manage button on iOS. Members on iOS see a note that Circle is not available here, with no link to any external purchase. The subscription is sold on Android and on the web only.
+> **Circle (membership) on iOS.** There is no subscribe or manage button on iOS. Members on iOS see a note that Circle is not available here, with no link to any external purchase. The subscription is sold on Android only.
 >
 > **Event tickets** are for real-world, in-person events and are paid through Stripe Checkout in the system browser (goods and services consumed outside the app, Guideline 3.1.3(e)). No digital content or feature is unlocked by a ticket.
 >
@@ -98,10 +100,10 @@ Keep the notes to what the reviewer will see. Do not mention the fund cycle, Pri
 Seeded **through the app**, never by SQL: production carries no seed, `seed-staging.sql` is a twelve-person world guarded twice against running anywhere but staging, and a hand-written `aura_scores` row would be the exact claim the product denies (rule 1). Two accounts are needed — a match, a conversation and a Momento all have two sides — and Marco's own production account is the second.
 
 1. **Mailbox.** A real inbox Marco controls (an `@athanor.world` alias through Cloudflare Email Routing is enough). Check production's Auth settings first: `config.toml` records `mailer_autoconfirm = true` there, but that predates #70/#471 closing, and the built-in mailer is capped at 2 mails/hour — if confirmations are on, budget the wait.
-2. **Sign up** in the production build with email + password. Onboarding: handle, display name, city, an adult birth date, bio, `identity_tags` / `seeking` from the in-app lists (an off-list key renders blank), avatar **uploaded from the device** (a browser upload writes a corrupt object at HTTP 200).
-3. **A dream** with two or three milestones (`(modal)/dream-editor.tsx`), and one post.
+2. **Sign up** in the production build with email + password. Onboarding: handle, display name, city, an adult birth date, bio, `identity_tags` / `seeking` from the in-app lists (an off-list key renders as the raw key string), avatar **uploaded from the device** (a browser upload writes a corrupt object at HTTP 200).
+3. **A dream** with two or three milestones (`(modal)/dream-editor.tsx`), and one post. **Marco's account needs an active dream too**, and the two profiles' `identity_tags` / `seeking` must overlap: the matcher pairs only profiles that are not banned, both carry an active, non-deleted dream, and score an affinity above zero (`20260823145024_momento_suggestions_reasons_recomputed.sql`). Two "complete" profiles with disjoint tags or no dream on one side yield an empty deck.
 4. **From Marco's account**: open a conversation with the demo member (`(modal)/new-message.tsx`) and exchange a few messages; send a collaboration request on the dream.
-5. **Momenti.** The deck is filled by `momenti-matcher-nightly` at 03:11 UTC from complete profiles. Finish steps 2–4 at least one night before `eas submit`, then confirm the demo member sees a Momento; with two complete production profiles the matcher has something to pair.
+5. **Momenti.** The deck is filled by `momenti-matcher-nightly` at 03:11 UTC (`20260616044148`) under the preconditions in step 3. Finish steps 2–4 at least one night before `eas submit`, then confirm the demo member sees a Momento.
 6. **Credentials** go into App Store Connect → App Review Information → Sign-in required. Store them in the password manager; nowhere else.
 7. **Keep the account** through review and after. Do not run the deletion path on it; if a reviewer does, the nightly job erases it and the row above has to be repeated before any resubmission.
 
