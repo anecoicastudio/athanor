@@ -653,6 +653,34 @@ balance, signalled by `charge.updated` with a null `transfer_data`. Nothing here
 today. The ticket is issued and the organiser is not paid, and only a balance reconciliation would
 show it.
 
+#### Contribution refunds (fund rail) — refund the GIFT, never the coverage (FUND-51, #236, #711)
+
+A fund contribution is Athanor's own charge, not a destination charge: the two flags above do not
+apply and the Dashboard will not offer them. What the operator has to get right instead is the
+**amount**, and nothing in code checks it. `reverseContribution` (`stripe-webhook/handlers.ts`,
+shared by W4 `charge.refunded` and W12 `charge.dispute.created`) flips the row to `refunded` whole
+and un-counts `amount_cents` from the public ticker; it reads neither `amount_refunded` nor the
+partial/full distinction, so the ticker stays exact whatever was refunded — and the payer's money
+is entirely what you type into the refund dialog.
+
+**Refund exactly `fund_contributions.amount_cents` — the gift — as a partial refund.** Never the
+charge total. The payer consented to that line before ticking the box
+(`fund.disclose.coverage.notReturned`: «Se un giorno ti viene rimborsato il contributo, la copertura
+non torna indietro»), and Stripe does not return its processing fee on a refund, so returning the
+coverage would cost the fund money it never held.
+
+How to read the figures without arithmetic: an uncovered contribution is a single line item
+(«Dai Vita al Tuo Sogno — contributo») and `amount_cents` equals the charge; a covered one is
+**two line items** on the Checkout Session — the gift and «copertura costi di pagamento» — and the
+Session's metadata carries `gift_cents` and `coverage_cents` as strings. The row's `charged_cents`
+is the generated sum and equals Stripe's `amount_total`. Refund the first line item's amount. The
+only case that refunds the whole charge is a duplicate or a platform fault, and then the coverage
+goes back too because the payer never chose it.
+
+`apps/native/src/lib/fund-disclosure.test.ts` pins the consent line outside the tick conditional,
+so it cannot silently become visible only after consent. This step exists because the promise
+lives here and nowhere in code — #711 item 6 found the copy present and the procedure absent.
+
 ### 4.8 Payment-method coverage — what a buyer is shown, and how each rail is proved (2026-09-07)
 
 Nothing in this repo selects payment methods. `create-ticket-checkout`, `create-contribution-session`
