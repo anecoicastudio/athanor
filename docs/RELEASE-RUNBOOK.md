@@ -91,7 +91,7 @@
 >
 > **Account deletion.** Settings → «Elimina account» → type ELIMINA (DELETE on an English device) → confirm. The session ends immediately and the account, its content and its media are erased by a job that runs every night at 03:47 UTC; the app tells the member this. Until that run the credentials may still sign in.
 >
-> **Moderation.** Report and block are available on every profile and post; reports are reviewed by the team. Location is approximate (city level) and used for events and matching only.
+> **Moderation.** Report and block are available on profiles and posts; reports are reviewed by the team. Location is approximate (city level) and used for events and matching only.
 
 Keep the notes to what the reviewer will see. Do not mention the fund cycle, Prime Stelle or anything behind a flag that is OFF.
 
