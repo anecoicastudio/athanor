@@ -296,6 +296,10 @@ export async function resolveReport(
   if (action === 'penalty' && !input.severity) {
     throw new Error('resolveReport: a penalty verdict requires a severity');
   }
+  // #733: a member with an open erasure request is banned in GoTrue for ~100 years and the
+  // ban is sticky, so a suspension resolved against them records suspendDays that sign-in
+  // will not honour — the date the panel shows is what moderation wrote, not when sign-in
+  // returns. Nothing here needs to change; do not read that date as a promise.
   if (action === 'suspend' && !input.suspendDays) {
     throw new Error('resolveReport: a suspend verdict requires suspendDays');
   }

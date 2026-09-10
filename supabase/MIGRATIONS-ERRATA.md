@@ -2077,3 +2077,115 @@ and write surface of both new columns (`has_column_privilege` for `anon` and `au
 and whose `volatility_is` message now states the real reason for `IMMUTABLE`. Monotonicity itself
 is asserted only in the weak form the SQL supports: §5's second pass shows the carry is additive
 and does not double.
+
+## `20260910130552_gdpr_erasure_request_bans_signin.sql` — "AFTER INSERT" and the bare NULL lift were both overtaken the same day
+
+Two sentences in the header (`:10` and `:26`) describe the first of four states the mechanism
+went through on the same day.
+
+> Shape: an AFTER INSERT trigger on the request table sets auth.users.banned_until …
+
+`20260910132434` recreated the trigger as `AFTER INSERT OR UPDATE OF status WHEN
+(new.status = 'requested')`, and `20260910134453` widened the WHEN to `new.status <> 'done'`, so
+the §7.5 re-queue (`update … set status = 'requested'`) and a legacy-shaped row inserted straight
+as `failed` both fire it. The header's shape describes the first of four states.
+
+> … if an operator ever withdraws one by hand (RELEASE-RUNBOOK §7.5), the ban has to be cleared
+> in the same act: `update auth.users set banned_until = null where id = …`.
+
+**A bare NULL is a silent no-op while the request row exists.** `20260910132434` added
+`gdpr_erasure_ban_sticky`, a `BEFORE UPDATE OF banned_until` trigger on `auth.users` that
+re-raises the erasure ban whenever the member has a request that is not `done` — proven on
+staging on 2026-09-10 against GoTrue's own admin API (`ban_duration: 60s` and `none` both left the
+column a century out). Withdrawal is two statements in this order: delete the request row, then
+re-derive `banned_until` from `profiles.banned_at` / `suspended_until`. RELEASE-RUNBOOK §7.5 has
+the rule.
+
+The same stickiness overtakes one older column comment, `20260813045347:38-39` on
+`profiles.banned_at`:
+
+> Permanent — lifting is an operator action (clear this AND GoTrue `ban_duration 'none'`)
+
+For a member with an open erasure request the `'none'` half is re-raised, and a suspension
+resolved against such a member records a `suspended_until` date that the GoTrue ban will
+outlive. Neither is a defect — the member asked to be erased — but the panel and
+`SuspendedNotice` render the suspension's date, so read that date as "what moderation wrote",
+not "when sign-in returns".
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` — the tgtype 21
+and the `<> 'done'` WHEN clause (§6), a 7-day overwrite and a bare NULL both re-raised while the
+row is open and NULL sticking only once it is `done` (§3), and a legacy-shaped `failed` insert
+banning (§7).
+
+## `20260910132434_gdpr_erasure_ban_sticky_backfill_and_data_api.sql` — its WHEN clause lasted one migration
+
+Header `:16-17` and the trigger at `:59-62`:
+
+> The request trigger becomes INSERT OR UPDATE OF status WHEN new.status = 'requested'
+
+`20260910134453` widened the clause to `new.status <> 'done'` so a legacy-shaped `failed` row bans
+too, and `20260910140902` moved the UPDATE-side discrimination into the function body (only a row
+coming back from `done` writes `auth.users`; the nightly claim takes no lock). Read the predicate
+as: **a request row that is not `done` means the auth user is banned**.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §6 (the WHEN clause
+text) and §7 (a legacy-shaped `failed` insert bans and closes the Data API).
+
+## `20260910134453_gdpr_erasure_ban_any_open_status.sql` — "re-asserts the same value at every step" lasted one migration
+
+Header `:12-14`:
+
+> Idempotent (GREATEST), so a row walking requested → processing → failed → requested re-asserts
+> the same value at every step
+
+`20260910140902` put a guard in the function body: on UPDATE, only a row coming back from `done`
+writes `auth.users`. The claim, the terminal flips and a `partial`/`failed` re-queue take an early
+return and no `auth.users` lock — the ban they find is the one the insert (or `134453`'s own
+backfill) wrote and the sticky trigger has held since. The invariant the header states is
+unchanged; the mechanism that keeps it is no longer this trigger on those steps.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — the claim
+transition writes no `auth.users` tuple (`ctid` unchanged), and the `partial → requested`
+re-queue leaves the ban a century out.
+
+## `20260813045347_moderation_suspend_ban.sql` — `banned_at`'s lift instruction is a no-op while an erasure request is open
+
+Column comment `:38-39` on `profiles.banned_at`:
+
+> Permanent — lifting is an operator action (clear this AND GoTrue `ban_duration 'none'`)
+
+Since `20260910132434` the GoTrue half is re-raised by `gdpr_erasure_ban_sticky` whenever the
+member has an erasure request that is not `done`, so `'none'` is silently undone for them, and a
+timed suspension against such a member records a `suspended_until` the ban outlives. Withdraw the
+request row first (RELEASE-RUNBOOK §7.5), then lift. Cross-referenced from the
+`20260910130552` entry above; recorded under its own heading so the index answers for this file.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — a 7-day
+overwrite and a bare NULL both re-raised while the request is open, NULL sticking only once the
+row is `done`.
+
+## `20260823130236` — "the revoke does not survive `create or replace`" is false, and this repo proves it
+
+Lines `:102-104`:
+
+> The revoke does not survive `create or replace`ing a function that already had it, but state
+> it again rather than rely on that
+
+PostgreSQL's documented behaviour is the opposite — `CREATE OR REPLACE FUNCTION` leaves
+ownership and privileges untouched — and the schema carries its own proof:
+`fund_editions_ballot_open_check()` was created and revoked in `20260815090015`, replaced in
+`20260815164035` with no restatement, and never re-revoked since; `0121_grant_catalog_sweep`'s
+dynamic sweep over every trigger function is green. Three more replacements never restate either
+(`handle_new_user` in `20260707083401` and `20260707093739`, `fund_payout_ledger_within_basis`
+in `20260816073905`). Keep restating it — it costs one line and spares the reader this paragraph —
+but read the sentence as a convention, not a mechanism.
+
+Found on 2026-09-10 while `20260910142855` restated the revoke for `gdpr_ban_on_erasure_request()`
+after `20260910140902`'s replacement. That file's own header (`:6-7`) says the convention is
+"followed by every other create-or-replace of a trigger function", which overstates it — the four
+replacements above do not, and they are enough to carry the point. Both files are applied and append-only;
+this entry is the correction for both.
+
+Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — no trigger function grants
+EXECUTE to `public`, `anon` or `authenticated`, evaluated against the live catalogue on every run,
+restated or not.
