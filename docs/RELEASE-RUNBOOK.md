@@ -1142,6 +1142,16 @@ either. The rows are therefore unfinished obligations that look finished, and ea
 be reconciled by hand ONCE, after that project has the migrations, the function deploy and the
 Vault pair (§5).
 
+**Since #733 the request itself bans the auth user** (`gdpr_erasure_request_bans_signin` sets
+`auth.users.banned_until` to now + 876000 h, moderation-enforce's BAN_FOREVER, in the same
+transaction as the insert), so sign-in and refresh fail from the tap, not from the nightly run. Two
+consequences for this section: a row that lands on the terminal `failed` leaves the account
+**banned and intact**, which is the right state for someone who asked to be erased and is what the
+re-queue below finishes; and if an operator ever withdraws a request by hand, the ban has to be
+lifted in the same act — `update auth.users set banned_until = null where id = '<profile_id>';` —
+or the member is locked out of an account that still exists. Nothing in code lifts it, on purpose:
+cancelling a request is not a product flow.
+
 **A row stuck on `processing` is NOT one of these, and does not belong in the re-queue below.**
 Since #717 the job claims it back on its own: `claim_erasure_requests` takes every `processing`
 row whose `claimed_at` is older than the lease — or absent, which is what a row stranded before
