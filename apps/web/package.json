@@ -52,7 +52,7 @@
     "path-to-regexp": "6.3.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^3.2.6",
+    "vitest": "^4.1.11",
     "wrangler": "^4.120.0"
   }
 }
