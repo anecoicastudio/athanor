@@ -16,8 +16,8 @@
 --   2. WHAT ARRIVES AFTER THE CASCADE IS CAUGHT ON THE WAY IN. The erasure cancels the Circle
 --      subscription (erasure-job/logic.ts:447-526) and Stripe answers with
 --      `customer.subscription.deleted` AFTER the sweep has run — «the FIRST event this endpoint
---      sees after an erasure» (stripe-webhook/handlers.ts:494). §5 inserts exactly that event and
---      asserts it lands redacted.
+--      sees after an erasure» (stripe-webhook/handlers.ts:495-496). §8 inserts exactly that event
+--      and asserts it lands redacted, and the one beside it isolates the in-flight arm.
 --   3. THE MONEY SURVIVES THE REDACTION. Amounts, currencies, statuses and every Stripe id stay
 --      verbatim — the ledger is still the forensic record rule 6 keeps.
 --   4. THE DEDUPE GATE IS UNCHANGED. A re-delivery of a redacted event is still a no-op (ON
@@ -32,7 +32,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(68);
+select plan(78);
 
 -- ── 1. the redactor and its key list: shape, posture, privileges ─────────────────────────
 
@@ -96,12 +96,14 @@ select ok(not has_function_privilege('authenticated', 'public.stripe_webhook_eve
 -- also a product's name and a price's nickname, and nulling those would erase what was paid for.
 select bag_eq(
   $$ select unnest(public.gdpr_stripe_identity_keys()) $$,
-  $$ values ('address'::text), ('billing_details'), ('business_profile'), ('client_reference_id'),
-            ('company'), ('customer_address'), ('customer_details'), ('customer_email'),
-            ('customer_name'), ('customer_phone'), ('email'), ('individual'), ('phone'),
-            ('profile_id'), ('receipt_email'), ('shipping'), ('shipping_details'),
-            ('verified_outputs') $$,
-  'the identity key list is exactly these eighteen');
+  $$ values ('account_holder_name'::text), ('address'), ('billing_address'), ('billing_details'),
+            ('business_profile'), ('client_reference_id'), ('company'), ('customer_address'),
+            ('customer_details'), ('customer_email'), ('customer_email_address'),
+            ('customer_name'), ('customer_phone'), ('customer_purchase_ip'),
+            ('customer_shipping'), ('customer_tax_ids'), ('email'), ('individual'), ('phone'),
+            ('profile_id'), ('receipt_email'), ('shipping'), ('shipping_address'),
+            ('shipping_details'), ('verified_outputs') $$,
+  'the identity key list is exactly these twenty-five');
 select ok(not ('name' = any (public.gdpr_stripe_identity_keys())),
   '«name» is NOT redacted — it is also the product''s name, which is a money fact');
 
@@ -407,6 +409,30 @@ select is(
     where event_id = 'evt_725_sub_deleted_a'),
   'canceled', 'and the subscription state it reports is kept — this is still the money record');
 
+-- …and now the in-flight arm ALONE. The delivery above is ALSO matched by the customer arm —
+-- §7's sweep stamped `erased_at` on cus_725_a one step earlier — so on its own it proves the
+-- trigger fired, not WHICH arm fired, and the arm that the 2026-09-11 amendment and
+-- 20260912073632 exist for would go untested. This one names A by `metadata.profile_id` and
+-- nothing else: a customer id matching no membership, no payment intent, and A's profile still
+-- present so the orphan rule cannot carry it either. Delete the erasure-request lookup from the
+-- trigger and this is the assertion that goes red.
+insert into public.stripe_webhook_events (event_id, type, payload)
+values ('evt_725_inflight_only_a', 'identity.verification_session.verified',
+  '{"id":"evt_725_inflight_only_a","type":"identity.verification_session.verified","data":{"object":{
+      "id":"vs_725_a","customer":"cus_725_unrelated","status":"verified",
+      "verified_outputs":{"first_name":"Aldo","last_name":"Test","dob":{"year":1980}},
+      "metadata":{"profile_id":"52000000-0000-0000-0000-0000000000aa"}}}}'::jsonb);
+
+select is(
+  (select payload #> '{data,object,verified_outputs}' from public.stripe_webhook_events
+    where event_id = 'evt_725_inflight_only_a'),
+  'null'::jsonb,
+  'the in-flight arm redacts on metadata.profile_id ALONE — unknown customer, no payment intent, profile still there');
+select is(
+  (select payload #>> '{data,object,status}' from public.stripe_webhook_events
+    where event_id = 'evt_725_inflight_only_a'),
+  'verified', 'and the verification outcome — a fact about the account, not about the person — is kept');
+
 -- A refund that settles days later, against the fund contribution the fund reach tombstoned.
 insert into public.stripe_webhook_events (event_id, type, payload)
 values ('evt_725_fund_refund_a', 'charge.refunded',
@@ -474,6 +500,63 @@ select is(
     where event_id = 'evt_725_after_failed_b'),
   'b725@test.athanor',
   'a member whose request ended TERMINAL is NOT redacted — only requested and processing are in flight');
+
+-- The identity fields that are NOT nested inside `customer_details` or `billing_details`, on the
+-- two subscribed types that carry them. Verified against Stripe's published object reference and
+-- against the pinned SDK's own type definitions (npm:stripe@22, Invoices.d.ts / Disputes.d.ts) —
+-- not from memory, which is how a wrong vendor claim reached four files once before (#709).
+insert into public.stripe_webhook_events (event_id, type, payload)
+values ('evt_725_invoice_wide_a', 'invoice.payment_failed',
+  '{"id":"evt_725_invoice_wide_a","type":"invoice.payment_failed","data":{"object":{
+      "id":"in_725_a2","customer":"cus_725_a","amount_due":1200,"currency":"eur",
+      "customer_shipping":{"name":"Aldo","address":{"line1":"Via Test 1","city":"Milano"}},
+      "customer_tax_ids":[{"type":"eu_vat","value":"IT12345678901"}]}}}'::jsonb);
+
+select is(
+  (select payload #> '{data,object,customer_shipping}' from public.stripe_webhook_events
+    where event_id = 'evt_725_invoice_wide_a'),
+  'null'::jsonb, 'an invoice''s customer_shipping is redacted — it is a name and an address');
+select is(
+  (select payload #> '{data,object,customer_tax_ids}' from public.stripe_webhook_events
+    where event_id = 'evt_725_invoice_wide_a'),
+  'null'::jsonb, 'and customer_tax_ids — a VAT number identifies a person or their business');
+select is(
+  (select (payload #>> '{data,object,amount_due}')::int from public.stripe_webhook_events
+    where event_id = 'evt_725_invoice_wide_a'),
+  1200, 'while the amount due stays — the money is the record we keep');
+
+-- A dispute reaches us with `evidence`, whose customer fields are spelled differently from every
+-- other object (`customer_email_address`, not `customer_email`). We never submit evidence, so on
+-- our own disputes these are null — which is exactly why a test has to carry them: the fixture is
+-- the only place this shape will ever appear, and a key list that missed it would look correct.
+insert into public.stripe_webhook_events (event_id, type, payload)
+values ('evt_725_dispute_a', 'charge.dispute.created',
+  '{"id":"evt_725_dispute_a","type":"charge.dispute.created","data":{"object":{
+      "id":"du_725_a","payment_intent":"pi_725_a","amount":2500,"reason":"fraudulent",
+      "status":"needs_response","evidence":{"customer_email_address":"a725@test.athanor",
+      "customer_name":"Aldo","customer_purchase_ip":"203.0.113.7",
+      "billing_address":"Via Test 1, Milano","product_description":"Biglietto evento"}}}}'::jsonb);
+
+select is(
+  (select payload #> '{data,object,evidence,customer_email_address}' from public.stripe_webhook_events
+    where event_id = 'evt_725_dispute_a'),
+  'null'::jsonb, 'dispute evidence: customer_email_address is redacted, spelling and all');
+select is(
+  (select payload #> '{data,object,evidence,customer_purchase_ip}' from public.stripe_webhook_events
+    where event_id = 'evt_725_dispute_a'),
+  'null'::jsonb, 'and the purchase IP, which is personal data under GDPR in its own right');
+select is(
+  (select payload #> '{data,object,evidence,billing_address}' from public.stripe_webhook_events
+    where event_id = 'evt_725_dispute_a'),
+  'null'::jsonb, 'and the billing address');
+select is(
+  (select payload #>> '{data,object,evidence,product_description}' from public.stripe_webhook_events
+    where event_id = 'evt_725_dispute_a'),
+  'Biglietto evento', 'while what was sold survives — that is the dispute''s money content');
+select is(
+  (select payload #>> '{data,object,status}' from public.stripe_webhook_events
+    where event_id = 'evt_725_dispute_a'),
+  'needs_response', 'as does the dispute''s own state');
 
 -- ── 9. the dedupe gate, after the redaction ──────────────────────────────────────────────
 -- The claim rule 6 cares about. Stripe re-delivers for days; if a re-delivery could rewrite the

@@ -2220,3 +2220,27 @@ Asserted by: `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql` —
 matches an erased member after the cascade, deliveries that arrive afterwards land redacted, the
 money columns and Stripe ids survive, and a re-delivery of a redacted event is still refused by
 the dedupe gate.
+
+## `20260912070533` and `20260912073632` — a "verbatim" that is not, and a citation off by one
+
+Both files are applied, so the corrections live here. Neither affects what the SQL does.
+
+`20260912070533:161-163` introduces its `create or replace` of `gdpr_erase_payment_footprint` as:
+
+> Body preserved verbatim from `20260908071656:76-114` except for §(c)
+
+Two things are off. The old body is `20260908071656:76-108`, not `:76-114`. And §(c) is not the
+only addition: §(a) — the two new `declare`s and the two `array_agg` reads that collect the member's
+Stripe customer ids and ticket payment intents before the UPDATEs hide who they belonged to — is
+new as well. Read the sentence as «the two UPDATEs and the sentinel guard are preserved verbatim;
+the handle reads in §(a) and the ledger sweep in §(c) are new». The reads have to happen before
+those UPDATEs, which is the whole argument for folding the sweep into this function rather than
+adding a fourth RPC, so they are not incidental.
+
+The citation of `stripe-webhook/handlers.ts` is off by one in four places: `20260912070533:22` and
+`:305`, `20260912073632:97`, and — correctable, and corrected — `0152_stripe_webhook_payload_redaction.test.sql:19`.
+The quoted sentence «the FIRST event this endpoint sees after an erasure» is at `handlers.ts:495-496`;
+`:494` is the line above it. The quote itself is accurate and so is the argument it supports.
+
+Asserted by: nothing, and nothing can be — these are prose. The behaviour both files describe is
+asserted by `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql`.
