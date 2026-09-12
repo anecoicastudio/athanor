@@ -2189,3 +2189,73 @@ this entry is the correction for both.
 Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — no trigger function grants
 EXECUTE to `public`, `anon` or `authenticated`, evaluated against the live catalogue on every run,
 restated or not.
+
+## `20260909085841` and the retention entry — `stripe_webhook_events` is no longer out of scope, and it is not kept ten years
+
+Two places say the webhook ledger waits for a design it has now had.
+
+`20260909085841_gdpr_retention_reaper.sql:122-127` lists the table among what the reaper does not
+touch:
+
+> `stripe_webhook_events` NOT identity-free, whatever a column list suggests … It is out of scope
+> because pseudonymising it needs its own design (the table is rule 6's dedupe guard), not because
+> it is clean. Filed separately.
+
+That was #725, and it landed on 2026-09-12 (`20260912070533`) — Marco's ruling of 2026-09-09,
+amended 2026-09-11. Both sentences stay true of the reaper, which still does not touch this table
+and was deliberately not extended. What changed is that the design exists: the identity is
+**redacted at erasure time** by `gdpr_erase_payment_footprint`, and on the way in by the
+`stripe_webhook_events_redact_erased` BEFORE INSERT trigger, which is the arm the erasure-time
+sweep cannot be without — `erasure-job` cancels the Circle subscription on its way out, so
+Stripe's `customer.subscription.deleted` arrives **after** the sweep has run.
+
+The second place is this file. The "counsel's retention answer (#184)" entry above names
+`stripe_webhook_events` among the rows "**pseudonymised and kept 10 years**". Read that as the
+ruling's summary of the payment tables, not as a statement about this one: the ledger has no
+retention window at all, before #725 or after it. `gdpr_retention_reap()` never reaped it, and
+nothing else does. What #725 changed is the other half — the row now outlives the erasure with
+the identity **gone** rather than with the identity intact.
+
+Asserted by: `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql` — no row's payload
+matches an erased member after the cascade, deliveries that arrive afterwards land redacted, the
+money columns and Stripe ids survive, and a re-delivery of a redacted event is still refused by
+the dedupe gate.
+
+## `20260912070533` and `20260912073632` — a "verbatim" that is not, and a citation off by one
+
+Both files are applied, so the corrections live here. Neither affects what the SQL does.
+
+`20260912070533:161-163` introduces its `create or replace` of `gdpr_erase_payment_footprint` as:
+
+> Body preserved verbatim from `20260908071656:76-114` except for §(c)
+
+Two things are off. The old body is `20260908071656:76-108`, not `:76-114`. And §(c) is not the
+only addition: §(a) — the two new `declare`s and the two `array_agg` reads that collect the member's
+Stripe customer ids and ticket payment intents before the UPDATEs hide who they belonged to — is
+new as well. Read the sentence as «the two UPDATEs and the sentinel guard are preserved verbatim;
+the handle reads in §(a) and the ledger sweep in §(c) are new». The reads have to happen before
+those UPDATEs, which is the whole argument for folding the sweep into this function rather than
+adding a fourth RPC, so they are not incidental.
+
+The citation of `stripe-webhook/handlers.ts` is off by one in four places: `20260912070533:22` and
+`:305`, `20260912073632:97`, and — correctable, and corrected — `0152_stripe_webhook_payload_redaction.test.sql:19`.
+The quoted sentence «the FIRST event this endpoint sees after an erasure» is at `handlers.ts:495-496`;
+`:494` is the line above it. The quote itself is accurate and so is the argument it supports.
+
+Asserted by: nothing, and nothing can be — these are prose. The behaviour both files describe is
+asserted by `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql`.
+
+### Addendum — `20260912070533:55`'s completeness claim
+
+The same file's key-list section closes with:
+
+> `name` is deliberately absent: it is also a product's name and a price's nickname, and nulling
+> those would destroy the description of what was paid for — the money fact the ruling keeps.
+> Every personal name in a Stripe payload sits inside one of the objects below.
+
+The last sentence was false when it was written, and `20260912075607` is why: the invoice's
+`customer_shipping.name` and a Connect external account's `account_holder_name` are both personal
+names sitting outside every object that file's list names. The reasoning about `name` itself
+stands — it is still excluded, for exactly the stated reason. Read the closing sentence as «every
+personal name reachable through the keys listed here», and read the list itself from
+`20260912075607`, which takes it to twenty-five and is the current one.

@@ -3489,6 +3489,7 @@ export type Database = {
         Returns: undefined
       }
       gdpr_purge_waitlist_email: { Args: { p_email: string }; Returns: number }
+      gdpr_redact_stripe_identity: { Args: { p_payload: Json }; Returns: Json }
       gdpr_release_profile_references: {
         Args: { p_profile_id: string }
         Returns: undefined
@@ -3509,6 +3510,7 @@ export type Database = {
           name: string
         }[]
       }
+      gdpr_stripe_identity_keys: { Args: never; Returns: string[] }
       gdpr_tombstone_profile_id: { Args: never; Returns: string }
       get_momenti_deck: {
         Args: never
