@@ -2244,3 +2244,18 @@ The quoted sentence «the FIRST event this endpoint sees after an erasure» is a
 
 Asserted by: nothing, and nothing can be — these are prose. The behaviour both files describe is
 asserted by `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql`.
+
+### Addendum — `20260912070533:55`'s completeness claim
+
+The same file's key-list section closes with:
+
+> `name` is deliberately absent: it is also a product's name and a price's nickname, and nulling
+> those would destroy the description of what was paid for — the money fact the ruling keeps.
+> Every personal name in a Stripe payload sits inside one of the objects below.
+
+The last sentence was false when it was written, and `20260912075607` is why: the invoice's
+`customer_shipping.name` and a Connect external account's `account_holder_name` are both personal
+names sitting outside every object that file's list names. The reasoning about `name` itself
+stands — it is still excluded, for exactly the stated reason. Read the closing sentence as «every
+personal name reachable through the keys listed here», and read the list itself from
+`20260912075607`, which takes it to twenty-five and is the current one.
