@@ -238,8 +238,11 @@ profiles and events they referenced exist only on staging — and they were not 
 `stripe_webhook_events` now counts 0. Any non-zero from here is real. §4.2 is what keeps it that
 way.
 
-**Performance.** `stripe_webhook_events` carries exactly one index, the `event_id` primary key, so
-both queries are sequential scans. At this table's size that is the right answer and no index is
+**Performance.** `stripe_webhook_events` carries four indexes since #725 — the `event_id` primary
+key, plus three partial expression indexes over the payload handles a GDPR erasure matches on
+(`metadata.profile_id`, `customer`, `payment_intent`, each partial on `is not null`, so a redacted
+row leaves the index rather than sitting in it). Neither query below can use any of them, so
+both are still sequential scans. At this table's size that is the right answer and no index is
 warranted. If the ledger ever grows enough for the daily check to drag, the fix is a partial index
 (`… (received_at) where processed_at is null`) rather than a wider one — but that is a migration,
 and nothing today needs it.
@@ -1174,6 +1177,14 @@ Consequences for this section:
   `now() + interval '876000 hours'`, a suspended one gets `suspended_until`. A bare
   `set banned_until = null` while the row exists is silently re-raised, and after the row is gone
   it would also wipe a co-existing moderation ban.
+- **Since #725 the cascade also redacts the webhook ledger** (`20260912070533`):
+  `gdpr_erase_payment_footprint` nulls the identity out of every `stripe_webhook_events` payload
+  that names the member, and a BEFORE INSERT trigger redacts the deliveries that arrive after the
+  pass — including the `customer.subscription.deleted` the cancel above provokes, and any refund
+  or dispute that settles later. Nothing here is an operator step: the same migration backfills
+  the erasures already served, on the release that carries it (rider on #80), keying on a profile
+  id that no longer resolves and on the Stripe ids left on the pseudonymised rows. Re-driving a
+  request re-runs the sweep harmlessly — it is idempotent like every other step.
 - Nothing in code lifts it, on purpose: cancelling a request is not a product flow.
 
 **A row stuck on `processing` is NOT one of these, and does not belong in the re-queue below.**

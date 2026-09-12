@@ -2189,3 +2189,34 @@ this entry is the correction for both.
 Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — no trigger function grants
 EXECUTE to `public`, `anon` or `authenticated`, evaluated against the live catalogue on every run,
 restated or not.
+
+## `20260909085841` and the retention entry — `stripe_webhook_events` is no longer out of scope, and it is not kept ten years
+
+Two places say the webhook ledger waits for a design it has now had.
+
+`20260909085841_gdpr_retention_reaper.sql:122-127` lists the table among what the reaper does not
+touch:
+
+> `stripe_webhook_events` NOT identity-free, whatever a column list suggests … It is out of scope
+> because pseudonymising it needs its own design (the table is rule 6's dedupe guard), not because
+> it is clean. Filed separately.
+
+That was #725, and it landed on 2026-09-12 (`20260912070533`) — Marco's ruling of 2026-09-09,
+amended 2026-09-11. Both sentences stay true of the reaper, which still does not touch this table
+and was deliberately not extended. What changed is that the design exists: the identity is
+**redacted at erasure time** by `gdpr_erase_payment_footprint`, and on the way in by the
+`stripe_webhook_events_redact_erased` BEFORE INSERT trigger, which is the arm the erasure-time
+sweep cannot be without — `erasure-job` cancels the Circle subscription on its way out, so
+Stripe's `customer.subscription.deleted` arrives **after** the sweep has run.
+
+The second place is this file. The "counsel's retention answer (#184)" entry above names
+`stripe_webhook_events` among the rows "**pseudonymised and kept 10 years**". Read that as the
+ruling's summary of the payment tables, not as a statement about this one: the ledger has no
+retention window at all, before #725 or after it. `gdpr_retention_reap()` never reaped it, and
+nothing else does. What #725 changed is the other half — the row now outlives the erasure with
+the identity **gone** rather than with the identity intact.
+
+Asserted by: `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql` — no row's payload
+matches an erased member after the cascade, deliveries that arrive afterwards land redacted, the
+money columns and Stripe ids survive, and a re-delivery of a redacted event is still refused by
+the dedupe gate.
