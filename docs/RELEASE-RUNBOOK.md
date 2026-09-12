@@ -1181,10 +1181,31 @@ Consequences for this section:
   `gdpr_erase_payment_footprint` nulls the identity out of every `stripe_webhook_events` payload
   that names the member, and a BEFORE INSERT trigger redacts the deliveries that arrive after the
   pass — including the `customer.subscription.deleted` the cancel above provokes, and any refund
-  or dispute that settles later. Nothing here is an operator step: the same migration backfills
-  the erasures already served, on the release that carries it (rider on #80), keying on a profile
-  id that no longer resolves and on the Stripe ids left on the pseudonymised rows. Re-driving a
-  request re-runs the sweep harmlessly — it is idempotent like every other step.
+  or dispute that settles later. The same migration backfills the erasures already served, on the
+  release that carries it (rider on #80), keying on a profile id that no longer resolves and on
+  the Stripe ids left on the pseudonymised rows. Re-driving a request re-runs the sweep
+  harmlessly — it is idempotent like every other step.
+- **One pre-check before that release reaches production**, for the same reason §7.5's inventory
+  runs before the #733 push: `20260912070533`'s backfill casts `metadata.profile_id` to `uuid`
+  behind a regex guard, and SQL does not promise the guard is evaluated first. A ledger row whose
+  `metadata.profile_id` is not UUID-shaped would raise `22P02` and **fail the migration**, and an
+  applied migration cannot be edited afterwards. It costs one query, and zero means it cannot
+  happen:
+
+  ```sql
+  -- expect 0 on the target project before pushing the release
+  select count(*)
+    from public.stripe_webhook_events
+   where (payload #>> '{data,object,metadata,profile_id}') is not null
+     and (payload #>> '{data,object,metadata,profile_id}')
+           !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  ```
+
+  Non-zero means somebody set `profile_id` outside our own checkout creators (a Dashboard-created
+  session, a foreign integration). Redact or delete those rows by hand first, then push. Staging
+  answered 0 on 2026-09-12, and production's ledger counted 0 rows on 2026-08-24 (§4.1).
+
+- Nothing in code lifts it, on purpose: cancelling a request is not a product flow.
 - Nothing in code lifts it, on purpose: cancelling a request is not a product flow.
 
 **A row stuck on `processing` is NOT one of these, and does not belong in the re-queue below.**

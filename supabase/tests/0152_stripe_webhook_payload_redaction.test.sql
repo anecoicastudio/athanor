@@ -32,7 +32,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(67);
+select plan(68);
 
 -- ── 1. the redactor and its key list: shape, posture, privileges ─────────────────────────
 
@@ -271,8 +271,11 @@ select ok(
      from public.stripe_webhook_events where event_id = 'evt_725_checkout_a'),
   'and the profile id that links it back to the account');
 
--- A's own request, mid-cascade. 'processing' rather than 'requested' so the ban trigger
--- (20260910140902) stays out of this file's way, exactly as 0149 does.
+-- A's own request, mid-cascade: 'processing' is the state the row is in while the steps below
+-- run, which is what the trigger's in-flight arm keys on. The ban trigger (20260910134453 /
+-- 20260910140902) fires on this INSERT for any status that is not 'done' — its skip applies to
+-- UPDATE only — so A's auth user is banned here. That is correct and this file asserts nothing
+-- against it; §10's client check runs as B.
 insert into public.gdpr_erasure_requests (id, profile_id, status)
 values ('52000000-0000-0000-0000-0000000000d1', '52000000-0000-0000-0000-0000000000aa',
         'processing');
@@ -450,6 +453,27 @@ select is(
     where event_id = 'evt_725_live_b'),
   '52000000-0000-0000-0000-0000000000bb',
   'and keeps the link the webhook handlers route on');
+
+-- A TERMINAL request is not an erasure that happened. `partial` and `failed` mean the cascade
+-- stopped short — R-8 §7.5 re-drives those by hand, and withdrawing one is a documented operator
+-- act — so that member may well still be here, and this redaction cannot be undone. Only
+-- `requested` and `processing` count as in flight; whatever a stopped run DID reach is caught by
+-- the erased_at arms instead, which key on what happened rather than on what was asked for.
+insert into public.gdpr_erasure_requests (id, profile_id, status)
+values ('52000000-0000-0000-0000-0000000000d2', '52000000-0000-0000-0000-0000000000bb', 'failed');
+
+insert into public.stripe_webhook_events (event_id, type, payload)
+values ('evt_725_after_failed_b', 'checkout.session.completed',
+  '{"id":"evt_725_after_failed_b","type":"checkout.session.completed","data":{"object":{
+      "id":"cs_725_b3","customer":"cus_725_b","amount_total":12000,
+      "customer_details":{"email":"b725@test.athanor","name":"Bea"},
+      "metadata":{"profile_id":"52000000-0000-0000-0000-0000000000bb"}}}}'::jsonb);
+
+select is(
+  (select payload #>> '{data,object,customer_details,email}' from public.stripe_webhook_events
+    where event_id = 'evt_725_after_failed_b'),
+  'b725@test.athanor',
+  'a member whose request ended TERMINAL is NOT redacted — only requested and processing are in flight');
 
 -- ── 9. the dedupe gate, after the redaction ──────────────────────────────────────────────
 -- The claim rule 6 cares about. Stripe re-delivers for days; if a re-delivery could rewrite the
