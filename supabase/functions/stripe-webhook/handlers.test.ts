@@ -1787,10 +1787,13 @@ Deno.test('the ledger row is keyed on the Stripe event id', async () => {
   assertEquals(ledger.table, 'stripe_webhook_events');
   assertEquals((ledger.values as Record<string, unknown>).event_id, 'evt_XYZ');
   // dedupe is on the event id, never on the payment intent (one PI can produce many events)
-  assertEquals(
-    (ledger.options as Record<string, unknown> | undefined)?.onConflict ?? 'event_id',
-    'event_id',
-  );
+  const ledgerOptions = ledger.options as Record<string, unknown> | undefined;
+  assertEquals(ledgerOptions?.onConflict, 'event_id');
+  // ON CONFLICT DO NOTHING — pinned by value rather than defaulted, because since #725 the flag
+  // carries a second guarantee: a payload redacted by a GDPR erasure must survive a re-delivery.
+  // With ignoreDuplicates false the upsert would rewrite the stored row and put the erased
+  // member's identity back, on a retry nobody is watching.
+  assertEquals(ledgerOptions?.ignoreDuplicates, true);
 });
 
 Deno.test('the same event delivered twice buys exactly one ticket', async () => {
