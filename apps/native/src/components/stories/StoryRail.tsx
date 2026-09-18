@@ -9,6 +9,10 @@ import { StoryRing } from '@/components/stories/StoryRing';
  * the viewer at that person index. The own ring carries an always-visible + badge into the
  * story composer (#317); with no live story the ring tap goes there too — with one, the tap
  * opens the viewer and the badge is the only way in.
+ *
+ * WHICH of those the own ring's tap does is the caller's call (`onOpenYours`), not this rail's:
+ * it depends on a read that may not have answered yet, and only the caller can wait for it
+ * (#749 — deciding here off a boolean opened the composer over a live story on a fresh install).
  */
 export function StoryRail({
   you,
@@ -16,6 +20,7 @@ export function StoryRail({
   seenIds,
   locale,
   onOpenPerson,
+  onOpenYours,
   onAddYours,
 }: {
   /** The viewer's own handle (the leading ring). */
@@ -23,7 +28,6 @@ export function StoryRail({
     handle: string | null;
     displayName: string | null;
     avatarPath: string | null;
-    hasStory: boolean;
     /** Watched state for the own ring (#298) — the caller derives it; no story reads as seen. */
     seen: boolean;
   };
@@ -31,6 +35,8 @@ export function StoryRail({
   seenIds: Set<string>;
   locale: Locale;
   onOpenPerson: (authorId: string) => void;
+  /** The own ring's tap: your live story, or the composer when there is none. */
+  onOpenYours: () => void;
   onAddYours: () => void;
 }) {
   return (
@@ -46,7 +52,7 @@ export function StoryRail({
         isYou
         seen={you.seen}
         locale={locale}
-        onPress={() => (you.hasStory ? onOpenPerson('me') : onAddYours())}
+        onPress={onOpenYours}
         onAddPress={onAddYours}
       />
       {people.map((p) => (
