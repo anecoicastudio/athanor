@@ -11,7 +11,8 @@ export const dynamic = 'force-static';
  *   Play Console → Test and release → App integrity, or the Play Developer API's
  *   `generatedApks` for any uploaded versionCode. This is the one real users hit.
  * - **EAS upload key** — the keystore `eas build` signs with (`eas credentials` → Android).
- *   Covers an AAB/APK installed outside Play, e.g. an internal-distribution build.
+ *   Covers an APK signed with the upload keystore and installed outside Play, e.g. an EAS
+ *   internal-distribution build.
  * Rotating either key means replacing its line here. Format: uppercase colon-separated hex.
  */
 const ASSETLINKS = [
