@@ -33,7 +33,7 @@ import { PriceToggle } from '@/components/circle/PriceToggle';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
+import { legalUrl } from '@/lib/links';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -442,8 +442,8 @@ export default function CircleScreen() {
         <View className="flex-row items-center gap-6">
           {(
             [
-              ['settings.legal.terms', LEGAL_TERMS_URL],
-              ['settings.legal.privacy', LEGAL_PRIVACY_URL],
+              ['settings.legal.terms', legalUrl('terms', locale)],
+              ['settings.legal.privacy', legalUrl('privacy', locale)],
             ] as const
           ).map(([key, url]) => (
             <Pressable

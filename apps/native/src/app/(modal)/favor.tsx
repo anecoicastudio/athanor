@@ -107,7 +107,7 @@ export default function FavorScreen() {
   if (done) {
     const name = done.target_handle ?? '—';
     return (
-      <Screen {...MODAL_A11Y} className="items-center justify-center gap-6 px-8">
+      <Screen {...MODAL_A11Y} className="items-center justify-center gap-6 pl-8 pr-8">
         {/* The one glow (rule #4): a favor was lit — a moment. Shows NO Aura number (rule #1). */}
         <View
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"

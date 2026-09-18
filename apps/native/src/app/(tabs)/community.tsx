@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type FeedCursor,
   getFeedPage,
@@ -29,10 +29,18 @@ import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
-import { usePersonStory } from '@/hooks/use-person-story';
+import { personStoryQuery, usePersonStory } from '@/hooks/use-person-story';
 
 const COMPOSE_HREF = '/(modal)/post-compose' as const;
 const STORY_COMPOSE_HREF = '/(modal)/story-compose' as const;
+
+/** A segment still live at `now` — the «Il tuo passo» ring's one question about your story. */
+function hasLiveSegment(
+  segments: readonly { deleted_at: string | null; expires_at: string }[] | undefined,
+  now: number,
+): boolean {
+  return (segments ?? []).some((s) => !s.deleted_at && new Date(s.expires_at).getTime() > now);
+}
 const LIVE_HREF = '/(modal)/live' as const;
 const EVENT_CREATE_HREF = '/(modal)/event-create' as const;
 
@@ -102,9 +110,7 @@ export default function CommunityScreen() {
   // Ticking, not pinned: bottom-tabs keeps this tab mounted for the session, and a story that
   // expires while the member sits here must stop reading as live.
   const now = useNow(60_000);
-  const myHasLive = (myStoryQuery.data?.segments ?? []).some(
-    (s) => !s.deleted_at && new Date(s.expires_at).getTime() > now,
-  );
+  const myHasLive = hasLiveSegment(myStoryQuery.data?.segments, now);
 
   // Realtime: a new story segment → refresh the rail (skip your own insert).
   useEffect(() => {
@@ -122,6 +128,30 @@ export default function CommunityScreen() {
         ? (profile?.handle ?? '')
         : (railQuery.data?.find((p) => p.author_id === authorId)?.handle ?? '');
     router.push({ pathname: '/(modal)/stories', params: { authorId, handle } });
+  };
+
+  // The ring's tap waits for the own-story read (#749). On a fresh install nothing is cached,
+  // `myHasLive` reads false until the first fetch answers, and a tap in that window opened the
+  // composer over a live story. `isLoading`, not `isPending`: a query disabled for want of an id
+  // is pending forever and would hold the ring shut. While it loads, the tap joins the in-flight
+  // read (`fetchQuery` dedupes on the key) and routes on its answer; a failed read keeps the old
+  // fallback, the composer. `holding` drops the repeat taps a wait invites.
+  const queryClient = useQueryClient();
+  const holding = useRef(false);
+  const openYours = () => {
+    const route = (live: boolean) => (live ? openPerson('me') : router.push(STORY_COMPOSE_HREF));
+    if (!myStoryQuery.isLoading) return route(myHasLive);
+    if (holding.current) return;
+    holding.current = true;
+    void queryClient
+      .fetchQuery(personStoryQuery(myId))
+      .then(
+        (story) => route(hasLiveSegment(story.segments, Date.now())),
+        () => route(false),
+      )
+      .finally(() => {
+        holding.current = false;
+      });
   };
 
   const onRefresh = () => {
@@ -173,13 +203,13 @@ export default function CommunityScreen() {
             handle: profile?.handle ?? null,
             displayName: profile?.display_name ?? null,
             avatarPath: profile?.avatar_path ?? null,
-            hasStory: myHasLive,
             seen: myHasLive ? (myId ? seenIds.has(myId) : true) : true,
           }}
           people={railQuery.data ?? []}
           seenIds={seenIds}
           locale={locale}
           onOpenPerson={openPerson}
+          onOpenYours={openYours}
           onAddYours={() => router.push(STORY_COMPOSE_HREF)}
         />
       ) : null}

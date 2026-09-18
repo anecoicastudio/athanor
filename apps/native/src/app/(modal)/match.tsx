@@ -72,7 +72,7 @@ export default function MatchOverlay() {
 
   return (
     <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
-      <Screen className="px-8">
+      <Screen className="pl-8 pr-8">
         {/* Close sits in normal flow so Screen owns the top inset (DESIGN §6 —
           never a hardcoded pt-*); -mr-3 keeps the glyph optically at the old
           right-5 offset inside the px-8 gutter. */}

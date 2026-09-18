@@ -18,7 +18,7 @@ import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { inviteShareMessage } from '@/lib/invite-share';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
+import { legalUrl, supportMailto } from '@/lib/links';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
@@ -177,11 +177,13 @@ export default function SettingsScreen() {
             value={t('settings.theme.on', locale)}
             showChevron={false}
           />
-          {/* Notifiche — routes to notification center (M9); presence dot, no number (rule #3) */}
+          {/* Notifiche — a Preferences row opens the preferences (#749), not the inbox it used to:
+            `notif-prefs` was reachable only from inside the inbox, and the inbox keeps its own
+            entry on Home's bell. */}
           <SettingsRow
             title={t('settings.notif.title', locale)}
             description={t('settings.notif.desc', locale)}
-            onPress={() => router.push('/(modal)/notifications')}
+            onPress={() => router.push('/(modal)/notif-prefs')}
             showChevron
           />
         </SettingsGroup>
@@ -230,7 +232,9 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.help.title', locale)}
             onPress={() => {
-              Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() =>
+              // A mail draft, with a subject (#749): the app has no help centre, and a bare
+              // `mailto:` opened an empty draft that said nothing about where it came from.
+              Linking.openURL(supportMailto(t('settings.help.subject', locale))).catch(() =>
                 showToast(t('settings.help.error', locale)),
               );
             }}
@@ -238,7 +242,7 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.legal.terms', locale)}
             onPress={() => {
-              WebBrowser.openBrowserAsync(LEGAL_TERMS_URL).catch(() =>
+              WebBrowser.openBrowserAsync(legalUrl('terms', locale)).catch(() =>
                 showToast(t('settings.legal.error', locale)),
               );
             }}
@@ -246,7 +250,7 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.legal.privacy', locale)}
             onPress={() => {
-              WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL).catch(() =>
+              WebBrowser.openBrowserAsync(legalUrl('privacy', locale)).catch(() =>
                 showToast(t('settings.legal.error', locale)),
               );
             }}

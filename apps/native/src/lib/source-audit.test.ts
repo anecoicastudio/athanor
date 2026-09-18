@@ -3920,3 +3920,98 @@ describe('the profile editor pins its way out, and no screen nests two scroll ax
     ).toBeLessThan(editor);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 40 — logical inline spacing never reaches a node that drops it (#749)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Tailwind 4 compiles `px-*` / `mx-*` (and `ps-`/`pe-`/`ms-`/`me-`) to LOGICAL properties —
+ * `padding-inline`, `margin-inline` — which `react-native-css` hands to React Native as the
+ * `paddingInlineStart`/`End` aliases. RN resolves those aliases inside its own
+ * `updateYogaProps`, so an ordinary `View` takes them fine. Two nodes do not:
+ *
+ * - **`SafeAreaView`**, and therefore `Screen`. Its Fabric shadow node
+ *   (`RNCSafeAreaViewShadowNode::adjustLayoutWithState`) rebuilds the Yoga style from the props'
+ *   PHYSICAL edges and writes it back over the resolved one, so the aliases are gone.
+ *   `<Screen className="px-8">` rendered edge to edge on an iPhone SE and on the moto g17.
+ * - **An Android `TextInput`.** Measured on the moto g17: the same compose field put its text
+ *   ~7dp from the border with `px-4` and ~17dp with `pl-4 pr-4`. iOS and the web build honour
+ *   both, which is how eleven screens and every text field in the app shipped the logical
+ *   spelling through every pass that was not an Android device.
+ *
+ * The physical pair (`pl-`/`pr-`, `ml-`/`mr-`) renders identically everywhere, so the guard
+ * costs nothing on correct code. It reads only the tag's OWN `className` — a `footer={<View
+ * className="px-5">}` prop on a `Screen` is a plain View and stays legal — and, for the three
+ * primitives that build those class strings out of constants rather than inline, every string
+ * literal in the file. Margins ride along on the same code path; an Android `TextInput` margin
+ * was not measured, and the physical spelling is the safe side of that unknown.
+ */
+const LOGICAL_INLINE = /(?<![\w-])-?(?:px|mx|ps|pe|ms|me)-[\w[\].]+/g;
+const INLINE_DROPPING_TAGS = new Set(['Screen', 'SafeAreaView', 'TextInput']);
+const INLINE_CLASS_BUILDERS = [
+  'components/Input.tsx',
+  'components/Field.tsx',
+  'components/Screen.tsx',
+];
+
+/** The raw text of a tag's own `className` value — a quoted string or a braced expression. */
+function ownClassName(tag: { attrs: string; raw: string }): string | null {
+  const at = tag.attrs.search(/\bclassName\s*=/);
+  if (at === -1) return null;
+  let i = tag.raw.indexOf('=', at) + 1;
+  while (/\s/.test(tag.raw[i] ?? '')) i += 1;
+  const open = tag.raw[i];
+  if (open === '"' || open === "'") return tag.raw.slice(i + 1, tag.raw.indexOf(open, i + 1));
+  if (open !== '{') return null;
+  let depth = 0;
+  for (let j = i; j < tag.raw.length; j += 1) {
+    if (tag.raw[j] === '{') depth += 1;
+    else if (tag.raw[j] === '}' && --depth === 0) return tag.raw.slice(i + 1, j);
+  }
+  return tag.raw.slice(i + 1);
+}
+
+describe('logical inline spacing never reaches a node that drops it (#749)', () => {
+  const tags = () =>
+    FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter(({ base }) => INLINE_DROPPING_TAGS.has(base))
+        .map((tag) => ({ at: `${rel(p)}:${tag.line}`, base: tag.base, cls: ownClassName(tag) })),
+    );
+
+  it('finds the tags it is walking', () => {
+    const seen = new Set(
+      tags()
+        .filter(({ cls }) => cls != null)
+        .map(({ base }) => base),
+    );
+    expect([...seen].sort(), 'the scan stopped seeing a class-carrying tag').toEqual([
+      'SafeAreaView',
+      'Screen',
+      'TextInput',
+    ]);
+  });
+
+  it('no Screen, SafeAreaView or TextInput className carries a logical inline class', () => {
+    const hits = tags().flatMap(({ at, base, cls }) =>
+      [...(cls ?? '').matchAll(LOGICAL_INLINE)].map((m) => `${at}  <${base}> ${m[0]}`),
+    );
+    expect(
+      hits,
+      'use the physical pair — `pl-N pr-N` for `px-N`, `ml-N mr-N` for `mx-N` (#749)',
+    ).toEqual([]);
+  });
+
+  it('the primitives that build those classes from constants spell them physically', () => {
+    const hits = INLINE_CLASS_BUILDERS.flatMap((f) => {
+      const src = stripComments(read(`${SRC}${f}`));
+      return [...src.matchAll(/(['"`])((?:(?!\1)[^\\\n])*)\1/g)].flatMap((lit) =>
+        [...(lit[2] as string).matchAll(LOGICAL_INLINE)].map(
+          (m) => `apps/native/src/${f}:${src.slice(0, lit.index).split('\n').length}  ${m[0]}`,
+        ),
+      );
+    });
+    expect(hits, 'use the physical pair (#749)').toEqual([]);
+  });
+});

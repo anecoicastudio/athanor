@@ -114,7 +114,9 @@ export function Field({
     <View className="gap-2">
       <TextInput
         className={cn(
-          'rounded-hero border bg-raise px-5 py-4 text-lg text-foreground',
+          // `pl-5 pr-5`, never `px-5`: Android's TextInput drops logical padding (#749 — see
+          // `Input`'s docblock for the device measurement).
+          'rounded-hero border bg-raise pl-5 pr-5 py-4 text-lg text-foreground',
           multiline && SIZE_CLASSES[size],
           register === 'dream' && 'font-dream',
           error ? 'border-error' : focused ? 'border-foreground' : 'border-hair',

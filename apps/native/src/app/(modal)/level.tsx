@@ -56,7 +56,7 @@ export default function LevelOverlay() {
 
   return (
     <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
-      <Screen className="items-center justify-center px-8">
+      <Screen className="items-center justify-center pl-8 pr-8">
         <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
           {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
           <Mandorla size={96} glowLevel={1}>

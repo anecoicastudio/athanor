@@ -70,7 +70,7 @@ export default function DreamDeepLinkScreen() {
     // answer, same as the web page: the dream is not available, offer the way home (the link
     // likely arrived from outside, so there may be no stack to go back through).
     return (
-      <Screen className="items-center justify-center gap-6 px-8">
+      <Screen className="items-center justify-center gap-6 pl-8 pr-8">
         <Text className="text-center text-base text-muted-foreground">
           {t('publicDream.unavailable', locale)}
         </Text>

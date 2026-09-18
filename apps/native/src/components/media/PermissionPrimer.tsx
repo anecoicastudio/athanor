@@ -24,6 +24,7 @@ export function PermissionPrimer({
   locale,
   onAllow,
   onDismiss,
+  stillsOnly = false,
 }: {
   kind: 'camera' | 'photos' | 'microphone' | 'push';
   status: PermStatus;
@@ -31,11 +32,19 @@ export function PermissionPrimer({
   locale: Locale;
   onAllow: () => void;
   onDismiss: () => void;
+  /**
+   * The camera is opening for a still and nothing else — a chat attachment or an avatar (#749).
+   * The default camera copy sells a photo OR VIDEO for «your moment», which is the wrong promise
+   * over a chat, the same reason `MediaSheet` gates its own title and sub on `allowVideo` (#155).
+   */
+  stillsOnly?: boolean;
 }) {
   const blocked = status === 'blocked';
   const titleKey =
     kind === 'camera'
-      ? 'permission.camera.title'
+      ? stillsOnly
+        ? 'permission.camera.titlePhoto'
+        : 'permission.camera.title'
       : kind === 'photos'
         ? 'permission.photos.title'
         : kind === 'microphone'
@@ -43,7 +52,9 @@ export function PermissionPrimer({
           : 'permission.push.title';
   const bodyKey =
     kind === 'camera'
-      ? 'permission.camera.body'
+      ? stillsOnly
+        ? 'permission.camera.bodyPhoto'
+        : 'permission.camera.body'
       : kind === 'photos'
         ? 'permission.photos.body'
         : kind === 'microphone'

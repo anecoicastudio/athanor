@@ -159,7 +159,7 @@ export default function StoriesScreen() {
   }
   if (segments.length === 0 || !first) {
     return (
-      <Screen className="items-center justify-center px-6">
+      <Screen className="items-center justify-center pl-6 pr-6">
         <Text className="text-center text-[15px] text-faint">{t('story.expired', locale)}</Text>
       </Screen>
     );

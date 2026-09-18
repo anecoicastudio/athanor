@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { Modal, Platform } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Modal, Platform } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -138,6 +138,40 @@ export function MediaSheet({
     },
     [onClose, onError],
   );
+
+  /**
+   * Re-read the primer's permission when the app comes back to the foreground (#749).
+   *
+   * `pending.status` is a snapshot taken when the row was tapped. A `blocked` primer offers «Apri
+   * Impostazioni», and a member who turns the camera on there and comes back found the primer
+   * still saying it was off — until they closed the panel and opened it again. Same shape as
+   * `notif-prefs.tsx`'s OS-permission peek: re-peek on `active`, never prompt, drop a stale
+   * answer. Keyed on the SOURCE rather than the object, so a status update does not re-subscribe.
+   * A `granted` result swaps the primer back to «Consenti», whose `run()` then launches without
+   * a dialog; it does not launch on its own, because coming back to the app is not a tap.
+   */
+  const pendingSource = pending?.source ?? null;
+  useEffect(() => {
+    if (pendingSource == null) return;
+    let cancelled = false;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      peekPermission(pendingSource)
+        .then((status) => {
+          if (cancelled) return;
+          setPending((cur) =>
+            cur?.source === pendingSource ? { source: pendingSource, status } : cur,
+          );
+        })
+        .catch(() => {
+          // The peek failed: keep the snapshot rather than claim a status we did not read.
+        });
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, [pendingSource]);
 
   const primerKind =
     pending?.source === 'library'
@@ -333,6 +367,7 @@ export function MediaSheet({
       {pending ? (
         <PermissionPrimer
           kind={primerKind}
+          stillsOnly={!allowVideo}
           status={pending.status}
           visible
           locale={locale}

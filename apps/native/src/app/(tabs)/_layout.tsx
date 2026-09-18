@@ -32,12 +32,13 @@ export default function TabsLayout() {
         screenOptions={{
           // No native title bar anywhere (DESIGN §6 → Screen headers, #162): tab roots
           // render their own in-content header and take their top inset from Screen.
-          // `title` stays — it feeds the tab-bar a11y labels.
           headerShown: false,
           tabBarStyle: { backgroundColor: semantic.surfaceMuted, borderTopColor: semantic.border },
           // DESIGN §9 tab bar: active = foreground — cyan stays on the ✦ badge only.
           // Icons only: labels don't fit the 5-tab slot in either language
-          // («Costellazioni»); titles still feed the a11y labels + screen headers.
+          // («Costellazioni»). So every tab names itself through `tabBarAccessibilityLabel`
+          // (DESIGN §6): the bottom-tab bar derives a label from `title` on iOS ONLY
+          // (`BottomTabBar.js`, `EXPO_OS === 'ios'`), and TalkBack read four unnamed tabs (#749).
           tabBarActiveTintColor: semantic.foreground,
           tabBarInactiveTintColor: semantic.foregroundMuted,
           tabBarShowLabel: false,
@@ -47,6 +48,7 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: t('tabs.home', locale),
+            tabBarAccessibilityLabel: t('tabs.home', locale),
             tabBarIcon: ({ color, size }) => <HomeGlyph color={color} size={size} />,
           }}
         />
@@ -54,6 +56,7 @@ export default function TabsLayout() {
           name="community"
           options={{
             title: t('tabs.community', locale),
+            tabBarAccessibilityLabel: t('tabs.community', locale),
             tabBarIcon: ({ color, size }) => <CommunityGlyph color={color} size={size} />,
           }}
         />
@@ -73,6 +76,7 @@ export default function TabsLayout() {
           name="costellazioni"
           options={{
             title: t('tabs.costellazioni', locale),
+            tabBarAccessibilityLabel: t('tabs.costellazioni', locale),
             tabBarIcon: ({ color, size }) => <CostellazioniGlyph color={color} size={size} />,
           }}
         />
@@ -80,6 +84,7 @@ export default function TabsLayout() {
           name="profile"
           options={{
             title: t('tabs.profile', locale),
+            tabBarAccessibilityLabel: t('tabs.profile', locale),
             tabBarIcon: ({ color, size }) => <ProfiloGlyph color={color} size={size} />,
           }}
         />

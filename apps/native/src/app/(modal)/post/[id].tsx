@@ -22,6 +22,7 @@ import {
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostComment } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -39,6 +40,7 @@ import { listState } from '@/lib/list-state';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { SectionLabel } from '@/components/SectionLabel';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -201,10 +203,41 @@ export default function PostDetailScreen() {
       </Screen>
     );
   }
-  if (!post) {
+  // Two answers where there used to be one (#749). Every `!post` rendered «Non siamo riusciti a
+  // caricare il feed.» with no header, and `/post/<id>` is an app-link target, so a deep link to a
+  // deleted post was a stack root with nothing on it that leaves. `getPostById` returns null for
+  // a deleted row and throws on a failed read, so the two are told apart the way the dream viewer
+  // (`dream/[id].tsx`) tells them apart. `&& !post`: a failed background refetch sets `isError`
+  // while keeping the last good `data`, and a post already on screen — with a reply half typed —
+  // must not be swapped for the error state by a flaky return from the background.
+  if (postQuery.isError && !post) {
     return (
-      <Screen className="items-center justify-center px-5">
-        <Text className="text-[15px] text-foreground">{t('feed.error', locale)}</Text>
+      <Screen>
+        <ModalHeader title={t('post.detail.title', locale)} backLabel={t('common.back', locale)} />
+        <ListState
+          state="error"
+          locale={locale}
+          errorLabel={t('post.error', locale)}
+          onRetry={() => void postQuery.refetch()}
+          className="flex-1 justify-center px-5"
+        />
+      </Screen>
+    );
+  }
+  if (!post) {
+    // Soft-deleted, or a row RLS does not show this member: one answer. The exit
+    // is `leave`, not the dream viewer's `replace('/(tabs)')` — opened from the feed this screen
+    // sits on a real stack, which `replace` would flatten. Its label says where it goes.
+    return (
+      <Screen className="items-center justify-center gap-6 pl-8 pr-8">
+        <Text className="text-center text-base text-muted-foreground">
+          {t('post.unavailable', locale)}
+        </Text>
+        <Button
+          variant="outline"
+          label={t(router.canGoBack() ? 'common.back' : 'notFound.home', locale)}
+          onPress={leave}
+        />
       </Screen>
     );
   }
@@ -273,9 +306,12 @@ export default function PostDetailScreen() {
                 )}
               </View>
 
-              <Text className="pt-2 text-[14px] font-semibold text-foreground">
+              {/* The section's own text, so it takes `heading` (DESIGN §10, #651) — the inline
+                  14px spelling this replaces carried no role, and the Android pass (#749) saw it
+                  collapse to ~8px on a Play build. */}
+              <SectionLabel heading className="pt-2">
                 {t('comment.sectionLabel', locale)}
-              </Text>
+              </SectionLabel>
             </View>
           }
           renderItem={({ item }) => {
