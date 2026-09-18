@@ -78,8 +78,9 @@ export function TicketBar({
 
   // #747 — can the organiser be paid right now? The write-time gate (enforce_paid_event_gate)
   // already refuses a paid event from an organiser without payouts, so this catches the case it
-  // cannot: Stripe revoking the capability AFTER the event went live. Without it the bar offers
-  // a button that can only end in a refusal. A courtesy, never the authority — the server's
+  // cannot: `payouts_enabled` flipping false AFTER the event went live (a close proxy for Stripe's
+  // `transfers` capability, not the capability itself — MIGRATIONS-ERRATA, 20260906141227). Without
+  // it the bar offers a button that can only end in a refusal. A courtesy, never the authority — the server's
   // `organizer cannot receive payouts` refusal stays, and is still mapped in ERROR_COPY.
   //
   // `persist: false`: a money read must not hydrate yesterday's answer (lib/query-client.ts);
