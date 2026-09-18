@@ -42,3 +42,7 @@ example
 /ios
 /android
 .qr-expo.png
+
+# Local dev-client builds (`eas build --local --output …`)
+*.apk
+*.aab

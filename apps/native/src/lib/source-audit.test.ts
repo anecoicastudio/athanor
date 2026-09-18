@@ -174,6 +174,7 @@ describe('env reads survive Metro inlining', () => {
     // The names, not the line numbers — this survives the file moving but still makes a NEW
     // env read a deliberate, reviewed edit rather than something that arrives with a merge.
     expect([...new Set(reads.map(([, n]) => n))].sort()).toEqual([
+      'EXPO_PUBLIC_APP_VARIANT',
       'EXPO_PUBLIC_MAPBOX_TOKEN',
       'EXPO_PUBLIC_SENTRY_DSN',
       'EXPO_PUBLIC_SITE_ORIGIN',

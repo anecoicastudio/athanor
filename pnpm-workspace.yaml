@@ -14,19 +14,29 @@ allowBuilds:
   # with "Command failed with exit code 1: pnpm install" — including in CI.
   workerd: true
 # pnpm's release-age exemptions for SDK 57 packages published the same day they were
-# installed (2026-09-09). Transient: sweep the list at the next SDK move, as the SDK 57
-# upgrade did for the SDK 54 one.
+# installed (2026-09-09), and for the SDK 57 patch train of 2026-09-18 (expo 57.0.24 and
+# siblings, published that morning — expo-doctor fails on the previous patches, so the
+# native CI job stays red until they land). Transient: sweep the list at the next SDK
+# move, as the SDK 57 upgrade did for the SDK 54 one.
 minimumReleaseAgeExclude:
-  - '@expo/cli@57.0.23'
+  - '@expo/cli@57.0.23 || 57.0.26'
   - '@expo/metro-file-map@57.0.3'
   - babel-preset-expo@57.0.11
   - expo-modules-core@57.0.17
   - expo-modules-jsi@57.1.0
-  - expo@57.0.21
-  - '@expo/ui@57.0.17'
+  - expo@57.0.21 || 57.0.24
+  - '@expo/ui@57.0.17 || 57.0.19'
   - expo-calendar@57.0.3
   - expo-glass-effect@57.0.2
-  - expo-router@57.0.20
+  - expo-router@57.0.20 || 57.0.22
+  - expo-asset@57.0.18
+  - expo-constants@57.0.19
+  - '@expo/metro-runtime@57.0.16'
+  - expo-image-manipulator@57.0.19
+  - expo-image-picker@57.0.19
+  - expo-location@57.0.19
+  - expo-notifications@57.0.20
+  - expo-updates@57.0.23
 overrides:
   lightningcss: 1.30.1
   # Dependabot / `pnpm audit` sweep (2026-09-09). Every entry below is a build- or
