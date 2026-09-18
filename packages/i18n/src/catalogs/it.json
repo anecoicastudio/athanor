@@ -614,6 +614,8 @@
   "feed.empty.eventi.cta": "Crea il primo evento ›",
   "feed.error": "Non siamo riusciti a caricare il feed.",
   "post.detail.title": "Post",
+  "post.error": "Non siamo riusciti a caricare il post.",
+  "post.unavailable": "Questo post non è disponibile.",
   "post.delete": "Elimina",
   "post.delete.confirm": "Eliminare questo passo?",
   "post.toast.deleted": "Eliminato",
