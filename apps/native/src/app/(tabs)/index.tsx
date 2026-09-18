@@ -27,8 +27,8 @@ import { useLocale } from '@/hooks/use-locale';
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
  * prototype order and each milestone swaps its «Presto qui» placeholder for the
- * real block. ONE placeholder remains, as a `fallback` prop: Esplora Fase2/M8
- * (`PrimeStelleCard`). The countdown slot's M7 shipped, so its no-data state is a
+ * real block. NO placeholder remains: the last, Esplora Fase2/M8 (`PrimeStelleCard`),
+ * collapses while its flag is off (#749). The countdown slot's M7 shipped, so its no-data state is a
  * real state now — `DreamHeroCard` owns it (#224): a confirmed no-cycle read
  * renders the first cycle's announcement, loading/error collapse. Everything else
  * on this screen has landed and renders real data.
