@@ -22,8 +22,11 @@ import { useAuth } from '@/lib/auth-context';
 type Phase = 'idle' | 'opening' | 'confirming' | 'confirmSlow';
 
 // The server's `{error}` strings are the stable contract (#103) — create-ticket-checkout's
-// guard ladder on one side, this map on the other. An unmapped code (a future guard)
-// degrades to ticket.error.payment, never crashes.
+// guard ladder on one side, this map on the other. An unmapped code (a 500, a future guard, a
+// relay or network failure) degrades to ticket.error.unavailable, never crashes. That fallback
+// used to be ticket.error.payment, «the payment didn't go through» — false on every path that
+// reaches it (#747): each one fails before Checkout opens, so no payment was ever attempted, and
+// a real decline stays inside Stripe's hosted page where this bar never sees it.
 const ERROR_COPY: Record<string, MessageKey> = {
   unauthorized: 'ticket.error.signedOut',
   outdated_client: 'ticket.error.outdatedClient',
@@ -113,7 +116,7 @@ export function TicketBar({
       // and if it did the refetch flips the bar to the ticket instead of arguing.
       if (code === 'ticket already owned' || code === 'checkout already open') refetchTicket();
       if (code === 'sold out') void qc.invalidateQueries({ queryKey: eventKeys.seats(event.id) });
-      setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.payment', locale));
+      setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.unavailable', locale));
     }
   }, [event.id, locale, refetchTicket, qc]);
 

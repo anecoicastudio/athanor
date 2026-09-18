@@ -990,13 +990,17 @@ on conflict do nothing;
 -- fund_surfaces_enabled and prime_stelle_enabled to false on production, and
 -- fund_editions.contributions_enabled carries a "LEGAL FLAG: gated until counsel
 -- clears" comment. They are true here so the flows can be walked in Stripe test mode.
+-- circle_checkout_enabled (#747) is ABSENT on production until the Stripe cutover
+-- (RELEASE-RUNBOOK §4.2); the app fails closed on a missing row, so no Circle purchase
+-- CTA renders there.
 -- Do not copy this block to production.
 -- ---------------------------------------------------------------------------------
 insert into public.remote_config (key, value) values
   ('min_app_version',           '{"ios":"1.0.0","android":"1.0.0"}'::jsonb),
   ('maintenance_mode',          '{"enabled":false,"eta":null}'::jsonb),
   ('fund_surfaces_enabled',     '{"enabled":true}'::jsonb),
-  ('prime_stelle_enabled',      '{"enabled":true}'::jsonb)
+  ('prime_stelle_enabled',      '{"enabled":true}'::jsonb),
+  ('circle_checkout_enabled',   '{"enabled":true}'::jsonb)
 on conflict do nothing;
 
 commit;
