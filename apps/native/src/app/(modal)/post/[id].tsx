@@ -207,8 +207,10 @@ export default function PostDetailScreen() {
   // caricare il feed.» with no header, and `/post/<id>` is an app-link target, so a deep link to a
   // deleted post was a stack root with nothing on it that leaves. `getPostById` returns null for
   // a deleted row and throws on a failed read, so the two are told apart the way the dream viewer
-  // (`dream/[id].tsx`) tells them apart.
-  if (postQuery.isError) {
+  // (`dream/[id].tsx`) tells them apart. `&& !post`: a failed background refetch sets `isError`
+  // while keeping the last good `data`, and a post already on screen — with a reply half typed —
+  // must not be swapped for the error state by a flaky return from the background.
+  if (postQuery.isError && !post) {
     return (
       <Screen>
         <ModalHeader title={t('post.detail.title', locale)} backLabel={t('common.back', locale)} />

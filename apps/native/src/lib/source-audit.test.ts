@@ -3949,7 +3949,11 @@ describe('the profile editor pins its way out, and no screen nests two scroll ax
  */
 const LOGICAL_INLINE = /(?<![\w-])-?(?:px|mx|ps|pe|ms|me)-[\w[\].]+/g;
 const INLINE_DROPPING_TAGS = new Set(['Screen', 'SafeAreaView', 'TextInput']);
-const INLINE_CLASS_BUILDERS = ['components/Input.tsx', 'components/Field.tsx', 'components/Screen.tsx'];
+const INLINE_CLASS_BUILDERS = [
+  'components/Input.tsx',
+  'components/Field.tsx',
+  'components/Screen.tsx',
+];
 
 /** The raw text of a tag's own `className` value — a quoted string or a braced expression. */
 function ownClassName(tag: { attrs: string; raw: string }): string | null {
@@ -3977,10 +3981,16 @@ describe('logical inline spacing never reaches a node that drops it (#749)', () 
     );
 
   it('finds the tags it is walking', () => {
-    const seen = new Set(tags().filter(({ cls }) => cls != null).map(({ base }) => base));
-    expect([...seen].sort(), 'the scan stopped seeing a class-carrying tag').toEqual(
-      ['SafeAreaView', 'Screen', 'TextInput'],
+    const seen = new Set(
+      tags()
+        .filter(({ cls }) => cls != null)
+        .map(({ base }) => base),
     );
+    expect([...seen].sort(), 'the scan stopped seeing a class-carrying tag').toEqual([
+      'SafeAreaView',
+      'Screen',
+      'TextInput',
+    ]);
   });
 
   it('no Screen, SafeAreaView or TextInput className carries a logical inline class', () => {
