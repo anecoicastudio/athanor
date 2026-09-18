@@ -177,11 +177,13 @@ export default function SettingsScreen() {
             value={t('settings.theme.on', locale)}
             showChevron={false}
           />
-          {/* Notifiche — routes to notification center (M9); presence dot, no number (rule #3) */}
+          {/* Notifiche — a Preferences row opens the preferences (#749), not the inbox it used to:
+            `notif-prefs` was reachable only from inside the inbox, and the inbox keeps its own
+            entry on Home's bell. */}
           <SettingsRow
             title={t('settings.notif.title', locale)}
             description={t('settings.notif.desc', locale)}
-            onPress={() => router.push('/(modal)/notifications')}
+            onPress={() => router.push('/(modal)/notif-prefs')}
             showChevron
           />
         </SettingsGroup>
