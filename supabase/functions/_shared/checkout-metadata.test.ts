@@ -138,9 +138,15 @@ Deno.test(
       createCheckoutSession: (p) => {
         sessions.push(p);
         return Promise.resolve({
+          id: 'cs_1',
           url: 'https://checkout.stripe.test/cs_1',
         } as Stripe.Checkout.Session);
       },
+      // #759 — no live subscription and nothing open: the producer reaches sessions.create.
+      listSubscriptions: () => Promise.resolve([]),
+      latestCheckoutSession: () => Promise.resolve(null),
+      listOpenCheckoutSessions: () => Promise.resolve([]),
+      expireCheckoutSession: (id) => Promise.resolve({ id } as Stripe.Checkout.Session),
       // A live monthly Price: the gate (#674 item 7) runs before the session is built.
       retrievePrice: () =>
         Promise.resolve({

@@ -1471,6 +1471,7 @@
   "circle.legal.renewal": "L'abbonamento si rinnova da solo a ogni ciclo, finché non lo fermi. Puoi uscire quando vuoi dalla gestione dell'abbonamento: il cerchio non trattiene nessuno.",
   "circle.iosUnavailable": "La membership non è disponibile su questo dispositivo.",
   "circle.checkoutClosed": "La membership non è ancora aperta.",
+  "circle.alreadySubscribed": "Hai già un abbonamento al Circle. Lo gestisci da qui.",
   "circle.iosManageUnavailable": "La membership si gestisce dal dispositivo dove l'hai attivata.",
   "circle.error.title": "Qualcosa non ha funzionato",
   "circle.benefit.tools.t": "Strumenti business",

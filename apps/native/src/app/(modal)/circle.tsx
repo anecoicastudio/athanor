@@ -64,6 +64,9 @@ export default function CircleScreen() {
   // The server said checkout is closed (#747) — its answer outranks a client read that said open
   // (a flag flipped off inside the read's 60s staleness window). Same closed line, no error.
   const [serverClosed, setServerClosed] = useState(false);
+  // The server found a live subscription on Stripe (#759) — the Join CTA gives way to the way
+  // into the portal. Latches for this mount, like `serverClosed`.
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
 
   // ── Entitlements query ──────────────────────────────────────────────────────
   // Shares the canonical EntitlementView shape + cache key with CircleGate's
@@ -180,6 +183,14 @@ export default function CircleScreen() {
         // re-reads the flag instead of reusing the cached `true` that let this tap through.
         setServerClosed(true);
         void qc.invalidateQueries({ queryKey: remoteConfigKeys.live() });
+      } else if (e instanceof CircleCheckoutError && e.code === 'circle already subscribed') {
+        // #759 — not a failure either: Stripe already holds a live subscription for this member,
+        // and a second Checkout would bill them twice. Offer the portal instead. The cached row
+        // may simply not have caught up (a webhook in flight), so re-read it: once it says
+        // `active` or `past_due` the screen flips to the member state on its own.
+        setAlreadySubscribed(true);
+        void qc.invalidateQueries({ queryKey: entitlementKeys.me() });
+        void qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
       } else {
         // Checkout-session failure happens before any subscription exists, so the query
         // error state never fires — surface it inline instead.
@@ -387,6 +398,26 @@ export default function CircleScreen() {
           <Text className="text-[13px] leading-5 text-muted-foreground">
             {t('circle.iosUnavailable', locale)}
           </Text>
+        ) : alreadySubscribed ? (
+          // #759 — the server refused a second subscription. One body line and one ghost action
+          // (DESIGN §9, the empty-state row): the portal is where a live subscription is managed,
+          // whatever state the cached row shows. Non-iOS only, like every portal entry.
+          <View className="gap-2">
+            <Text className="text-[13px] leading-5 text-muted-foreground">
+              {t('circle.alreadySubscribed', locale)}
+            </Text>
+            <Button
+              label={checkoutPhase === 'portal' ? '…' : t('circle.member.manage', locale)}
+              onPress={() => void onManage()}
+              variant="ghost"
+              disabled={checkoutPhase !== 'idle'}
+            />
+            {portalError ? (
+              <Text className="text-center text-[13px] text-error">
+                {t('circle.portal.error', locale)}
+              </Text>
+            ) : null}
+          </View>
         ) : checkoutGate === 'loading' ? (
           <View className="items-center py-2">
             <ActivityIndicator color={semantic.aura} />

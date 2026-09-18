@@ -79,7 +79,8 @@ export async function startCheckout(
 
 /**
  * A refusal from create-circle-checkout. `code` is the server's `{error}` string — the stable
- * contract; the screen maps it to copy (#747: `circle checkout closed` → the closed line).
+ * contract; the screen maps it to copy (#747: `circle checkout closed` → the closed line; #759:
+ * `circle already subscribed` → the portal).
  * Plumbing only: no message mapping here (rule api.md).
  */
 export class CircleCheckoutError extends Error {
