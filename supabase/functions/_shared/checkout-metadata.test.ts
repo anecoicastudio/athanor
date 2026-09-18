@@ -143,6 +143,9 @@ Deno.test(
         } as Stripe.Checkout.Session);
       },
       // #759 — no live subscription and nothing open: the producer reaches sessions.create.
+      listCustomersByEmail: () => Promise.resolve([]),
+      searchCustomersByTag: () => Promise.resolve([]),
+      now: () => new Date('2026-09-18T12:00:00Z'),
       listSubscriptions: () => Promise.resolve([]),
       latestCheckoutSession: () => Promise.resolve(null),
       listOpenCheckoutSessions: () => Promise.resolve([]),

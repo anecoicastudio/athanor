@@ -465,10 +465,13 @@ configured"}` means an id is unset or its Price failed a gate (archived, one-off
 
 7. **Open the Circle purchase CTA** (#747) — only once step 6 returned the live amounts, and
    only on a production whose `create-circle-checkout` carries the server gate **and** the
-   one-live-subscription guard (#759) (step 1 above, via §4.3). Without #759 a member who
-   already pays is sold a second subscription by any call that reaches the function — refused
-   now with `409 {"error":"circle already subscribed"}` when Stripe holds a live one, and any
-   open Circle Session is expired before another is minted. The flag is enforced twice: the app hides the CTA, and the function refuses
+   one-live-subscription guard (#759), with `create-circle-portal` deployed from the same
+   release (step 1 above, via §4.3). Without #759, any call that reaches the function can sell a
+   member who already pays a second subscription; with it the function refuses
+   `409 {"error":"circle already subscribed"}` while Stripe holds a live one, and expires any
+   open Circle Session before minting another. That refusal sends the member to the portal, and
+   only #759's `create-circle-portal` opens it before their membership row exists. The flag is
+   enforced twice: the app hides the CTA, and the function refuses
    `403 {"error":"circle checkout closed"}` before any Stripe call. An installed build from
    before #747 ignores the flag entirely, so until that function version is live on production
    the flag is not a gate for those builds — confirm the deploy (the function's version and

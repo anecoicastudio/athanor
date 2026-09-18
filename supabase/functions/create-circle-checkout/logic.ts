@@ -10,6 +10,11 @@ import {
   type PriceRefusalSink,
 } from '../_shared/circle-price.ts';
 import type { CirclePriceIds } from '../_shared/stripe.ts';
+import {
+  blocksNewSubscription,
+  circleCustomerTagQuery,
+  taggedCircleCustomers,
+} from '../_shared/circle-customer.ts';
 
 // Circle-checkout construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -30,8 +35,16 @@ export type CircleCheckoutCtx = {
   /** the caller's own client — circle_memberships is RLS select-own */
   userClient: SupabaseClient;
   /**
-   * stripe.customers.create — tagged with profile_id so webhooks can map back. Keyed
-   * (`customerIdempotencyKey`) so a retry before the first webhook lands gets the same Customer.
+   * stripe.customers.list({ email }) — EVERY Customer for the address (index.ts auto-paginates).
+   * With `searchCustomersByTag`, how a member with no membership row yet is matched to the
+   * Customers they already hold (#759, `taggedCircleCustomers`).
+   */
+  listCustomersByEmail: (email: string) => Promise<Stripe.Customer[]>;
+  /** stripe.customers.search — EVERY match for `circleCustomerTagQuery` (index.ts auto-paginates) */
+  searchCustomersByTag: (query: string) => Promise<Stripe.Customer[]>;
+  /**
+   * stripe.customers.create — tagged with profile_id so webhooks can map back, and so
+   * `taggedCircleCustomers` can find it again. Keyed by `customerIdempotencyKey` (#759).
    */
   createCustomer: (
     params: Stripe.CustomerCreateParams,
@@ -43,8 +56,9 @@ export type CircleCheckoutCtx = {
     opts: { idempotencyKey: string },
   ) => Promise<Stripe.Checkout.Session>;
   /**
-   * stripe.subscriptions.list — EVERY non-canceled subscription the Customer holds (index.ts
-   * auto-paginates). Stripe, not the cached row, decides whether one is live (rule #6, #759).
+   * stripe.subscriptions.list — EVERY subscription the Customer holds that is not canceled
+   * (index.ts auto-paginates). Stripe, not the cached row, decides whether one is live (rule #6,
+   * #759).
    */
   listSubscriptions: (customerId: string) => Promise<Stripe.Subscription[]>;
   /** stripe.checkout.sessions.list, limit 1 — the Customer's newest Session, any status */
@@ -66,6 +80,8 @@ export type CircleCheckoutCtx = {
   refusalSink?: PriceRefusalSink;
   /** Where a failed Stripe call is logged, named by the step that failed; production leaves the default. */
   stripeFailureSink?: StripeFailureSink;
+  /** the clock — only the idempotency window reads it (`IDEMPOTENCY_WINDOW_MS`) */
+  now: () => Date;
 };
 
 const FN = 'create-circle-checkout';
@@ -119,56 +135,66 @@ export function logCheckoutClosed(
   sink(`[circle] ${FN}: checkout closed ${JSON.stringify({ flag: CIRCLE_CHECKOUT_FLAG, reason })}`);
 }
 
-/**
- * #759 — whether a subscription in this Stripe status stops the member from starting another.
- * A deny-list of the two TERMINAL statuses, so anything else blocks, including a status Stripe
- * adds after this was written: on the money path an unknown answer is a no.
- *
- * What blocks, and why: Stripe's own «limit customers to one subscription» treats `active`,
- * `past_due`, `unpaid` and `paused` as live (docs.stripe.com/payments/checkout/limit-subscriptions,
- * read 2026-09-18). `trialing` bills when the trial ends. `incomplete` is a first payment still
- * settling (a PaymentIntent in `processing`) — it turns `active` within 23 hours or expires, and
- * a second subscription started meanwhile is a second charge when both settle. Only `canceled`
- * and `incomplete_expired` can never bill again.
- *
- * The cached `circle_memberships.status` cannot answer this: `mapSubStatus` folds `unpaid` and
- * `paused` into `canceled`, and the row lags any webhook that has not landed yet.
- */
-export function blocksNewSubscription(status: string): boolean {
-  return status !== 'canceled' && status !== 'incomplete_expired';
-}
+export { blocksNewSubscription };
 
 /**
- * #759 — keyed on the member, so every attempt before their first webhook lands (and so before
- * any membership row exists to name the Customer) gets the SAME Customer back from Stripe for as
- * long as Stripe keeps the key (at least 24h — as long as a Checkout Session can stay open).
- * Without it, each attempt minted a Customer of its own: two Customers, two payable Sessions,
- * and the second subscription's webhook hitting `unique (profile_id)` on every retry.
+ * #759 — how long one idempotency key lives here. Stripe keeps a key's saved result, a 500
+ * included, for 24h and replays it to every request that sends the key again
+ * (docs.stripe.com/error-low-level, read 2026-09-18). Both keys below are derived from what the
+ * request observed, and a request that failed changed nothing it could observe — so without a
+ * window the next attempt would send the same key and be refused the same saved failure for a
+ * day. With one, for ten minutes at most.
  *
- * The trade: Stripe errors when a key is reused with different parameters, so a member whose
- * auth email changed between two attempts inside that window is refused (500) until the key
- * expires — fails closed, never a second Customer.
+ * A fresh key after a 500 is what Stripe advises against, because the first request may still
+ * have created its object. Here that object is harmless: a Customer it created is found by the
+ * next attempt's listings (`taggedCircleCustomers`), and a Session it created is expired by the next
+ * attempt's sweep.
+ *
+ * What the window costs: two requests whose ladders overlap — a few seconds of Stripe round trips
+ * — and that started on either side of a ten-minute mark do not share a key. They are settled
+ * after minting instead (step 5 of `createCircleCheckout`): the newest open Session survives.
  */
-export const customerIdempotencyKey = (profileId: string): string => `circle-customer:${profileId}`;
+export const IDEMPOTENCY_WINDOW_MS = 10 * 60_000;
+
+/** The window `now` falls in — the last segment of both keys. */
+export const idempotencyWindow = (now: Date): number =>
+  Math.floor(now.getTime() / IDEMPOTENCY_WINDOW_MS);
+
+/**
+ * #759 — keyed on the member: two first attempts racing each other, before either Customer
+ * exists to be listed, get ONE Customer back from Stripe. Reuse across attempts does not depend
+ * on it — a member with no row is matched to the Customers they hold by
+ * `taggedCircleCustomers` — so the window can be short.
+ *
+ * Stripe errors when a key is reused with different parameters: two racing attempts sent with
+ * different auth emails inside one window get one Customer and one refusal (500).
+ */
+export const customerIdempotencyKey = (profileId: string, window: number): string =>
+  `circle-customer:${profileId}:${window}`;
 
 /**
  * #759 — anchored to the newest Session the Customer has (any status), read BEFORE the sweep.
  * Requests racing past every other gate observe the same newest Session, so they send the same
- * key and Stripe answers all of them with ONE Session. The moment that Session exists it is the
- * newest, so the next attempt keys differently and gets a fresh one — a completed or expired
- * Session is never replayed to a later attempt. The Price id, not the plan name: a reused key
- * must mean identical parameters, or Stripe refuses the request.
+ * key and Stripe answers all of them with the same Session. The moment that Session exists it is
+ * the newest, so the next attempt keys differently and gets a fresh one — a completed or expired
+ * Session is never replayed to a later attempt. What a replay returns is Stripe's saved snapshot,
+ * whose `status` still reads `open`; step 5 of `createCircleCheckout` asks Stripe instead.
+ *
+ * The Price is deliberately NOT in the key. Monthly on one device and annual on another, racing,
+ * would otherwise be two keys and two payable Sessions — the sweep of each ran before the other
+ * minted. Sharing one key, the later request carries different parameters and Stripe refuses it
+ * rather than minting a second Session.
  */
 export const sessionIdempotencyKey = (
   customerId: string,
-  priceId: string,
   latestSessionId: string | null,
-): string => `circle-checkout:${customerId}:${priceId}:${latestSessionId ?? 'none'}`;
+  window: number,
+): string => `circle-checkout:${customerId}:${latestSessionId ?? 'none'}:${window}`;
 
 export type CircleCheckoutInput = {
   /** the verified caller (requireUser) — NEVER trusted from the body */
   profileId: string;
-  /** the caller's auth email, for the new-Customer branch */
+  /** the caller's auth email — narrows the #759 Customer lookup, and is set on a new Customer */
   email?: string;
   /** raw plan from the body — validated here */
   plan: string;
@@ -201,27 +227,36 @@ export function buildCircleSessionParams(
 /**
  * Gates in order: checkout flag (#747) → plan enum → price configured → Price servable
  * (`servableAmount`, the same gate get-circle-prices quotes through) → membership read → one
- * live subscription per member (#759). Reuses the caller's existing Stripe Customer if a
- * membership row already exists (RLS select-own), else creates one tagged with profile_id.
- * The membership row is written by the webhook (W5/W11), never here (rule #6). Returns the
- * { kind:'url' } indirection; { kind:'iap' } is M10 (S-IAP-1 OPEN).
+ * live subscription and one payable Session per member (#759). The membership row is written by
+ * the webhook (W5/W11), never here (rule #6). Returns the { kind:'url' } indirection;
+ * { kind:'iap' } is M10 (S-IAP-1 OPEN).
  *
  * The Price gate puts one Stripe read in front of `sessions.create`, so a Stripe read outage
  * now blocks subscribing where it used to block only the quote. That is the trade, chosen
  * deliberately for the money path (#674 item 7): a checkout that cannot verify what it is
  * about to charge must not charge it — the opposite of `version-gate.ts`, whose courtesy
  * check fails open because it protects nothing that money depends on. #759's gates make the
- * same trade: every Stripe read they add fails closed.
+ * same trade: every Stripe call they add fails closed.
  *
- * #759, in the order it runs once the Customer is known — the order is the guarantee:
- *   1. note the Customer's newest Session (the idempotency anchor, `sessionIdempotencyKey`);
- *   2. expire every open Circle Session — at most one payable Session per Customer, whatever
- *      the number of devices, taps or abandoned browsers;
- *   3. ask Stripe for the Customer's subscriptions; any that `blocksNewSubscription` → 409
- *      `circle already subscribed`, which the app maps to «already in the Circle → Manage».
+ * #759 — the Customers first. With a row, the one it names. Without one, every Customer Stripe
+ * holds tagged with this member (`taggedCircleCustomers`); the newest is the one a Session is
+ * minted on, and only if there is none is a Customer created. Then, in order — the order is the
+ * guarantee:
+ *   1. note the minting Customer's newest Session (the idempotency anchor,
+ *      `sessionIdempotencyKey`);
+ *   2. expire the open Circle Sessions: on every other Customer the member holds, all of them;
+ *      on the minting Customer, the anchor and anything older. A newer one was minted by a
+ *      request racing this one after step 1 — step 5 decides between them;
+ *   3. ask Stripe for every held Customer's subscriptions; any that `blocksNewSubscription` →
+ *      409 `circle already subscribed`, which the app maps to «already in the Circle → Manage».
  *      After step 2 on purpose: a Session paid between this listing and its own expiry would
- *      be a subscription the listing never saw. Expired first, it can no longer complete.
- *   4. mint the Session under the step-1 key.
+ *      be a subscription the listing never saw. Expired first, it can no longer complete;
+ *   4. mint the Session under the step-1 key;
+ *   5. settle: list the minting Customer's open Circle Sessions again. The newest survives —
+ *      every racer orders them the same way — and every other one is expired. If ours is not
+ *      open (a racer expired it, or Stripe replayed one that was) or not the newest, 500 and no
+ *      URL. Racers that shared the key were handed the same Session and agree; racers that did
+ *      not (a ten-minute boundary between them, see `IDEMPOTENCY_WINDOW_MS`) leave one Session.
  */
 export async function createCircleCheckout(
   ctx: CircleCheckoutCtx,
@@ -229,6 +264,8 @@ export async function createCircleCheckout(
 ): Promise<Response> {
   const {
     userClient,
+    listCustomersByEmail,
+    searchCustomersByTag,
     createCustomer,
     createCheckoutSession,
     listSubscriptions,
@@ -240,6 +277,7 @@ export async function createCircleCheckout(
     appBase,
     refusalSink,
     stripeFailureSink,
+    now,
   } = ctx;
   const { profileId, email, plan } = input;
 
@@ -276,10 +314,10 @@ export async function createCircleCheckout(
     return error('price not configured', 500);
   }
 
-  // Reuse the existing Stripe Customer if a membership row exists (RLS select-own); else create
-  // one. Only the Customer id is read — whether a subscription is live is Stripe's answer (#759).
-  // Fail closed (#759): a failed read used to pass as «no membership», minting a fresh Customer
-  // and a fresh subscription for someone who may already hold one.
+  // The Customer the membership row names (RLS select-own). Only its id is read — whether a
+  // subscription is live is Stripe's answer (#759). Fail closed (#759): a failed read used to
+  // pass as «no membership», minting a fresh Customer and a fresh subscription for someone who
+  // may already hold one.
   const { data: existing, error: membershipError } = await userClient
     .from('circle_memberships')
     .select('stripe_customer_id')
@@ -287,53 +325,88 @@ export async function createCircleCheckout(
     .maybeSingle();
   if (membershipError) return error('membership lookup failed', 500);
 
+  const keyWindow = idempotencyWindow(now());
   // Which Stripe call is in flight, so the log names the one that failed — every call below
   // shares one catch, and the operator needs to tell a refused expiry from an outage.
-  let step = 'customers.create';
+  let step = 'customers.list';
   try {
-    let customerId: string | null = existing?.stripe_customer_id ?? null;
+    // #759 — the Customers this member holds, newest first. No row names one until the first
+    // webhook lands, but an earlier attempt may have made one (backed out of Checkout, or paid a
+    // moment ago) — or several, under an earlier email. Minting on a second Customer while the
+    // first still has a payable Session or a live subscription is the double charge.
+    const rowCustomer: string | null = existing?.stripe_customer_id ?? null;
+    let held: string[] = [];
+    if (rowCustomer) {
+      held = [rowCustomer];
+    } else {
+      const byEmail = email ? await listCustomersByEmail(email) : [];
+      step = 'customers.search';
+      const tagQuery = circleCustomerTagQuery(profileId);
+      const byTag = tagQuery ? await searchCustomersByTag(tagQuery) : [];
+      held = taggedCircleCustomers([byEmail, byTag], profileId).map((c) => c.id);
+    }
+    let customerId = held[0];
     if (!customerId) {
+      step = 'customers.create';
       const customer = await createCustomer(
         { email, metadata: { profile_id: profileId } },
-        { idempotencyKey: customerIdempotencyKey(profileId) },
+        { idempotencyKey: customerIdempotencyKey(profileId, keyWindow) },
       );
       customerId = customer.id;
+      held = [customerId];
     }
 
     // #759 step 1 — the idempotency anchor, read before the sweep.
     step = 'checkout.sessions.list latest';
     const latest = await latestCheckoutSession(customerId);
 
-    // #759 step 2 — at most one payable Session. Only subscription-mode Sessions: the sweep
-    // retires what this function mints and nothing else. An expiry Stripe refuses throws into
-    // the catch below — the likeliest cause is that the Session completed a moment ago, and a
-    // fresh one minted now would be the double charge.
-    const expired = new Set<string>();
-    step = 'checkout.sessions.list open';
-    for (const open of await listOpenCheckoutSessions(customerId)) {
-      if (open.mode !== 'subscription') continue;
-      step = 'checkout.sessions.expire';
-      await expireCheckoutSession(open.id);
-      expired.add(open.id);
+    // #759 step 2 — only subscription-mode Sessions: the sweep retires what this function mints
+    // and nothing else. An expiry Stripe refuses throws into the catch below — the likeliest
+    // cause is that the Session completed a moment ago, and a fresh one minted now would be the
+    // double charge.
+    for (const heldId of held) {
+      step = 'checkout.sessions.list open';
+      for (const open of await listOpenCheckoutSessions(heldId)) {
+        if (open.mode !== 'subscription') continue;
+        if (heldId === customerId && !atOrBeforeAnchor(open, latest)) continue;
+        step = 'checkout.sessions.expire';
+        await expireCheckoutSession(open.id);
+      }
     }
 
     // #759 step 3 — Stripe is the source of truth (rule #6); the cached row lags webhooks and
     // folds `unpaid`/`paused` into `canceled`.
     step = 'subscriptions.list';
-    const subscriptions = await listSubscriptions(customerId);
-    if (subscriptions.some((s) => blocksNewSubscription(s.status))) {
-      return error('circle already subscribed', 409);
+    for (const heldId of held) {
+      const subscriptions = await listSubscriptions(heldId);
+      if (subscriptions.some((s) => blocksNewSubscription(s.status))) {
+        return error('circle already subscribed', 409);
+      }
     }
 
     // #759 step 4.
     step = 'checkout.sessions.create';
     const session = await createCheckoutSession(
       buildCircleSessionParams(priceId, customerId, profileId, appBase),
-      { idempotencyKey: sessionIdempotencyKey(customerId, priceId, latest?.id ?? null) },
+      { idempotencyKey: sessionIdempotencyKey(customerId, latest?.id ?? null, keyWindow) },
     );
-    // A concurrent request minted this Session under the same key and step 2 then expired it;
-    // Stripe replays it anyway. A dead URL is not a checkout — say so and let the retry key anew.
-    if (expired.has(session.id)) return error('could not start checkout', 500);
+
+    // #759 step 5 — the newest open Circle Session survives; ours must be it.
+    step = 'checkout.sessions.list open';
+    const openNow = (await listOpenCheckoutSessions(customerId)).filter(
+      (s) => s.mode === 'subscription',
+    );
+    if (!openNow.some((s) => s.id === session.id)) return error('could not start checkout', 500);
+    if (newestSession(openNow).id !== session.id) {
+      step = 'checkout.sessions.expire';
+      await expireCheckoutSession(session.id);
+      return error('could not start checkout', 500);
+    }
+    for (const other of openNow) {
+      if (other.id === session.id) continue;
+      step = 'checkout.sessions.expire';
+      await expireCheckoutSession(other.id);
+    }
     if (!session.url) return error('could not start checkout', 500);
     return json({ kind: 'url', url: session.url });
   } catch (e) {
@@ -342,4 +415,28 @@ export async function createCircleCheckout(
     logStripeFailure(`${FN}: ${step}`, e, stripeFailureSink);
     return error('could not start checkout', 500);
   }
+}
+
+/**
+ * #759 step 2 — whether an open Session was already there when the anchor was read: the anchor
+ * itself, or anything created before it. With no anchor there was no Session at all, so an open
+ * one now was minted by a racing request. Same-second Sessions other than the anchor count as
+ * newer and are left to step 5, which settles them.
+ */
+function atOrBeforeAnchor(
+  open: Stripe.Checkout.Session,
+  anchor: Stripe.Checkout.Session | null,
+): boolean {
+  if (!anchor) return false;
+  return open.id === anchor.id || open.created < anchor.created;
+}
+
+/**
+ * #759 step 5 — the newest of the open Sessions, by `created` then id, so every request that
+ * sees the same set picks the same survivor.
+ */
+function newestSession(sessions: Stripe.Checkout.Session[]): Stripe.Checkout.Session {
+  return sessions.reduce((a, b) =>
+    b.created > a.created || (b.created === a.created && b.id > a.id) ? b : a,
+  );
 }

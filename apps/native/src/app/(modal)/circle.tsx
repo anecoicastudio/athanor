@@ -86,7 +86,9 @@ export default function CircleScreen() {
   // pitch, the benefits, the legal links and a member's Manage button stay.
   const clientGate = useCircleCheckoutGate();
   const checkoutGate = serverClosed ? 'closed' : clientGate;
-  const canSubscribe = Platform.OS !== 'ios' && checkoutGate === 'open';
+  // #759 — once the server has refused a second subscription, nothing on this screen offers one:
+  // no plan picker, no price, no renewal line. The refusal arm below is keyed on its own state.
+  const canSubscribe = Platform.OS !== 'ios' && checkoutGate === 'open' && !alreadySubscribed;
 
   // ── Live Stripe amounts (#644) ──────────────────────────────────────────────
   // The catalog used to carry «€12/mese» and «€99/anno» as literals while the charge came
@@ -316,10 +318,13 @@ export default function CircleScreen() {
             </Text>
           ) : (
             <Button
-              label={checkoutPhase === 'portal' ? '…' : t('circle.member.manage', locale)}
+              label={t('circle.member.manage', locale)}
               onPress={() => void onManage()}
               variant="ghost"
               disabled={checkoutPhase !== 'idle'}
+              // `loading`, not a '…' label swap — the #632 finding the Join CTA already follows:
+              // «…» is unpronounceable to a screen reader and hides what is loading.
+              loading={checkoutPhase === 'portal'}
             />
           )}
           {portalError ? (
@@ -407,10 +412,11 @@ export default function CircleScreen() {
               {t('circle.alreadySubscribed', locale)}
             </Text>
             <Button
-              label={checkoutPhase === 'portal' ? '…' : t('circle.member.manage', locale)}
+              label={t('circle.member.manage', locale)}
               onPress={() => void onManage()}
               variant="ghost"
               disabled={checkoutPhase !== 'idle'}
+              loading={checkoutPhase === 'portal'}
             />
             {portalError ? (
               <Text className="text-center text-[13px] text-error">
