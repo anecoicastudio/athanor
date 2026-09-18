@@ -40,6 +40,7 @@ import { listState } from '@/lib/list-state';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
+import { SectionLabel } from '@/components/SectionLabel';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -303,9 +304,12 @@ export default function PostDetailScreen() {
                 )}
               </View>
 
-              <Text className="pt-2 text-[14px] font-semibold text-foreground">
+              {/* The section's own text, so it takes `heading` (DESIGN §10, #651) — the inline
+                  14px spelling this replaces carried no role, and the Android pass (#749) saw it
+                  collapse to ~8px on a Play build. */}
+              <SectionLabel heading className="pt-2">
                 {t('comment.sectionLabel', locale)}
-              </Text>
+              </SectionLabel>
             </View>
           }
           renderItem={({ item }) => {
