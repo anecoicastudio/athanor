@@ -81,6 +81,12 @@ describe('oauthErrorKey', () => {
 
   it('any other failure is a generic OAuth failure', () => {
     expect(oauthErrorKey('code exchange failed')).toBe('auth.error.oauthFailed');
+  });
+
+  it('a banned member on the OAuth path reads the closed door, not «try again» (#733)', () => {
+    // oauth.ts hands back the callback's error_code verbatim, or its description.
+    expect(oauthErrorKey('user_banned')).toBe('auth.error.suspended');
+    expect(oauthErrorKey('User is banned')).toBe('auth.error.suspended');
     expect(oauthErrorKey('')).toBe('auth.error.oauthFailed');
   });
 

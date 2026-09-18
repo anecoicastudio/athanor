@@ -37,9 +37,11 @@
 --     not decay. Re-seed to refill the queue.
 --   connections / conversations / messages — never destroyed by decay; deleting or
 --     restoring them would destroy tester history.
---   GoTrue-side ban state              — profiles.banned_at is cleared, but a ban
---     applied through the admin panel also lives in the auth server and must be
---     lifted from the Dashboard (or Admin API). SQL cannot reach it.
+--   GoTrue-side ban state              — NO LONGER in this list (#733): §8 clears
+--     auth.users.banned_until too. The old note («SQL cannot reach it») was simply wrong:
+--     this file runs as postgres, which has always held UPDATE on auth.users. A persona's
+--     erasure requests go first, or the nightly erasure job would delete the persona and
+--     the #733 sticky trigger would re-raise the ban.
 --   fund_editions.target_at            — NO LONGER in this list, and neither half of the
 --     old reason survives (#127). It was «cosmetic, and nothing gates on it: annual.tsx's
 --     CountdownGrid and DreamHeroCard are its only readers». public.fund_countdown_sweep()
@@ -109,6 +111,7 @@ declare
   v_creqs         int  := 0;
   v_rsvps         int  := 0;
   v_moderation    int  := 0;
+  v_erasure       int  := 0;
   v_stories       int  := 0;
   v_events        int  := 0;
   v_ballot        int  := 0;
@@ -307,14 +310,24 @@ begin
      and rv.status <> s.status;
   get diagnostics v_rsvps = row_count;
 
-  -- §8 Clear SQL-side moderation state on personas (a walked suspend/ban flow would
-  -- otherwise lock a persona's login out of the whole world). The GoTrue half of a
-  -- ban is NOT reachable from SQL — lift it in the Dashboard.
+  -- §8 Clear moderation AND erasure lock-out on personas (a walked suspend/ban or
+  -- delete-account flow would otherwise lock a persona's login out of the whole world,
+  -- and an erasure request would let tonight's job delete the persona). Order matters:
+  -- the request rows first — while one exists the #733 sticky trigger re-raises the
+  -- GoTrue ban — then the profiles half, then the GoTrue half, which this file CAN
+  -- write: it runs as postgres, which holds UPDATE on auth.users.
+  delete from public.gdpr_erasure_requests r
+   where r.profile_id = any(v_personas);
+  get diagnostics v_erasure = row_count;
   update public.profiles p
      set suspended_until = null, banned_at = null
    where p.id = any(v_personas)
      and (p.suspended_until is not null or p.banned_at is not null);
   get diagnostics v_moderation = row_count;
+  update auth.users u
+     set banned_until = null
+   where u.id = any(v_personas)
+     and u.banned_until is not null;
 
   -- §9 Stories: the seed's own re-run repair, made hourly. Only when a segment is
   -- inside 4 hours of expiry (or already pruned), so the countdown visibly ticks
@@ -637,6 +650,7 @@ begin
     'connection_reqs_reset',  v_creqs,
     'rsvps_reset',            v_rsvps,
     'moderation_cleared',     v_moderation,
+    'erasure_requests_cleared', v_erasure,
     'stories_revived',        v_stories,
     'events_restamped',       v_events,
     'ballot_restamped',       v_ballot,

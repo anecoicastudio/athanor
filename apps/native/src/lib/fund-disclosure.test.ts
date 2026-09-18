@@ -179,6 +179,24 @@ describe('the optional fee coverage ships unticked and stays optional (#236)', (
       expect(s, `missing ${key}`).toContain(key);
     }
   });
+
+  it('states the FUND-51 refund rule outside the tick conditional, before the CTA', () => {
+    // «la copertura non torna indietro» exists for the payer who has NOT ticked yet — it is
+    // what they consent to. Inside the `coverFees ?` branch it would be shown only to someone
+    // who already agreed, and every other assertion here would stay green (#711 item 6).
+    const s = screen();
+    // Exactly one gate: a second `coverFees ?` wrapped around the line later in the file would
+    // pass every positional check below while doing precisely what this test forbids.
+    expect(s.split('{coverFees ? (').length - 1).toBe(1);
+    const gated = s.indexOf('{coverFees ? (');
+    const gatedEnd = s.indexOf(') : null}', gated);
+    expect(gated).toBeGreaterThan(-1);
+    expect(gatedEnd).toBeGreaterThan(gated);
+    expect(s.slice(gated, gatedEnd)).not.toContain('fund.disclose.coverage.notReturned');
+    const notReturned = s.indexOf('fund.disclose.coverage.notReturned');
+    expect(notReturned).toBeGreaterThan(gatedEnd);
+    expect(notReturned).toBeLessThan(s.indexOf("t('fund.disclose.cta'"));
+  });
 });
 
 describe('the #222 window-refusal handling survived the move (#375 non-regression)', () => {

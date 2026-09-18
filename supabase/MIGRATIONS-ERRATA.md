@@ -2077,3 +2077,185 @@ and write surface of both new columns (`has_column_privilege` for `anon` and `au
 and whose `volatility_is` message now states the real reason for `IMMUTABLE`. Monotonicity itself
 is asserted only in the weak form the SQL supports: §5's second pass shows the carry is additive
 and does not double.
+
+## `20260910130552_gdpr_erasure_request_bans_signin.sql` — "AFTER INSERT" and the bare NULL lift were both overtaken the same day
+
+Two sentences in the header (`:10` and `:26`) describe the first of four states the mechanism
+went through on the same day.
+
+> Shape: an AFTER INSERT trigger on the request table sets auth.users.banned_until …
+
+`20260910132434` recreated the trigger as `AFTER INSERT OR UPDATE OF status WHEN
+(new.status = 'requested')`, and `20260910134453` widened the WHEN to `new.status <> 'done'`, so
+the §7.5 re-queue (`update … set status = 'requested'`) and a legacy-shaped row inserted straight
+as `failed` both fire it. The header's shape describes the first of four states.
+
+> … if an operator ever withdraws one by hand (RELEASE-RUNBOOK §7.5), the ban has to be cleared
+> in the same act: `update auth.users set banned_until = null where id = …`.
+
+**A bare NULL is a silent no-op while the request row exists.** `20260910132434` added
+`gdpr_erasure_ban_sticky`, a `BEFORE UPDATE OF banned_until` trigger on `auth.users` that
+re-raises the erasure ban whenever the member has a request that is not `done` — proven on
+staging on 2026-09-10 against GoTrue's own admin API (`ban_duration: 60s` and `none` both left the
+column a century out). Withdrawal is two statements in this order: delete the request row, then
+re-derive `banned_until` from `profiles.banned_at` / `suspended_until`. RELEASE-RUNBOOK §7.5 has
+the rule.
+
+The same stickiness overtakes one older column comment, `20260813045347:38-39` on
+`profiles.banned_at`:
+
+> Permanent — lifting is an operator action (clear this AND GoTrue `ban_duration 'none'`)
+
+For a member with an open erasure request the `'none'` half is re-raised, and a suspension
+resolved against such a member records a `suspended_until` date that the GoTrue ban will
+outlive. Neither is a defect — the member asked to be erased — but the panel and
+`SuspendedNotice` render the suspension's date, so read that date as "what moderation wrote",
+not "when sign-in returns".
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` — the tgtype 21
+and the `<> 'done'` WHEN clause (§6), a 7-day overwrite and a bare NULL both re-raised while the
+row is open and NULL sticking only once it is `done` (§3), and a legacy-shaped `failed` insert
+banning (§7).
+
+## `20260910132434_gdpr_erasure_ban_sticky_backfill_and_data_api.sql` — its WHEN clause lasted one migration
+
+Header `:16-17` and the trigger at `:59-62`:
+
+> The request trigger becomes INSERT OR UPDATE OF status WHEN new.status = 'requested'
+
+`20260910134453` widened the clause to `new.status <> 'done'` so a legacy-shaped `failed` row bans
+too, and `20260910140902` moved the UPDATE-side discrimination into the function body (only a row
+coming back from `done` writes `auth.users`; the nightly claim takes no lock). Read the predicate
+as: **a request row that is not `done` means the auth user is banned**.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §6 (the WHEN clause
+text) and §7 (a legacy-shaped `failed` insert bans and closes the Data API).
+
+## `20260910134453_gdpr_erasure_ban_any_open_status.sql` — "re-asserts the same value at every step" lasted one migration
+
+Header `:12-14`:
+
+> Idempotent (GREATEST), so a row walking requested → processing → failed → requested re-asserts
+> the same value at every step
+
+`20260910140902` put a guard in the function body: on UPDATE, only a row coming back from `done`
+writes `auth.users`. The claim, the terminal flips and a `partial`/`failed` re-queue take an early
+return and no `auth.users` lock — the ban they find is the one the insert (or `134453`'s own
+backfill) wrote and the sticky trigger has held since. The invariant the header states is
+unchanged; the mechanism that keeps it is no longer this trigger on those steps.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — the claim
+transition writes no `auth.users` tuple (`ctid` unchanged), and the `partial → requested`
+re-queue leaves the ban a century out.
+
+## `20260813045347_moderation_suspend_ban.sql` — `banned_at`'s lift instruction is a no-op while an erasure request is open
+
+Column comment `:38-39` on `profiles.banned_at`:
+
+> Permanent — lifting is an operator action (clear this AND GoTrue `ban_duration 'none'`)
+
+Since `20260910132434` the GoTrue half is re-raised by `gdpr_erasure_ban_sticky` whenever the
+member has an erasure request that is not `done`, so `'none'` is silently undone for them, and a
+timed suspension against such a member records a `suspended_until` the ban outlives. Withdraw the
+request row first (RELEASE-RUNBOOK §7.5), then lift. Cross-referenced from the
+`20260910130552` entry above; recorded under its own heading so the index answers for this file.
+
+Asserted by: `supabase/tests/0151_gdpr_erasure_request_bans_signin.test.sql` §3 — a 7-day
+overwrite and a bare NULL both re-raised while the request is open, NULL sticking only once the
+row is `done`.
+
+## `20260823130236` — "the revoke does not survive `create or replace`" is false, and this repo proves it
+
+Lines `:102-104`:
+
+> The revoke does not survive `create or replace`ing a function that already had it, but state
+> it again rather than rely on that
+
+PostgreSQL's documented behaviour is the opposite — `CREATE OR REPLACE FUNCTION` leaves
+ownership and privileges untouched — and the schema carries its own proof:
+`fund_editions_ballot_open_check()` was created and revoked in `20260815090015`, replaced in
+`20260815164035` with no restatement, and never re-revoked since; `0121_grant_catalog_sweep`'s
+dynamic sweep over every trigger function is green. Three more replacements never restate either
+(`handle_new_user` in `20260707083401` and `20260707093739`, `fund_payout_ledger_within_basis`
+in `20260816073905`). Keep restating it — it costs one line and spares the reader this paragraph —
+but read the sentence as a convention, not a mechanism.
+
+Found on 2026-09-10 while `20260910142855` restated the revoke for `gdpr_ban_on_erasure_request()`
+after `20260910140902`'s replacement. That file's own header (`:6-7`) says the convention is
+"followed by every other create-or-replace of a trigger function", which overstates it — the four
+replacements above do not, and they are enough to carry the point. Both files are applied and append-only;
+this entry is the correction for both.
+
+Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` — no trigger function grants
+EXECUTE to `public`, `anon` or `authenticated`, evaluated against the live catalogue on every run,
+restated or not.
+
+## `20260909085841` and the retention entry — `stripe_webhook_events` is no longer out of scope, and it is not kept ten years
+
+Two places say the webhook ledger waits for a design it has now had.
+
+`20260909085841_gdpr_retention_reaper.sql:122-127` lists the table among what the reaper does not
+touch:
+
+> `stripe_webhook_events` NOT identity-free, whatever a column list suggests … It is out of scope
+> because pseudonymising it needs its own design (the table is rule 6's dedupe guard), not because
+> it is clean. Filed separately.
+
+That was #725, and it landed on 2026-09-12 (`20260912070533`) — Marco's ruling of 2026-09-09,
+amended 2026-09-11. Both sentences stay true of the reaper, which still does not touch this table
+and was deliberately not extended. What changed is that the design exists: the identity is
+**redacted at erasure time** by `gdpr_erase_payment_footprint`, and on the way in by the
+`stripe_webhook_events_redact_erased` BEFORE INSERT trigger, which is the arm the erasure-time
+sweep cannot be without — `erasure-job` cancels the Circle subscription on its way out, so
+Stripe's `customer.subscription.deleted` arrives **after** the sweep has run.
+
+The second place is this file. The "counsel's retention answer (#184)" entry above names
+`stripe_webhook_events` among the rows "**pseudonymised and kept 10 years**". Read that as the
+ruling's summary of the payment tables, not as a statement about this one: the ledger has no
+retention window at all, before #725 or after it. `gdpr_retention_reap()` never reaped it, and
+nothing else does. What #725 changed is the other half — the row now outlives the erasure with
+the identity **gone** rather than with the identity intact.
+
+Asserted by: `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql` — no row's payload
+matches an erased member after the cascade, deliveries that arrive afterwards land redacted, the
+money columns and Stripe ids survive, and a re-delivery of a redacted event is still refused by
+the dedupe gate.
+
+## `20260912070533` and `20260912073632` — a "verbatim" that is not, and a citation off by one
+
+Both files are applied, so the corrections live here. Neither affects what the SQL does.
+
+`20260912070533:161-163` introduces its `create or replace` of `gdpr_erase_payment_footprint` as:
+
+> Body preserved verbatim from `20260908071656:76-114` except for §(c)
+
+Two things are off. The old body is `20260908071656:76-108`, not `:76-114`. And §(c) is not the
+only addition: §(a) — the two new `declare`s and the two `array_agg` reads that collect the member's
+Stripe customer ids and ticket payment intents before the UPDATEs hide who they belonged to — is
+new as well. Read the sentence as «the two UPDATEs and the sentinel guard are preserved verbatim;
+the handle reads in §(a) and the ledger sweep in §(c) are new». The reads have to happen before
+those UPDATEs, which is the whole argument for folding the sweep into this function rather than
+adding a fourth RPC, so they are not incidental.
+
+The citation of `stripe-webhook/handlers.ts` is off by one in four places: `20260912070533:22` and
+`:305`, `20260912073632:97`, and — correctable, and corrected — `0152_stripe_webhook_payload_redaction.test.sql:19`.
+The quoted sentence «the FIRST event this endpoint sees after an erasure» is at `handlers.ts:495-496`;
+`:494` is the line above it. The quote itself is accurate and so is the argument it supports.
+
+Asserted by: nothing, and nothing can be — these are prose. The behaviour both files describe is
+asserted by `supabase/tests/0152_stripe_webhook_payload_redaction.test.sql`.
+
+### Addendum — `20260912070533:55`'s completeness claim
+
+The same file's key-list section closes with:
+
+> `name` is deliberately absent: it is also a product's name and a price's nickname, and nulling
+> those would destroy the description of what was paid for — the money fact the ruling keeps.
+> Every personal name in a Stripe payload sits inside one of the objects below.
+
+The last sentence was false when it was written, and `20260912075607` is why: the invoice's
+`customer_shipping.name` and a Connect external account's `account_holder_name` are both personal
+names sitting outside every object that file's list names. The reasoning about `name` itself
+stands — it is still excluded, for exactly the stated reason. Read the closing sentence as «every
+personal name reachable through the keys listed here», and read the list itself from
+`20260912075607`, which takes it to twenty-five and is the current one.

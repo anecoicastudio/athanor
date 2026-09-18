@@ -609,6 +609,14 @@ describe('delete-account copy says what the job defers (#515, #107)', () => {
     expect(en[key].trim().length, `en.${key} is blank`).toBeGreaterThan(0);
   });
 
+  test('the body says sign-in is blocked from the tap, in both locales (#733)', () => {
+    // The request bans the auth user in the same transaction (gdpr_erasure_request_bans_signin),
+    // so the member cannot come back before the nightly job. The screen has to say so, or the
+    // «suspended» error they meet on a retry reads as a bug rather than the thing they asked for.
+    expect(it['account.delete.body']).toMatch(/blocchiamo l'accesso/i);
+    expect(en['account.delete.body']).toMatch(/block sign-in/i);
+  });
+
   test('the deferred line names the wait, in both locales', () => {
     // The one thing this line exists to say: the erasure does not happen at the tap. If a
     // rewrite drops that, the screen is back to promising a completion the job cannot deliver.

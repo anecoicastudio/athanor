@@ -29,3 +29,29 @@ minimumReleaseAgeExclude:
   - expo-router@57.0.20
 overrides:
   lightningcss: 1.30.1
+  # Dependabot / `pnpm audit` sweep (2026-09-09). Every entry below is a build- or
+  # dev-time transitive whose parent has not moved yet; each pin is the advisory's
+  # first patched version or the current patch line. Drop an entry once its parent
+  # pulls the fix on its own (`pnpm why <pkg>` shows the chain). Deliberately NOT
+  # overridden: decode-uri-component (every patched version is ESM-only and
+  # query-string@7 under expo-router `require`s it, so an override breaks every deep
+  # link), uuid@7 under `xcode` (v11 changed its exports), esbuild under vite (minor
+  # pin), vitest (major).
+  '@xmldom/xmldom@0.8': 0.8.15
+  '@xmldom/xmldom@0.9': 0.9.12
+  'brace-expansion@1': 1.1.18
+  'brace-expansion@2': 2.1.4
+  'brace-expansion@5': 5.0.9
+  browserslist: 4.28.9
+  baseline-browser-mapping: 2.11.0
+  fast-uri: 3.1.6
+  'nanoid@3': 3.3.18
+  qs: 6.16.0
+  hono: 4.13.5
+  js-yaml: 4.3.2
+  shell-quote: 1.9.0
+  'postcss@8': 8.5.23
+  # sharp is the one entry that overrides an EXACT pin, not a range: next@16.3.4 already
+  # wants ^0.35.4, but miniflare (the preview runtime) pins 0.35.2 exactly, so the
+  # lockfile kept both until this line. Preview walk covers it.
+  sharp: 0.35.4

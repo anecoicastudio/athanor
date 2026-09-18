@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
@@ -23,8 +23,9 @@ import { Screen } from '@/components/Screen';
  * The copy is split in two on purpose (#515): `body` is what the job does at once and cannot
  * undo, `deferred` is what waits for the nightly job. Keep it that way — collapsing them back
  * into one paragraph is how the screen came to promise, at the tap, a deletion that happens
- * later. Since #107 «later» is a night rather than never, and the copy says so; the split is
- * still the point, because the tap itself still deletes nothing but the session.
+ * later. Since #107 «later» is a night rather than never, and since #733 the tap also bans
+ * sign-in in the same transaction as the request; the copy says both. The split is still the
+ * point: what the tap does at once (session, sign-in) versus what the job does at night.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -32,14 +33,6 @@ export default function DeleteAccountScreen() {
   const locale = useLocale();
   const [confirm, setConfirm] = useState('');
   const { showToast } = useToast();
-  const signOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Clear the pending sign-out timer on unmount so it can't fire on a dead component.
-  useEffect(
-    () => () => {
-      if (signOutTimer.current) clearTimeout(signOutTimer.current);
-    },
-    [],
-  );
 
   const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
@@ -48,10 +41,14 @@ export default function DeleteAccountScreen() {
     mutationFn: () => requestErasure(supabase),
     onSuccess: () => {
       showToast(t('account.delete.toast', locale), 'success');
-      // Immediate sign-out — the AuthGuard routes to (auth)/welcome (mirrors settings.tsx signOut).
-      signOutTimer.current = setTimeout(() => {
-        endSession().catch(() => undefined);
-      }, 700);
+      // Immediate sign-out (#733); the AuthGuard replaces the route with (onboarding) on a null
+      // session. This used to be a 700 ms setTimeout like settings.tsx still has — cancelled on
+      // unmount, and merely throttled until resume while the app was backgrounded — and either
+      // way it could leave a session alive on an account whose request has already banned it:
+      // refresh would fail and every write would be denied, behind a UI that still looked
+      // signed in. ToastProvider sits in the root layout above the router, so the toast survives
+      // the redirect.
+      endSession().catch(() => undefined);
     },
     onError: () => showToast(t('profile.error', locale)),
   });
@@ -99,7 +96,7 @@ export default function DeleteAccountScreen() {
         <Button
           variant="danger"
           label={t('account.delete.cta', locale)}
-          disabled={!matched || erase.isPending}
+          disabled={!matched || erase.isPending || erase.isSuccess}
           onPress={() => erase.mutate()}
         />
       </ScrollView>
