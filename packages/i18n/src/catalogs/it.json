@@ -684,6 +684,8 @@
   "media.noPoster.audio": "Audio, nessuna anteprima.",
   "permission.camera.title": "Mostra il tuo percorso",
   "permission.camera.body": "Serve la fotocamera per aggiungere una foto o un video al tuo momento.",
+  "permission.camera.titlePhoto": "Scatta una foto",
+  "permission.camera.bodyPhoto": "Serve la fotocamera per scattare una foto. Solo quando lo decidi tu.",
   "permission.photos.title": "Scegli dalla tua libreria",
   "permission.photos.body": "Accedi alle foto che vuoi condividere. Solo quelle che scegli tu.",
   "permission.microphone.title": "Fatti sentire",

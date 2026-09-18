@@ -367,6 +367,7 @@ export function MediaSheet({
       {pending ? (
         <PermissionPrimer
           kind={primerKind}
+          stillsOnly={!allowVideo}
           status={pending.status}
           visible
           locale={locale}
