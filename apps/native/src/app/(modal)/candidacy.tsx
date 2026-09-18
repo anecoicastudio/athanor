@@ -112,7 +112,7 @@ export default function CandidacyWizard() {
   // window-closed: no open edition or window shut → empty-state instead of the wizard.
   if (windowClosed) {
     return (
-      <Screen className="items-center justify-center px-8">
+      <Screen className="items-center justify-center pl-8 pr-8">
         <Text className="text-center text-[15px] text-muted-foreground">
           {t('candidacy.windowClosed', locale)}
         </Text>
@@ -125,7 +125,7 @@ export default function CandidacyWizard() {
 
   if ((editing || resubmitting) && mineQuery.isError) {
     return (
-      <Screen className="items-center justify-center px-8">
+      <Screen className="items-center justify-center pl-8 pr-8">
         <Text className="text-center text-[15px] text-muted-foreground">
           {t('fund.error', locale)}
         </Text>

@@ -203,7 +203,7 @@ export default function PostDetailScreen() {
   }
   if (!post) {
     return (
-      <Screen className="items-center justify-center px-5">
+      <Screen className="items-center justify-center pl-5 pr-5">
         <Text className="text-[15px] text-foreground">{t('feed.error', locale)}</Text>
       </Screen>
     );

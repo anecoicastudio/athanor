@@ -41,6 +41,16 @@ import { ToastViewport } from '@/components/ToastHost';
  * (`spacing.gutter` / `--spacing-gutter`) for screens whose content doesn't
  * carry its own `px-*` on an inner container.
  *
+ * Horizontal padding on THIS element is physical — `pl-*`/`pr-*`, never `px-*`
+ * (#749). Tailwind 4 compiles `px-*` to logical `padding-inline`, which reaches RN
+ * as `paddingInlineStart`/`End`, and RN applies those aliases only inside its own
+ * `updateYogaProps`. `SafeAreaView`'s Fabric shadow node
+ * (`RNCSafeAreaViewShadowNode::adjustLayoutWithState`) rebuilds the Yoga style from
+ * the props' physical edges and writes it back over that, so the logical pair is
+ * silently gone: `<Screen className="px-8">` rendered edge to edge on an iPhone SE
+ * and on the moto g17. An inner `View` has no such node and takes `px-*` fine.
+ * `source-audit.test.ts` §40 fails a `className` that brings it back.
+ *
  * Every Screen also mounts the global toast viewport (#117) — the pill's
  * `bottom-10` measures from the CONTENT region, which is the whole Screen
  * unless a `footer` is pinned. `footer` wraps the children in a flex-1 View
@@ -83,7 +93,7 @@ export function Screen({ className, gutter, footer, toastInset, children, ...res
     {
       edges: ['top', 'bottom'],
       ...rest,
-      className: cn('flex-1 bg-background', gutter && 'px-gutter', className),
+      className: cn('flex-1 bg-background', gutter && 'pl-gutter pr-gutter', className),
       children:
         footer == null ? (
           content
