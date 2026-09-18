@@ -88,9 +88,13 @@ describe('assetlinks.json', () => {
     expect(entry.relation).toContain('delegate_permission/common.handle_all_urls');
   });
 
-  it('still carries the <SHA256> placeholder — app links are NOT live yet', async () => {
-    // Same prompt as the AASA placeholder: fill from `eas credentials` at P1.5.
+  it('carries real SHA-256 fingerprints — the Play signing key and the EAS upload key', async () => {
+    // A placeholder here makes Android App Link verification fail silently: links open the
+    // browser instead of the app, and nothing in any log says why.
     const [entry] = await json(assetlinksGET());
-    expect(entry.target.sha256_cert_fingerprints).toContain('<SHA256>');
+    const prints: string[] = entry.target.sha256_cert_fingerprints;
+    expect(prints).toHaveLength(2);
+    for (const fp of prints) expect(fp).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    expect(new Set(prints).size).toBe(prints.length);
   });
 });
