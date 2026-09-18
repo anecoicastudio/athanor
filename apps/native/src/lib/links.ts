@@ -1,3 +1,5 @@
+import type { Locale } from '@athanor/schemas';
+
 /**
  * External destinations (P3.4). URLs/addresses are configuration, not copy —
  * rule #5 (i18n) covers user-facing strings only. The legal pages live on the
@@ -35,8 +37,19 @@
  */
 export const SITE_ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || 'https://www.athanor.world';
 
-export const LEGAL_TERMS_URL = `${SITE_ORIGIN}/terms`;
-export const LEGAL_PRIVACY_URL = `${SITE_ORIGIN}/privacy`;
+/**
+ * A legal page in the member's language (#749). The web pages are prerendered in Italian and pick
+ * EN up after hydration from the SITE's cookie, which says nothing about the app's language and
+ * is usually absent from the in-app browser — so a bare URL showed an English member the Italian
+ * policy. `?lang=` is the hint
+ * `apps/web/components/locale-provider.tsx` honours (`readLangParam`), and it is the ONLY way in:
+ * the pages have no EN path. One helper for the three places that link here (Settings, Circle,
+ * the signup consent), so none of them can hand out the bare URL again.
+ */
+export function legalUrl(doc: 'terms' | 'privacy', locale: Locale): string {
+  return `${SITE_ORIGIN}/${doc}?lang=${locale}`;
+}
+
 export const SUPPORT_EMAIL = 'info.anecoica@gmail.com';
 export const INVITE_URL_BASE = `${SITE_ORIGIN}/invite`;
 

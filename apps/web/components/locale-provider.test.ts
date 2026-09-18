@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readCookieLocale } from './locale-provider';
+import { readCookieLocale, readLangParam } from './locale-provider';
 
 /**
  * The cookie read is the whole EN path now that the server always renders IT —
@@ -28,5 +28,38 @@ describe('readCookieLocale', () => {
 
   it('does not match a cookie whose name merely ends with the key', () => {
     expect(readCookieLocale('my_athanor_locale=en')).toBeNull();
+  });
+});
+
+/**
+ * The URL hint (#749). The app opens /privacy and /terms with `?lang=` because a prerendered page
+ * has no other way to learn the member's language: the server always renders IT, and the cookie
+ * lives in the browser, not in the app. Without the hint an EN member read the Italian policy.
+ */
+describe('readLangParam', () => {
+  it('reads an EN hint', () => {
+    expect(readLangParam('?lang=en')).toBe('en');
+  });
+
+  it('reads it among other params', () => {
+    expect(readLangParam('?utm_source=app&lang=en&x=1')).toBe('en');
+  });
+
+  it('reads IT canonically', () => {
+    expect(readLangParam('?lang=it')).toBe('it');
+  });
+
+  it('returns null with no search string, or no hint in it', () => {
+    expect(readLangParam('')).toBeNull();
+    expect(readLangParam('?utm_source=app')).toBeNull();
+  });
+
+  it('returns null for an unsupported locale rather than trusting it', () => {
+    expect(readLangParam('?lang=fr')).toBeNull();
+    expect(readLangParam('?lang=EN')).toBeNull();
+  });
+
+  it('does not match a param whose name merely ends with the key', () => {
+    expect(readLangParam('?flang=en')).toBeNull();
   });
 });

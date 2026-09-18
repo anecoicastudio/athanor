@@ -18,7 +18,7 @@ import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { inviteShareMessage } from '@/lib/invite-share';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, supportMailto } from '@/lib/links';
+import { legalUrl, supportMailto } from '@/lib/links';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
@@ -242,7 +242,7 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.legal.terms', locale)}
             onPress={() => {
-              WebBrowser.openBrowserAsync(LEGAL_TERMS_URL).catch(() =>
+              WebBrowser.openBrowserAsync(legalUrl('terms', locale)).catch(() =>
                 showToast(t('settings.legal.error', locale)),
               );
             }}
@@ -250,7 +250,7 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.legal.privacy', locale)}
             onPress={() => {
-              WebBrowser.openBrowserAsync(LEGAL_PRIVACY_URL).catch(() =>
+              WebBrowser.openBrowserAsync(legalUrl('privacy', locale)).catch(() =>
                 showToast(t('settings.legal.error', locale)),
               );
             }}

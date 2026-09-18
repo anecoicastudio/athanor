@@ -105,7 +105,11 @@ describe.each([
   // derives from SITE_ORIGIN, so this covers constants added after this test was written.
   it('every derived destination inherits that host over https', async () => {
     const { links } = await resolve(origin);
-    const urls = [links.LEGAL_TERMS_URL, links.LEGAL_PRIVACY_URL, links.INVITE_URL_BASE];
+    const urls = [
+      links.legalUrl('terms', 'it'),
+      links.legalUrl('privacy', 'en'),
+      links.INVITE_URL_BASE,
+    ];
 
     for (const url of urls) {
       expect(url.startsWith(`${links.SITE_ORIGIN}/`)).toBe(true);
@@ -278,5 +282,18 @@ describe('supportMailto', () => {
     expect(decodeURIComponent(url.split('subject=')[1] as string)).toBe(
       'Athanor — assistenza & altro?',
     );
+  });
+});
+
+describe('legalUrl', () => {
+  // The web reads `?lang=` (apps/web/components/locale-provider.tsx `readLangParam`); a bare URL
+  // is how an English member was shown the Italian policy (#749).
+  it.each(['it', 'en'] as const)('hands the web page the member language (%s)', async (locale) => {
+    const { legalUrl, SITE_ORIGIN } = await import('./links');
+    for (const doc of ['terms', 'privacy'] as const) {
+      const url = new URL(legalUrl(doc, locale));
+      expect(`${url.origin}${url.pathname}`).toBe(`${SITE_ORIGIN}/${doc}`);
+      expect(url.searchParams.get('lang')).toBe(locale);
+    }
   });
 });

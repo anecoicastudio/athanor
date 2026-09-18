@@ -12,7 +12,7 @@ import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
+import { legalUrl } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
@@ -552,8 +552,8 @@ export default function WelcomeScreen() {
                     <View className="flex-row items-center justify-center gap-6">
                       {(
                         [
-                          ['settings.legal.terms', LEGAL_TERMS_URL],
-                          ['settings.legal.privacy', LEGAL_PRIVACY_URL],
+                          ['settings.legal.terms', legalUrl('terms', locale)],
+                          ['settings.legal.privacy', legalUrl('privacy', locale)],
                         ] as const
                       ).map(([key, url]) => (
                         <Pressable
