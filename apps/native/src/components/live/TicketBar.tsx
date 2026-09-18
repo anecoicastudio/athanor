@@ -7,6 +7,8 @@ import {
   createTicketCheckout,
   eventKeys,
   getMyTicket,
+  getOrganizerPayoutsEnabled,
+  payoutKeys,
   subscribeTicket,
   TicketCheckoutError,
 } from '@athanor/api';
@@ -73,6 +75,25 @@ export function TicketBar({
     enabled: !!uid,
   });
   const ticket = ticketQ.data ?? null;
+
+  // #747 — can the organiser be paid right now? The write-time gate (enforce_paid_event_gate)
+  // already refuses a paid event from an organiser without payouts, so this catches the case it
+  // cannot: Stripe revoking the capability AFTER the event went live. Without it the bar offers
+  // a button that can only end in a refusal. A courtesy, never the authority — the server's
+  // `organizer cannot receive payouts` refusal stays, and is still mapped in ERROR_COPY.
+  //
+  // `persist: false`: a money read must not hydrate yesterday's answer (lib/query-client.ts);
+  // a cold start always asks. An ERROR leaves the button live — a failed courtesy check is no
+  // evidence the organiser cannot be paid, and the server will say so precisely if they cannot.
+  // Only an explicit `false` withdraws the offer.
+  const payableQ = useQuery({
+    queryKey: payoutKeys.organizer(event.organizer_id),
+    queryFn: () => getOrganizerPayoutsEnabled(supabase, event.organizer_id),
+    enabled: !!uid,
+    staleTime: 60_000,
+    meta: { persist: false },
+  });
+  const organizerUnpayable = payableQ.data === false;
   const hasTicket = ticket?.status === 'paid' || ticket?.status === 'checked_in';
 
   useEffect(() => {
@@ -194,12 +215,27 @@ export function TicketBar({
     );
   }
 
+  // #747 — the organiser cannot be paid: no buy button, and the reason in the ticket bar's own
+  // words. Same disabled surface as sold out; the copy is the server refusal's own sentence, in
+  // the quiet ink rather than error red, because nothing the buyer did went wrong.
+  if (organizerUnpayable) {
+    return (
+      <View className="gap-2 rounded-card border border-hair bg-raise p-4">
+        <Button label={t('ticket.notOnSale', locale)} variant="ghost" disabled onPress={() => {}} />
+        <Text className="text-center text-[12px] text-ink-2">
+          {t('ticket.error.organizerPayouts', locale)}
+        </Text>
+      </View>
+    );
+  }
+
   const priceLabel = formatPrice(event.price_cents, event.currency, locale);
   return (
     <View className="gap-2">
       <Pressable
         className="rounded-ctl bg-aura px-5 py-3"
-        disabled={phase === 'opening' || !uid}
+        // A buyer never reaches Checkout while the payability read is still in flight (#747).
+        disabled={phase === 'opening' || !uid || payableQ.isPending}
         onPress={() => void onBuy()}
         accessibilityRole="button"
       >

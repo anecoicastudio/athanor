@@ -868,6 +868,7 @@
   "common.refresh": "Aggiorna",
   "common.close": "Chiudi",
   "ticket.buy": "Acquista il biglietto · {price}",
+  "ticket.notOnSale": "Biglietti non in vendita",
   "ticket.opening": "Apertura pagamento…",
   "ticket.confirming": "Confermiamo il pagamento ✦",
   "ticket.confirmSlow": "Stiamo ancora confermando…",

@@ -868,6 +868,7 @@
   "common.refresh": "Refresh",
   "common.close": "Close",
   "ticket.buy": "Get your ticket · {price}",
+  "ticket.notOnSale": "Tickets not on sale",
   "ticket.opening": "Opening payment…",
   "ticket.confirming": "Confirming your payment ✦",
   "ticket.confirmSlow": "Still confirming…",

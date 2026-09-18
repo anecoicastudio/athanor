@@ -3,6 +3,7 @@ import type { AthanorClient } from './client';
 import {
   PayoutOnboardingError,
   getMyPayoutAccount,
+  getOrganizerPayoutsEnabled,
   payoutKeys,
   requestPayoutOnboarding,
 } from './payouts';
@@ -50,6 +51,10 @@ describe('payoutKeys', () => {
   it('mine factory shape', () => {
     expect(payoutKeys.all).toEqual(['payout']);
     expect(payoutKeys.mine()).toEqual(['payout', 'mine']);
+  });
+
+  it('organizer factory is keyed on the organiser, under the same root', () => {
+    expect(payoutKeys.organizer('org-1')).toEqual(['payout', 'organizer', 'org-1']);
   });
 });
 
@@ -194,5 +199,34 @@ describe('requestPayoutOnboarding', () => {
     await expect(requestPayoutOnboarding(invokeClient({ data: { url: 42 } }))).rejects.toThrow(
       'no onboarding url returned',
     );
+  });
+});
+
+describe('getOrganizerPayoutsEnabled (#747)', () => {
+  const rpcClient = (result: { data: unknown; error: unknown }) => {
+    const rpc = vi.fn().mockResolvedValue(result);
+    return { client: { rpc } as unknown as AthanorClient, rpc };
+  };
+
+  it('asks has_payouts_enabled about the organiser, never the caller', async () => {
+    const { client, rpc } = rpcClient({ data: true, error: null });
+    await expect(getOrganizerPayoutsEnabled(client, 'org-1')).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledWith('has_payouts_enabled', { uid: 'org-1' });
+  });
+
+  it('returns false as false — the revoked or never-onboarded organiser', async () => {
+    const { client } = rpcClient({ data: false, error: null });
+    await expect(getOrganizerPayoutsEnabled(client, 'org-1')).resolves.toBe(false);
+  });
+
+  it('throws on an RPC error rather than guessing either way', async () => {
+    const err = { message: 'permission denied', code: '42501' };
+    const { client } = rpcClient({ data: null, error: err });
+    await expect(getOrganizerPayoutsEnabled(client, 'org-1')).rejects.toBe(err);
+  });
+
+  it('parses, never casts: a non-boolean answer throws', async () => {
+    const { client } = rpcClient({ data: null, error: null });
+    await expect(getOrganizerPayoutsEnabled(client, 'org-1')).rejects.toThrow();
   });
 });
