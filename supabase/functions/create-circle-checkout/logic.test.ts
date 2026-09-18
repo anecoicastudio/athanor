@@ -7,7 +7,12 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 // run — an unpinned specifier would typecheck against latest and redden on SDK majors.
 import type Stripe from 'npm:stripe@22';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
-import { createCircleCheckout, isCirclePlan, type CircleCheckoutCtx } from './logic.ts';
+import {
+  CIRCLE_CHECKOUT_FLAG,
+  createCircleCheckout,
+  isCirclePlan,
+  type CircleCheckoutCtx,
+} from './logic.ts';
 
 const PROFILE = 'prof-1';
 const EMAIL = 'seeker@example.com';
@@ -51,7 +56,11 @@ const ctx = (
     throwOnCustomer?: boolean;
   } = {},
 ): Ctx => {
-  const db = makeFakeDb(script);
+  // Every test runs with checkout OPEN unless it scripts the flag itself (#747 block below).
+  const db = makeFakeDb({
+    'remote_config.select': [{ data: { value: { enabled: true } } }],
+    ...script,
+  });
   const customersCreated: Stripe.CustomerCreateParams[] = [];
   const sessionsCreated: Stripe.Checkout.SessionCreateParams[] = [];
   const pricesRetrieved: string[] = [];
@@ -88,6 +97,9 @@ const ctx = (
   };
 };
 
+/** The caller's data reads — every db call except the #747 flag read, which precedes them all. */
+const dataCalls = (c: Ctx) => c.db.calls.filter((k) => k.table !== 'remote_config');
+
 const run = async (c: Ctx, plan: string) => {
   const res = await createCircleCheckout(c, { profileId: PROFILE, email: EMAIL, plan });
   return { res, body: await res.json() };
@@ -109,7 +121,7 @@ Deno.test('invalid plan → 400, nothing touched', async () => {
   const { res, body } = await run(c, 'weekly');
   assertEquals(res.status, 400);
   assertEquals(body, { error: 'plan must be monthly or annual' });
-  assertEquals(c.db.calls.length, 0);
+  assertEquals(dataCalls(c).length, 0);
   assertEquals(c.customersCreated.length, 0);
   assertEquals(c.sessionsCreated.length, 0);
 });
@@ -121,7 +133,7 @@ Deno.test(
     const m = await run(noMonthly, 'monthly');
     assertEquals(m.res.status, 500);
     assertEquals(m.body, { error: 'price not configured' });
-    assertEquals(noMonthly.db.calls.length, 0);
+    assertEquals(dataCalls(noMonthly).length, 0);
     assertEquals(noMonthly.pricesRetrieved, []);
     // The unset arm used to be the one refusal nothing logged (#674 item 8).
     assertEquals(noMonthly.refusals.length, 1);
@@ -167,7 +179,7 @@ Deno.test(
       assertEquals(res.status, 500, reason);
       assertEquals(body, { error: 'price not configured' }, reason);
       // Refused before the membership read, the Customer, and the session.
-      assertEquals(c.db.calls.length, 0, reason);
+      assertEquals(dataCalls(c).length, 0, reason);
       assertEquals(c.customersCreated.length, 0, reason);
       assertEquals(c.sessionsCreated.length, 0, reason);
       // …and the operator can read which gate, for which plan, on which Price.
@@ -202,7 +214,7 @@ Deno.test(
     const { res, body } = await run(c, 'monthly');
     assertEquals(res.status, 500);
     assertEquals(body, { error: 'could not start checkout' });
-    assertEquals(c.db.calls.length, 0);
+    assertEquals(dataCalls(c).length, 0);
     assertEquals(c.sessionsCreated.length, 0);
     assertEquals(c.refusals, []);
   },
@@ -230,7 +242,7 @@ Deno.test('existing membership → Customer reused, createCustomer never called'
   assertEquals(c.sessionsCreated[0].customer, 'cus_existing');
 
   // membership read is scoped to the caller (RLS select-own mirrors this).
-  const q = c.db.calls[0];
+  const q = dataCalls(c)[0];
   assertEquals(q.table, 'circle_memberships');
   assert(q.filters.some(([f, col, v]) => f === 'eq' && col === 'profile_id' && v === PROFILE));
 });
@@ -286,4 +298,90 @@ Deno.test('session without url / customer create throw → clean 500', async () 
   assertEquals(t.res.status, 500);
   assertEquals(t.body, { error: 'could not start checkout' });
   assertEquals(thrown.sessionsCreated.length, 0);
+});
+
+// ── #747: the checkout flag, server side ─────────────────────────────────────────
+// The client hides the CTA on the same flag; this is the half a bypassed or pre-#747 client
+// cannot skip. Fails CLOSED on every doubt — the opposite of version-gate.ts — because what it
+// guards is a Checkout against keys that may still be test-mode.
+
+const flag = (r: FakeResult): Record<string, FakeResult[]> => ({ 'remote_config.select': [r] });
+
+const assertClosedUntouched = (
+  c: Ctx,
+  res: Response,
+  body: { error?: string },
+  reason: 'read-error' | 'absent' | 'malformed' | 'off',
+) => {
+  assertEquals(res.status, 403);
+  assertEquals(body.error, 'circle checkout closed');
+  assertEquals(c.pricesRetrieved, [], 'no Stripe read before the flag check');
+  assertEquals(c.customersCreated, [], 'no Customer minted');
+  assertEquals(c.sessionsCreated, [], 'no Checkout Session minted');
+  assertEquals(dataCalls(c), [], 'no membership read either');
+  assertEquals(
+    c.db.calls.filter((k) => k.table === 'remote_config').length,
+    1,
+    'exactly one flag read',
+  );
+  assertEquals(c.refusals, [
+    `[circle] create-circle-checkout: checkout closed ${JSON.stringify({
+      flag: 'circle_checkout_enabled',
+      reason,
+    })}`,
+  ]);
+};
+
+Deno.test(
+  '#747 flag on → checkout proceeds, the read names the key, nothing is logged',
+  async () => {
+    const c = ctx();
+    const { res } = await run(c, 'monthly');
+    assertEquals(res.status, 200);
+    assertEquals(c.sessionsCreated.length, 1);
+    const read = c.db.calls[0];
+    assertEquals(read.table, 'remote_config', 'the flag is the first read');
+    assertEquals(read.filters, [['eq', 'key', CIRCLE_CHECKOUT_FLAG]]);
+    assertEquals(CIRCLE_CHECKOUT_FLAG, 'circle_checkout_enabled');
+    assertEquals(c.refusals, []);
+  },
+);
+
+Deno.test('#747 flag off → 403 circle checkout closed, nothing touched', async () => {
+  const c = ctx(flag({ data: { value: { enabled: false } } }));
+  const { res, body } = await run(c, 'monthly');
+  assertClosedUntouched(c, res, body, 'off');
+});
+
+Deno.test('#747 flag absent → closed', async () => {
+  const c = ctx(flag({ data: null }));
+  const { res, body } = await run(c, 'monthly');
+  assertClosedUntouched(c, res, body, 'absent');
+});
+
+Deno.test('#747 flag malformed → closed (truthy is not true)', async () => {
+  for (const value of [{ enabled: 'true' }, { enabled: 1 }, {}, null, 'on', true]) {
+    const c = ctx(flag({ data: { value } }));
+    const { res, body } = await run(c, 'annual');
+    assertClosedUntouched(c, res, body, 'malformed');
+  }
+});
+
+Deno.test('#747 flag read error → closed, even when an open payload rides along', async () => {
+  // The payload says open; only the error arm can close this — so a gate that ignored the
+  // error would go red here instead of passing on the payload's absence.
+  const c = ctx(
+    flag({
+      data: { value: { enabled: true } },
+      error: { message: 'connection reset', code: '08006' },
+    }),
+  );
+  const { res, body } = await run(c, 'monthly');
+  assertClosedUntouched(c, res, body, 'read-error');
+});
+
+Deno.test('#747 the flag is checked before the plan is even validated', async () => {
+  const c = ctx(flag({ data: null }));
+  const { res, body } = await run(c, 'weekly');
+  assertClosedUntouched(c, res, body, 'absent');
 });

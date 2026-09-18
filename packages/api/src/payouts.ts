@@ -5,6 +5,7 @@ import type { AthanorClient } from './client';
 export const payoutKeys = {
   all: ['payout'] as const,
   mine: () => [...payoutKeys.all, 'mine'] as const,
+  organizer: (organizerId: string) => [...payoutKeys.all, 'organizer', organizerId] as const,
 };
 
 /**
@@ -65,6 +66,31 @@ export async function getMyPayoutAccount(client: AthanorClient): Promise<MyPayou
     payoutsEnabled: row.payouts_enabled,
     onboardedAt: row.onboarded_at,
   };
+}
+
+/**
+ * Whether an event's ORGANISER can receive a ticket split right now (#747) — the buyer-side read
+ * of the same gate `create-ticket-checkout` enforces through `organizer_payout_destination`.
+ *
+ * Goes through `has_payouts_enabled`, not the table: `payout_accounts` is select-own, so a buyer's
+ * direct read of the organiser's row returns nothing. The RPC is DEFINER, granted to
+ * `authenticated`, and answers one boolean — no account id, no onboarding timestamp — with a
+ * missing row coalesced to false (`20260906141227_ticket_split_payout_gate.sql:22-54`).
+ *
+ * A COURTESY, never the authority (rules 6 and 8): it lets the ticket bar stop offering a button
+ * that would fail, most usefully after `payouts_enabled` flips false on an event that passed the
+ * write-time gate. The server-side refusal in `create-ticket-checkout` stays the gate.
+ */
+export async function getOrganizerPayoutsEnabled(
+  client: AthanorClient,
+  organizerId: string,
+): Promise<boolean> {
+  const { data, error } = await client.rpc('has_payouts_enabled', { uid: organizerId });
+  if (error) throw error;
+  // Checked, never cast (rules/api.md): the function coalesces to false, so anything but a
+  // boolean is drift, and a null read as "cannot be paid" would hide a live event's button.
+  if (typeof data !== 'boolean') throw new Error('has_payouts_enabled returned a non-boolean');
+  return data;
 }
 
 /**

@@ -127,6 +127,8 @@ Deno.test(
   'circle metadata minted by create-circle-checkout is readable by both webhook paths',
   async () => {
     const producerDb = makeFakeDb({
+      // Checkout open (#747) — the producer refuses before minting anything otherwise.
+      'remote_config.select': [{ data: { value: { enabled: true } } }],
       'circle_memberships.select': [{ data: { stripe_customer_id: 'cus_1' } }],
     });
     const sessions: Stripe.Checkout.SessionCreateParams[] = [];

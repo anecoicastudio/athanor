@@ -3,7 +3,12 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import type { CirclePlan } from '@athanor/schemas';
 import { error, json } from '../_shared/respond.ts';
 import { logStripeFailure } from '../_shared/stripe-error.ts';
-import { logPriceRefusal, servableAmount, type PriceRefusalSink } from '../_shared/circle-price.ts';
+import {
+  consoleRefusalSink,
+  logPriceRefusal,
+  servableAmount,
+  type PriceRefusalSink,
+} from '../_shared/circle-price.ts';
 import type { CirclePriceIds } from '../_shared/stripe.ts';
 
 // Circle-checkout construction extracted from index.ts so it is unit-testable (deno test):
@@ -45,6 +50,55 @@ export type CircleCheckoutCtx = {
 
 const FN = 'create-circle-checkout';
 
+/**
+ * The remote_config row that opens Circle checkout (#747) — the same key the app's
+ * `useCircleCheckoutGate` reads. Absent on production until the Stripe cutover
+ * (RELEASE-RUNBOOK §4.2 step 7).
+ */
+export const CIRCLE_CHECKOUT_FLAG = 'circle_checkout_enabled';
+
+/**
+ * Whether checkout is open: `true` only on a clean read of `{"enabled": true}`. FAILS CLOSED on
+ * every doubt — absent row, malformed value, read error — the deliberate opposite of
+ * `version-gate.ts`, which fails open because it guards nothing money depends on. This one
+ * guards a Checkout that may point at test-mode keys.
+ *
+ * Read through the CALLER's client: `remote_config` is SELECT-granted to `authenticated` with a
+ * public-read policy, and `_shared/auth-posture.test.ts` forbids the service role in a
+ * user-callable function. It is the same read `version-gate.ts` makes.
+ */
+export type CheckoutGate =
+  | { open: true }
+  | { open: false; reason: 'read-error' | 'absent' | 'malformed' | 'off' };
+
+export async function readCircleCheckoutGate(userClient: SupabaseClient): Promise<CheckoutGate> {
+  const { data, error: readError } = await userClient
+    .from('remote_config')
+    .select('value')
+    .eq('key', CIRCLE_CHECKOUT_FLAG)
+    .maybeSingle();
+  // The error wins over any payload that came with it: a read that failed proved nothing.
+  if (readError) return { open: false, reason: 'read-error' };
+  if (data == null) return { open: false, reason: 'absent' };
+  const value = (data as { value?: unknown }).value;
+  if (typeof value !== 'object' || value === null) return { open: false, reason: 'malformed' };
+  const enabled = (value as { enabled?: unknown }).enabled;
+  if (typeof enabled !== 'boolean') return { open: false, reason: 'malformed' };
+  return enabled ? { open: true } : { open: false, reason: 'off' };
+}
+
+/**
+ * One line per closed refusal, naming the function and why — the logPriceRefusal convention.
+ * Configuration only: no profile id, no email, nothing a member typed. `off` is the expected
+ * state on production before the cutover, so it logs the same one line and nothing louder.
+ */
+export function logCheckoutClosed(
+  reason: Exclude<CheckoutGate, { open: true }>['reason'],
+  sink: PriceRefusalSink = consoleRefusalSink,
+): void {
+  sink(`[circle] ${FN}: checkout closed ${JSON.stringify({ flag: CIRCLE_CHECKOUT_FLAG, reason })}`);
+}
+
 export type CircleCheckoutInput = {
   /** the verified caller (requireUser) — NEVER trusted from the body */
   profileId: string;
@@ -79,7 +133,7 @@ export function buildCircleSessionParams(
 }
 
 /**
- * Gates in order: plan enum → price configured → Price servable (`servableAmount`, the same
+ * Gates in order: checkout flag (#747) → plan enum → price configured → Price servable (`servableAmount`, the same
  * gate get-circle-prices quotes through). Reuses the caller's existing Stripe Customer if a
  * membership row already exists (RLS select-own), else creates one tagged with profile_id.
  * The membership row is written by the webhook (W5/W11), never here (rule #6). Returns the
@@ -105,6 +159,14 @@ export async function createCircleCheckout(
     refusalSink,
   } = ctx;
   const { profileId, email, plan } = input;
+
+  // #747 — first, before any Stripe call: a closed checkout mints no Customer and no Session,
+  // whatever the client showed. 403 with a stable code the app maps to its closed line.
+  const gate = await readCircleCheckoutGate(userClient);
+  if (!gate.open) {
+    logCheckoutClosed(gate.reason, refusalSink);
+    return error('circle checkout closed', 403);
+  }
 
   if (!isCirclePlan(plan)) return error('plan must be monthly or annual', 400);
 

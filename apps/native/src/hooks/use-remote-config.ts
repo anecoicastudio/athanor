@@ -26,3 +26,32 @@ export function useRemoteConfig() {
 export function useFeatureFlags(): Record<string, boolean> {
   return useRemoteConfig().data?.flags ?? {};
 }
+
+/** The remote_config key that opens the Circle purchase CTA (#747). Seeded on staging only. */
+export const CIRCLE_CHECKOUT_FLAG = 'circle_checkout_enabled';
+
+/**
+ * Whether the Circle purchase CTA may render (#747): `'open'` only when a fetch made in THIS
+ * session read `{"enabled": true}`. It fails CLOSED, unlike the boot read above, because what
+ * it guards is money: production's Stripe is test-mode until the cutover, and a checkout
+ * offered there is an offer that cannot complete.
+ *
+ * - its own key, `meta: { persist: false }` — the boot read is dehydrated to AsyncStorage for
+ *   24h, so reusing it would hydrate yesterday's `true` on a device that is now offline or
+ *   whose flag was turned off. A cold start always asks the table.
+ * - an absent row, a malformed row (skipped by `getRemoteConfig`) or a failed fetch → `'closed'`.
+ *   A failed REFETCH closes it too: TanStack keeps the old `data` but moves `status` to `'error'`.
+ * - `'loading'` while the first read is in flight, so the screen can show a spinner instead of
+ *   flashing the closed line and then swapping it for the CTA.
+ */
+export function useCircleCheckoutGate(): 'loading' | 'open' | 'closed' {
+  const q = useQuery<RemoteConfigSnapshot>({
+    queryKey: remoteConfigKeys.live(),
+    queryFn: () => getRemoteConfig(supabase),
+    staleTime: 60_000,
+    retry: 1,
+    meta: { persist: false },
+  });
+  if (q.status === 'pending') return 'loading';
+  return q.status === 'success' && q.data.flags[CIRCLE_CHECKOUT_FLAG] === true ? 'open' : 'closed';
+}
