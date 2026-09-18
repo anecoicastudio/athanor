@@ -2305,8 +2305,8 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
  * React Native gives `Switch` its role and its checked state from `value`, and NOTHING else. The
  * label `Text` beside it in the row is a sibling, not an association — there is no `htmlFor`
  * here — so a `Switch` with no `accessibilityLabel` announces as «attivato, interruttore» with
- * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which is
- * every switch the app has.
+ * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which was
+ * every switch the app had at the time.
  *
  * The check is per-JSX-site, not per-runtime-control: `notif-prefs.tsx` renders six switches
  * from one tag inside `PREF_ROWS.map`, so a count here would be a number that rots. The property
@@ -2324,7 +2324,15 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
  * removes; this section only checks that nothing announces around it.
  */
 describe('a11y: toggles name themselves and ornaments stay silent (#635)', () => {
-  const SWITCH_FILES = ['app/(modal)/trust.tsx', 'app/(modal)/notif-prefs.tsx'];
+  // The two composers' «passo del percorso» Switches (#748) are row-owned: the Pressable row is
+  // the control and the Switch is hidden and touch-inert inside it. They still carry the label,
+  // so the rule below holds without an exception and a later un-hiding cannot ship unnamed.
+  const SWITCH_FILES = [
+    'app/(modal)/trust.tsx',
+    'app/(modal)/notif-prefs.tsx',
+    'app/(modal)/post-compose.tsx',
+    'app/(modal)/story-compose.tsx',
+  ];
   const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
 
   /** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
@@ -2359,7 +2367,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
       (n, p) => n + openingTags(stripComments(read(p)), 'Switch').length,
       0,
     );
-    // A scanner that finds nothing passes every assertion below. Two files, six tags today.
+    // A scanner that finds nothing passes every assertion below.
     expect(total, 'no <Switch> found at all — the walk is broken, not the tree').toBeGreaterThan(0);
   });
 
@@ -2379,7 +2387,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     ).toEqual([]);
   });
 
-  it('the Switch sites are exactly the two screens this section names', () => {
+  it('the Switch sites are exactly the screens this section names', () => {
     const owners = FILES.filter((p) => !isTest(p))
       .filter((p) => openingTags(stripComments(read(p)), 'Switch').length > 0)
       .map((p) => rel(p).replace('apps/native/src/', ''))
@@ -2584,8 +2592,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:523':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/post-compose.tsx:386': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/story-compose.tsx:162': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(onboarding)/index.tsx:417':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -2593,7 +2601,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:523',
+    'components/stories/StoriesViewer.tsx:370': 'the reply send disc — same reason as chat.tsx:523',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
