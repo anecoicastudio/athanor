@@ -18,7 +18,7 @@ import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { inviteShareMessage } from '@/lib/invite-share';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, SUPPORT_EMAIL } from '@/lib/links';
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL, supportMailto } from '@/lib/links';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
@@ -232,7 +232,9 @@ export default function SettingsScreen() {
           <SettingsRow
             title={t('settings.help.title', locale)}
             onPress={() => {
-              Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() =>
+              // A mail draft, with a subject (#749): the app has no help centre, and a bare
+              // `mailto:` opened an empty draft that said nothing about where it came from.
+              Linking.openURL(supportMailto(t('settings.help.subject', locale))).catch(() =>
                 showToast(t('settings.help.error', locale)),
               );
             }}

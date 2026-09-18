@@ -39,3 +39,13 @@ export const LEGAL_TERMS_URL = `${SITE_ORIGIN}/terms`;
 export const LEGAL_PRIVACY_URL = `${SITE_ORIGIN}/privacy`;
 export const SUPPORT_EMAIL = 'info.anecoica@gmail.com';
 export const INVITE_URL_BASE = `${SITE_ORIGIN}/invite`;
+
+/**
+ * The support mail, with a subject line (#749). There is no in-app help centre — P3.4 settled
+ * "Help row = mailto for now" — so the draft is the whole of it, and a bare `mailto:` opened an
+ * empty one that told us nothing about where it came from. The subject is copy, so the caller
+ * passes it in from the catalog; this only encodes it.
+ */
+export function supportMailto(subject: string): string {
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+}

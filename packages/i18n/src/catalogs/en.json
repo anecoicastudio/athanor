@@ -587,6 +587,7 @@
   "settings.section.support": "Support",
   "settings.help.title": "Help center",
   "settings.help.error": "Couldn't open your email app.",
+  "settings.help.subject": "Athanor — support",
   "settings.legal.terms": "Terms of service",
   "settings.legal.privacy": "Privacy policy",
   "settings.legal.error": "Couldn't open the page.",

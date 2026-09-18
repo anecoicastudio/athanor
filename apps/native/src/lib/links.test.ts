@@ -265,3 +265,18 @@ describe('every claimed universal-link prefix has a native screen (#544)', () =>
     }
   });
 });
+
+describe('supportMailto', () => {
+  it('addresses the support inbox and carries the subject, encoded', async () => {
+    const { supportMailto, SUPPORT_EMAIL } = await import('./links');
+    const url = supportMailto('Athanor — assistenza & altro?');
+
+    expect(url.startsWith(`mailto:${SUPPORT_EMAIL}?subject=`)).toBe(true);
+    // A raw `&` or `?` would end the subject early, and a raw space or em dash is not a legal
+    // URI character — the mail client would get a truncated or mangled line.
+    expect(url).not.toMatch(/subject=.*[ &?—]/);
+    expect(decodeURIComponent(url.split('subject=')[1] as string)).toBe(
+      'Athanor — assistenza & altro?',
+    );
+  });
+});
