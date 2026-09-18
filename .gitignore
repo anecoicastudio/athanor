@@ -77,3 +77,10 @@ apps/web/cloudflare-env.d.ts
 # `/index` skill output — a generated map of the tree, regenerated on demand and
 # stale the moment it is not. Never a review artifact.
 /PROJECT_INDEX.json
+
+# Google Play service-account key for `eas submit` (apps/native/eas.json →
+# serviceAccountKeyPath). A live credential that can release to Play; the repo is
+# public, so it never enters git. The second pattern catches a key still carrying
+# the name Google Cloud downloads it with (<project>-<keyid>.json).
+apps/native/google-service-account.json
+apps/native/athanor-play-*.json
