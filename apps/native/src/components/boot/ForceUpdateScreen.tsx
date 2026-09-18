@@ -17,7 +17,7 @@ export function ForceUpdateScreen() {
   const openStore = () => {
     // Android: the package id is known; iOS: the App Store id is assigned at submission —
     // see docs/RELEASE-RUNBOOK.md (R-5 / S-9). Falls back to the store search.
-    const androidPkg = Constants.expoConfig?.android?.package ?? 'com.athanor.app';
+    const androidPkg = Constants.expoConfig?.android?.package ?? 'world.athanor.app';
     const url =
       Platform.OS === 'android'
         ? `https://play.google.com/store/apps/details?id=${androidPkg}`
