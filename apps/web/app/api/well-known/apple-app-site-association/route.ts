@@ -17,7 +17,7 @@ const AASA = {
   applinks: {
     details: [
       {
-        appID: '<TEAMID>.com.athanor.app',
+        appID: '<TEAMID>.world.athanor.app',
         paths: ['/momento/*', '/event/*', '/post/*', '/dream/*', '/@*', '/invite/*'],
       },
     ],

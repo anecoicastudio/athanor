@@ -16,14 +16,14 @@
       "url": "https://u.expo.dev/9eb6e3f0-ef63-4467-896e-16136b6fd68f"
     },
     "ios": {
-      "bundleIdentifier": "com.athanor.app",
+      "bundleIdentifier": "world.athanor.app",
       "associatedDomains": ["applinks:www.athanor.world"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.athanor.app",
+      "package": "world.athanor.app",
       "intentFilters": [
         {
           "action": "VIEW",
