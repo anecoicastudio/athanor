@@ -481,6 +481,7 @@ jobs:
               # cannot alter prebuild's output and are already gated by bundle-leak.
               - 'apps/native/package.json'
               - 'apps/native/app.json'
+              - 'apps/native/app.config.ts'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               # The job must test itself (same as the db job's self-listing).

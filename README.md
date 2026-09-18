@@ -49,7 +49,7 @@ read it before trusting a migration's comments. The pgTAP tests are the source o
 ```bash
 pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
-cd apps/native && pnpm exec expo start      # run the app in Expo Go — see the tunnel note below
+cd apps/native && pnpm exec expo start --go # run the app in Expo Go (iOS) — see the tunnel note below
 pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
@@ -67,17 +67,39 @@ round it, both against staging:
 ```bash
 # 1. ngrok tunnel — a public *.exp.direct host, already allow-listed. Slow (US relay,
 #    0.4–0.8 MB/s for a 15 MB Expo Go bundle) and some WiFi DNS filters block ngrok.
-cd apps/native && pnpm exec expo start --tunnel
+cd apps/native && pnpm exec expo start --go --tunnel
 
 # 2. LAN speed under a public name — a hostname that resolves to your Mac's LAN IP.
 #    Allow-listed on staging as exp://**.nip.io:8081/--/auth-callback (2026-09-05).
-cd apps/native && EXPO_PACKAGER_PROXY_URL=http://$(ipconfig getifaddr en0 | tr . -).nip.io:8081 pnpm exec expo start
+cd apps/native && EXPO_PACKAGER_PROXY_URL=http://$(ipconfig getifaddr en0 | tr . -).nip.io:8081 pnpm exec expo start --go
 ```
 
 The first `--tunnel` run asks to install `@expo/ngrok` — say yes; it installs **globally**,
 not into this repo, and nothing is added to any `package.json`. Everything else (feed, dreams,
 hot reload) is fine over plain LAN, and the **iOS Simulator** needs no tunnel: its `127.0.0.1`
 is the Mac, which GoTrue allows.
+
+`--go` is needed since `expo-dev-client` is installed: without it `expo start` opens in
+development-build mode, and Expo Go never loads the bundle.
+
+### Device check — both surfaces, before merge
+
+Every `apps/native` change is checked on **iOS** (simulator or iPhone, in Expo Go) **and on a
+real Android phone** before it merges. Expo Go cannot run this app on Android — the root
+layout reaches `expo-notifications`, which Expo Go Android refuses — so Android runs the
+**development client**: a separate app, `Athanor Dev` (`world.athanor.app.dev`), built once
+from the `development` EAS profile and installed next to the store build.
+
+```bash
+cd apps/native && pnpm start:dev-client     # Metro for the dev client; open Athanor Dev, pick the server
+```
+
+A branch then needs no build: Metro serves its JS to the installed dev client. Rebuild the
+dev client (`pnpm dlx eas-cli build -p android --profile development`) only when a native
+dependency or a config plugin changes. In the dev variant, **email + password sign-in on
+staging works; Google sign-in, sign-up confirmation links, app links and push do not** — it
+has its own scheme (`athanor-dev`), which no Supabase redirect allow-list was set up for, it
+claims no web domain, and it has no FCM config. Those are checked on the store build at release, not per branch.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns

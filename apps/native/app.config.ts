@@ -74,11 +74,44 @@ function rehost(data: FilterData, host: string): FilterData {
   return Array.isArray(data) ? data.map(one) : one(data);
 }
 
+/**
+ * The development-client variant (#755): a second app that installs next to the Play build
+ * on the same phone, so a branch is checked on Android by starting Metro, not by paying for
+ * an EAS build. Set by the `development` profile in eas.json and by `pnpm start:dev-client`;
+ * unset everywhere else, which is the production app exactly.
+ *
+ * It changes identity and nothing else: its own package / bundle id and display name, its
+ * own URL scheme (or both apps claim `athanor://` and an auth return lands in whichever the
+ * OS picks), and no universal-link claim — assetlinks.json and the AASA list only the
+ * production id, so a claim could never verify and would only put a chooser in front of the
+ * Play install's links. Any other value throws: guessing would build the wrong app.
+ */
+const DEV_VARIANT = 'development';
+
+function asDevVariant(config: ExpoConfig): ExpoConfig {
+  const { associatedDomains: _domains, ...ios } = config.ios ?? {};
+  const { intentFilters: _filters, ...android } = config.android ?? {};
+  return {
+    ...config,
+    name: `${config.name} Dev`,
+    scheme: `${config.scheme}-dev`,
+    ios: config.ios && { ...ios, bundleIdentifier: `${config.ios.bundleIdentifier}.dev` },
+    android: config.android && { ...android, package: `${config.android.package}.dev` },
+  };
+}
+
 export default ({ config }: StaticConfig): ExpoConfig => {
   const configured = process.env.EXPO_PUBLIC_SITE_ORIGIN;
   const host = configured ? configuredHost(configured) : defaultHost(config);
 
-  return {
+  const variant = process.env.EXPO_PUBLIC_APP_VARIANT;
+  if (variant && variant !== DEV_VARIANT) {
+    throw new Error(
+      `EXPO_PUBLIC_APP_VARIANT must be unset or "${DEV_VARIANT}", got ${JSON.stringify(variant)}`,
+    );
+  }
+
+  const resolved: ExpoConfig = {
     ...config,
     ios: config.ios && { ...config.ios, associatedDomains: [`applinks:${host}`] },
     android: config.android && {
@@ -88,4 +121,5 @@ export default ({ config }: StaticConfig): ExpoConfig => {
       ),
     },
   };
+  return variant ? asDevVariant(resolved) : resolved;
 };
