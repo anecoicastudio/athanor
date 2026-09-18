@@ -95,8 +95,16 @@ cd apps/native && pnpm start:dev-client     # Metro for the dev client; open Ath
 ```
 
 A branch then needs no build: Metro serves its JS to the installed dev client. Rebuild the
-dev client (`pnpm dlx eas-cli build -p android --profile development`) only when a native
-dependency or a config plugin changes. In the dev variant, **email + password sign-in on
+dev client only when a native dependency or a config plugin changes, locally with the phone on
+USB (needs the Android SDK + JDK 17; the first build takes ~20 min and ~10 GB of disk):
+
+```bash
+cd apps/native && pnpm dlx eas-cli build -p android --profile development --local --output athanor-dev.apk
+adb install -r athanor-dev.apk              # installs next to the store app as "Athanor Dev"
+adb reverse tcp:8081 tcp:8081               # USB: the phone reaches Metro on localhost
+```
+
+In the dev variant, **email + password sign-in on
 staging works; Google sign-in, sign-up confirmation links, app links and push do not** — it
 has its own scheme (`athanor-dev`), which no Supabase redirect allow-list was set up for, it
 claims no web domain, and it has no FCM config. Those are checked on the store build at release, not per branch.
