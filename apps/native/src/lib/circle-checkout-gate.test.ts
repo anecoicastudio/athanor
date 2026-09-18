@@ -47,8 +47,10 @@ describe('the Circle checkout gate fails closed (#747)', () => {
   });
 
   it('gates every purchase control on the screen', () => {
+    // #759 folds the «already subscribed» refusal in: a member the server refused is offered
+    // nothing to buy either.
     expect(SCREEN).toContain(
-      "const canSubscribe = Platform.OS !== 'ios' && checkoutGate === 'open';",
+      "const canSubscribe = Platform.OS !== 'ios' && checkoutGate === 'open' && !alreadySubscribed;",
     );
     // The price read, the price toggle and the renewal disclosure.
     expect(SCREEN).toContain('enabled: !isMember && canSubscribe');
