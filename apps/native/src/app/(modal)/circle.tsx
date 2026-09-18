@@ -404,9 +404,9 @@ export default function CircleScreen() {
             {t('circle.iosUnavailable', locale)}
           </Text>
         ) : alreadySubscribed ? (
-          // #759 — the server refused a second subscription. One body line and one ghost action
-          // (DESIGN §9, the empty-state row): the portal is where a live subscription is managed,
-          // whatever state the cached row shows. Non-iOS only, like every portal entry.
+          // #759 — the server refused a second subscription. A quiet refusal line, like the closed
+          // line beside it, and the portal action: the portal is where a live subscription is
+          // managed, whatever state the cached row shows. Non-iOS only, like every portal entry.
           <View className="gap-2">
             <Text className="text-[13px] leading-5 text-muted-foreground">
               {t('circle.alreadySubscribed', locale)}

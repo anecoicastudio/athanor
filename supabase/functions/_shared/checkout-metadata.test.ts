@@ -148,7 +148,14 @@ Deno.test(
       now: () => new Date('2026-09-18T12:00:00Z'),
       listSubscriptions: () => Promise.resolve([]),
       latestCheckoutSession: () => Promise.resolve(null),
-      listOpenCheckoutSessions: () => Promise.resolve([]),
+      // Nothing open before the mint; after it, the minted Session — so #759's settle step keeps it
+      // and the producer answers 200, as a real checkout would.
+      listOpenCheckoutSessions: () =>
+        Promise.resolve(
+          sessions.length
+            ? [{ id: 'cs_1', mode: 'subscription', created: 1 } as Stripe.Checkout.Session]
+            : [],
+        ),
       expireCheckoutSession: (id) => Promise.resolve({ id } as Stripe.Checkout.Session),
       // A live monthly Price: the gate (#674 item 7) runs before the session is built.
       retrievePrice: () =>
@@ -161,11 +168,12 @@ Deno.test(
       priceIds: { monthly: 'price_month_1', annual: 'price_year_1' },
       appBase: APP,
     };
-    await createCircleCheckout(producerCtx, {
+    const produced = await createCircleCheckout(producerCtx, {
       profileId: PROFILE,
       email: 'seeker@example.com',
       plan: 'monthly',
     });
+    assertEquals(produced.status, 200, 'the producer must have handed out a checkout');
     const params = sessions[0];
 
     // Path A (W11): the checkout session's own metadata must route to the subscription reconcile.
