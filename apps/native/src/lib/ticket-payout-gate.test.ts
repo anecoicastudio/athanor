@@ -34,8 +34,13 @@ describe('the ticket bar withdraws the offer when the organiser cannot be paid (
     expect(buy).toBeGreaterThan(gate);
   });
 
-  it('keeps the button inert while the read is in flight', () => {
+  it('keeps the button inert while the read is in flight, and never for long', () => {
     expect(BAR).toContain("disabled={phase === 'opening' || !uid || payableQ.isPending}");
+    // A pending read holds the button dead, so it must settle fast: no retry ladder, and no
+    // offline pause (which would hold it dead indefinitely with nothing said).
+    const q = BAR.slice(BAR.indexOf('const payableQ'), BAR.indexOf('const organizerUnpayable'));
+    expect(q).toContain('retry: false');
+    expect(q).toContain("networkMode: 'always'");
   });
 
   it('keeps the server refusal mapped — the client gate is a courtesy', () => {

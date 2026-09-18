@@ -41,8 +41,8 @@ const ERROR_COPY: Record<string, MessageKey> = {
   'organizer cannot receive payouts': 'ticket.error.organizerPayouts',
   // #701 — the checkout belt for an event priced under the floor. Near-unreachable (the CHECK and
   // both write gates refuse such a row at creation), but mapped for the same reason the payout arm
-  // above is: unmapped it degrades to 'payment failed', which is false twice over — no payment was
-  // attempted, and nothing the BUYER can do fixes it. The copy says whose problem it is.
+  // above is: unmapped it degraded to the generic fallback, which told the buyer to try again when
+  // nothing the BUYER can do fixes it. The copy says whose problem it is.
   'ticket below minimum price': 'ticket.error.belowMinimum',
   'organizer cannot buy': 'ticket.error.organizerSelf',
   'event ended': 'ticket.error.eventEnded',
@@ -92,6 +92,12 @@ export function TicketBar({
     enabled: !!uid,
     staleTime: 60_000,
     meta: { persist: false },
+    // The button is inert while this is pending, so a slow answer costs a purchase. No retries
+    // (an error already leaves the button live) and `networkMode: 'always'` (offline, the default
+    // would PAUSE the read and hold the button dead with nothing said; this way it fails fast,
+    // and a tap gets ticket.error.unavailable from the checkout call instead).
+    retry: false,
+    networkMode: 'always',
   });
   const organizerUnpayable = payableQ.data === false;
   const hasTicket = ticket?.status === 'paid' || ticket?.status === 'checked_in';
