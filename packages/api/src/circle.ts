@@ -55,10 +55,41 @@ export async function startCheckout(
   const res = await client.functions.invoke<unknown>('create-circle-checkout', {
     body: { plan: input.plan },
   });
-  // supabase-js types FunctionsResponse.error as `any`; every concrete case
-  // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
-  if (res.error) throw res.error as Error;
+  if (res.error) {
+    // On a non-2xx, FunctionsHttpError hangs the Response off `.context` — the JSON body is the
+    // only place the server's reason survives (the TicketCheckoutError idiom, events.ts). An
+    // unreadable body (relay/network failure, non-JSON) falls back to the raw error unchanged.
+    const ctx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } })
+      .context;
+    if (ctx && typeof ctx.json === 'function' && typeof ctx.status === 'number') {
+      let code: unknown;
+      try {
+        code = ((await ctx.json()) as { error?: unknown } | null)?.error;
+      } catch {
+        // body unreadable — rethrow the raw error below
+      }
+      if (typeof code === 'string') throw new CircleCheckoutError(code, ctx.status);
+    }
+    // supabase-js types FunctionsResponse.error as `any`; every concrete case
+    // (FunctionsHttpError/RelayError/FetchError) extends FunctionsError extends Error.
+    throw res.error as Error;
+  }
   return circleCheckoutResultSchema.parse(res.data);
+}
+
+/**
+ * A refusal from create-circle-checkout. `code` is the server's `{error}` string — the stable
+ * contract; the screen maps it to copy (#747: `circle checkout closed` → the closed line).
+ * Plumbing only: no message mapping here (rule api.md).
+ */
+export class CircleCheckoutError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(`create-circle-checkout refused: ${code} (${status})`);
+    this.name = 'CircleCheckoutError';
+  }
 }
 
 /**

@@ -64,4 +64,14 @@ describe('the Circle checkout gate fails closed (#747)', () => {
     // one left behind would reopen a surface of the offer on Android with the flag off.
     expect(SCREEN).not.toContain("Platform.OS !== 'ios' ? (");
   });
+
+  it("maps the server's closed refusal to the closed line, not to an error", () => {
+    // The server gate (create-circle-checkout) refuses with this stable code; a client whose
+    // read said open inside the 60s window must end on the closed line, not «Qualcosa non ha
+    // funzionato».
+    expect(SCREEN).toContain(
+      "e instanceof CircleCheckoutError && e.code === 'circle checkout closed'",
+    );
+    expect(SCREEN).toContain("const checkoutGate = serverClosed ? 'closed' : clientGate;");
+  });
 });

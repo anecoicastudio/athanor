@@ -5,11 +5,13 @@ import * as Linking from 'expo-linking';
 import { useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CircleCheckoutError,
   circleKeys,
   entitlementKeys,
   getCirclePrices,
   getMyMembership,
   openCustomerPortal,
+  remoteConfigKeys,
   startCheckout,
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
@@ -59,6 +61,9 @@ export default function CircleScreen() {
   const [checkoutPhase, setCheckoutPhase] = useState<'idle' | 'opening' | 'portal'>('idle');
   const [checkoutError, setCheckoutError] = useState(false);
   const [portalError, setPortalError] = useState(false);
+  // The server said checkout is closed (#747) — its answer outranks a client read that said open
+  // (a flag flipped off inside the read's 60s staleness window). Same closed line, no error.
+  const [serverClosed, setServerClosed] = useState(false);
 
   // ── Entitlements query ──────────────────────────────────────────────────────
   // Shares the canonical EntitlementView shape + cache key with CircleGate's
@@ -76,7 +81,8 @@ export default function CircleScreen() {
   // live CTA against test-mode keys takes a member to a Checkout that cannot complete. It
   // fails closed — see useCircleCheckoutGate. Only the purchase controls hang off it; the
   // pitch, the benefits, the legal links and a member's Manage button stay.
-  const checkoutGate = useCircleCheckoutGate();
+  const clientGate = useCircleCheckoutGate();
+  const checkoutGate = serverClosed ? 'closed' : clientGate;
   const canSubscribe = Platform.OS !== 'ios' && checkoutGate === 'open';
 
   // ── Live Stripe amounts (#644) ──────────────────────────────────────────────
@@ -167,10 +173,17 @@ export default function CircleScreen() {
         devWarn('[circle] startCheckout', 'returned kind=iap — StoreKit path not implemented');
         setCheckoutError(true);
       }
-    } catch {
-      // Checkout-session failure happens before any subscription exists, so the query
-      // error state never fires — surface it inline instead.
-      setCheckoutError(true);
+    } catch (e) {
+      if (e instanceof CircleCheckoutError && e.code === 'circle checkout closed') {
+        // #747 — not a failure: checkout is closed server-side. Show the closed line, and
+        // re-read the flag so the client gate catches up with the server.
+        setServerClosed(true);
+        void qc.invalidateQueries({ queryKey: remoteConfigKeys.live() });
+      } else {
+        // Checkout-session failure happens before any subscription exists, so the query
+        // error state never fires — surface it inline instead.
+        setCheckoutError(true);
+      }
     } finally {
       setCheckoutPhase('idle');
     }
