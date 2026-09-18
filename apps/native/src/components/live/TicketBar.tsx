@@ -78,15 +78,17 @@ export function TicketBar({
 
   // #747 — can the organiser be paid right now? The write-time gate (enforce_paid_event_gate)
   // already refuses a paid event from an organiser without payouts, so this catches the case it
-  // cannot: `payouts_enabled` flipping false AFTER the event went live (a close proxy for Stripe's
-  // `transfers` capability, not the capability itself — MIGRATIONS-ERRATA, 20260906141227). Without
-  // it the bar offers a button that can only end in a refusal. A courtesy, never the authority — the server's
-  // `organizer cannot receive payouts` refusal stays, and is still mapped in ERROR_COPY.
+  // cannot: `payouts_enabled` flipping false AFTER the event went live (a close proxy for
+  // Stripe's `transfers` capability, not the capability itself — MIGRATIONS-ERRATA,
+  // 20260906141227). Without it the bar offers a button that can only end in a refusal. A
+  // courtesy, never the authority — the server's `organizer cannot receive payouts` refusal
+  // stays, and is still mapped in ERROR_COPY.
   //
   // `persist: false`: a money read must not hydrate yesterday's answer (lib/query-client.ts);
-  // a cold start always asks. An ERROR leaves the button live — a failed courtesy check is no
-  // evidence the organiser cannot be paid, and the server will say so precisely if they cannot.
-  // Only an explicit `false` withdraws the offer.
+  // a cold start always asks. Only a `false` in `data` withdraws the offer. A FIRST read that
+  // errors leaves the button live — a failed courtesy check is no evidence the organiser
+  // cannot be paid, and the server will say so precisely if they cannot. A refetch that errors
+  // keeps whatever `data` it had, so an offer already withdrawn stays withdrawn.
   const payableQ = useQuery({
     queryKey: payoutKeys.organizer(event.organizer_id),
     queryFn: () => getOrganizerPayoutsEnabled(supabase, event.organizer_id),
@@ -94,7 +96,7 @@ export function TicketBar({
     staleTime: 60_000,
     meta: { persist: false },
     // The button is inert while this is pending, so a slow answer costs a purchase. No retries
-    // (an error already leaves the button live) and `networkMode: 'always'` (offline, the default
+    // (a first-read error already leaves the button live) and `networkMode: 'always'` (offline, the default
     // would PAUSE the read and hold the button dead with nothing said; this way it fails fast,
     // and a tap gets ticket.error.unavailable from the checkout call instead).
     retry: false,
@@ -232,19 +234,25 @@ export function TicketBar({
         <Text className="text-center text-[12px] text-ink-2">
           {t('ticket.error.organizerPayouts', locale)}
         </Text>
+        {/* Kept like the sold-out arm: a refusal from the tap that preceded this state. */}
+        {errorMsg ? <Text className="text-center text-[12px] text-error">{errorMsg}</Text> : null}
       </View>
     );
   }
 
   const priceLabel = formatPrice(event.price_cents, event.currency, locale);
+  // A buyer never reaches Checkout while the payability read is still in flight (#747) — and
+  // the button SAYS so: dimmed like Button's inert state and marked busy, instead of a fully
+  // lit control that ignores the tap. The label keeps the price, so nothing jumps.
+  const checking = !!uid && payableQ.isPending;
   return (
     <View className="gap-2">
       <Pressable
-        className="rounded-ctl bg-aura px-5 py-3"
-        // A buyer never reaches Checkout while the payability read is still in flight (#747).
-        disabled={phase === 'opening' || !uid || payableQ.isPending}
+        className={`rounded-ctl bg-aura px-5 py-3${checking ? ' opacity-40' : ''}`}
+        disabled={phase === 'opening' || !uid || checking}
         onPress={() => void onBuy()}
         accessibilityRole="button"
+        accessibilityState={{ disabled: phase === 'opening' || !uid || checking, busy: checking }}
       >
         <Text className="text-center text-[14px] font-semibold text-on-aura">
           {t(phase === 'opening' ? 'ticket.opening' : 'ticket.buy', locale, { price: priceLabel })}

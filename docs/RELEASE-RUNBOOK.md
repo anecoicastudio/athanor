@@ -464,12 +464,13 @@ configured"}` means an id is unset or its Price failed a gate (archived, one-off
    step 4 if the ids were swapped last.
 
 7. **Open the Circle purchase CTA** (#747) — only once step 6 returned the live amounts, and
-   only on a production whose `create-circle-checkout` carries the server gate (deployed at
-   §4.3, step 1 above). The flag is enforced twice: the app hides the CTA, and the function
-   refuses `403 {"error":"circle checkout closed"}` before any Stripe call. An installed build
-   from before #747 ignores the flag entirely, so until that function version is live on
-   production the flag is not a gate for those builds — confirm the deploy before relying on it. Until
-   this row exists the app renders no Circle purchase button on production: the gate fails
+   only on a production whose `create-circle-checkout` carries the server gate (step 1 above,
+   via §4.3). The flag is enforced twice: the app hides the CTA, and the function refuses
+   `403 {"error":"circle checkout closed"}` before any Stripe call. An installed build from
+   before #747 ignores the flag entirely, so until that function version is live on production
+   the flag is not a gate for those builds — confirm the deploy (the function's version and
+   date, not only a green `pnpm deploy:check`) before relying on it. Until this row exists, a
+   build carrying this change renders no Circle purchase button on production: the gate fails
    closed on an absent row, a failed read, and a stale cache alike, because a CTA against
    test-mode keys sends a member to a Checkout that cannot complete. Staging carries the row as
    `true` from its seed; production must not get it before the swap.
@@ -979,7 +980,7 @@ on conflict (key) do update set value = excluded.value;
 
 ### 6.3 Seeding initial rows before launch
 
-Before going live, seed the five well-known keys with their default values:
+Before going live, seed five of the six well-known keys with their default values — `circle_checkout_enabled` is left out on purpose (note below):
 
 ```sql
 insert into public.remote_config (key, value) values

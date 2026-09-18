@@ -3,7 +3,12 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import type { CirclePlan } from '@athanor/schemas';
 import { error, json } from '../_shared/respond.ts';
 import { logStripeFailure } from '../_shared/stripe-error.ts';
-import { logPriceRefusal, servableAmount, type PriceRefusalSink } from '../_shared/circle-price.ts';
+import {
+  consoleRefusalSink,
+  logPriceRefusal,
+  servableAmount,
+  type PriceRefusalSink,
+} from '../_shared/circle-price.ts';
 import type { CirclePriceIds } from '../_shared/stripe.ts';
 
 // Circle-checkout construction extracted from index.ts so it is unit-testable (deno test):
@@ -62,20 +67,36 @@ export const CIRCLE_CHECKOUT_FLAG = 'circle_checkout_enabled';
  * public-read policy, and `_shared/auth-posture.test.ts` forbids the service role in a
  * user-callable function. It is the same read `version-gate.ts` makes.
  */
-export async function isCircleCheckoutOpen(userClient: SupabaseClient): Promise<boolean> {
+export type CheckoutGate =
+  | { open: true }
+  | { open: false; reason: 'read-error' | 'absent' | 'malformed' | 'off' };
+
+export async function readCircleCheckoutGate(userClient: SupabaseClient): Promise<CheckoutGate> {
   const { data, error: readError } = await userClient
     .from('remote_config')
     .select('value')
     .eq('key', CIRCLE_CHECKOUT_FLAG)
     .maybeSingle();
-  if (readError) {
-    console.warn(`${FN}: ${CIRCLE_CHECKOUT_FLAG} read failed; refusing`, readError);
-    return false;
-  }
-  const value = (data as { value?: unknown } | null)?.value;
-  return (
-    typeof value === 'object' && value !== null && (value as { enabled?: unknown }).enabled === true
-  );
+  // The error wins over any payload that came with it: a read that failed proved nothing.
+  if (readError) return { open: false, reason: 'read-error' };
+  if (data == null) return { open: false, reason: 'absent' };
+  const value = (data as { value?: unknown }).value;
+  if (typeof value !== 'object' || value === null) return { open: false, reason: 'malformed' };
+  const enabled = (value as { enabled?: unknown }).enabled;
+  if (typeof enabled !== 'boolean') return { open: false, reason: 'malformed' };
+  return enabled ? { open: true } : { open: false, reason: 'off' };
+}
+
+/**
+ * One line per closed refusal, naming the function and why — the logPriceRefusal convention.
+ * Configuration only: no profile id, no email, nothing a member typed. `off` is the expected
+ * state on production before the cutover, so it logs the same one line and nothing louder.
+ */
+export function logCheckoutClosed(
+  reason: Exclude<CheckoutGate, { open: true }>['reason'],
+  sink: PriceRefusalSink = consoleRefusalSink,
+): void {
+  sink(`[circle] ${FN}: checkout closed ${JSON.stringify({ flag: CIRCLE_CHECKOUT_FLAG, reason })}`);
 }
 
 export type CircleCheckoutInput = {
@@ -141,7 +162,11 @@ export async function createCircleCheckout(
 
   // #747 — first, before any Stripe call: a closed checkout mints no Customer and no Session,
   // whatever the client showed. 403 with a stable code the app maps to its closed line.
-  if (!(await isCircleCheckoutOpen(userClient))) return error('circle checkout closed', 403);
+  const gate = await readCircleCheckoutGate(userClient);
+  if (!gate.open) {
+    logCheckoutClosed(gate.reason, refusalSink);
+    return error('circle checkout closed', 403);
+  }
 
   if (!isCirclePlan(plan)) return error('plan must be monthly or annual', 400);
 

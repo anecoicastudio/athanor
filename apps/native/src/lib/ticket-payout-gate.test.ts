@@ -25,8 +25,9 @@ describe('the ticket bar withdraws the offer when the organiser cannot be paid (
   });
 
   it('withdraws only on an explicit false, and before the buy button renders', () => {
-    // `=== false`, so a failed read leaves the server as the authority rather than hiding a
-    // button that would have worked.
+    // `=== false`, so a first read that fails leaves the server as the authority rather than
+    // hiding a button that would have worked. (A failed REFETCH keeps its old data, so an offer
+    // already withdrawn stays withdrawn — TanStack keeps `data` across an error.)
     expect(BAR).toContain('const organizerUnpayable = payableQ.data === false;');
     const gate = BAR.indexOf('if (organizerUnpayable)');
     const buy = BAR.indexOf("'ticket.buy'");
@@ -35,7 +36,11 @@ describe('the ticket bar withdraws the offer when the organiser cannot be paid (
   });
 
   it('keeps the button inert while the read is in flight, and never for long', () => {
-    expect(BAR).toContain("disabled={phase === 'opening' || !uid || payableQ.isPending}");
+    expect(BAR).toContain('const checking = !!uid && payableQ.isPending;');
+    expect(BAR).toContain("disabled={phase === 'opening' || !uid || checking}");
+    // …and visibly so: dimmed and busy, not a lit button that ignores the tap.
+    expect(BAR).toContain("checking ? ' opacity-40' : ''");
+    expect(BAR).toContain('busy: checking');
     // A pending read holds the button dead, so it must settle fast: no retry ladder, and no
     // offline pause (which would hold it dead indefinitely with nothing said).
     const q = BAR.slice(BAR.indexOf('const payableQ'), BAR.indexOf('const organizerUnpayable'));

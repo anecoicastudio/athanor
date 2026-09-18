@@ -307,54 +307,81 @@ Deno.test('session without url / customer create throw → clean 500', async () 
 
 const flag = (r: FakeResult): Record<string, FakeResult[]> => ({ 'remote_config.select': [r] });
 
-const assertClosedUntouched = (c: Ctx, res: Response, body: { error?: string }) => {
+const assertClosedUntouched = (
+  c: Ctx,
+  res: Response,
+  body: { error?: string },
+  reason: 'read-error' | 'absent' | 'malformed' | 'off',
+) => {
   assertEquals(res.status, 403);
   assertEquals(body.error, 'circle checkout closed');
   assertEquals(c.pricesRetrieved, [], 'no Stripe read before the flag check');
   assertEquals(c.customersCreated, [], 'no Customer minted');
   assertEquals(c.sessionsCreated, [], 'no Checkout Session minted');
   assertEquals(dataCalls(c), [], 'no membership read either');
+  assertEquals(
+    c.db.calls.filter((k) => k.table === 'remote_config').length,
+    1,
+    'exactly one flag read',
+  );
+  assertEquals(c.refusals, [
+    `[circle] create-circle-checkout: checkout closed ${JSON.stringify({
+      flag: 'circle_checkout_enabled',
+      reason,
+    })}`,
+  ]);
 };
 
-Deno.test('#747 flag on → checkout proceeds, and the read names the key', async () => {
-  const c = ctx();
-  const { res } = await run(c, 'monthly');
-  assertEquals(res.status, 200);
-  assertEquals(c.sessionsCreated.length, 1);
-  const read = c.db.calls[0];
-  assertEquals(read.table, 'remote_config', 'the flag is the first read');
-  assertEquals(read.filters, [['eq', 'key', CIRCLE_CHECKOUT_FLAG]]);
-  assertEquals(CIRCLE_CHECKOUT_FLAG, 'circle_checkout_enabled');
-});
+Deno.test(
+  '#747 flag on → checkout proceeds, the read names the key, nothing is logged',
+  async () => {
+    const c = ctx();
+    const { res } = await run(c, 'monthly');
+    assertEquals(res.status, 200);
+    assertEquals(c.sessionsCreated.length, 1);
+    const read = c.db.calls[0];
+    assertEquals(read.table, 'remote_config', 'the flag is the first read');
+    assertEquals(read.filters, [['eq', 'key', CIRCLE_CHECKOUT_FLAG]]);
+    assertEquals(CIRCLE_CHECKOUT_FLAG, 'circle_checkout_enabled');
+    assertEquals(c.refusals, []);
+  },
+);
 
 Deno.test('#747 flag off → 403 circle checkout closed, nothing touched', async () => {
   const c = ctx(flag({ data: { value: { enabled: false } } }));
   const { res, body } = await run(c, 'monthly');
-  assertClosedUntouched(c, res, body);
+  assertClosedUntouched(c, res, body, 'off');
 });
 
 Deno.test('#747 flag absent → closed', async () => {
   const c = ctx(flag({ data: null }));
   const { res, body } = await run(c, 'monthly');
-  assertClosedUntouched(c, res, body);
+  assertClosedUntouched(c, res, body, 'absent');
 });
 
 Deno.test('#747 flag malformed → closed (truthy is not true)', async () => {
   for (const value of [{ enabled: 'true' }, { enabled: 1 }, {}, null, 'on', true]) {
     const c = ctx(flag({ data: { value } }));
     const { res, body } = await run(c, 'annual');
-    assertClosedUntouched(c, res, body);
+    assertClosedUntouched(c, res, body, 'malformed');
   }
 });
 
-Deno.test('#747 flag read error → closed, never open', async () => {
-  const c = ctx(flag({ data: null, error: { message: 'connection reset', code: '08006' } }));
+Deno.test('#747 flag read error → closed, even when an open payload rides along', async () => {
+  // The payload says open; only the error arm can close this — so a gate that ignored the
+  // error would go red here instead of passing on the payload's absence.
+  const c = ctx(
+    flag({
+      data: { value: { enabled: true } },
+      error: { message: 'connection reset', code: '08006' },
+    }),
+  );
   const { res, body } = await run(c, 'monthly');
-  assertClosedUntouched(c, res, body);
+  assertClosedUntouched(c, res, body, 'read-error');
 });
 
 Deno.test('#747 the flag is checked before the plan is even validated', async () => {
   const c = ctx(flag({ data: null }));
   const { res, body } = await run(c, 'weekly');
-  assertClosedUntouched(c, res, body);
+  assertClosedUntouched(c, res, body, 'absent');
 });

@@ -114,8 +114,9 @@ describe('every checkout refusal has its own copy (#701)', () => {
 
   it('falls back to a sentence that claims no payment failed (#747)', () => {
     // The fallback is reached only before Checkout opens, so its copy must not say a payment
-    // was attempted. Pinned by key AND by the catalogs, so reintroducing the old string under
-    // a new key is caught as well as reintroducing the old key.
+    // was attempted. Pinned by key AND by the `ticket.error.*` copy in both catalogs, so the old
+    // sentence returning under another ticket error key is caught too — a key outside that
+    // namespace is not scanned.
     expect(BAR).toContain("|| 'ticket.error.unavailable', locale)");
     expect(BAR).not.toContain("'ticket.error.payment'");
     for (const lang of ['it', 'en'] as const) {

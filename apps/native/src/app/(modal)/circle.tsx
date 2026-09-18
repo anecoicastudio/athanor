@@ -175,8 +175,9 @@ export default function CircleScreen() {
       }
     } catch (e) {
       if (e instanceof CircleCheckoutError && e.code === 'circle checkout closed') {
-        // #747 — not a failure: checkout is closed server-side. Show the closed line, and
-        // re-read the flag so the client gate catches up with the server.
+        // #747 — not a failure: checkout is closed server-side. Show the closed line.
+        // `serverClosed` latches for this mount; the invalidate is for the NEXT mount, so it
+        // re-reads the flag instead of reusing the cached `true` that let this tap through.
         setServerClosed(true);
         void qc.invalidateQueries({ queryKey: remoteConfigKeys.live() });
       } else {

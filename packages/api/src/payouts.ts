@@ -78,7 +78,7 @@ export async function getMyPayoutAccount(client: AthanorClient): Promise<MyPayou
  * missing row coalesced to false (`20260906141227_ticket_split_payout_gate.sql:22-54`).
  *
  * A COURTESY, never the authority (rules 6 and 8): it lets the ticket bar stop offering a button
- * that would fail, most usefully after Stripe revokes the capability on an event that passed the
+ * that would fail, most usefully after `payouts_enabled` flips false on an event that passed the
  * write-time gate. The server-side refusal in `create-ticket-checkout` stays the gate.
  */
 export async function getOrganizerPayoutsEnabled(

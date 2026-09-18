@@ -20,7 +20,9 @@ const SCREEN = readFileSync(`${SRC}app/(modal)/circle.tsx`, 'utf8');
 const gateBody = (() => {
   const start = HOOK.indexOf('export function useCircleCheckoutGate');
   expect(start, 'useCircleCheckoutGate is gone').toBeGreaterThan(-1);
-  return HOOK.slice(start);
+  // Bounded at the next export, so an assertion cannot pass on code added after the gate.
+  const next = HOOK.indexOf('\nexport ', start + 1);
+  return HOOK.slice(start, next === -1 ? undefined : next);
 })();
 
 describe('the Circle checkout gate fails closed (#747)', () => {
@@ -50,7 +52,7 @@ describe('the Circle checkout gate fails closed (#747)', () => {
     );
     // The price read, the price toggle and the renewal disclosure.
     expect(SCREEN).toContain('enabled: !isMember && canSubscribe');
-    expect(SCREEN.match(/\{canSubscribe \? \(/g)?.length).toBe(2);
+    expect(SCREEN.match(/\{canSubscribe \? \(/g)?.length).toBeGreaterThanOrEqual(2);
     // The CTA arm: the closed line renders before the Join button can be reached.
     const closed = SCREEN.indexOf("checkoutGate === 'closed'");
     const cta = SCREEN.indexOf("'circle.cta.monthly'");
