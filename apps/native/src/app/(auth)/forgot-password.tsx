@@ -44,6 +44,10 @@ export default function ForgotPasswordScreen() {
   const reveal = useRevealOnFocus();
   const submitting = phase === 'submitting';
   const disabled = submitting || !EMAIL_RE.test(email.trim());
+  // #752, the same dead end as sign-in: the keyboard's key sends, through the CTA's own gate.
+  const submitFromKeyboard = () => {
+    if (!disabled) void submit();
+  };
 
   // G2: state carried by text and announced explicitly (Android-only live regions
   // would leave iOS silent) — the same two transitions welcome.tsx announces.
@@ -171,12 +175,15 @@ export default function ForgotPasswordScreen() {
                   placeholder={t('auth.email.placeholder', locale)}
                   value={email}
                   onChangeText={setEmail}
+                  returnKeyType="send"
+                  onSubmitEditing={submitFromKeyboard}
                 />
               </View>
 
               {error ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
 
-              <View className="mt-7 gap-3">
+              {/* Revealed with the email row (#752) — see the same block in welcome.tsx. */}
+              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
                 <Button
                   variant="light"
                   label={t('auth.forgot.cta', locale)}
